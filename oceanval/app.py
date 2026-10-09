@@ -59,7 +59,7 @@ import urllib.parse
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
-from oceanval import depths, own_data, recipe_checks, recipe_forms, time_res, transects, units, user_cache, user_recipes
+from oceanval import depths, own_data, recipe_checks, recipe_forms, selection, time_res, transects, units, user_cache, user_recipes
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
     _create_recipes,
@@ -224,6 +224,9 @@ def default_validate_form():
         "transect_end_lon": "",
         "transect_end_lat": "",
         "depth_bins": default_depth_boxes(),
+        # the matchups listed whose ticks were taken off, by their
+        # "variable/source": any others, as of matchups found later, are ticked
+        "unticked": [],
     }
 
 
@@ -410,12 +413,25 @@ def _form(form, defaults):
         name: (
             bool(form.get(name, value))
             if isinstance(value, bool)
+            else _keys(form.get(name, value))
+            if name in KEY_LISTS
             else _pairs(form.get(name, value))
             if isinstance(value, list)
             else str(form.get(name, value) or "").strip()
         )
         for name, value in defaults.items()
     }
+
+
+# the boxes that are lists of names, such as the matchups unticked
+KEY_LISTS = ("unticked",)
+
+
+def _keys(names):
+    """A list of names the page sent, leaving out anything that is not one."""
+    if not isinstance(names, list):
+        return []
+    return [name.strip() for name in names if isinstance(name, str) and name.strip()]
 
 
 def _pairs(rows):
@@ -501,21 +517,58 @@ def check_validate(form, cwd):
         "data_dir": _path(form["data_dir"] or ".", cwd),
         "out_dir": _path(form["out_dir"] or ".", cwd),
     }
+    matchups = None
     try:
         oceanval._check_matchups(arguments["data_dir"])
+        matchups = selection.on_disk(arguments["data_dir"])
     except ValueError as error:
         errors["data_dir"] = str(error)
     if os.path.isfile(arguments["out_dir"]):
         errors["out_dir"] = "This is a file, not a directory."
+    # the options of matchups that are not there, or not ticked, are not asked about
+    form, variables = choose_matchups(form, matchups, errors)
     report, report_errors = check_report(form, cwd)
     arguments.update(report)
     errors.update(report_errors)
-    # the matchups are there to look at, unlike when they are still to be made
-    if "transect" in report and not glob.glob(
-        os.path.join(glob.escape(arguments["data_dir"]), "oceanval_matchups", "gridded", "*", "*.nc")
-    ):
-        errors["transect"] = "There are no gridded matchups here to validate along a transect."
+    if variables is not None:
+        arguments["variables"] = variables
     return arguments, errors
+
+
+# why the report cannot be built from the matchups ticked, as the page says it too
+NONE_TICKED = "Tick at least one dataset to validate."
+
+
+def choose_matchups(form, matchups, errors):
+    """The report options step's boxes, with those for matchups of a kind
+    none of which are ticked put back as they start, so that they are not
+    used: a transect, regional summaries and fixed colour scales are for
+    gridded matchups, and the depth bins for point matchups through the
+    water column. Returned with validate()'s variables, the "variable/source"
+    of each matchup ticked, or None if they all are. matchups are as
+    selection.on_disk gives them, or None if they are not known, which
+    leaves the boxes as they are. If none is ticked, errors["variables"]
+    says so."""
+    if matchups is None:
+        return form, None
+    unticked = set(form.get("unticked") or ())
+    ticked = [matchup for matchup in matchups if matchup["key"] not in unticked]
+    if matchups and not ticked:
+        errors["variables"] = NONE_TICKED
+    form = dict(form)
+    defaults = default_validate_form()
+    if not any(matchup["kind"] == "gridded" for matchup in ticked):
+        for name in GRIDDED_ONLY:
+            form[name] = defaults[name]
+    if not any(matchup["kind"] == "point" and matchup["vertical"] for matchup in ticked):
+        form["depth_bins"] = defaults["depth_bins"]
+    if len(ticked) == len(matchups):
+        return form, None
+    return form, list(dict.fromkeys(matchup["key"] for matchup in ticked))
+
+
+# the report options that are only for gridded matchups
+GRIDDED_ONLY = ("subregions", "subregions_file", "fixed_scale", "transect")
 
 
 def check_report(form, cwd):
@@ -1480,6 +1533,9 @@ class App:
                     "dir": self.results_dir or self.out_dir,
                     "gridded": self._report_gridded(),
                     "vertical": self._report_vertical(),
+                    "matchups": (
+                        self._report_matchups() if self.view == "report_options" else None
+                    ),
                 },
                 "own": {
                     "entries": self.own_data,
@@ -3004,6 +3060,21 @@ class App:
             return True
         return bool(self.own_data["gridded"])
 
+    def _report_matchups(self):
+        """The matchups the report options of a matchup and validate run
+        list, to choose those the report validates (see choose_matchups):
+        those matchup asks about, or, if it has made them without asking,
+        those it made. None if they are not known."""
+        question = self._held_matchups()
+        if question is not None:
+            listed = question.details.get("matchups")
+            return listed if isinstance(listed, list) else None
+        if self.view != "report_options" or self.report_arguments is not None:
+            return None
+        directory = self.results_dir or self.out_dir
+        found = selection.on_disk(directory) if directory else []
+        return found or None
+
     def _report_vertical(self):
         """Whether the run's matchups include point ones through the water
         column, which the depth bins are for: from the point recipes chosen
@@ -3130,16 +3201,24 @@ class App:
                 return 409, {"ok": False, "error": "This step is over."}
             self.validate_form = _form(form, default_validate_form())
             form = dict(self.validate_form)
-        # a transect is only asked for with gridded matchups
-        if self._report_gridded() is False:
-            form["transect"] = False
-        # and depth bins only with point matchups through the water column
-        if self._report_vertical() is False:
-            form["depth_bins"] = default_depth_boxes()
+        errors = {}
+        matchups = self._report_matchups()
+        form, variables = choose_matchups(form, matchups, errors)
+        if matchups is None:
+            # the options for gridded matchups are only asked for with them
+            if self._report_gridded() is False:
+                for name in GRIDDED_ONLY:
+                    form[name] = default_validate_form()[name]
+            # and depth bins only with point matchups through the water column
+            if self._report_vertical() is False:
+                form["depth_bins"] = default_depth_boxes()
         # outside the lock: reading a regions file can take a moment
-        report, errors = check_report(form, self.cwd)
+        report, report_errors = check_report(form, self.cwd)
+        errors.update(report_errors)
         if errors:
             return 400, {"ok": False, "errors": errors}
+        if variables is not None:
+            report["variables"] = variables
         with self._lock:
             if self.view != "report_options":
                 return 409, {"ok": False, "error": "This step is over."}
@@ -3200,6 +3279,23 @@ class App:
                 ["validate", json.dumps(arguments)], _validate_call(arguments, self.cwd)
             )
         return 200, {"ok": True}
+
+    def matchups_found(self, data_dir):
+        """What the validate step says about the matchups as their directory
+        is typed in: status "found", with the matchups validate() can make
+        a page for (as selection.on_disk gives them), or "missing" (no such
+        directory), "none" (no matchups in it) or "unfinished" (matchup did
+        not finish), with the error that says so. Empty is the directory
+        worked in, as for validate()."""
+        path = _path(data_dir.strip() or ".", self.cwd)
+        if not os.path.isdir(path):
+            return {"status": "missing", "error": "There is no directory at this path.", "matchups": []}
+        try:
+            oceanval._check_matchups(path)
+        except ValueError as error:
+            status = "unfinished" if "did not finish" in str(error) else "none"
+            return {"status": status, "error": str(error), "matchups": []}
+        return {"status": "found", "error": None, "matchups": selection.on_disk(path)}
 
     def probe(self, simdir, ndown, out, exclude="", require="", out_dir=""):
         """What the simulation step says about the simulation as it is typed
@@ -3693,6 +3789,7 @@ class _Handler(recipes_gui._Handler):
             "/api/state",
             "/api/heartbeat",
             "/api/probe",
+            "/api/matchups",
             "/api/browse",
             "/api/files",
             "/api/question_files",
@@ -3736,6 +3833,8 @@ class _Handler(recipes_gui._Handler):
             )
         elif url.path == "/api/browse":
             self._reply_json(200, self.app.browse(query.get("path", "")))
+        elif url.path == "/api/matchups":
+            self._reply_json(200, self.app.matchups_found(query.get("data_dir", "")))
         elif url.path == "/api/files":
             self._reply_json(
                 200,

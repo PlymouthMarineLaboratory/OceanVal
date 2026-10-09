@@ -8,6 +8,9 @@ import pandas as pd
 import glob
 import os
 import shutil
+import tempfile
+
+import pytest
 
 
 class TestFinal:
@@ -293,6 +296,41 @@ class TestMultipleSources:
 
         assert os.path.exists("oceanval_matchups/point/all/temperature/foo/foo_all_temperature.csv")
         assert os.path.exists("oceanval_matchups/point/surface/temperature/bar/bar_surface_temperature.csv")
+
+        # each is a matchup validate() can make a page for, or leave out
+        assert [(m["kind"], m["key"], m["layer"]) for m in oceanval.selection.on_disk(".")] == [
+            ("gridded", "temperature/bar", None),
+            ("gridded", "temperature/foo", None),
+            ("point", "temperature/bar", "surface"),
+            ("point", "temperature/foo", "all"),
+        ]
+
+        class Built(Exception):
+            pass
+
+        def stop(*args, **kwargs):
+            raise Built
+
+        out_dir = tempfile.mkdtemp()
+        try:
+            with pytest.MonkeyPatch.context() as monkeypatch:
+                # the notebooks are all written by then
+                monkeypatch.setattr(oceanval, "_build_book", stop)
+                with pytest.raises(Built):
+                    oceanval.validate(out_dir=out_dir, variables=["temperature/foo"], test=True)
+            notebooks = sorted(
+                os.path.basename(x)
+                for x in glob.glob(f"{out_dir}/oceanval_report/notebooks/*.ipynb")
+            )
+            # numbered from 1, as validate() numbers them
+            assert {x.split("_", 1)[1] for x in notebooks if "temperature" in x} == {
+                "foo_all_temperature.ipynb", "foo_temperature.ipynb",
+            }
+            assert {x.split("_", 1)[0] for x in notebooks if "temperature" in x} == {"001", "002"}
+            with open(f"{out_dir}/oceanval_report/_toc.yml") as toc:
+                assert "bar" not in toc.read()
+        finally:
+            shutil.rmtree(out_dir, ignore_errors=True)
 
         shutil.rmtree("oceanval_matchups", ignore_errors=True)
         oceanval.reset()

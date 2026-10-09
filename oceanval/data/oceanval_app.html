@@ -601,6 +601,28 @@
   .detail-row { display: flex; align-items: center; gap: 12px; }
   .detail-row .g-label { margin: 0; }
   .detail-row .s-select { width: auto; }
+  /* the options' wrapper, which leaves its groups in the form's grid */
+  .form__contents { display: contents; }
+  /* the matchups to validate, in a list that opens */
+  .datasets { max-width: 560px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-sm); }
+  .datasets__summary { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; color: var(--ink); font-size: 13.5px; font-weight: 500; cursor: pointer; list-style: none; }
+  .datasets__summary::-webkit-details-marker { display: none; }
+  .datasets__summary:hover { background: var(--bg-alt); }
+  .datasets__summary:focus-visible { outline: none; box-shadow: var(--focus); }
+  .datasets__chev { flex: none; width: 14px; height: 14px; color: var(--muted); transition: transform 0.15s; }
+  .datasets[open] .datasets__chev { transform: rotate(90deg); }
+  .datasets[open] .datasets__summary { border-bottom: 1px solid var(--line-soft); border-radius: 12px 12px 0 0; }
+  .datasets__question { flex: 1 1 auto; min-width: 0; }
+  .datasets__count { flex: none; padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .datasets__count.is-none { background: rgba(192, 57, 43, 0.08); color: var(--red); }
+  .datasets__body { padding: 4px 14px 6px; }
+  .datasets__kind { padding: 10px 0 8px; }
+  .datasets__kind + .datasets__kind { border-top: 1px solid var(--line-soft); }
+  .datasets__title { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; }
+  .datasets__list { display: grid; gap: 8px; }
+  .datasets__list .tick-label { color: var(--ink); }
+  .datasets__source { color: var(--muted); }
+  .datasets__foot { display: flex; gap: 4px; padding: 8px 0 4px; border-top: 1px solid var(--line-soft); }
   #v-report-dir code { color: var(--ink); font-size: 13.5px; overflow-wrap: anywhere; }
   /* the depth bins: a row for each */
   .depth-bins { max-width: 560px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-sm); }
@@ -911,6 +933,33 @@
         <div class="g-row"><label class="g-label" for="v-out_dir">Which directory do you want to build the report in?</label><div class="path-field"><input class="s-input is-mono" id="v-out_dir" list="v-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-out_dir">Browse…</button></div><datalist id="v-out_dir-folders"></datalist></div>
         <p class="group__msg" id="vm-out_dir"></p>
       </fieldset>
+      <!-- the options, shown once there are matchups to validate, and only those for the matchups ticked -->
+      <div class="form__contents" id="v-options">
+      <fieldset class="group form__wide" id="v-group-variables">
+        <legend>Datasets</legend>
+        <details class="datasets" id="v-datasets">
+          <summary class="datasets__summary">
+            <svg class="datasets__chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="datasets__question">Which datasets do you want to validate?</span>
+            <span class="datasets__count" id="v-datasets-count"></span>
+          </summary>
+          <div class="datasets__body">
+            <div class="datasets__kind" id="v-datasets-gridded">
+              <h3 class="datasets__title">Gridded</h3>
+              <div class="datasets__list" id="v-datasets-gridded-list"></div>
+            </div>
+            <div class="datasets__kind" id="v-datasets-point">
+              <h3 class="datasets__title">Point</h3>
+              <div class="datasets__list" id="v-datasets-point-list"></div>
+            </div>
+            <div class="datasets__foot">
+              <button type="button" class="btn btn--text btn--small" id="v-tick-all">Tick all</button>
+              <button type="button" class="btn btn--text btn--small" id="v-untick-all">Untick all</button>
+            </div>
+          </div>
+        </details>
+        <p class="group__msg" id="vm-variables"></p>
+      </fieldset>
       <div class="form__wide form__stack">
         <fieldset class="group">
           <legend>Do you only want to validate a subregion?</legend>
@@ -928,7 +977,7 @@
           </div>
           <p class="group__msg" id="vm-subset"></p>
         </fieldset>
-        <fieldset class="group">
+        <fieldset class="group" id="v-group-subregions">
           <legend>Which regional summaries do you want?</legend>
           <div class="g-row">
             <select class="s-select" id="v-subregions" aria-label="Which regional summaries do you want?">
@@ -967,7 +1016,7 @@
       </div>
       <fieldset class="group form__wide">
         <legend>Options</legend>
-        <div class="g-row"><label class="tick-label" title="Cap the seasonal plots' colour scales at the 2nd and 98th percentiles of the model and observations"><input type="checkbox" class="tick" id="v-fixed_scale">Do you want model and observations to always use fixed colour scales?</label></div>
+        <div class="g-row" id="row-fixed_scale"><label class="tick-label" title="Cap the seasonal plots' colour scales at the 2nd and 98th percentiles of the model and observations"><input type="checkbox" class="tick" id="v-fixed_scale">Do you want model and observations to always use fixed colour scales?</label></div>
         <div class="g-row detail-row" role="group" aria-labelledby="v-formats-label">
           <span class="g-label" id="v-formats-label">What additional report formats do you want?</span>
           <div class="ticks">
@@ -1005,6 +1054,7 @@
         </div>
         <p class="group__msg" id="vm-depth_bins"></p>
       </fieldset>
+      </div>
       <button type="submit" hidden></button>
     </form>
   </section>
@@ -3064,6 +3114,14 @@
   };
   const validateForm = {};
   let validateErrors = {};
+  // the matchups in the directory typed in, as the live check finds them
+  // (app.matchups_found), and the check asked for last
+  let matchupsFound = null;
+  let matchupsTimer = null;
+  let matchupsNumber = 0;
+  // the list of matchups shown, so that it is only made again when it changes
+  let datasetsShown = null;
+  const NONE_TICKED = "Tick at least one dataset to validate.";
   // while the report options are being sent, so the button stays disabled
   let validateBusy = false;
 
@@ -3279,8 +3337,7 @@
   });
 
   function refreshDepthBins() {
-    // the depth bins are for point matchups through the water column
-    $("v-group-depth_bins").hidden = Boolean(state.report && state.report.vertical === false);
+    // whether the depth bins are asked for is up to refreshDatasets
     const depth = depthCheck();
     [...$("depth-bins-rows").children].forEach((row, i) => {
       for (const input of row.querySelectorAll("input")) {
@@ -3302,6 +3359,7 @@
     Object.assign(validateForm, state.validate.form);
     // a copy, which the boxes change as they are typed in
     validateForm.depth_bins = (state.validate.form.depth_bins || []).map((pair) => [...pair]);
+    validateForm.unticked = [...(state.validate.form.unticked || [])];
     renderDepthBins();
     for (const name of VALIDATE_TEXT) $(`v-${name}`).value = validateForm[name];
     for (const name of VALIDATE_TICKS) $(`v-${name}`).checked = Boolean(validateForm[name]);
@@ -3322,7 +3380,137 @@
         el("code", { text: state.report.dir || state.cwd }), ".");
     }
     validateErrors = {};
+    // the matchups to validate are looked for as soon as their directory is there
+    if (!before) {
+      matchupsFound = null;
+      askMatchups(0);
+    }
     refreshValidate();
+  }
+
+  // what is in the matchups directory, once it has stopped being typed in
+  function askMatchups(delay) {
+    clearTimeout(matchupsTimer);
+    matchupsTimer = setTimeout(async () => {
+      const number = ++matchupsNumber;
+      let found;
+      try {
+        const response = await fetch(`api/matchups?${query({ data_dir: validateForm.data_dir || "" })}`, { cache: "no-store" });
+        found = await response.json();
+      } catch (error) {
+        return;
+      }
+      // a later check has been asked for since
+      if (number !== matchupsNumber) return;
+      matchupsFound = found;
+      refreshValidate();
+    }, delay);
+  }
+
+  // the matchups the report can validate, or null if they are not known
+  function validateMatchups() {
+    if (state.view === "report_options") return (state.report && state.report.matchups) || null;
+    return matchupsFound && matchupsFound.status === "found" ? matchupsFound.matchups : null;
+  }
+
+  // those ticked, or null if the matchups are not known
+  function tickedMatchups() {
+    const matchups = validateMatchups();
+    if (!matchups) return null;
+    const unticked = new Set(validateForm.unticked || []);
+    return matchups.filter((matchup) => !unticked.has(matchup.key));
+  }
+
+  const LAYERS = { surface: "at the surface", all: "through the water column", bottom: "near the bottom" };
+
+  // a tick for each matchup, under Gridded or Point
+  function renderDatasets(matchups) {
+    const shown = JSON.stringify(matchups);
+    if (shown === datasetsShown) return;
+    datasetsShown = shown;
+    for (const kind of ["gridded", "point"]) {
+      const mine = (matchups || []).filter((matchup) => matchup.kind === kind);
+      $(`v-datasets-${kind}`).hidden = !mine.length;
+      $(`v-datasets-${kind}-list`).replaceChildren(...mine.map((matchup) => {
+        const where = kind === "point" && LAYERS[matchup.layer] ? `, ${LAYERS[matchup.layer]}` : "";
+        return el("label", { class: "tick-label" },
+          el("input", {
+            type: "checkbox",
+            class: "tick",
+            "data-key": matchup.key,
+            onchange: (event) => tickMatchup(matchup.key, event.target.checked),
+          }),
+          el("span", {}, matchup.title, " ", el("span", { class: "datasets__source", text: `(${matchup.source}${where})` })));
+      }));
+    }
+  }
+
+  function tickMatchup(key, ticked) {
+    const unticked = new Set(validateForm.unticked || []);
+    if (ticked) unticked.delete(key);
+    else unticked.add(key);
+    validateForm.unticked = [...unticked];
+    delete validateErrors.variables;
+    refreshValidate();
+  }
+
+  $("v-tick-all").addEventListener("click", () => {
+    validateForm.unticked = [];
+    delete validateErrors.variables;
+    refreshValidate();
+  });
+  $("v-untick-all").addEventListener("click", () => {
+    validateForm.unticked = [...new Set((validateMatchups() || []).map((matchup) => matchup.key))];
+    refreshValidate();
+  });
+
+  // the matchups directory, and the list of matchups, as the live check finds them;
+  // whether the options are shown, and, of those, the ones for the matchups ticked
+  function refreshDatasets() {
+    const before = state.view === "report_options";
+    const matchups = validateMatchups();
+    const ticked = tickedMatchups();
+    // until there are matchups to validate, there are no options to choose
+    $("v-options").hidden = !before && !matchups;
+    $("v-group-variables").hidden = !matchups || !matchups.length;
+    renderDatasets(matchups);
+    const unticked = new Set(validateForm.unticked || []);
+    for (const box of document.querySelectorAll("#v-datasets input[data-key]")) box.checked = !unticked.has(box.dataset.key);
+    const none = Boolean(ticked && matchups.length && !ticked.length);
+    if (matchups) {
+      const count = $("v-datasets-count");
+      count.textContent = ticked.length === matchups.length ? `All ${matchups.length}` : `${ticked.length} of ${matchups.length}`;
+      count.classList.toggle("is-none", none);
+    }
+    if (none) message("vm-variables", [line(NONE_TICKED, "error")], true);
+    else if (validateErrors.variables) message("vm-variables", [line(validateErrors.variables, "error")], true);
+    else message("vm-variables", []);
+    // the options only some matchups take: for gridded matchups, and for point
+    // matchups through the water column (or, if the matchups are not known, as
+    // the recipes chosen say)
+    const gridded = ticked ? ticked.some((matchup) => matchup.kind === "gridded")
+      : !(state.report && state.report.gridded === false);
+    const vertical = ticked ? ticked.some((matchup) => matchup.kind === "point" && matchup.vertical)
+      : !(state.report && state.report.vertical === false);
+    for (const id of ["v-group-subregions", "v-group-transect", "row-fixed_scale"]) $(id).hidden = !gridded;
+    $("v-group-depth_bins").hidden = !vertical;
+    return none;
+  }
+
+  // what the live check says about the matchups directory
+  function matchupsMessage() {
+    const found = matchupsFound;
+    if (state.view !== "validate" || !found) {
+      return [line("Where oceanval_matchups is: the directory matchup was run in, or its out_dir.")];
+    }
+    if (found.status !== "found") return [line(found.error)];
+    const count = (kind) => found.matchups.filter((matchup) => matchup.kind === kind).length;
+    const parts = [];
+    for (const kind of ["gridded", "point"]) {
+      const n = count(kind);
+      if (n) parts.push(`${n} ${kind} ${n === 1 ? "matchup" : "matchups"}`);
+    }
+    return [line(`Found ${parts.join(" and ")}.`, "ok")];
   }
 
   // the server's view of the transect is out of date once any part of it changes
@@ -3335,6 +3523,7 @@
       validateForm[name] = event.target.value;
       delete validateErrors[name];
       if (TRANSECT_BOXES.includes(name)) clearTransectErrors();
+      if (name === "data_dir") askMatchups(300);
       refreshValidate();
     });
   }
@@ -3352,16 +3541,11 @@
 
   function refreshValidate() {
     $("row-subregions_file").hidden = validateForm.subregions !== "file";
-    // a transect is for gridded matchups, so it is not asked about when there are none
-    const gridded = !(state.report && state.report.gridded === false);
-    $("v-group-transect").hidden = !gridded;
-    if (!gridded) validateForm.transect = $("v-transect").checked = false;
+    const noneTicked = refreshDatasets();
     $("row-transect").hidden = !validateForm.transect;
     const transect = transectCheck();
     const depthBlocked = refreshDepthBins();
-    const hints = {
-      "vm-data_dir": "Where oceanval_matchups is: the directory matchup was run in, or its out_dir.",
-    };
+    const hints = { "vm-data_dir": matchupsMessage() };
     for (const [id, names] of Object.entries(VALIDATE_GROUPS)) {
       // the transect is checked as it is typed, as well as by the server
       const errors = id !== "vm-transect" ? validateErrors
@@ -3371,13 +3555,17 @@
       if (problems.length) message(id, problems.map((text) => line(text, "error")), true);
       else if (id === "vm-transect" && transect.ok) message(id, [line(transect.ok, "ok")]);
       else if (id === "vm-transect" && transect.block === "empty") message(id, [line(TRANSECT_EMPTY)]);
-      else message(id, hints[id] ? [line(hints[id])] : []);
+      else message(id, hints[id] || []);
     }
     // the report is not built along a transect that cannot be used
     const build = $("build");
     if (build) {
-      build.disabled = validateBusy || transect.block !== null || depthBlocked;
-      build.title = transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
+      // there is nothing to build until there are matchups to validate
+      const noMatchups = state.view === "validate" && !validateMatchups();
+      build.disabled = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups;
+      build.title = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
+        : noneTicked ? NONE_TICKED
+        : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
         : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
     }
   }
@@ -3385,6 +3573,8 @@
   async function submitValidate() {
     // Enter in a box sends the form too, past the disabled button
     if (validateBusy || transectCheck().block !== null || depthCheck().problems.length) return;
+    const ticked = tickedMatchups();
+    if (ticked && !ticked.length) return;
     validateBusy = true;
     refreshValidate();
     // the report options of a matchup and validate run, or the report from matchups made earlier

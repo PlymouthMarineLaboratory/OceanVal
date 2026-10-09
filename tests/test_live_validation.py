@@ -60,6 +60,7 @@ class TestOptions:
             "n_regions": None,
             "transect": None,
             "depth_bins": oceanval.depths.DEFAULT_DEPTH_BINS,
+            "variables": None,
         }
 
     def test_validates_report_options(self, tmp_path):
@@ -97,6 +98,13 @@ class TestOptions:
         assert options["depth_bins"] == [(0, 20), (20, None)]
         with pytest.raises(ValueError, match="overlap"):
             check_options({"depth_bins": [[0, 20], [10, 30]]}, "/run")
+
+    def test_variables_are_checked_and_kept(self):
+        options = check_options({"variables": ["temperature", "nitrate / woa23"]}, "/run")
+
+        assert options["variables"] == ["temperature", "nitrate/woa23"]
+        with pytest.raises(ValueError, match="variables"):
+            check_options({"variables": []}, "/run")
 
     @pytest.mark.parametrize("name", ["pdf", "word", "zip"])
     def test_the_full_reports_other_forms_are_for_validate(self, name):
@@ -202,6 +210,28 @@ class TestMatchupsSide:
 
         assert stopped == [True]
         assert live.current is None
+
+    def test_only_the_matchups_variables_picks_are_added(self, tmp_path):
+        """Those it leaves out are still matched up, but have no page."""
+        builder = LiveValidation(
+            check_options({"variables": ["temperature/foo"]}, str(tmp_path)),
+            str(tmp_path),
+            [
+                ("gridded", "temperature", "foo", None),
+                ("gridded", "temperature", "bar", None),
+                ("point", "nitrate", "foo", "all"),
+            ],
+            {"temperature": "Temperature"},
+        )
+        assert builder.expected == [
+            {"kind": "gridded", "variable": "temperature", "source": "foo", "layer": None}
+        ]
+        sent = []
+        builder._send = sent.append
+        builder.matched("gridded", "temperature", "bar")
+        builder.matched("point", "nitrate", "foo", "all")
+        builder.matched("gridded", "temperature", "foo")
+        assert sent == [{"kind": "gridded", "variable": "temperature", "source": "foo", "layer": None}]
 
     def test_an_earlier_report_is_cleared(self, tmp_path, monkeypatch):
         monkeypatch.setattr(live, "_BOOT", "import sys\nsys.exit(0)\n")

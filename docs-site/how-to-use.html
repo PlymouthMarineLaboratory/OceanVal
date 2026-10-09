@@ -315,6 +315,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
         <li><code class="param-name">zip</code><p>Whether to also bundle the report into a zip archive (<code>oceanval_report.zip</code>) in the output directory, containing just the files needed to view the complete report — the HTML pages, plus the PDFs and Word file if those were generated. Defaults to <code>False</code>.</p></li>
         <li><code class="param-name">transect</code><p>A transect to validate the gridded matchups along, as a dict of its <code>start</code> and <code>end</code>, each <code>[lon, lat]</code>. See <a href="#transects">Validating along a transect</a> below.</p></li>
         <li><code class="param-name">depth_bins</code><p>The depth ranges, in metres, that point matchups made through the water column (<code>vertical=True</code>) are summarised in, as a list of <code>[min, max]</code> pairs. See <a href="#depth-bins">Choosing the depth bins</a> below.</p></li>
+        <li><code class="param-name">variables</code><p>The matchups to validate, if not all of them: each entry a variable, for all its sources, or <code>"variable/source"</code>, for one. See <a href="#choosing-matchups">Validating some of the matchups</a> below.</p></li>
       </ul>
     </details>
     <p>This generates and opens an HTML page you can view in a web browser.</p>
@@ -340,6 +341,14 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
       <pre>oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(depth_bins=[[<span class="tok-num">0</span>, <span class="tok-num">20</span>], [<span class="tok-num">20</span>, <span class="tok-num">200</span>], [<span class="tok-num">200</span>, <span class="tok-kw">None</span>]])</pre>
     </div>
     <p>A depth is in a bin if it is deeper than its min and no deeper than its max (the shallowest bin also takes its min). The deepest bin can have a max of <code>None</code>, for everything below its min. Bins can leave gaps, and observations in a gap are left out, but they cannot overlap. The same bins are used for every point dataset and in the summary. In the <code>oceanval</code> window, the last page asks for them when a point dataset is matched up with Vertical ticked, starting from the defaults: each bin can be changed or removed with its &times;, and <strong>Add a bin</strong> adds another.</p>
+
+    <h3 id="choosing-matchups">Validating some of the matchups</h3>
+    <p>By default the report validates every matchup in <code>oceanval_matchups</code>. To validate only some, give <code>validate</code> their variables, each one for all its sources, or <code>"variable/source"</code> for one source:</p>
+    <div class="code-block">
+      <div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div>
+      <pre>oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(variables=[<span class="tok-str">"temperature"</span>, <span class="tok-str">"nitrate/WOA23"</span>])</pre>
+    </div>
+    <p>The names are those of the matchups (the folders and files in <code>oceanval_matchups</code>), and are not case sensitive. Each entry must match at least one matchup, or <code>validate</code> says which matchups there are. The summary covers only the matchups validated, and the others stay in <code>oceanval_matchups</code> for a later report. The <code>oceanval</code> window lists them all, ticked, for you to untick any to leave out.</p>
 
     <h3 id="own-regions">Using your own regions</h3>
     <p>The report summarises model performance in each region: a map of the regions, the seasonal cycle of the spatial average, and a table of bias, RMSD and correlations. Instead of the built-in <code>"global"</code> or <code>"nwes"</code> regions, you can supply your own netCDF file:</p>
@@ -382,7 +391,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
 )
 oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(lon_lim=[<span class="tok-num">-20</span>, <span class="tok-num">10</span>], lat_lim=[<span class="tok-num">40</span>, <span class="tok-num">65</span>], pdf=<span class="tok-kw">True</span>)</pre>
     </div>
-    <p>Each matchup&rsquo;s page is added to the interim report as soon as the matchup is made, and the summary is run again each time. <code>live_validation</code> takes <code>True</code>, for <code>validate</code>&rsquo;s defaults, or a dict of <code>validate</code>&rsquo;s report options: <code>out_dir</code>, <code>lon_lim</code>, <code>lat_lim</code>, <code>subregions</code>, <code>fixed_scale</code>, <code>concise</code>, <code>transect</code> and <code>depth_bins</code>. The interim report is HTML only, so PDF, Word and zip versions are left to <code>validate</code>.</p>
+    <p>Each matchup&rsquo;s page is added to the interim report as soon as the matchup is made, and the summary is run again each time. <code>live_validation</code> takes <code>True</code>, for <code>validate</code>&rsquo;s defaults, or a dict of <code>validate</code>&rsquo;s report options: <code>out_dir</code>, <code>lon_lim</code>, <code>lat_lim</code>, <code>subregions</code>, <code>fixed_scale</code>, <code>concise</code>, <code>transect</code>, <code>depth_bins</code> and <code>variables</code> (the matchups it leaves out are still made, but have no page). The interim report is HTML only, so PDF, Word and zip versions are left to <code>validate</code>.</p>
     <p>It is built in <code>oceanval_interim_report</code>, in <code>out_dir</code>: open <code>oceanval_interim_report/oceanval_report/_build/html/notebooks/summary.html</code>, and reload it to see the latest. Each page says how many of the matchups it has so far. <code>matchup</code> waits for the interim report to be finished before it returns, and the full report is then built by <code>validate</code>, as usual. The <a href="browser.html"><code>oceanval</code> command</a> does all of this for you.</p>
 
     <hr class="divider">

@@ -260,7 +260,7 @@ This must be run in the same directory where the matchup files were created.
 
 The following options are available:
 
-- `variables`: A list of variable names to validate. This must match those supplied as `name`. If not specified, all registered variables will be validated.
+- `variables`: The matchups to validate, if not all of them: each entry a variable, for all its sources, or `"variable/source"`, for one, e.g. `["temperature", "nitrate/WOA23"]`. See below. If not specified, every matchup is validated.
 - `lon_lim`: The longitude limits for the validation region (e.g. [-180, 180]).
 - `lat_lim`: The latitude limits for the validation region (e.g. [-90, 90]).
 - `region`: A string specifying the region being validated. Only "global" and "nwes" (northwest European Shelf are currently available).
@@ -290,6 +290,16 @@ Point matchups made through the water column (`vertical=True`) are summarised by
 
 A depth is in a bin if it is deeper than its min and no deeper than its max (the shallowest bin also takes its min). The deepest bin can have a max of `None`, for everything below its min. Bins can leave gaps, and observations in a gap are left out, but they cannot overlap. The same bins are used for every point dataset and in the summary. The `oceanval` command asks for them on its last page when a point dataset is matched up with Vertical ticked, starting from the defaults: each bin can be changed or removed, and **Add a bin** adds another.
 
+**Validating some of the matchups**
+
+By default the report validates every matchup in `oceanval_matchups`. To validate only some, give `validate` their variables, each one for all its sources, or `"variable/source"` for one source:
+
+.. code:: ipython3
+
+    oceanval.validate(variables=["temperature", "nitrate/WOA23"])
+
+The names are those of the matchups (the folders and files in `oceanval_matchups`), and are not case sensitive. Each entry must match at least one matchup, or `validate` says which matchups there are. The summary covers only the matchups validated, and the others stay in `oceanval_matchups` for a later report. The `oceanval` command lists them all, ticked, for you to untick any to leave out.
+
 **Looking at the results while the matchups run**
 
 Matching up a long simulation can take hours. With jupyter-book 2 or later, `oceanval.matchup` can build an interim validation report as it goes, so that you can look at each matchup's results as soon as it is made:
@@ -304,7 +314,7 @@ Matching up a long simulation can take hours. With jupyter-book 2 or later, `oce
     )
     oceanval.validate(lon_lim=[-20, 10], lat_lim=[40, 65], pdf=True)
 
-Each matchup's page is added to the interim report as soon as the matchup is made, and the summary is run again each time. `live_validation` takes `True`, for `validate`'s defaults, or a dict of `validate`'s report options: `out_dir`, `lon_lim`, `lat_lim`, `subregions`, `fixed_scale`, `concise`, `transect` and `depth_bins`. The interim report is HTML only, so PDF, Word and zip versions are left to `validate`. It is built in `oceanval_interim_report`, in `out_dir`: open `oceanval_interim_report/oceanval_report/_build/html/notebooks/summary.html`, and reload it to see the latest. Each page says how many of the matchups it has. `matchup` waits for the interim report to be finished before it returns, and the full report is then built by `validate`, as usual. The `oceanval` command does all of this for you.
+Each matchup's page is added to the interim report as soon as the matchup is made, and the summary is run again each time. `live_validation` takes `True`, for `validate`'s defaults, or a dict of `validate`'s report options: `out_dir`, `lon_lim`, `lat_lim`, `subregions`, `fixed_scale`, `concise`, `transect`, `depth_bins` and `variables` (the matchups it leaves out are still made, but have no page). The interim report is HTML only, so PDF, Word and zip versions are left to `validate`. It is built in `oceanval_interim_report`, in `out_dir`: open `oceanval_interim_report/oceanval_report/_build/html/notebooks/summary.html`, and reload it to see the latest. Each page says how many of the matchups it has. `matchup` waits for the interim report to be finished before it returns, and the full report is then built by `validate`, as usual. The `oceanval` command does all of this for you.
 
 Using built-in observation recipes
 ----------------------------------

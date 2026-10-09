@@ -374,6 +374,45 @@ class TestMatchupsQuestion:
         found = matchall._files_found(str(tmp_path), [pattern], ["bad"], ["nothing"], False)
         assert found == {pattern: []}
 
+    def test_each_matchup_to_make_goes_with_the_question(self, tmp_path):
+        """For the window to list, to choose those the report validates."""
+        oceanval.reset()
+        oceanval.add_gridded_comparison(
+            name="temperature",
+            obs_path="data/evaldata/gridded/nws/temperature",
+            source="foo",
+            model_variable="votemper",
+            obs_variable="votemper",
+            climatology=True,
+        )
+        oceanval.add_point_comparison(
+            name="temperature",
+            obs_path="data/evaldata/point/nws/all/temperature",
+            source="bar",
+            model_variable="votemper",
+            vertical=True,
+        )
+        asked = []
+
+        def answerer(question, choices, details):
+            asked.append(details)
+            return "n"
+
+        with prompts.answered_by(answerer):
+            oceanval.matchup(
+                sim_dir="data/example", start=2004, end=2004, cores=1, out_dir=str(tmp_path),
+                thickness="data/example/e3t.nc",
+            )
+
+        [details] = asked
+        assert details["matchups"] == [
+            {"kind": "gridded", "variable": "temperature", "source": "foo", "layer": None,
+             "vertical": False, "title": "Temperature", "key": "temperature/foo"},
+            {"kind": "point", "variable": "temperature", "source": "bar", "layer": "all",
+             "vertical": True, "title": "Temperature", "key": "temperature/bar"},
+        ]
+        oceanval.reset()
+
     def test_each_variable_and_its_files_go_with_the_question(self, tmp_path):
         oceanval.reset()
         oceanval.add_gridded_comparison(

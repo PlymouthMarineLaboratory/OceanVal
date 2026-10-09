@@ -862,15 +862,189 @@ class TestTransectChecks:
         gridded = tmp_path / "oceanval_matchups" / "gridded"
         for found in gridded.rglob("*.nc"):
             found.unlink()
-        point = tmp_path / "oceanval_matchups" / "point" / "temperature" / "surface" / "bar"
+        point = tmp_path / "oceanval_matchups" / "point" / "surface" / "temperature" / "bar"
         point.mkdir(parents=True)
-        (point / "bar_temperature_surface.csv").write_text("x\n")
-        errors = check_validate(form, str(tmp_path))[1]
-        assert errors == {
-            "transect": "There are no gridded matchups here to validate along a transect."
+        (point / "bar_surface_temperature.csv").write_text("x\n")
+        # the page does not ask for a transect then, so one sent is not used
+        arguments, errors = check_validate(form, str(tmp_path))
+        assert errors == {}
+        assert "transect" not in arguments
+
+
+def write_mixed_matchups(directory):
+    """A finished matchup's files, as validate() reads their names: gridded
+    temperature against two sources, and point nitrate at the surface and
+    through the water column."""
+    matchups = os.path.join(directory, "oceanval_matchups")
+    for name in (
+        "gridded/temperature/COBE2_temperature_surface.nc",
+        "gridded/temperature/WOA23_temperature_surface.nc",
+        "point/surface/nitrate/ICES/ICES_surface_nitrate.csv",
+        "point/all/nitrate/glodap/glodap_all_nitrate.csv",
+    ):
+        path = os.path.join(matchups, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").close()
+    with open(os.path.join(matchups, "short_titles.pkl"), "wb") as saved:
+        pickle.dump({"temperature": "Temperature", "nitrate": "Nitrate"}, saved)
+    with open(os.path.join(matchups, "variables_matched.pkl"), "wb") as saved:
+        pickle.dump(["nitrate", "temperature"], saved)
+
+
+# the matchups write_mixed_matchups writes, by their keys
+MIXED_KEYS = ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap", "nitrate/ICES"]
+
+
+class TestChoosingMatchups:
+    """The report validates the matchups ticked, and asks only for the
+    options of those: a transect, regional summaries and fixed colour scales
+    for gridded ones, and depth bins for point ones through the water
+    column."""
+
+    def test_all_are_ticked_to_start_with(self, tmp_path):
+        write_mixed_matchups(tmp_path)
+        assert default_validate_form()["unticked"] == []
+        arguments, errors = check_validate({}, str(tmp_path))
+        assert errors == {}
+        # validate's own default
+        assert "variables" not in arguments
+
+    def test_those_unticked_are_left_out(self, tmp_path):
+        write_mixed_matchups(tmp_path)
+        form = {"unticked": ["temperature/WOA23", "nitrate/ICES"]}
+        arguments, errors = check_validate(form, str(tmp_path))
+        assert errors == {}
+        assert arguments["variables"] == ["temperature/COBE2", "nitrate/glodap"]
+        assert app_module._validate_call(arguments, str(tmp_path)).endswith(
+            'variables=["temperature/COBE2", "nitrate/glodap"])'
+        )
+
+    def test_one_must_be_ticked(self, tmp_path):
+        write_mixed_matchups(tmp_path)
+        errors = check_validate({"unticked": MIXED_KEYS}, str(tmp_path))[1]
+        assert errors == {"variables": "Tick at least one dataset to validate."}
+
+    def test_those_unticked_in_another_directory_are_not_a_choice_here(self, tmp_path):
+        write_mixed_matchups(tmp_path)
+        arguments, errors = check_validate({"unticked": ["oxygen/WOA23"]}, str(tmp_path))
+        assert errors == {}
+        assert "variables" not in arguments
+
+    def test_the_options_for_gridded_matchups_need_one_ticked(self, tmp_path):
+        write_mixed_matchups(tmp_path)
+        form = {
+            "subregions": "global",
+            "fixed_scale": True,
+            "transect": True,
+            "transect_start_lon": "-30",
+            "transect_start_lat": "0",
+            "transect_end_lon": "-30",
+            "transect_end_lat": "65",
         }
-        # and nothing is said if no transect is asked for
-        assert check_validate({}, str(tmp_path))[1] == {}
+        no_gridded = dict(form, unticked=["temperature/COBE2", "temperature/WOA23"])
+        arguments, errors = check_validate(no_gridded, str(tmp_path))
+        assert errors == {}
+        assert not {"subregions", "fixed_scale", "transect"} & set(arguments)
+
+        one_gridded = dict(form, unticked=["temperature/COBE2"], transect=False)
+        arguments, errors = check_validate(one_gridded, str(tmp_path))
+        assert errors == {}
+        assert (arguments["subregions"], arguments["fixed_scale"]) == ("global", True)
+
+    def test_the_depth_bins_need_a_point_matchup_through_the_water_column(self, tmp_path):
+        write_mixed_matchups(tmp_path)
+        arguments = check_validate(DEPTH_FORM, str(tmp_path))[0]
+        assert arguments["depth_bins"] == [[0, 20], [20, 200], [200, None]]
+        # point nitrate at the surface only
+        arguments = check_validate(dict(DEPTH_FORM, unticked=["nitrate/glodap"]), str(tmp_path))[0]
+        assert "depth_bins" not in arguments
+
+    def test_the_matchups_are_found_as_their_directory_is_typed_in(self, app, tmp_path):
+        assert get_json(app, "/api/matchups", data_dir="nowhere")[1] == {
+            "status": "missing", "error": "There is no directory at this path.", "matchups": [],
+        }
+        found = get_json(app, "/api/matchups", data_dir="")[1]
+        assert found["status"] == "none"
+        assert "No matchups found" in found["error"]
+
+        os.makedirs(tmp_path / "unfinished" / "oceanval_matchups" / "gridded" / "temperature")
+        (tmp_path / "unfinished" / "oceanval_matchups" / "gridded" / "temperature"
+         / "COBE2_temperature_surface.nc").touch()
+        found = get_json(app, "/api/matchups", data_dir="unfinished")[1]
+        assert found["status"] == "unfinished"
+        assert "did not finish" in found["error"]
+
+        write_mixed_matchups(tmp_path / "done")
+        found = get_json(app, "/api/matchups", data_dir=str(tmp_path / "done"))[1]
+        assert (found["status"], found["error"]) == ("found", None)
+        assert [(m["kind"], m["key"], m["title"]) for m in found["matchups"]] == [
+            ("gridded", "temperature/COBE2", "Temperature"),
+            ("gridded", "temperature/WOA23", "Temperature"),
+            ("point", "nitrate/glodap", "Nitrate"),
+            ("point", "nitrate/ICES", "Nitrate"),
+        ]
+        # with the token only, as for the rest of the window
+        assert _request(app, "/api/matchups", token="wrong", data_dir="done")[0] == 403
+
+    def test_a_matchup_and_validate_run_lists_those_it_is_to_make(
+        self, app, tmp_path, monkeypatch
+    ):
+        """Unticked, they are still matched up, but left out of the interim
+        report and the report."""
+        monkeypatch.setattr(live, "available", lambda: True)
+        validated = []
+        start_run = app.start_run
+        monkeypatch.setattr(
+            app,
+            "start_run",
+            lambda args, label: validated.append(args) if args[0] == "validate" else start_run(args, label),
+        )
+        listed = [
+            {"kind": "gridded", "variable": "temperature", "source": "COBE2", "layer": None,
+             "vertical": False, "title": "Temperature", "key": "temperature/COBE2"},
+            {"kind": "point", "variable": "temperature", "source": "ICES", "layer": "all",
+             "vertical": True, "title": "Temperature", "key": "temperature/ICES"},
+        ]
+        details = dict(MATCHUPS, matchups=listed)
+        script = tmp_path / "run.py"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                import json
+                from oceanval import prompts
+                question = "Are you happy with these matchups? (y/n) "
+                answer = prompts.ask(question, ("y", "n"), details={details!r})
+                print("settings:", json.dumps(answer.settings, sort_keys=True))
+                """
+            )
+        )
+        app.action = "matchup_validate"
+        app.start_run(["matchup", str(script)], "python run.py")
+        wait_for(lambda: app.question is not None)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert get_json(app, "/api/state")[1]["report"]["matchups"] == listed
+
+        # none ticked
+        form = {"unticked": ["temperature/COBE2", "temperature/ICES"]}
+        status, reply = post(app, "/api/report", {"form": form})
+        assert (status, reply["errors"]) == (400, {"variables": "Tick at least one dataset to validate."})
+
+        # the gridded one unticked, so its options are not used
+        form = {"unticked": ["temperature/COBE2"], "subregions": "global", "fixed_scale": True}
+        assert post(app, "/api/report", {"form": dict(form, **DEPTH_FORM)})[0] == 200
+        assert app.report_arguments == {
+            "data_dir": str(tmp_path),
+            "out_dir": str(tmp_path),
+            "depth_bins": [[0, 20], [20, 200], [200, None]],
+            "variables": ["temperature/ICES"],
+        }
+        wait_for(lambda: validated)
+        text = app.console.since(0, None)["text"]
+        assert (
+            'settings: {"live_validation": {"depth_bins": [[0, 20], [20, 200], [200, null]], '
+            '"variables": ["temperature/ICES"]}}'
+        ) in text
+        assert json.loads(validated[0][1])["variables"] == ["temperature/ICES"]
 
 
 # the depth bins as the page sends them, other than OceanVal's own
@@ -1979,7 +2153,9 @@ class TestServer:
         # matchup still waits for the answer, so nothing is matched up yet
         assert state["question"]["id"] == number
         # whether the matchups are gridded is only known from the recipes window's choices
-        assert state["report"] == {"given": False, "dir": str(tmp_path), "gridded": None, "vertical": None}
+        assert state["report"] == {
+            "given": False, "dir": str(tmp_path), "gridded": None, "vertical": None, "matchups": None,
+        }
         time.sleep(0.5)
         assert "answer:" not in app.console.since(0, None)["text"]
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 409
@@ -3739,6 +3915,119 @@ def go_to_report_options(page, url):
     page.wait_for_selector("#view-validate:not([hidden])")
 
 
+def test_the_matchups_to_validate_in_a_browser(browser, tmp_path, monkeypatch):
+    """Building a report from matchups made before: the matchups directory is
+    looked at as soon as it is there, and the options are only shown once
+    there are matchups in it, and only those for the matchups ticked, in a
+    list that opens."""
+    write_matchups(tmp_path / "gridded")
+    write_mixed_matchups(tmp_path / "mixed")
+    (tmp_path / "empty").mkdir()
+    app = App(cwd=str(tmp_path))
+    validated = []
+    monkeypatch.setattr(app, "start_run", lambda args, label: validated.append(args))
+    app.choose("validate", data_dir=str(tmp_path / "empty"))
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#view-validate:not([hidden])")
+        page.wait_for_function("document.querySelector('#vm-data_dir').textContent.includes('No matchups found')")
+        # nothing to choose until there are matchups
+        assert page.is_hidden("#v-options")
+        assert page.is_disabled("#build")
+
+        page.fill("#v-data_dir", str(tmp_path / "gridded"))
+        page.wait_for_selector("#v-options:not([hidden])")
+        assert page.text_content("#vm-data_dir") == "Found 1 gridded matchup."
+        assert page.is_enabled("#build")
+        # gridded only: no depth bins, and no point list
+        assert page.is_hidden("#v-group-depth_bins")
+        for shown in ("#v-group-subregions", "#v-group-transect", "#row-fixed_scale"):
+            assert page.is_visible(shown)
+        assert page.text_content("#v-datasets-count") == "All 1"
+        # closed, until it is opened
+        assert page.is_hidden("#v-datasets-gridded-list")
+
+        page.fill("#v-data_dir", str(tmp_path / "mixed"))
+        page.wait_for_function("document.querySelector('#vm-data_dir').textContent.includes('point')")
+        assert page.text_content("#vm-data_dir") == "Found 2 gridded matchups and 2 point matchups."
+        assert page.is_visible("#v-group-depth_bins")
+        assert page.text_content("#v-datasets-count") == "All 4"
+        page.click("#v-datasets summary")
+        ticks = page.locator("#v-datasets input[data-key]")
+        assert ticks.count() == 4
+        assert all(ticks.nth(i).is_checked() for i in range(4))
+        assert page.locator("#v-datasets-point-list .tick-label").first.text_content() == (
+            "Nitrate (glodap, through the water column)"
+        )
+
+        # with no gridded matchup ticked, their options go
+        page.uncheck("#v-datasets input[data-key='temperature/COBE2']")
+        page.uncheck("#v-datasets input[data-key='temperature/WOA23']")
+        assert page.text_content("#v-datasets-count") == "2 of 4"
+        for hidden in ("#v-group-subregions", "#v-group-transect", "#row-fixed_scale"):
+            assert page.is_hidden(hidden)
+        # and with none ticked, there is nothing to build
+        page.click("#v-untick-all")
+        assert page.text_content("#v-datasets-count") == "0 of 4"
+        assert page.text_content("#vm-variables") == "Tick at least one dataset to validate."
+        assert page.is_disabled("#build")
+        assert page.get_attribute("#build", "title") == "Tick at least one dataset to validate."
+        page.click("#v-tick-all")
+        assert page.text_content("#v-datasets-count") == "All 4"
+        assert page.is_visible("#v-group-transect")
+
+        page.uncheck("#v-datasets input[data-key='nitrate/ICES']")
+        page.click("#build")
+        wait_for(lambda: validated)
+        arguments = json.loads(validated[0][1])
+        assert arguments["data_dir"] == str(tmp_path / "mixed")
+        assert arguments["variables"] == ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap"]
+    finally:
+        app.close()
+
+
+def test_the_matchups_to_be_made_in_a_browser(browser, tmp_path, monkeypatch):
+    """A matchup and validate run lists the matchups it is to make, to choose
+    those the report validates."""
+    listed = [
+        {"kind": "gridded", "variable": "temperature", "source": "COBE2", "layer": None,
+         "vertical": False, "title": "Temperature", "key": "temperature/COBE2"},
+        {"kind": "point", "variable": "temperature", "source": "ICES", "layer": "all",
+         "vertical": True, "title": "Temperature", "key": "temperature/ICES"},
+    ]
+    script = tmp_path / "matchup.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            from oceanval import prompts
+            question = "Are you happy with these matchups? (y/n) "
+            print("answer:", prompts.ask(question, ("y", "n"), details={dict(MATCHUPS, matchups=listed)!r}))
+            """
+        )
+    )
+    app = App(cwd=str(tmp_path))
+    app.action = "matchup_validate"
+    app.start_run(["matchup", str(script)], f"python {script}")
+    url = app.start()
+    try:
+        page = browser.new_page()
+        go_to_report_options(page, url)
+        assert page.is_visible("#v-options")
+        assert page.text_content("#v-datasets-count") == "All 2"
+        assert page.is_visible("#v-group-depth_bins")
+        assert page.is_visible("#v-group-transect")
+        page.click("#v-datasets summary")
+        page.uncheck("#v-datasets input[data-key='temperature/ICES']")
+        assert page.is_hidden("#v-group-depth_bins")
+        assert page.is_visible("#v-group-transect")
+        assert page.text_content("#build") == "Match up and validate"
+        assert page.is_enabled("#build")
+    finally:
+        app.close()
+
+
 @needs_to_transect
 def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
     """The report options ask whether to validate along a transect, which must
@@ -4823,7 +5112,7 @@ def test_choosing_directories_in_a_browser(browser, tmp_path):
         # concise or detailed is the last option, and concise to start with, with
         # only the depth bins after it, as the matchups may be through the water column
         assert page.evaluate(
-            "[...document.querySelectorAll('#validate-form > fieldset')].slice(-2)"
+            "[...document.querySelectorAll('#v-options > fieldset')].slice(-2)"
             ".map(group => group.id || group.querySelector('select').id)"
         ) == ["v-concise", "v-group-depth_bins"]
         assert page.input_value("#v-concise") == "true"

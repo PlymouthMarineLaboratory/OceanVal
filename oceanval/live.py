@@ -42,7 +42,7 @@ import time
 import traceback
 
 import oceanval
-from oceanval import depths, transects
+from oceanval import depths, selection, transects
 
 # where the interim report is built, in the report's out_dir
 FOLDER = "oceanval_interim_report"
@@ -50,7 +50,7 @@ FOLDER = "oceanval_interim_report"
 # validate()'s arguments that live_validation takes
 OPTIONS = (
     "out_dir", "lon_lim", "lat_lim", "subregions", "fixed_scale", "concise", "transect",
-    "depth_bins", "test",
+    "depth_bins", "variables", "test",
 )
 
 # validate()'s arguments for the other forms of the full report
@@ -124,6 +124,8 @@ def check_options(live_validation, out_dir):
         raise ValueError("test must be a boolean")
     options["transect"] = transects.check_transect(live_validation.get("transect"))
     options["depth_bins"] = depths.check_depth_bins(live_validation.get("depth_bins"))
+    # checked against the matchups as they are made: those it does not pick are left out
+    options["variables"] = selection.check_variables(live_validation.get("variables"))
     report_dir = live_validation.get("out_dir", out_dir)
     if not isinstance(report_dir, str):
         raise TypeError("live_validation's out_dir must be a string")
@@ -174,9 +176,11 @@ class LiveValidation:
     def __init__(self, options, data_dir, expected, short_titles):
         self.options = options
         self.data_dir = data_dir
+        # only the matchups the report validates, if variables picks some
         self.expected = [
             {"kind": kind, "variable": variable, "source": source, "layer": layer}
             for kind, variable, source, layer in expected
+            if selection.wanted(options.get("variables"), variable, source)
         ]
         self.short_titles = dict(short_titles)
         self.folder = os.path.join(options["out_dir"], FOLDER)
@@ -245,6 +249,8 @@ class LiveValidation:
     def matched(self, kind, variable, source, layer=None):
         """Tell the builder that the matchup of variable with the kind
         ("point" or "gridded") of observations of source is made."""
+        if not selection.wanted(self.options.get("variables"), variable, source):
+            return
         self._send({"kind": kind, "variable": variable, "source": source, "layer": layer})
 
     def _send(self, message):

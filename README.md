@@ -112,6 +112,14 @@ matchups) are listed by the arrow at the right of the simulation directory box.
 They are remembered in a `.oceanvalcache` JSON file in your home directory (`OCEANVALCACHE` names another file), which OceanVal only
 adds to and a new version keeps.
 
+The report's options list every variable and source to validate, gridded and
+point, ticked, in a list that opens: untick any to leave them out of the
+report, and only the options for those ticked are shown (a transect, regional
+summaries and fixed colour scales for gridded data, depth bins for point data
+through the water column). Building a report from matchups made before, the
+page looks in the matchups directory as soon as you enter it, and shows the
+options once it has found matchups there.
+
 Closing the browser window quits `oceanval` in the terminal, within about 15
 seconds, stopping anything it is running, whichever browser you use. So do
 **Quit** (which is instant) and Ctrl+C.
@@ -218,6 +226,13 @@ metres, with a max of `None` for everything below the deepest:
 
 ```python
 oceanval.validate(depth_bins=[[0, 20], [20, 200], [200, None]])
+```
+
+To validate only some of the matchups, give `validate()` their variables, each
+for all its sources or as `"variable/source"` for one:
+
+```python
+oceanval.validate(variables=["temperature", "nitrate/WOA23"])
 ```
 
 ### Generating a matchup script

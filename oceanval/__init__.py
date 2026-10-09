@@ -17,6 +17,7 @@ import dill
 
 from oceanval import depths
 from oceanval import prompts
+from oceanval import selection
 from oceanval import transects
 from oceanval.session import session_info
 from oceanval.utils import restrict_r_to_conda
@@ -1433,6 +1434,7 @@ def validate(
     region=None,
     transect=None,
     depth_bins=None,
+    variables=None,
 ):
     # docstring
     """
@@ -1462,6 +1464,8 @@ def validate(
         A transect to validate the gridded matchups along, as a dict of its start and end, each [lon, lat], e.g. {"start": [-30, 0], "end": [-30, 65]}. It must run north-south (the same longitude at both ends) or east-west (the same latitude at both ends). Each gridded matchup's page then maps it, shows the monthly climatology of the surface values along it, and, for matchups made through the water column (vertical=True), a section of the annual mean along it, interpolated onto 30 evenly spaced depths. Requires nctoolkit 1.3.6 or later. Default is None.
     depth_bins : list or None
         The depth ranges, in metres, that point matchups made through the water column (vertical=True) are summarised in, as a list of [min, max] pairs, e.g. [[0, 20], [20, 200], [200, None]]. A depth is in a bin if it is deeper than min and no deeper than max (the shallowest bin also takes its min). The deepest bin can have a max of None, for everything below its min. Bins can leave gaps, and observations in a gap are left out, but cannot overlap. The same bins are used for every point dataset, and in the summary. Default is None, which uses 0-10, 10-30, 30-60, 60-100, 100-150, 150-300, 300-600, 600-1000 and >1000 m.
+    variables : list or None
+        The matchups to validate, if not all of them. Each entry is a variable, which validates it against all its sources, or "variable/source", for one, e.g. ["temperature", "nitrate/WOA23"]. Both are as named in the matchups (oceanval_matchups), and are not case sensitive. Each entry must match at least one matchup. The summary covers only the matchups validated. Default is None, which validates every matchup.
 
     Returns
     -------
@@ -1478,6 +1482,8 @@ def validate(
     data_dir = os.path.abspath(data_dir)
     # check before removing any previous report or results
     _check_matchups(data_dir)
+    variables = selection.check_variables(variables)
+    selection.check_against(variables, selection.on_disk(data_dir))
     # ensure proper handling of ~
     out_dir = os.path.expanduser(out_dir)
     out_dir = os.path.abspath(out_dir)
@@ -1582,6 +1588,12 @@ def validate(
         point_paths = [x for x in point_paths if "unit" not in os.path.basename(x)]
         # loop through the paths
         for pp in point_paths:
+            if not selection.wanted(
+                variables,
+                os.path.basename(pp).split("_")[2].replace(".csv", ""),
+                os.path.basename(pp).split("_")[0],
+            ):
+                continue
             ff_def = pp.replace(".csv", "_definitions.pkl")
             definitions = dill.load(open(ff_def, "rb"))
             vv = os.path.basename(pp).split("_")[2].replace(".csv", "")
@@ -1643,6 +1655,8 @@ def validate(
                 ]:
 
                     variable = vv
+                    if not selection.wanted(variables, variable, source):
+                        continue
                     if not os.path.exists(
                         f"{book_dir}/notebooks/{source}_{variable}.ipynb"
                     ):

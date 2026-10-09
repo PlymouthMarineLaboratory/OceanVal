@@ -34,6 +34,7 @@ from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
 from oceanval import ices
 from oceanval import live
 from oceanval import prompts
+from oceanval import selection
 from oceanval import time_res
 from oceanval import user_cache
 
@@ -1204,6 +1205,14 @@ def matchup(
         observations.setdefault(vv, []).append(source)
     for vv, source in point["all"] + point["surface"]:
         observations.setdefault(vv, []).append(f"{source} (point)")
+    # the matchups to make, as (kind, variable, source, layer), in the order
+    # they are made
+    items = (
+        [("gridded", vv, source, None) for vv, source in gridded_surface]
+        + [("point", vv, source, "surface") for vv, source in point["surface"]]
+        + [("gridded", vv, source, None) for vv, source in gridded_vertical]
+        + [("point", vv, source, "all") for vv, source in point["all"]]
+    )
     # what the oceanval window shows in place of the table printed above
     details = {
         "kind": "matchups",
@@ -1225,6 +1234,19 @@ def matchup(
             pattern: [os.path.relpath(path, sim_dir) for path in paths]
             for pattern, paths in files.items()
         },
+        # each matchup, which the window lists to choose those the report validates
+        "matchups": [
+            {
+                "kind": kind,
+                "variable": vv,
+                "source": source,
+                "layer": layer,
+                "vertical": layer == "all" or (vv, source) in gridded_vertical,
+                "title": definitions[vv].short_title,
+                "key": selection.key(vv, source),
+            }
+            for kind, vv, source, layer in items
+        ],
     }
 
     # point datasets matched by day against output coarser than daily, which
@@ -1283,15 +1305,14 @@ def matchup(
         live_options = live.check_options(chosen, out_dir)
     builder = None
     if live_options is not None:
-        items = (
-            [("gridded", vv, source, None) for vv, source in gridded_surface]
-            + [("point", vv, source, "surface") for vv, source in point["surface"]]
-            + [("gridded", vv, source, None) for vv, source in gridded_vertical]
-            + [("point", vv, source, "all") for vv, source in point["all"]]
-        )
         # with one variable and source, the interim report would be the full
         # report built twice, so validate() is left to build it
-        if len({(vv, source) for _, vv, source, _ in items}) > 1:
+        wanted = {
+            (vv, source)
+            for _, vv, source, _ in items
+            if selection.wanted(live_options["variables"], vv, source)
+        }
+        if len(wanted) > 1:
             builder = live.LiveValidation(
                 live_options,
                 out_dir,
