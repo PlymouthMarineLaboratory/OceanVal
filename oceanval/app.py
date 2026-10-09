@@ -254,21 +254,43 @@ def demo_setup_form(model):
     )
 
 
+# the detailed demo's transect: south to north, down the middle of the Pacific
+# along the date line, from the Southern Ocean to the Bering Strait
+DEMO_TRANSECT = {"start": [180, -70], "end": [180, 65]}
+
+
 def demo_report_form(concise=True):
     """The report options step's boxes, as the demo fills them in: concise
     or detailed, as chosen on the instructions. The concise report has no
-    subregions, and the detailed one has the global ones."""
-    return dict(
+    subregions or transect, and the detailed one has the global subregions
+    and a transect down the middle of the Pacific, with PDF and Word versions
+    too."""
+    form = dict(
         default_validate_form(),
         subregions="" if concise else "global",
         concise=concise,
+        pdf=not concise,
+        word=not concise,
+        transect=not concise,
     )
+    if not concise:
+        (start_lon, start_lat), (end_lon, end_lat) = DEMO_TRANSECT["start"], DEMO_TRANSECT["end"]
+        form.update(
+            transect_start_lon=str(start_lon),
+            transect_start_lat=str(start_lat),
+            transect_end_lon=str(end_lon),
+            transect_end_lat=str(end_lat),
+        )
+    return form
 
 
 # the boxes the demo fills in, which the page marks as OceanVal's
 DEMO_PREFILLED = {
     "setup": ["simdir", "ndown", "require", "out_dir", "out"],
-    "report": ["subregions", "concise"],
+    "report": [
+        "subregions", "concise", "pdf", "word", "transect",
+        "transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat",
+    ],
 }
 
 

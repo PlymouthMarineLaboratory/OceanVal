@@ -3034,8 +3034,16 @@ class TestDemo:
         _, state = get_json(app, "/api/state")
         assert state["validate"]["form"]["concise"] is False
         assert state["validate"]["form"]["subregions"] == "global"
+        # with PDF and Word versions too
+        assert (state["validate"]["form"]["pdf"], state["validate"]["form"]["word"]) == (True, True)
         # filled in by OceanVal, so marked as its own
-        assert "concise" in state["demo"]["prefilled"]["report"]
+        assert state["demo"]["prefilled"]["report"] == app_module.DEMO_PREFILLED["report"]
+        # and a transect down the middle of the Pacific, from south to north
+        form = state["validate"]["form"]
+        assert form["transect"] is True
+        assert [form[name] for name in app_module.TRANSECT_BOXES] == ["180", "-70", "180", "65"]
+        if oceanval.transects.available():
+            assert app_module.check_transect_boxes(form, {}) == {"start": [180.0, -70.0], "end": [180.0, 65.0]}
         assert post(app, "/api/demo_detail", {"concise": True})[0] == 409
 
         # back to the instructions, the choice is still there, and can be changed
@@ -3045,6 +3053,9 @@ class TestDemo:
         assert post(app, "/api/demo_continue")[0] == 200
         assert app.validate_form["concise"] is True
         assert app.validate_form["subregions"] == ""
+        assert (app.validate_form["pdf"], app.validate_form["word"]) == (False, False)
+        assert app.validate_form["transect"] is False
+        assert [app.validate_form[name] for name in app_module.TRANSECT_BOXES] == [""] * 4
 
     def test_a_report_detail_changed_by_hand_is_kept(self, app, fetched):
         app.choose("demo")
@@ -3052,19 +3063,22 @@ class TestDemo:
         wait_for(lambda: app.view == "demo_instructions")
         assert post(app, "/api/demo_continue")[0] == 200
         app.validate_form["concise"] = False
-        assert get_json(app, "/api/state")[1]["demo"]["prefilled"]["report"] == ["subregions"]
+        assert "concise" not in get_json(app, "/api/state")[1]["demo"]["prefilled"]["report"]
+        assert "pdf" in get_json(app, "/api/state")[1]["demo"]["prefilled"]["report"]
         assert post(app, "/api/back")[0] == 200
         assert post(app, "/api/demo_detail", {"concise": False})[0] == 200
         assert post(app, "/api/demo_continue")[0] == 200
         # the subregions follow the choice, and the box changed by hand is kept
         assert app.validate_form["subregions"] == "global"
         assert app.validate_form["concise"] is False
+        assert (app.validate_form["pdf"], app.validate_form["word"]) == (True, True)
         app.validate_form["subregions"] = "nwes"
         assert post(app, "/api/back")[0] == 200
         assert post(app, "/api/demo_detail", {"concise": True})[0] == 200
         assert post(app, "/api/demo_continue")[0] == 200
         assert app.validate_form["subregions"] == "nwes"
         assert app.validate_form["concise"] is True
+        assert (app.validate_form["pdf"], app.validate_form["word"]) == (False, False)
 
     def test_the_download_fills_in_the_simulation_step(self, app, fetched, tmp_path):
         app.choose("demo")
@@ -3086,7 +3100,8 @@ class TestDemo:
         # concise and fast, with no subregions, unless detailed is chosen on the instructions
         assert state["validate"]["form"]["subregions"] == ""
         assert state["validate"]["form"]["concise"] is True
-        assert state["demo"]["prefilled"]["report"] == ["subregions", "concise"]
+        # concise has nothing ticked and no subregions or transect, but they are OceanVal's choices
+        assert state["demo"]["prefilled"]["report"] == app_module.DEMO_PREFILLED["report"]
         # only the chosen model's files are used: those with its name in
         assert form["require"] == "NorESM2-LM"
         assert state["demo"]["prefilled"]["setup"] == ["simdir", "ndown", "require", "out_dir", "out"]

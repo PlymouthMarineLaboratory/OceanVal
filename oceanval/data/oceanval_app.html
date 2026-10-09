@@ -567,6 +567,8 @@
   /* what OceanVal filled in is red and bold, so that none of it is missed */
   .lede .oceanval-change, .units .s-input.is-oceanval, .units .group__line.is-oceanval,
   .form .s-input.is-oceanval, .form .s-select.is-oceanval, .demo-about .oceanval-change { color: var(--red); font-weight: 700; }
+  /* a box ticked for the user, which has no text of its own to colour: its label's */
+  .form .tick-label:has(.tick.is-oceanval) { color: var(--red); font-weight: 700; }
   /* the units always have to be confirmed, beside Back and Continue */
   .summary__question.summary__confirm { gap: 12px; color: var(--ink); font: 600 18px/1.3 var(--font-head); cursor: pointer; }
   .ptr-choice { margin-bottom: 16px; }
