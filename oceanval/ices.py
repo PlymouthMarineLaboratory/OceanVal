@@ -85,9 +85,43 @@ def _value_and_flag(raw, code):
     return value, flag
 
 
+FULL_DATE = r"^\d{4}-\d{2}-\d{2}"
+HOUR_24 = r"^\d{4}-\d{2}-\d{2}T24(?::00(?::00(?:\.0+)?)?)?(?:Z|[+-]\d{2}(?::?\d{2})?)?$"
+
+
+def _parse_times(stamps):
+    """Parse ICES timestamps, returning the times (NaT where a row has to be
+    dropped) and how many were read as the next day, had no full date, or
+    could not be read.
+
+    ICES exports mix timestamps with different UTC offsets (and some with
+    none at all) in the same file, which pandas otherwise refuses to parse
+    into one column. Some are stamped hour 24 ("1981-04-27T24"), which
+    ISO 8601 makes 00:00 of the next day but pandas refuses, and a few give
+    only a year and month ("1985-05"), which pandas would silently make the
+    1st of the month, so they are dropped rather than given a day.
+    """
+    stamps = stamps.astype(str).str.strip()
+    full = stamps.str.match(FULL_DATE)
+    hour_24 = stamps.str.match(HOUR_24)
+    stamps = stamps.where(~hour_24, stamps.str.replace("T24", "T00", n=1, regex=False))
+    times = pd.to_datetime(stamps.where(full), format="ISO8601", utc=True, errors="coerce")
+    times = times.where(~hour_24, times + pd.Timedelta(days=1))
+    counts = {
+        "next_day": int(hour_24.sum()),
+        "no_full_date": int((~full).sum()),
+        "unreadable": int((full & times.isna()).sum()),
+    }
+    return times, counts
+
+
 def to_oceanval_format(raw, parameter_code):
     """Convert an ICES export to oceanval point columns, keeping only rows
     where both the observation and depth quality flags are 0 (good).
+
+    Only the date of each observation is kept. Hour 24 is read as 00:00 of
+    the next day, and rows whose timestamp has no day (year and month, or
+    year, only) or cannot be read are dropped, saying how many.
 
     Many ICES analytes are split across several method-specific parameter
     codes (filtered/unfiltered, autoanalyser/manual, ...), so a dataset can
@@ -107,10 +141,15 @@ def to_oceanval_format(raw, parameter_code):
 
     df = raw.loc[(raw[value_flag] == 0) & (raw[depth_flag] == 0)]
     df = df.dropna(subset=[value, depth])
-    # ICES exports mix timestamps with different UTC offsets (and some with
-    # none at all) in the same file, which pandas otherwise refuses to
-    # parse into one column.
-    times = pd.to_datetime(df[TIME_COLUMN], format="ISO8601", utc=True)
+    times, counts = _parse_times(df[TIME_COLUMN])
+    if any(counts.values()):
+        print(
+            f"ICES times: {counts['next_day']} stamped 24:00 read as 00:00 of the next day; "
+            f"{counts['no_full_date']} without a full date and {counts['unreadable']} "
+            "that could not be read were dropped"
+        )
+    df = df.loc[times.notna()]
+    times = times.loc[times.notna()]
 
     return pd.DataFrame(
         {

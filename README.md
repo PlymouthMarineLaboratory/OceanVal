@@ -209,7 +209,9 @@ oxygen, pH, phosphate and silicate. Rather than reading csv files, they
 download the observations during `matchup`, for the years being matched and
 the `lon_lim`/`lat_lim` area (or the model's own extent); see the
 [recipes page](https://pmlmodelling.github.io/OceanVal/recipes.html#point-recipes)
-for the full list with units:
+for the full list with units, and
+[how ICES data is treated](https://pmlmodelling.github.io/OceanVal/recipes.html#ices-data)
+for what is kept:
 
 ```python
 oceanval.add_point_comparison(

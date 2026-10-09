@@ -401,7 +401,7 @@
       <div class="callout-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Not yet released</div>
       <p>Point recipes are on the <code>main</code> branch but not yet in a tagged release (see <a href="version-history.html">version history</a>). Install from GitHub to use them: <code>pip install git+https://github.com/pmlmodelling/oceanval.git</code>.</p>
     </div>
-    <p style="max-width:70ch;">Point recipes are used with <a href="api.html#add_point_comparison"><code>oceanval.add_point_comparison</code></a> in place of <code>obs_path</code>. Instead of reading csv files from disk, OceanVal downloads the observations when <a href="api.html#matchup"><code>oceanval.matchup</code></a> runs, for the years being matched and the <code>lon_lim</code>/<code>lat_lim</code> area given to <code>matchup</code>. If no <code>lon_lim</code> and <code>lat_lim</code> are given, the model's own longitude/latitude extent is used.</p>
+    <p style="max-width:70ch;">Point recipes are used with <a href="api.html#add_point_comparison"><code>oceanval.add_point_comparison</code></a> in place of <code>obs_path</code>. Instead of reading csv files from disk, OceanVal downloads the observations when <a href="api.html#matchup"><code>oceanval.matchup</code></a> runs, for the years being matched and the <code>lon_lim</code>/<code>lat_lim</code> area given to <code>matchup</code>. If no <code>lon_lim</code> and <code>lat_lim</code> are given, the model's own longitude/latitude extent is used. See <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
     <div class="code-block" style="max-width:760px;">
       <div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div>
       <pre>oceanval.<a href="api.html#add_point_comparison"><span class="tok-fn">add_point_comparison</span></a>(
@@ -456,7 +456,33 @@
         </tbody>
       </table>
     </div>
-    <p style="max-width:70ch; margin-top:1.2rem;">The <code>ices</code> recipe only keeps observations whose observation and depth quality flags are both 0 (good). The download covers every profile in the area and years being matched, so large areas or long periods make for a large download.</p>
+
+    <h3 id="ices-data" style="margin-top:2rem;">How ICES data is treated</h3>
+    <p style="max-width:70ch;"><strong>What is downloaded.</strong> For each comparison, OceanVal asks ICES for one export: every profile in the <code>lon_lim</code>/<code>lat_lim</code> area (or the model&rsquo;s own extent) in the years where the simulation and the comparison&rsquo;s <code>start</code> and <code>end</code> overlap. Temperature and salinity come from the high resolution CTD profiles, everything else from the bottle and low resolution CTD data. The export holds every variable measured at those profiles, so large areas or long periods make for a large download.</p>
+    <p style="max-width:70ch;"><strong>Which values are used.</strong> Each variable is read from one ICES parameter code. ICES splits some analytes over several codes, by method, and only the code below is used: nitrate is nitrate alone, for example, not nitrate+nitrite.</p>
+    <div class="table-wrap" style="max-width:520px; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>ICES parameter code</th><th>ICES dataset</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Temperature</td><td><code>TEMPPR01</code></td><td>CTD</td></tr>
+          <tr><td>Salinity</td><td><code>PSALPR01</code></td><td>CTD</td></tr>
+          <tr><td>Total Alkalinity</td><td><code>ALKYZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Ammonium</td><td><code>AMONZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Chlorophyll</td><td><code>CPHLZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Nitrate</td><td><code>NTRAZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Oxygen</td><td><code>DOXYZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>pH</td><td><code>PHXXZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Phosphate</td><td><code>PHOSZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Silicate</td><td><code>SLCAZZXX</code></td><td>Bottle</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="max-width:70ch; margin-top:1.2rem;"><strong>Quality flags.</strong> A value is kept only if its own quality flag and the flag of its depth are both 0 (good). Values flagged 1 (unknown quality), 4 (questionable) or 8 (bad) are left out. Recent years have many values flagged 1, so they can have few observations, or none.</p>
+    <p style="max-width:70ch;"><strong>Depth.</strong> The depth is ICES&rsquo;s adopted depth (<code>ADEPZZ01</code>), in metres. Observations at 5&nbsp;m or less make up the surface layer.</p>
+    <p style="max-width:70ch;"><strong>Time.</strong> Only the date of an observation is used, not the time of day. Times without a time zone are taken as UTC. A time written as hour 24 (<code>1981-04-27T24</code>) is 00:00 of the next day, as ISO&nbsp;8601 has it. An observation dated only to the month or the year, or whose time cannot be read, is left out rather than given a day, and <code>matchup</code> says how many were.</p>
+    <p style="max-width:70ch;"><strong>Values.</strong> Values are used as ICES gives them, in the units in the table above. OceanVal does not screen them for range or remove duplicates beyond the quality flags. ICES revises its data, so a later download can differ.</p>
 
     <div class="callout" style="margin-top:2rem;">
       <div class="callout-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Key info about World Ocean Atlas 2023 recipes</div>

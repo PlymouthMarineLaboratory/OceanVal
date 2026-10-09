@@ -84,6 +84,59 @@ def test_times_with_different_utc_offsets_in_the_same_export_are_parsed():
     assert df[["year", "month", "day"]].values.tolist() == [[2008, 1, 2], [2008, 6, 15]]
 
 
+@pytest.mark.parametrize(
+    "time", ["1981-04-27T24", "1981-04-27T24:00", "1981-04-27T24:00:00Z", "1981-04-27T24:00-01:00"]
+)
+def test_hour_24_is_read_as_the_next_day(time):
+    # older ICES cruises stamp the end of a day as hour 24, which pandas
+    # refuses to parse
+    df = to_oceanval_format(_raw([_row(time=time)]), "TEMPPR01")
+
+    assert df[["year", "month", "day"]].values.tolist() == [[1981, 4, 28]]
+
+
+def test_hour_24_on_the_last_day_of_a_year_is_the_next_year():
+    df = to_oceanval_format(_raw([_row(time="2008-12-31T24")]), "TEMPPR01")
+
+    assert df[["year", "month", "day"]].values.tolist() == [[2009, 1, 1]]
+
+
+def test_times_without_a_day_are_dropped_not_given_one():
+    df = to_oceanval_format(
+        _raw([_row(time="2008-05", temp=1.0), _row(time="2008", temp=2.0), _row(temp=3.0)]),
+        "TEMPPR01",
+    )
+
+    assert df.observation.tolist() == [3.0]
+
+
+def test_unreadable_times_are_dropped_without_raising():
+    df = to_oceanval_format(
+        _raw([_row(time="2008-05-04T25", temp=1.0), _row(time="2008-05-04T24:30", temp=2.0), _row(temp=3.0)]),
+        "TEMPPR01",
+    )
+
+    assert df.observation.tolist() == [3.0]
+
+
+def test_the_times_read_differently_or_dropped_are_counted(capsys):
+    to_oceanval_format(
+        _raw([_row(time="1981-04-27T24"), _row(time="1985-05"), _row(time="2008-05-04T25"), _row()]),
+        "TEMPPR01",
+    )
+
+    assert capsys.readouterr().out == (
+        "ICES times: 1 stamped 24:00 read as 00:00 of the next day; "
+        "1 without a full date and 1 that could not be read were dropped\n"
+    )
+
+
+def test_nothing_is_said_about_times_that_are_all_read(capsys):
+    to_oceanval_format(_raw([_row(), _row(time="2008-03-04")]), "TEMPPR01")
+
+    assert capsys.readouterr().out == ""
+
+
 @pytest.mark.parametrize("flags", [dict(temp_flag=1), dict(temp_flag=4), dict(depth_flag=1), dict(depth_flag=8)])
 def test_rows_are_dropped_unless_both_quality_flags_are_zero(flags):
     df = to_oceanval_format(_raw([_row(temp=8.5), _row(temp=9.5, **flags)]), "TEMPPR01")

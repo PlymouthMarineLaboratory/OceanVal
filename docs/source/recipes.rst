@@ -154,10 +154,55 @@ and the ``lon_lim``/``lat_lim`` area given to ``matchup``. If no ``lon_lim`` and
    "Northeast Atlantic", "Phosphate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
    "Northeast Atlantic", "Silicate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
 
-The ``ices`` recipe only keeps observations whose observation and depth
-quality flags are both 0 (good). The download covers every profile in the
-area and years being matched, so large areas or long periods make for a large
-download.
+.. _ices-data:
+
+How ICES data is treated
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+**What is downloaded.** For each comparison, OceanVal asks ICES for one
+export: every profile in the ``lon_lim``/``lat_lim`` area (or the model's own
+extent) in the years where the simulation and the comparison's ``start`` and
+``end`` overlap. Temperature and salinity come from the high resolution CTD
+profiles, everything else from the bottle and low resolution CTD data. The
+export holds every variable measured at those profiles, so large areas or long
+periods make for a large download.
+
+**Which values are used.** Each variable is read from one ICES parameter code.
+ICES splits some analytes over several codes, by method, and only the code
+below is used: nitrate is nitrate alone, for example, not nitrate+nitrite.
+
+.. csv-table:: ICES parameter codes
+   :header: "Variable", "ICES parameter code", "ICES dataset"
+   :widths: 30, 35, 35
+
+   "Temperature", "``TEMPPR01``", "CTD"
+   "Salinity", "``PSALPR01``", "CTD"
+   "Total Alkalinity", "``ALKYZZXX``", "Bottle"
+   "Ammonium", "``AMONZZXX``", "Bottle"
+   "Chlorophyll", "``CPHLZZXX``", "Bottle"
+   "Nitrate", "``NTRAZZXX``", "Bottle"
+   "Oxygen", "``DOXYZZXX``", "Bottle"
+   "pH", "``PHXXZZXX``", "Bottle"
+   "Phosphate", "``PHOSZZXX``", "Bottle"
+   "Silicate", "``SLCAZZXX``", "Bottle"
+
+**Quality flags.** A value is kept only if its own quality flag and the flag of
+its depth are both 0 (good). Values flagged 1 (unknown quality), 4
+(questionable) or 8 (bad) are left out. Recent years have many values flagged
+1, so they can have few observations, or none.
+
+**Depth.** The depth is ICES's adopted depth (``ADEPZZ01``), in metres.
+Observations at 5 m or less make up the surface layer.
+
+**Time.** Only the date of an observation is used, not the time of day. Times
+without a time zone are taken as UTC. A time written as hour 24
+(``1981-04-27T24``) is 00:00 of the next day, as ISO 8601 has it. An
+observation dated only to the month or the year, or whose time cannot be read,
+is left out rather than given a day, and ``matchup`` says how many were.
+
+**Values.** Values are used as ICES gives them, in the units in the table
+above. OceanVal does not screen them for range or remove duplicates beyond the
+quality flags. ICES revises its data, so a later download can differ.
 
 Dataset notes
 -------------
