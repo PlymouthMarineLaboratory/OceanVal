@@ -1431,10 +1431,32 @@ def matchup(
         sim_dir, sorted(set(chosen.pattern)), exclude, session_info["require"], strict_names
     )
     observations = dict()
+    # each dataset, with the years of the run it is matched up for, its own
+    # start and end within the run's: the window lists each variable once for
+    # each of these, with the files in them and their dates (see
+    # oceanval.model_check.year_groups)
+    datasets = dict()
+
+    def own_years(comparison):
+        start, end = comparison.get("start"), comparison.get("end")
+        return [
+            sim_start if start is None else max(sim_start, int(start)),
+            sim_end if end is None else min(sim_end, int(end)),
+        ]
+
     for vv, source in gridded:
         observations.setdefault(vv, []).append(source)
+        datasets.setdefault(vv, []).append(
+            {"source": source, "gridded": True,
+             "years": own_years(definitions[vv].gridded_comparisons[source])}
+        )
     for vv, source in point["all"] + point["surface"]:
         observations.setdefault(vv, []).append(f"{source} (point)")
+        dataset = {"source": f"{source} (point)", "gridded": False,
+                   "years": own_years(definitions[vv].point_comparisons[source])}
+        # a point dataset matched up at the surface and through the water column
+        if dataset not in datasets.setdefault(vv, []):
+            datasets[vv].append(dataset)
     # the matchups to make, as (kind, variable, source, layer), in the order
     # they are made
     items = (
@@ -1448,9 +1470,8 @@ def matchup(
         "kind": "matchups",
         "sim_dir": sim_dir,
         "years": [sim_start, sim_end],
-        # how the model output is read, for the window's check of it (see
-        # oceanval.model_check)
-        "as_missing": session_info["as_missing"],
+        # how the times of the files are read, for the window's check of
+        # their dates (see oceanval.model_check)
         "fvcom": bool(fvcom),
         "rows": [
             {
@@ -1459,6 +1480,9 @@ def matchup(
                 "model_variable": row.model_variable,
                 "pattern": row.pattern,
                 "observations": observations.get(row.variable, []),
+                "groups": model_check.year_groups(
+                    datasets.get(row.variable, []), [sim_start, sim_end]
+                ),
                 "files": len(files[row.pattern]),
                 "time_res": row.time_res,
             }

@@ -1,6 +1,6 @@
-"""The check the oceanval window offers of how OceanVal will view the model
-output (see oceanval.model_check): the times of the files, what is missing
-from them, the map of each variable, and the process that makes them."""
+"""The check of the dates of the model output the oceanval window's matchups
+page makes (see oceanval.model_check): the times of the files, what is
+missing from them, and the process that reads them."""
 
 import glob
 import os
@@ -18,7 +18,7 @@ from simulations import write_fvcom
 
 from oceanval import matchall, model_check
 from oceanval.model_check import (
-    ModelCheck, date_report, files_in_years, load_times_index, localise, save_times_index,
+    ModelCheck, date_report, files_in_years, load_times_index, save_times_index, year_groups,
 )
 
 EXAMPLE = os.path.abspath("data/example_temperature")
@@ -285,7 +285,6 @@ class TestIndexTimesInWorkers:
             "years": [2003, 2003],
             "out_dir": str(tmp_path),
             "fvcom": False,
-            "as_missing": None,
             "rows": [],
             "files": {"a": files[:3], "b": files[1:]},
         }
@@ -303,19 +302,13 @@ class TestFilesInYears:
     def test_only_files_with_times_in_the_years(self):
         times = {"b": monthly(2001), "a": monthly(2000), "c": monthly(2003)}
 
-        used, first = files_in_years(times, 2000, 2001)
+        assert files_in_years(times, 2000, 2001) == ["a", "b"]
 
-        assert used == ["a", "b"]
-        assert first == {"path": "a", "index": 0, "date": "2000-01-16"}
-
-    def test_the_first_time_is_the_earliest_in_the_years(self):
+    def test_a_file_with_any_time_in_the_years(self):
         times = {"x": times_of((1999, 12, 1), (2000, 2, 1)), "y": times_of((2000, 1, 5))}
 
-        used, first = files_in_years(times, 2000, 2000)
-
-        assert used == ["x", "y"]
-        assert first == {"path": "y", "index": 0, "date": "2000-01-05"}
-        assert files_in_years(times, 2005, 2006) == ([], None)
+        assert files_in_years(times, 2000, 2000) == ["x", "y"]
+        assert files_in_years(times, 2005, 2006) == []
 
 
 class TestDateReport:
@@ -464,46 +457,43 @@ class TestTimesIndex:
         assert load_times_index(str(tmp_path / "odd.pkl"), ["a"]) == {}
 
 
-class TestLocalise:
-    HTML = (
-        '<script src="https://cdn.bokeh.org/bokeh/release/bokeh-gl-3.9.2.min.js"></script>'
-        '<link href="https://cdn.holoviz.org/panel/1.9.4/dist/css/loading.css?v=1.9.4">'
-        '<script src="https://cdn.holoviz.org/panel/1.9.4/dist/no/such/file.js"></script>'
-        '<script src="https://cdn.example.org/other.js"></script>'
-    )
+class TestYearGroups:
+    def test_datasets_matched_up_for_the_same_years_are_one_group(self):
+        datasets = [
+            {"source": "NSBC", "gridded": True, "years": [2001, 2003]},
+            {"source": "ICES (point)", "gridded": False, "years": [2002, 2002]},
+            {"source": "WOA23", "gridded": True, "years": [2002, 2002]},
+            {"source": "Mine (point)", "gridded": False, "years": [2001, 2003]},
+        ]
 
-    def test_what_the_libraries_have_is_loaded_from_them(self):
-        pytest.importorskip("bokeh")
-        pytest.importorskip("panel")
+        assert year_groups(datasets, [2001, 2003]) == [
+            {"years": [2001, 2003], "sources": ["NSBC", "Mine (point)"], "gridded": True},
+            {"years": [2002, 2002], "sources": ["ICES (point)", "WOA23"], "gridded": True},
+        ]
 
-        html = localise(self.HTML)
+    def test_point_datasets_alone_are_not_gridded(self):
+        datasets = [{"source": "ICES (point)", "gridded": False, "years": [2001, 2003]}]
 
-        assert '<script src="lib/bokeh/js/bokeh-gl.min.js">' in html
-        assert '<link href="lib/panel/css/loading.css?v=1.9.4">' in html
-        # anything else is left as it is
-        assert "https://cdn.holoviz.org/panel/1.9.4/dist/no/such/file.js" in html
-        assert "https://cdn.example.org/other.js" in html
-        assert os.path.isfile(os.path.join(model_check.library_root("bokeh"), "js", "bokeh-gl.min.js"))
+        assert year_groups(datasets, [2001, 2003])[0]["gridded"] is False
 
-    def test_without_the_library_the_web_is_used(self, monkeypatch):
-        monkeypatch.setattr(model_check, "library_root", lambda name: None)
-
-        assert localise(self.HTML) == self.HTML
-        assert model_check.LIBRARIES["geoviews"] == ("geoviews", "dist")
+    def test_a_variable_without_datasets_has_the_runs_years(self):
+        assert year_groups([], [2001, 2003]) == [{"years": [2001, 2003], "sources": [], "gridded": False}]
 
 
 def test_the_check_says_what_it_finds_as_it_goes(tmp_path):
-    """Its events, and a real map of the surface with as_missing applied,
-    made by nctoolkit's plot(), which needs nothing from the web."""
+    """Its events: how many files have been read, where their times are
+    saved, and then the files and dates of each variable, for each of the
+    years its datasets are matched up for."""
     files = example_files("2002/01", "2002/02", "2003/01")
     events = []
     request = {
         "sim_dir": EXAMPLE,
-        "years": [2002, 2002],
-        "as_missing": 0,
+        "years": [2002, 2003],
         "fvcom": False,
-        "rows": [{"variable": "temperature", "model_variable": "votemper", "pattern": PATTERN,
-                  "time_res": "1d", "gridded": True}],
+        "rows": [{"variable": "temperature", "pattern": PATTERN, "time_res": "1d", "groups": [
+            {"years": [2002, 2002], "sources": ["NSBC"], "gridded": True},
+            {"years": [2003, 2003], "sources": ["ICES (point)"], "gridded": False},
+        ]}],
         "files": {PATTERN: files},
         "out_dir": str(tmp_path),
     }
@@ -511,22 +501,50 @@ def test_the_check_says_what_it_finds_as_it_goes(tmp_path):
     model_check.check(request, events.append)
 
     kinds = [event["event"] for event in events]
-    assert kinds[0] == "progress" and kinds[-4:] == ["indexed", "files", "plot", "done"]
+    assert kinds[0] == "progress" and kinds[-3:] == ["indexed", "files", "done"]
     assert events[kinds.index("indexed") - 1] == {"event": "progress", "done": 3, "total": 3}
     index = events[kinds.index("indexed")]["index"]
     assert set(load_times_index(index, files)) == set(files)
     found = events[kinds.index("files")]
-    assert found["files"] == ["2002/01/amm7_1d_20020101_20020131_grid_T.nc",
-                              "2002/02/amm7_1d_20020201_20020228_grid_T.nc"]
     assert found["total"] == 3
-    assert found["first"] == {"path": found["files"][0], "index": 0, "date": "2002-01-01"}
-    assert found["dates"]["summary"] == "10 of 12 months have gaps"
-    assert events[kinds.index("plot")] == {
-        "event": "plot", "variable": "temperature", "file": "plot_1.html", "date": "2002-01-01",
+    [nsbc, ices] = found["groups"]
+    # each group has only the files with output in its years
+    assert (nsbc["years"], nsbc["sources"]) == ([2002, 2002], ["NSBC"])
+    assert nsbc["files"] == [os.path.relpath(path, EXAMPLE) for path in files[:2]]
+    assert nsbc["dates"]["summary"] == "10 of 12 months have gaps"
+    assert nsbc["dates"]["first"] == "2002-01-01"
+    # a gridded dataset's years with fewer than 12 months are not left out
+    # when no year has all 12, so nothing is said of them
+    assert not any("Gridded" in issue for issue in nsbc["dates"]["issues"])
+    assert (ices["years"], ices["sources"]) == ([2003, 2003], ["ICES (point)"])
+    assert ices["files"] == [os.path.relpath(files[2], EXAMPLE)]
+    assert ices["dates"]["first"] == "2003-01-01"
+    assert ices["dates"]["summary"] == "11 of 12 months have gaps"
+    assert os.listdir(tmp_path) == ["times.pkl"]
+
+
+def test_years_that_are_no_limit_are_the_outputs(tmp_path):
+    """A dataset given no start or end (see oceanval.parsers) is matched up
+    for the years of the output, so the years before and after are not
+    said to be missing."""
+    files = example_files("2002/01", "2002/02")
+    events = []
+    request = {
+        "sim_dir": EXAMPLE,
+        "years": [-1000, 10000],
+        "fvcom": False,
+        "rows": [{"variable": "temperature", "pattern": PATTERN, "time_res": "1d", "groups": [
+            {"years": [-1000, 3000], "sources": ["NSBC"], "gridded": True},
+        ]}],
+        "files": {PATTERN: files},
+        "out_dir": str(tmp_path),
     }
-    html = (tmp_path / "plot_1.html").read_text()
-    assert "lib/bokeh/js/bokeh.min.js" in html
-    assert "cdn.bokeh.org" not in html and "cdn.holoviz.org" not in html
+
+    model_check.check(request, events.append)
+
+    [group] = [event for event in events if event["event"] == "files"][0]["groups"]
+    assert (group["years"], len(group["files"])) == ([2002, 2002], 2)
+    assert not any(issue.startswith("No output in") for issue in group["dates"]["issues"])
 
 
 def wait_until(condition, timeout=60):
@@ -539,17 +557,16 @@ def wait_until(condition, timeout=60):
 
 
 class TestModelCheck:
-    """The check in a process of its own, as the window runs it, for a
-    variable that is not in the files, so that no map is drawn."""
+    """The check in a process of its own, as the window runs it."""
 
     def request(self, files, **changes):
         request = {
             "sim_dir": EXAMPLE,
             "years": [2002, 2002],
-            "as_missing": None,
             "fvcom": False,
-            "rows": [{"variable": "temperature", "title": "Temperature", "model_variable": "nothere",
-                      "pattern": PATTERN, "time_res": "1d", "observations": ["NSBC"], "gridded": True}],
+            "rows": [{"variable": "temperature", "pattern": PATTERN, "time_res": "1d", "groups": [
+                {"years": [2002, 2002], "sources": ["NSBC"], "gridded": True},
+            ]}],
             "files": {PATTERN: files},
         }
         request.update(changes)
@@ -559,7 +576,10 @@ class TestModelCheck:
         files = example_files("2002/01", "2002/02")
         changed = []
         check = ModelCheck(7, self.request(files), lambda: changed.append(1))
-        assert check.state(lambda file: file)["rows"][0]["files"] is None
+        # its groups are known before their files and dates are
+        assert check.state()["rows"] == [{"variable": "temperature", "total": None, "groups": [
+            {"years": [2002, 2002], "sources": ["NSBC"], "count": None, "dates": None},
+        ]}]
         try:
             check.start()
             wait_until(lambda: check.status != "running")
@@ -567,15 +587,17 @@ class TestModelCheck:
             assert (check.status, check.finished, check.question) == ("done", True, 7)
             assert check.index == os.path.join(check.folder, "times.pkl")
             assert changed
-            assert check.files_of("temperature") == [os.path.relpath(path, EXAMPLE) for path in files]
-            assert check.files_of("salinity") is None
-            state = check.state(lambda file: f"/maps/{file}")
+            assert check.files_of("temperature", 0) == [os.path.relpath(path, EXAMPLE) for path in files]
+            assert check.files_of("temperature", 1) is None
+            assert check.files_of("salinity", 0) is None
+            state = check.state()
             assert state["status"] == "done" and state["error"] is None
             assert state["progress"] == {"done": 2, "total": 2}
             [row] = state["rows"]
-            assert (row["title"], row["observations"], row["files"]["count"]) == ("Temperature", ["NSBC"], 2)
-            assert row["plot"]["error"].startswith("The map could not be drawn: ")
-            assert row["dates"]["summary"] == "10 of 12 months have gaps"
+            assert (row["variable"], row["total"]) == ("temperature", 2)
+            [group] = row["groups"]
+            assert (group["years"], group["sources"], group["count"]) == ([2002, 2002], ["NSBC"], 2)
+            assert group["dates"]["summary"] == "10 of 12 months have gaps"
         finally:
             check.remove()
         assert not os.path.exists(check.folder)

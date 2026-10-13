@@ -97,14 +97,6 @@ def units_match(app):
     assert post(app, "/api/units_continue", {"conversions": {}, "confirmed": True})[0] == 200
 
 
-def skip_model_check(app):
-    """Answer no to the offer of a look at how OceanVal will view the model
-    output, which comes between the matchups and the report options."""
-    wait_for(lambda: app.view == "model_check_ask")
-    assert post(app, "/api/model_check", {"answer": False})[0] == 200
-    assert app.view == "report_options"
-
-
 def fill_required_recipe_years(page):
     red = "rgb(192, 57, 43)"
     for name in ("start", "end"):
@@ -1053,7 +1045,6 @@ class TestChoosingMatchups:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        skip_model_check(app)
         assert get_json(app, "/api/state")[1]["report"]["matchups"] == listed
 
         # none ticked
@@ -2180,8 +2171,6 @@ class TestServer:
         number = app.question.id
 
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
-        assert app.view == "model_check_ask"
-        skip_model_check(app)
         _, state = get_json(app, "/api/state")
         assert state["view"] == "report_options"
         # matchup still waits for the answer, so nothing is matched up yet
@@ -2194,15 +2183,11 @@ class TestServer:
         assert "answer:" not in app.console.since(0, None)["text"]
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 409
 
-        # Back shows the offer of a look at the model output, and then the
-        # matchups again, still asked about
-        assert post(app, "/api/back")[0] == 200
-        assert app.view == "model_check_ask"
+        # Back shows the matchups again, still asked about
         assert post(app, "/api/back")[0] == 200
         assert (app.view, app.question.id) == ("running", number)
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
-        assert app.view == "model_check_ask"
-        skip_model_check(app)
+        assert app.view == "report_options"
 
         status, reply = post(app, "/api/report", {"form": {"lon_min": "x"}})
         assert status == 400
@@ -2281,7 +2266,6 @@ class TestServer:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        skip_model_check(app)
 
         form = {"lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65",
                 "pdf": True, "zip": True, "concise": False}
@@ -2323,7 +2307,6 @@ class TestServer:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        skip_model_check(app)
         assert post(app, "/api/report", {"form": {"concise": False}})[0] == 200
 
         # the report is built once the matchups are made, as before
@@ -2680,16 +2663,11 @@ class TestPointTimeResStep:
         assert status == 400 and app.view == "point_time_res"
 
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
-        assert app.view == "model_check_ask"
-        skip_model_check(app)
-        # Back from the report options comes to the offer of a look at the
-        # model output, and from there here again
+        assert app.view == "report_options"
+        # Back from the report options comes here again
         assert post(app, "/api/back", {"form": {}})[0] == 200
-        assert app.view == "model_check_ask"
-        assert post(app, "/api/back")[0] == 200
         assert app.view == "point_time_res"
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
-        skip_model_check(app)
 
         assert post(app, "/api/report", {"form": {}})[0] == 200
         wait_for(lambda: validated)
@@ -2780,7 +2758,9 @@ class StubCheck:
         self.folder = tempfile.mkdtemp(prefix="oceanval_stub_check_")
         self.status = "running"
         self.index = None
-        self.started = self.stopped = self.removed = False
+        self.started = self.removed = False
+        # whether it was stopped while it was still going
+        self.stopped = False
         self.files = {}
         StubCheck.made.append(self)
 
@@ -2792,8 +2772,8 @@ class StubCheck:
         return self.status == "done"
 
     def stop(self):
-        self.stopped = True
         if self.status == "running":
+            self.stopped = True
             self.status = "stopped"
 
     def remove(self):
@@ -2801,29 +2781,44 @@ class StubCheck:
         shutil.rmtree(self.folder, ignore_errors=True)
         self.removed = True
 
-    def files_of(self, variable):
-        return self.files.get(variable)
+    def files_of(self, variable, group):
+        return self.files.get((variable, group))
 
-    def state(self, href):
+    def state(self):
         return {
             "status": self.status,
             "progress": {"done": 1, "total": 2},
             "error": None,
             "rows": [
-                {"variable": row["variable"], "title": row["title"], "plot": {"href": href("t.html")}}
+                {
+                    "variable": row["variable"],
+                    "total": None,
+                    "groups": [dict(group, count=None, dates=None) for group in row["groups"]],
+                }
                 for row in self.request["rows"]
             ],
         }
 
 
-class TestModelCheckStep:
-    """The offer, once the matchups are checked, of a look at how OceanVal
-    will view the model output (see oceanval.model_check)."""
+# the real one, for the tests that read the dates of real files
+RealModelCheck = model_check.ModelCheck
+
+
+@pytest.fixture(autouse=True)
+def stub_model_check(monkeypatch):
+    """Every matchups question starts a check of the dates of the files it
+    lists (see oceanval.model_check), in a process of its own: a stand-in
+    that starts nothing is used, unless a test puts RealModelCheck back."""
+    StubCheck.made = []
+    monkeypatch.setattr(model_check, "ModelCheck", StubCheck)
+
+
+class TestDatesOfTheFiles:
+    """The check of the dates of the files the matchups page lists, made
+    while the matchups are asked about (see oceanval.model_check)."""
 
     @pytest.fixture(autouse=True)
-    def stub(self, monkeypatch):
-        StubCheck.made = []
-        monkeypatch.setattr(model_check, "ModelCheck", StubCheck)
+    def no_interim(self, monkeypatch):
         # without jupyter-book 2 there is no interim report to wait for
         monkeypatch.setattr(live, "available", lambda: False)
 
@@ -2833,223 +2828,177 @@ class TestModelCheckStep:
         script.write_text(
             textwrap.dedent(
                 f"""
+                import json
                 from oceanval import prompts
                 question = "Are you happy with these matchups? (y/n) "
                 answer = prompts.ask(question, ("y", "n"), details={MATCHUPS!r})
-                print("settings:", getattr(answer, "settings", None))
+                print("settings:", json.dumps(getattr(answer, "settings", None)))
                 """
             )
         )
         return script
 
-    def asked(self, app, tmp_path):
-        """At the offer, with matchup waiting for the matchups to be answered."""
-        app.action = "matchup_validate"
+    def asked(self, app, tmp_path, action="matchup_validate", script=None):
+        """At the matchups page, with matchup waiting for its answer. The
+        validate runs started after it are listed in what is returned."""
+        app.action = action
         validated = []
         start_run = app.start_run
         app.start_run = lambda args, label: validated.append(args) if args[0] == "validate" else start_run(args, label)
-        app.start_run(["matchup", str(self.script(tmp_path))], "python run.py")
-        wait_for(lambda: app.question is not None)
-        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        assert app.view == "model_check_ask"
+        kind = "matchup" if action == "matchup_validate" else "script"
+        app.start_run([kind, str(script or self.script(tmp_path))], "python run.py")
+        # the question is put a moment before its check is made
+        wait_for(lambda: app.question is not None and app.model_check is not None)
         return validated
 
-    def test_the_offer_is_not_made_by_other_runs(self, app, tmp_path):
-        assert post(app, "/api/model_check", {"answer": True})[0] == 409
-        app.action = "matchup"
-        app.start_run(["script", str(self.script(tmp_path))], "python run.py")
-        wait_for(lambda: app.question is not None)
-        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        wait_for(lambda: app.view == "finished")
-        assert StubCheck.made == []
-        assert post(app, "/api/model_check", {"answer": True})[0] == 409
-        assert post(app, "/api/model_check_continue")[0] == 409
-
-    def test_no_goes_to_the_report_options(self, app, tmp_path):
+    def test_the_dates_are_read_as_the_matchups_are_asked_about(self, app, tmp_path):
+        assert get_json(app, "/api/state")[1]["model_check"] is None
         self.asked(app, tmp_path)
-        assert get_json(app, "/api/state")[1]["model_check"] == {"answer": None}
-        assert post(app, "/api/model_check", {"answer": False})[0] == 200
-        assert app.view == "report_options"
-        assert StubCheck.made == []
-        # the answer is kept, for Back
-        assert post(app, "/api/back", {"form": {}})[0] == 200
-        assert get_json(app, "/api/state")[1]["model_check"] == {"answer": False}
-
-    def test_yes_checks_the_variables_and_their_files(self, app, tmp_path):
-        self.asked(app, tmp_path)
-        assert post(app, "/api/model_check", {"answer": True})[0] == 200
-        assert app.view == "model_check"
         [check] = StubCheck.made
         assert check.started
         assert check.question == app.question.id
         assert check.request == {
             "sim_dir": "/sim",
             "years": [2011, 2012],
-            "as_missing": None,
             "fvcom": False,
             "rows": [
                 {
                     "variable": "temperature",
-                    "title": "Temperature",
-                    "model_variable": "thetao",
                     "pattern": "x_**_grid_T.nc",
                     "time_res": None,
-                    "observations": ["COBE2", "ICES (point)"],
-                    "gridded": True,
+                    # from a matchup that does not send the years of each
+                    # dataset, all are for the run's years
+                    "groups": [
+                        {"years": [2011, 2012], "sources": ["COBE2", "ICES (point)"], "gridded": True},
+                    ],
                 }
             ],
             "files": {"x_**_grid_T.nc": ["/sim/2011/x_2011_grid_T.nc", "/sim/2012/x_2012_grid_T.nc"]},
         }
-        shown = get_json(app, "/api/state")[1]["model_check"]
-        assert (shown["answer"], shown["status"], shown["number"]) == (True, "running", check.number)
-        assert shown["years"] == [2011, 2012]
-        assert shown["progress"] == {"done": 1, "total": 2}
-        # a map is a link to a file of the check, with the token and its number
-        href = shown["rows"][0]["plot"]["href"]
-        assert href == f"model_check/{app.token}/{check.number}/t.html"
+        assert get_json(app, "/api/state")[1]["model_check"] == {
+            "status": "running",
+            "progress": {"done": 1, "total": 2},
+            "error": None,
+            "rows": [{"variable": "temperature", "total": None, "groups": [
+                {"years": [2011, 2012], "sources": ["COBE2", "ICES (point)"], "gridded": True,
+                 "count": None, "dates": None},
+            ]}],
+            "number": check.number,
+        }
 
-    def test_back_keeps_the_answer_and_the_check(self, app, tmp_path):
-        self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
+    def test_each_dataset_is_checked_for_its_own_years(self, app, tmp_path):
+        groups = [
+            {"years": [2011, 2012], "sources": ["COBE2"], "gridded": True},
+            {"years": [2012, 2012], "sources": ["ICES (point)"], "gridded": False},
+        ]
+        details = dict(MATCHUPS, rows=[dict(MATCHUPS["rows"][0], groups=groups)])
+        script = tmp_path / "own_years.py"
+        script.write_text(
+            "from oceanval import prompts\n"
+            f"prompts.ask('Are you happy with these matchups? (y/n) ', ('y', 'n'), details={details!r})\n"
+        )
+        self.asked(app, tmp_path, script=script)
         [check] = StubCheck.made
-        check.status = "done"
+        assert check.request["rows"][0]["groups"] == groups
 
-        assert post(app, "/api/back")[0] == 200
-        assert app.view == "model_check_ask"
-        assert get_json(app, "/api/state")[1]["model_check"]["answer"] is True
-        assert not check.stopped
-        # yes again shows the same check, without making it afresh
-        assert post(app, "/api/model_check", {"answer": True})[0] == 200
-        assert (app.view, StubCheck.made) == ("model_check", [check])
+    def test_other_questions_are_not_checked(self, app, tmp_path):
+        script = tmp_path / "ask.py"
+        script.write_text('from oceanval import prompts\nprint(prompts.ask("Try again? (y/n) ", ("y", "n")))\n')
+        app.action = "matchup"
+        app.start_run(["script", str(script)], "python ask.py")
+        wait_for(lambda: app.question is not None)
+        assert StubCheck.made == []
+        assert get_json(app, "/api/state")[1]["model_check"] is None
 
-        # Back from the report options comes to it, as it was left
-        assert post(app, "/api/model_check_continue")[0] == 200
+    def test_it_goes_on_through_the_report_options(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        [check] = StubCheck.made
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
         assert app.view == "report_options"
+        assert get_json(app, "/api/state")[1]["model_check"]["number"] == check.number
+        # Back shows the matchups with it as it is
         assert post(app, "/api/back", {"form": {}})[0] == 200
-        assert (app.view, StubCheck.made) == ("model_check", [check])
-        assert not check.stopped
+        assert app.view == "running"
+        assert (StubCheck.made, check.stopped, check.removed) == ([check], False, False)
 
-    @pytest.mark.parametrize("status", ["failed", "stopped"])
-    def test_a_check_that_did_not_finish_is_made_again(self, app, tmp_path, status):
-        self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
-        [first] = StubCheck.made
-        first.status = status
-        post(app, "/api/back")
-        assert post(app, "/api/model_check", {"answer": True})[0] == 200
-        assert len(StubCheck.made) == 2
-        wait_for(lambda: first.removed)
-        assert StubCheck.made[1].started and not StubCheck.made[1].removed
-
-    def test_no_after_yes_keeps_the_check_for_back(self, app, tmp_path):
-        self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
-        post(app, "/api/back")
-        assert post(app, "/api/model_check", {"answer": False})[0] == 200
-        assert app.view == "report_options"
-        # no is the answer now, so Back shows the offer, not the check
-        post(app, "/api/back", {"form": {}})
-        assert app.view == "model_check_ask"
-
-    def test_continue_stops_a_check_that_is_going(self, app, tmp_path):
-        self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
-        [check] = StubCheck.made
-        assert post(app, "/api/model_check_continue")[0] == 200
-        assert app.view == "report_options"
-        assert check.stopped and check.status == "stopped"
-
-    def test_continue_leaves_a_finished_check_alone(self, app, tmp_path):
-        self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
-        [check] = StubCheck.made
-        check.status = "done"
-        assert post(app, "/api/model_check_continue")[0] == 200
-        assert not check.stopped
-
-    def test_the_offer_is_not_answered_from_the_matchups_question(self, app, tmp_path):
-        self.asked(app, tmp_path)
-        # matchup waits for the answer, which the window gives with the report's options
-        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 409
-        post(app, "/api/model_check", {"answer": True})
-        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 409
-
-    @pytest.mark.parametrize("status, sent", [("done", True), ("stopped", False), ("failed", False)])
-    def test_matchup_is_given_the_times_only_from_a_finished_check(self, app, tmp_path, status, sent):
-        validated = self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
+    @pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
+    @pytest.mark.parametrize("status, sent", [("done", True), ("running", False), ("failed", False)])
+    def test_matchup_is_given_the_times_only_from_a_finished_check(
+        self, app, tmp_path, action, status, sent
+    ):
+        validated = self.asked(app, tmp_path, action)
         [check] = StubCheck.made
         check.status, check.index = status, "/tmp/times.pkl"
-        post(app, "/api/model_check_continue")
-        assert post(app, "/api/report", {"form": {}})[0] == 200
-        wait_for(lambda: validated)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        if action == "matchup_validate":
+            assert post(app, "/api/report", {"form": {}})[0] == 200
+            wait_for(lambda: validated)
+        else:
+            wait_for(lambda: app.view == "finished")
         text = app.console.since(0, None)["text"]
-        assert ("times_index" in text) is sent
         if sent:
-            assert "/tmp/times.pkl" in text
+            assert 'settings: {"times_index": "/tmp/times.pkl"}' in text
+        else:
+            assert "times_index" not in text
+        # one still going is stopped, as matchup reads the times itself
+        assert check.stopped is (status == "running")
         # matchup has read them by the time it ends, so the check goes
         wait_for(lambda: check.removed)
         assert app.model_check is None
 
-    def test_the_check_goes_when_the_window_quits(self, app, tmp_path):
+    def test_and_after_the_point_time_res_step(self, app, tmp_path):
+        self.asked(app, tmp_path, "matchup", point_time_res_script(tmp_path))
+        [check] = StubCheck.made
+        check.status, check.index = "done", "/tmp/times.pkl"
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert app.view == "point_time_res"
+        assert post(app, "/api/point_time_res", {"form": {"mode": "keep"}})[0] == 200
+        wait_for(lambda: app.view == "finished")
+        assert '"times_index": "/tmp/times.pkl"' in app.console.since(0, None)["text"]
+
+    def test_no_stops_it(self, app, tmp_path):
+        self.asked(app, tmp_path, "matchup")
+        [check] = StubCheck.made
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "n"})[0] == 200
+        wait_for(lambda: check.removed)
+        assert check.stopped and app.model_check is None
+
+    def test_a_new_run_drops_it(self, app, tmp_path):
         self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        app.start_run(["matchup", str(self.script(tmp_path))], "python run.py")
+        wait_for(lambda: check.removed)
+        # and the new run's matchups have a check of their own
+        wait_for(lambda: len(StubCheck.made) == 2)
+        assert StubCheck.made[1].question == app.question.id != check.question
+
+    def test_it_goes_when_the_window_quits(self, app, tmp_path):
+        self.asked(app, tmp_path)
         [check] = StubCheck.made
         app.quit()
         wait_for(lambda: check.removed)
         assert not os.path.exists(check.folder)
 
-    def test_a_new_run_drops_the_check_and_the_answer(self, app, tmp_path):
+    def test_the_files_of_a_variable_in_its_years_are_asked_for(self, app, tmp_path):
+        assert get_json(app, "/api/model_check_files", variable="temperature", group=0)[0] == 409
         self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
         [check] = StubCheck.made
-        app.start_run(["matchup", str(self.script(tmp_path))], "python run.py")
-        wait_for(lambda: check.removed)
-        assert app.model_check is None and app.model_check_answer is None
-
-    def test_the_maps_and_libraries_are_served_with_the_token(self, app, tmp_path, monkeypatch):
-        self.asked(app, tmp_path)
-        post(app, "/api/model_check", {"answer": True})
-        [check] = StubCheck.made
-        (tmp_path / "secret.txt").write_text("not for the window")
-        with open(os.path.join(check.folder, "t.html"), "w") as page:
-            page.write("<p>a map</p>")
-        library = tmp_path / "bokeh_static"
-        (library / "js").mkdir(parents=True)
-        (library / "js" / "bokeh.min.js").write_text("var bokeh;")
-        monkeypatch.setattr(
-            model_check, "library_root", lambda name: str(library) if name == "bokeh" else None
-        )
-        base = f"/model_check/{urllib.parse.quote(app.token)}/{check.number}"
-
-        status, body = get(app, f"{base}/t.html")
-        assert (status, body) == (200, "<p>a map</p>")
-        assert get(app, f"{base}/lib/bokeh/js/bokeh.min.js") == (200, "var bokeh;")
-        # only what the check made, and the libraries it loads
-        assert get(app, f"{base}/lib/panel/js/x.js")[0] == 404
-        assert get(app, f"{base}/lib/other/js/x.js")[0] == 404
-        assert get(app, f"{base}/missing.html")[0] == 404
-        assert get(app, f"{base}/../../secret.txt")[0] == 404
-        assert get(app, f"{base}/%2e%2e/%2e%2e/secret.txt")[0] == 404
-        assert get(app, f"{base}/lib/bokeh/%2e%2e/%2e%2e/secret.txt")[0] == 404
-        # another check's number
-        assert get(app, f"/model_check/{urllib.parse.quote(app.token)}/{check.number + 1}/t.html")[0] == 404
-        assert get(app, f"/model_check/{urllib.parse.quote(app.token)}/x/t.html")[0] == 404
-        # the link oceanval printed is needed
-        assert get(app, "/model_check/wrong/%d/t.html" % check.number)[0] == 403
-        assert get(app, "/model_check/wrong/%d/lib/bokeh/js/bokeh.min.js" % check.number)[0] == 403
-
-    def test_the_files_of_a_variable_are_asked_for(self, app, tmp_path):
-        self.asked(app, tmp_path)
-        assert get_json(app, "/api/model_check_files", variable="temperature")[0] == 409
-        post(app, "/api/model_check", {"answer": True})
-        [check] = StubCheck.made
-        assert get_json(app, "/api/model_check_files", variable="temperature")[0] == 409
-        check.files["temperature"] = ["2011/x_2011_grid_T.nc"]
-        status, reply = get_json(app, "/api/model_check_files", variable="temperature")
+        assert get_json(app, "/api/model_check_files", variable="temperature", group=0)[0] == 409
+        check.files[("temperature", 0)] = ["2011/x_2011_grid_T.nc"]
+        status, reply = get_json(app, "/api/model_check_files", variable="temperature", group=0)
         assert (status, reply["files"]) == (200, ["2011/x_2011_grid_T.nc"])
-        assert get_json(app, "/api/model_check_files", variable="other")[0] == 409
-        assert get(app, "/api/model_check_files", token="wrong", variable="temperature")[0] == 403
+        # another of its groups, or another variable
+        assert get_json(app, "/api/model_check_files", variable="temperature", group=1)[0] == 409
+        assert get_json(app, "/api/model_check_files", variable="temperature")[0] == 409
+        assert get_json(app, "/api/model_check_files", variable="other", group=0)[0] == 409
+        assert get(app, "/api/model_check_files", token="wrong", variable="temperature", group=0)[0] == 403
+
+    def test_the_maps_are_gone(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        [check] = StubCheck.made
+        assert get(app, f"/model_check/{urllib.parse.quote(app.token)}/{check.number}/t.html")[0] == 404
+        assert post(app, "/api/model_check", {"answer": True})[0] == 404
+        assert post(app, "/api/model_check_continue")[0] == 404
 
 
 class TestRecipesRestore:
@@ -3298,11 +3247,18 @@ class TestBack:
         assert "obs_multiplier" not in app.own_data["gridded"][0]
         assert app.own_data["gridded"][0]["obs_adder"] == 3
         assert get_json(app, "/api/state")[1]["run"]["back"] is True
+        # the dates of the files are being read
+        wait_for(lambda: StubCheck.made)
+        [check] = StubCheck.made
 
         assert post(app, "/api/back")[0] == 200
         # the units step straight away, with its rows as read before
         _, state = get_json(app, "/api/state")
         assert (state["view"], state["question"], state["run"]["back"]) == ("units_table", None, False)
+        # and the dates are no longer read
+        assert state["model_check"] is None
+        wait_for(lambda: check.removed)
+        assert check.stopped
         assert app.units_rows is rows
         assert state["units"]["boxes"] == {
             "recipe:nitrate:woa23": {"multiplier": "2", "adder": ""},
@@ -3372,12 +3328,9 @@ class TestBack:
         wait_for(lambda: app.question is not None)
         number = app.question.id
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
-        skip_model_check(app)
         form = {"pdf": True, "subregions": "global", "lon_min": "-20", **DEPTH_FORM}
 
         assert post(app, "/api/back", {"form": form})[0] == 200
-        assert app.view == "model_check_ask"
-        assert post(app, "/api/back")[0] == 200
         assert (app.view, app.question.id) == ("running", number)
         # this run was not started by the units step, so has none to go back to
         assert get_json(app, "/api/state")[1]["run"]["back"] is False
@@ -4002,8 +3955,9 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         page.wait_for_selector("#review:not([hidden])", timeout=90000)
         assert page.is_hidden("#progress")
         assert page.is_hidden("#ask")
-        assert page.locator("#review th").all_text_contents()[2:] == [
-            "Observation source", "File pattern to be used", "Time resolution",
+        assert page.locator("#review th").all_text_contents() == [
+            "Variable", "Years", "Model variable", "Observation source", "File pattern to be used",
+            "Time resolution", "Dates",
         ]
         # the answers are in the bar, Back first, and none are in the card
         assert page.locator("#review button:not(.btn--text):not(#review-refilter)").count() == 0
@@ -4023,10 +3977,8 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         yes_box = page.locator("#actions button:has-text('Yes, continue')").bounding_box()
         assert question_box["x"] + question_box["width"] <= yes_box["x"]
         assert abs(question_box["y"] - yes_box["y"]) < yes_box["height"]
-        assert page.text_content("#review-time-note") == (
-            "Temporal subsetting will be applied to the files listed below, based on the time criteria you provided on the previous pages. "
-            "Any year limits set for an individual dataset will also apply."
-        )
+        # each row has the files of its years, so there is no note that they are subset
+        assert page.locator("#review-time-note").count() == 0
         row = page.locator('#review-body tr[data-variable="temperature"]')
         for text in ("Temperature", "thetao", "COBE2, ICES (point)", "x_**_grid_T.nc", "2 files"):
             assert text in row.text_content()
@@ -4053,12 +4005,16 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_disabled("#review-refilter")
         assert page.text_content("#review-filters-msg") == ""
 
-        row.locator("button:has-text('List all files')").click()
+        # until the dates of the files are read, every file of the pattern is
+        # listed, saying so
+        row.locator("button:has-text('List files')").click()
         page.wait_for_selector("#files-list .picker__file")
-        assert page.text_content("#files-notice").startswith(
-            "Temporal subsetting will be applied to these files by OceanVal"
+        assert page.text_content("#files-title") == "Temperature, 2011–2012: files"
+        assert page.is_visible("#files-notice")
+        assert page.text_content("#files-notice") == (
+            "Their dates have not been read, so all of them are listed: "
+            "only their times in 2011–2012 are matched up."
         )
-        assert "2011 to 2012" in page.text_content("#files-notice")
         assert page.locator("#files-list .picker__file").all_text_contents() == [
             "2011/x_2011_grid_T.nc",
             "2012/x_2012_grid_T.nc",
@@ -4166,8 +4122,8 @@ def test_the_point_time_res_step_in_a_browser(browser, tmp_path):
         page = browser.new_page()
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
-        assert page.locator("#review th").last.text_content() == "Time resolution"
-        assert page.locator("#review-body td").last.text_content() == "monthly"
+        assert page.locator("#review th").nth(5).text_content() == "Time resolution"
+        assert page.locator("#review-body tr[data-variable] td").nth(5).text_content() == "monthly"
 
         page.click("text=Yes, continue")
         page.wait_for_selector("#view-point-time-res:not([hidden])")
@@ -4221,12 +4177,6 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
-        # a look at how OceanVal will view the model output is offered first
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        assert page.text_content("#title") == (
-            "Do you want to double check how OceanVal will view your simulation output?"
-        )
-        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
 
         assert page.text_content("#title") == "One last thing... How would you like your validation report?"
@@ -4242,19 +4192,11 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.text_content("#build") == "Match up and validate"
         assert "matching up" not in page.text_content("#console-text")
 
-        # Back shows the offer again, with the answer given, and then the
-        # matchups, to be answered afresh
-        page.click("#actions button:has-text('Back')")
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        assert "is-chosen" in page.get_attribute("#mc-no", "class")
-        assert page.is_visible("#mc-no .choice__tag")
-        assert page.is_hidden("#mc-yes .choice__tag")
+        # Back shows the matchups again, to be answered afresh
         page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
         assert page.is_enabled("#actions button:has-text('Yes')")
         page.click("#actions button:has-text('Yes')")
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
 
         page.check("#v-pdf")
@@ -4274,11 +4216,14 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         app.close()
 
 
-def test_the_model_output_check_in_a_browser(browser, tmp_path):
-    """Once the matchups are checked, a matchup and validate run offers a look
-    at how OceanVal will view the model output: a row for each variable, with
-    a map drawn from the files, the files used and whether any dates are
-    missing, all without anything being fetched from the web."""
+def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
+    """While the matchups are asked about, the dates of the files are read.
+    The table has a row for each variable and each of the years its
+    datasets are matched up for, with only the files with output in those
+    years, and whether any dates are missing from them, with the months and
+    what is missing in a row that opens under it, all without anything being
+    fetched from the web. matchup is given the times read."""
+    monkeypatch.setattr(model_check, "ModelCheck", RealModelCheck)
     simulation = os.path.abspath("data/example_temperature")
     pattern = "**/**/amm7_1d_**_**_grid_T.nc"
     # March 2002 is left out, so there is a month for the check to find missing
@@ -4288,16 +4233,25 @@ def test_the_model_output_check_in_a_browser(browser, tmp_path):
     )
     files = [path for path in every_file if "200203" not in os.path.basename(path)]
     details = {
-        "kind": "matchups", "sim_dir": simulation, "years": [2001, 2003], "as_missing": 0,
-        "fvcom": False, "matchups": [],
+        "kind": "matchups", "sim_dir": simulation, "years": [2001, 2003],
+        "fvcom": False,
+        # one to validate, for the report options
+        "matchups": [{"kind": "point", "variable": "temperature", "source": "ICES", "layer": "surface",
+                      "vertical": False, "title": "Temperature", "key": "temperature/ICES"}],
         "rows": [
+            # ICES matched up for one of the run's years
             {"variable": "temperature", "title": "Temperature", "model_variable": "votemper",
              "pattern": pattern, "observations": ["NSBC", "ICES (point)"], "files": len(files),
-             "time_res": "1d"},
+             "time_res": "1d", "groups": [
+                 {"years": [2001, 2003], "sources": ["NSBC"], "gridded": True},
+                 {"years": [2002, 2002], "sources": ["ICES (point)"], "gridded": False},
+             ]},
             # nothing left out of this one's files
             {"variable": "temperature_all", "title": "Temperature, all files", "model_variable": "votemper",
              "pattern": "all_files", "observations": ["ICES (point)"], "files": len(every_file),
-             "time_res": "1d"},
+             "time_res": "1d", "groups": [
+                 {"years": [2001, 2003], "sources": ["ICES (point)"], "gridded": False},
+             ]},
         ],
         "files": {pattern: files, "all_files": every_file},
     }
@@ -4305,18 +4259,33 @@ def test_the_model_output_check_in_a_browser(browser, tmp_path):
     script.write_text(
         textwrap.dedent(
             f"""
+            import json
             from oceanval import prompts
             question = "Are you happy with these matchups? (y/n) "
             answer = prompts.ask(question, ("y", "n"), details={details!r})
-            print("settings:", getattr(answer, "settings", None))
+            print("settings:", json.dumps(getattr(answer, "settings", None)))
             """
         )
     )
+    monkeypatch.setattr(live, "available", lambda: False)
     app = App(cwd=str(tmp_path))
     app.action = "matchup_validate"
+    validated = []
+    start_run = app.start_run
+    monkeypatch.setattr(
+        app, "start_run",
+        lambda args, label: validated.append(args) if args[0] == "validate" else start_run(args, label),
+    )
     app.start_run(["matchup", str(script)], f"python {script}")
     url = app.start()
     fetched = []
+
+    def year(path):
+        return int(os.path.basename(path).split("_")[2][:4])
+
+    in_run = [path for path in files if 2001 <= year(path) <= 2003]
+    in_2002 = [path for path in files if year(path) == 2002]
+    assert 0 < len(in_2002) < len(in_run) < len(files)
     try:
         page = browser.new_page(viewport={"width": 1400, "height": 1000})
         # nothing but the window itself is reached
@@ -4330,94 +4299,117 @@ def test_the_model_output_check_in_a_browser(browser, tmp_path):
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
-        page.click("#actions button:has-text('Yes')")
+        assert page.locator("#review thead th").all_text_contents() == [
+            "Variable", "Years", "Model variable", "Observation source", "File pattern to be used",
+            "Time resolution", "Dates",
+        ]
+        # the table says which files are used, so there is no note of it
+        assert page.locator("#review-time-note").count() == 0
+        assert "Temporal subsetting" not in page.text_content("#review")
 
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        assert page.text_content("#title") == (
-            "Do you want to double check how OceanVal will view your simulation output?"
-        )
-        assert page.is_hidden("#mc-yes .choice__tag")
-        page.click("#mc-yes")
-        page.wait_for_selector("#view-model-check:not([hidden])")
-        # the map of the variable is drawn, and the dates of the files are read
-        page.wait_for_function("document.querySelectorAll('#mc-rows iframe').length >= 1", timeout=180000)
-        page.wait_for_function("document.getElementById('mc-progress').hidden", timeout=180000)
-        row = page.locator("#mc-rows [data-variable=temperature]")
-        assert "Temperature" in row.text_content()
-        assert "NSBC" in row.text_content()
-        # only those in the years matched up are used
-        used = [path for path in files if 2001 <= int(os.path.basename(path).split("_")[2][:4]) <= 2003]
-        assert 0 < len(used) < len(files)
-        count = f"{len(used)} files"
-        page.wait_for_function(
-            "(count) => document.querySelector('#mc-rows [data-variable=temperature] .mc__count').textContent.includes(count)",
-            arg=count,
-        )
-        assert f"of {len(files)} found" in row.locator(".mc__count").text_content()
-        page.wait_for_function(
-            "(count) => document.querySelectorAll('#mc-rows [data-variable=temperature] .mc__files li').length === count",
-            arg=len(used),
-        )
-        # the map comes from the check's own folder
-        source = row.locator("iframe").get_attribute("src")
-        assert source.startswith("model_check/")
-        frame = row.locator("iframe").element_handle().content_frame()
-        frame.wait_for_load_state("load")
-        assert "No as_missing" not in row.text_content()
-        assert "as_missing = 0" in row.text_content()
+        # a row for each of the years the variable's datasets are matched up for
+        rows = page.locator("#review-body tr[data-variable]")
+        assert rows.count() == 3
+        nsbc = page.locator("#review-body tr[data-variable=temperature][data-group='0']")
+        ices = page.locator("#review-body tr[data-variable=temperature][data-group='1']")
+        other = page.locator("#review-body tr[data-variable=temperature_all]")
+        for row in (nsbc, ices, other):
+            row.locator(".review__verdict").wait_for(timeout=180000)
+        page.wait_for_selector("#review-dates-progress[hidden]", state="attached")
 
-        # the dates, with the month left out of the files: said, with the
-        # months below, without anything to click
-        assert page.locator("#mc-rows button").count() == 0
-        assert "Check dates" not in page.text_content("#mc-rows")
-        assert "Hide dates" not in page.text_content("#mc-rows")
-        verdict = row.locator(".mc__verdict")
-        verdict.wait_for()
-        assert verdict.text_content().strip() == "Some dates appear to be missing. See below"
-        assert "is-gaps" in verdict.get_attribute("class")
-        panel = row.locator(".mc__dates")
-        assert panel.count() == 1
-        # a year of months, and the one left out is marked
-        assert panel.locator(".mc__year").count() == 3
-        assert panel.locator(".mc__grid .is-missing").count() == 1
-        assert panel.locator(".mc__grid .is-missing").get_attribute("title") == "Mar 2002: no output"
-        assert panel.locator(".mc__legend li").count() == 3
-        issues = panel.locator(".mc__issues").text_content()
-        assert "1 month with no output: Mar 2002." in issues
-        assert "Gridded matchups leave out 2002" in issues
-        # the cell with the verdict is above the panel, which is under the row
-        assert verdict.bounding_box()["y"] < panel.bounding_box()["y"]
+        def cells(row):
+            return [cell.strip() for cell in row.locator("td").all_text_contents()]
 
-        # and when nothing is missing, that is all that is said
-        other = page.locator("#mc-rows [data-variable=temperature_all]")
-        other.locator(".mc__verdict").wait_for()
-        said = other.locator(".mc__verdict").text_content().strip()
-        assert said == "All 36 months from 2001 to 2003 are complete"
-        assert "is-ok" in other.locator(".mc__verdict").get_attribute("class")
-        assert other.locator(".mc__dates").count() == 0
-        assert "missing" not in other.locator(".mc__cell").nth(3).text_content()
+        assert cells(nsbc)[:4] == ["Temperature", "2001–2003", "votemper", "NSBC"]
+        assert cells(ices)[:4] == ["Temperature", "2002", "votemper", "ICES (point)"]
+        # only the files with output in its years, and their dates
+        assert nsbc.locator(".review__found").text_content() == (
+            f"{len(in_run)} filesList files"
+            # every day of the three years, but March 2002
+            f"2001-01-01 to 2003-12-31, {365 * 3 - 31:,} time steps"
+        )
+        assert ices.locator(".review__found").text_content() == (
+            f"{len(in_2002)} filesList files2002-01-01 to 2002-12-31, {365 - 31} time steps"
+        )
+        for row in (nsbc, ices):
+            verdict = row.locator(".review__verdict")
+            assert verdict.text_content().strip() == "Some dates appear to be missing"
+            assert "is-gaps" in verdict.get_attribute("class")
+
+        # the months of each, under its row
+        for index, row in enumerate((nsbc, ices)):
+            fold = page.locator(f"#review-fold-{index}")
+            assert fold.is_hidden()
+            toggle = row.locator(".review__toggle")
+            assert (toggle.text_content(), toggle.get_attribute("aria-expanded")) == ("Show the months ▾", "false")
+            toggle.click()
+            assert fold.is_visible()
+            assert (toggle.text_content(), toggle.get_attribute("aria-expanded")) == ("Hide the months ▴", "true")
+            assert row.bounding_box()["y"] < fold.bounding_box()["y"]
+            assert fold.locator(".review__grid .is-missing").count() == 1
+            assert fold.locator(".review__grid .is-missing").get_attribute("title") == "Mar 2002: no output"
+            assert fold.locator(".review__legend li").count() == 3
+            assert "1 month with no output: Mar 2002." in fold.locator(".review__issues").text_content()
+        nsbc_fold, ices_fold = page.locator("#review-fold-0"), page.locator("#review-fold-1")
+        assert nsbc_fold.locator(".review__year").count() == 3
+        assert ices_fold.locator(".review__year").count() == 1
+        # only the gridded dataset leaves out a year without all 12 months
+        assert "Gridded matchups leave out 2002" in nsbc_fold.locator(".review__issues").text_content()
+        assert "Gridded" not in ices_fold.locator(".review__issues").text_content()
+        # and they are kept open as the page is drawn again
+        time.sleep(1.5)
+        assert nsbc_fold.is_visible() and ices_fold.is_visible()
+
+        # when nothing is missing, that is all that is said
+        assert cells(other)[1:4] == ["2001–2003", "votemper", "ICES (point)"]
+        said = other.locator(".review__verdict")
+        assert said.text_content().strip() == "All 36 months from 2001 to 2003 are complete"
+        assert "is-ok" in said.get_attribute("class")
+        assert other.locator(".review__toggle").count() == 0
+        assert page.locator("#review-fold-2").is_hidden()
+        assert other.locator(".review__found").text_content() == (
+            f"36 filesList files2001-01-01 to 2003-12-31, {365 * 3:,} time steps"
+        )
+
+        # a row's files are those with output in its years
+        ices.locator("button:has-text('List files')").click()
+        page.wait_for_selector("#files:not([hidden]) .picker__file")
+        assert page.text_content("#files-title") == "Temperature, 2002: files"
+        assert page.locator("#files-list .picker__file").all_text_contents() == in_2002
+        assert page.text_content("#files-intro") == (
+            f"{len(in_2002)} of the {len(files)} files in {simulation} that match {pattern} have output in 2002."
+        )
+        assert page.is_hidden("#files-notice")
+        page.click("#files-close")
+        nsbc.locator("button:has-text('List files')").click()
+        page.wait_for_function(f"document.querySelectorAll('#files-list .picker__file').length === {len(in_run)}")
+        assert page.text_content("#files-title") == "Temperature, 2001–2003: files"
+        page.click("#files-close")
+
         # the page does not scroll sideways on a phone
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
         page.set_viewport_size({"width": 1400, "height": 1000})
 
-        # Back keeps the answer, and Yes shows the same check
+        # Yes goes straight to the report options, and Back shows the dates again
         number = app.model_check.number
-        page.click("#actions button:has-text('Back')")
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        assert page.is_visible("#mc-yes .choice__tag")
-        page.click("#mc-yes")
-        page.wait_for_selector("#view-model-check:not([hidden])")
-        assert app.model_check.number == number
-        assert page.locator("#mc-rows [data-variable=temperature] iframe").count() == 1
-
-        page.click("#mc-continue")
+        page.click("#actions button:has-text('Yes')")
         page.wait_for_selector("#view-validate:not([hidden])")
-        assert page.text_content("#title") == "One last thing... How would you like your validation report?"
+        page.click("#actions button:has-text('Back')")
+        page.wait_for_selector("#review:not([hidden])")
+        assert app.model_check.number == number
+        assert rows.count() == 3
+        assert nsbc.locator(".review__verdict").text_content().strip() == "Some dates appear to be missing"
+
+        page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-validate:not([hidden])")
+        index = app.model_check.index
+        page.click("#build")
+        wait_for(lambda: validated)
+        # what the check read of the dates is given to matchup
+        assert f'settings: {{"times_index": "{index}"}}' in app.console.since(0, None)["text"]
         assert errors == []
         assert fetched == []
-        # what the check read of the dates is kept for matchup
-        assert app.model_check.finished and app.model_check.index
     finally:
         app.close()
 
@@ -4466,8 +4458,6 @@ def go_to_report_options(page, url):
     page.goto(url)
     page.wait_for_selector("#review:not([hidden])")
     page.click("#actions button:has-text('Yes')")
-    page.wait_for_selector("#view-model-check-ask:not([hidden])")
-    page.click("#mc-no")
     page.wait_for_selector("#view-validate:not([hidden])")
 
 
@@ -4784,12 +4774,8 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
 
         # Back keeps them
         page.click("#actions button:has-text('Back')")
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
         assert values()[-3:] == [("600", "1000"), ("1000", "2000"), ("2000", "")]
 
@@ -5452,25 +5438,17 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         # the report options, kept with Back
         page.wait_for_selector("#review:not([hidden])", timeout=90000)
         page.click("#actions button:has-text('Yes')")
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
         page.check("#v-pdf")
         page.select_option("#v-subregions", "global")
         bar("Back").click()
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        bar("Back").click()
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
-        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
         assert page.is_checked("#v-pdf")
         assert page.input_value("#v-subregions") == "global"
 
         # and back all the way to the simulation
-        bar("Back").click()
-        page.wait_for_selector("#view-model-check-ask:not([hidden])")
         bar("Back").click()
         page.wait_for_selector("#review:not([hidden])")
         bar("Back").click()

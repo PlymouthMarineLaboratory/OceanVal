@@ -391,6 +391,7 @@ class TestMatchupsQuestion:
             source="bar",
             model_variable="votemper",
             vertical=True,
+            start=2004,
         )
         asked = []
 
@@ -400,11 +401,17 @@ class TestMatchupsQuestion:
 
         with prompts.answered_by(answerer):
             oceanval.matchup(
-                sim_dir="data/example", start=2004, end=2004, cores=1, out_dir=str(tmp_path),
+                sim_dir="data/example", start=2000, end=2004, cores=1, out_dir=str(tmp_path),
                 thickness="data/example/e3t.nc",
             )
 
         [details] = asked
+        # each dataset is matched up for the run's years, or its own within
+        # them, and the window shows a row for each of these
+        assert details["rows"][0]["groups"] == [
+            {"years": [2000, 2004], "sources": ["foo"], "gridded": True},
+            {"years": [2004, 2004], "sources": ["bar (point)"], "gridded": False},
+        ]
         assert details["matchups"] == [
             {"kind": "gridded", "variable": "temperature", "source": "foo", "layer": None,
              "vertical": False, "title": "Temperature", "key": "temperature/foo"},
@@ -455,14 +462,17 @@ class TestMatchupsQuestion:
                 "model_variable": "votemper",
                 "pattern": pattern,
                 "observations": ["foo"],
+                # matched up for the run's years
+                "groups": [{"years": [2004, 2004], "sources": ["foo"], "gridded": True}],
                 "files": len(files),
                 # one time a day in each file
                 "time_res": "1d",
             }
         ]
         assert details["files"] == {pattern: files}
-        # how the files are read, for the window's check of the model output
-        assert (details["as_missing"], details["fvcom"]) == (None, False)
+        # how the times of the files are read, for the window's check of their dates
+        assert details["fvcom"] is False
+        assert "as_missing" not in details
         # daily output, and no point datasets, is nothing to check
         assert "point_time_res" not in details
         # no is not a matchup
@@ -470,7 +480,7 @@ class TestMatchupsQuestion:
 
     def test_the_times_the_window_read_are_not_read_again(self, tmp_path, monkeypatch):
         """Yes from the oceanval window can come with the times of the files
-        its check of the model output read (see oceanval.model_check), which
+        its check of their dates read (see oceanval.model_check), which
         matchup starts from, rather than read them all again."""
         from oceanval import model_check
 

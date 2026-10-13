@@ -41,9 +41,9 @@ output to a validation report:
    observations to validate against.
 5. **Units**: check and confirm the units, with conversions suggested where
    they differ.
-6. **Files**, **Model output** and **Report**: check the matchups, then, if
-   you wish, check how OceanVal will view the model output (a map, the files
-   and the dates for each variable), and choose the report's options.
+6. **Files** and **Report**: check the matchups (the files of each variable
+   in the years it is matched up for, and any dates missing from them), then
+   choose the report's options.
 7. **Run**: the matchup and the report, with what it is doing shown, and its output as the matchups are made.
 
 **Back**, on every step after the first, keeps what you have entered, so you

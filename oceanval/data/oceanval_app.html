@@ -497,11 +497,13 @@
   .review__title:focus { outline: none; }
   .review__lede { margin: 0; color: var(--muted); }
   .review__lede code { color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
-  .review__time-note { display: flex; gap: 8px; align-items: flex-start; margin: 14px 24px 0; padding: 10px 12px; border: 1px solid var(--coral-line); border-radius: 8px; background: var(--coral-bg); color: var(--coral-dark); font-size: 13.5px; font-weight: 500; line-height: 1.45; }
   .review__table { overflow-x: auto; margin-top: 16px; border-top: 1px solid var(--line); }
-  .review table { width: 100%; min-width: 760px; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+  .review table { width: 100%; min-width: 1000px; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
   .review th, .review td { padding: 12px 16px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-  .review th { background: var(--bg-alt); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+  /* titles too long for their column wrap at a space, all ending on the same line */
+  .review th { background: var(--bg-alt); color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.35; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: bottom; overflow-wrap: normal; }
+  /* the narrow columns of short values, the years and the time resolution */
+  .review th.is-centered, .review td.is-centered { padding-left: 8px; padding-right: 8px; text-align: center; }
   .review th:first-child, .review td:first-child { padding-left: 24px; }
   .review .is-mono { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
   .review td small { display: block; color: var(--muted); font-size: 12.5px; }
@@ -584,78 +586,44 @@
   .ptr .s-select { width: 100%; }
   .ptr .s-select:disabled { color: var(--muted); background: var(--bg-alt); }
   .ptr .s-select.is-oceanval, .ptr-mode .s-select.is-oceanval { color: var(--red); font-weight: 700; }
-  /* ---- the check of how OceanVal will view the model output ---- */
-  .mc-lede code { color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
-  .mc-lede .is-assumed { color: var(--amber); font-weight: 600; }
-  .mc-note { display: flex; gap: 8px; align-items: flex-start; max-width: 86ch; margin: 0 0 18px; padding: 10px 12px; border: 1px solid var(--coral-line); border-radius: 8px; background: var(--coral-bg); color: var(--coral-dark); font-size: 13.5px; font-weight: 500; line-height: 1.45; }
-  .mc-note.is-error { border-color: var(--red-line); background: var(--red-bg); color: var(--red); }
-  .mc { overflow: hidden; }
-  .mc__head, .mc__row { display: grid; grid-template-columns: minmax(150px, 0.8fr) minmax(400px, 2.8fr) minmax(200px, 1.2fr) minmax(140px, 0.7fr); }
-  .mc__head { background: var(--bg-alt); border-bottom: 1px solid var(--line); }
-  .mc__head span { padding: 12px 16px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
-  .mc__head span:first-child, .mc__cell:first-child { padding-left: 24px; }
-  .mc__row + .mc__row { border-top: 1px solid var(--line); }
-  .mc__cell { min-width: 0; padding: 18px 16px; }
-  .mc__title { margin: 0 0 4px; font: 600 16px/1.35 var(--font-head); letter-spacing: -0.1px; }
-  .mc__model { display: block; margin: 0 0 10px; color: var(--ink-soft); font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
-  .mc__label { display: block; margin: 0 0 4px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
-  .mc__sources { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
-  .mc__sources li { padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 12px; font-weight: 600; }
-  .mc__sources li.is-point { background: var(--line-soft); color: var(--ink-soft); }
-  .mc__res { color: var(--muted); font-size: 12.5px; }
-  .mc__res .is-mono { color: var(--ink-soft); font: 500 12.5px/1 var(--font-mono); }
-  .mc__map { position: relative; height: 352px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
-  .mc__map iframe { display: block; width: 100%; height: 100%; border: 0; }
-  .mc__wait { display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; height: 100%; padding: 16px; background: var(--bg-alt); color: var(--muted); font-size: 13.5px; text-align: center; }
-  .mc__wait .identify__spinner { width: 28px; height: 28px; border-width: 3px; }
-  .mc__wait.is-error { background: var(--red-bg); color: var(--red); }
-  .mc__caption { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin: 8px 2px 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
-  .mc__caption .is-mono { color: var(--ink-soft); font-family: var(--font-mono); overflow-wrap: anywhere; }
-  .mc__caption .is-assumed { color: var(--amber); font-weight: 600; }
-  .mc__caption a { color: var(--teal-700); font-weight: 600; white-space: nowrap; }
-  .mc__count { margin: 0; color: var(--teal-900); font: 600 26px/1.15 var(--font-head); letter-spacing: -0.3px; }
-  .mc__count small { display: block; margin-top: 2px; color: var(--muted); font: 500 13px/1.4 var(--font-body); letter-spacing: 0; }
-  .mc__span { margin: 8px 0 0; color: var(--ink-soft); font-size: 13px; }
-  .mc__files { max-height: 268px; margin: 12px 0 0; padding: 6px 0; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); list-style: none; counter-reset: mc-file; }
-  .mc__files li { display: grid; grid-template-columns: 4ch minmax(0, 1fr); gap: 8px; padding: 2px 10px; color: var(--ink-soft); font: 500 12px/1.6 var(--font-mono); counter-increment: mc-file; }
-  .mc__files li::before { content: counter(mc-file); color: var(--muted-light); text-align: right; }
-  .mc__files li span { overflow-wrap: anywhere; }
-  .mc__after { margin-top: 8px; }
-  .mc__muted { margin: 0; color: var(--muted); font-size: 13.5px; }
-  .mc__dates { grid-column: 1 / -1; margin: 0 16px 18px 24px; padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); }
-  .mc__verdict { display: flex; gap: 8px; align-items: flex-start; margin: 0; font: 600 14px/1.45 var(--font-head); }
-  .mc__verdict svg { flex: none; margin-top: 2px; }
-  .mc__verdict.is-ok { color: var(--teal-700); }
-  .mc__verdict.is-gaps { color: var(--amber); }
-  .mc__grid { display: grid; grid-template-columns: 52px repeat(12, minmax(22px, 1fr)); gap: 3px; max-width: 640px; }
-  .mc__grid span { display: grid; place-items: center; min-height: 22px; border-radius: 4px; font-size: 11.5px; }
-  .mc__grid .mc__month { color: var(--muted); font-weight: 600; }
-  .mc__grid .mc__year { justify-items: start; color: var(--ink-soft); font: 600 12px/1 var(--font-mono); }
-  .mc__grid .is-complete { background: var(--teal-200); }
-  .mc__grid .is-partial { border: 1px solid var(--amber); background: var(--amber-bg); color: var(--amber); font-weight: 700; }
-  .mc__grid .is-missing { border: 1px dashed var(--red); background: var(--red-bg); color: var(--red); font-weight: 700; }
-  .mc__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; padding: 0; color: var(--muted); font-size: 12.5px; list-style: none; }
-  .mc__legend li { display: flex; gap: 6px; align-items: center; }
-  .mc__legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
-  .mc__legend .is-complete { background: var(--teal-200); }
-  .mc__legend .is-partial { border: 1px solid var(--amber); background: var(--amber-bg); }
-  .mc__legend .is-missing { border: 1px dashed var(--red); background: var(--red-bg); }
-  .mc__issues { margin: 14px 0 0; padding-left: 20px; color: var(--ink-soft); font-size: 13.5px; line-height: 1.55; }
-  .mc__issues li + li { margin-top: 4px; }
-  .mc__issues--small { margin-top: 10px; font-size: 12.5px; }
-  @media (max-width: 1100px) {
-    .mc__head { display: none; }
-    .mc__row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    .mc__cell:nth-child(2) { grid-column: 1 / -1; grid-row: 2; padding-left: 24px; }
-    .mc__dates { margin-left: 16px; }
-  }
+  /* ---- the dates of the files, on the matchups page (see oceanval.model_check) ---- */
+  .review__dates-progress { display: flex; gap: 14px; align-items: center; margin: 14px 24px 0; padding: 12px 14px; border: 1px solid var(--teal-200); border-radius: 8px; background: var(--teal-50); }
+  .review__dates-progress .identify__spinner { width: 22px; height: 22px; border-width: 3px; }
+  .review__dates-progress .progress__bar { height: 6px; margin-top: 8px; }
+  .review__dates-label { display: block; color: var(--ink-soft); font-size: 13.5px; font-weight: 500; line-height: 1.45; }
+  .review__dates-note { display: flex; gap: 8px; align-items: flex-start; margin: 14px 24px 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 8px; background: var(--red-bg); color: var(--red); font-size: 13.5px; font-weight: 500; line-height: 1.45; }
+  .review__found { display: grid; gap: 4px; margin-top: 4px; }
+  .review .review__span { color: var(--ink-soft); }
+  .review__years { font: 500 13px/20px var(--font-mono); white-space: nowrap; }
+  .review__wait { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+  .review__wait .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
+  .review__muted { margin: 0; color: var(--muted); font-size: 13px; }
+  .review__verdict { display: flex; gap: 6px; align-items: flex-start; margin: 0; font: 600 13.5px/1.4 var(--font-head); }
+  .review__verdict svg { flex: none; margin-top: 2px; }
+  .review__verdict.is-ok { color: var(--teal-700); }
+  .review__verdict.is-gaps { color: var(--amber); }
+  .review__toggle { margin: 4px 0 0 -10px; }
+  .review tr.has-fold > td { border-bottom-color: transparent; }
+  .review td.review__fold { padding-top: 0; }
+  .review__fold-body { padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); }
+  .review__grid { display: grid; grid-template-columns: 52px repeat(12, minmax(22px, 1fr)); gap: 3px; max-width: 640px; }
+  .review__grid span { display: grid; place-items: center; min-height: 22px; border-radius: 4px; font-size: 11.5px; }
+  .review__grid .review__month { color: var(--muted); font-weight: 600; }
+  .review__grid .review__year { justify-items: start; color: var(--ink-soft); font: 600 12px/1 var(--font-mono); }
+  .review__grid .is-complete { background: var(--teal-200); }
+  .review__grid .is-partial { border: 1px solid var(--amber); background: var(--amber-bg); color: var(--amber); font-weight: 700; }
+  .review__grid .is-missing { border: 1px dashed var(--red); background: var(--red-bg); color: var(--red); font-weight: 700; }
+  .review__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; padding: 0; color: var(--muted); font-size: 12.5px; list-style: none; }
+  .review__legend li { display: flex; gap: 6px; align-items: center; }
+  .review__legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
+  .review__legend .is-complete { background: var(--teal-200); }
+  .review__legend .is-partial { border: 1px solid var(--amber); background: var(--amber-bg); }
+  .review__legend .is-missing { border: 1px dashed var(--red); background: var(--red-bg); }
+  .review__issues { margin: 0; padding-left: 20px; color: var(--ink-soft); font-size: 13.5px; line-height: 1.55; }
+  .review__legend + .review__issues { margin-top: 14px; }
+  .review__issues li + li { margin-top: 4px; }
   @media (max-width: 720px) {
-    .mc__row { grid-template-columns: minmax(0, 1fr); }
-    .mc__cell { padding-left: 16px; }
-    .mc__head span:first-child, .mc__cell:first-child, .mc__cell:nth-child(2) { padding-left: 16px; }
-    .mc__dates { margin: 0 16px 16px; }
-    .mc__grid { grid-template-columns: 40px repeat(12, minmax(0, 1fr)); gap: 2px; }
-    .mc__map { height: 320px; }
+    .review__grid { grid-template-columns: 40px repeat(12, minmax(0, 1fr)); gap: 2px; }
   }
   .form__stack { display: grid; gap: 26px; max-width: 560px; }
   /* ---- comparing validations ---- */
@@ -1068,45 +1036,6 @@
     </table></div>
   </section>
 
-  <section id="view-model-check-ask" hidden>
-    <p class="lede">Before anything is matched up, OceanVal can show you how it will read your simulation output: for each variable, a map of its sea surface at one time step, drawn by nctoolkit as OceanVal reads it, with any <code>as_missing</code> values treated as missing; the files it will use in the years being matched up; and any months or days missing from them.</p>
-    <div class="choices is-two">
-      <button type="button" class="choice" id="mc-yes">
-        <span class="choice__tag" hidden>Your answer before</span>
-        <span class="choice__title">Yes, show me</span>
-        <span class="choice__text">OceanVal reads the date of every file and draws each variable. This might take a minute or two.</span>
-      </button>
-      <button type="button" class="choice" id="mc-no">
-        <span class="choice__tag" hidden>Your answer before</span>
-        <span class="choice__title">No, carry on</span>
-        <span class="choice__text">Go straight on to the report's options.</span>
-      </button>
-    </div>
-  </section>
-
-  <section id="view-model-check" hidden>
-    <p class="lede mc-lede" id="mc-lede"></p>
-    <div class="progress" id="mc-progress" hidden>
-      <span class="identify__spinner" aria-hidden="true"></span>
-      <div class="progress__body">
-        <p class="identify__title" id="mc-progress-title">Reading your simulation output</p>
-        <p class="identify__text">This might take a minute or two. You don't have to wait: <strong>Continue</strong> stops the check, and OceanVal reads the files itself as it matches up.</p>
-        <div class="progress__bar" role="progressbar" aria-labelledby="mc-progress-title" id="mc-progress-bar"><span id="mc-progress-fill" style="width:0%"></span></div>
-        <span class="progress__label" id="mc-progress-label"></span>
-      </div>
-    </div>
-    <p class="mc-note" id="mc-note" role="status" hidden></p>
-    <div class="card mc" role="table" aria-label="How OceanVal will view the simulation output">
-      <div class="mc__head" role="row">
-        <span role="columnheader">Variable</span>
-        <span role="columnheader">Sea surface</span>
-        <span role="columnheader">Files used</span>
-        <span role="columnheader">Dates</span>
-      </div>
-      <div id="mc-rows" role="rowgroup"></div>
-    </div>
-  </section>
-
   <section id="view-validate" hidden>
     <p class="lede" id="v-report-dir" hidden></p>
     <form class="form card" id="validate-form" novalidate autocomplete="off">
@@ -1293,11 +1222,18 @@
         <h2 class="review__title" id="review-title" tabindex="-1">The following mapping will be assumed between variables and simulation files</h2>
         <p class="review__lede" id="review-lede"></p>
       </div>
-      <p class="review__time-note" id="review-time-note"></p>
+      <div class="review__dates-progress" id="review-dates-progress" hidden>
+        <span class="identify__spinner" aria-hidden="true"></span>
+        <div class="progress__body">
+          <span class="review__dates-label" id="review-dates-label" role="status" aria-live="polite"></span>
+          <div class="progress__bar" role="progressbar" aria-labelledby="review-dates-label" id="review-dates-bar"><span id="review-dates-fill" style="width:0%"></span></div>
+        </div>
+      </div>
+      <p class="review__dates-note" id="review-dates-note" role="status" hidden></p>
       <div class="review__table"><table>
-        <colgroup><col style="width:17%"><col style="width:19%"><col style="width:16%"><col style="width:32%"><col style="width:16%"></colgroup>
+        <colgroup><col style="width:15%"><col style="width:104px"><col style="width:13%"><col style="width:15%"><col style="width:30%"><col style="width:112px"><col style="width:27%"></colgroup>
         <thead><tr>
-        <th scope="col">Variable</th><th scope="col">Model variable</th><th scope="col">Observation source</th><th scope="col">File pattern to be used</th><th scope="col">Time resolution</th>
+        <th scope="col">Variable</th><th scope="col" class="is-centered">Years</th><th scope="col">Model variable</th><th scope="col">Observation source</th><th scope="col">File pattern to be used</th><th scope="col" class="is-centered">Time resolution</th><th scope="col">Dates</th>
         </tr></thead>
         <tbody id="review-body"></tbody>
       </table></div>
@@ -1562,8 +1498,6 @@
       case "compare": return "Which validations do you want to compare?";
       case "report_options": return "One last thing... How would you like your validation report?";
       case "point_time_res": return "Some point observations may not match the model's output";
-      case "model_check_ask": return "Do you want to double check how OceanVal will view your simulation output?";
-      case "model_check": return "How OceanVal will view your simulation output";
       case "running":
         // while the files are found and then checked, which is what the page is for then
         if (state.action === "matchup_validate" && (run.identifying || (state.question
@@ -1653,13 +1587,6 @@
       if (waiting) actions.push(button("Back", "ghost", () => post("api/back", { form: validateForm })));
       actions.push(button(waiting ? "Match up and validate" : "Build the report", "primary",
         submitValidate, { id: "build" }));
-    } else if (view === "model_check_ask") {
-      // to the matchups, or the point_time_res step, whose question is still being asked
-      actions.push(button("Back", "ghost", () => post("api/back")));
-    } else if (view === "model_check") {
-      // the check goes on, and is shown again as it is, with Yes
-      actions.push(button("Back", "ghost", () => post("api/back")),
-        button("Continue", "primary", continueModelCheck, { id: "mc-continue" }));
     } else if (view === "point_time_res") {
       // to the matchups, whose question is still being asked, with the boxes
       actions.push(button("Back", "ghost", () => post("api/back", { form: readPointTimeRes() })),
@@ -1734,7 +1661,6 @@
     own_future: "view-own-future",
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
     units_table: "view-units-table", point_time_res: "view-point-time-res",
-    model_check_ask: "view-model-check-ask", model_check: "view-model-check",
     preparing: "view-run", running: "view-run", finished: "view-run",
     script_saved: "view-script-saved" };
   let shownView = null;
@@ -1790,14 +1716,6 @@
     } else if (view === "point_time_res") {
       fillPointTimeRes();
       $(`ptr-mode-${readPointTimeRes().mode}`).focus();
-    } else if (view === "model_check_ask") {
-      // the answer given before, as it is reached again
-      const answer = state.model_check.answer;
-      for (const [id, value] of [["mc-yes", true], ["mc-no", false]]) {
-        $(id).classList.toggle("is-chosen", answer === value);
-        $(id).querySelector(".choice__tag").hidden = answer !== value;
-      }
-      $(answer === false ? "mc-no" : "mc-yes").focus();
     }
     if (VIEWS[view] !== "view-run") {
       // a question shown again, as on Back from the report options, is shown afresh
@@ -1829,7 +1747,6 @@
     if (state.view === "units_table" && !unitsFilled && state.units.rows) fillUnits();
     if (VIEWS[state.view] === "view-run") renderRun();
     if (state.view === "script_saved") renderSavedScript();
-    if (state.view === "model_check") renderModelCheck();
     if (!state.demo) {
       // the next demo starts with nothing ticked
       demoPick.model = null;
@@ -4437,6 +4354,7 @@
     $("run").hidden = !showOutput;
     renderProgress();
     renderQuestion();
+    renderReviewDates();
     renderResult();
     renderInterim();
     document.title = (state.question ? "Question · " : "") + "OceanVal";
@@ -4741,249 +4659,200 @@
     }
   }
 
-  // ---- how OceanVal will view the model output: a map, the files and the dates of each variable ----
-  $("mc-yes").addEventListener("click", () => post("api/model_check", { answer: true }));
-  $("mc-no").addEventListener("click", () => post("api/model_check", { answer: false }));
-
+  // ---- the matchups matchup asks about: each variable, for each of the years its datasets are matched up for ----
+  // the rows of the table, by "<variable>|<group>", for the question numbered
+  // reviewDates.question: the cells its files and dates are shown in, what
+  // they were last drawn from, and whether its fold-out is open, which is
+  // kept as the dates come in
+  const reviewDates = { question: null, rows: {} };
   const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
   const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  // the rows shown, by variable, for the check numbered mcShown, each with
-  // what each of its cells was last drawn from, so a map is not loaded again
-  let mcShown = null;
-  let mcRows = {};
-  // the files fetched, by check and variable
-  const mcFiles = {};
+  // years as far out as these are no limit, as for a dataset given no start
+  // or end, until the dates of the files say which they are (see oceanval.model_check)
+  const NO_START = -1000;
+  const NO_END = 3000;
 
   function yearsText(years) {
-    return years && years[0] !== null ? (years[0] === years[1] ? `${years[0]}` : `${years[0]}–${years[1]}`) : "the years matched up";
+    const [start, end] = years;
+    if (start <= NO_START && end >= NO_END) return "All years";
+    if (start <= NO_START) return `Up to ${end}`;
+    if (end >= NO_END) return `From ${start}`;
+    return start === end ? `${start}` : `${start}–${end}`;
   }
 
-  function missingText(value) {
-    return Array.isArray(value) ? `${value[0]} to ${value[1]}` : `${value}`;
+  // the years in a sentence: "in 2001–2003"
+  function inYears(years) {
+    const text = yearsText(years);
+    return /^\d/.test(text) ? `in ${text}` : text === "All years" ? "in any year" : text.toLowerCase();
   }
 
-  async function continueModelCheck() {
-    $("mc-continue").disabled = true;
-    const reply = await post("api/model_check_continue");
-    if (!reply.ok) {
-      toast(reply.error || "That could not be done.");
-      $("mc-continue").disabled = false;
-    }
+  // a variable's datasets grouped by the years they are matched up for, as
+  // matchup sends them (see oceanval.app._year_groups)
+  function yearGroups(row, years) {
+    if (Array.isArray(row.groups) && row.groups.length) return row.groups;
+    return [{ years, sources: row.observations, gridded: row.observations.some((source) => !/\(point\)$/.test(source)) }];
   }
 
-  function renderModelCheck() {
-    const check = state.model_check;
-    if (check.number !== mcShown) {
-      mcShown = check.number;
-      mcRows = {};
-      $("mc-rows").replaceChildren();
-    }
-    const lede = ["Each variable's sea surface at its first time step in ", yearsText(check.years),
-      ", as OceanVal reads it from ", el("code", { text: check.sim_dir || "" }), ". "];
-    if (check.as_missing === null || check.as_missing === undefined) {
-      lede.push(el("span", { class: "is-assumed", text: "No as_missing is given, so every value is used as it is in the files" }),
-        ": if land or empty cells hold a number such as 0, give it as as_missing in the matchup.");
-    } else {
-      lede.push(Array.isArray(check.as_missing) ? `Values from ${missingText(check.as_missing)}` : `Values of ${check.as_missing}`,
-        " (", el("code", { text: `as_missing = ${JSON.stringify(check.as_missing)}` }), ") are treated as missing, so they are left blank.");
-    }
-    $("mc-lede").replaceChildren(...lede);
-
-    const progress = check.progress || { done: 0, total: 0 };
-    const rows = check.rows || [];
-    const drawn = rows.filter((row) => row.plot).length;
-    const running = check.status === "running";
-    $("mc-progress").hidden = !running;
-    if (running) {
-      const indexing = progress.done < progress.total || !rows.some((row) => row.files);
-      const share = indexing
-        ? (progress.total ? progress.done / progress.total : 0) * 0.5
-        : 0.5 + (rows.length ? drawn / rows.length : 1) * 0.5;
-      $("mc-progress-fill").style.width = `${Math.round(share * 100)}%`;
-      $("mc-progress-bar").setAttribute("aria-valuenow", String(Math.round(share * 100)));
-      $("mc-progress-label").textContent = !progress.total ? "Starting…" : indexing
-        ? `Reading the dates of ${progress.done.toLocaleString()} of ${plural(progress.total, "file").replace(/^\d+/, progress.total.toLocaleString())}…`
-        : `Drawing the maps: ${drawn} of ${rows.length}…`;
-    }
-    const note = $("mc-note");
-    const notes = {
-      stopped: "The check was stopped as you carried on. Go Back and choose Yes to start it again.",
-      failed: `The check could not be finished: ${check.error || "it stopped."}`,
-    };
-    note.hidden = !notes[check.status];
-    note.classList.toggle("is-error", check.status === "failed");
-    if (notes[check.status]) note.replaceChildren(icon(check.status === "failed" ? "error" : "warn"), el("span", { text: notes[check.status] }));
-
-    for (const row of rows) {
-      let shown = mcRows[row.variable];
-      if (!shown) {
-        const cells = [0, 1, 2, 3].map(() => el("div", { class: "mc__cell", role: "cell" }));
-        const node = el("div", { class: "mc__row", role: "row", "data-variable": row.variable }, ...cells);
-        shown = mcRows[row.variable] = { node, cells, drawn: [] };
-        $("mc-rows").append(node);
-      }
-      const parts = [
-        [row.title, row.model_variable, row.observations, row.time_res],
-        // a map is drawn once, as drawing it again loads it again
-        row.plot ? [row.plot, row.files && row.files.first, check.as_missing] : [null, Boolean(row.files), check.status],
-        [row.files, mcFiles[`${check.number}|${row.variable}`] ? true : false],
-        [row.dates, row.dates ? null : check.status],
-      ];
-      const draw = [mcVariable, mcMap, mcFilesCell, mcDates];
-      parts.forEach((part, index) => {
-        const key = JSON.stringify(part);
-        if (shown.drawn[index] === key) return;
-        shown.drawn[index] = key;
-        draw[index](shown, row, check);
-      });
-    }
-  }
-
-  function mcVariable(shown, row) {
-    const sources = row.observations.map((source) => {
-      const point = /\(point\)$/.test(source);
-      return el("li", { class: point ? "is-point" : null, text: point ? source : `${source} (gridded)` });
-    });
-    shown.cells[0].replaceChildren(
-      el("h3", { class: "mc__title", text: row.title }),
-      el("span", { class: "mc__model", text: row.model_variable.split("+").join(" + ") }),
-      el("span", { class: "mc__label", text: "Compared with" }),
-      el("ul", { class: "mc__sources" }, ...sources),
-      ...(row.time_res ? [el("span", { class: "mc__res" }, "Output ", el("span", { class: "is-mono", text: row.time_res }))] : []));
-  }
-
-  function mcMap(shown, row, check) {
-    const plot = row.plot;
-    const map = el("div", { class: "mc__map" });
-    if (plot && plot.href) {
-      map.append(el("iframe", { src: plot.href, loading: "lazy", title: `The sea surface of ${row.title} on ${plot.date}` }));
-    } else if (plot && plot.error) {
-      map.append(el("div", { class: "mc__wait is-error" }, icon("error"), el("span", { text: plot.error })));
-    } else if (check.status === "running") {
-      map.append(el("div", { class: "mc__wait" }, el("span", { class: "identify__spinner", "aria-hidden": "true" }),
-        el("span", { text: row.files ? "Drawing the map…" : "Waiting for the dates of the files…" })));
-    } else {
-      map.append(el("div", { class: "mc__wait", text: "No map was drawn." }));
-    }
-    const caption = [];
-    if (plot && plot.href) {
-      const first = row.files && row.files.first;
-      const missing = check.as_missing === null || check.as_missing === undefined
-        ? el("span", { class: "is-assumed", text: "No as_missing" })
-        : el("span", { text: `as_missing = ${JSON.stringify(check.as_missing)}` });
-      caption.push(el("span", {}, `Surface on ${plot.date}`, first ? ", from " : "",
-        first ? el("span", { class: "is-mono", title: first.path, text: shorten(first.path.split("/").pop(), 44) }) : null,
-        " · ", missing),
-      el("a", { href: plot.href, target: "_blank", rel: "noopener", text: "Open larger ↗" }));
-    }
-    shown.cells[1].replaceChildren(map, ...(caption.length ? [el("p", { class: "mc__caption" }, ...caption)] : []));
-  }
-
-  async function fetchModelCheckFiles(number, variable) {
-    const key = `${number}|${variable}`;
-    if (mcFiles[key]) return;
-    mcFiles[key] = "loading";
-    try {
-      const response = await fetch(`api/model_check_files?${query({ variable })}`, { cache: "no-store" });
-      const reply = await response.json();
-      mcFiles[key] = reply.ok ? reply.files : null;
-    } catch (error) {
-      mcFiles[key] = null;
-    }
-    if (state.view === "model_check") renderModelCheck();
-  }
-
-  function mcFilesCell(shown, row, check) {
-    const files = row.files;
-    if (!files) {
-      shown.cells[2].replaceChildren(el("p", { class: "mc__muted", text: check.status === "running" ? "Reading the dates of the files…" : "Not known." }));
-      return;
-    }
-    const key = `${check.number}|${row.variable}`;
-    if (mcFiles[key] === undefined) fetchModelCheckFiles(check.number, row.variable);
-    const listed = Array.isArray(mcFiles[key]) ? mcFiles[key] : null;
-    const dates = row.dates || {};
-    shown.cells[2].replaceChildren(...[
-      el("p", { class: "mc__count" }, plural(files.count, "file").replace(/^\d+/, files.count.toLocaleString()),
-        el("small", { text: files.total === files.count
-          ? `in ${yearsText(check.years)}`
-          : `in ${yearsText(check.years)}, of ${files.total.toLocaleString()} found` })),
-      dates.first ? el("p", { class: "mc__span" }, `${dates.first} to ${dates.last}`, el("br"),
-        plural(dates.steps, "time step").replace(/^\d+/, dates.steps.toLocaleString())) : null,
-      listed ? el("ol", { class: "mc__files", "aria-label": `The files of ${row.title}` },
-        ...listed.map((file) => el("li", { title: file }, el("span", { text: file }))))
-        : files.count ? el("p", { class: "mc__muted", text: "Listing them…" }) : null,
-    ].filter(Boolean));
-  }
-
-  // whether the dates are all there, and, if they are not, the months that are and are not
-  function mcDates(shown, row, check) {
-    const dates = row.dates;
-    const old = shown.node.querySelector(".mc__dates");
-    if (old) old.remove();
-    if (!dates) {
-      shown.cells[3].replaceChildren(el("p", { class: "mc__muted",
-        text: check.status === "running" ? "Reading the dates of the files…" : "Not known." }));
-      return;
-    }
-    if (!dates.gaps) {
-      shown.cells[3].replaceChildren(
-        el("p", { class: "mc__verdict is-ok" }, icon("check"), dates.summary),
-        // times in more than one file are not dates that are missing
-        ...(dates.issues.length ? [el("ul", { class: "mc__issues mc__issues--small" },
-          ...dates.issues.map((issue) => el("li", { text: issue })))] : []));
-      return;
-    }
-    shown.cells[3].replaceChildren(
-      el("p", { class: "mc__verdict is-gaps" }, icon("warn"), "Some dates appear to be missing. See below"));
-    const grid = [el("span", {})].concat(MONTHS.map((month) => el("span", { class: "mc__month", text: month })));
-    for (const year of dates.years) {
-      grid.push(el("span", { class: "mc__year", text: String(year.year) }));
-      for (const month of year.months) {
-        const name = `${MONTH_NAMES[month.month - 1]} ${year.year}`;
-        const title = month.status === "missing" ? `${name}: no output`
-          : month.missing_days.length ? `${name}: ${month.count} of ${month.expected} days, missing ${month.missing_days.join(", ")}`
-          : month.status === "partial" ? `${name}: ${month.count} of ${month.expected} times`
-          : `${name}: ${month.expected ? plural(month.count, "day") : "there"}`;
-        grid.push(el("span", { class: `is-${month.status}`, title, "aria-label": title,
-          text: month.status === "missing" ? "×" : month.status === "partial" ? "!" : "" }));
-      }
-    }
-    shown.node.append(el("div", { class: "mc__dates", id: `mc-dates-${row.variable}`, role: "region",
-      "aria-label": `The dates of ${row.title}` },
-      dates.years.length ? el("div", { class: "mc__grid" }, ...grid) : null,
-      dates.years.length ? el("ul", { class: "mc__legend" },
-        el("li", {}, el("i", { class: "is-complete" }), "Complete"),
-        el("li", {}, el("i", { class: "is-partial" }), "Times missing"),
-        el("li", {}, el("i", { class: "is-missing" }), "No output")) : null,
-      dates.issues.length ? el("ul", { class: "mc__issues" }, ...dates.issues.map((issue) => el("li", { text: issue }))) : null));
-  }
-
-  // ---- the matchups matchup asks about: each variable, and the files it is in ----
   function renderReview(question) {
     const details = question.details;
     $("review-lede").replaceChildren(
       "Model output found in ",
       el("code", { text: details.sim_dir }),
       ".");
-    $("review-time-note").replaceChildren(icon("warn"), el("span", {
-      text: "Temporal subsetting will be applied to the files listed below, based on the time criteria you provided on the previous pages. Any year limits set for an individual dataset will also apply.",
-    }));
-    $("review-body").replaceChildren(...details.rows.map((row) => el("tr", { "data-variable": row.variable },
-      el("td", {}, el("strong", { text: row.title }),
-        row.title.toLowerCase() === row.variable ? null : el("small", { class: "is-mono", text: row.variable })),
-      el("td", {}, el("span", { class: "is-mono", text: row.model_variable })),
-      el("td", { text: row.observations.join(", ") || "—" }),
-      el("td", {}, el("span", { class: "is-mono", text: row.pattern }),
-        el("div", { class: "review__files" },
-          el("small", { text: plural(row.files, "file") }),
-          button("List all files", "text", () => openFiles(question, row),
-            { class: "btn btn--text btn--small", "aria-haspopup": "dialog", "aria-label": `List all files for ${row.title}` }))),
-      el("td", {}, el("span", { class: "is-mono", text: row.time_res || "—" })))));
+    reviewDates.question = question.id;
+    reviewDates.rows = {};
+    let number = 0;
+    $("review-body").replaceChildren(...details.rows.flatMap((row) => yearGroups(row, details.years).flatMap((group, index) => {
+      const years = el("td", { class: "review__years is-centered", text: yearsText(group.years) });
+      // the files with output in its years, and their dates, once they are read
+      const files = el("div", { class: "review__found" });
+      const dates = el("td", { class: "review__dates" });
+      const fold = el("tr", { class: "review__fold-row", id: `review-fold-${number++}`, hidden: true },
+        el("td", { class: "review__fold", colspan: "7" }));
+      const main = el("tr", { "data-variable": row.variable, "data-group": String(index) },
+        el("td", {}, el("strong", { text: row.title }),
+          row.title.toLowerCase() === row.variable ? null : el("small", { class: "is-mono", text: row.variable })),
+        years,
+        el("td", {}, el("span", { class: "is-mono", text: row.model_variable })),
+        el("td", { text: group.sources.join(", ") || "—" }),
+        el("td", {}, el("span", { class: "is-mono", text: row.pattern }), files),
+        el("td", { class: "is-centered" }, el("span", { class: "is-mono", text: row.time_res || "—" })),
+        dates);
+      reviewDates.rows[`${row.variable}|${index}`] = {
+        question, row, index, years: group.years, yearsCell: years, main, files, dates, fold,
+        toggle: null, drawn: null, open: false,
+      };
+      return [main, fold];
+    })));
     renderReviewFilters(question);
+    renderReviewDates();
     $("review").hidden = false;
     $("review").scrollIntoView({ block: "start" });
     $("review-title").focus({ preventScroll: true });
+  }
+
+  // ---- the dates of the files on the matchups page, read as it is shown (see oceanval.model_check) ----
+  function renderReviewDates() {
+    const question = state.question;
+    if (!question || question.id !== reviewDates.question) return;
+    const check = state.model_check;
+    const running = Boolean(check) && check.status === "running";
+    $("review-dates-progress").hidden = !running;
+    if (running) {
+      const progress = check.progress || { done: 0, total: 0 };
+      const share = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+      $("review-dates-fill").style.width = `${share}%`;
+      $("review-dates-bar").setAttribute("aria-valuenow", String(share));
+      $("review-dates-label").textContent = progress.total
+        ? `Reading the dates of ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} ${progress.total === 1 ? "file" : "files"}, to find those in the years of each row and any dates missing from them. You can carry on without waiting.`
+        : "Starting to read the dates of the files…";
+    }
+    const failed = Boolean(check) && check.status === "failed";
+    $("review-dates-note").hidden = !failed;
+    if (failed) {
+      $("review-dates-note").replaceChildren(icon("error"), el("span", {
+        text: `The dates of the files could not be read: ${check.error || "the check stopped."} OceanVal reads them itself as it matches up.`,
+      }));
+    }
+    const found = {};
+    for (const row of (check && check.rows) || []) found[row.variable] = row;
+    for (const shown of Object.values(reviewDates.rows)) {
+      const row = found[shown.row.variable];
+      const group = row && row.groups[shown.index] && row.groups[shown.index].dates ? row.groups[shown.index] : null;
+      const status = group ? null : check ? check.status : null;
+      // redrawn only when it changes, so that a fold-out's button keeps its focus
+      const key = JSON.stringify([group, status]);
+      if (shown.drawn === key) continue;
+      shown.drawn = key;
+      drawReviewDates(shown, group, status);
+    }
+  }
+
+  // the months of a variable's output in the years of a row, and what is missing from them
+  function datesDetail(dates) {
+    const body = [];
+    if (dates.gaps && dates.years.length > 0) {
+      const cells = [el("span", {})].concat(MONTHS.map((month) => el("span", { class: "review__month", text: month })));
+      for (const year of dates.years) {
+        cells.push(el("span", { class: "review__year", text: String(year.year) }));
+        for (const month of year.months) {
+          const name = `${MONTH_NAMES[month.month - 1]} ${year.year}`;
+          const title = month.status === "missing" ? `${name}: no output`
+            : month.missing_days.length ? `${name}: ${month.count} of ${month.expected} days, missing ${month.missing_days.join(", ")}`
+            : month.status === "partial" ? `${name}: ${month.count} of ${month.expected} times`
+            : `${name}: ${month.expected ? plural(month.count, "day") : "there"}`;
+          cells.push(el("span", { class: `is-${month.status}`, title, "aria-label": title,
+            text: month.status === "missing" ? "×" : month.status === "partial" ? "!" : "" }));
+        }
+      }
+      body.push(el("div", { class: "review__grid" }, ...cells),
+        el("ul", { class: "review__legend" },
+          el("li", {}, el("i", { class: "is-complete" }), "Complete"),
+          el("li", {}, el("i", { class: "is-partial" }), "Times missing"),
+          el("li", {}, el("i", { class: "is-missing" }), "No output")));
+    }
+    if (dates.issues.length) body.push(el("ul", { class: "review__issues" }, ...dates.issues.map((issue) => el("li", { text: issue }))));
+    return body;
+  }
+
+  // a row's files and dates: group is what the check found for it, or null
+  // until it has, while status is the check's
+  function drawReviewDates(shown, group, status) {
+    const title = shown.row.title;
+    // years that are no limit are the output's own, once its dates are read
+    if (group) shown.years = group.years;
+    shown.yearsCell.textContent = yearsText(shown.years);
+    const list = button("List files", "text", () => openFiles(shown),
+      { class: "btn btn--text btn--small", "aria-haspopup": "dialog", "aria-label": `List the files for ${title}, ${yearsText(shown.years)}` });
+    shown.toggle = null;
+    if (!group) {
+      // every file of the pattern, until those in its years are known
+      shown.files.replaceChildren(
+        el("div", { class: "review__files" }, el("small", { text: `${plural(shown.row.files, "file")} found` }), list),
+        status === "running"
+          ? el("span", { class: "review__wait" }, el("span", { class: "identify__spinner", "aria-hidden": "true" }), `Finding those with output ${inYears(shown.years)}…`)
+          : status === "failed" || status === "stopped" ? el("small", { text: "Their dates could not be read" }) : null);
+      shown.dates.replaceChildren(status === "running"
+        ? el("span", { class: "review__wait" }, el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Reading the dates…")
+        : el("p", { class: "review__muted", text: status === "failed" || status === "stopped" ? "Not known" : "—" }));
+      shown.fold.firstChild.replaceChildren();
+      showFold(shown);
+      return;
+    }
+    const dates = group.dates;
+    // only the files with output in its years
+    shown.files.replaceChildren(
+      el("div", { class: "review__files" },
+        el("small", { text: plural(group.count, "file").replace(/^\d+/, group.count.toLocaleString()) }), list),
+      dates.first ? el("small", { class: "review__span",
+        text: `${dates.first} to ${dates.last}, ${plural(dates.steps, "time step").replace(/^\d+/, dates.steps.toLocaleString())}` }) : null);
+    const body = datesDetail(dates);
+    shown.fold.firstChild.replaceChildren(...(body.length
+      ? [el("div", { class: "review__fold-body", role: "region", "aria-label": `The dates of ${title}, ${yearsText(shown.years)}` }, ...body)] : []));
+    const verdict = dates.gaps
+      ? el("p", { class: "review__verdict is-gaps" }, icon("warn"), "Some dates appear to be missing")
+      // dates in more than one file are not dates that are missing
+      : el("p", { class: "review__verdict is-ok" }, icon("check"), dates.issues.length ? "No dates are missing" : dates.summary);
+    if (body.length) {
+      const grid = dates.gaps && dates.years.length > 0;
+      shown.toggle = button("", "text", () => {
+        shown.open = !shown.open;
+        showFold(shown);
+      }, { class: "btn btn--text btn--small review__toggle", "aria-controls": shown.fold.id, "data-what": grid ? "the months" : "the notes" });
+    }
+    shown.dates.replaceChildren(verdict, ...(shown.toggle ? [shown.toggle] : []));
+    showFold(shown);
+  }
+
+  // a row's fold-out, open as it was left
+  function showFold(shown) {
+    const open = Boolean(shown.toggle) && shown.open;
+    shown.fold.hidden = !open;
+    shown.main.classList.toggle("has-fold", open);
+    if (shown.toggle) {
+      shown.toggle.textContent = `${open ? "Hide" : "Show"} ${shown.toggle.dataset.what} ${open ? "▴" : "▾"}`;
+      shown.toggle.setAttribute("aria-expanded", String(open));
+    }
   }
 
   // ---- the file filters on the matchups page, to read the simulation again with ----
@@ -5083,22 +4952,49 @@
 
   const filesDialog = { opener: null, number: 0 };
 
-  async function openFiles(question, row) {
+  // the files of a row of the matchups: those with output in its years, or,
+  // until their dates are read, every file of its pattern
+  async function openFiles(shown) {
+    const { question, row, index } = shown;
     filesDialog.opener = document.activeElement;
     const number = ++filesDialog.number;
-    const [start, end] = question.details.years;
-    const years = start === end ? `in ${start}` : `from ${start} to ${end}`;
-    $("files-title").textContent = `${row.title}: all files`;
-    $("files-notice").replaceChildren(icon("warn"), el("span", {
-      text: `Temporal subsetting will be applied to these files by OceanVal: only their times ${years}, or the years a dataset was given, are matched up.`,
-    }));
-    $("files-intro").replaceChildren(el("span", {}, `${plural(row.files, "file")} in `,
-      el("code", { text: question.details.sim_dir }), ` ${row.files === 1 ? "matches" : "match"} `,
-      el("code", { text: row.pattern }), "."));
+    const years = shown.years;
+    $("files-title").textContent = `${row.title}, ${yearsText(years)}: files`;
+    $("files-notice").hidden = true;
+    $("files-intro").replaceChildren();
     $("files-list").replaceChildren(el("p", { class: "picker__empty", text: "Loading…" }));
     $("files").hidden = false;
     BEHIND.forEach((node) => { node.inert = true; });
     $("files-close").focus();
+    const stale = () => number !== filesDialog.number || $("files").hidden;
+    let found = null;
+    try {
+      const response = await fetch(`api/model_check_files?${query({ variable: row.variable, group: index })}`, { cache: "no-store" });
+      const reply = await response.json();
+      if (reply.ok) found = reply.files;
+    } catch (error) {
+      // listed as found
+    }
+    if (stale()) return;
+    const where = [el("code", { text: question.details.sim_dir }), " that match ", el("code", { text: row.pattern })];
+    if (found) {
+      $("files-intro").replaceChildren(el("span", {},
+        `${found.length.toLocaleString()} of the ${plural(row.files, "file")} in `, ...where,
+        ` ${found.length === 1 ? "has" : "have"} output ${inYears(years)}.`));
+      $("files-list").replaceChildren(...(found.length
+        ? found.map((name) => el("p", { class: "picker__file", text: name }))
+        : [el("p", { class: "picker__empty", text: `None of them have output ${inYears(years)}.` })]));
+      $("files-list").scrollTop = 0;
+      return;
+    }
+    // the dates are not known, so every file of the pattern is listed
+    $("files-notice").replaceChildren(icon("warn"), el("span", {
+      text: `Their dates have not been read, so all of them are listed: only their times ${inYears(years)} are matched up.`,
+    }));
+    $("files-notice").hidden = false;
+    $("files-intro").replaceChildren(el("span", {}, `${plural(row.files, "file")} in `,
+      el("code", { text: question.details.sim_dir }), ` ${row.files === 1 ? "matches" : "match"} `,
+      el("code", { text: row.pattern }), "."));
     let reply;
     try {
       const response = await fetch(`api/question_files?${query({ id: question.id, pattern: row.pattern })}`, { cache: "no-store" });
@@ -5106,8 +5002,7 @@
     } catch (error) {
       return;
     }
-    // closed, or another list asked for since
-    if (number !== filesDialog.number || $("files").hidden) return;
+    if (stale()) return;
     if (!reply.ok) {
       $("files-list").replaceChildren(el("p", { class: "picker__empty", text: "The question has been answered, so the files are no longer listed." }));
     } else if (!reply.files.length) {

@@ -1,14 +1,13 @@
-"""The oceanval window's check of how OceanVal will view the model output.
+"""The dates of the model output, for the oceanval window's matchups page.
 
-Once the matchups of a matchup and validate run are confirmed, the window
-can show, for each variable to be matched up: a map of its sea surface at
-one time step, as nctoolkit's plot() draws it, with the matchup's
-as_missing applied; the files of it in the years matched up; and the
-months and days missing from those years. It is worked out in a process of
-its own (see main, which ModelCheck runs), as reading the times of every
-file can take a minute or two, and so that it can be stopped. The times it
-reads are saved, for matchup to use rather than read them all again (see
-load_times_index).
+While the window asks whether the matchups are right, it reads the times of
+every file of each variable to be matched up. The page lists each variable
+once for each of the years its datasets are matched up for (see
+year_groups), with the files of it in those years and the months and days
+missing from them. It is worked out in a process of its own (see main, which
+ModelCheck runs), as reading the times of every file can take a minute or
+two, and so that it can be stopped. The times it reads are saved, for
+matchup to use rather than read them all again (see load_times_index).
 
     python -c "from oceanval.model_check import main; main()"
 
@@ -19,12 +18,10 @@ as it goes, one line each, MARKER followed by JSON.
 import calendar
 import contextlib
 import gc
-import importlib.util
 import itertools
 import json
 import os
 import pickle
-import re
 import shutil
 import signal
 import subprocess
@@ -32,112 +29,28 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.parse
 
 MARKER = "\x1eoceanval-check "
-
-# how long a map is waited for before it is drawn again without a coastline,
-# which cartopy can try to download
-PLOT_TIMEOUT = 120
-
-# the size of a map in the window, in pixels
-PLOT_SIZE = {"frame_width": 360, "frame_height": 280}
-
-# what nctoolkit's plot() loads from the web, and the package that has the
-# same files: (pattern, library, the file's path in the library)
-_CDN = (
-    (
-        re.compile(r"https://cdn\.bokeh\.org/bokeh/release/(bokeh(?:-[a-z]+)*)-\d[\w.]*?\.min\.js"),
-        "bokeh",
-        lambda match: f"js/{match.group(1)}.min.js",
-    ),
-    (
-        re.compile(r"https://cdn\.holoviz\.org/panel/[^/\"']+/dist/([^\"'\s?#]+)"),
-        "panel",
-        lambda match: match.group(1),
-    ),
-    (
-        re.compile(r"https://cdn\.jsdelivr\.net/npm/@holoviz/geoviews@[^/\"']+/dist/([^\"'\s?#]+)"),
-        "geoviews",
-        lambda match: match.group(1),
-    ),
-)
-
-# where each library keeps the files: (package, folder in it)
-LIBRARIES = {
-    "bokeh": ("bokeh", "server/static"),
-    "panel": ("panel", "dist"),
-    "geoviews": ("geoviews", "dist"),
-}
-
-
-def library_root(name):
-    """The folder of an installed library's static files, which the window
-    serves in place of a CDN, or None. Nothing is imported to find it."""
-    if name not in LIBRARIES:
-        return None
-    package, folder = LIBRARIES[name]
-    try:
-        spec = importlib.util.find_spec(package)
-    except (ImportError, ValueError):
-        return None
-    if spec is None or not spec.submodule_search_locations:
-        return None
-    root = os.path.join(list(spec.submodule_search_locations)[0], folder)
-    return root if os.path.isdir(root) else None
-
-
-def localise(html):
-    """html, as nctoolkit's plot() saves it, loading the files it would load
-    from the web from lib/<library>/<path> beside it instead, where the
-    installed library has them, so that the window needs nothing from
-    anywhere else."""
-    for pattern, library, local in _CDN:
-        root = library_root(library)
-        if root is None:
-            continue
-
-        def replace(match, root=root, library=library, local=local):
-            path = local(match)
-            if not os.path.isfile(os.path.join(root, path)):
-                return match.group(0)
-            return f"lib/{library}/" + urllib.parse.quote(path)
-
-        html = pattern.sub(replace, html)
-    return html
-
 
 # ---- the times of the files ----
 
 
 def _times_in(times, start, end):
     """All the times of the files in times ({path: DataFrame}), in the years
-    start to end, as one DataFrame with path and index (the time's place in
-    its file) columns too."""
+    start to end, as one DataFrame with a path column too."""
     import pandas as pd
 
-    frames = [
-        df.assign(path=path, index=range(len(df))) for path, df in sorted(times.items())
-    ]
+    frames = [df.assign(path=path) for path, df in sorted(times.items())]
     if not frames:
-        return pd.DataFrame(columns=["year", "month", "day", "path", "index"])
+        return pd.DataFrame(columns=["year", "month", "day", "path"])
     found = pd.concat(frames, ignore_index=True)
     return found[(found.year >= start) & (found.year <= end)].reset_index(drop=True)
 
 
 def files_in_years(times, start, end):
     """The files of times ({path: DataFrame of year, month and day}) with any
-    time in the years start to end, sorted, and the first of those times,
-    as {"path", "index", "date"} (index is its place in the file), or None."""
-    found = _times_in(times, start, end)
-    if len(found) == 0:
-        return [], None
-    first = found.sort_values(["year", "month", "day", "path", "index"], kind="stable").iloc[0]
-    return sorted(set(found.path)), {
-        "path": first.path,
-        "index": int(first["index"]),
-        "date": f"{int(first.year):04d}-{int(first.month):02d}-{int(first.day):02d}",
-    }
+    time in the years start to end, sorted."""
+    return sorted(set(_times_in(times, start, end).path))
 
 
 def _mode(values):
@@ -391,67 +304,6 @@ def load_times_index(path, paths):
     return found
 
 
-# ---- the map ----
-
-
-class _TimedOut(Exception):
-    pass
-
-
-def _alarm(seconds):
-    """Raise _TimedOut after seconds, in the main thread of the process."""
-
-    def raise_it(*args):
-        raise _TimedOut()
-
-    signal.signal(signal.SIGALRM, raise_it)
-    signal.alarm(seconds)
-
-
-def surface_plot(path, index, model_variable, as_missing, out, title="", timeout=PLOT_TIMEOUT):
-    """Draw the sea surface of model_variable at time index of the file
-    path with nctoolkit's plot(), as a gridded matchup reads it: its top
-    level, with as_missing applied, and a sum of variables "a+b". The page
-    is saved to out (.html), loading what it needs from lib/ beside it (see
-    localise). The map is drawn again without a coastline if drawing it
-    fails or takes longer than timeout seconds."""
-    import nctoolkit as nc
-
-    selection = model_variable.split("+")
-    ds = nc.open_data(path, checks=False)
-    ds.subset(variables=selection)
-    ds.subset(time=index)
-    ds.run()
-    if ds.contents.nlevels.values[0] > 1:
-        ds.cdo_command("topvalue")
-    if as_missing is not None:
-        ds.as_missing(as_missing)
-    if len(selection) > 1:
-        ds.sum_all()
-    ds.run()
-
-    def draw(**kwargs):
-        if os.path.exists(out):
-            os.remove(out)
-        ds.plot(out=out, title=title, **PLOT_SIZE, **kwargs)
-
-    in_main = threading.current_thread() is threading.main_thread()
-    try:
-        if in_main and timeout:
-            _alarm(timeout)
-        try:
-            draw()
-        finally:
-            if in_main and timeout:
-                signal.alarm(0)
-    except Exception:
-        draw(coast=False)
-    with open(out, encoding="utf-8") as file:
-        html = file.read()
-    with open(out, "w", encoding="utf-8") as file:
-        file.write(localise(html))
-
-
 # ---- the process that checks ----
 
 
@@ -461,21 +313,63 @@ def _short(error):
     return text if len(text) < 300 else text[:297] + "..."
 
 
+# what a dataset's start and end are when it is given none (see
+# oceanval.parsers), and matchup's when it is given neither: years as far
+# out as these are no limit, so are taken as the output's own
+NO_START = -1000
+NO_END = 3000
+
+
+def year_groups(datasets, years):
+    """The datasets of a variable, {"source", "gridded", "years"}, grouped
+    by the years they are matched up for, the run's years or their own
+    within them: [{"years", "sources", "gridded"}], in the order they first
+    come, with gridded whether any of a group's datasets are. A variable
+    without datasets has one group, for the run's years. matchup sends these
+    with its question, and the window shows a row for each."""
+    groups = []
+    for dataset in datasets or [{"source": None, "gridded": False, "years": years}]:
+        found = list(dataset.get("years") or years)
+        group = next((group for group in groups if group["years"] == found), None)
+        if group is None:
+            group = {"years": found, "sources": [], "gridded": False}
+            groups.append(group)
+        if dataset.get("source") is not None and dataset["source"] not in group["sources"]:
+            group["sources"].append(dataset["source"])
+        group["gridded"] = group["gridded"] or bool(dataset.get("gridded"))
+    return groups
+
+
+def _bounded(years, times):
+    """years, with a start or end that is no limit (see NO_START) taken as
+    the first or last year of times ({path: DataFrame of year})."""
+    start, end = years
+    all_years = [int(year) for df in times.values() for year in df.year]
+    if start <= NO_START:
+        start = min(all_years, default=start)
+    if end >= NO_END:
+        end = max(all_years, default=end)
+    return [start, end]
+
+
 def check(request, emit):
     """Check the model output request describes, saying what is found with
     emit(event) as it goes. request is
 
-        {"sim_dir", "years": [start, end], "as_missing", "fvcom",
-         "rows": [{"variable", "model_variable", "pattern", "time_res",
-                   "gridded"}],
+        {"sim_dir", "years": [start, end], "fvcom",
+         "rows": [{"variable", "pattern", "time_res",
+                   "groups": [{"years", "sources", "gridded"}]}],
          "files": {pattern: [absolute paths]}, "out_dir"}
 
-    and the events, as dicts with "event":
+    where a row's groups are its datasets grouped by the years they are
+    matched up for (see year_groups). The events, as dicts with "event", are:
         "progress"  {"done", "total"}, as the times of the files are read
         "indexed"   {"index"}, where they are saved (see load_times_index)
-        "files"     {"variable", "files" (relative to sim_dir), "total",
-                     "first", "dates" (see date_report)}
-        "plot"      {"variable", "file", "date"} or {"variable", "error"}
+        "files"     {"variable", "total", "groups": [{"years", "sources",
+                     "files" (those with output in its years, relative to
+                     sim_dir), "dates" (see date_report)}]}, for each row,
+                     its groups in the same order, with years that are no
+                     limit taken as the output's (see _bounded)
         "done"      {}
     """
     from oceanval.matchall import index_times
@@ -511,51 +405,25 @@ def check(request, emit):
     save_times_index(index, times)
     emit({"event": "indexed", "index": index})
 
-    for number, row in enumerate(request["rows"], 1):
-        variable = row["variable"]
+    for row in request["rows"]:
         paths = files.get(row["pattern"]) or []
         own = {path: times[path] for path in paths if path in times}
-        used, first = files_in_years(own, start, end)
-        emit(
-            {
-                "event": "files",
-                "variable": variable,
-                "files": [os.path.relpath(path, sim_dir) for path in used],
-                "total": len(paths),
-                "first": first and dict(first, path=os.path.relpath(first["path"], sim_dir)),
-                "dates": date_report(
-                    own, start, end, row.get("time_res") or "monthly", row.get("gridded", False)
-                ),
-            }
-        )
-        if fvcom:
-            emit(
+        groups = []
+        for group in row.get("groups") or year_groups([], [start, end]):
+            years = _bounded(group["years"], own)
+            groups.append(
                 {
-                    "event": "plot",
-                    "variable": variable,
-                    "error": "There is no map of FVCOM output: it is on an unstructured "
-                    "grid, which is put on a regular one only as it is matched up.",
+                    "years": years,
+                    "sources": list(group.get("sources") or []),
+                    "files": [
+                        os.path.relpath(path, sim_dir) for path in files_in_years(own, *years)
+                    ],
+                    "dates": date_report(
+                        own, *years, row.get("time_res") or "monthly", bool(group.get("gridded"))
+                    ),
                 }
             )
-            continue
-        if first is None:
-            emit({"event": "plot", "variable": variable, "error": f"There is no output in {start}-{end} to draw."})
-            continue
-        name = f"plot_{number}.html"
-        try:
-            surface_plot(
-                first["path"],
-                first["index"],
-                row["model_variable"],
-                request.get("as_missing"),
-                os.path.join(out_dir, name),
-            )
-        except Exception as error:
-            emit({"event": "plot", "variable": variable, "error": "The map could not be drawn: " + _short(error)})
-        else:
-            emit({"event": "plot", "variable": variable, "file": name, "date": first["date"]})
-        finally:
-            gc.collect()
+        emit({"event": "files", "variable": row["variable"], "total": len(paths), "groups": groups})
     emit({"event": "done"})
 
 
@@ -580,12 +448,13 @@ def main():
 
 
 class ModelCheck:
-    """A check of the model output for the window, in a process of its own.
+    """A check of the dates of the model output for the window, in a process
+    of its own.
 
     question is the id of the question of whether the matchups are right
     that it is for, and request what check() is given, without out_dir: a
-    folder of its own is made for the maps and the times. changed() is
-    called whenever something new is found. state() is what the page shows.
+    folder of its own is made for the times. changed() is called whenever
+    something new is found. state() is what the page shows.
     """
 
     _numbers = itertools.count(1)
@@ -606,9 +475,25 @@ class ModelCheck:
         self._stopped = False
         self._finished = False
         self._tail = []
+        # the files of each variable's groups in their years, by (variable,
+        # the group's place in its row)
         self.files = {}
+        # what the page shows of each variable: how many files it has, and,
+        # for each of its groups, how many are in its years and its dates,
+        # None until they are found
         self.rows = {
-            row["variable"]: {"files": None, "plot": None, "dates": None}
+            row["variable"]: {
+                "total": None,
+                "groups": [
+                    {
+                        "years": list(group["years"]),
+                        "sources": list(group.get("sources") or []),
+                        "count": None,
+                        "dates": None,
+                    }
+                    for group in row.get("groups") or year_groups([], request["years"])
+                ],
+            }
             for row in request["rows"]
         }
 
@@ -668,19 +553,18 @@ class ModelCheck:
                 self.index = event["index"]
             elif kind == "files" and event["variable"] in self.rows:
                 row = self.rows[event["variable"]]
-                self.files[event["variable"]] = list(event["files"])
-                row["files"] = {
-                    "count": len(event["files"]),
-                    "total": int(event["total"]),
-                    "first": event.get("first"),
-                }
-                row["dates"] = event.get("dates")
-            elif kind == "plot" and event["variable"] in self.rows:
-                row = self.rows[event["variable"]]
-                if event.get("file"):
-                    row["plot"] = {"file": event["file"], "date": event.get("date")}
-                else:
-                    row["plot"] = {"error": event.get("error") or "The map could not be drawn."}
+                row["total"] = int(event["total"])
+                row["groups"] = []
+                for index, group in enumerate(event["groups"]):
+                    self.files[(event["variable"], index)] = list(group["files"])
+                    row["groups"].append(
+                        {
+                            "years": list(group["years"]),
+                            "sources": list(group["sources"]),
+                            "count": len(group["files"]),
+                            "dates": group["dates"],
+                        }
+                    )
             elif kind == "failed":
                 self.error = event.get("error")
                 return
@@ -723,7 +607,7 @@ class ModelCheck:
                 os.killpg(self.process.pid, signal.SIGKILL)
 
     def remove(self):
-        """Stop the check and remove its folder, with the maps and the times."""
+        """Stop the check and remove its folder, with the times."""
         self.stop()
         process = self.process
         if process is not None:
@@ -732,36 +616,28 @@ class ModelCheck:
         gc.collect()
         shutil.rmtree(self.folder, ignore_errors=True)
 
-    def files_of(self, variable):
-        """The files of variable in the years matched up, relative to the
-        simulation's directory, or None if they are not known yet."""
+    def files_of(self, variable, group):
+        """The files of variable with output in the years of its group
+        numbered group (its place in the row's groups, see year_groups),
+        relative to the simulation's directory, or None if they are not
+        known yet."""
         with self._lock:
-            found = self.files.get(variable)
+            found = self.files.get((variable, group))
             return list(found) if found is not None else None
 
-    def state(self, href):
-        """What the page shows. href(file) is the link to a file of the
-        check, a map."""
+    def state(self):
+        """What the page shows: for each variable, how many files it has,
+        and, for each of its groups, the years, how many of its files are in
+        them and their dates (see check)."""
         with self._lock:
-            rows = []
-            for row in self.request["rows"]:
-                found = self.rows[row["variable"]]
-                plot = found["plot"]
-                if plot is not None and plot.get("file"):
-                    plot = dict(plot, href=href(plot["file"]))
-                rows.append(
-                    {
-                        "variable": row["variable"],
-                        "title": row.get("title") or row["variable"],
-                        "model_variable": row["model_variable"],
-                        "pattern": row["pattern"],
-                        "time_res": row.get("time_res"),
-                        "observations": list(row.get("observations") or []),
-                        "files": found["files"],
-                        "plot": plot,
-                        "dates": found["dates"],
-                    }
-                )
+            rows = [
+                {
+                    "variable": row["variable"],
+                    "total": self.rows[row["variable"]]["total"],
+                    "groups": [dict(group) for group in self.rows[row["variable"]]["groups"]],
+                }
+                for row in self.request["rows"]
+            ]
             return {
                 "status": self.status,
                 "progress": dict(self.progress),
