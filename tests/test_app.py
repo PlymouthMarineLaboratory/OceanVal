@@ -3522,14 +3522,16 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         page = browser.new_page()
         page.goto(url)
         assert "Choose what to do. Matchups, scripts and reports are written" not in page.text_content("#view-start")
-        # nothing is listed until something is chosen, as the steps differ for each
-        assert not page.is_visible("#steps")
+        # the title is at the top right, level with the name, and there is no row of steps
+        assert page.locator("#steps").count() == 0
+        name, title = page.locator(".brand__word").bounding_box(), page.locator("#title").bounding_box()
+        assert title["x"] > name["x"] + name["width"]
+        assert title["y"] < name["y"] + name["height"]
         page.click('button.choice[data-action="matchup"]')
         page.wait_for_function(
             "document.querySelector('#title').textContent === 'What kind of datasets do you want to use for validation?'"
         )
         assert page.text_content("#title") == "What kind of datasets do you want to use for validation?"
-        assert page.locator("#steps .is-current .steps__label").text_content() == "Simulation"
         assert "Note: selections can be modified later." in page.text_content("#m-domain")
         assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "nowrap"
         assert "OceanVal is running from" not in page.text_content("#meta")
@@ -3822,15 +3824,11 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         page = browser.new_page()
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
-        current = page.locator("#steps .is-current .steps__label")
-        assert current.text_content() == "Files"
         page.click("#actions button:has-text('Yes')")
         page.wait_for_selector("#view-validate:not([hidden])")
 
         assert page.text_content("#title") == "One last thing... How would you like your validation report?"
         assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "nowrap"
-        assert page.locator("#steps li").count() == 8
-        assert current.text_content() == "Report"
         # the matchups and the report go where the simulation step said
         assert page.is_hidden("#v-group-data_dir")
         assert page.is_hidden("#v-group-out_dir")
@@ -3845,7 +3843,6 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         # Back shows the matchups again, to be answered afresh
         page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
-        assert current.text_content() == "Files"
         assert page.is_enabled("#actions button:has-text('Yes')")
         page.click("#actions button:has-text('Yes')")
         page.wait_for_selector("#view-validate:not([hidden])")
@@ -3856,7 +3853,6 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         page.wait_for_function(
             "document.querySelector('#console-text').textContent.includes('matching up')"
         )
-        assert current.text_content() == "Run"
         wait_for(lambda: validated)
         assert json.loads(validated[0][1]) == {
             "data_dir": str(tmp_path),
@@ -4284,7 +4280,7 @@ def test_the_demo_in_a_browser(browser, tmp_path, fetched):
         assert page.text_content("#title") == "Instructions"
         text = page.text_content("#view-demo-instructions")
         assert "Just press Continue on each page, and tick agreement when asked, to run the validation." in text
-        assert "Feel free to customize the validation by tweaking the options and settings." in text
+        assert "Feel free to customize the validation by tweaking the options." in text
         assert "You should start seeing validation results in a couple of minutes." in text
         assert "How do you want your validation sample?" in text
         # each sentence in a box of its own, and then the question
@@ -4347,8 +4343,6 @@ def test_comparing_validations_in_a_browser(browser, tmp_path, monkeypatch):
         page.wait_for_selector("#view-compare:not([hidden])")
 
         assert page.text_content("#title") == "Which validations do you want to compare?"
-        assert page.locator("#steps .steps__label").all_text_contents() == ["Choose", "Simulations", "Run"]
-        assert page.locator("#steps .is-current .steps__label").text_content() == "Simulations"
         assert page.evaluate("document.activeElement.id") == "c-name_1"
         # what a validation directory holds
         info = page.text_content(".compare-info")
@@ -4713,8 +4707,6 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_visible("#units-confirm")
         assert not page.is_checked("#units-confirm")
         assert page.is_disabled("#units-continue")
-        assert "Units" in page.text_content("#steps")
-        assert page.text_content("#steps .is-current .steps__label") == "Units"
         assert page.is_hidden("#units-reading")
         # two sections, and with no point datasets the second says so
         assert page.text_content("#units-title-gridded") == "Gridded datasets"
@@ -4872,7 +4864,6 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.set_viewport_size({"width": 1280, "height": 720})
         bar("Back").click()
         to_units()
-        assert page.text_content("#steps .is-current .steps__label") == "Units"
         assert temperature.input_value() == "0.5"
         assert look(temperature)[1] == "400"
         assert nitrate.input_value() == "1.025"

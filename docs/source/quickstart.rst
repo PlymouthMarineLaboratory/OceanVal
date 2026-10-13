@@ -58,10 +58,9 @@ Closing the browser window quits ``oceanval`` in the terminal, within about
 15 seconds, stopping anything it is running, whichever browser you use. So
 do **Quit** (which is instant) and Ctrl+C.
 
-**Settings**, beside the OceanVal name at the top left of the window, sets
-how the window looks (Default, Dark, Silver or Blue) and whether the first
-page offers **Try a demo**. Nothing changes until you press **Apply
-settings**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
+The cog beside the OceanVal name at the top left of the window
+(**Preferences**) sets how the window looks (Default, Dark, Silver or Blue) and whether the first
+page offers **Try a demo**. Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
 your home directory (or the file ``OCEANVALRC`` names), and read each time the
 window opens.
 

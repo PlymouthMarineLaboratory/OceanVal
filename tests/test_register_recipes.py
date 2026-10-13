@@ -546,7 +546,7 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         page.click('button.choice[data-action="register"]')
         page.wait_for_selector("#view-register-kind:not([hidden])")
         assert page.text_content("#title") == "Which kind of data is your recipe for?"
-        assert page.locator("#steps li").count() == 3
+        assert page.locator("#steps").count() == 0
         page.click("#register-gridded")
         page.wait_for_selector("#view-register-gridded:not([hidden])")
         assert page.is_disabled("#register-save")

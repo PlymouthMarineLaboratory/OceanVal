@@ -50,26 +50,6 @@ const OceanValGUI = (() => {
     toastTimer = setTimeout(() => { node.hidden = true; }, 7000);
   }
 
-  // the steps the oceanval app takes for each thing it can do
-  const STEPS = {
-    matchup_validate: ["Choose", "Simulation", "Own data", "Recipes", "Units", "Files", "Report", "Run"],
-    matchup: ["Choose", "Simulation", "Own data", "Recipes", "Units", "Run"],
-    validate: ["Choose", "Report options", "Run"],
-    compare: ["Choose", "Simulations", "Run"],
-    register: ["Choose", "Data type", "Recipe"],
-  };
-
-  // lists steps in node, with the one at index current marked
-  function steps(node, labels, current) {
-    node.replaceChildren(...labels.map((label, index) => el("li", {
-      class: index < current ? "is-done" : index === current ? "is-current" : null,
-      "aria-current": index === current ? "step" : null,
-    },
-      el("span", { class: "steps__n", "aria-hidden": "true", text: String(index + 1) }),
-      el("span", { class: "steps__label", text: label }))));
-    node.hidden = false;
-  }
-
   // names this page load to the oceanval app, which quits when the browser
   // has closed every page it knows of (see App.touch)
   const pageId = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -91,5 +71,5 @@ const OceanValGUI = (() => {
     }
   }
 
-  return { ICONS, $, el, icon, shorten, plural, toast, STEPS, steps, pageId, heartbeat };
+  return { ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat };
 })();

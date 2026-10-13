@@ -258,7 +258,6 @@
     <div class="brand">
       <span class="brand__word">Ocean<span>Val</span></span>
     </div>
-    <ol class="steps" id="steps" aria-label="Steps" hidden></ol>
     <h1 id="page-title">Generate a script that will match up model with observations and then generate a validation report</h1>
     <ul class="meta" id="meta" aria-label="Simulation"></ul>
   </div>
@@ -470,7 +469,6 @@
 
   // ---- header ----
   if (app) {
-    OceanValGUI.steps($("steps"), OceanValGUI.STEPS[app.action], 3);
     // chosen with the simulation, in the step before
     $("group-files").hidden = true;
     $("group-output").hidden = true;

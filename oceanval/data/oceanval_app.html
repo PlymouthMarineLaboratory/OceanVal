@@ -681,7 +681,9 @@
     gap: 7px;
     height: 32px;
     margin-left: 10px;
-    padding: 0 13px 0 10px;
+    padding: 0;
+    justify-content: center;
+    width: 32px;
     border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
@@ -747,9 +749,8 @@
   <div class="wrap">
     <div class="brand">
       <span class="brand__word">Ocean<span>Val</span></span>
-      <button type="button" class="settings-open" id="settings-open" aria-haspopup="dialog" aria-controls="settings"><span class="settings-open__icon" data-icon="settings" aria-hidden="true"></span>Settings</button>
+      <button type="button" class="settings-open" id="settings-open" aria-haspopup="dialog" aria-controls="settings" aria-label="Preferences" title="Preferences"><span class="settings-open__icon" data-icon="settings" aria-hidden="true"></span></button>
     </div>
-    <ol class="steps" id="steps" aria-label="Steps" hidden></ol>
     <h1 id="title">Validate an ocean model</h1>
     <ul class="meta" id="meta" aria-label="Where OceanVal is working"></ul>
   </div>
@@ -801,7 +802,7 @@
         <p>Just press <strong>Continue</strong> on each page, and tick agreement when asked, to run the validation.</p>
       </div>
       <div class="card demo-about">
-        <p>Feel free to customize the validation by tweaking the options and settings.</p>
+        <p>Feel free to customize the validation by tweaking the options.</p>
       </div>
       <div class="card demo-about">
         <p id="demo-wait">You should start seeing validation results in a couple of minutes.</p>
@@ -818,15 +819,7 @@
 
   <section id="view-demo" hidden>
     <div class="demo">
-      <p class="demo-folder" id="demo-folder">This creates a directory called <code>oceanval_demo</code>, with data in it. Remove it when you have finished with the demo.<small id="demo-folder-path"></small></p>
-      <div class="demo-caveat" role="note">
-        <span class="icon" aria-hidden="true" data-icon="warn"></span>
-        <div>
-          <p><strong>This shows how OceanVal works. It is not how to validate a climate model.</strong></p>
-          <p>Only one year, <span id="demo-year">2010</span>, is matched up here. A climate model is not meant to reproduce the weather of any particular year, so judging how well one does needs many years of output, not a single one.</p>
-        </div>
-      </div>
-      <div class="card demo-about">
+      <div class="card demo-about" id="demo-choose">
         <h2>Choose a model and its variables</h2>
         <p>Each model is downloaded from a different ESGF data server. Choose one model, and one to three of its variables: only those files are downloaded.</p>
         <div class="demo-grid-wrap">
@@ -834,6 +827,14 @@
           <thead><tr><th scope="col">Model</th><th scope="col">Sea surface temperature</th><th scope="col">Surface nitrate</th><th scope="col">Sea surface salinity</th></tr></thead>
           <tbody id="demo-grid-body"></tbody>
         </table>
+        </div>
+      </div>
+      <p class="demo-folder" id="demo-folder">This creates a directory called <code>oceanval_demo</code>, with data in it. Remove it when you have finished with the demo.<small id="demo-folder-path"></small></p>
+      <div class="demo-caveat" role="note">
+        <span class="icon" aria-hidden="true" data-icon="warn"></span>
+        <div>
+          <p><strong>This shows how OceanVal works. It is not how to validate a climate model.</strong></p>
+          <p>Only one year, <span id="demo-year">2010</span>, is matched up here. A climate model is not meant to reproduce the weather of any particular year, so judging how well one does needs many years of output, not a single one.</p>
         </div>
       </div>
       <div class="card demo-about" id="demo-chosen" hidden>
@@ -1311,7 +1312,7 @@
 <div class="picker settings" id="settings" hidden>
   <div class="picker__card settings__card" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-describedby="settings-where">
     <div class="settings__head">
-      <h2 id="settings-title">Settings</h2>
+      <h2 id="settings-title">Preferences</h2>
       <p class="settings__where" id="settings-where"></p>
     </div>
     <div class="settings__body">
@@ -1329,7 +1330,7 @@
     </div>
     <div class="picker__foot settings__foot">
       <button type="button" class="btn btn--ghost" id="settings-cancel">Cancel</button>
-      <button type="button" class="btn btn--primary" id="settings-apply">Apply settings</button>
+      <button type="button" class="btn btn--primary" id="settings-apply">Apply</button>
     </div>
   </div>
 </div>
@@ -1345,7 +1346,7 @@
 (() => {
   "use strict";
 
-  const { ICONS, $, el, icon, shorten, plural, toast, STEPS, steps, pageId } = OceanValGUI;
+  const { ICONS, $, el, icon, shorten, plural, toast, pageId } = OceanValGUI;
   const initial = JSON.parse($("state").textContent);
   const token = initial.token;
   let state = initial.state;
@@ -1412,26 +1413,6 @@
   }
 
   // ---- the header and the bar ----
-  function stepIndex(view, action) {
-    if (view === "start" || view === "demo" || view === "demo_instructions") return 0;
-    if (view === "setup" || view === "validate" || view === "compare") return 1;
-    if (view === "register_kind") return 1;
-    if (view === "register_point" || view === "register_gridded") return 2;
-    if (view === "own_data" || view === "point_data" || view === "gridded_data" || view === "own_future") return 2;
-    if (view === "recipes" || view === "preparing") return 3;
-    if (view === "units_table") return 4;
-    if (view === "report_options") return STEPS[action].indexOf("Report");
-    if (view === "point_time_res") {
-      const files = STEPS[action].indexOf("Files");
-      return files >= 0 ? files : STEPS[action].length - 1;
-    }
-    // to validate as well, the matchups are checked before the report options are chosen
-    if (view === "running" && STEPS[action].includes("Files") && !state.report.given) {
-      return STEPS[action].indexOf("Files");
-    }
-    return STEPS[action].length - 1;
-  }
-
   function title() {
     const run = state.run;
     switch (state.view) {
@@ -1467,9 +1448,6 @@
   }
 
   function renderHeader() {
-    // no steps until something is chosen: they differ for each thing on offer
-    if (state.view === "start") $("steps").hidden = true;
-    else steps($("steps"), STEPS[state.action || "matchup_validate"], stepIndex(state.view, state.action));
     $("title").textContent = title();
     $("title").classList.toggle("is-setup-title", state.view === "setup" || state.view === "report_options");
     const meta = $("meta");
@@ -1636,7 +1614,7 @@
     } else if (view === "start") {
       document.querySelector(".choice").focus();
     } else if (view === "demo") {
-      $("demo-folder").scrollIntoView({ block: "start" });
+      $("demo-choose").scrollIntoView({ block: "start" });
     } else if (view === "units_table") {
       // the units are confirmed afresh every time this step is reached
       unitsUnconfirm();
@@ -4851,7 +4829,7 @@
     const reply = await post("api/settings", { settings });
     $("settings-apply").disabled = false;
     if (!reply.ok) {
-      $("settings-error").textContent = reply.error || "The settings could not be saved.";
+      $("settings-error").textContent = reply.error || "Your preferences could not be saved.";
       $("settings-error").hidden = false;
       return;
     }
@@ -4859,7 +4837,7 @@
     applyTheme(reply.settings.theme);
     closeSettings();
     render();
-    toast("Settings saved.");
+    toast("Preferences saved.");
   }
 
   $("settings-open").addEventListener("click", openSettings);

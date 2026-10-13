@@ -222,7 +222,16 @@ code { font-family: var(--font-mono); }
   color: #fff;
   background: var(--masthead-bg);
 }
-.masthead .wrap { position: relative; padding-top: 26px; padding-bottom: 28px; }
+.masthead .wrap {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand__word {
   font: 600 40px/1 var(--font-head);
@@ -231,13 +240,17 @@ code { font-family: var(--font-mono); }
 }
 .brand__word span { color: var(--brand-accent); }
 h1 {
-  margin: 18px 0 16px;
-  max-width: 40ch;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  max-width: 70ch;
+  text-align: right;
   font: 600 24px/1.25 var(--font-head);
   letter-spacing: -0.3px;
 }
 .masthead h1.is-setup-title { max-width: none; white-space: nowrap; }
-.meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.meta:empty { display: none; }
+.meta { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .meta li {
   display: inline-flex;
   align-items: baseline;
@@ -259,43 +272,6 @@ h1 {
 }
 .meta__v { color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .meta__v.is-mono { font-family: var(--font-mono); font-size: 12.5px; }
-
-/* the oceanval app's steps, top right of the header */
-.steps {
-  position: absolute;
-  top: 30px;
-  right: 32px;
-  display: flex;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.steps li {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px 5px 5px;
-  border-radius: 999px;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.steps__n {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 50%;
-  font-size: 11.5px;
-  font-weight: 600;
-}
-.steps li.is-done { color: rgba(255, 255, 255, 0.82); }
-.steps li.is-done .steps__n { border-color: transparent; background: var(--brand-accent-soft); color: var(--brand-accent); }
-.steps li.is-current { background: rgba(255, 255, 255, 0.1); color: #fff; }
-.steps li.is-current .steps__n { border-color: var(--brand-accent); background: var(--brand-accent); color: var(--on-brand-accent); }
 
 /* ---- main ---- */
 /* main.wrap, as .wrap's own padding would otherwise win */
@@ -520,14 +496,10 @@ input.tick { cursor: pointer; }
   transform: translateX(-50%);
 }
 
-@media (max-width: 1000px) {
-  /* only the current step keeps its name */
-  .steps li:not(.is-current) { padding-right: 5px; }
-  .steps li:not(.is-current) .steps__label { display: none; }
-}
 @media (max-width: 760px) {
   .wrap { padding: 0 16px; }
-  .steps { position: static; margin: 16px 0 0; }
+  .masthead .wrap { flex-direction: column; align-items: flex-start; }
+  .masthead h1 { flex: none; max-width: none; text-align: left; }
   h1 { font-size: 25px; }
   .masthead h1.is-setup-title { white-space: normal; }
   .meta__v { max-width: 58vw; }
