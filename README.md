@@ -69,7 +69,10 @@ that takes you through these steps:
    them), and their time resolution (`monthly`, or `1d`, `5d` and so on; the
    finest is used). Carry on if the matchups are right; No stops the run;
    **Back** stops it too, before anything is matched up, and goes back to
-   the units. If a point dataset is matched by day (its `point_time_res`
+   the units. If the files are wrong, change the file filters under the
+   table and click **Use these filters**: the simulation is read again with
+   them and you go back to the recipes window, with your choices kept where
+   the model variables are still in the files. If a point dataset is matched by day (its `point_time_res`
    includes `day`, as the default does) against output coarser than daily,
    a page then says most of its observations may go unmatched, and offers
    to change `point_time_res` for all such datasets (OceanVal suggests year

@@ -1599,6 +1599,9 @@ class App:
                     "identifying": self.identifying,
                     # whether Back can leave it for the units step
                     "back": self._run_back(),
+                    # the file filters the script was written with, which
+                    # the matchups page can change
+                    "filters": self._run_filters(),
                     "rejected": self.matchups_rejected,
                     "script_saved": self.matchup_script_saved,
                     "script": self.script_path if self.matchup_script_saved else None,
@@ -2807,6 +2810,32 @@ class App:
         kind = "matchup" if self.action == "matchup_validate" else "script"
         self.start_run([kind, out], f"python {_shown(out, self.cwd)}")
 
+    def refilter(self, exclude, require):
+        """Read the simulation again with other file filters (exclude and
+        require, as words separated by spaces), for the matchups page. The
+        run asking whether the matchups are right has matched nothing up, so
+        is stopped, as for Back, and the recipes window is shown again for
+        the files that pass them, as the model variables in them can differ,
+        starting with what was chosen in it where that still applies (see
+        recipes_restore)."""
+        exclude = str(exclude or "").split()
+        require = str(require or "").split()
+        with self._lock:
+            if not (self._run_back() and self._held_matchups() is not None):
+                return False
+            run = self.run
+            self._leave_run()
+            self.setup_form["exclude"] = " ".join(exclude)
+            self.setup_form["require"] = " ".join(require)
+            self.setup_arguments["exclude"] = exclude or None
+            self.setup_arguments["require"] = require or None
+            # made afresh, for the files that pass them
+            self._recipes = None
+        # outside the lock: stopping it can take a moment
+        run.stop()
+        self._begin_prepare()
+        return True
+
     def _units_again(self, page):
         """The units step and the steps after it, again, for Back from the
         matchups, in a thread of its own."""
@@ -3017,6 +3046,17 @@ class App:
         return 200, {"ok": True}
 
     # ---- the report options of a matchup and validate run ----
+
+    def _run_filters(self):
+        """The file filters the matchup script was written with, as words
+        separated by spaces, or None without one."""
+        if self._script_writer is None:
+            return None
+        settings = self._script_writer[1][2] or {}
+        return {
+            name: " ".join(settings.get(name) or [])
+            for name in ("exclude", "require")
+        }
 
     def _held_matchups(self):
         """The question of whether the matchups are right, while its answer
@@ -3985,6 +4025,9 @@ class _Handler(recipes_gui._Handler):
             "/api/back": lambda: app.back(payload),
             "/api/restart": app.restart,
             "/api/stop": app.stop,
+            "/api/refilter": lambda: app.refilter(
+                payload.get("exclude"), payload.get("require")
+            ),
             "/api/answer": lambda: app.answer(
                 payload.get("id"), payload.get("answer", "")
             ),

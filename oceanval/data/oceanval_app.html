@@ -507,6 +507,11 @@
   .review td small { display: block; color: var(--muted); font-size: 12.5px; }
   .review__files { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; }
   .review__files small { display: inline; }
+  .review__filters { padding: 18px 24px 22px; }
+  .review__filters-title { margin: 0 0 4px; font: 600 15px/1.4 var(--font-head); }
+  .review__filters-intro { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+  .review__filters-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
+  .review__filters-foot .group__msg { margin: 0; }
   .summary__question { margin-left: auto; color: var(--ink); font: 600 18px/1.3 var(--font-head); }
   .script-saved.card { max-width: 760px; padding: 28px 30px; }
   .script-saved h2 { margin: 0 0 8px; font: 600 22px/1.3 var(--font-head); }
@@ -1184,6 +1189,18 @@
         </tr></thead>
         <tbody id="review-body"></tbody>
       </table></div>
+      <div class="review__filters" id="review-filters">
+        <h3 class="review__filters-title">Not the right files?</h3>
+        <p class="review__filters-intro">Change which file names are used. OceanVal will read the simulation again with them and return to the recipes, to check the model variables, keeping your choices where they still apply.</p>
+        <div class="form__row is-pair">
+          <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
+          <label class="g-row"><span class="g-label">Only file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+        </div>
+        <div class="review__filters-foot">
+          <button type="button" class="btn btn--ghost" id="review-refilter" disabled>Use these filters</button>
+          <p class="group__msg" id="review-filters-msg" role="status" aria-live="polite"></p>
+        </div>
+      </div>
     </section>
     <div class="ask card" id="ask" hidden>
       <span class="ask__icon" aria-hidden="true">?</span>
@@ -1559,10 +1576,10 @@
         post("api/stop");
       }, { id: "stop" });
       if (matchups) {
-        // the answer to whether the matchups are right, beside its question, with Back second,
+        // the answer to whether the matchups are right, beside its question, after Back,
         // or Stop where there is no Back
         asked = el("span", { class: "summary__question", id: "review-question", text: "Are you happy with these file selections?" });
-        actions.push(button("Yes, continue", "primary", () => send(question.id, "y")), back || stop);
+        actions.push(back || stop, button("Yes, continue", "primary", () => send(question.id, "y")));
       } else {
         if (back) actions.push(back);
         actions.push(stop);
@@ -4614,10 +4631,101 @@
           button("List all files", "text", () => openFiles(question, row),
             { class: "btn btn--text btn--small", "aria-haspopup": "dialog", "aria-label": `List all files for ${row.title}` }))),
       el("td", {}, el("span", { class: "is-mono", text: row.time_res || "—" })))));
+    renderReviewFilters(question);
     $("review").hidden = false;
     $("review").scrollIntoView({ block: "start" });
     $("review-title").focus({ preventScroll: true });
   }
+
+  // ---- the file filters on the matchups page, to read the simulation again with ----
+  const reviewFilters = { question: null, given: null, number: 0, timer: null, found: null, busy: false };
+
+  function typedFilters() {
+    return { exclude: $("review-exclude").value.trim(), require: $("review-require").value.trim() };
+  }
+
+  function renderReviewFilters(question) {
+    const filters = state.run.filters;
+    $("review-filters").hidden = !filters || !state.run.back;
+    // filled in once for each question, so what is being typed is kept
+    if (!filters || reviewFilters.question === question.id) return;
+    reviewFilters.question = question.id;
+    reviewFilters.given = { exclude: filters.exclude, require: filters.require };
+    reviewFilters.found = null;
+    reviewFilters.busy = false;
+    $("review-exclude").value = filters.exclude;
+    $("review-require").value = filters.require;
+    refreshReviewFilters();
+  }
+
+  const sameWords = (a, b) => a.split(/\s+/).join(" ") === b.split(/\s+/).join(" ");
+
+  function filtersChanged() {
+    const given = reviewFilters.given;
+    const typed = typedFilters();
+    return Boolean(given) && !(sameWords(typed.exclude, given.exclude) && sameWords(typed.require, given.require));
+  }
+
+  function refreshReviewFilters() {
+    const found = reviewFilters.found;
+    const changed = filtersChanged();
+    const msg = $("review-filters-msg");
+    const none = Boolean(found) && found.files === 0;
+    msg.classList.toggle("is-error", none);
+    if (!changed) {
+      msg.textContent = "";
+    } else if (!found) {
+      msg.textContent = "Counting the files…";
+    } else if (found.files === null || found.files === undefined) {
+      msg.textContent = "The files could not be counted.";
+    } else {
+      msg.textContent = none
+        ? `No files pass these filters, of the ${plural(found.all_files, "file")} found.`
+        : `${found.files} of the ${plural(found.all_files, "file")} found pass these filters.`;
+    }
+    const counted = Boolean(found) && typeof found.files === "number";
+    $("review-refilter").disabled = !changed || !counted || none || reviewFilters.busy;
+  }
+
+  function countReviewFiles() {
+    reviewFilters.found = null;
+    refreshReviewFilters();
+    clearTimeout(reviewFilters.timer);
+    if (!filtersChanged()) return;
+    reviewFilters.timer = setTimeout(async () => {
+      const number = ++reviewFilters.number;
+      const typed = typedFilters();
+      const form = state.setup.form;
+      let found;
+      try {
+        // the simulation as the simulation step gave it, which is read again with them
+        const response = await fetch(`api/probe?${query({
+          simdir: form.simdir, ndown: form.ndown, out: "",
+          exclude: typed.exclude, require: typed.require,
+        })}`, { cache: "no-store" });
+        found = await response.json();
+      } catch (error) {
+        return;
+      }
+      // a later count has been asked for since
+      if (number !== reviewFilters.number) return;
+      reviewFilters.found = found;
+      refreshReviewFilters();
+    }, 300);
+  }
+
+  for (const id of ["review-exclude", "review-require"]) $(id).addEventListener("input", countReviewFiles);
+  $("review-refilter").addEventListener("click", async () => {
+    reviewFilters.busy = true;
+    refreshReviewFilters();
+    const reply = await post("api/refilter", typedFilters());
+    if (!reply.ok) {
+      reviewFilters.busy = false;
+      refreshReviewFilters();
+      $("review-filters-msg").classList.add("is-error");
+      $("review-filters-msg").textContent = reply.error || "The filters could not be used.";
+    }
+  });
 
   function renderSavedScript() {
     $("script-saved-command").textContent = state.run.script_command || "";

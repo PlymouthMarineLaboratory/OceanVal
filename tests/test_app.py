@@ -3015,6 +3015,46 @@ class TestBack:
         assert app.status == "finished"
         assert "answer: y\nmatching up\n" in app.console.since(0, None)["text"]
 
+    def test_other_file_filters_read_the_simulation_again(
+        self, app, tmp_path, monkeypatch
+    ):
+        stand_in = self.matchups_stand_in(tmp_path)
+        start_run = app.start_run
+        monkeypatch.setattr(
+            app, "start_run", lambda args, label: start_run([args[0], str(stand_in)], label)
+        )
+        own = {"name": "chl", "source": "mine", "model_variable": "thetao",
+               "obs_path": "obs.nc", "obs_variable": "chl_obs"}
+        first_page = self.to_recipes(app, tmp_path, own=own)
+        self.write(app)
+        conversions = {"own:0": {"multiplier": "", "adder": "3"}}
+        assert post(app, "/api/refilter", {"exclude": "restart"})[0] == 409
+        assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
+        wait_for(lambda: app.question is not None)
+        first = app.run
+        assert get_json(app, "/api/state")[1]["run"]["filters"] == {"exclude": "", "require": ""}
+
+        assert post(app, "/api/refilter", {"exclude": " restart  5d", "require": ""})[0] == 200
+        # the model variables can differ in the files that pass them, so
+        # they are checked again in the recipes window
+        wait_for(lambda: app.view == "recipes", timeout=60)
+        wait_for(lambda: first.returncode is not None, timeout=30)
+        page = app.recipes_page
+        assert page is not first_page
+        assert page.form["exclude"] == "restart 5d"
+        assert app.setup_arguments["exclude"] == ["restart", "5d"]
+        assert app.setup_form["exclude"] == "restart 5d"
+        # the user's own data as given, without the conversion
+        assert app.own_data["gridded"][0] == own
+
+        # carried on from, the script is written with them
+        self.write(app)
+        assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
+        wait_for(lambda: app.question is not None and app.run is not first)
+        script = open(page.context["out"]).read().replace(" ", "")
+        assert "exclude=['restart','5d']" in script or 'exclude=["restart","5d"]' in script
+        assert get_json(app, "/api/state")[1]["run"]["filters"] == {"exclude": "restart 5d", "require": ""}
+
     def test_back_from_the_report_options_keeps_them(self, app, tmp_path):
         app.action = "matchup_validate"
         app.start_run(["matchup", str(self.matchups_stand_in(tmp_path))], "python stand_in.py")
@@ -3651,10 +3691,10 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.locator("#review th").all_text_contents()[2:] == [
             "Observation source", "File pattern to be used", "Time resolution",
         ]
-        # the answers are in the bar, with Back, and none are in the card
-        assert page.locator("#review button:not(.btn--text)").count() == 0
+        # the answers are in the bar, Back first, and none are in the card
+        assert page.locator("#review button:not(.btn--text):not(#review-refilter)").count() == 0
         assert [button.text_content() for button in page.locator("#actions button").all()] == [
-            "Yes, continue", "Back",
+            "Back", "Yes, continue",
         ]
         assert page.locator("text=No, stop the run").count() == 0
         # the mapping is introduced first, and the question is in the bar, just left of its buttons
@@ -3676,6 +3716,28 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         row = page.locator('#review-body tr[data-variable="temperature"]')
         for text in ("Temperature", "thetao", "COBE2, ICES (point)", "x_**_grid_T.nc", "2 files"):
             assert text in row.text_content()
+
+        # the file filters can be changed, to find the files again with
+        assert page.is_visible("#review-filters")
+        assert page.input_value("#review-exclude") == ""
+        assert page.input_value("#review-require") == ""
+        assert page.is_disabled("#review-refilter")
+        assert page.text_content("#review-refilter") == "Use these filters"
+        page.fill("#review-require", "nowhere")
+        page.wait_for_function(
+            "document.getElementById('review-filters-msg').textContent.startsWith('No files pass')"
+        )
+        assert page.is_disabled("#review-refilter")
+        page.fill("#review-require", "2011")
+        page.wait_for_function(
+            "document.getElementById('review-filters-msg').textContent.includes('pass these filters')"
+        )
+        assert re.match(r"\d+ of the \d+ files found pass these filters\.$", page.text_content("#review-filters-msg"))
+        assert page.is_enabled("#review-refilter")
+        # as they were, there is nothing to find again
+        page.fill("#review-require", "")
+        assert page.is_disabled("#review-refilter")
+        assert page.text_content("#review-filters-msg") == ""
 
         row.locator("button:has-text('List all files')").click()
         page.wait_for_selector("#files-list .picker__file")
