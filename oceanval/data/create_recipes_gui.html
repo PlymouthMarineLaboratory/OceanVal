@@ -18,7 +18,7 @@
     top: 0;
     z-index: 2;
     padding: 13px 16px;
-    background: #fbfdfd;
+    background: var(--surface-soft);
     border-bottom: 1px solid var(--line);
     color: var(--muted);
     font-size: 11px;
@@ -29,11 +29,11 @@
   }
   thead th:first-child { border-top-left-radius: var(--radius-md); }
   thead th:last-child { border-top-right-radius: var(--radius-md); }
-  tbody td { padding: 14px 16px; border-bottom: 1px solid #c5d7da; vertical-align: top; }
+  tbody td { padding: 14px 16px; border-bottom: 1px solid var(--line-strong); vertical-align: top; }
   tbody tr:last-child td { border-bottom: 0; }
   tbody tr { transition: background-color 0.15s; }
-  tbody tr:hover { background: #fbfefe; }
-  tbody tr.is-empty { background: #fffcfa; }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr.is-empty { background: var(--empty-row); }
 
   .obs__title { display: block; padding-top: 8px; font-weight: 600; line-height: 1.25; }
   .obs__key { display: block; margin-top: 3px; color: var(--muted-light); font-size: 12px; }
@@ -52,9 +52,9 @@
     transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
   }
   .field__input::placeholder { color: var(--coral-dark); opacity: 0.75; font: italic 400 13.5px/20px var(--font-body); }
-  .field__input:hover { border-color: #c5d7da; }
+  .field__input:hover { border-color: var(--line-strong); }
   .field__input:focus { outline: none; border-color: var(--teal-500); box-shadow: var(--focus); }
-  .is-empty .field__input { border-style: dashed; border-color: #e9b39c; background: #fffaf6; }
+  .is-empty .field__input { border-style: dashed; border-color: var(--empty-line); background: var(--empty-bg); }
   .is-invalid .field__input { border-color: var(--red); box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12); }
   .field__input:disabled { background: var(--bg-alt); color: var(--muted); }
   .field__msg { display: flex; gap: 6px; align-items: flex-start; margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
@@ -78,7 +78,7 @@
     user-select: none;
     transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
   }
-  .chip:hover { border-color: var(--teal-200); background: #f8fdfd; }
+  .chip:hover { border-color: var(--teal-200); background: var(--chip-hover); }
   .chip.is-on { border-color: var(--teal-400); background: var(--teal-50); color: var(--teal-900); }
   .chip.is-disabled { cursor: not-allowed; opacity: 0.42; background: var(--bg); border-color: var(--line); }
   .chip__name { font-size: 13.5px; font-weight: 600; letter-spacing: 0.01em; }
@@ -91,7 +91,7 @@
     font-weight: 600;
     letter-spacing: 0.05em;
   }
-  .chip__region.is-domain { background: rgba(15, 143, 150, 0.13); color: var(--teal-700); }
+  .chip__region.is-domain { background: var(--accent-soft); color: var(--teal-700); }
   /* the recipes the user registered */
   .chip__region.is-yours { background: rgba(215, 107, 69, 0.14); color: var(--coral-dark); }
   .none { display: inline-block; padding-top: 8px; color: var(--muted-light); }
@@ -135,16 +135,16 @@
   .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
   .lede-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
   .lede-row .lede { margin: 0; }
-  .btn--clear { flex: none; height: 44px; margin-bottom: -3px; padding: 0 20px; border: 1.5px solid #c5d7da; background: var(--bg-alt); color: var(--ink-soft); font-size: 15px; white-space: nowrap; }
-  .btn--clear:hover:not(:disabled) { border-color: #a9c5c9; background: var(--teal-100); }
+  .btn--clear { flex: none; height: 44px; margin-bottom: -3px; padding: 0 20px; border: 1.5px solid var(--line-strong); background: var(--bg-alt); color: var(--ink-soft); font-size: 15px; white-space: nowrap; }
+  .btn--clear:hover:not(:disabled) { border-color: var(--btn-disabled); background: var(--teal-100); }
   .btn--clear:disabled { border-color: var(--line); background: var(--bg); color: var(--muted-light); }
   .settings__ticks { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 24px; padding: 0 22px 20px; }
   .g-label.is-required { color: var(--red); font-weight: 700; }
   .year-required { margin-left: 6px; color: var(--red); font-size: 10.5px; font-weight: 700; text-transform: uppercase; }
   /* a box's own hint, between it and the next box */
   .group__msg + .g-row { margin-top: 10px; }
-  .group__line.is-ersem { color: #8a5a00; font-weight: 600; }
-  .s-input.is-ersem, .s-select.is-ersem { border-color: #d7a83e; background-color: #fff8df; color: #8a5a00; font-weight: 600; }
+  .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
+  .s-input.is-ersem, .s-select.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
   /* what the oceanval app's demo filled in is red and bold, until it is typed over */
   .s-input.is-oceanval, .lede .oceanval-change, .field__msg .oceanval-change { color: var(--red); font-weight: 700; }
   .cores-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 10px; }
@@ -230,7 +230,7 @@
     .btn--clear { margin-bottom: 0; }
     table, tbody, tr, td { display: block; width: 100%; }
     thead, colgroup { display: none; }
-    tbody tr { padding: 14px 16px 10px; border-bottom: 1px solid #c5d7da; }
+    tbody tr { padding: 14px 16px 10px; border-bottom: 1px solid var(--line-strong); }
     tbody tr:last-child { border-bottom: 0; }
     tbody td { padding: 0 0 10px; border: 0; }
     td[data-label]::before {

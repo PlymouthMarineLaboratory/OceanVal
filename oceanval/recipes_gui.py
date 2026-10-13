@@ -41,7 +41,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import time_res
+from oceanval import time_res, user_settings
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -493,7 +493,8 @@ def render_page(template, state):
     """One of the pages in oceanval/data, with state for its script.
 
     The stylesheet and scripts every page shares are inlined, so that the
-    page loads nothing from anywhere else.
+    page loads nothing from anywhere else. The page is in the colours of the
+    window's settings from the start, rather than changing once it has loaded.
     """
     data = importlib.resources.files("oceanval").joinpath("data")
 
@@ -508,8 +509,12 @@ def render_page(template, state):
         .replace(">", "\\u003e")
         .replace("&", "\\u0026")
     )
+    theme = user_settings.load()["theme"]
+    html = read(template)
+    if theme != user_settings.DEFAULTS["theme"]:
+        html = html.replace('<html lang="en">', f'<html lang="en" data-theme="{theme}">', 1)
     return (
-        read(template)
+        html
         .replace("/*__OCEANVAL_GUI_CSS__*/", read("gui.css"))
         .replace("/*__OCEANVAL_GUI_JS__*/", read("gui.js"))
         # last, so nothing inlined above can be mistaken for it

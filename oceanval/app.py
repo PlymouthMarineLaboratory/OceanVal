@@ -59,7 +59,7 @@ import urllib.parse
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
-from oceanval import depths, own_data, recipe_checks, recipe_forms, selection, time_res, transects, units, user_cache, user_recipes
+from oceanval import depths, own_data, recipe_checks, recipe_forms, selection, time_res, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
     _create_recipes,
@@ -1422,6 +1422,8 @@ class App:
         # has come, and why it failed, or None
         self.demo = None
         self._demo_cancel = threading.Event()
+        # the window's settings, from the home .oceanvalrc as it opens
+        self.settings = user_settings.load()
         self._server = None
 
     # ---- state ----
@@ -1555,6 +1557,11 @@ class App:
                     "files": self.leftovers,
                 },
                 "interim": self._interim_state(),
+                "user_settings": {
+                    "values": dict(self.settings),
+                    "themes": [[key, label] for key, label in user_settings.THEMES.items()],
+                    "path": user_settings.path(),
+                },
                 "demo": (
                     None
                     if self.demo is None
@@ -2082,6 +2089,18 @@ class App:
             result = leftovers.remove_leftovers([item["path"] for item in found])
         self._notify()
         return 200, dict(result, ok=True)
+
+    def apply_settings(self, settings):
+        """Save the window's settings in the home .oceanvalrc, for this window
+        and the next. Returns the HTTP status and the reply for the page."""
+        try:
+            saved = user_settings.save(settings)
+        except (OSError, ValueError) as error:
+            return 400, {"ok": False, "error": f"{error}"}
+        with self._lock:
+            self.settings = saved
+            self._notify()
+        return 200, {"ok": True, "settings": dict(saved)}
 
     def restart(self):
         with self._lock:
@@ -3888,6 +3907,9 @@ class _Handler(recipes_gui._Handler):
         app = self.app
         if path == "/api/setup":
             self._reply_json(*app.setup(payload.get("form")))
+            return
+        if path == "/api/settings":
+            self._reply_json(*app.apply_settings(payload.get("settings")))
             return
         if path == "/api/validate":
             self._reply_json(*app.validate(payload.get("form")))

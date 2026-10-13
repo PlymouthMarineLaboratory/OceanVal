@@ -5423,3 +5423,118 @@ def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path)
         assert page.is_hidden("#f-simdir-recent")
     finally:
         app.close()
+
+
+class TestSettings:
+    """The window's settings, saved in the home .oceanvalrc from its panel."""
+
+    def test_the_settings_are_read_as_the_window_opens(self, oceanvalrc, tmp_path):
+        oceanvalrc.write_text(json.dumps({"settings": {"theme": "blue", "show_demo": False}}))
+        app = App(cwd=str(tmp_path))
+        settings = app.state()["user_settings"]
+        assert settings["values"] == {"theme": "blue", "show_demo": False}
+        assert settings["path"] == str(oceanvalrc)
+        assert [key for key, _label in settings["themes"]] == ["default", "dark", "silver", "blue"]
+
+    def test_applying_saves_them(self, app, oceanvalrc):
+        version = app.version
+        status, reply = post(app, "/api/settings", {"settings": {"theme": "dark", "show_demo": False}})
+        assert status == 200
+        assert reply == {"ok": True, "settings": {"theme": "dark", "show_demo": False}}
+        assert app.state()["user_settings"]["values"] == {"theme": "dark", "show_demo": False}
+        assert app.version > version
+        assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False}
+        # and the page is in its colours from then on
+        assert '<html lang="en" data-theme="dark">' in get(app, "/")[1]
+
+    def test_settings_that_cannot_be_used_are_refused(self, app, oceanvalrc):
+        status, reply = post(app, "/api/settings", {"settings": {"theme": "purple"}})
+        assert status == 400
+        assert not reply["ok"] and "purple" in reply["error"]
+        assert app.state()["user_settings"]["values"] == {"theme": "default", "show_demo": True}
+        assert not oceanvalrc.exists()
+
+    def test_applying_needs_the_token(self, app, oceanvalrc):
+        assert post(app, "/api/settings", {"settings": {"theme": "dark"}}, token="wrong")[0] == 403
+        assert not oceanvalrc.exists()
+
+    def test_the_settings_panel_in_a_browser(self, browser, oceanvalrc, tmp_path):
+        app = App(cwd=str(tmp_path))
+        url = app.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-start:not([hidden])")
+            assert page.get_attribute("html", "data-theme") is None
+            assert page.is_visible("#choice-demo")
+
+            # Cancel leaves everything as it was
+            page.click("#settings-open")
+            assert page.is_visible("#settings")
+            assert page.is_checked("#settings-show-demo")
+            assert page.is_checked('input[name="settings-theme"][value="default"]')
+            page.check('input[name="settings-theme"][value="dark"]')
+            page.uncheck("#settings-show-demo")
+            page.click("#settings-cancel")
+            assert page.is_hidden("#settings")
+            assert page.get_attribute("html", "data-theme") is None
+            assert page.is_visible("#choice-demo")
+            assert not oceanvalrc.exists()
+            assert page.evaluate("document.activeElement.id") == "settings-open"
+
+            # opened again, it shows what is saved, not what was cancelled
+            page.click("#settings-open")
+            assert page.is_checked('input[name="settings-theme"][value="default"]')
+            assert page.is_checked("#settings-show-demo")
+            page.keyboard.press("Escape")
+            assert page.is_hidden("#settings")
+
+            page.click("#settings-open")
+            page.click('label.theme-option:has(input[value="dark"])')
+            assert page.is_checked('input[name="settings-theme"][value="dark"]')
+            page.uncheck("#settings-show-demo")
+            page.click("#settings-apply")
+            page.wait_for_selector("#settings", state="hidden")
+            assert page.get_attribute("html", "data-theme") == "dark"
+            assert page.is_hidden("#choice-demo")
+            assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False}
+            # the page's own colours follow
+            assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(13, 26, 31)"
+
+            # and are there when the page is opened again
+            page.reload()
+            page.wait_for_selector("#view-start:not([hidden])")
+            assert page.get_attribute("html", "data-theme") == "dark"
+            assert page.is_hidden("#choice-demo")
+
+            # back to the default
+            page.click("#settings-open")
+            page.check('input[name="settings-theme"][value="default"]')
+            page.check("#settings-show-demo")
+            page.click("#settings-apply")
+            page.wait_for_selector("#settings", state="hidden")
+            assert page.get_attribute("html", "data-theme") is None
+            assert page.is_visible("#choice-demo")
+            assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(244, 250, 250)"
+        finally:
+            app.close()
+
+    def test_a_settings_problem_is_shown_in_the_panel(self, browser, oceanvalrc, tmp_path):
+        app = App(cwd=str(tmp_path))
+        url = app.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-start:not([hidden])")
+            # a file that cannot be read is not written over
+            oceanvalrc.write_text("{ not json")
+            page.click("#settings-open")
+            page.check('input[name="settings-theme"][value="blue"]')
+            page.click("#settings-apply")
+            page.wait_for_selector("#settings-error:not([hidden])")
+            assert "could not be read" in page.text_content("#settings-error")
+            assert page.is_visible("#settings")
+            assert page.get_attribute("html", "data-theme") is None
+            assert oceanvalrc.read_text() == "{ not json"
+        finally:
+            app.close()

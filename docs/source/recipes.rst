@@ -312,4 +312,7 @@ A point recipe has ``"kind": "point"``, with ``obs_path`` the directory of csv
 files and no ``location``, ``obs_variable`` or ``climatology``. A recipe for a
 variable of your own also has ``long_name``, ``short_name`` and ``short_title``,
 which name it in the report. You can edit the files by hand: OceanVal ignores,
-and says so, any file or recipe in them that it cannot use.
+and says so, any file or recipe in them that it cannot use. The file in your
+home directory also keeps the ``oceanval`` window's settings (its colours, and
+whether it offers the demo), under ``"settings"`` beside ``"recipes"``; saving
+either keeps the other.
