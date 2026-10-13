@@ -4211,17 +4211,23 @@ def main(argv=None):
         type=int,
         default=None,
         help="the port to serve the window on, e.g. to forward it from a "
-        f"remote machine (default: {recipes_gui.SSH_PORT} in an SSH session, "
-        "if it is free, otherwise any free port)",
+        f"remote machine (default: {recipes_gui.SSH_PORT} in an SSH session "
+        "where no browser can be opened from here, if it is free, otherwise "
+        "any free port)",
     )
     arguments = parser.parse_args(argv)
 
+    # the usual port is only for the ssh -L command printed when no browser
+    # can be opened, so it is the same each time. When one is opened (by VS
+    # Code, say), a port of its own each run keeps an earlier run's forward
+    # or tab from being reached instead
+    can_open = recipes_gui._can_open_browser()
     app = App()
     try:
         try:
             url = app.start(
                 recipes_gui.SSH_PORT
-                if arguments.port is None and recipes_gui.over_ssh()
+                if arguments.port is None and recipes_gui.over_ssh() and not can_open
                 else arguments.port or 0
             )
         except OSError:
@@ -4235,7 +4241,7 @@ def main(argv=None):
             f"oceanval: port {arguments.port} cannot be used ({error.strerror or error}). "
             "Choose another with --port.\n",
         )
-    if recipes_gui._can_open_browser() and recipes_gui._open_browser(url):
+    if can_open and recipes_gui._open_browser(url):
         print(
             f"OceanVal is open in your web browser:\n  {url}\n"
             "Press Ctrl+C here to quit, or close the window.",

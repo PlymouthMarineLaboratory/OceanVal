@@ -503,6 +503,26 @@ class TestRemoteAccess:
         assert f"127.0.0.1:{busy}/" not in printed
         assert re.search(r"ssh -L (\d+):127\.0\.0\.1:\1 ", printed)
 
+    def test_over_ssh_with_a_browser_any_free_port_is_used(self, monkeypatch, capsys):
+        self._remote(monkeypatch, True)
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        free = sock.getsockname()[1]
+        sock.close()
+        monkeypatch.setattr(app_module.recipes_gui, "SSH_PORT", free)
+        opened = []
+        monkeypatch.setattr(app_module.recipes_gui, "_can_open_browser", lambda: True)
+        monkeypatch.setattr(
+            app_module.recipes_gui, "_open_browser", lambda url: opened.append(url) or True
+        )
+        monkeypatch.setattr(app_module.App, "_watch", lambda self: self.closed.set())
+        app_module.main([])
+
+        assert len(opened) == 1
+        assert "/?token=" in opened[0]
+        assert f"127.0.0.1:{free}/" not in opened[0]
+        assert "ssh -L" not in capsys.readouterr().out
+
     def test_a_port_that_was_asked_for_must_be_free(self, monkeypatch, capsys):
         self._remote(monkeypatch, True)
         taken = socket.socket()

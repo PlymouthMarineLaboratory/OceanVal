@@ -175,8 +175,9 @@ another name, so you can run it again later with `python matchup.py`. On a
 remote machine, open the link `oceanval` prints: VS Code forwards its port
 for you. Over plain SSH (from a Windows terminal, say), `oceanval` prints the
 `ssh -L` command to run in a new terminal on your own computer, then you open
-the link in your browser. It uses port 8765 if that is free, so the command is
-the same each time; `--port` chooses another.
+the link in your browser. Then it uses port 8765 if that is free, so the
+command is the same each time; `--port` chooses another. When it opens the
+browser itself, as in VS Code, it uses any free port.
 
 ## Your own recipes
 
