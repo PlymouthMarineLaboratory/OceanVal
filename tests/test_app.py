@@ -406,6 +406,26 @@ class TestChildProcess:
             "matched\nThe report is built next, with the options chosen in the OceanVal window.\n"
         )
 
+    def test_a_script_registers_its_recipes_without_the_servers(self, tmp_path, monkeypatch):
+        # the matchups are shown to check first, so are not held up by them
+        script = tmp_path / "matchup.py"
+        script.write_text(
+            "import oceanval\n"
+            "oceanval.add_gridded_comparison(name='nitrate', model_variable='N3_n',\n"
+            "    recipe={'nitrate': 'woa23'}, climatology=True)\n"
+        )
+        monkeypatch.setattr(
+            oceanval.parsers.nc, "open_thredds", lambda *a, **k: pytest.fail("contacted")
+        )
+        monkeypatch.setattr(webbrowser, "open", webbrowser.open)
+        oceanval.reset()
+        try:
+            app_child.main(["script", str(script)])
+
+            assert "WOA23" in oceanval.definitions.nitrate.gridded_comparisons
+        finally:
+            oceanval.reset()
+
     def test_without_a_display_the_report_is_not_opened(self, monkeypatch, capsys):
         # webbrowser would fall back on a text browser, which would wait for
         # keys the window never sends

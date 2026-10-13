@@ -86,6 +86,9 @@ def main(argv=None):
         if kind in ("script", "matchup"):
             if kind == "matchup":
                 oceanval.validate = _validate_later
+            # the window shows the matchups to check before anything is
+            # matched up, so the servers are not waited on to register them
+            oceanval.parsers.check_servers = False
             sys.argv = [argument]
             runpy.run_path(argument, run_name="__main__")
         elif kind == "compare":

@@ -356,6 +356,35 @@ class TestThreddsRegistration:
         # registering while a server is down, to match up once it is back
         assert getattr(oceanval.definitions, "nitrate", None) is not None
 
+    def test_the_window_does_not_contact_the_server(self, monkeypatch):
+        def must_not_be_called(*args, **kwargs):
+            raise AssertionError("the window must not wait on the server")
+
+        monkeypatch.setattr(nc, "open_thredds", must_not_be_called)
+        monkeypatch.setattr(oceanval.parsers, "check_servers", False)
+
+        oceanval.add_gridded_comparison(
+            name="nitrate",
+            model_variable="N3_n",
+            recipe={"nitrate": "woa23"},
+            climatology=True,
+        )
+
+        assert getattr(oceanval.definitions, "nitrate", None) is not None
+
+    def test_the_window_still_checks_data_on_this_machine(self, monkeypatch):
+        monkeypatch.setattr(oceanval.parsers, "check_servers", False)
+
+        with pytest.raises(ValueError, match="does not exist"):
+            oceanval.add_gridded_comparison(
+                name="temperature",
+                obs_path="data/evaldata/gridded/nws/nowhere",
+                source="foo",
+                model_variable="votemper",
+                obs_variable="votemper",
+                climatology=True,
+            )
+
 
 class TestOpeningObservations:
     """Where observations come from decides how nctoolkit opens them"""

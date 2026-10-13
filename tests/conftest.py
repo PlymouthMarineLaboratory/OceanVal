@@ -23,6 +23,16 @@ def oceanvalcache(tmp_path_factory, monkeypatch):
     return path
 
 
+@pytest.fixture(autouse=True)
+def check_servers(monkeypatch):
+    """Registering checks the THREDDS servers, as it does outside the oceanval
+    window, whose matchups turn it off for the rest of their process (see
+    oceanval.app_child), which in a test is the test run's."""
+    from oceanval import parsers
+
+    monkeypatch.setattr(parsers, "check_servers", True)
+
+
 @pytest.fixture
 def browser():
     """A Chromium browser, for the tests that drive a page, which are skipped

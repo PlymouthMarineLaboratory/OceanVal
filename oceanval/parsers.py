@@ -8,6 +8,12 @@ from oceanval.session import session_info
 from oceanval.utils import loud_warning
 from oceanval import user_recipes
 
+# whether registering a gridded comparison opens its observations on a
+# THREDDS server to check them. The oceanval window turns it off, so that
+# the matchups are shown without waiting on the servers: a server that is
+# down is caught when the matchup is made (see gridded.remote_gridded_source)
+check_servers = True
+
 
 def read_point(ff, nrows = None):
     try:
@@ -536,6 +542,9 @@ class Validator:
             raise ValueError("obs_variable be provided")
 
         gridded_dir = obs_path
+
+        if thredds is True and not check_servers:
+            file_check = False
 
         if file_check:
             if gridded_dir != "auto":

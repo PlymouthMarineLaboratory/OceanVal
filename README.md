@@ -62,7 +62,8 @@ that takes you through these steps:
    conversions are written into the matchup script as `obs_multiplier` and
    `obs_adder`.
 6. **Files**: the page says it is identifying the files that meet your
-   criteria, then shows what it found as a table: each variable, its model
+   criteria (only the model output is read: observation servers are not
+   contacted until the matchup is made), then shows what it found as a table: each variable, its model
    variable, the observations it is compared with, the files it is in,
    with **List all files** for each (OceanVal applies temporal subsetting to
    them), and their time resolution (`monthly`, or `1d`, `5d` and so on; the
