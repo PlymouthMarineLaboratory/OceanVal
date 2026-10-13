@@ -461,10 +461,53 @@ class TestMatchupsQuestion:
             }
         ]
         assert details["files"] == {pattern: files}
+        # how the files are read, for the window's check of the model output
+        assert (details["as_missing"], details["fvcom"]) == (None, False)
         # daily output, and no point datasets, is nothing to check
         assert "point_time_res" not in details
         # no is not a matchup
         assert not os.path.exists(tmp_path / "oceanval_matchups" / "mapping.csv")
+
+    def test_the_times_the_window_read_are_not_read_again(self, tmp_path, monkeypatch):
+        """Yes from the oceanval window can come with the times of the files
+        its check of the model output read (see oceanval.model_check), which
+        matchup starts from, rather than read them all again."""
+        from oceanval import model_check
+
+        oceanval.reset()
+        oceanval.add_gridded_comparison(
+            name="temperature",
+            obs_path="data/evaldata/gridded/nws/temperature",
+            source="foo",
+            model_variable="votemper",
+            obs_variable="votemper",
+            climatology=True,
+        )
+        files = sorted(glob.glob(os.path.abspath("data/example/*/*/*_grid_T.nc")))
+        index = str(tmp_path / "times.pkl")
+        # all but the last, which matchup reads itself
+        model_check.save_times_index(index, matchall.index_times(files[:-1]))
+
+        class Stop(Exception):
+            pass
+
+        given = []
+
+        def index_times(paths, fvcom=False, times=None, progress=None):
+            given.append(dict(times))
+            raise Stop()
+
+        monkeypatch.setattr(matchall, "index_times", index_times)
+        with prompts.answered_by(lambda *asked: prompts.Answer("y", {"times_index": index})):
+            with pytest.raises(Stop):
+                oceanval.matchup(
+                    sim_dir="data/example", start=2004, end=2004, cores=1,
+                    out_dir=str(tmp_path), as_missing=0,
+                )
+        oceanval.reset()
+
+        # matchup's first call starts from all the times the check read
+        assert set(given[0]) == set(files[:-1])
 
 class TestPointTimeResCheck:
     """Point datasets matched by day against output coarser than daily are

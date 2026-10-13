@@ -3,14 +3,17 @@ matchup and validate in, the window's server and, where a browser can be
 run, the window itself."""
 
 import ast
+import glob
 import io
 import json
 import os
 import pickle
 import re
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import textwrap
 import threading
 import time
@@ -25,7 +28,7 @@ import xarray as xr
 
 import oceanval
 from oceanval import app as app_module
-from oceanval import app_child, leftovers, live, prompts
+from oceanval import app_child, leftovers, live, model_check, prompts
 from oceanval.app import (
     App, Console, Question, Run, check_compare, check_report, check_setup, check_validate,
     default_validate_form,
@@ -92,6 +95,14 @@ def units_match(app):
     """Carry on from the units step without changing any conversion."""
     units_read(app)
     assert post(app, "/api/units_continue", {"conversions": {}, "confirmed": True})[0] == 200
+
+
+def skip_model_check(app):
+    """Answer no to the offer of a look at how OceanVal will view the model
+    output, which comes between the matchups and the report options."""
+    wait_for(lambda: app.view == "model_check_ask")
+    assert post(app, "/api/model_check", {"answer": False})[0] == 200
+    assert app.view == "report_options"
 
 
 def fill_required_recipe_years(page):
@@ -1042,6 +1053,7 @@ class TestChoosingMatchups:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        skip_model_check(app)
         assert get_json(app, "/api/state")[1]["report"]["matchups"] == listed
 
         # none ticked
@@ -2168,6 +2180,8 @@ class TestServer:
         number = app.question.id
 
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        assert app.view == "model_check_ask"
+        skip_model_check(app)
         _, state = get_json(app, "/api/state")
         assert state["view"] == "report_options"
         # matchup still waits for the answer, so nothing is matched up yet
@@ -2180,11 +2194,15 @@ class TestServer:
         assert "answer:" not in app.console.since(0, None)["text"]
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 409
 
-        # Back shows the matchups again, still asked about
+        # Back shows the offer of a look at the model output, and then the
+        # matchups again, still asked about
+        assert post(app, "/api/back")[0] == 200
+        assert app.view == "model_check_ask"
         assert post(app, "/api/back")[0] == 200
         assert (app.view, app.question.id) == ("running", number)
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
-        assert app.view == "report_options"
+        assert app.view == "model_check_ask"
+        skip_model_check(app)
 
         status, reply = post(app, "/api/report", {"form": {"lon_min": "x"}})
         assert status == 400
@@ -2263,6 +2281,7 @@ class TestServer:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        skip_model_check(app)
 
         form = {"lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65",
                 "pdf": True, "zip": True, "concise": False}
@@ -2304,6 +2323,7 @@ class TestServer:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        skip_model_check(app)
         assert post(app, "/api/report", {"form": {"concise": False}})[0] == 200
 
         # the report is built once the matchups are made, as before
@@ -2660,11 +2680,16 @@ class TestPointTimeResStep:
         assert status == 400 and app.view == "point_time_res"
 
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
-        assert app.view == "report_options"
-        # Back from the report options comes here again
+        assert app.view == "model_check_ask"
+        skip_model_check(app)
+        # Back from the report options comes to the offer of a look at the
+        # model output, and from there here again
         assert post(app, "/api/back", {"form": {}})[0] == 200
+        assert app.view == "model_check_ask"
+        assert post(app, "/api/back")[0] == 200
         assert app.view == "point_time_res"
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
+        skip_model_check(app)
 
         assert post(app, "/api/report", {"form": {}})[0] == 200
         wait_for(lambda: validated)
@@ -2739,6 +2764,292 @@ class TestPointTimeResStep:
         call = call[: call.index("\n)")]
         assert '    point_time_res=["year", "month"],' in call
         assert answers[0].startswith(ANSWER_MARKER)
+
+
+class StubCheck:
+    """A stand-in for model_check.ModelCheck, which starts nothing: a check
+    that is whatever the test makes it."""
+
+    made = []
+
+    def __init__(self, question, request, changed):
+        self.number = 40 + len(StubCheck.made)
+        self.question = question
+        self.request = request
+        self.changed = changed
+        self.folder = tempfile.mkdtemp(prefix="oceanval_stub_check_")
+        self.status = "running"
+        self.index = None
+        self.started = self.stopped = self.removed = False
+        self.files = {}
+        StubCheck.made.append(self)
+
+    def start(self):
+        self.started = True
+
+    @property
+    def finished(self):
+        return self.status == "done"
+
+    def stop(self):
+        self.stopped = True
+        if self.status == "running":
+            self.status = "stopped"
+
+    def remove(self):
+        self.stop()
+        shutil.rmtree(self.folder, ignore_errors=True)
+        self.removed = True
+
+    def files_of(self, variable):
+        return self.files.get(variable)
+
+    def state(self, href):
+        return {
+            "status": self.status,
+            "progress": {"done": 1, "total": 2},
+            "error": None,
+            "rows": [
+                {"variable": row["variable"], "title": row["title"], "plot": {"href": href("t.html")}}
+                for row in self.request["rows"]
+            ],
+        }
+
+
+class TestModelCheckStep:
+    """The offer, once the matchups are checked, of a look at how OceanVal
+    will view the model output (see oceanval.model_check)."""
+
+    @pytest.fixture(autouse=True)
+    def stub(self, monkeypatch):
+        StubCheck.made = []
+        monkeypatch.setattr(model_check, "ModelCheck", StubCheck)
+        # without jupyter-book 2 there is no interim report to wait for
+        monkeypatch.setattr(live, "available", lambda: False)
+
+    def script(self, tmp_path):
+        """A stand-in for matchup, saying what it was answered with."""
+        script = tmp_path / "run.py"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                from oceanval import prompts
+                question = "Are you happy with these matchups? (y/n) "
+                answer = prompts.ask(question, ("y", "n"), details={MATCHUPS!r})
+                print("settings:", getattr(answer, "settings", None))
+                """
+            )
+        )
+        return script
+
+    def asked(self, app, tmp_path):
+        """At the offer, with matchup waiting for the matchups to be answered."""
+        app.action = "matchup_validate"
+        validated = []
+        start_run = app.start_run
+        app.start_run = lambda args, label: validated.append(args) if args[0] == "validate" else start_run(args, label)
+        app.start_run(["matchup", str(self.script(tmp_path))], "python run.py")
+        wait_for(lambda: app.question is not None)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert app.view == "model_check_ask"
+        return validated
+
+    def test_the_offer_is_not_made_by_other_runs(self, app, tmp_path):
+        assert post(app, "/api/model_check", {"answer": True})[0] == 409
+        app.action = "matchup"
+        app.start_run(["script", str(self.script(tmp_path))], "python run.py")
+        wait_for(lambda: app.question is not None)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        wait_for(lambda: app.view == "finished")
+        assert StubCheck.made == []
+        assert post(app, "/api/model_check", {"answer": True})[0] == 409
+        assert post(app, "/api/model_check_continue")[0] == 409
+
+    def test_no_goes_to_the_report_options(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        assert get_json(app, "/api/state")[1]["model_check"] == {"answer": None}
+        assert post(app, "/api/model_check", {"answer": False})[0] == 200
+        assert app.view == "report_options"
+        assert StubCheck.made == []
+        # the answer is kept, for Back
+        assert post(app, "/api/back", {"form": {}})[0] == 200
+        assert get_json(app, "/api/state")[1]["model_check"] == {"answer": False}
+
+    def test_yes_checks_the_variables_and_their_files(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        assert post(app, "/api/model_check", {"answer": True})[0] == 200
+        assert app.view == "model_check"
+        [check] = StubCheck.made
+        assert check.started
+        assert check.question == app.question.id
+        assert check.request == {
+            "sim_dir": "/sim",
+            "years": [2011, 2012],
+            "as_missing": None,
+            "fvcom": False,
+            "rows": [
+                {
+                    "variable": "temperature",
+                    "title": "Temperature",
+                    "model_variable": "thetao",
+                    "pattern": "x_**_grid_T.nc",
+                    "time_res": None,
+                    "observations": ["COBE2", "ICES (point)"],
+                    "gridded": True,
+                }
+            ],
+            "files": {"x_**_grid_T.nc": ["/sim/2011/x_2011_grid_T.nc", "/sim/2012/x_2012_grid_T.nc"]},
+        }
+        shown = get_json(app, "/api/state")[1]["model_check"]
+        assert (shown["answer"], shown["status"], shown["number"]) == (True, "running", check.number)
+        assert shown["years"] == [2011, 2012]
+        assert shown["progress"] == {"done": 1, "total": 2}
+        # a map is a link to a file of the check, with the token and its number
+        href = shown["rows"][0]["plot"]["href"]
+        assert href == f"model_check/{app.token}/{check.number}/t.html"
+
+    def test_back_keeps_the_answer_and_the_check(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        check.status = "done"
+
+        assert post(app, "/api/back")[0] == 200
+        assert app.view == "model_check_ask"
+        assert get_json(app, "/api/state")[1]["model_check"]["answer"] is True
+        assert not check.stopped
+        # yes again shows the same check, without making it afresh
+        assert post(app, "/api/model_check", {"answer": True})[0] == 200
+        assert (app.view, StubCheck.made) == ("model_check", [check])
+
+        # Back from the report options comes to it, as it was left
+        assert post(app, "/api/model_check_continue")[0] == 200
+        assert app.view == "report_options"
+        assert post(app, "/api/back", {"form": {}})[0] == 200
+        assert (app.view, StubCheck.made) == ("model_check", [check])
+        assert not check.stopped
+
+    @pytest.mark.parametrize("status", ["failed", "stopped"])
+    def test_a_check_that_did_not_finish_is_made_again(self, app, tmp_path, status):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [first] = StubCheck.made
+        first.status = status
+        post(app, "/api/back")
+        assert post(app, "/api/model_check", {"answer": True})[0] == 200
+        assert len(StubCheck.made) == 2
+        wait_for(lambda: first.removed)
+        assert StubCheck.made[1].started and not StubCheck.made[1].removed
+
+    def test_no_after_yes_keeps_the_check_for_back(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        post(app, "/api/back")
+        assert post(app, "/api/model_check", {"answer": False})[0] == 200
+        assert app.view == "report_options"
+        # no is the answer now, so Back shows the offer, not the check
+        post(app, "/api/back", {"form": {}})
+        assert app.view == "model_check_ask"
+
+    def test_continue_stops_a_check_that_is_going(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        assert post(app, "/api/model_check_continue")[0] == 200
+        assert app.view == "report_options"
+        assert check.stopped and check.status == "stopped"
+
+    def test_continue_leaves_a_finished_check_alone(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        check.status = "done"
+        assert post(app, "/api/model_check_continue")[0] == 200
+        assert not check.stopped
+
+    def test_the_offer_is_not_answered_from_the_matchups_question(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        # matchup waits for the answer, which the window gives with the report's options
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 409
+        post(app, "/api/model_check", {"answer": True})
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 409
+
+    @pytest.mark.parametrize("status, sent", [("done", True), ("stopped", False), ("failed", False)])
+    def test_matchup_is_given_the_times_only_from_a_finished_check(self, app, tmp_path, status, sent):
+        validated = self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        check.status, check.index = status, "/tmp/times.pkl"
+        post(app, "/api/model_check_continue")
+        assert post(app, "/api/report", {"form": {}})[0] == 200
+        wait_for(lambda: validated)
+        text = app.console.since(0, None)["text"]
+        assert ("times_index" in text) is sent
+        if sent:
+            assert "/tmp/times.pkl" in text
+        # matchup has read them by the time it ends, so the check goes
+        wait_for(lambda: check.removed)
+        assert app.model_check is None
+
+    def test_the_check_goes_when_the_window_quits(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        app.quit()
+        wait_for(lambda: check.removed)
+        assert not os.path.exists(check.folder)
+
+    def test_a_new_run_drops_the_check_and_the_answer(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        app.start_run(["matchup", str(self.script(tmp_path))], "python run.py")
+        wait_for(lambda: check.removed)
+        assert app.model_check is None and app.model_check_answer is None
+
+    def test_the_maps_and_libraries_are_served_with_the_token(self, app, tmp_path, monkeypatch):
+        self.asked(app, tmp_path)
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        (tmp_path / "secret.txt").write_text("not for the window")
+        with open(os.path.join(check.folder, "t.html"), "w") as page:
+            page.write("<p>a map</p>")
+        library = tmp_path / "bokeh_static"
+        (library / "js").mkdir(parents=True)
+        (library / "js" / "bokeh.min.js").write_text("var bokeh;")
+        monkeypatch.setattr(
+            model_check, "library_root", lambda name: str(library) if name == "bokeh" else None
+        )
+        base = f"/model_check/{urllib.parse.quote(app.token)}/{check.number}"
+
+        status, body = get(app, f"{base}/t.html")
+        assert (status, body) == (200, "<p>a map</p>")
+        assert get(app, f"{base}/lib/bokeh/js/bokeh.min.js") == (200, "var bokeh;")
+        # only what the check made, and the libraries it loads
+        assert get(app, f"{base}/lib/panel/js/x.js")[0] == 404
+        assert get(app, f"{base}/lib/other/js/x.js")[0] == 404
+        assert get(app, f"{base}/missing.html")[0] == 404
+        assert get(app, f"{base}/../../secret.txt")[0] == 404
+        assert get(app, f"{base}/%2e%2e/%2e%2e/secret.txt")[0] == 404
+        assert get(app, f"{base}/lib/bokeh/%2e%2e/%2e%2e/secret.txt")[0] == 404
+        # another check's number
+        assert get(app, f"/model_check/{urllib.parse.quote(app.token)}/{check.number + 1}/t.html")[0] == 404
+        assert get(app, f"/model_check/{urllib.parse.quote(app.token)}/x/t.html")[0] == 404
+        # the link oceanval printed is needed
+        assert get(app, "/model_check/wrong/%d/t.html" % check.number)[0] == 403
+        assert get(app, "/model_check/wrong/%d/lib/bokeh/js/bokeh.min.js" % check.number)[0] == 403
+
+    def test_the_files_of_a_variable_are_asked_for(self, app, tmp_path):
+        self.asked(app, tmp_path)
+        assert get_json(app, "/api/model_check_files", variable="temperature")[0] == 409
+        post(app, "/api/model_check", {"answer": True})
+        [check] = StubCheck.made
+        assert get_json(app, "/api/model_check_files", variable="temperature")[0] == 409
+        check.files["temperature"] = ["2011/x_2011_grid_T.nc"]
+        status, reply = get_json(app, "/api/model_check_files", variable="temperature")
+        assert (status, reply["files"]) == (200, ["2011/x_2011_grid_T.nc"])
+        assert get_json(app, "/api/model_check_files", variable="other")[0] == 409
+        assert get(app, "/api/model_check_files", token="wrong", variable="temperature")[0] == 403
 
 
 class TestRecipesRestore:
@@ -3061,9 +3372,12 @@ class TestBack:
         wait_for(lambda: app.question is not None)
         number = app.question.id
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        skip_model_check(app)
         form = {"pdf": True, "subregions": "global", "lon_min": "-20", **DEPTH_FORM}
 
         assert post(app, "/api/back", {"form": form})[0] == 200
+        assert app.view == "model_check_ask"
+        assert post(app, "/api/back")[0] == 200
         assert (app.view, app.question.id) == ("running", number)
         # this run was not started by the units step, so has none to go back to
         assert get_json(app, "/api/state")[1]["run"]["back"] is False
@@ -3907,6 +4221,12 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
+        # a look at how OceanVal will view the model output is offered first
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        assert page.text_content("#title") == (
+            "Do you want to double check how OceanVal will view your simulation output?"
+        )
+        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
 
         assert page.text_content("#title") == "One last thing... How would you like your validation report?"
@@ -3922,11 +4242,19 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.text_content("#build") == "Match up and validate"
         assert "matching up" not in page.text_content("#console-text")
 
-        # Back shows the matchups again, to be answered afresh
+        # Back shows the offer again, with the answer given, and then the
+        # matchups, to be answered afresh
+        page.click("#actions button:has-text('Back')")
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        assert "is-chosen" in page.get_attribute("#mc-no", "class")
+        assert page.is_visible("#mc-no .choice__tag")
+        assert page.is_hidden("#mc-yes .choice__tag")
         page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
         assert page.is_enabled("#actions button:has-text('Yes')")
         page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
 
         page.check("#v-pdf")
@@ -3942,6 +4270,154 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
             "pdf": True,
             "concise": False,
         }
+    finally:
+        app.close()
+
+
+def test_the_model_output_check_in_a_browser(browser, tmp_path):
+    """Once the matchups are checked, a matchup and validate run offers a look
+    at how OceanVal will view the model output: a row for each variable, with
+    a map drawn from the files, the files used and whether any dates are
+    missing, all without anything being fetched from the web."""
+    simulation = os.path.abspath("data/example_temperature")
+    pattern = "**/**/amm7_1d_**_**_grid_T.nc"
+    # March 2002 is left out, so there is a month for the check to find missing
+    every_file = sorted(
+        os.path.relpath(path, simulation)
+        for path in glob.glob(os.path.join(simulation, "*", "*", "*.nc"))
+    )
+    files = [path for path in every_file if "200203" not in os.path.basename(path)]
+    details = {
+        "kind": "matchups", "sim_dir": simulation, "years": [2001, 2003], "as_missing": 0,
+        "fvcom": False, "matchups": [],
+        "rows": [
+            {"variable": "temperature", "title": "Temperature", "model_variable": "votemper",
+             "pattern": pattern, "observations": ["NSBC", "ICES (point)"], "files": len(files),
+             "time_res": "1d"},
+            # nothing left out of this one's files
+            {"variable": "temperature_all", "title": "Temperature, all files", "model_variable": "votemper",
+             "pattern": "all_files", "observations": ["ICES (point)"], "files": len(every_file),
+             "time_res": "1d"},
+        ],
+        "files": {pattern: files, "all_files": every_file},
+    }
+    script = tmp_path / "matchup.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            from oceanval import prompts
+            question = "Are you happy with these matchups? (y/n) "
+            answer = prompts.ask(question, ("y", "n"), details={details!r})
+            print("settings:", getattr(answer, "settings", None))
+            """
+        )
+    )
+    app = App(cwd=str(tmp_path))
+    app.action = "matchup_validate"
+    app.start_run(["matchup", str(script)], f"python {script}")
+    url = app.start()
+    fetched = []
+    try:
+        page = browser.new_page(viewport={"width": 1400, "height": 1000})
+        # nothing but the window itself is reached
+        page.route(
+            "**/*",
+            lambda route: route.continue_()
+            if route.request.url.startswith("http://127.0.0.1")
+            else (fetched.append(route.request.url), route.abort()),
+        )
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("#review:not([hidden])")
+        page.click("#actions button:has-text('Yes')")
+
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        assert page.text_content("#title") == (
+            "Do you want to double check how OceanVal will view your simulation output?"
+        )
+        assert page.is_hidden("#mc-yes .choice__tag")
+        page.click("#mc-yes")
+        page.wait_for_selector("#view-model-check:not([hidden])")
+        # the map of the variable is drawn, and the dates of the files are read
+        page.wait_for_function("document.querySelectorAll('#mc-rows iframe').length >= 1", timeout=180000)
+        page.wait_for_function("document.getElementById('mc-progress').hidden", timeout=180000)
+        row = page.locator("#mc-rows [data-variable=temperature]")
+        assert "Temperature" in row.text_content()
+        assert "NSBC" in row.text_content()
+        # only those in the years matched up are used
+        used = [path for path in files if 2001 <= int(os.path.basename(path).split("_")[2][:4]) <= 2003]
+        assert 0 < len(used) < len(files)
+        count = f"{len(used)} files"
+        page.wait_for_function(
+            "(count) => document.querySelector('#mc-rows [data-variable=temperature] .mc__count').textContent.includes(count)",
+            arg=count,
+        )
+        assert f"of {len(files)} found" in row.locator(".mc__count").text_content()
+        page.wait_for_function(
+            "(count) => document.querySelectorAll('#mc-rows [data-variable=temperature] .mc__files li').length === count",
+            arg=len(used),
+        )
+        # the map comes from the check's own folder
+        source = row.locator("iframe").get_attribute("src")
+        assert source.startswith("model_check/")
+        frame = row.locator("iframe").element_handle().content_frame()
+        frame.wait_for_load_state("load")
+        assert "No as_missing" not in row.text_content()
+        assert "as_missing = 0" in row.text_content()
+
+        # the dates, with the month left out of the files: said, with the
+        # months below, without anything to click
+        assert page.locator("#mc-rows button").count() == 0
+        assert "Check dates" not in page.text_content("#mc-rows")
+        assert "Hide dates" not in page.text_content("#mc-rows")
+        verdict = row.locator(".mc__verdict")
+        verdict.wait_for()
+        assert verdict.text_content().strip() == "Some dates appear to be missing. See below"
+        assert "is-gaps" in verdict.get_attribute("class")
+        panel = row.locator(".mc__dates")
+        assert panel.count() == 1
+        # a year of months, and the one left out is marked
+        assert panel.locator(".mc__year").count() == 3
+        assert panel.locator(".mc__grid .is-missing").count() == 1
+        assert panel.locator(".mc__grid .is-missing").get_attribute("title") == "Mar 2002: no output"
+        assert panel.locator(".mc__legend li").count() == 3
+        issues = panel.locator(".mc__issues").text_content()
+        assert "1 month with no output: Mar 2002." in issues
+        assert "Gridded matchups leave out 2002" in issues
+        # the cell with the verdict is above the panel, which is under the row
+        assert verdict.bounding_box()["y"] < panel.bounding_box()["y"]
+
+        # and when nothing is missing, that is all that is said
+        other = page.locator("#mc-rows [data-variable=temperature_all]")
+        other.locator(".mc__verdict").wait_for()
+        said = other.locator(".mc__verdict").text_content().strip()
+        assert said == "All 36 months from 2001 to 2003 are complete"
+        assert "is-ok" in other.locator(".mc__verdict").get_attribute("class")
+        assert other.locator(".mc__dates").count() == 0
+        assert "missing" not in other.locator(".mc__cell").nth(3).text_content()
+        # the page does not scroll sideways on a phone
+        page.set_viewport_size({"width": 390, "height": 844})
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        page.set_viewport_size({"width": 1400, "height": 1000})
+
+        # Back keeps the answer, and Yes shows the same check
+        number = app.model_check.number
+        page.click("#actions button:has-text('Back')")
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        assert page.is_visible("#mc-yes .choice__tag")
+        page.click("#mc-yes")
+        page.wait_for_selector("#view-model-check:not([hidden])")
+        assert app.model_check.number == number
+        assert page.locator("#mc-rows [data-variable=temperature] iframe").count() == 1
+
+        page.click("#mc-continue")
+        page.wait_for_selector("#view-validate:not([hidden])")
+        assert page.text_content("#title") == "One last thing... How would you like your validation report?"
+        assert errors == []
+        assert fetched == []
+        # what the check read of the dates is kept for matchup
+        assert app.model_check.finished and app.model_check.index
     finally:
         app.close()
 
@@ -3990,6 +4466,8 @@ def go_to_report_options(page, url):
     page.goto(url)
     page.wait_for_selector("#review:not([hidden])")
     page.click("#actions button:has-text('Yes')")
+    page.wait_for_selector("#view-model-check-ask:not([hidden])")
+    page.click("#mc-no")
     page.wait_for_selector("#view-validate:not([hidden])")
 
 
@@ -4306,8 +4784,12 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
 
         # Back keeps them
         page.click("#actions button:has-text('Back')")
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
         assert values()[-3:] == [("600", "1000"), ("1000", "2000"), ("2000", "")]
 
@@ -4970,17 +5452,25 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         # the report options, kept with Back
         page.wait_for_selector("#review:not([hidden])", timeout=90000)
         page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
         page.check("#v-pdf")
         page.select_option("#v-subregions", "global")
         bar("Back").click()
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        bar("Back").click()
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
+        page.click("#mc-no")
         page.wait_for_selector("#view-validate:not([hidden])")
         assert page.is_checked("#v-pdf")
         assert page.input_value("#v-subregions") == "global"
 
         # and back all the way to the simulation
+        bar("Back").click()
+        page.wait_for_selector("#view-model-check-ask:not([hidden])")
         bar("Back").click()
         page.wait_for_selector("#review:not([hidden])")
         bar("Back").click()

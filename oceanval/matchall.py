@@ -1,6 +1,11 @@
+import contextlib
 import copy
 import functools
 import gc
+import json
+import queue
+import sys
+import threading
 import time
 import nctoolkit as nc
 import re
@@ -33,6 +38,7 @@ from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_boun
 from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
 from oceanval import ices
 from oceanval import live
+from oceanval import model_check
 from oceanval import prompts
 from oceanval import selection
 from oceanval import time_res
@@ -359,6 +365,230 @@ def _file_times(path):
         months = [int(str(x).split("T")[0].split("-")[1]) for x in ds.times]
         days = [int(str(x).split("T")[0].split("-")[2]) for x in ds.times]
     return pd.DataFrame({"month": months, "day": days, "year": years})
+
+
+# index_times reads files in this process until this many have been read, or
+# this many seconds have passed. If the rest would then take more than
+# _PARALLEL_FROM seconds, at the rate seen, it is shared out to worker
+# processes: starting them costs a couple of seconds, so a few files are not
+_INDEX_HEAD = (20, 1.5)
+_PARALLEL_FROM = 5.0
+
+# What each worker process runs. It imports only xarray, as importing
+# oceanval takes seconds and hundreds of MB. It reads a JSON request from each
+# line of stdin and answers with a line starting @@ (importing can print other
+# things). Processes are used because threads cannot read netCDF files at the
+# same time (xarray and netCDF4 share a lock), and they are started afresh
+# rather than forked, as forked workers have deadlocked on netCDF files.
+_TIMES_WORKER = r"""
+import json
+import sys
+
+import xarray as xr
+
+
+def times_of(path, time_name, fvcom):
+    if fvcom:
+        # as oceanval.fvcom.fvcom_times
+        with xr.open_dataset(path, drop_variables=["siglay", "siglev"], decode_times=False) as ds:
+            time = xr.decode_cf(ds[["time"]]).time.dt
+            return [time.year.values.astype(int).tolist(),
+                    time.month.values.astype(int).tolist(),
+                    time.day.values.astype(int).tolist()]
+    with xr.open_dataset(path) as ds:
+        time = ds[time_name].dt
+        return [time.year.values.astype(int).tolist(),
+                time.month.values.astype(int).tolist(),
+                time.day.values.astype(int).tolist()]
+
+
+for line in sys.stdin:
+    request = json.loads(line)
+    try:
+        reply = {"times": times_of(request["path"], request["time_name"], request["fvcom"])}
+    except Exception as error:
+        reply = {"error": f"{type(error).__name__}: {error}"}
+    sys.stdout.write("@@" + json.dumps(reply) + "\n")
+    sys.stdout.flush()
+"""
+
+
+def _index_workers(workers=None):
+    """How many worker processes index_times may use: workers if given,
+    otherwise the cores this process may use, which respects the limits a
+    job scheduler sets. This is not matchup's cores option, which limits the
+    heavy nctoolkit work; reading the times needs little memory."""
+    if workers is not None:
+        return max(int(workers), 0)
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        return os.cpu_count() or 1
+
+
+def _read_times(ff, fvcom, time_name):
+    """The year, month and day of each time in one model output file."""
+    if fvcom:
+        return fvcom_times(ff)
+    try:
+        with xr.open_dataset(ff) as ds:
+            time = ds[time_name].dt
+            return pd.DataFrame(
+                {
+                    "year": time.year.values.astype(int),
+                    "month": time.month.values.astype(int),
+                    "day": time.day.values.astype(int),
+                }
+            )
+    except Exception:
+        ds = nc.open_data(ff, checks=False)
+        ds_times = ds.times
+        return pd.DataFrame(
+            {
+                "year": [int(x.year) for x in ds_times],
+                "month": [int(x.month) for x in ds_times],
+                "day": [int(x.day) for x in ds_times],
+            }
+        )
+
+
+def _read_times_in_workers(paths, fvcom, time_name, count, done):
+    """Read the times of paths in count worker processes (see
+    _TIMES_WORKER), calling done(path, DataFrame) for each as it is read, from
+    the thread of its worker. Files a worker could not read, or that were left
+    when it stopped, are not passed to done."""
+    jobs = queue.Queue()
+    for ff in paths:
+        jobs.put(ff)
+
+    def drive(process):
+        try:
+            while True:
+                try:
+                    ff = jobs.get_nowait()
+                except queue.Empty:
+                    return
+                process.stdin.write(
+                    json.dumps({"path": ff, "time_name": time_name, "fvcom": fvcom}) + "\n"
+                )
+                process.stdin.flush()
+                reply = None
+                for line in process.stdout:
+                    if line.startswith("@@"):
+                        reply = json.loads(line[2:])
+                        break
+                if reply is None:
+                    # the worker has gone
+                    return
+                if "times" in reply:
+                    year, month, day = reply["times"]
+                    done(ff, pd.DataFrame({"year": year, "month": month, "day": day}))
+        except (OSError, ValueError):
+            return
+
+    processes = []
+    threads = []
+    try:
+        for _ in range(count):
+            try:
+                processes.append(
+                    subprocess.Popen(
+                        [sys.executable, "-c", _TIMES_WORKER],
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        encoding="utf-8",
+                    )
+                )
+            except OSError:
+                break
+        for process in processes:
+            thread = threading.Thread(target=drive, args=(process,), daemon=True)
+            thread.start()
+            threads.append(thread)
+        for thread in threads:
+            thread.join()
+    finally:
+        for process in processes:
+            with contextlib.suppress(OSError):
+                process.stdin.close()
+        for process in processes:
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+            process.stdout.close()
+
+
+def index_times(paths, fvcom=False, times=None, progress=None, workers=None):
+    """The year, month and day of each time in each model output file in
+    paths, as {path: DataFrame with year, month and day columns}.
+
+    Files already in times (a dict of the same, which is added to and
+    returned) are not read again, nor are restart files. The name of the
+    time dimension comes from the first file read. progress(done, total) is
+    called as each file is read, if given; otherwise a bar is shown.
+
+    Many files are read in worker processes, as many as the cores this
+    process may use, or workers if given (0 or 1 reads them all here).
+    """
+    times = dict() if times is None else times
+    todo = [ff for ff in dict.fromkeys(paths) if ff not in times and "restart" not in ff]
+    if len(todo) == 0:
+        return times
+
+    time_name = None
+    if not fvcom:
+        try:
+            with xr.open_dataset(todo[0]) as ds:
+                time_name = [x for x in list(ds.dims) if "time" in x][0]
+        except:
+            with xr.open_dataset(todo[0], decode_times=False) as ds:
+                time_name = [x for x in list(ds.dims) if "time" in x][0]
+
+    total = len(todo)
+    found = dict()
+    lock = threading.Lock()
+    bar = tqdm(total=total, disable=progress is not None)
+
+    def done(ff, df):
+        with lock:
+            found[ff] = df
+            bar.update(1)
+            if progress is not None:
+                progress(len(found), total)
+
+    try:
+        count = _index_workers(workers)
+        head_files, head_seconds = _INDEX_HEAD
+        started = time.monotonic()
+        position = 0
+        parallel = False
+        while position < total:
+            done(todo[position], _read_times(todo[position], fvcom, time_name))
+            position += 1
+            elapsed = time.monotonic() - started
+            if count > 1 and position < total and (position >= head_files or elapsed >= head_seconds):
+                # at the rate seen, is the rest worth sharing out?
+                if elapsed / position * (total - position) >= _PARALLEL_FROM:
+                    parallel = True
+                break
+        rest = todo[position:]
+        if parallel:
+            _read_times_in_workers(rest, fvcom, time_name, min(count, len(rest)), done)
+        # all of them, if not shared out, and otherwise what a worker could
+        # not read, which is read as it always was
+        for ff in rest:
+            if ff not in found:
+                done(ff, _read_times(ff, fvcom, time_name))
+    finally:
+        bar.close()
+
+    for ff in todo:
+        times[ff] = found[ff]
+    return times
 
 
 random_files = []
@@ -1218,6 +1448,10 @@ def matchup(
         "kind": "matchups",
         "sim_dir": sim_dir,
         "years": [sim_start, sim_end],
+        # how the model output is read, for the window's check of it (see
+        # oceanval.model_check)
+        "as_missing": session_info["as_missing"],
+        "fvcom": bool(fvcom),
         "rows": [
             {
                 "variable": row.variable,
@@ -1349,52 +1583,24 @@ def matchup(
     patterns = list(set(df_variables.pattern))
 
     times_dict = dict()
-
+    # in the oceanval window, the check of the model output made before yes
+    # has read the files' times already (see oceanval.model_check)
+    times_index = getattr(x, "settings", {}).get("times_index")
+    if times_index:
+        listed = [path for pattern in patterns for path in files[pattern]]
+        times_dict = model_check.load_times_index(times_index, listed)
+        if times_dict:
+            print(f"The times of {len(times_dict)} files were read when the model output was checked")
 
     print("*************************************")
-    for pattern in patterns:
-        print(f"Indexing file time information for {pattern} files")
-        # the files listed with the question
-        ensemble = files[pattern]
-
-        if not fvcom:
-            try:
-                ds = xr.open_dataset(ensemble[0])
-                time_name = [x for x in list(ds.dims) if "time" in x][0]
-            except:
-                ds = xr.open_dataset(ensemble[0], decode_times=False)
-                time_name = [x for x in list(ds.dims) if "time" in x][0]
-
-        for ff in tqdm(ensemble):
-            if ff in times_dict:
-                continue
-            if "restart" in ff:
-                continue
-
-            if fvcom:
-                times_dict[ff] = fvcom_times(ff)
-                continue
-
-            try:
-                ds = xr.open_dataset(ff)
-                ff_month = [int(x.dt.month) for x in ds[time_name]]
-                ff_year = [int(x.dt.year) for x in ds[time_name]]
-                days = [int(x.dt.day) for x in ds[time_name]]
-            except:
-                ds = nc.open_data(ff, checks=False)
-                ds_times = ds.times
-                ff_month = [int(x.month) for x in ds_times]
-                ff_year = [int(x.year) for x in ds_times]
-                days = [int(x.day) for x in ds_times]
-
-            df_ff = pd.DataFrame(
-                {
-                    "year": ff_year,
-                    "month": ff_month,
-                    "day": days,
-                }
-            )
-            times_dict[ff] = df_ff
+    print("Indexing file time information")
+    # the files listed with the question, for all the patterns at once, so
+    # that they can be shared out between worker processes together
+    index_times(
+        [path for pattern in patterns for path in files[pattern]],
+        fvcom=fvcom,
+        times=times_dict,
+    )
 
     # figure out the lon/lat extent in the model
     with warnings.catch_warnings(record=True) as w:

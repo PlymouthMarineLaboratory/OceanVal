@@ -12,8 +12,10 @@ in, and a page opens in your web browser that takes you through:
 4. the run: the script create_recipes wrote, or validate(), in a process of
    its own (see oceanval.app_child). The page shows its output as it comes,
    which is printed in the terminal too, and asks any question it asks.
-   To match up and validate, once the matchups are checked, a last step
-   asks for the report's options before anything is matched up, and
+   To match up and validate, once the matchups are checked, the page
+   offers to show how OceanVal will view the model output (see
+   oceanval.model_check), and a last step asks for the report's options
+   before anything is matched up, and
    validate() is run with them after the script. matchup builds an interim
    report with them as it goes (see oceanval.live), which the page links
    to once its first page is made.
@@ -59,7 +61,7 @@ import urllib.parse
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
-from oceanval import depths, own_data, recipe_checks, recipe_forms, selection, time_res, transects, units, user_cache, user_recipes, user_settings
+from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
     _create_recipes,
@@ -1300,9 +1302,11 @@ class App:
     the observations' units, with the conversions OceanVal suggests, to check,
     change and always confirm), or "validate" for the report options, and then
     "running" and "finished". To match up and validate, once the matchups are
-    checked in "running", "report_options" asks for the report's options
-    before anything is matched up, while matchup waits for the answer to
-    whether the matchups are right. The demo is a matchup and validate run
+    checked in "running", "model_check_ask" offers a look at how OceanVal
+    will view the model output, "model_check" (see check_model_output), and
+    "report_options" asks for the report's options before anything is
+    matched up, while matchup waits for the answer to whether the matchups
+    are right. The demo is a matchup and validate run
     that starts at "demo", which downloads its model output, and goes on to
     "setup" with the boxes filled in. Registering recipes of your own is
     "register_kind" (point or gridded data), and then "register_point" or
@@ -1374,6 +1378,11 @@ class App:
         # once the matchups are checked (see point_time_res)
         self.point_time_res_choice = None
         self.point_time_res_form = None
+        # the check of how OceanVal will view the model output, offered once
+        # the matchups are checked: whether the user wanted it, and the check
+        # (see check_model_output)
+        self.model_check_answer = None
+        self.model_check = None
         self.question = None
         # the recipes window, while it is being shown
         self.recipes_page = None
@@ -1550,6 +1559,7 @@ class App:
                 "register": self._register_state(),
                 "units": {"rows": self.units_rows, "boxes": self._units_boxes_shown()},
                 "point_time_res": self._point_time_res_state(),
+                "model_check": self._model_check_state(),
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -1830,11 +1840,18 @@ class App:
             earlier["demo"] = "start"
         held = self._held_matchups()
         if self.view == "report_options" and held:
-            # the point_time_res step, or the matchups again, whose question
-            # is still being asked
-            earlier["report_options"] = "point_time_res" if held.time_res_rows else "running"
+            # the check of the model output, as it was left, or the question
+            # of whether to make one
+            earlier["report_options"] = "model_check" if self.model_check_answer else "model_check_ask"
             if isinstance(sent.get("form"), dict):
                 self.validate_form = _form(sent["form"], default_validate_form())
+        if self.view == "model_check" and held:
+            # the check goes on, and is shown again with Yes
+            earlier["model_check"] = "model_check_ask"
+        if self.view == "model_check_ask" and held:
+            # the point_time_res step, or the matchups again, whose question
+            # is still being asked
+            earlier["model_check_ask"] = "point_time_res" if held.time_res_rows else "running"
         if self.view == "point_time_res" and held:
             earlier["point_time_res"] = "running"
             if isinstance(sent.get("form"), dict):
@@ -3089,6 +3106,7 @@ class App:
         self.status = None
         self.identifying = False
         self._script_writer = None
+        self._drop_model_check()
         if self._own_given is not None:
             # into the same dictionary, which the recipes window writes the script from
             for kind in own_data.KINDS:
@@ -3160,11 +3178,149 @@ class App:
             "suggested": ",".join(time_res.SUGGESTED),
         }
 
-    def _yes(self, settings):
+    # ---- the check of the model output ----
+
+    def _model_check_request(self, question):
+        """What a check of the model output is given (see
+        model_check.check), from the question of whether the matchups are
+        right: a row for each variable, and its files, by file pattern."""
+        details = question.details
+        sim_dir = os.path.join(self.cwd, str(details.get("sim_dir") or ""))
+        rows = []
+        files = {}
+        for row in details.get("rows") or []:
+            if not isinstance(row, dict) or not row.get("model_variable") or not row.get("pattern"):
+                continue
+            observations = [str(source) for source in row.get("observations") or []]
+            rows.append(
+                {
+                    "variable": row.get("variable"),
+                    "title": row.get("title") or row.get("variable"),
+                    "model_variable": row["model_variable"],
+                    "pattern": row["pattern"],
+                    "time_res": row.get("time_res"),
+                    "observations": observations,
+                    # point datasets are listed as "<source> (point)"
+                    "gridded": any(not source.endswith("(point)") for source in observations),
+                }
+            )
+            if row["pattern"] not in files:
+                files[row["pattern"]] = [
+                    os.path.abspath(os.path.join(sim_dir, path))
+                    for path in question.files(row["pattern"]) or []
+                ]
+        return {
+            "sim_dir": os.path.abspath(sim_dir),
+            "years": list(details.get("years") or [None, None]),
+            "as_missing": details.get("as_missing"),
+            "fvcom": bool(details.get("fvcom")),
+            "rows": rows,
+            "files": files,
+        }
+
+    def _drop_model_check(self):
+        """Stop the check of the model output, if there is one, and remove
+        its files, in a thread, as that can take a moment. Called with the
+        lock held."""
+        check, self.model_check = self.model_check, None
+        if check is not None:
+            # not a daemon, so its files are removed before oceanval ends
+            threading.Thread(target=check.remove, name="oceanval-model-check-remove").start()
+
+    def check_model_output(self, answer):
+        """Answer whether to check how OceanVal will view the model output,
+        once the matchups of a matchup and validate run are checked. Yes
+        starts the check, unless there is one already for these matchups
+        that has not failed or been stopped, which is shown again; no goes
+        on to the report options."""
+        start = None
+        with self._lock:
+            question = self._held_matchups()
+            if self.view != "model_check_ask" or question is None:
+                return False
+            self.model_check_answer = bool(answer)
+            if answer:
+                check = self.model_check
+                if check is None or check.question != question.id or check.status in ("failed", "stopped"):
+                    self._drop_model_check()
+                    start = self.model_check = model_check.ModelCheck(
+                        question.id, self._model_check_request(question), self._notify
+                    )
+                self.view = "model_check"
+            else:
+                self.view = "report_options"
+            self._notify()
+        if start is not None:
+            start.start()
+        return True
+
+    def model_check_continue(self):
+        """On from the check of the model output to the report options. A
+        check still going is stopped, as matchup reads the files itself."""
+        with self._lock:
+            if self.view != "model_check" or self._held_matchups() is None:
+                return False
+            check = self.model_check
+            self.view = "report_options"
+            self._notify()
+        if check is not None and check.status == "running":
+            check.stop()
+        return True
+
+    def model_check_folder(self, number):
+        """The folder of the check of the model output numbered number,
+        whose maps the window serves, or None."""
+        with self._lock:
+            check = self.model_check
+        return check.folder if check is not None and check.number == number else None
+
+    def model_check_files(self, variable):
+        """The files of variable the check of the model output found in the
+        years matched up, relative to the simulation's directory, or None."""
+        with self._lock:
+            check = self.model_check
+        return check.files_of(variable) if check is not None else None
+
+    def _model_check_state(self):
+        """What the check of the model output's steps show. Called with the
+        lock held."""
+        found = {"answer": self.model_check_answer}
+        question = self._held_matchups()
+        if self.view != "model_check" or question is None:
+            return found
+        details = question.details
+        found.update(
+            years=details.get("years"),
+            as_missing=details.get("as_missing"),
+            fvcom=bool(details.get("fvcom")),
+            sim_dir=details.get("sim_dir"),
+        )
+        check = self.model_check
+        if check is None:
+            return dict(found, status=None, rows=[], progress=None, error=None, number=None)
+        token = urllib.parse.quote(self.token)
+        found.update(
+            check.state(lambda file: f"model_check/{token}/{check.number}/{file}"),
+            number=check.number,
+        )
+        return found
+
+    def _yes(self, settings, question=None):
         """Yes, the matchups are right, as answered at a terminal, with
-        settings chosen along with it, and the point_time_res step's choice."""
+        settings chosen along with it, the point_time_res step's choice, and,
+        if the model output was checked for question, where the check saved
+        the times of the files, for matchup to use."""
         if self.point_time_res_choice is not None:
             settings = dict(settings, point_time_res=self.point_time_res_choice)
+        check = self.model_check
+        if (
+            question is not None
+            and check is not None
+            and check.question == question.id
+            and check.finished
+            and check.index
+        ):
+            settings = dict(settings, times_index=check.index)
         if not settings:
             return "y"
         return ANSWER_MARKER + json.dumps({"answer": "y", "settings": settings})
@@ -3231,7 +3387,8 @@ class App:
             self._keep_point_time_res(choice, rows)
             writer = self._script_writer
             if self._report_first():
-                self.view = "report_options"
+                # offered a look at the model output first
+                self.view = "model_check_ask"
                 self._notify()
                 return 200, {"ok": True}
             self.view = "running"
@@ -3326,12 +3483,12 @@ class App:
             # yes, the matchups are right, as answered at a terminal, with
             # the report's options along with it
             self.console.write("y\n")
-            question.respond(self._yes({"live_validation": options}))
+            question.respond(self._yes({"live_validation": options}, question))
         elif question is not None:
             # with jupyter-book 1 there is no interim report: the report is
             # built once the matchups are made
             self.console.write("y\n")
-            question.respond(self._yes({}))
+            question.respond(self._yes({}, question))
         else:
             # matchup has run already, without asking about the matchups
             self.start_run(
@@ -3581,6 +3738,8 @@ class App:
             if script:
                 self.point_time_res_choice = None
                 self.point_time_res_form = None
+                self.model_check_answer = None
+                self._drop_model_check()
             self.view = "running"
             self._notify()
         # set apart from what create_recipes printed before it
@@ -3610,6 +3769,8 @@ class App:
                 status = "finished" if run.returncode == 0 else "failed"
             self.question = None
             self.identifying = False
+            # matchup has read the times the check saved, if it was to
+            self._drop_model_check()
             # a matchup and validate run builds the report once its script
             # has run, with the options chosen after the matchups were checked
             report_next = (
@@ -3693,7 +3854,7 @@ class App:
             if (
                 question is None
                 or question.id != number
-                or self.view in ("report_options", "point_time_res")
+                or self.view in ("report_options", "point_time_res", "model_check_ask", "model_check")
             ):
                 return False
             answer = text.strip().lower()
@@ -3703,7 +3864,8 @@ class App:
                 self._notify()
                 return True
             if question.matchups and answer == "y" and self._report_first():
-                self.view = "report_options"
+                # offered a look at the model output first
+                self.view = "model_check_ask"
                 self._notify()
                 return True
             self.question = None
@@ -3753,6 +3915,7 @@ class App:
             self._demo_cancel.set()
             run, page = self.run, self.recipes_page
             self._cancel_register_check()
+            self._drop_model_check()
             self._notify()
         if run is not None:
             run.stop()
@@ -3817,6 +3980,10 @@ class _Handler(recipes_gui._Handler):
             if root is None
             else _served_file(root, page, self.app.report_folders(which))
         )
+        self._send_file(found)
+
+    def _send_file(self, found):
+        """Reply with the file found, or 404 if it is None or unreadable."""
         data = None
         if found is not None:
             with contextlib.suppress(OSError):
@@ -3834,10 +4001,36 @@ class _Handler(recipes_gui._Handler):
             content_type += "; charset=utf-8"
         self._reply(200, data, content_type)
 
+    def _model_check_file(self, path):
+        """A file of the check of the model output: path is
+        /model_check/<token>/<number>/<file>, a map of the check numbered
+        number, or /model_check/<token>/<number>/lib/<library>/<path>, a file
+        of a library the maps load (see model_check.localise), served from
+        the installed library rather than the web."""
+        _, _, rest = path[1:].partition("/")
+        token, _, rest = rest.partition("/")
+        number, _, rest = rest.partition("/")
+        if not self.app.authorised(urllib.parse.unquote(token)):
+            self._reply(
+                403,
+                "This is not the link oceanval printed.",
+                "text/plain; charset=utf-8",
+            )
+            return
+        if rest.startswith("lib/"):
+            library, _, rest = rest[len("lib/"):].partition("/")
+            root = model_check.library_root(library)
+        else:
+            root = self.app.model_check_folder(_number(number))
+        self._send_file(None if root is None else _served_file(root, rest))
+
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
         if url.path.startswith(("/interim/", "/report/", "/comparison/")):
             self._report_file(url.path)
+            return
+        if url.path.startswith("/model_check/"):
+            self._model_check_file(url.path)
             return
         query = {
             key: values[0] for key, values in urllib.parse.parse_qs(url.query).items()
@@ -3852,6 +4045,7 @@ class _Handler(recipes_gui._Handler):
             "/api/browse",
             "/api/files",
             "/api/question_files",
+            "/api/model_check_files",
         ):
             self._reply(404, "Not found", "text/plain; charset=utf-8")
         elif not self.app.authorised(query.get("token", "")):
@@ -3911,6 +4105,12 @@ class _Handler(recipes_gui._Handler):
                 self._reply_json(
                     409, {"ok": False, "error": "That question has been answered."}
                 )
+            else:
+                self._reply_json(200, {"ok": True, "files": files})
+        elif url.path == "/api/model_check_files":
+            files = self.app.model_check_files(query.get("variable", ""))
+            if files is None:
+                self._reply_json(409, {"ok": False, "error": "The files are not known yet."})
             else:
                 self._reply_json(200, {"ok": True, "files": files})
         else:
@@ -4031,6 +4231,8 @@ class _Handler(recipes_gui._Handler):
             "/api/answer": lambda: app.answer(
                 payload.get("id"), payload.get("answer", "")
             ),
+            "/api/model_check": lambda: app.check_model_output(bool(payload.get("answer"))),
+            "/api/model_check_continue": app.model_check_continue,
         }
         if path not in steps:
             self._reply_json(404, {"ok": False, "error": "Not found"})

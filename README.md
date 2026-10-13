@@ -78,7 +78,23 @@ that takes you through these steps:
    to change `point_time_res` for all such datasets (OceanVal suggests year
    and month) or for each one, or to keep it. The choice is written into the
    matchup script. At a terminal, `matchup()` asks the same.
-7. **Report** (to match up and validate): "One last thing... How would you
+7. **Model output** (to match up and validate): "Do you want to double check
+   how OceanVal will view your simulation output?" Yes reads the date of every
+   file, which might take a minute or two, and shows a grid with a row for
+   each variable: the variable and the observations it is compared with; a
+   map of its sea surface at one time step, drawn by nctoolkit as OceanVal
+   will read it, with any `as_missing` values treated as missing; the files
+   that will be used in the years being matched up, and how many there are;
+   and whether the dates are all there: if they are, it says so, and if not,
+   "Some dates appear to be missing. See below", with the months of each
+   year that are and are not there, and a list of what is missing, such as
+   days from daily output, and of times that are in more than one file. The
+   maps need nothing from the web.
+   **Continue** goes on to the report's options, and stops the check if it is
+   still going. What the check read of the files' dates is not read again
+   when the matchup starts. No goes straight on. **Back** keeps the answer
+   and the results.
+8. **Report** (to match up and validate): "One last thing... How would you
    like your validation report?" The report's options, asked for before
    anything is matched up: a subregion to validate, regional summaries,
    a transect to validate the gridded datasets along (a start and an end
@@ -88,10 +104,10 @@ that takes you through these steps:
    point dataset is matched up with Vertical, the depth bins its depth
    summaries use (each can be changed or removed, and more added). The
    report is built beside the matchups, in the
-   directory chosen in step 2. **Back** shows the matchups again, and keeps
-   the options. The options are written into the matchup script's
+   directory chosen in step 2. **Back** shows the model output step again,
+   and keeps the options. The options are written into the matchup script's
    `validate()` call.
-8. **Run**: matchup, then, to validate as well, `validate()` with the
+9. **Run**: matchup, then, to validate as well, `validate()` with the
    report's options. The page says what the run is doing, and shows the output
    (which appears as it comes in the terminal) as the matchups are made and if the run fails; anything else OceanVal asks, such as whether to try again
    for observations a server could not supply, is asked in the page. With
