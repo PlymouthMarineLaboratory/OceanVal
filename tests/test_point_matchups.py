@@ -186,6 +186,24 @@ def matchups(simulation, model, tmp_path_factory):
         expected[source] = _average(profiles, ["lon", "lat", "depth"] + keys)
         _add(source, _write_obs(f"{obs_root}/{source}", expected[source]), vertical=True)
 
+    # observations above the centre of the top cell, as at 0 m, are in the top
+    # cell, so they are compared with its value, at the depth observed. The
+    # extra depth again keeps generate_grid from taking the points as a grid
+    top_cell = pd.concat(
+        [
+            surface.assign(depth=0.0),
+            surface.assign(depth=lambda x: x.depth / 2),
+            model.query("level == 10"),
+            extra_depth,
+        ]
+    )
+    expected["profiletop"] = _average(top_cell, ["lon", "lat", "depth"])
+    _add(
+        "profiletop",
+        _write_obs(f"{obs_root}/profiletop", expected["profiletop"]),
+        vertical=True,
+    )
+
     # observations split over two files, one of them compressed, with a source column
     expected["files"] = _average(surface, ["lon", "lat"])
     obs = expected["files"].assign(source="synthetic")
@@ -250,6 +268,14 @@ class TestPointColumns:
         out_dir, expected = matchups
         df = _read(out_dir, "all", source)
         _check(df, expected[source], ["lon", "lat", "depth"] + keys)
+
+    def test_profile_above_the_top_cell(self, matchups):
+        """Test that observations above the centre of the top cell, as at 0 m, are
+        compared with the top cell, and keep the depth observed"""
+        out_dir, expected = matchups
+        df = _read(out_dir, "all", "profiletop")
+        _check(df, expected["profiletop"], ["lon", "lat", "depth"])
+        assert (df.depth == 0).sum() == len(CELLS)
 
 
 class TestPointFiles:

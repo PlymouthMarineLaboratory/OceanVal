@@ -278,7 +278,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
       <div class="callout-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>How does OceanVal handle in-situ data?</div>
       <p>Behaviour depends on what's provided: <code>year</code>, <code>month</code>, <code>day</code>, <code>depth</code>.</p>
       <ul style="margin-top:.6em;">
-        <li>No depth → assumed to be a surface dataset. With depth and <code>vertical=True</code>, OceanVal interpolates to all available depths; otherwise only the top 5 m is used.</li>
+        <li>No depth → assumed to be a surface dataset. With depth and <code>vertical=True</code>, OceanVal interpolates to all available depths; otherwise only the top 5 m is used. Through the water column, an observation shallower than the centre of the model&rsquo;s top cell, such as one at 0&nbsp;m, is compared with the top cell, and one deeper than the centre of the bottom cell is left out.</li>
         <li>Year, month and day → matched against model output for the exact date.</li>
         <li>Year and month only → matched against the monthly average from the simulation.</li>
         <li>Year only → matched against the annual average from the simulation.</li>

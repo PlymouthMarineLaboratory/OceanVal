@@ -201,7 +201,9 @@ its depth are both 0 (good). Values flagged 1 (unknown quality), 4
 1, so they can have few observations, or none.
 
 **Depth.** The depth is ICES's adopted depth (``ADEPZZ01``), in metres.
-Observations at 5 m or less make up the surface layer.
+Observations at 5 m or less make up the surface layer. Through the water
+column, an observation above the centre of the model's top cell, as many
+bottle values at 0 m are, is compared with the top cell.
 
 **Time.** Only the date of an observation is used, not the time of day. Times
 without a time zone are taken as UTC. A time written as hour 24

@@ -219,6 +219,7 @@ In the `create_recipes` window you can tick the variables in the pop-out under t
 
     If depth is not provided, OceanVal will assume this represents a surface observational dataset.
     If you do provide depth, OceanVal will interpolate to all available depth-resolved data if you have specified `vertical=True` in `add_point_comparison`; otherwise, it will only use the top 5 m of data.
+    Through the water column, an observation shallower than the centre of the model's top cell, such as one at 0 m, is compared with the top cell, and one deeper than the centre of the bottom cell is left out.
     By default it only looks at the surface.
 
     If you provide year, month and day, OceanVal will look for model output at the exact date of the observation.

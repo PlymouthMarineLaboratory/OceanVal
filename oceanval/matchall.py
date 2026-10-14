@@ -138,6 +138,65 @@ session_warnings = Manager().list()
 nc.options(progress=False)
 
 
+# how far below the centre of the top cell an observation above it is
+# matched, keeping it inside the model's depths despite rounding (the depths
+# are float32), as nctoolkit does not extrapolate past them (max_extrap=0)
+TOP_CELL_OFFSET = 1e-4
+
+
+def _top_cell_depths(locs, ds_depths, path, model_variable):
+    """
+    The depth of the centre of the model's top cell at each lon/lat of locs,
+    as a dataframe of lon, lat and top_depth, or as one number for output on
+    z-levels (ds_depths is None), whose depths are the file's levels.
+    Returns None if it cannot be worked out.
+    """
+    if ds_depths is None:
+        ds = nc.open_data(path, checks=False)
+        ds.subset(variables=model_variable.split("+"))
+        levels = ds.levels
+        if len(levels) < 2:
+            return None
+        return float(min(levels))
+    ds = nc.open_data(ds_depths[0], checks=False)
+    ds.cdo_command("topvalue")
+    try:
+        top = ds.match_points(locs.loc[:, ["lon", "lat"]].drop_duplicates(), quiet=True)
+    except ValueError:
+        # no location is in the sea
+        return None
+    if top is None:
+        return None
+    return (
+        top.loc[:, ["lon", "lat", "depth"]]
+        .drop_duplicates(["lon", "lat"])
+        .rename(columns={"depth": "top_depth"})
+        .astype({"top_depth": "float64"})
+    )
+
+
+def _match_above_top_cell(df, top):
+    """
+    Observations shallower than the centre of the model's top cell, as at
+    0 m, are in the top cell, but nctoolkit only interpolates between cell
+    centres. So they are matched just below the top cell's centre. The depth
+    observed is kept as obs_depth, to be put back once matched.
+    """
+    if isinstance(top, pd.DataFrame):
+        top_depth = pd.Series(
+            df.loc[:, ["lon", "lat"]].merge(top, how="left").top_depth.values,
+            index=df.index,
+        )
+    else:
+        top_depth = pd.Series(top, index=df.index)
+    # a location with no top cell (land) is never above it
+    above = df.depth < top_depth
+    return df.assign(
+        obs_depth=df.depth,
+        depth=df.depth.where(~above, top_depth + TOP_CELL_OFFSET),
+    )
+
+
 def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, layer=None):
     """
     Parameters
@@ -1902,6 +1961,11 @@ def matchup(
                             print("No data for this variable")
                             return None
 
+                        if layer == "all" and "depth" in df.columns and len(paths) > 0:
+                            top = _top_cell_depths(df, ds_depths, paths[0], model_variable)
+                            if top is not None:
+                                df = _match_above_top_cell(df, top)
+
                         if "year" not in df.columns:
                             try:
                                 point_time_res.remove("year")
@@ -2000,6 +2064,12 @@ def matchup(
                         df_all = df_all.rename(
                             columns={change_this: "model"}
                         ).merge(df)
+                        # observations above the top cell were matched below
+                        # it, so put back the depth they were observed at
+                        if "obs_depth" in df_all.columns:
+                            df_all = df_all.assign(depth=df_all.obs_depth).drop(
+                                columns="obs_depth"
+                            )
                         # add model to name column names with frac in them
                         df_all = df_all.dropna().reset_index(drop=True)
                         # fix the observations based on obs_unit_multiplier
