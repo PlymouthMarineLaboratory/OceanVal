@@ -209,6 +209,32 @@ def _thickness_file(paths, thickness):
     raise ValueError(message)
 
 
+def _check_water_column_variables(comparisons, all_df):
+    """
+    Stop if a comparison through the water column has a model variable with
+    only one vertical level, such as a sea surface temperature: matched at
+    depth it gives nothing, without saying why.
+
+    comparisons is a list of (variable, source), all_df the mapping of each
+    variable to its model variable and an example file.
+    """
+    for vv, source in comparisons:
+        rows = all_df.loc[all_df.variable == vv].dropna(subset=["model_variable", "example_file"])
+        if len(rows) == 0:
+            continue
+        name = rows.model_variable.iloc[0].split("+")[0]
+        ff = rows.example_file.iloc[0]
+        with warnings.catch_warnings(record=True):
+            contents = nc.open_data(ff, checks=False).contents
+        nlevels = contents.loc[contents.variable == name].nlevels
+        if len(nlevels) > 0 and int(nlevels.iloc[0]) == 1:
+            raise ValueError(
+                f"{name} in {os.path.basename(ff)} has only one vertical level, so {vv} ({source}) "
+                "cannot be matched through the water column. Give the model's 3D variable as "
+                "model_variable, or set vertical=False."
+            )
+
+
 def _remove_fvcom_dir(fvcom_dir):
     """
     Remove the regridded FVCOM files
@@ -263,7 +289,10 @@ def _top_cell_depths(locs, ds_depths, path, model_variable):
             return None
         return float(min(levels))
     ds = nc.open_data(ds_depths[0], checks=False)
-    ds.cdo_command("topvalue")
+    # the depths are surface first, so the top cell's is the smallest. CDO's
+    # topvalue cannot be used: on an axis without levels it knows, such as
+    # GETM's, it takes the last level, which is the bottom once inverted
+    ds.vertical_min()
     try:
         top = ds.match_points(locs.loc[:, ["lon", "lat"]].drop_duplicates(), quiet=True)
     except ValueError:
@@ -1406,6 +1435,10 @@ def matchup(
             thick_check = True
     if len(point["all"]) > 0:
         thick_check = True
+
+    # FVCOM output is regridded onto depths later
+    if thick_check and not fvcom:
+        _check_water_column_variables(gridded_vertical + point["all"], all_df)
 
     if session_info["z_level"]:
         # on z-levels the model's levels are matched as depths, so they

@@ -151,6 +151,7 @@
         <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_point_comparison"><span class="tok-fn">add_point_comparison</span></a>(..., vertical=<span class="tok-kw">True</span>, ...)
 
 oceanval.<a href="api.html#matchup"><span class="tok-fn">matchup</span></a>(..., thickness=<span class="tok-str">"z_level"</span>, ...)</pre></div>
+        <p>The model variable has to be one through the water column: a 2D field such as a sea surface temperature cannot be matched at depth, and <code>matchup</code> stops with an error saying so.</p>
         <p>For a varying-thickness grid, pass a file path or the variable name containing thicknesses — OceanVal will search for and extract it:</p>
         <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#matchup"><span class="tok-fn">matchup</span></a>(..., thickness=<span class="tok-str">"/path/to/thickness_file.nc"</span>, ...)</pre></div>
       </div></div>

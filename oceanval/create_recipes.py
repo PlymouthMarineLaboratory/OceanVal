@@ -613,6 +613,12 @@ def generate_recipe_mapping(path, fvcom=False, cwd=None):
     fvcom=True reads a raw FVCOM file. cwd is the directory the user's own
     recipes are read for (see oceanval.user_recipes).
     """
+    return _recipe_mapping(path, fvcom, cwd)[0]
+
+
+def _recipe_mapping(path, fvcom=False, cwd=None):
+    """generate_recipe_mapping's mapping, and the names of the file's
+    variables with more than one vertical level."""
     if fvcom:
         # CDO skips the variables on FVCOM's mesh, temperature and salinity
         # among them
@@ -673,7 +679,7 @@ def generate_recipe_mapping(path, fvcom=False, cwd=None):
         if mapping.get(variable) is None and model_variable in variables:
             mapping[variable] = model_variable
 
-    return mapping
+    return mapping, set(depth_contents.variable)
 
 
 def _file_pattern(path):
@@ -740,9 +746,11 @@ def extract_recipe_variable_mapping(
         )
 
     votes = {variable: {} for variable in recipe_variables(cwd)}
+    # the model variables seen with more than one vertical level
+    water_column = set()
     for path in paths:
         try:
-            mapping = generate_recipe_mapping(path, fvcom, cwd)
+            mapping, depth_variables = _recipe_mapping(path, fvcom, cwd)
         except Exception:
             # a stream OceanVal cannot read is not a reason to give up on
             # the rest of the simulation
@@ -752,14 +760,20 @@ def extract_recipe_variable_mapping(
                 continue
             counts = votes[variable]
             counts[model_variable] = counts.get(model_variable, 0) + 1
+            if model_variable.split("+")[0] in depth_variables:
+                water_column.add(model_variable)
 
     mapping = {}
     for variable, counts in votes.items():
         if not counts:
             continue
-        # most streams first, then alphabetically, so the result is the same
-        # every time the generator is run over the same simulation
-        mapping[variable] = sorted(counts, key=lambda name: (-counts[name], name))[0]
+        # most streams first, then on a tie the water column over a surface
+        # field (a 3D temperature over a sea surface temperature, which
+        # cannot be matched at depth), then alphabetically, so the result is
+        # the same every time the generator is run over the same simulation
+        mapping[variable] = sorted(
+            counts, key=lambda name: (-counts[name], name not in water_column, name)
+        )[0]
     return mapping
 
 

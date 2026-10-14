@@ -122,6 +122,8 @@ For example:
         ...
     )
 
+The model variable has to be one through the water column: a 2D field such as a sea surface temperature cannot be matched at depth, and `matchup` stops with an error saying so.
+
 Once you have done this, you will need to specify the `thickness` argument in the `oceanval.matchup` function.
 If you have z-level data, i.e. the depth levels are at fixed depths in all cells, just set `thickness="z_level"`.
 If the cell thicknesses vary spatially, e.g. in a sigma or hybrid coordinate system, you will need to provide a file containing the thicknesses.

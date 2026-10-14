@@ -823,6 +823,35 @@ def _upside_down(ds):
     return ds
 
 
+def _getm_like(ds, e3t):
+    """
+    The same ocean as GETM writes it: its first level at the bottom, on a vertical
+    dimension with no coordinate variable, whose heights (positive up) are a 4D
+    coordinate named in each variable's coordinates attribute. The cell thickness
+    and a 2D sea surface temperature are in the output, as GETM's hnt and sst are.
+    """
+    import numpy as np
+
+    ds = _upside_down(ds)
+    heights = ds.deptht.values
+    ds = ds.drop_vars("deptht").rename({"deptht": "z"})
+    variables = [x for x in ds.data_vars if ds[x].dims == ("time_counter", "z", "lat", "lon")]
+    if "votemper" in ds:
+        thickness = e3t.e3t.isel(time_counter=0, deptht=slice(None, None, -1)).values
+        ds["e3t"] = (("time_counter", "z", "lat", "lon"), np.broadcast_to(thickness, ds.votemper.shape).copy())
+        ds.e3t.attrs.update(standard_name="cell_thickness", long_name="cell thickness", units="m")
+        ds["sst"] = ds.votemper.isel(z=-1)
+        ds.sst.attrs.update(long_name="sea surface temperature")
+        variables.append("e3t")
+    shape = [ds.sizes[x] for x in ("time_counter", "z", "lat", "lon")]
+    zct = np.broadcast_to(heights[None, :, None, None], shape).copy()
+    ds = ds.assign_coords(zct=(("time_counter", "z", "lat", "lon"), zct))
+    ds.zct.attrs.update(axis="Z", positive="up", standard_name="height_above_mean_sea_level", units="m")
+    for x in variables:
+        ds[x].encoding["coordinates"] = "zct"
+    return ds
+
+
 class TestVerticalDirection:
     """Model output whose first level is the bottom is matched as if it were the surface first"""
 
@@ -909,6 +938,88 @@ class TestVerticalDirection:
         pd.testing.assert_frame_equal(point, point_up)
         for variable in ["model", "observation"]:
             assert np.array_equal(gridded[variable].values, gridded_up[variable].values, equal_nan=True)
+
+    @pytest.fixture(scope="class")
+    def getm_like(self, upside_down):
+        """A GETM-like copy of 2000 of the example simulation, beside the upside-down one"""
+        import glob
+        import xarray as xr
+
+        root = upside_down / "getm"
+        with xr.open_dataset("data/example/e3t.nc", decode_times=False) as e3t:
+            e3t = e3t.load()
+        for ff in glob.glob("data/example/2000/*/*.nc"):
+            out = root / os.path.relpath(ff, "data/example")
+            os.makedirs(out.parent, exist_ok=True)
+            with xr.open_dataset(ff, decode_times=False) as ds:
+                _getm_like(ds.load(), e3t).to_netcdf(out)
+        return root
+
+    def test_the_top_cell_is_found_on_a_vertical_axis_without_levels(self, getm_like, tmp_path):
+        """CDO's topvalue takes the last level of such an axis, the bottom once inverted"""
+        import glob
+        import pandas as pd
+
+        path = sorted(glob.glob(str(getm_like / "2000/*/*grid_T.nc")))[0]
+        thickness = nc.open_data(path, checks=False)
+        thickness.subset(variables="e3t", time=0)
+        thickness.invert_levels()
+        thickness.run()
+        depths = thickness.copy()
+        depths.vertical_cumsum()
+        thickness / 2
+        depths - thickness
+        depths.rename({depths.variables[0]: "depth"})
+        depths.run()
+
+        locs = pd.DataFrame({"lon": [3.25], "lat": [54.25]})
+        top = matchall._top_cell_depths(locs, depths, path, "votemper")
+        expected = nc.open_data("data/example/e3t.nc", checks=False)
+        expected.subset(variables="e3t")
+        expected.cdo_command("sellevidx,1")
+        expected = expected.match_points(locs, quiet=True).e3t.values[0] / 2
+
+        assert top.top_depth.values[0] == pytest.approx(expected)
+
+    def test_getm_like_output_gives_the_same_point_matchups(self, getm_like, upside_down, tmp_path):
+        import pandas as pd
+
+        outputs = []
+        for name, sim_dir, thickness in [
+            ("normal", "data/example", "data/example/e3t.nc"),
+            ("getm", str(getm_like), "e3t"),
+        ]:
+            oceanval.reset()
+            oceanval.add_point_comparison(
+                name="temperature", source="foo", model_variable="votemper",
+                obs_path=str(upside_down / "obs"), vertical=True, obs_adder=273.15,
+            )
+            matchall.matchup(
+                sim_dir=sim_dir, start=2000, end=2000, ask=False, thickness=thickness,
+                cores=1, out_dir=str(tmp_path / name),
+            )
+            point = pd.read_csv(tmp_path / name / "oceanval_matchups/point/all/temperature/foo/foo_all_temperature.csv")
+            columns = sorted(point.columns)
+            outputs.append(point.loc[:, columns].sort_values(columns).reset_index(drop=True))
+        oceanval.reset()
+
+        assert len(outputs[0]) > 0
+        pd.testing.assert_frame_equal(outputs[0], outputs[1])
+
+    def test_a_surface_field_through_the_water_column_says_so(self, getm_like, upside_down, tmp_path):
+        oceanval.reset()
+        oceanval.add_point_comparison(
+            name="temperature", source="foo", model_variable="sst",
+            obs_path=str(upside_down / "obs"), vertical=True, obs_adder=273.15,
+        )
+
+        with pytest.raises(ValueError, match=r"sst in .*grid_T.nc has only one vertical level, so temperature \(foo\)"):
+            matchall.matchup(
+                sim_dir=str(getm_like), start=2000, end=2000, ask=False, thickness="e3t",
+                cores=1, out_dir=str(tmp_path / "sst"),
+            )
+        assert not os.path.exists(tmp_path / "sst" / "oceanval_matchups" / "point")
+        oceanval.reset()
 
     def test_heights_on_z_levels_say_so(self, upside_down, tmp_path):
         self.register(str(upside_down / "obs"))

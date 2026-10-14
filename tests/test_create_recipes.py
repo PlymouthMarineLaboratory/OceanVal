@@ -446,6 +446,19 @@ class TestVariableIdentification:
         # lose temperature altogether
         assert mapping["temperature"] == "thetao"
 
+    def test_a_3d_field_wins_a_tie_with_a_surface_field_in_another_stream(self, tmp_path):
+        # as GETM writes its sea surface temperature in one stream and its
+        # temperature through the water column in another
+        write_netcdf(str(tmp_path / "sim" / "2000" / "north_sea_3d_200001.nc"),
+                     {"sst": "SURF:sea surface temperature"})
+        write_netcdf(str(tmp_path / "sim" / "2000" / "north_sea_3dm_200001.nc"),
+                     {"temp": "conservative temperature"})
+
+        mapping = extract_recipe_variable_mapping(str(tmp_path / "sim"), 1)
+
+        # sst comes first alphabetically, but cannot be matched at depth
+        assert mapping["temperature"] == "temp"
+
     def test_only_one_file_per_output_stream_is_read(self, simulation):
         files = simulation_files(simulation, 2)
 
