@@ -2986,6 +2986,8 @@ class TestDatesOfTheFiles:
             "sim_dir": "/sim",
             "years": [2011, 2012],
             "fvcom": False,
+            # 0 when the matchups' times are not shifted
+            "time_shift": 0,
             "rows": [
                 {
                     "variable": "temperature",
