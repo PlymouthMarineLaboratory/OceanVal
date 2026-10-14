@@ -172,6 +172,7 @@ The following optional parameters can also be specified:
 - `n_check`: The number of files to check when identifying the file naming convention. OceanVal checks all files in a random subdirectory. Set n_check for a random subset in cases where all simulation files are in a single directory.
 - `as_missing`: A float or list of floats providing a range , i.e [min, max], specifying values to be treated as missing in the model output.
 - `live_validation`: Build an interim HTML validation report as the matchups are made, so that each one's results can be looked at as soon as it is made. Needs jupyter-book 2 or later. See "Looking at the results while the matchups run" below.
+- `time_shift`: The number of days to shift every model time by before matching up, e.g. -1 for output that dates each time mean at the end of the period it covers (as GETM does: January's mean at 00:00 on 1 February). By default OceanVal checks whether the model's times look like that and, if so, asks whether to shift them back a day. Set 0 to leave the times as they are without checking. See the Q&A.
 
 An example is shown below:
 

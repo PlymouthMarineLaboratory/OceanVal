@@ -1069,6 +1069,15 @@ class TestSettings:
         assert "overwrite=" not in script
         assert "point_time_res=" not in matchup_call(script)
 
+    def test_a_time_shift_is_written_when_given(self):
+        # the oceanval window writes the answer to matchup's question about
+        # the model's times; it has no box of its own
+        script = self.build(settings=settings(time_shift=-1))
+        ast.parse(script)
+        assert "    time_shift=-1,\n" in matchup_call(script)
+        assert "    time_shift=0,\n" in matchup_call(self.build(settings=settings(time_shift=0)))
+        assert "time_shift" not in self.build(settings=settings())
+
     def test_validate_reads_the_matchups_from_out_dir(self):
         script = self.build(settings=settings(out_dir="/scratch/run 1"))
 

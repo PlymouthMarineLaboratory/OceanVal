@@ -103,3 +103,29 @@ def test_the_depth_bins_are_not_written_into_the_notebooks(notebook):
     assert "600-1000m" not in text
     assert "def bin_depth(" not in text
     assert "depth_levels" in text
+
+
+@pytest.mark.parametrize("time_shift, said", [(-1, True), (0, False), (None, False)])
+def test_the_gridded_matchup_procedure_says_when_the_model_times_were_shifted(tmp_path, time_shift, said):
+    import os
+    import pickle
+
+    cells = json.loads(Path("oceanval/data/gridded_template.ipynb").read_text())["cells"]
+    source = ["".join(cell["source"]) for cell in cells if "**Matchup procedure**" in "".join(cell["source"])][0]
+    code = source[source.index("# the days the model's times"):source.index("md(f\"**Matchup procedure**")]
+    matchup_dict = {"start": 2000, "end": 2000}
+    if time_shift is not None:
+        matchup_dict["time_shift"] = time_shift
+    with open(tmp_path / "bar_matchup_dict.pkl", "wb") as f:
+        pickle.dump(matchup_dict, f)
+
+    found = {"ff": [str(tmp_path / "bar_temperature_surface.nc")], "source": "bar", "os": os, "pickle": pickle}
+    exec(code, found)
+    assert ("shifted back one day" in found["shifted"]) is said
+
+
+def test_point_pages_say_when_the_model_times_were_shifted():
+    template = Path("oceanval/data/chunk_point.pytemplate").read_text()
+
+    assert 'time_shift = matchup_dict.get("time_shift", 0) or 0' in template
+    assert "md_markdown(report_text(time_shift))" in template

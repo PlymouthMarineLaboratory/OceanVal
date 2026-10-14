@@ -61,7 +61,7 @@ import urllib.parse
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
-from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, transects, units, user_cache, user_recipes, user_settings
+from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
     _create_recipes,
@@ -406,6 +406,13 @@ def point_time_res_choice(form, rows):
             }
         }
     return time_res.clean_choice(choice, rows), kept
+
+
+def _time_shift_kept(form):
+    """The question of whether to shift the model's times, as its card was
+    left, to show it so again (see oceanval.time_stamps), or None."""
+    form = form if isinstance(form, dict) else {}
+    return {"mode": form["mode"]} if form.get("mode") in ("shift", "keep") else None
 
 
 def _form(form, defaults):
@@ -1144,6 +1151,13 @@ class Question:
         rows = (self.details.get("point_time_res") or {}).get("rows")
         return rows if isinstance(rows, list) else []
 
+    @property
+    def time_shift(self):
+        """Whether it is matchup's, of whether to shift the model's times, as
+        they look like the end of the period each mean covers, asked before
+        the matchups are (see oceanval.time_stamps)."""
+        return bool(self.details) and self.details.get("kind") == "time_shift"
+
     def files(self, pattern):
         """The files the details list for one file pattern, or None."""
         files = (self.details or {}).get("files")
@@ -1304,7 +1318,8 @@ class App:
     "running" and "finished". To match up and validate, once the matchups are
     checked in "running", "report_options" asks for the report's options
     before anything is matched up, while matchup waits for the answer to
-    whether the matchups are right. The demo is a matchup and validate run
+    whether the matchups are right; "point_time_res" comes before it, when
+    point datasets are matched by day against coarser output. The demo is a matchup and validate run
     that starts at "demo", which downloads its model output, and goes on to
     "setup" with the boxes filled in. Registering recipes of your own is
     "register_kind" (point or gridded data), and then "register_point" or
@@ -1376,6 +1391,9 @@ class App:
         # once the matchups are checked (see point_time_res)
         self.point_time_res_choice = None
         self.point_time_res_form = None
+        # how the question of whether to shift the model's times was left,
+        # which is shown so again after Back (see _time_shift_kept)
+        self.time_shift_form = None
         # the check of the dates of the model output, made while the
         # matchups are asked about (see _new_model_check)
         self.model_check = None
@@ -1555,6 +1573,7 @@ class App:
                 "register": self._register_state(),
                 "units": {"rows": self.units_rows, "boxes": self._units_boxes_shown()},
                 "point_time_res": self._point_time_res_state(),
+                "time_shift": self._time_shift_state(),
                 "model_check": self._model_check_state(),
                 "leftovers": {
                     "asked": self.leftovers_asked,
@@ -1799,6 +1818,10 @@ class App:
                 self._units_done.set()
                 return True
             if self._run_back():
+                question = self.question
+                if question is not None and question.time_shift:
+                    # shown so again, when it is asked again
+                    self.time_shift_form = _time_shift_kept(sent.get("form")) or self.time_shift_form
                 run, page = self.run, self._recipes
                 self._leave_run()
                 self._show_units(page.result)
@@ -3081,7 +3104,11 @@ class App:
             and self._recipes is not None
             and run.args[:1] in (["matchup"], ["script"])
             and self.report_arguments is None
-            and (self.identifying or self._held_matchups() is not None)
+            and (
+                self.identifying
+                or self._held_matchups() is not None
+                or (self.question is not None and self.question.time_shift)
+            )
         )
 
     def _leave_run(self):
@@ -3153,6 +3180,15 @@ class App:
             return True
         return any(entry.get("vertical") for entry in self.own_data["point"])
 
+    def _time_shift_state(self):
+        """How the question of whether to shift the model's times starts,
+        whose rows are in its details. Called with the lock held."""
+        return {
+            # OceanVal's suggestion, until it is changed
+            "form": self.time_shift_form or {"mode": "shift"},
+            "suggested": time_stamps.describe(time_stamps.SUGGESTED),
+        }
+
     def _point_time_res_state(self):
         """What the point_time_res step shows. Called with the lock held."""
         question = self._held_matchups()
@@ -3198,6 +3234,8 @@ class App:
             "sim_dir": os.path.abspath(sim_dir),
             "years": years,
             "fvcom": bool(details.get("fvcom")),
+            # shown as shifted, as matchup shifts them (see oceanval.time_stamps)
+            "time_shift": details.get("time_shift") or 0,
             "rows": rows,
             "files": files,
         }
@@ -3305,6 +3343,19 @@ class App:
                     self.own_data["point"][where[1]], point_time_res=list(value)
                 )
         result[3] = point_options
+        self._script_writer = (write, tuple(result))
+
+    def _keep_time_shift(self, choice):
+        """Put the answer to whether to shift the model's times into what
+        the script is written from, so that it says what was run and does
+        not ask again. It is written once the matchups are confirmed: until
+        then, Back goes to the units, and the run started after them asks
+        again. Called with the lock held."""
+        if self._script_writer is None:
+            return
+        write, result = self._script_writer
+        result = list(result)
+        result[2] = dict(result[2] or {}, time_shift=choice)
         self._script_writer = (write, tuple(result))
 
     def point_time_res(self, form):
@@ -3800,6 +3851,10 @@ class App:
             ):
                 return False
             answer = text.strip().lower()
+            if question.time_shift and answer in ("y", "n"):
+                # shown so again if it is asked again, after Back
+                self.time_shift_form = {"mode": "shift" if answer == "y" else "keep"}
+                self._keep_time_shift(time_stamps.SUGGESTED if answer == "y" else 0)
             if question.matchups and answer == "y" and question.time_res_rows:
                 # the point datasets to check are asked about first
                 self.view = "point_time_res"
@@ -3810,6 +3865,12 @@ class App:
                 self._notify()
                 return True
             self.question = None
+            writer = None
+            if question.matchups and answer in ("y", "save") and self._script_writer is not None:
+                # the answer to whether to shift the model's times, which no
+                # step after this one writes into the script
+                if "time_shift" in (self._script_writer[1][2] or {}):
+                    writer = self._script_writer
             rejected = question.matchups and answer == "n"
             save_script = question.matchups and answer == "save"
             if rejected:
@@ -3818,6 +3879,14 @@ class App:
                 self.matchup_script_saved = True
             self._notify()
         self.console.write(text + "\n")
+        if writer is not None:
+            write, choices = writer
+            try:
+                write(*choices)
+            except OSError as error:
+                self.console.write(
+                    f"The script could not be written again with the new time_shift: {error}\n"
+                )
         if (rejected or save_script) and self.stop():
             return True
         if question.matchups and answer == "y":

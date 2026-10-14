@@ -214,6 +214,17 @@ oceanval.<a href="api.html#matchup"><span class="tok-fn">matchup</span></a>(...,
       </div></div>
     </div>
 
+    <div class="faq-item">
+      <button class="faq-question">My model dates each mean at the end of the period it covers. What can I do?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="faq-answer"><div>
+        <p>Some models, GETM among them, date a time mean at the end of the period it covers: a daily mean at 00:00 the next day, and January&rsquo;s mean at 00:00 on 1 February. Matched up as they are, each mean is taken for the next day or month, and the year&rsquo;s last mean falls in the next year and is left out.</p>
+        <p>Without time bounds a file cannot say whether its times are the start or the end of their periods, so OceanVal never decides this itself. <code>matchup</code> checks the model variables that are time means (by their <code>cell_methods</code>): if their times are all at 00:00 and run one past the end of a month or a year, or their time bounds put each time at the end of its period, it shows why and asks whether to shift every model time back a day. It asks before it shows the matchups, so that the files and dates shown with them are those matched up. Shifted back a day, a day&rsquo;s mean is on its own day and a month&rsquo;s on the month&rsquo;s last day.</p>
+        <p>To decide this in your matchup script, so that you are not asked, use <code>time_shift</code>:</p>
+        <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#matchup"><span class="tok-fn">matchup</span></a>(..., time_shift=<span class="tok-num">-1</span>, ...)</pre></div>
+        <p><code>time_shift=0</code> leaves the times as they are, without checking. With <code>ask=False</code>, OceanVal only says what it found and leaves the times as they are. The report says when the model&rsquo;s times were shifted, and matchups made with a different shift are made again, even with <code>overwrite=False</code>.</p>
+      </div></div>
+    </div>
+
 
     <div class="faq-item">
       <button class="faq-question">Can I use OceanVal to compare simulations against each other?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>

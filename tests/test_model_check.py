@@ -624,3 +624,51 @@ class TestModelCheck:
             assert check.status == "stopped" and not check.finished
         finally:
             check.remove()
+
+
+def _end_stamped_monthly(directory):
+    """A year of monthly means, a file a month, each dated at the end of its
+    month as GETM dates them: December's at 00:00 on 1 January 2001."""
+    paths = []
+    for month in range(1, 13):
+        ends = np.datetime64(f"{2000 + month // 12}-{month % 12 + 1:02}-01")
+        ds = xr.Dataset(
+            {"temp": (("time", "lat", "lon"), np.ones((1, 2, 2)))},
+            coords={"time": [ends], "lat": [50.0, 51.0], "lon": [-4.0, -3.0]},
+        )
+        ds.temp.attrs["cell_methods"] = "time: mean"
+        path = directory / f"{month:02}" / f"sea_3dm_2000{month:02}.nc"
+        os.makedirs(path.parent)
+        ds.to_netcdf(path)
+        paths.append(str(path))
+    return paths
+
+
+@pytest.mark.parametrize("time_shift, files, first", [(0, 11, "2000-02-01"), (-1, 12, "2000-01-31")])
+def test_the_dates_are_said_as_matchup_shifts_them(tmp_path, time_shift, files, first):
+    """matchup asks whether to shift the model's times before the matchups
+    are shown (see oceanval.time_stamps), so that they show the files and
+    dates matched up; the times saved are as read, as matchup shifts them"""
+    paths = _end_stamped_monthly(tmp_path / "sim")
+    events = []
+    request = {
+        "sim_dir": str(tmp_path / "sim"),
+        "years": [2000, 2000],
+        "fvcom": False,
+        "time_shift": time_shift,
+        "rows": [{"variable": "temperature", "pattern": "**/sea_3dm_**.nc", "time_res": "monthly",
+                  "groups": [{"years": [2000, 2000], "sources": ["NSBC"], "gridded": True}]}],
+        "files": {"**/sea_3dm_**.nc": paths},
+        "out_dir": str(tmp_path / "out"),
+    }
+    os.makedirs(tmp_path / "out")
+
+    model_check.check(request, events.append)
+
+    [found] = [event for event in events if event["event"] == "files"]
+    [group] = found["groups"]
+    assert len(group["files"]) == files
+    assert group["dates"]["first"] == first
+    assert group["dates"]["gaps"] is (time_shift == 0)
+    index = [event for event in events if event["event"] == "indexed"][0]["index"]
+    assert load_times_index(index, paths)[paths[-1]].year.tolist() == [2001]

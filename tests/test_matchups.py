@@ -1030,3 +1030,269 @@ class TestVerticalDirection:
                 thickness="z_level", cores=1, out_dir=str(tmp_path / "z_level"),
             )
         oceanval.reset()
+
+
+def _end_stamped(ds):
+    """The same daily means as GETM dates them: at the end of each day (00:00
+    the next), with no time bounds to say so"""
+    ds = ds.drop_vars([x for x in ["time_counter_bnds"] if x in ds])
+    attrs = dict(ds.time_counter.attrs)
+    attrs.pop("bounds", None)
+    # noon, the middle of each day, to 00:00 the next
+    ds = ds.assign_coords(time_counter=ds.time_counter.values + 12 * 3600)
+    ds.time_counter.attrs.update(attrs)
+    for x in ds.data_vars:
+        if "time_counter" in ds[x].dims:
+            ds[x].attrs["cell_methods"] = "time: mean"
+    return ds
+
+
+class TestTimeShift:
+    """Model times that look like the end of the period each mean covers are
+    asked about before the matchups, so that they show the dates matched up,
+    and shifted back a day if the user says so (see oceanval.time_stamps)"""
+
+    @pytest.fixture(autouse=True)
+    def one_core(self):
+        cores = nc.session.session_info["cores"]
+        nc.options(cores=1)
+        yield
+        nc.options(cores=cores)
+
+    @pytest.fixture(scope="class")
+    def end_stamped(self, tmp_path_factory):
+        """2000 of the example simulation dated as GETM dates its means, and
+        some of the example point observations, on every month's 1st among
+        other days"""
+        import pandas as pd
+        import xarray as xr
+
+        root = tmp_path_factory.mktemp("end_stamped")
+        for ff in glob.glob("data/example/2000/*/*grid_T.nc"):
+            out = root / "sim" / os.path.relpath(ff, "data/example")
+            os.makedirs(out.parent, exist_ok=True)
+            with xr.open_dataset(ff, decode_times=False) as ds:
+                _end_stamped(ds.load()).to_netcdf(out)
+        obs = pd.read_csv("data/evaldata/point/nws/all/temperature/model_temperature.csv")
+        os.makedirs(root / "obs")
+        obs.query("depth < 1").iloc[::7].to_csv(root / "obs" / "obs.csv", index=False)
+        return root
+
+    @pytest.fixture(scope="class")
+    def monthly_end_stamped(self, tmp_path_factory):
+        """2000 of the example simulation as monthly means, a file a month,
+        each dated at the end of its month, as GETM dates them: December's at
+        00:00 on 1 January 2001"""
+        import numpy as np
+        import xarray as xr
+
+        root = tmp_path_factory.mktemp("monthly_end_stamped")
+        for ff in sorted(glob.glob("data/example/2000/*/*grid_T.nc")):
+            month = int(os.path.basename(os.path.dirname(ff)))
+            out = root / "sim" / os.path.relpath(ff, "data/example").replace("_1d_", "_1m_")
+            os.makedirs(out.parent, exist_ok=True)
+            with xr.open_dataset(ff, decode_times=False) as ds:
+                ds = _end_stamped(ds.load())
+                mean = ds.mean("time_counter", keep_attrs=True).expand_dims("time_counter")
+                ends = np.datetime64(f"{2000 + month // 12}-{month % 12 + 1:02}-01") - np.datetime64("1900-01-01")
+                mean = mean.assign_coords(time_counter=[ends / np.timedelta64(1, "s")])
+                mean.time_counter.attrs.update(ds.time_counter.attrs)
+                mean.to_netcdf(out)
+        return root
+
+    def register(self, end_stamped):
+        oceanval.reset()
+        oceanval.add_point_comparison(
+            name="temperature", source="foo", model_variable="votemper",
+            obs_path=str(end_stamped / "obs"), obs_adder=273.15,
+        )
+        oceanval.add_gridded_comparison(
+            name="temperature", source="bar", model_variable="votemper", obs_variable="votemper",
+            obs_path="data/evaldata/gridded/nws/temperature", climatology=True,
+            start=2000, end=2010, obs_adder=273.15,
+        )
+
+    def asked(self, end_stamped, tmp_path, monkeypatch, answers, **kwargs):
+        """What matchup asks, answered with answers, and the time_shift it
+        goes on with: stopped once it reads the times of the files."""
+
+        class Stop(Exception):
+            pass
+
+        shifts = []
+
+        def index_times(paths, fvcom=False, times=None, progress=None):
+            shifts.append(session_info["time_shift"])
+            raise Stop()
+
+        monkeypatch.setattr(matchall, "index_times", index_times)
+        asked = []
+
+        def answerer(question, choices, details):
+            asked.append((question, details))
+            return answers.pop(0)
+
+        self.register(end_stamped)
+        with prompts.answered_by(answerer):
+            with pytest.raises(Stop):
+                matchall.matchup(
+                    sim_dir=str(end_stamped / "sim"), start=2000, end=2000, cores=1,
+                    out_dir=str(tmp_path), **kwargs,
+                )
+        oceanval.reset()
+        return asked, shifts[0]
+
+    def test_it_is_asked_before_the_matchups(self, end_stamped, tmp_path, monkeypatch):
+        asked, shift = self.asked(end_stamped, tmp_path, monkeypatch, ["y", "y"])
+
+        (shift_question, details), (matchups_question, matchups) = asked
+        assert shift_question == "Shift the model's times back one day? (y/n) "
+        assert (details["kind"], details["suggested"]) == ("time_shift", -1)
+        [row] = details["rows"]
+        assert (row["variable"], row["model_variable"]) == ("temperature", "votemper")
+        assert (row["first"], row["last"]) == ("2000-01-02 00:00", "2001-01-01 00:00")
+        assert "but the last, which is 2000-02-01 00:00" in row["reason"]
+        # the matchups then show the dates as shifted
+        assert matchups_question == "Are you happy with these matchups? (y/n) "
+        assert (matchups["kind"], matchups["time_shift"]) == ("matchups", -1)
+        assert shift == -1
+
+    @pytest.mark.parametrize("answer, shift", [("y", -1), ("n", 0)])
+    def test_the_answer_is_used(self, end_stamped, tmp_path, monkeypatch, capsys, answer, shift):
+        asked, shifted = self.asked(end_stamped, tmp_path, monkeypatch, [answer, "y"])
+
+        assert asked[1][1]["time_shift"] == shifted == shift
+        out = capsys.readouterr().out
+        assert f"Add time_shift={shift} to your matchup call" in out
+        # said before the mapping is shown
+        assert out.index("Possible problem with the model's times") < out.index("Inferred mapping")
+
+    def test_without_asking_the_times_are_left_as_they_are(self, end_stamped, tmp_path, monkeypatch, capsys):
+        session_info["end_messages"] = []
+        asked, shift = self.asked(end_stamped, tmp_path, monkeypatch, [], ask=False)
+
+        assert asked == [] and shift == 0
+        out = capsys.readouterr().out
+        assert "Possible problem with the model's times" in out
+        assert "The times are left as they are" in out
+        assert any("time_shift=-1" in x for x in session_info["end_messages"])
+        session_info["end_messages"] = []
+
+    @pytest.mark.parametrize("time_shift", [0, -1])
+    def test_a_time_shift_given_is_not_asked_about(self, end_stamped, tmp_path, monkeypatch, time_shift):
+        asked, shift = self.asked(end_stamped, tmp_path, monkeypatch, ["y"], time_shift=time_shift)
+
+        [(_, details)] = asked
+        assert details["kind"] == "matchups" and details["time_shift"] == time_shift
+        assert shift == time_shift
+
+    def test_output_with_times_within_each_day_is_not_asked_about(self, tmp_path):
+        oceanval.reset()
+        oceanval.add_gridded_comparison(
+            name="temperature", source="bar", model_variable="votemper", obs_variable="votemper",
+            obs_path="data/evaldata/gridded/nws/temperature", climatology=True,
+        )
+        details = []
+
+        def answerer(question, choices, given):
+            details.append(given)
+            return "n"
+
+        with prompts.answered_by(answerer):
+            matchall.matchup(sim_dir="data/example", start=2000, end=2000, cores=1, out_dir=str(tmp_path))
+        oceanval.reset()
+        [matchups] = details
+        assert (matchups["kind"], matchups["time_shift"]) == ("matchups", 0)
+
+    @pytest.mark.parametrize("time_shift", ["-1", True, -1.0])
+    def test_a_time_shift_must_be_whole_days(self, time_shift):
+        oceanval.reset()
+        with pytest.raises(TypeError, match="time_shift must be a whole number of days"):
+            oceanval.matchup(
+                sim_dir="data/example", start=2000, end=2000, time_shift=time_shift,
+                lon_lim=[-10, 10], lat_lim=[40, 50],
+            )
+
+    def test_shifted_back_they_give_the_same_matchups_as_times_within_each_day(self, end_stamped, tmp_path, capsys):
+        import pickle
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        outputs = []
+        for name, sim_dir, time_shift in [
+            ("within", "data/example", None),
+            ("end", str(end_stamped / "sim"), -1),
+            ("end_unshifted", str(end_stamped / "sim"), 0),
+        ]:
+            self.register(end_stamped)
+            matchall.matchup(
+                sim_dir=sim_dir, start=2000, end=2000, ask=False, cores=1,
+                out_dir=str(tmp_path / name), time_shift=time_shift,
+            )
+            matchups = tmp_path / name / "oceanval_matchups"
+            point = pd.read_csv(matchups / "point/surface/temperature/foo/foo_surface_temperature.csv")
+            columns = sorted(point.columns)
+            point = point.loc[:, columns].sort_values(columns).reset_index(drop=True)
+            gridded = xr.open_dataset(matchups / "gridded/temperature/bar_temperature_surface.nc").load()
+            with open(matchups / "point/surface/temperature/foo/matchup_dict.pkl", "rb") as f:
+                point_shift = pickle.load(f)["time_shift"]
+            with open(matchups / "gridded/temperature/bar_matchup_dict.pkl", "rb") as f:
+                gridded_shift = pickle.load(f)["time_shift"]
+            outputs.append((point, gridded, point_shift, gridded_shift))
+        oceanval.reset()
+
+        (point, gridded, *shifts), (point_end, gridded_end, *end_shifts), (point_raw, gridded_raw, _, _) = outputs
+        assert shifts == [0, 0] and end_shifts == [-1, -1]
+        assert len(point) > 0
+        pd.testing.assert_frame_equal(point, point_end)
+        for variable in ["model", "observation"]:
+            assert np.array_equal(gridded[variable].values, gridded_end[variable].values, equal_nan=True)
+        # and not shifted, they do not: the 1st of each month has no model output
+        assert len(point_raw) < len(point)
+        assert not np.array_equal(gridded.model.values, gridded_raw.model.values, equal_nan=True)
+
+        # made again with overwrite=False only if made with another shift
+        capsys.readouterr()
+        self.register(end_stamped)
+        matchall.matchup(
+            sim_dir=str(end_stamped / "sim"), start=2000, end=2000, ask=False, cores=1,
+            out_dir=str(tmp_path / "end"), time_shift=0, overwrite=False,
+        )
+        oceanval.reset()
+        out = capsys.readouterr().out
+        assert "The temperature (bar) matchup was made with the model's times shifted differently" in out
+        assert "The surface temperature (foo) matchup was made with the model's times shifted differently" in out
+        with open(tmp_path / "end/oceanval_matchups/gridded/temperature/bar_matchup_dict.pkl", "rb") as f:
+            assert pickle.load(f)["time_shift"] == 0
+
+    def test_the_year_last_monthly_mean_dated_in_the_next_year_is_kept(self, monthly_end_stamped, tmp_path):
+        """A file holding only a time in the next year, before it is shifted,
+        is still matched up"""
+        import numpy as np
+        import xarray as xr
+
+        outputs = []
+        for name, sim_dir, time_shift in [
+            ("within", "data/example", None),
+            ("end", str(monthly_end_stamped / "sim"), -1),
+        ]:
+            oceanval.reset()
+            oceanval.add_gridded_comparison(
+                name="temperature", source="bar", model_variable="votemper", obs_variable="votemper",
+                obs_path="data/evaldata/gridded/nws/temperature", climatology=True,
+                start=2000, end=2010, obs_adder=273.15,
+            )
+            matchall.matchup(
+                sim_dir=sim_dir, start=2000, end=2000, ask=False, cores=1,
+                out_dir=str(tmp_path / name), time_shift=time_shift,
+            )
+            path = tmp_path / name / "oceanval_matchups/gridded/temperature/bar_temperature_surface.nc"
+            outputs.append(xr.open_dataset(path).load())
+        oceanval.reset()
+
+        within, end = outputs
+        assert len(end.time_counter) == 12
+        assert [int(x) for x in end.time_counter.dt.month] == list(range(1, 13))
+        assert np.allclose(within.model.values, end.model.values, equal_nan=True, atol=1e-4)

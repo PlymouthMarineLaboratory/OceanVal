@@ -42,6 +42,7 @@ from oceanval import model_check
 from oceanval import prompts
 from oceanval import selection
 from oceanval import time_res
+from oceanval import time_stamps
 from oceanval import user_cache
 
 
@@ -348,7 +349,11 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
     """
 
 
-    if session_info["cache"]:
+    # the cache holds matchups of unshifted times only, as it does not say
+    # how the times were shifted
+    use_cache = session_info["cache"] and not session_info.get("time_shift")
+
+    if use_cache:
         try:
             ff_read = (
                 session_info["cache_mapping"]
@@ -412,6 +417,11 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
             if len(ff_indices) == 0:
                 return None
             ds.subset(time=ff_indices)
+            # times that mark the end of the period each mean covers (see
+            # oceanval.time_stamps), shifted as the times index was, so that
+            # match_points finds the dates the index gives
+            if session_info.get("time_shift"):
+                ds.shift(days=session_info["time_shift"])
             if session_info["as_missing"] is not None:
                 ds.as_missing(session_info["as_missing"])
             ds.run()
@@ -442,7 +452,7 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
                     valid_vars = [x for x in valid_vars if x in df_ff.columns]
                     df_ff = df_ff.loc[:, valid_vars]
                     # add this to the cache if necessary
-                    if session_info["cache"]:
+                    if use_cache:
                         cache_dir = session_info["cache_dir"]
                         if cache_dir is not None:
                             # create a random string
@@ -1022,6 +1032,7 @@ def matchup(
     strict_names = True,
     fvcom = False,
     live_validation = None,
+    time_shift = None,
 ):
     """
     Match up model with observational data
@@ -1095,6 +1106,13 @@ def matchup(
         It is built in oceanval_interim_report, in out_dir (matchup's, unless the dict gives
         another), and matchup waits for it to be finished before returning. Build the full
         report with validate afterwards, as usual. Default is None, no interim report.
+    time_shift : int
+        Number of days to shift every model time by before matching up, e.g. -1 for output that
+        dates each time mean at the end of the period it covers (00:00 on 1 February for a
+        January mean): shifted back a day, each mean falls in the period it covers.
+        Default is None: matchup checks whether the times of time means look like the ends of
+        their periods and, if so, asks whether to shift them back a day (with ask=False it only
+        says so, and leaves them as they are). 0 leaves the times as they are, without checking.
 
     Returns
     -------------
@@ -1258,6 +1276,11 @@ def matchup(
     if not isinstance(strict_names, bool):
         raise TypeError("strict_names must be a boolean")
     session_info["strict_names"] = strict_names
+
+    if not time_stamps.valid(time_shift):
+        raise TypeError("time_shift must be a whole number of days, or None")
+    # until the times have been checked, nothing is shifted
+    session_info["time_shift"] = 0
 
     gridded = []
 
@@ -1569,6 +1592,38 @@ def matchup(
     # sort all_df alphabetically by variable
     all_df = all_df.sort_values("variable").reset_index(drop=True)
     gridded.sort()
+
+    chosen = all_df.query("variable in @var_chosen").dropna()
+    files = _files_found(
+        sim_dir, sorted(set(chosen.pattern)), exclude, session_info["require"], strict_names
+    )
+
+    # time means whose times look like the end of the period each covers are
+    # asked about before the matchups are shown, so that the files and dates
+    # shown with them are those matched up (see oceanval.time_stamps). The
+    # times are only shifted if the user says so, here or in their matchup
+    # call. Raw FVCOM output is not checked
+    if time_shift is None:
+        time_shift = 0
+        rows = [] if fvcom else time_stamps.check_rows(
+            chosen, files, {vv: definitions[vv].short_title for vv in var_chosen}
+        )
+        if rows and ask:
+            print(time_stamps.warning(rows))
+            time_shift = time_stamps.ask(rows, prompts.ask)
+            if time_shift:
+                print(f"Add time_shift={time_shift} to your matchup call to keep this next time.")
+            else:
+                print("Add time_shift=0 to your matchup call to leave the times without checking next time.")
+            print("******************************")
+        elif rows:
+            print(time_stamps.warning(rows, asked=False))
+            print("******************************")
+            session_info["end_messages"].append(time_stamps.end_message(rows))
+    session_info["time_shift"] = time_shift
+    if time_shift:
+        print(f"The model's times are shifted {time_stamps.describe(time_shift)} before matching up")
+
     print("Variables that will be matched up")
     print("******************************")
     if len(gridded) > 0:
@@ -1610,10 +1665,6 @@ def matchup(
 
     print(all_df_print.to_string(index=False))
 
-    chosen = all_df.query("variable in @var_chosen").dropna()
-    files = _files_found(
-        sim_dir, sorted(set(chosen.pattern)), exclude, session_info["require"], strict_names
-    )
     observations = dict()
     # each dataset, with the years of the run it is matched up for, its own
     # start and end within the run's: the window lists each variable once for
@@ -1655,8 +1706,10 @@ def matchup(
         "sim_dir": sim_dir,
         "years": [sim_start, sim_end],
         # how the times of the files are read, for the window's check of
-        # their dates (see oceanval.model_check)
+        # their dates (see oceanval.model_check), and the days they are
+        # shifted by, so that it shows the dates matched up
         "fvcom": bool(fvcom),
+        "time_shift": time_shift,
         "rows": [
             {
                 "variable": row.variable,
@@ -1809,6 +1862,15 @@ def matchup(
         fvcom=fvcom,
         times=times_dict,
     )
+    if time_shift:
+        # the dates every file's times are matched up by, in its pattern's calendar
+        pattern_of = {path: pattern for pattern in patterns for path in files[pattern]}
+        calendars = {
+            pattern: time_stamps.calendar(files[pattern][0]) for pattern in patterns if files[pattern]
+        }
+        time_stamps.shift_index(
+            times_dict, time_shift, lambda path: calendars.get(pattern_of.get(path), "standard")
+        )
 
     # figure out the lon/lat extent in the model
     with warnings.catch_warnings(record=True) as w:
@@ -1854,10 +1916,17 @@ def matchup(
             csv = out
 
             if os.path.exists(out) and not overwrite:
-                # made already, and still in the report
-                if builder is not None:
-                    builder.matched("point", vv, source, layer)
-                continue
+                if time_stamps.stored_time_shift(
+                    os.path.join(os.path.dirname(out), "matchup_dict.pkl")
+                ) == session_info["time_shift"]:
+                    # made already, and still in the report
+                    if builder is not None:
+                        builder.matched("point", vv, source, layer)
+                    continue
+                print(
+                    f"The {layer} {vv} ({source}) matchup was made with the model's times "
+                    "shifted differently, so it is made again"
+                )
 
             all_df = df_mapping
             # not a query: it cannot see good_model_vars from in here
@@ -2304,6 +2373,7 @@ def matchup(
                                 "end": max_year,
                                 "point_time_res": point_time_res,
                                 "model_variable": model_variable,
+                                "time_shift": session_info["time_shift"],
                             }
                             # remove the adhoc dict
                             # write to pickle
@@ -2325,7 +2395,11 @@ def matchup(
                 )
 
                 if len(out) > 0:
-                    if session_info["overwrite"] is False:
+                    # unless it was made with the model's times shifted
+                    # differently, said above
+                    if session_info["overwrite"] is False and time_stamps.stored_time_shift(
+                        out[0].replace(os.path.basename(out[0]), "matchup_dict.pkl")
+                    ) == session_info["time_shift"]:
                         continue
 
                 print(

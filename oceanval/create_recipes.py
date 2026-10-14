@@ -420,13 +420,15 @@ _WOA23_PERIODS = (
 
 # The matchup() and validate() arguments the create_recipes window can set, in
 # the order they are written into the script. Only ones changed from the
-# function's own default are written.
+# function's own default are written. time_shift has no box: the oceanval
+# window writes the answer to matchup's question about the model's times
 MATCHUP_SETTINGS = (
     "lon_lim",
     "lat_lim",
     "cores",
     "thickness",
     "point_time_res",
+    "time_shift",
     "overwrite",
     "ask",
     "out_dir",

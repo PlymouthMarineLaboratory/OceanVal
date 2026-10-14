@@ -305,6 +305,30 @@ Just set strict_names to False as follows:
 
 In this case, the pattern stays the same, but OceanVal will not filter files based on the length of the basenames.
 
+My model dates each mean at the end of the period it covers. What can I do?
+---------------------------------------------------------------------------
+
+Some models, GETM among them, date a time mean at the end of the period it covers: a daily mean at 00:00 the next day, and January's mean at 00:00 on 1 February.
+Matched up as they are, each mean is taken for the next day or month, and the year's last mean falls in the next year and is left out.
+
+Without time bounds a file cannot say whether its times are the start or the end of their periods, so OceanVal never decides this itself.
+Instead, `oceanval.matchup` checks the model variables that are time means (by their `cell_methods`): if their times are all at 00:00 and run one past the end of a month or a year (or their time bounds put each time at the end of its period), it shows why, and asks whether to shift every model time back a day.
+It asks before it shows the matchups, so that the files and dates shown with them are those matched up.
+Shifted back a day, a day's mean is on its own day and a month's on the month's last day.
+
+To decide this in your matchup script, so that you are not asked, use the `time_shift` argument:
+
+.. code:: ipython3
+
+    oceanval.matchup(
+        ...,
+        time_shift = -1,
+        ...
+    )
+
+`time_shift = 0` leaves the times as they are, without checking. With `ask = False`, OceanVal only says what it found, and leaves the times as they are.
+The report says when the model's times were shifted, and matchups made with a different shift are made again, even with `overwrite = False`.
+
 Can I add information about my simulation in the report?
 --------------------------------------------------------
 

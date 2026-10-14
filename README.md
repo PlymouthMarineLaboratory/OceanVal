@@ -63,7 +63,12 @@ that takes you through these steps:
    `obs_adder`.
 6. **Files**: the page says it is identifying the files that meet your
    criteria (only the model output is read: observation servers are not
-   contacted until the matchup is made), then shows what it found as a table,
+   contacted until the matchup is made). If the model's time means look
+   dated at the end of the period each covers (January's mean at 00:00 on 1
+   February, as GETM dates them), it first shows why, and asks whether to
+   shift every model time back a day, so that the files and dates shown next
+   are those matched up; once the matchups are confirmed, the choice is
+   written into the matchup script as `time_shift`. It then shows what it found as a table,
    with a row for each variable and each of the years its datasets are
    matched up for (the run's years, or a dataset's own within them): the
    years, its model variable, the observations matched up for those years,

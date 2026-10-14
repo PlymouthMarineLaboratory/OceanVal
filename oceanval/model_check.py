@@ -356,13 +356,17 @@ def check(request, emit):
     """Check the model output request describes, saying what is found with
     emit(event) as it goes. request is
 
-        {"sim_dir", "years": [start, end], "fvcom",
+        {"sim_dir", "years": [start, end], "fvcom", "time_shift",
          "rows": [{"variable", "pattern", "time_res",
                    "groups": [{"years", "sources", "gridded"}]}],
          "files": {pattern: [absolute paths]}, "out_dir"}
 
     where a row's groups are its datasets grouped by the years they are
-    matched up for (see year_groups). The events, as dicts with "event", are:
+    matched up for (see year_groups), and time_shift the days matchup shifts
+    the model's times by (see oceanval.time_stamps), if any: the files and
+    dates are said as shifted, as they are matched up, while the times saved
+    are as read, as matchup shifts them itself. The events, as dicts with
+    "event", are:
         "progress"  {"done", "total"}, as the times of the files are read
         "indexed"   {"index"}, where they are saved (see load_times_index)
         "files"     {"variable", "total", "groups": [{"years", "sources",
@@ -404,6 +408,18 @@ def check(request, emit):
     index = os.path.join(out_dir, "times.pkl")
     save_times_index(index, times)
     emit({"event": "indexed", "index": index})
+
+    shift = request.get("time_shift") or 0
+    if shift:
+        from oceanval import time_stamps
+
+        # the calendar of each pattern's files, from its first
+        calendars = {}
+        for paths in files.values():
+            if paths:
+                calendar_of = time_stamps.calendar(paths[0])
+                calendars.update({path: calendar_of for path in paths})
+        times = time_stamps.shift_index(dict(times), shift, lambda path: calendars.get(path, "standard"))
 
     for row in request["rows"]:
         paths = files.get(row["pattern"]) or []

@@ -266,6 +266,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
         <li><code class="param-name">as_missing</code><p>A float or <code>[min, max]</code> range of values to treat as missing in the model output.</p></li>
         <li><code class="param-name">strict_names</code><p>Whether to strictly enforce variable naming conventions. Defaults to <code>True</code>.</p></li>
         <li><code class="param-name">live_validation</code> <span class="param-tag">jupyter-book 2</span><p>Build an interim HTML validation report as the matchups are made, so that each one&rsquo;s results can be looked at as soon as it is made. See <a href="#live">Looking at the results while the matchups run</a>.</p></li>
+        <li><code class="param-name">time_shift</code><p>The number of days to shift every model time by before matching up, e.g. <code>-1</code> for output that dates each time mean at the end of the period it covers (as GETM does: January&rsquo;s mean at 00:00 on 1 February). By default OceanVal checks whether the model&rsquo;s times look like that and, if so, asks whether to shift them back a day. <code>0</code> leaves the times as they are without checking. See the <a href="qa.html">Q&amp;A</a>.</p></li>
       </ul>
     </details>
     <div class="callout">

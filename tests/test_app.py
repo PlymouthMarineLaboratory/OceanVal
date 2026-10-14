@@ -2764,6 +2764,111 @@ class TestPointTimeResStep:
         assert answers[0].startswith(ANSWER_MARKER)
 
 
+TIME_SHIFT_ROWS = [
+    {"key": "temperature", "variable": "temperature", "title": "Temperature",
+     "model_variable": "temp", "pattern": "*/north_sea_3dm_*.nc", "cell_methods": "time: mean",
+     "has_bounds": False, "calendar": "standard", "first": "2000-02-01 00:00",
+     "last": "2001-01-01 00:00", "first_shifted": "2000-01-31 00:00",
+     "last_shifted": "2000-12-31 00:00",
+     "reason": "the last time, 2001-01-01 00:00, is the only one in 2001"},
+]
+TIME_SHIFT = {"kind": "time_shift", "rows": TIME_SHIFT_ROWS, "suggested": -1}
+SHIFT_QUESTION = "Shift the model's times back one day? (y/n) "
+
+
+def time_shift_script(tmp_path, details=MATCHUPS):
+    """A stand-in for matchup, asking whether to shift the model's times and
+    then whether the matchups are right, and printing the answers."""
+    script = tmp_path / "run.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            from oceanval import prompts
+            print("shift:", prompts.ask({SHIFT_QUESTION!r}, ("y", "n"), details={TIME_SHIFT!r}))
+            answer = prompts.ask("Are you happy with these matchups? (y/n) ", ("y", "n"), details={details!r})
+            print("answer:", answer)
+            """
+        )
+    )
+    return script
+
+
+class TestTimeShiftQuestion:
+    """Model times that look like the end of the period each mean covers are
+    asked about before the matchups, so that the matchups page shows the
+    files and dates matched up (see oceanval.time_stamps)."""
+
+    def test_it_is_asked_before_the_matchups(self, app, tmp_path):
+        app.action = "matchup"
+        app.start_run(["script", str(time_shift_script(tmp_path))], "python run.py")
+        wait_for(lambda: app.question is not None)
+        _, state = get_json(app, "/api/state")
+        assert state["view"] == "running"
+        assert state["question"]["details"] == TIME_SHIFT
+        # OceanVal's suggestion, until it is changed
+        assert state["time_shift"] == {"form": {"mode": "shift"}, "suggested": "back one day"}
+        number = app.question.id
+
+        assert post(app, "/api/answer", {"id": number, "answer": "n"})[0] == 200
+        wait_for(lambda: app.question is not None and app.question.id != number)
+        assert app.question.matchups
+        assert app.time_shift_form == {"mode": "keep"}
+        post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
+        wait_for(lambda: app.view == "finished")
+        assert "shift: n" in app.console.since(0, None)["text"]
+
+    def test_the_check_of_the_dates_shows_them_shifted(self, app):
+        from oceanval.app import Question
+
+        question = Question("Are you happy with these matchups? (y/n) ", ("y", "n"), None,
+                            dict(MATCHUPS, time_shift=-1))
+        assert app._model_check_request(question)["time_shift"] == -1
+        question = Question("Are you happy with these matchups? (y/n) ", ("y", "n"), None, MATCHUPS)
+        assert app._model_check_request(question)["time_shift"] == 0
+
+    def setup_run(self, app, tmp_path, runs):
+        """The units step carried on from, for a script started by it."""
+        write_simulation(tmp_path / "sim")
+        app.choose("matchup")
+        post(app, "/api/setup", {"form": SETUP_FORM})
+        post(app, "/api/own_data", {"answer": False})
+        wait_for(lambda: app.view == "recipes")
+        rows = [{"variable": "temperature", "model_variable": "thetao", "selected": ["ices"]}]
+        assert post(app, "/recipes/write", {"rows": rows, "settings": recipe_settings(app)})[0] == 200
+        units_match(app)
+        wait_for(lambda: runs)
+
+    def matchup_call(self, tmp_path):
+        text = open(tmp_path / "matchup.py").read()
+        call = text[text.index("oceanval.matchup(") :]
+        return call[: call.index("\n)")]
+
+    @pytest.mark.parametrize("answer, written", [("y", -1), ("n", 0)])
+    def test_the_answer_is_written_into_the_script_once_the_matchups_are_right(
+        self, app, tmp_path, runs, answer, written
+    ):
+        self.setup_run(app, tmp_path, runs)
+        answers = []
+        app._put_question(SHIFT_QUESTION, ("y", "n"), answers.append, TIME_SHIFT)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": answer})[0] == 200
+        assert answers == [answer]
+        # not yet: Back from the matchups goes to the units, and asks again
+        assert "time_shift" not in self.matchup_call(tmp_path)
+
+        app._put_question("Are you happy with these matchups? (y/n) ", ("y", "n"), answers.append,
+                          dict(MATCHUPS, time_shift=written))
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert f"    time_shift={written}," in self.matchup_call(tmp_path)
+
+    def test_without_it_the_matchups_are_asked_as_before(self, app, tmp_path):
+        app.action = "matchup"
+        app.start_run(["script", str(TestServer.matchups_script(None, tmp_path))], "python run.py")
+        wait_for(lambda: app.question is not None)
+        assert app.question.matchups and not app.question.time_shift
+        post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
+        wait_for(lambda: app.view == "finished")
+
+
 class StubCheck:
     """A stand-in for model_check.ModelCheck, which starts nothing: a check
     that is whatever the test makes it."""
@@ -3301,6 +3406,38 @@ class TestBack:
         wait_for(lambda: app.view == "finished")
         assert app.status == "finished"
         assert "answer: y\nmatching up\n" in app.console.since(0, None)["text"]
+
+    def test_back_from_the_time_shift_question_keeps_the_choice(self, app, tmp_path, monkeypatch):
+        """It is asked before the matchups, so nothing is matched up yet"""
+        stand_in = time_shift_script(tmp_path)
+        start_run = app.start_run
+        monkeypatch.setattr(
+            app, "start_run", lambda args, label: start_run([args[0], str(stand_in)], label)
+        )
+        self.to_recipes(app, tmp_path)
+        self.write(app)
+        units_match(app)
+        wait_for(lambda: app.question is not None)
+        first = app.run
+        assert app.question.time_shift
+        assert get_json(app, "/api/state")[1]["run"]["back"] is True
+
+        assert post(app, "/api/back", {"form": {"mode": "keep"}})[0] == 200
+        _, state = get_json(app, "/api/state")
+        assert (state["view"], state["question"]) == ("units_table", None)
+        wait_for(lambda: first.returncode is not None, timeout=30)
+        assert "shift:" not in app.console.since(0, None)["text"]
+
+        # carried on from again, it is asked again, as it was left
+        units_match(app)
+        wait_for(lambda: app.question is not None and app.run is not first)
+        assert app.question.time_shift
+        assert get_json(app, "/api/state")[1]["time_shift"]["form"] == {"mode": "keep"}
+        post(app, "/api/answer", {"id": app.question.id, "answer": "n"})
+        wait_for(lambda: app.question is not None and app.question.matchups)
+        post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
+        wait_for(lambda: app.view == "finished")
+        assert "shift: n" in app.console.since(0, None)["text"]
 
     def test_other_file_filters_read_the_simulation_again(
         self, app, tmp_path, monkeypatch
@@ -4163,6 +4300,44 @@ def test_the_point_time_res_step_in_a_browser(browser, tmp_path):
             'settings: {"point_time_res": {"datasets": {"temperature/ICES": ["month"]}, "default": null}}'
             in app.console.since(0, None)["text"]
         )
+    finally:
+        app.close()
+
+
+def test_the_time_shift_question_in_a_browser(browser, tmp_path):
+    """Whether to shift the model's times is asked before the matchups are
+    shown, with its own answers."""
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    try:
+        app.action = "matchup"
+        app.start_run(["script", str(time_shift_script(tmp_path))], "python run.py")
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#time-shift:not([hidden])")
+
+        assert page.is_hidden("#review") and page.is_hidden("#ask")
+        assert page.text_content("#title") == "Are the model's times at the end of each mean?"
+        # OceanVal's suggestion, in red and bold
+        assert page.is_checked("#ts-mode-shift")
+        assert page.text_content("#ts-shift-label") == "Shift the model's times back one day"
+        label = page.locator("#ts-shift-label")
+        assert label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
+        assert label.evaluate("node => getComputedStyle(node).color") == page.locator(
+            "#time-shift .lede .oceanval-change").evaluate("node => getComputedStyle(node).color")
+        assert page.is_visible("#ts-bounds")
+        cells = page.locator('#ts-body tr[data-key="temperature"] td')
+        assert cells.nth(1).text_content() == "*/north_sea_3dm_*.nc"
+        assert cells.nth(2).text_content() == "2000-02-01 00:00 to 2001-01-01 00:00"
+        assert cells.nth(3).text_content() == "2000-01-31 00:00 to 2000-12-31 00:00"
+        assert "is the only one in 2001" in cells.nth(4).text_content()
+
+        page.click("#ts-continue")
+        page.wait_for_selector("#review:not([hidden])")
+        assert page.is_hidden("#time-shift")
+        page.click("text=Yes, continue")
+        wait_for(lambda: app.view == "finished")
+        assert "shift: y" in app.console.since(0, None)["text"]
     finally:
         app.close()
 

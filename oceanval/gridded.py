@@ -17,6 +17,7 @@ from oceanval.fixers import tidy_warnings
 from oceanval.fvcom import fvcom_matchup_files
 from oceanval.utils import extension_of_directory, loud_warning
 from oceanval.session import session_info
+from oceanval.time_stamps import stored_time_shift
 from oceanval.parsers import Validator, definitions
 
 
@@ -307,9 +308,16 @@ def gridded_matchup(
                 )
                 if len(out) > 0:
                     if session_info["overwrite"] is False:
-                        if on_matched is not None:
-                            on_matched("gridded", vv, vv_source)
-                        continue
+                        if stored_time_shift(
+                            out[0].replace(os.path.basename(out[0]), f"{vv_source}_matchup_dict.pkl")
+                        ) == session_info.get("time_shift", 0):
+                            if on_matched is not None:
+                                on_matched("gridded", vv, vv_source)
+                            continue
+                        print(
+                            f"The {vv} ({vv_source}) matchup was made with the model's times shifted "
+                            "differently, so it is made again"
+                        )
                 # figure out the data source
                 #
                 # check if this directory is empty
@@ -441,7 +449,18 @@ def gridded_matchup(
                     new_paths = copy.deepcopy(paths)
 
                     ds_model = nc.open_data(paths, checks=False)
-                    ds_model.subset(years=sim_years)
+                    # times that mark the end of the period each mean covers
+                    # (see oceanval.time_stamps) are shifted before the years
+                    # are selected, so the year's last mean is in its year
+                    if session_info.get("time_shift"):
+                        ds_model.shift(days=session_info["time_shift"])
+                        # not subset(years=...), which leaves out the files
+                        # without those years on disk, before they are
+                        # shifted: the file of the year's last mean, dated in
+                        # the next. The files were chosen by their shifted times
+                        ds_model.cdo_command(f"-selyear,{','.join(str(x) for x in sim_years)}")
+                    else:
+                        ds_model.subset(years=sim_years)
                     ds_model.subset(variables=selection)
                     if vertical_gridded is False:
                         ds_zz = nc.open_data(ds_model[0], checks = False)
@@ -755,7 +774,11 @@ def gridded_matchup(
                     out1 = out_file.replace(
                         os.path.basename(out_file), f"{vv_source}_matchup_dict.pkl"
                     )
-                    the_dict = {"start": min_year, "end": max_year}
+                    the_dict = {
+                        "start": min_year,
+                        "end": max_year,
+                        "time_shift": session_info.get("time_shift", 0),
+                    }
                     # write to pickle
                     with open(out1, "wb") as f:
                         pickle.dump(the_dict, f)
@@ -855,7 +878,11 @@ def gridded_matchup(
                         out1 = out_file.replace(
                             os.path.basename(out_file), f"{vv_source}_matchup_dict.pkl"
                         )
-                        the_dict = {"start": min_year, "end": max_year}
+                        the_dict = {
+                            "start": min_year,
+                            "end": max_year,
+                            "time_shift": session_info.get("time_shift", 0),
+                        }
                         # write to pickle
                         with open(out1, "wb") as f:
                             pickle.dump(the_dict, f)

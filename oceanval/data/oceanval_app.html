@@ -573,7 +573,8 @@
   .units-reading { margin: 0 0 18px; font-size: 14px; }
   /* what OceanVal filled in is red and bold, so that none of it is missed */
   .lede .oceanval-change, .units .s-input.is-oceanval, .units .group__line.is-oceanval,
-  .form .s-input.is-oceanval, .form .s-select.is-oceanval, .demo-about .oceanval-change { color: var(--red); font-weight: 700; }
+  .form .s-input.is-oceanval, .form .s-select.is-oceanval, .demo-about .oceanval-change,
+  .ptr-mode .oceanval-change { color: var(--red); font-weight: 700; }
   /* a box ticked for the user, which has no text of its own to colour: its label's */
   .form .tick-label:has(.tick.is-oceanval) { color: var(--red); font-weight: 700; }
   /* the units always have to be confirmed, beside Back and Continue */
@@ -586,6 +587,9 @@
   .ptr .s-select { width: 100%; }
   .ptr .s-select:disabled { color: var(--muted); background: var(--bg-alt); }
   .ptr .s-select.is-oceanval, .ptr-mode .s-select.is-oceanval { color: var(--red); font-weight: 700; }
+  .ts-shifted { color: var(--red); font-weight: 700; }
+  .ts-date { white-space: nowrap; }
+  .ts-why { color: var(--muted); font-size: 13px; }
   /* ---- the dates of the files, on the matchups page (see oceanval.model_check) ---- */
   .review__dates-progress { display: flex; gap: 14px; align-items: center; margin: 14px 24px 0; padding: 12px 14px; border: 1px solid var(--teal-200); border-radius: 8px; background: var(--teal-50); }
   .review__dates-progress .identify__spinner { width: 22px; height: 22px; border-width: 3px; }
@@ -1217,6 +1221,24 @@
       </div>
     </div>
     <div class="card" id="interim" role="status" aria-live="polite" hidden></div>
+    <section class="time-shift" id="time-shift" aria-label="Whether to shift the model's times" hidden>
+      <p class="lede">These model variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, matched up as they are, a January mean is compared with February's observations, and the year's last mean falls in the next year and is left out.</p>
+      <p class="lede" id="ts-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every model time <span id="ts-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers.</p>
+      <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the model's times">
+        <div class="ptr-modes">
+          <label class="ptr-mode"><input type="radio" name="ts-mode" value="shift" id="ts-mode-shift"><span class="oceanval-change" id="ts-shift-label">Shift the model's times back one day</span></label>
+          <label class="ptr-mode"><input type="radio" name="ts-mode" value="keep" id="ts-mode-keep">Keep the times as they are</label>
+        </div>
+      </div>
+      <div class="card units ptr"><table>
+        <colgroup><col style="width:18%"><col style="width:22%"><col style="width:18%"><col style="width:18%"><col style="width:24%"></colgroup>
+        <thead><tr>
+        <th scope="col">Variable</th><th scope="col">Files</th><th scope="col">Times now</th>
+        <th scope="col">Shifted</th><th scope="col">Why they look like ends</th>
+        </tr></thead>
+        <tbody id="ts-body"></tbody>
+      </table></div>
+    </section>
     <section class="review card" id="review" aria-labelledby="review-title" hidden>
       <div class="review__head">
         <h2 class="review__title" id="review-title" tabindex="-1">The following mapping will be assumed between variables and simulation files</h2>
@@ -1499,6 +1521,10 @@
       case "report_options": return "One last thing... How would you like your validation report?";
       case "point_time_res": return "Some point observations may not match the model's output";
       case "running":
+        // asked before the matchups, so that they show the dates matched up
+        if (state.question && state.question.details && state.question.details.kind === "time_shift") {
+          return "Are the model's times at the end of each mean?";
+        }
         // while the files are found and then checked, which is what the page is for then
         if (state.action === "matchup_validate" && (run.identifying || (state.question
           && state.question.details && state.question.details.kind === "matchups"))) {
@@ -1623,7 +1649,14 @@
         stopArmed = null;
         post("api/stop");
       }, { id: "stop" });
-      if (matchups) {
+      if (question && question.details && question.details.kind === "time_shift") {
+        // Back keeps the choice, for when it is asked again
+        const backKeeping = state.run.back ? button("Back", "ghost", () => post("api/back", { form: readTimeShift() }),
+          { title: "Stop before anything is matched up, and go back to the units" }) : null;
+        actions.push(backKeeping || stop,
+          button("Continue", "primary", () => send(question.id, readTimeShift().mode === "shift" ? "y" : "n"),
+            { id: "ts-continue" }));
+      } else if (matchups) {
         // the answer to whether the matchups are right, beside its question, after Back,
         // or Stop where there is no Back
         asked = el("span", { class: "summary__question", id: "review-question", text: "Are you happy with these file selections?" });
@@ -4345,7 +4378,7 @@
     const failed = state.view === "finished" && run.status === "failed";
     const matching = state.view === "running" && state.action === "matchup_validate"
       && !run.identifying && !(state.question && state.question.details
-        && state.question.details.kind === "matchups");
+        && ["matchups", "time_shift"].includes(state.question.details.kind));
     const showOutput = failed || matching;
     if (showOutput && $("run").hidden) {
       $("run").hidden = false;
@@ -4369,8 +4402,8 @@
       return { title: "Reading the simulation",
         text: "OceanVal is reading the model output, to work out which variables it holds and which observations they can be compared with." };
     }
-    // the table asks its own question, so there is nothing more to say
-    if (question && question.details && question.details.kind === "matchups") return null;
+    // the tables ask their own questions, so there is nothing more to say
+    if (question && question.details && ["matchups", "time_shift"].includes(question.details.kind)) return null;
     if (question) {
       return { waiting: true, title: "OceanVal has a question for you",
         text: "The run is paused until you answer it. Nothing more is matched up until then." };
@@ -4546,6 +4579,7 @@
     if (!question) {
       box.hidden = true;
       $("review").hidden = true;
+      $("time-shift").hidden = true;
       closeFiles();
       shownQuestion = null;
       return;
@@ -4553,6 +4587,14 @@
     if (shownQuestion === question.id) return;
     shownQuestion = question.id;
     closeFiles();
+    $("time-shift").hidden = true;
+    if (question.details && question.details.kind === "time_shift") {
+      // asked before the matchups, with its own answers
+      box.hidden = true;
+      $("review").hidden = true;
+      fillTimeShift(question);
+      return;
+    }
     if (question.details && question.details.kind === "matchups") {
       // a table above the output, with its own answers, rather than at its foot
       box.hidden = true;
@@ -4658,6 +4700,37 @@
       $("ptr-continue").disabled = false;
     }
   }
+
+  // ---- model times that look like the end of the period each mean covers ----
+  // a run of times, each kept on one line
+  const dates = (first, last) => [
+    el("span", { class: "ts-date", text: first }), " to ", el("span", { class: "ts-date", text: last })];
+
+  function fillTimeShift(question) {
+    const rows = question.details.rows || [];
+    const { form, suggested } = state.time_shift;
+    $("ts-suggested").textContent = suggested;
+    $("ts-shift-label").textContent = `Shift the model's times ${suggested}`;
+    // with bounds that put each time at the end of its period, the files do say
+    $("ts-bounds").hidden = rows.length > 0 && rows.every((row) => row.has_bounds);
+    $(`ts-mode-${form.mode}`).checked = true;
+    $("ts-body").replaceChildren(...rows.map((row) => el("tr", { "data-key": row.key },
+      el("td", {}, el("strong", { text: row.title }), el("br"),
+        el("span", { class: "is-mono", text: row.model_variable })),
+      el("td", {}, el("span", { class: "is-mono", text: row.pattern })),
+      el("td", {}, ...dates(row.first, row.last)),
+      el("td", {}, el("span", { class: "ts-shifted" }, ...dates(row.first_shifted, row.last_shifted))),
+      el("td", {}, el("span", { text: row.reason }), el("br"),
+        el("span", { class: "ts-why", text: `cell_methods "${row.cell_methods}", ${row.has_bounds ? "time bounds" : "no time bounds"}` })))));
+    $("time-shift").hidden = false;
+    $(`ts-mode-${form.mode}`).focus({ preventScroll: true });
+  }
+
+  function readTimeShift() {
+    const checked = document.querySelector("input[name=ts-mode]:checked");
+    return { mode: checked ? checked.value : "shift" };
+  }
+
 
   // ---- the matchups matchup asks about: each variable, for each of the years its datasets are matched up for ----
   // the rows of the table, by "<variable>|<group>", for the question numbered

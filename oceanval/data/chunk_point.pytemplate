@@ -27,6 +27,8 @@ point_time_res = [x for x in point_time_res if x in df.columns]
 
 point_years = None
 variable_formula = None
+# the days the model's times were shifted by before matching up, if they were
+time_shift = 0
 try:
     with open(ff_dict, "rb") as f:
         matchup_dict = pickle.load(f)
@@ -37,6 +39,7 @@ try:
             point_years = matchup_dict["point_years"]
         if "model_variable" in matchup_dict:
             variable_formula = matchup_dict["model_variable"]
+        time_shift = matchup_dict.get("time_shift", 0) or 0
 except:
     pass
 
@@ -167,6 +170,9 @@ if available:
         md_markdown(f"The following model output was used to compare with observational values: **{variable_formula}**.")
     else:
         md_markdown(f"The following model output was used to compare with observational values: **{model_variable}**.")
+    if time_shift != 0:
+        from oceanval.time_stamps import report_text
+        md_markdown(report_text(time_shift))
     if bin_res is not None:
         md_markdown(f"**Note**: the observational and model data were binned to a resolution of {bin_res[0]}° longitude by {bin_res[1]}° latitude and climatological monthly averages were calculated before analysis. This was carried out to reduce the influence of spatial bias on the validation statistics.") 
     md("**Note**: Individual vertical profiles with more than one observation in the top 5m were averaged to give a single observation for that profile.")
