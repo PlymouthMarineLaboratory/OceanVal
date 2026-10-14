@@ -320,6 +320,7 @@
           <fieldset class="group">
             <legend>Model data info</legend>
             <label class="g-row"><span class="g-label">Is the model z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" list="thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <div id="thickness-picker"></div>
             <p class="group__msg" id="g-thickness"></p>
             <div class="g-row">
               <span class="g-label">What should be treated as missing values?</span>
@@ -573,6 +574,8 @@
   const BOOLEANS = new Set(["overwrite", "ask", "pdf", "word"]);
   const timeRes = new Map(state.time_res_options.map((option) => [option.value, option]));
   const field = (name) => $(`s-${name}`);
+  // the pop-out of variables under the thickness box, whose ticks follow the box
+  let thicknessPicker = null;
 
   field("point_time_res").append(...state.time_res_options.map((option) =>
     el("option", { value: option.value, text: option.label })));
@@ -585,6 +588,20 @@
     for (const name of GROUPS.subset) {
       field(name).placeholder = name.endsWith("min") ? "mesh min" : "mesh max";
     }
+  } else {
+    // a variable of the model's can be picked as the thickness, one only
+    thicknessPicker = variablesPicker({
+      get: () => String(form.thickness),
+      set: (value) => {
+        form.thickness = value;
+        setControl("thickness");
+        delete serverErrors.thickness;
+        summarise();
+      },
+      multi: false,
+      className: "vars--thickness",
+    });
+    if (thicknessPicker) $("thickness-picker").append(thicknessPicker.details);
   }
 
   function setControl(name) {
@@ -598,6 +615,7 @@
     control.classList.toggle("is-oceanval", DEMO_VALUES[name] !== undefined && String(form[name]) === DEMO_VALUES[name]);
     // a long path can be wider than its box
     if (control.tagName === "INPUT" && !BOOLEANS.has(name)) control.title = control.value;
+    if (name === "thickness" && thicknessPicker) thicknessPicker.sync();
   }
 
   for (const name of FIELDS) {
@@ -1043,10 +1061,13 @@
         : el("span", { class: "none", title: emptyTitle, "aria-label": emptyTitle, text: "—" }));
   }
 
-  // the model's variables and their long_names, in a pop-out under the box
+  // the model's variables and their long_names, in a pop-out under a box
   // that can be searched; the table is only built when it is first opened, as
-  // a model can have hundreds of variables
-  function variablesTable(row) {
+  // a model can have hundreds of variables. get() is what the box holds and
+  // set(text) puts a new value in it. With multi, several can be ticked and
+  // are summed as var1+var2; without, one at most. Returns the pop-out and
+  // sync(), which ticks what the box holds.
+  function variablesPicker({ get, set, multi, className = "" }) {
     if (!state.available.length) return null;
     const longNames = state.long_names || {};
     const search = el("input", {
@@ -1068,16 +1089,19 @@
       el("p", { class: "vars__picked-title", text: "Selected" }), pickedList);
     const body = el("div", { class: "vars__popover" },
       el("div", { class: "vars__bar" }, search, count, ticked), picked, scroll);
-    const details = el("details", { class: "vars" },
+    const details = el("details", { class: `vars ${className}`.trim() },
       el("summary", { text: "Select from the model's variables" }), body);
     let rows = [];
-    // the names in the box, which may include ones the model does not have
-    const named = () => row.value.split("+").map((name) => name.trim()).filter(Boolean);
+    // the names in the box, which may include ones the model does not have;
+    // a single box may also hold z_level or a file, which are not variables
+    const named = () => multi
+      ? get().split("+").map((name) => name.trim()).filter(Boolean)
+      : [get().trim()].filter((name) => state.available.includes(name));
     // the ticks show what the box holds, wherever it was changed
     const syncTicks = () => {
       const names = new Set(named());
       for (const item of rows) item.box.checked = names.has(item.name);
-      ticked.textContent = names.size > 1 ? `${names.size} ticked, summed` : "";
+      ticked.textContent = multi && names.size > 1 ? `${names.size} ticked, summed` : "";
       const used = named();
       picked.hidden = !used.length;
       pickedList.replaceChildren(...used.map((name) => {
@@ -1090,7 +1114,7 @@
           "aria-label": `Remove ${name}`,
           text: "×",
         });
-        remove.addEventListener("click", () => setValue(row, named().filter((other) => other !== name).join("+")));
+        remove.addEventListener("click", () => set(named().filter((other) => other !== name).join("+")));
         return el("li", {},
           el("span", { class: "vars__picked-text" },
             el("span", { class: "vars__picked-name", text: name }),
@@ -1098,7 +1122,6 @@
           remove);
       }));
     };
-    row.syncTicks = syncTicks;
     // every word typed must be in the variable's name or its long_name
     const filter = () => {
       const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
@@ -1130,9 +1153,9 @@
           const box = el("input", { type: "checkbox", class: "tick", "aria-label": `Use ${name}` });
           // ticking several gives their sum, as var1+var2+var3
           box.addEventListener("change", () => {
-            const names = named().filter((used) => used !== name);
+            const names = multi ? named().filter((used) => used !== name) : [];
             if (box.checked) names.push(name);
-            setValue(row, names.join("+"));
+            set(names.join("+"));
           });
           return {
             name,
@@ -1153,7 +1176,15 @@
       syncTicks();
       search.focus();
     });
-    return details;
+    return { details, sync: syncTicks };
+  }
+
+  // a recipe row's model variable: any number can be ticked
+  function variablesTable(row) {
+    const picker = variablesPicker({ get: () => row.value, set: (value) => setValue(row, value), multi: true });
+    if (!picker) return null;
+    row.syncTicks = picker.sync;
+    return picker.details;
   }
 
   function buildRow(row) {

@@ -761,8 +761,8 @@ class TestModelVariablesTable:
             page = browser.new_page()
             page.goto(url)
 
-            first = page.locator("details.vars").first
-            assert page.locator("details.vars").count() == len(RECIPE_VARIABLES)
+            first = page.locator("tbody details.vars").first
+            assert page.locator("tbody details.vars").count() == len(RECIPE_VARIABLES)
             assert first.locator(".vars__popover").is_hidden()
             first.locator("summary").click()
             cells = first.locator(".vars__popover tbody tr").evaluate_all(
@@ -783,7 +783,7 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("details.vars").first
+            first = page.locator("tbody details.vars").first
             first.locator("summary").click()
             names = first.locator("tbody tr td:nth-child(2)").all_text_contents()
             assert names == ["Chl", "O2", "so", "thetao"]
@@ -796,7 +796,7 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("details.vars").first
+            first = page.locator("tbody details.vars").first
             first.locator("summary").click()
             search = first.locator(".vars__search")
             visible = lambda: first.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents()
@@ -830,7 +830,7 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("details.vars").first
+            first = page.locator("tbody details.vars").first
             first.locator("summary").click()
             first.locator(".vars__search").click()
             first.locator('input[aria-label="Use so"]').check()
@@ -848,11 +848,11 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            pop_outs = page.locator("details.vars")
+            pop_outs = page.locator("tbody details.vars")
             pop_outs.nth(0).locator("summary").click()
             # the first pop-out covers the rows just below it, so use the last
             pop_outs.last.locator("summary").click()
-            assert page.locator("details.vars[open]").count() == 1
+            assert page.locator("tbody details.vars[open]").count() == 1
             assert pop_outs.last.evaluate("node => node.open") is True
         finally:
             recipe_page.close()
@@ -863,7 +863,7 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("details.vars").first
+            first = page.locator("tbody details.vars").first
             first.locator("summary").click()
             page.wait_for_function("document.activeElement.classList.contains('vars__search')")
             first.locator(".vars__search").fill("theta")
@@ -886,7 +886,7 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("details.vars").first
+            first = page.locator("tbody details.vars").first
             box = page.locator(".field__input").first
             first.locator("summary").click()
             tick = lambda name: first.locator(f'input[aria-label="Use {name}"]')
@@ -924,7 +924,7 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("details.vars").first
+            first = page.locator("tbody details.vars").first
             box = page.locator(".field__input").first
             box.fill("")
             first.locator("summary").click()
@@ -959,6 +959,92 @@ class TestModelVariablesTable:
             picked.get_by_role("button", name="Remove missing").click()
             assert box.input_value() == ""
             assert picked.is_hidden()
+        finally:
+            recipe_page.close()
+
+
+class TestThicknessPopOut:
+    """The Global settings' thickness box has a pop-out of the model's variables,
+    from which one can be picked"""
+
+    def page(self, fvcom=False):
+        long_names = {"e3t": "Cell thickness", "thetao": "Sea water temperature", "so": "Sea water salinity"}
+        return RecipePage(
+            recipe_rows({"temperature": "thetao"}, "global"),
+            {"e3t", "thetao", "so"},
+            dict(CONTEXT, long_names=long_names, fvcom=fvcom),
+            lambda *chosen: "/out/matchup.py",
+        )
+
+    def test_it_lists_names_and_long_names_and_ticks_one_only(self, browser):
+        recipe_page = self.page()
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            pop_out = page.locator("details.vars--thickness")
+            box = page.locator("#s-thickness")
+            assert page.locator("#thickness-picker details.vars").count() == 1
+            pop_out.locator("summary").click()
+            cells = pop_out.locator(".vars__popover tbody tr").evaluate_all(
+                "rows => rows.map(r => [...r.cells].slice(1).map(c => c.textContent))"
+            )
+            assert cells == [
+                ["e3t", "Cell thickness"],
+                ["so", "Sea water salinity"],
+                ["thetao", "Sea water temperature"],
+            ]
+            tick = lambda name: pop_out.locator(f'input[aria-label="Use {name}"]')
+
+            tick("e3t").check()
+            assert box.input_value() == "e3t"
+            assert pop_out.locator(".vars__picked li").evaluate_all(
+                "items => items.map(i => i.firstChild.textContent)"
+            ) == ["e3t Cell thickness"]
+            # one only: ticking another moves the tick
+            tick("so").check()
+            assert box.input_value() == "so"
+            assert not tick("e3t").is_checked()
+            assert pop_out.locator(".vars__ticked").text_content() == ""
+            tick("so").uncheck()
+            assert box.input_value() == ""
+            assert pop_out.locator(".vars__picked").is_hidden()
+        finally:
+            recipe_page.close()
+
+    def test_the_ticks_follow_the_box(self, browser):
+        recipe_page = self.page()
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            pop_out = page.locator("details.vars--thickness")
+            box = page.locator("#s-thickness")
+            pop_out.locator("summary").click()
+            tick = lambda name: pop_out.locator(f'input[aria-label="Use {name}"]')
+
+            box.fill("e3t")
+            assert tick("e3t").is_checked()
+            # z_level and files are not variables, so nothing is ticked or listed
+            box.fill("z_level")
+            assert not tick("e3t").is_checked()
+            assert pop_out.locator(".vars__picked").is_hidden()
+            box.fill("/some/e3t.nc")
+            assert pop_out.locator(".vars__picked").is_hidden()
+            # the x clears the box
+            box.fill("thetao")
+            pop_out.get_by_role("button", name="Remove thetao").click()
+            assert box.input_value() == ""
+        finally:
+            recipe_page.close()
+
+    def test_it_is_not_offered_for_fvcom(self, browser):
+        recipe_page = self.page(fvcom=True)
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            assert page.locator("details.vars--thickness").count() == 0
         finally:
             recipe_page.close()
 
