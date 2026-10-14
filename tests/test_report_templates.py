@@ -49,6 +49,19 @@ def test_regional_time_series_r_cell_loads_the_tidyverse_itself():
     assert source.index("library(tidyverse") < source.index("%>%")
 
 
+def test_gridded_r_cells_import_model_unit_when_they_use_it():
+    # model_unit is only set by the seasonal chunk, which is left out without a full year
+    cells = json.loads(Path("oceanval/data/gridded_template.ipynb").read_text())["cells"]
+    sources = ["".join(cell["source"]) for cell in cells]
+    r_cells = [x for x in sources if x.startswith("%%R")]
+
+    assert r_cells
+    for source in r_cells:
+        magic, body = source.split("\n", 1)
+        if "model_unit" in body:
+            assert "-i model_unit" in magic
+
+
 def test_seasonal_template_separates_groups_of_months_with_a_line():
     template = Path("oceanval/data/chunk_seasonal.pytemplate").read_text()
 
