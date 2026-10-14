@@ -120,6 +120,27 @@ def is_z_up(ff, variable=None):
         return z.positive != "down"
 
 
+def _levels_are_heights(ff, variable):
+    """
+    Whether the vertical levels of variable in ff are heights, i.e. its
+    vertical coordinate is positive up or has negative values, not the
+    depths, positive down, that matching on z-levels needs. Levels whose
+    direction cannot be read are taken as depths.
+    """
+    with warnings.catch_warnings(record=True):
+        ds = nc.open_data(ff, checks=False)
+        ds.subset(variables=variable)
+        levels = ds.levels
+    if len(levels) < 2:
+        return False
+    if min(levels) < 0:
+        return True
+    try:
+        return is_z_up(ff, variable)
+    except ValueError:
+        return False
+
+
 def _thickness_from_file(path):
     """
     The name of the thickness variable in a thickness file: its only
@@ -1001,6 +1022,7 @@ def matchup(
         A name must be the variable's exact name in the model output, e.g. "e3t": a variable that only has it in its name, such as O3_c_e3t, is not used.
         A thickness file must hold only the thickness variable (or one with cell_thickness in its name). The thickness can have a time dimension or not,
         and its vertical coordinate needs a positive attribute ("down" for NEMO), to tell whether its first level is the surface.
+        With "z_level", the model's levels must be depths (positive down); output on heights (positive up) needs the cell thickness instead.
         If the cell_thickness variable is in the raw data, it will be used, and thickness does not need to be supplied.
     n_dirs_down : int
         Number of levels down to look for netCDF files. Default is 2, ie. the files are of the format ``*/*/*.nc``.
@@ -1386,6 +1408,23 @@ def matchup(
         thick_check = True
 
     if session_info["z_level"]:
+        # on z-levels the model's levels are matched as depths, so they
+        # cannot be heights. FVCOM output is regridded onto depths
+        if thick_check and not fvcom:
+            vertical = [vv for vv, source in gridded if definitions[vv].gridded_comparisons[source]["vertical"]]
+            vertical += [vv for vv, source in point["all"]]
+            for model_variable in dict.fromkeys(definitions[vv].model_variable for vv in vertical):
+                name = model_variable.split("+")[0]
+                files = list(all_df.loc[all_df.model_variable == model_variable].example_file)
+                ff = files[0] if len(files) > 0 else next(
+                    (x for x in raw_options if name in nc.open_data(x, checks=False).variables), None
+                )
+                if ff is not None and _levels_are_heights(ff, name):
+                    raise ValueError(
+                        f"The vertical levels of {name} in {ff} are heights (positive up), but "
+                        'with thickness="z_level" OceanVal matches observations by depth, positive '
+                        "down. Give the cell thickness as thickness instead, or use output on depth levels."
+                    )
         thick_check = False
 
     if thick_check:

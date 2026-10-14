@@ -804,7 +804,11 @@ def gridded_matchup(
                         if vertical_gridded is True:
                             levels = ds_obs.levels
                             if session_info["ds_depths"] != "z_level":
-                                ds_model.vertical_interp(levels, thickness = session_info["ds_thickness"]) 
+                                # the thickness was turned surface first if its
+                                # surface is at the bottom, so the model has to be too
+                                if session_info.get("invert"):
+                                    ds_model.invert_levels()
+                                ds_model.vertical_interp(levels, thickness = session_info["ds_thickness"])
                             else:
                                 ds_model.vertical_interp(levels , fixed = True)
 

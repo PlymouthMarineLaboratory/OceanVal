@@ -792,3 +792,130 @@ class TestStaticThickness:
 
         assert len(matchups[0]) > 0
         pd.testing.assert_frame_equal(matchups[0], matchups[1])
+
+
+def _levels_nc(path, levels, positive=None):
+    """A small file of temperature on the given vertical levels"""
+    import numpy as np
+    import xarray as xr
+
+    ds = xr.Dataset(
+        {"votemper": (("time_counter", "deptht", "lat", "lon"), np.ones((1, len(levels), 2, 2)))},
+        coords={"time_counter": [0.0], "deptht": levels, "lat": [50.0, 51.0], "lon": [-4.0, -3.0]},
+    )
+    ds.lat.attrs.update(units="degrees_north", standard_name="latitude")
+    ds.lon.attrs.update(units="degrees_east", standard_name="longitude")
+    ds.time_counter.attrs.update(units="seconds since 2000-01-01", standard_name="time")
+    if positive:
+        ds.deptht.attrs["positive"] = positive
+    ds.to_netcdf(path)
+    return str(path)
+
+
+def _upside_down(ds):
+    """The same ocean with its first level at the bottom, on heights, positive up"""
+    ds = ds.isel(deptht=slice(None, None, -1))
+    attrs = dict(ds.deptht.attrs, positive="up")
+    attrs.pop("bounds", None)
+    ds = ds.drop_vars([x for x in ["deptht_bnds"] if x in ds])
+    ds = ds.assign_coords(deptht=-ds.deptht.values)
+    ds.deptht.attrs.update(attrs)
+    return ds
+
+
+class TestVerticalDirection:
+    """Model output whose first level is the bottom is matched as if it were the surface first"""
+
+    @pytest.fixture(autouse=True)
+    def one_core(self):
+        cores = nc.session.session_info["cores"]
+        nc.options(cores=1)
+        yield
+        nc.options(cores=cores)
+
+    @pytest.mark.parametrize(
+        "levels, positive, heights",
+        [
+            ([0.5, 1.5, 2.5], "down", False),
+            ([0.5, 1.5, 2.5], None, False),
+            ([-2.5, -1.5, -0.5], "up", True),
+            ([-2.5, -1.5, -0.5], None, True),
+            ([0.5, 1.5, 2.5], "up", True),
+        ],
+    )
+    def test_heights_are_told_from_depths(self, tmp_path, levels, positive, heights):
+        path = _levels_nc(tmp_path / "t.nc", levels, positive)
+
+        assert matchall._levels_are_heights(path, "votemper") is heights
+
+    @pytest.fixture(scope="class")
+    def upside_down(self, tmp_path_factory):
+        """An upside-down copy of 2000 of the example simulation, with its thickness, and a
+        few of the example point observations"""
+        import glob
+        import pandas as pd
+        import xarray as xr
+
+        root = tmp_path_factory.mktemp("upside_down")
+        for ff in glob.glob("data/example/2000/*/*.nc"):
+            out = root / "sim" / os.path.relpath(ff, "data/example")
+            os.makedirs(out.parent, exist_ok=True)
+            with xr.open_dataset(ff, decode_times=False) as ds:
+                _upside_down(ds.load()).to_netcdf(out)
+        with xr.open_dataset("data/example/e3t.nc", decode_times=False) as ds:
+            _upside_down(ds.load()).to_netcdf(root / "e3t.nc")
+        obs = pd.read_csv("data/evaldata/point/nws/all/temperature/model_temperature.csv")
+        os.makedirs(root / "obs")
+        obs.query("month == 1").iloc[::500].to_csv(root / "obs" / "obs.csv", index=False)
+        return root
+
+    def register(self, obs_path):
+        oceanval.reset()
+        oceanval.add_point_comparison(
+            name="temperature", source="foo", model_variable="votemper",
+            obs_path=obs_path, vertical=True, obs_adder=273.15,
+        )
+        oceanval.add_gridded_comparison(
+            name="temperature", source="bar", model_variable="votemper", obs_variable="votemper",
+            obs_path="data/evaldata/gridded/nws/temperature", climatology=True,
+            start=2000, end=2010, obs_adder=273.15, vertical=True,
+        )
+
+    def test_upside_down_output_gives_the_same_matchups(self, upside_down, tmp_path):
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        outputs = []
+        for name, sim_dir, thickness in [
+            ("normal", "data/example", "data/example/e3t.nc"),
+            ("upside_down", str(upside_down / "sim"), str(upside_down / "e3t.nc")),
+        ]:
+            self.register(str(upside_down / "obs"))
+            matchall.matchup(
+                sim_dir=sim_dir, start=2000, end=2000, ask=False, thickness=thickness,
+                cores=1, out_dir=str(tmp_path / name),
+            )
+            matchups = tmp_path / name / "oceanval_matchups"
+            point = pd.read_csv(matchups / "point/all/temperature/foo/foo_all_temperature.csv")
+            columns = sorted(point.columns)
+            point = point.loc[:, columns].sort_values(columns).reset_index(drop=True)
+            gridded = xr.open_dataset(matchups / "gridded/temperature/bar_temperature_vertical.nc").load()
+            outputs.append((point, gridded))
+        oceanval.reset()
+
+        (point, gridded), (point_up, gridded_up) = outputs
+        assert len(point) > 0
+        pd.testing.assert_frame_equal(point, point_up)
+        for variable in ["model", "observation"]:
+            assert np.array_equal(gridded[variable].values, gridded_up[variable].values, equal_nan=True)
+
+    def test_heights_on_z_levels_say_so(self, upside_down, tmp_path):
+        self.register(str(upside_down / "obs"))
+
+        with pytest.raises(ValueError, match='votemper .* are heights .* thickness="z_level"'):
+            matchall.matchup(
+                sim_dir=str(upside_down / "sim"), start=2000, end=2000, ask=False,
+                thickness="z_level", cores=1, out_dir=str(tmp_path / "z_level"),
+            )
+        oceanval.reset()

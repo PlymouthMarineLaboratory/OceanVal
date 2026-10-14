@@ -158,7 +158,7 @@ You will need to specify the following:
 
 The following variable is required if you are carrying out vertical validation:
 
-- `thickness`: Either "z_level" or a string specifying the name of the variable in the model output files that contains the cell thickness information. The name must be exactly the variable's name, e.g. "e3t": a variable that only has it in its name, such as O3_c_e3t, is not used. The thickness can have a time dimension or not (a static thickness such as e3t_0), and its vertical coordinate needs a `positive` attribute ("down" for NEMO). A thickness file must hold only the thickness variable.
+- `thickness`: Either "z_level" or a string specifying the name of the variable in the model output files that contains the cell thickness information. The name must be exactly the variable's name, e.g. "e3t": a variable that only has it in its name, such as O3_c_e3t, is not used. The thickness can have a time dimension or not (a static thickness such as e3t_0), and its vertical coordinate needs a `positive` attribute ("down" for NEMO). A thickness file must hold only the thickness variable. With "z_level", the model's levels must be depths (positive down); output on heights (positive up) needs the cell thickness instead.
 
 The following optional parameters can also be specified:
 
