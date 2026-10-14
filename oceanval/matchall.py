@@ -105,6 +105,28 @@ def is_z_up(ff, variable=None):
         )
 
 
+def _thickness_file(paths, thickness):
+    """
+    The first of paths with a variable named exactly thickness. Only the
+    exact name will do: model output can have other variables with it in
+    their names, such as ERSEM's depth integrated trends (O3_c_e3t).
+    """
+    similar = set()
+    for ff in paths:
+        print("Checking file for thickness: " + ff)
+        # do this quietly
+        with warnings.catch_warnings(record=True):
+            variables = nc.open_data(ff, checks=False).variables
+        if thickness in variables:
+            return ff
+        similar.update(x for x in variables if thickness in x)
+    message = f"No variable named {thickness} was found in the simulation output."
+    if len(similar) > 0:
+        message += f" Variables with {thickness} in their names: {', '.join(sorted(similar))}."
+    message += " Give the exact name of the cell thickness variable as thickness, or a thickness file."
+    raise ValueError(message)
+
+
 def _remove_fvcom_dir(fvcom_dir):
     """
     Remove the regridded FVCOM files
@@ -915,6 +937,7 @@ def matchup(
         nctoolkit's own cores option is put back as it was once matchup finishes.
     thickness : str
         Path to a thickness file, i.e. cell vertical thickness or the name of the thickness variable. This only needs to be supplied if the variable is missing from the raw data.
+        A name must be the variable's exact name in the model output, e.g. "e3t": a variable that only has it in its name, such as O3_c_e3t, is not used.
         If the cell_thickness variable is in the raw data, it will be used, and thickness does not need to be supplied.
     n_dirs_down : int
         Number of levels down to look for netCDF files. Default is 2, ie. the files are of the format ``*/*/*.nc``.
@@ -1333,52 +1356,29 @@ def matchup(
                     raise ValueError(
                         "Please provide the name of the thickness variable"
                     )
-                for ff in raw_options:
-                    print("Checking file for thickness: " + ff)
-                    # do this quietly
-                    with warnings.catch_warnings(record=True) as w:
-                        ds_thickness = nc.open_data(ff, checks=False)
-                        if thickness in ds_thickness.variables:
-                            cell_thickness_found = True
-                            invert_thickness = is_z_up(ff, thickness)
-                            break
-                        else:
-                            if (
-                                len(
-                                    [
-                                        x
-                                        for x in ds_thickness.variables
-                                        if thickness in x
-                                    ]
-                                )
-                                > 0
-                            ):
-                                cell_thickness_found = True
-                                invert_thickness = is_z_up(ff, thickness)
-                                break
+                ff = _thickness_file(raw_options, thickness)
+                ds_thickness = nc.open_data(ff, checks=False)
+                cell_thickness_found = True
+                invert_thickness = is_z_up(ff, thickness)
 
             if not cell_thickness_found:
                 raise ValueError("Unable to find cell_thickness")
 
+            # only the variable of exactly this name, not others with it in
+            # their names
             if os.path.exists(thickness) == False:
                 if len(ds_thickness.times) > 0:
-                    ds_thickness.subset(time=0, variables=f"{thickness}*")
+                    ds_thickness.subset(time=0, variables=thickness)
                 else:
-                    ds_thickness.subset(variables=f"{thickness}*")
+                    ds_thickness.subset(variables=thickness)
             ds_thickness.run()
-            var_sel = (
-                ds_thickness.contents.query(f"variable.str.contains('{thickness}')")
-                .query("nlevels > 1")
-                .variable
-            )
+            contents = ds_thickness.contents
+            var_sel = contents.loc[
+                (contents.variable == thickness) & (contents.nlevels > 1)
+            ].variable
             ds_thickness.subset(variables=var_sel)
             if session_info["as_missing"] is not None:
                 ds_thickness.as_missing(session_info["as_missing"])
-            if len(ds_thickness.variables) > 1:
-                if "cell_thickness" in ds_thickness.variables:
-                    ds_thickness.subset(variables=f"{thickness}*")
-                else:
-                    ds_thickness.subset(variables=ds_thickness.variables[0])
             ds_thickness.run()
             print(f"Thickness variable is {ds_thickness.variables[0]} from {ff}")
             #####

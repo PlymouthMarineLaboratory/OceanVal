@@ -158,7 +158,7 @@ You will need to specify the following:
 
 The following variable is required if you are carrying out vertical validation:
 
-- `thickness`: Either "z_level" or a string specifying the name of the variable in the model output files that contains the cell thickness information.
+- `thickness`: Either "z_level" or a string specifying the name of the variable in the model output files that contains the cell thickness information. The name must be exactly the variable's name, e.g. "e3t": a variable that only has it in its name, such as O3_c_e3t, is not used.
 
 The following optional parameters can also be specified:
 

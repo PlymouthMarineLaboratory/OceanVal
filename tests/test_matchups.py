@@ -619,3 +619,52 @@ class TestPointTimeResCheck:
 
         assert [question for question, _, _ in asked][1].startswith("Change point_time_res")
         assert session_info["point_time_res"] == ["year", "month"]
+
+
+def _model_file(path, variables):
+    """A small netCDF file with the given variables on depth levels"""
+    import numpy as np
+    import xarray as xr
+
+    shape = (3, 2, 2)
+    ds = xr.Dataset(
+        {name: (("deptht", "lat", "lon"), np.ones(shape)) for name in variables},
+        coords={"deptht": [0.5, 1.5, 2.5], "lat": [50.0, 51.0], "lon": [-4.0, -3.0]},
+    )
+    ds.to_netcdf(path)
+    return str(path)
+
+
+class TestThicknessFile:
+    """The thickness variable is found by its exact name only"""
+
+    def test_a_variable_with_the_name_in_it_is_not_taken(self, tmp_path):
+        # ERSEM's depth integrated trends have e3t in their names
+        trends = _model_file(tmp_path / "grid_T.nc", ["XAD_O3_c_e3t", "O3_c_e3t"])
+        real = _model_file(tmp_path / "ptrc_T.nc", ["e3t", "N3_n"])
+
+        assert matchall._thickness_file([trends, real], "e3t") == real
+        assert matchall._thickness_file([real, trends], "e3t") == real
+
+    def test_no_exact_name_says_which_names_have_it_in_them(self, tmp_path):
+        trends = _model_file(tmp_path / "grid_T.nc", ["XAD_O3_c_e3t", "O3_c_e3t", "votemper"])
+
+        with pytest.raises(ValueError) as error:
+            matchall._thickness_file([trends], "e3t")
+
+        assert str(error.value) == (
+            "No variable named e3t was found in the simulation output. Variables with e3t "
+            "in their names: O3_c_e3t, XAD_O3_c_e3t. Give the exact name of the cell "
+            "thickness variable as thickness, or a thickness file."
+        )
+
+    def test_no_similar_names_are_listed_when_there_are_none(self, tmp_path):
+        other = _model_file(tmp_path / "grid_T.nc", ["votemper"])
+
+        with pytest.raises(ValueError) as error:
+            matchall._thickness_file([other], "e3t")
+
+        assert str(error.value) == (
+            "No variable named e3t was found in the simulation output. Give the exact "
+            "name of the cell thickness variable as thickness, or a thickness file."
+        )

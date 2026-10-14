@@ -250,7 +250,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
       <li><code class="param-name">start</code> / <code class="param-name">end</code> <span class="param-tag">required</span><p>First / last year of the simulation to use for validation.</p></li>
       <li><code class="param-name">cores</code><p>Number of CPU cores to use for parallel processing.</p></li>
       <li><code class="param-name">lon_lim</code> / <code class="param-name">lat_lim</code><p>Longitude / latitude limits for the validation region, e.g. <code>[-180, 180]</code>.</p></li>
-      <li><code class="param-name">thickness</code> <span class="param-tag">vertical only</span><p><code>"z_level"</code> or a variable name containing cell thickness — required for vertical validation.</p></li>
+      <li><code class="param-name">thickness</code> <span class="param-tag">vertical only</span><p><code>"z_level"</code> or the exact name of the variable holding the cell thickness, e.g. <code>"e3t"</code> (a variable that only has it in its name, such as <code>O3_c_e3t</code>, is not used) — required for vertical validation.</p></li>
     </ul>
     <details class="param-optional">
       <summary>Optional parameters</summary>
