@@ -105,7 +105,9 @@ that takes you through these steps:
    report is built beside the matchups, in the
    directory chosen in step 2. **Back** shows the page about point datasets
    matched by day, if it was shown, or the matchups, and keeps the options. The options are written into the matchup script's
-   `validate()` call.
+   `validate()` call. **Stop and store Python script for later** stops
+   there, with nothing matched up, and keeps the script with the options;
+   the page then says how to run it from a terminal.
 8. **Run**: matchup, then, to validate as well, `validate()` with the
    report's options. The page says what the run is doing, and shows the output
    (which appears as it comes in the terminal) as the matchups are made and if the run fails; anything else OceanVal asks, such as whether to try again

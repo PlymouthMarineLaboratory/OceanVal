@@ -2237,6 +2237,37 @@ class TestServer:
             'lat_lim=[40, 65], pdf=True, concise=False)'
         )
 
+    def test_the_report_options_step_can_store_the_script_instead(
+        self, app, tmp_path, monkeypatch
+    ):
+        validated = self.validate_runs(app, monkeypatch)
+        script = self.matchups_script(tmp_path)
+        app.action = "matchup_validate"
+        app.start_run(["matchup", str(script)], "python run.py")
+        wait_for(lambda: app.question is not None)
+        number = app.question.id
+        assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        assert app.view == "report_options"
+
+        # the boxes are checked as for the report
+        status, reply = post(app, "/api/save_script", {"form": {"lon_min": "x"}})
+        assert status == 400
+        assert reply["errors"]["lon_min"] == "Limits must be numbers."
+        assert app.view == "report_options"
+
+        assert post(app, "/api/save_script", {"form": {"pdf": True}})[0] == 200
+        wait_for(lambda: app.view == "script_saved")
+        _, state = get_json(app, "/api/state")
+        assert state["run"]["status"] == "stopped"
+        assert state["run"]["script_saved"] is True
+        assert state["run"]["script_command"] == f"python {script}"
+        # nothing was matched up, and no report is built
+        assert "matching up" not in state["console"]["text"]
+        assert "answer:" not in state["console"]["text"]
+        assert validated == []
+        # the step is over
+        assert post(app, "/api/save_script", {"form": {}})[0] == 409
+
     def test_the_report_options_are_asked_for_if_matchup_did_not_ask(
         self, app, tmp_path, monkeypatch
     ):
@@ -4259,7 +4290,7 @@ def test_a_saved_matchup_script_opens_run_instructions(browser, tmp_path):
         page.wait_for_selector("#view-script-saved:not([hidden])")
 
         assert page.text_content("#title") == "Your matchup script is saved"
-        assert "The matchup has not been run" in page.text_content("#view-script-saved")
+        assert "Nothing has been matched up" in page.text_content("#view-script-saved")
         assert page.text_content("#script-saved-command") == f"python {script}"
         assert page.text_content("#script-saved-path") == str(script)
         assert "matching up" not in page.text_content("#console-text")
@@ -4340,6 +4371,42 @@ def test_the_time_shift_question_in_a_browser(browser, tmp_path):
         page.click("text=Yes, continue")
         wait_for(lambda: app.view == "finished")
         assert "shift: y" in app.console.since(0, None)["text"]
+    finally:
+        app.close()
+
+
+def test_the_report_options_step_stores_the_script_in_a_browser(browser, tmp_path):
+    """A matchup and validate run can be stopped before the matchups are
+    made, keeping the script, and the page says how to run it."""
+    script = tmp_path / "matchup.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            from oceanval import prompts
+            question = "Are you happy with these matchups? (y/n) "
+            print("answer:", prompts.ask(question, ("y", "n"), details={MATCHUPS!r}))
+            print("matching up")
+            """
+        )
+    )
+    app = App(cwd=str(tmp_path))
+    app.action = "matchup_validate"
+    app.start_run(["matchup", str(script)], f"python {script}")
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#review:not([hidden])")
+        page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-validate:not([hidden])")
+
+        assert page.text_content("#save-script") == "Stop and store Python script for later"
+        page.click("#save-script")
+        page.wait_for_selector("#view-script-saved:not([hidden])")
+        assert page.text_content("#title") == "Your matchup script is saved"
+        assert page.text_content("#script-saved-command") == f"python {script}"
+        assert page.text_content("#script-saved-path") == str(script)
+        assert "matching up" not in page.text_content("#console-text")
     finally:
         app.close()
 

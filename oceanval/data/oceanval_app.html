@@ -1299,7 +1299,7 @@
   <section id="view-script-saved" hidden>
     <div class="script-saved card">
       <h2 id="script-saved-title" tabindex="-1">Your matchup script is saved</h2>
-      <p>The matchup has not been run. To match and validate later, open a terminal and run:</p>
+      <p>Nothing has been matched up and no report has been built. To do both later, open a terminal, activate the environment OceanVal is installed in, and run:</p>
       <code id="script-saved-command"></code>
       <p>Script file:</p>
       <code id="script-saved-path"></code>
@@ -1610,7 +1610,8 @@
       // so Back shows them again; without it, they are made already
       const waiting = Boolean(state.question);
       // with the boxes, which are shown again as they are
-      if (waiting) actions.push(button("Back", "ghost", () => post("api/back", { form: validateForm })));
+      if (waiting) actions.push(button("Back", "ghost", () => post("api/back", { form: validateForm })),
+        button("Stop and store Python script for later", "ghost", submitSaveScript, { id: "save-script" }));
       actions.push(button(waiting ? "Match up and validate" : "Build the report", "primary",
         submitValidate, { id: "build" }));
     } else if (view === "point_time_res") {
@@ -3738,6 +3739,11 @@
         : noneTicked ? NONE_TICKED
         : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
         : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
+      const save = $("save-script");
+      if (save) {
+        save.disabled = build.disabled;
+        save.title = build.title || "Stop before anything is matched up, and keep the script to run later";
+      }
     }
   }
 
@@ -3759,6 +3765,26 @@
       refreshValidate();
       const first = Object.keys(validateErrors)[0];
       // the depth bins are a grid of boxes, rather than one
+      const box = first === "depth_bins" ? $("depth-bins-rows").querySelector("input") : first && $(`v-${first}`);
+      if (box) box.focus();
+    }
+  }
+
+  // stops before anything is matched up, keeping the script with the report options as they are
+  async function submitSaveScript() {
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length) return;
+    const ticked = tickedMatchups();
+    if (ticked && !ticked.length) return;
+    validateBusy = true;
+    refreshValidate();
+    const reply = await post("api/save_script", { form: validateForm });
+    validateBusy = false;
+    refreshValidate();
+    if (!reply.ok) {
+      validateErrors = reply.errors || {};
+      if (reply.error) toast(reply.error);
+      refreshValidate();
+      const first = Object.keys(validateErrors)[0];
       const box = first === "depth_bins" ? $("depth-bins-rows").querySelector("input") : first && $(`v-${first}`);
       if (box) box.focus();
     }

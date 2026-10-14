@@ -3395,15 +3395,11 @@ class App:
         question.respond(self._yes({}, question))
         return 200, {"ok": True}
 
-    def report(self, form):
-        """Take the report options of a matchup and validate run, from the
-        boxes of the step after the matchups are checked. They are written
-        into the script, and then matchup carries on - or, if it has run
-        already, the report is built. Returns the HTTP status and the reply
-        for the page."""
+    def _checked_report(self, form):
+        """The validate() arguments the boxes of the report options step
+        give, and the errors in them, as (report, errors). Called without
+        the lock held."""
         with self._lock:
-            if self.view != "report_options":
-                return 409, {"ok": False, "error": "This step is over."}
             self.validate_form = _form(form, default_validate_form())
             form = dict(self.validate_form)
         errors = {}
@@ -3420,10 +3416,52 @@ class App:
         # outside the lock: reading a regions file can take a moment
         report, report_errors = check_report(form, self.cwd)
         errors.update(report_errors)
+        if variables is not None and not errors:
+            report["variables"] = variables
+        return report, errors
+
+    def save_script(self, form):
+        """Stop at the report options step, before anything is matched up,
+        and keep the script, with the report options as they are in the
+        boxes, to be run later. Returns the HTTP status and the reply for
+        the page."""
+        with self._lock:
+            if self.view != "report_options" or self._held_matchups() is None:
+                return 409, {"ok": False, "error": "This step is over."}
+        report, errors = self._checked_report(form)
         if errors:
             return 400, {"ok": False, "errors": errors}
-        if variables is not None:
-            report["variables"] = variables
+        with self._lock:
+            if self.view != "report_options" or self._held_matchups() is None:
+                return 409, {"ok": False, "error": "This step is over."}
+            self.view = "running"
+            self.question = None
+            self.matchup_script_saved = True
+            writer = self._script_writer
+            self._notify()
+        if writer is not None:
+            write, choices = writer
+            try:
+                write(*choices, report=report)
+            except OSError as error:
+                self.console.write(
+                    f"The script could not be written again with the report options: {error}\n"
+                )
+        self.stop()
+        return 200, {"ok": True}
+
+    def report(self, form):
+        """Take the report options of a matchup and validate run, from the
+        boxes of the step after the matchups are checked. They are written
+        into the script, and then matchup carries on - or, if it has run
+        already, the report is built. Returns the HTTP status and the reply
+        for the page."""
+        with self._lock:
+            if self.view != "report_options":
+                return 409, {"ok": False, "error": "This step is over."}
+        report, errors = self._checked_report(form)
+        if errors:
+            return 400, {"ok": False, "errors": errors}
         with self._lock:
             if self.view != "report_options":
                 return 409, {"ok": False, "error": "This step is over."}
@@ -4162,6 +4200,9 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/report":
             self._reply_json(*app.report(payload.get("form")))
+            return
+        if path == "/api/save_script":
+            self._reply_json(*app.save_script(payload.get("form")))
             return
         if path == "/api/point_time_res":
             self._reply_json(*app.point_time_res(payload.get("form")))
