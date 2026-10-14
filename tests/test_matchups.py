@@ -668,3 +668,127 @@ class TestThicknessFile:
             "No variable named e3t was found in the simulation output. Give the exact "
             "name of the cell thickness variable as thickness, or a thickness file."
         )
+
+
+def _thickness_nc(path, name, time=True, positive="down", levels=3, vertical_coordinate=True):
+    """A small cell thickness file, with or without a time dimension"""
+    import numpy as np
+    import xarray as xr
+
+    dims = (("time_counter",) if time else ()) + ("deptht", "lat", "lon")
+    shape = ((1,) if time else ()) + (levels, 2, 2)
+    coords = {"lat": [50.0, 51.0], "lon": [-4.0, -3.0]}
+    if vertical_coordinate:
+        coords["deptht"] = np.arange(levels) + 0.5
+    if time:
+        coords["time_counter"] = [0.0]
+    ds = xr.Dataset({name: (dims, np.ones(shape))}, coords=coords)
+    ds.lat.attrs.update(units="degrees_north", standard_name="latitude")
+    ds.lon.attrs.update(units="degrees_east", standard_name="longitude")
+    if time:
+        ds.time_counter.attrs.update(units="seconds since 2000-01-01", standard_name="time")
+    if vertical_coordinate and positive:
+        ds.deptht.attrs["positive"] = positive
+    ds.to_netcdf(path)
+    return str(path)
+
+
+class TestStaticThickness:
+    """A cell thickness with no time dimension, such as NEMO's e3t_0"""
+
+    @pytest.fixture(autouse=True)
+    def one_core(self):
+        # nctoolkit's pools can hang, and is_z_up runs ncks through them
+        cores = nc.session.session_info["cores"]
+        nc.options(cores=1)
+        yield
+        nc.options(cores=cores)
+
+    @pytest.mark.parametrize("time", [True, False])
+    @pytest.mark.parametrize("positive, up", [("down", False), ("up", True)])
+    def test_the_direction_is_read_with_or_without_time(self, tmp_path, time, positive, up):
+        path = _thickness_nc(tmp_path / "e3t.nc", "e3t_0", time=time, positive=positive)
+
+        assert matchall.is_z_up(path, "e3t_0") is up
+
+    def test_no_positive_attribute_says_so(self, tmp_path):
+        path = _thickness_nc(tmp_path / "e3t.nc", "e3t_0", time=False, positive=None)
+
+        with pytest.raises(ValueError, match="vertical coordinate deptht of e3t_0 .* has no positive attribute"):
+            matchall.is_z_up(path, "e3t_0")
+
+    def test_no_vertical_coordinate_says_so(self, tmp_path):
+        path = _thickness_nc(tmp_path / "e3t.nc", "e3t_0", time=False, vertical_coordinate=False)
+
+        with pytest.raises(ValueError, match="has no vertical coordinate"):
+            matchall.is_z_up(path, "e3t_0")
+
+    def test_a_single_level_is_not_selected(self, tmp_path):
+        # an empty selection would leave CDO waiting for ever
+        one = nc.open_data(_thickness_nc(tmp_path / "one.nc", "e3t", levels=1), checks=False)
+        three = nc.open_data(_thickness_nc(tmp_path / "three.nc", "e3t"), checks=False)
+
+        with pytest.raises(ValueError, match="has only one vertical level"):
+            matchall._thickness_levels(one, "e3t", "e3t in one.nc")
+        assert matchall._thickness_levels(three, "e3t", "e3t in three.nc") == ["e3t"]
+
+    def test_the_thickness_is_picked_out_of_a_file(self, tmp_path):
+        import xarray as xr
+
+        single = _thickness_nc(tmp_path / "single.nc", "e3t_0", time=False)
+        assert matchall._thickness_from_file(single) == "e3t_0"
+
+        ds = xr.open_dataset(single).load()
+        ds["cell_thickness_t"] = ds.e3t_0
+        ds["e3t_0"] = ds.e3t_0 * 2
+        ds.to_netcdf(tmp_path / "named.nc")
+        assert matchall._thickness_from_file(str(tmp_path / "named.nc")) == "cell_thickness_t"
+
+        ds = ds.rename({"cell_thickness_t": "e3w_0"})
+        ds.to_netcdf(tmp_path / "two.nc")
+        with pytest.raises(ValueError, match=r"more than one variable \(.*e3t_0.*e3w_0"):
+            matchall._thickness_from_file(str(tmp_path / "two.nc"))
+
+    def test_a_mesh_file_thickness_cdo_cannot_read_says_so(self, tmp_path):
+        import numpy as np
+        import xarray as xr
+
+        # as in NEMO mesh files: 4D, with a first dimension that is not time
+        xr.Dataset({"e3t_0": (("t", "z", "y", "x"), np.ones((1, 3, 2, 2)))}).to_netcdf(tmp_path / "mesh.nc")
+
+        with pytest.raises(ValueError, match="e3t_0 in .* cannot be read by CDO"):
+            matchall._thickness_from_file(str(tmp_path / "mesh.nc"))
+
+    def test_a_static_thickness_file_gives_the_same_matchups(self, tmp_path):
+        import pandas as pd
+        import xarray as xr
+
+        # the example thickness without its time dimension
+        e3t = xr.open_dataset("data/example/e3t.nc", decode_times=False).load()
+        e3t.isel(time_counter=0, drop=True)[["e3t"]].to_netcdf(tmp_path / "e3t_static.nc")
+        # a few of the example observations, to keep it quick
+        obs = pd.read_csv("data/evaldata/point/nws/all/temperature/model_temperature.csv")
+        obs = obs.query("month == 1").iloc[::500]
+        os.makedirs(tmp_path / "obs")
+        obs.to_csv(tmp_path / "obs" / "obs.csv", index=False)
+
+        matchups = []
+        for name, thickness in [("time", "data/example/e3t.nc"), ("static", str(tmp_path / "e3t_static.nc"))]:
+            oceanval.reset()
+            oceanval.add_point_comparison(
+                name="temperature", source="foo", model_variable="votemper",
+                obs_path=str(tmp_path / "obs"), vertical=True, obs_adder=273.15,
+            )
+            oceanval.matchup(
+                sim_dir="data/example", start=2000, end=2000, ask=False,
+                thickness=thickness, cores=1, out_dir=str(tmp_path / name),
+            )
+            df = pd.read_csv(
+                tmp_path / name / "oceanval_matchups/point/all/temperature/foo/foo_all_temperature.csv"
+            )
+            columns = sorted(df.columns)
+            matchups.append(df.loc[:, columns].sort_values(columns).reset_index(drop=True))
+        oceanval.reset()
+
+        assert len(matchups[0]) > 0
+        pd.testing.assert_frame_equal(matchups[0], matchups[1])

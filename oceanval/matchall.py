@@ -62,7 +62,22 @@ def read_point(ff, nrows = None):
 
 
 
+def _axis_name(da, axis):
+    """The name of da's longitude, latitude or time coordinate, or None if it has none"""
+    try:
+        for x in da.metpy.coordinates(axis):
+            return x.name
+    except AttributeError:
+        return None
+
+
 def is_z_up(ff, variable=None):
+    """
+    Whether the first vertical level of variable (the file's first variable
+    if None) is at the bottom, as its vertical coordinate's positive
+    attribute says: True for "up", False for "down". The variable can have
+    a time dimension or not, as a static cell thickness has none.
+    """
     import netCDF4 as nc4
 
     try:
@@ -75,34 +90,80 @@ def is_z_up(ff, variable=None):
         ds1.nco_command(f"ncks -v {var}")
         ds1.run()
         ds = xr.open_dataset(ds1[0])
-        ds = ds
-        for x in ds[var].metpy.coordinates("longitude"):
-            lon_name = x.name
-        for x in ds[var].metpy.coordinates("latitude"):
-            lat_name = x.name
-        for x in ds[var].metpy.coordinates("time"):
-            time_name = x.name
-        coords = [
-            x for x in list(ds.coords) if x not in [lon_name, lat_name, time_name]
-        ]
+        horizontal = [_axis_name(ds[var], axis) for axis in ["longitude", "latitude", "time"]]
+        coords = [x for x in list(ds.coords) if x not in horizontal]
         coords = [x for x in coords if "time" not in x.lower()]
-
-        ds = nc4.Dataset(ff)
-        if len(coords) == 1:
-
-            z = ds.variables[coords[0]]
-            if hasattr(z, "positive"):
-                if z.positive == "down":
-                    return False
-                else:
-                    return True
+    except Exception:
         raise ValueError(
-            "Could not determine if z-axis is down from the provided file."
+            f"Could not read the vertical axis of {variable or 'the first variable'} in {ff}."
         )
-    except:
+
+    if len(coords) == 0:
         raise ValueError(
-            "Could not determine if z-axis is down from the provided file."
+            f"{var} in {ff} has no vertical coordinate, so OceanVal cannot tell whether "
+            "its first level is the surface."
         )
+    if len(coords) > 1:
+        raise ValueError(
+            f"{var} in {ff} has more than one possible vertical coordinate "
+            f"({', '.join(coords)}), so OceanVal cannot tell whether its first level is the surface."
+        )
+    with nc4.Dataset(ff) as ds:
+        z = ds.variables[coords[0]]
+        if not hasattr(z, "positive"):
+            raise ValueError(
+                f"The vertical coordinate {coords[0]} of {var} in {ff} has no positive "
+                "attribute, so OceanVal cannot tell whether its first level is the surface. "
+                'Add one: "down" if depths increase downwards, as in NEMO, e.g. '
+                f"ncatted -a positive,{coords[0]},c,c,down {ff}"
+            )
+        return z.positive != "down"
+
+
+def _thickness_from_file(path):
+    """
+    The name of the thickness variable in a thickness file: its only
+    variable, or the one with cell_thickness in its name.
+    """
+    import netCDF4 as nc4
+
+    variables = nc.open_data(path, checks=False).variables
+    # CDO, which OceanVal uses, leaves out a 4D variable whose first
+    # dimension is not a time axis, as e3t_0(t, z, y, x) in NEMO mesh files
+    with nc4.Dataset(path) as ds:
+        skipped = [name for name, x in ds.variables.items() if x.ndim == 4 and name not in variables]
+    if len(skipped) > 0:
+        raise ValueError(
+            f"{', '.join(skipped)} in {path} cannot be read by CDO, which OceanVal uses: it is "
+            "4D and its first dimension is not a time axis, as e3t_0(t, z, y, x) is in NEMO "
+            "mesh files. Give a file with only the thickness in it, without that dimension, "
+            f"e.g. made with: ncks -v {skipped[0]} {path} thickness_4d.nc && ncwa -a t thickness_4d.nc thickness.nc"
+        )
+    if len(variables) == 1:
+        return variables[0]
+    named = [x for x in variables if "cell_thickness" in x]
+    if len(named) == 1:
+        return named[0]
+    raise ValueError(
+        f"The thickness file {path} has more than one variable ({', '.join(variables)}), so "
+        "OceanVal cannot tell which is the cell thickness. Give a file with only the thickness "
+        f"in it, e.g. made with: ncks -v e3t {path} thickness.nc"
+    )
+
+
+def _thickness_levels(ds_thickness, thickness, label):
+    """
+    The selection of thickness from ds_thickness, as long as it has more
+    than one level: an empty selection would leave CDO waiting for ever
+    """
+    contents = ds_thickness.contents
+    var_sel = contents.loc[(contents.variable == thickness) & (contents.nlevels > 1)].variable
+    if len(var_sel) == 0:
+        raise ValueError(
+            f"The thickness, {label}, has only one vertical level as CDO reads it, so it "
+            "cannot be the cell thickness."
+        )
+    return list(var_sel)
 
 
 def _thickness_file(paths, thickness):
@@ -938,6 +999,8 @@ def matchup(
     thickness : str
         Path to a thickness file, i.e. cell vertical thickness or the name of the thickness variable. This only needs to be supplied if the variable is missing from the raw data.
         A name must be the variable's exact name in the model output, e.g. "e3t": a variable that only has it in its name, such as O3_c_e3t, is not used.
+        A thickness file must hold only the thickness variable (or one with cell_thickness in its name). The thickness can have a time dimension or not,
+        and its vertical coordinate needs a positive attribute ("down" for NEMO), to tell whether its first level is the surface.
         If the cell_thickness variable is in the raw data, it will be used, and thickness does not need to be supplied.
     n_dirs_down : int
         Number of levels down to look for netCDF files. Default is 2, ie. the files are of the format ``*/*/*.nc``.
@@ -1333,18 +1396,10 @@ def matchup(
             cell_thickness_found = False
             if thickness is not None and os.path.exists(thickness):
                 ds_thickness = nc.open_data(thickness, checks=False)
-                invert_thickness = is_z_up(ds_thickness[0])
-                if len(ds_thickness.variables) != 1:
-                    if (
-                        len(
-                            [x for x in ds_thickness.variables if "cell_thickness" in x]
-                        )
-                        == 0
-                    ):
-                        raise ValueError(
-                            "The thickness file has more than one variable and none include cell_thickness. Please provide a single variable!"
-                        )
-                ds_thickness.rename({ds_thickness.variables[0]: "cell_thickness"})
+                thickness_variable = _thickness_from_file(thickness)
+                invert_thickness = is_z_up(ds_thickness[0], thickness_variable)
+                ds_thickness.rename({thickness_variable: "cell_thickness"})
+                thickness_label = f"{thickness_variable} in {thickness}"
                 cell_thickness_found = True
                 thickness = "cell_thickness"
             else:
@@ -1358,6 +1413,7 @@ def matchup(
                     )
                 ff = _thickness_file(raw_options, thickness)
                 ds_thickness = nc.open_data(ff, checks=False)
+                thickness_label = f"{thickness} in {ff}"
                 cell_thickness_found = True
                 invert_thickness = is_z_up(ff, thickness)
 
@@ -1372,10 +1428,7 @@ def matchup(
                 else:
                     ds_thickness.subset(variables=thickness)
             ds_thickness.run()
-            contents = ds_thickness.contents
-            var_sel = contents.loc[
-                (contents.variable == thickness) & (contents.nlevels > 1)
-            ].variable
+            var_sel = _thickness_levels(ds_thickness, thickness, thickness_label)
             ds_thickness.subset(variables=var_sel)
             if session_info["as_missing"] is not None:
                 ds_thickness.as_missing(session_info["as_missing"])
