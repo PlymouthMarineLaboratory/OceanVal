@@ -10,7 +10,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from oceanval.ices import POINT_COLUMNS, _read_export, download_point_data, to_oceanval_format
+from oceanval import ices
+from oceanval.ices import (
+    POINT_COLUMNS,
+    _read_export,
+    download_point_data,
+    to_oceanval_format,
+    without_repeated_stations,
+)
 
 TEMP = "Temperature (TEMPPR01_UPAA) [degC]"
 DEPTH = "Depth (ADEPZZ01_ULAA) [m]"
@@ -227,3 +234,184 @@ def test_export_zip_is_read_past_the_comment_lines():
 
     assert list(raw.columns) == HEADER
     assert to_oceanval_format(raw, "TEMPPR01").observation.tolist() == [8.5]
+
+
+def _points(rows):
+    """Observations in oceanval's point columns, one (lon, lat, year, month,
+    day, depth, observation) row each."""
+    return pd.DataFrame(rows, columns=POINT_COLUMNS)
+
+
+def test_bottle_values_at_a_ctd_station_are_left_out():
+    ctd = _points([[3.6853, 54.8707, 2008, 3, 4, 1.0, 8.5]])
+    ice = _points(
+        [
+            [3.6853, 54.8707, 2008, 3, 4, 10.0, 8.0],  # the same cast, another depth
+            [3.6853, 54.8707, 2008, 3, 5, 1.0, 7.0],  # the next day
+            [3.8, 54.8707, 2008, 3, 4, 1.0, 6.0],  # elsewhere that day
+        ]
+    )
+
+    df = without_repeated_stations([("CTD", ctd), ("ICE", ice)])
+
+    assert df.observation.tolist() == [8.5, 7.0, 6.0]
+    assert list(df.index) == [0, 1, 2]
+
+
+def test_positions_the_same_to_a_hundredth_of_a_degree_are_one_station():
+    ctd = _points([[3.6853, 54.8707, 2008, 3, 4, 1.0, 8.5]])
+    ice = _points([[3.6851, 54.8711, 2008, 3, 4, 1.0, 8.0]])
+
+    df = without_repeated_stations([("CTD", ctd), ("ICE", ice)])
+
+    assert df.observation.tolist() == [8.5]
+
+
+def test_the_dataset_given_first_is_preferred():
+    ctd = _points([[3.6853, 54.8707, 2008, 3, 4, 1.0, 8.5]])
+    ice = _points([[3.6853, 54.8707, 2008, 3, 4, 10.0, 8.0]])
+
+    df = without_repeated_stations([("ICE", ice), ("CTD", ctd)])
+
+    assert df.observation.tolist() == [8.0]
+
+
+def test_stations_in_one_dataset_alone_are_all_kept():
+    ctd = _points([[3.6853, 54.8707, 2008, 3, 4, 1.0, 8.5], [3.6853, 54.8707, 2008, 3, 4, 2.0, 8.4]])
+
+    df = without_repeated_stations([("CTD", ctd)])
+
+    assert df.observation.tolist() == [8.5, 8.4]
+
+
+def test_datasets_without_observations_are_skipped():
+    ice = _points([[3.6853, 54.8707, 2008, 3, 4, 10.0, 8.0]])
+    empty = pd.DataFrame(columns=POINT_COLUMNS)
+
+    assert without_repeated_stations([("CTD", empty), ("ICE", ice)]).observation.tolist() == [8.0]
+    nothing = without_repeated_stations([("CTD", empty), ("ICE", empty)])
+    assert len(nothing) == 0
+    assert list(nothing.columns) == POINT_COLUMNS
+    assert len(without_repeated_stations([])) == 0
+
+
+def test_the_observations_left_out_are_counted(capsys):
+    ctd = _points([[3.6853, 54.8707, 2008, 3, 4, 1.0, 8.5]])
+    ice = _points([[3.6853, 54.8707, 2008, 3, 4, 10.0, 8.0], [3.6853, 54.8707, 2008, 3, 4, 20.0, 7.5]])
+
+    without_repeated_stations([("CTD", ctd), ("ICE", ice)])
+
+    assert capsys.readouterr().out == (
+        "2 ICES ICE observations at stations already in the CTD data were left out\n"
+    )
+
+
+def _export(rows):
+    return _export_zip(PREAMBLE + [",".join(HEADER)] + [",".join(str(x) for x in row) for row in rows])
+
+
+def _row_at(lon, **kwargs):
+    row = _row(**kwargs)
+    row[4] = lon
+    return row
+
+
+class _FakeIces:
+    """The ICES API, without the network: each dataset's export, and the
+    order jobs were started and waited on. A dataset whose export is None
+    has no data ("NotFound")."""
+
+    def __init__(self, exports):
+        self.exports = exports
+        self.calls = []
+
+    def start_job(self, session, criteria):
+        self.calls.append(("start", criteria["dataset"]))
+        return criteria["dataset"]
+
+    def wait_for_job(self, session, job_id):
+        self.calls.append(("wait", job_id))
+        return self.exports[job_id] is not None
+
+    def session(self):
+        fake = self
+
+        class Response:
+            def __init__(self, content):
+                self.content = content
+
+            def raise_for_status(self):
+                pass
+
+        class Session:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def get(self, url, timeout):
+                return Response(fake.exports[url.rsplit("/", 1)[1]])
+
+        return Session()
+
+
+@pytest.fixture
+def fake_ices(monkeypatch):
+    def install(exports):
+        fake = _FakeIces(exports)
+        monkeypatch.setattr(ices, "_start_job", fake.start_job)
+        monkeypatch.setattr(ices, "_wait_for_job", fake.wait_for_job)
+        monkeypatch.setattr(ices.requests, "Session", fake.session)
+        return fake
+
+    return install
+
+
+def test_every_dataset_is_downloaded_and_repeated_stations_left_out(fake_ices):
+    fake = fake_ices(
+        {
+            "CTD": _export([_row(depth=1.0, temp=8.5), _row(depth=2.0, temp=8.4)]),
+            "ICE": _export([_row(depth=10.0, temp=8.0), _row_at(3.8, depth=1.0, temp=6.0)]),
+        }
+    )
+
+    df = download_point_data(
+        {"parameter": "TEMPPR01", "dataset": ["CTD", "ICE"]}, 2008, 2008, [3, 4], [54, 55]
+    )
+
+    assert df.observation.tolist() == [8.5, 8.4, 6.0]
+    # both exports are asked for before either is waited on
+    assert fake.calls == [("start", "CTD"), ("start", "ICE"), ("wait", "CTD"), ("wait", "ICE")]
+
+
+def test_a_dataset_without_data_is_skipped(fake_ices, capsys):
+    fake_ices({"CTD": None, "ICE": _export([_row(depth=10.0, temp=8.0)])})
+
+    df = download_point_data(
+        {"parameter": "TEMPPR01", "dataset": ["CTD", "ICE"]}, 2008, 2008, [3, 4], [54, 55]
+    )
+
+    assert df.observation.tolist() == [8.0]
+    assert "ICES has no CTD data for these years and this area" in capsys.readouterr().out
+
+
+def test_a_single_dataset_is_downloaded_as_before(fake_ices):
+    fake = fake_ices({"ICE": _export([_row(depth=10.0, temp=8.0), _row(depth=20.0, temp=7.5)])})
+
+    df = download_point_data({"parameter": "TEMPPR01", "dataset": "ICE"}, 2008, 2008, [3, 4], [54, 55])
+
+    assert df.observation.tolist() == [8.0, 7.5]
+    assert list(df.columns) == POINT_COLUMNS
+    assert fake.calls == [("start", "ICE"), ("wait", "ICE")]
+
+
+def test_no_data_in_any_dataset_gives_empty_point_columns(fake_ices):
+    fake_ices({"CTD": None, "ICE": None})
+
+    df = download_point_data(
+        {"parameter": "TEMPPR01", "dataset": ["CTD", "ICE"]}, 2008, 2008, [3, 4], [54, 55]
+    )
+
+    assert len(df) == 0
+    assert list(df.columns) == POINT_COLUMNS

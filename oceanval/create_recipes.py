@@ -286,8 +286,8 @@ RECIPE_CATALOGUE = tuple(
 # commented-out - ICES has no global equivalent, so there is nothing useful
 # to show a global-domain user.
 _ICES_RECIPES = (
-    ("temperature", "Temperature", "High resolution CTD profiles", "degrees Celsius"),
-    ("salinity", "Salinity", "High resolution CTD profiles", "practical salinity units"),
+    ("temperature", "Temperature", "CTD profiles and bottle data", "degrees Celsius"),
+    ("salinity", "Salinity", "CTD profiles and bottle data", "practical salinity units"),
     ("alkalinity", "Total Alkalinity", "Bottle and low resolution CTD data", "milliequivalents per litre"),
     ("ammonium", "Ammonium", "Bottle and low resolution CTD data", "micromoles per litre"),
     ("chlorophyll", "Chlorophyll", "Bottle and low resolution CTD data", "micrograms per litre"),

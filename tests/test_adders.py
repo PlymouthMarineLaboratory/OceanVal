@@ -735,7 +735,7 @@ class TestPointRecipes:
         assert variable.long_name == "sea water temperature"
         assert "In-situ observations from the ICES" in variable.sources["ICES"]
         comparison = variable.point_comparisons["ICES"]
-        assert comparison["recipe"] == {"parameter": "TEMPPR01", "dataset": "CTD"}
+        assert comparison["recipe"] == {"parameter": "TEMPPR01", "dataset": ["CTD", "ICE"]}
         assert comparison["obs_path"] is None
         assert comparison["vertical"] is True
 

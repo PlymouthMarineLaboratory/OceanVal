@@ -1,8 +1,10 @@
 """Download point observations from the ICES oceanographic database.
 
 Talks to the public API behind https://ocean.ices.dk: an export job is
-queued, polled until it finishes, and its zipped ODV-style csv is read
-straight into a dataframe in oceanval's point format.
+queued for each ICES dataset a recipe uses, polled until it finishes, and
+its zipped ODV-style csv is read straight into a dataframe in oceanval's
+point format. A recipe using more than one dataset gets them joined, leaving
+out what a later dataset has at a station an earlier one already has.
 """
 
 import io
@@ -164,17 +166,59 @@ def to_oceanval_format(raw, parameter_code):
     ).reset_index(drop=True)
 
 
-def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
-    """Download an ICES recipe's observations for the given years and box.
+# stations are told apart by their date and their position to this many
+# decimal places of a degree (about 1 km)
+STATION_DECIMALS = 2
 
-    recipe is the dict stored by add_point_comparison, with the ICES
-    "parameter" code and "dataset" code to request.
+
+def _station_keys(df):
+    return pd.MultiIndex.from_arrays(
+        [
+            df["lon"].astype(float).round(STATION_DECIMALS),
+            df["lat"].astype(float).round(STATION_DECIMALS),
+            df["year"].astype(int),
+            df["month"].astype(int),
+            df["day"].astype(int),
+        ]
+    )
+
+
+def without_repeated_stations(frames):
+    """Join the observations of several ICES datasets, given as (dataset,
+    dataframe) pairs in order of preference, leaving out those of a dataset
+    at a station one before it already has.
+
+    Bottles are fired on CTD casts, so the same cast can be in both the CTD
+    and the bottle dataset, with the same values, under a different cruise
+    or station name. So a station is its date and position, which keeps a
+    cast from being counted twice.
     """
-    # the comparison's start/end can fall outside the simulation's years
-    if start_year > end_year:
+    kept = []
+    seen = None
+    for i, (dataset, df) in enumerate(frames):
+        if len(df) == 0:
+            continue
+        keys = _station_keys(df)
+        if seen is not None:
+            repeated = keys.isin(seen)
+            if repeated.any():
+                earlier = " and ".join(x for x, _ in frames[:i])
+                print(
+                    f"{int(repeated.sum())} ICES {dataset} observations at stations already "
+                    f"in the {earlier} data were left out"
+                )
+            df = df.loc[~repeated]
+            keys = keys[~repeated]
+        kept.append(df)
+        seen = keys if seen is None else seen.append(keys)
+    if len(kept) == 0:
         return pd.DataFrame(columns=POINT_COLUMNS)
-    criteria = {
-        "dataset": recipe["dataset"],
+    return pd.concat(kept, ignore_index=True)
+
+
+def _criteria(dataset, start_year, end_year, lon_lim, lat_lim):
+    return {
+        "dataset": dataset,
         "dateFrom": f"{int(start_year)}-01-01",
         "dateTo": f"{int(end_year)}-12-31",
         "longitudeWest": float(lon_lim[0]),
@@ -186,18 +230,45 @@ def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
         "useISO8601": True,
         "includeOriginalVariables": False,
     }
+
+
+def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
+    """Download an ICES recipe's observations for the given years and box.
+
+    recipe is the dict stored by add_point_comparison, with the ICES
+    "parameter" code and "dataset" code to request. The dataset can be a
+    list of codes in order of preference: one export is asked for from
+    each, and they are joined by without_repeated_stations.
+    """
+    # the comparison's start/end can fall outside the simulation's years
+    if start_year > end_year:
+        return pd.DataFrame(columns=POINT_COLUMNS)
+    datasets = recipe["dataset"]
+    if isinstance(datasets, str):
+        datasets = [datasets]
     print(
-        f"Downloading ICES {recipe['dataset']} data ({recipe['parameter']}) for "
+        f"Downloading ICES {' and '.join(datasets)} data ({recipe['parameter']}) for "
         f"{int(start_year)}-{int(end_year)}, lon {lon_lim}, lat {lat_lim}"
     )
+    frames = []
     with requests.Session() as session:
-        job_id = _start_job(session, criteria)
-        if not _wait_for_job(session, job_id):
-            print("ICES has no data for these years and this area")
-            return pd.DataFrame(columns=POINT_COLUMNS)
-        resp = session.get(f"{API_BASE}/Download/GetStationDataFile/{job_id}", timeout=600)
-        resp.raise_for_status()
+        # every export is asked for before waiting on any, so ICES
+        # prepares them side by side
+        jobs = [
+            (dataset, _start_job(session, _criteria(dataset, start_year, end_year, lon_lim, lat_lim)))
+            for dataset in datasets
+        ]
+        for dataset, job_id in jobs:
+            if not _wait_for_job(session, job_id):
+                print(f"ICES has no {dataset} data for these years and this area")
+                continue
+            resp = session.get(f"{API_BASE}/Download/GetStationDataFile/{job_id}", timeout=600)
+            resp.raise_for_status()
+            df = to_oceanval_format(_read_export(resp.content), recipe["parameter"])
+            if len(datasets) > 1:
+                print(f"{len(df)} ICES {dataset} observations passed quality control")
+            frames.append((dataset, df))
 
-    df = to_oceanval_format(_read_export(resp.content), recipe["parameter"])
+    df = without_repeated_stations(frames)
     print(f"Downloaded {len(df)} ICES observations that passed quality control")
     return df

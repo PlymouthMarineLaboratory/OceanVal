@@ -143,8 +143,8 @@ and the ``lon_lim``/``lat_lim`` area given to ``matchup``. If no ``lon_lim`` and
    :header: "Region", "Variable", "Recipe", "Dataset", "Units", "Water-column"
    :widths: 18, 14, 12, 28, 10, 12
 
-   "Northeast Atlantic", "Temperature", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, high resolution CTD profiles", "°C", "Yes"
-   "Northeast Atlantic", "Salinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, high resolution CTD profiles", "dimensionless", "Yes"
+   "Northeast Atlantic", "Temperature", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "°C", "Yes"
+   "Northeast Atlantic", "Salinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "dimensionless", "Yes"
    "Northeast Atlantic", "Total Alkalinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "mEq/l", "Yes"
    "Northeast Atlantic", "Ammonium", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
    "Northeast Atlantic", "Chlorophyll", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µg/l", "Yes"
@@ -159,13 +159,15 @@ and the ``lon_lim``/``lat_lim`` area given to ``matchup``. If no ``lon_lim`` and
 How ICES data is treated
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-**What is downloaded.** For each comparison, OceanVal asks ICES for one
-export: every profile in the ``lon_lim``/``lat_lim`` area (or the model's own
+**What is downloaded.** For each comparison, OceanVal asks ICES for an
+export of every profile in the ``lon_lim``/``lat_lim`` area (or the model's own
 extent) in the years where the simulation and the comparison's ``start`` and
-``end`` overlap. Temperature and salinity come from the high resolution CTD
-profiles, everything else from the bottle and low resolution CTD data. The
-export holds every variable measured at those profiles, so large areas or long
-periods make for a large download.
+``end`` overlap. Everything but temperature and salinity comes from the bottle
+and low resolution CTD data. Temperature and salinity take two exports, one of
+the high resolution CTD profiles and one of the bottle and low resolution CTD
+data, which are joined (see *Profiles in both datasets* below). An export holds
+every variable measured at its profiles, so large areas or long periods make for
+a large download.
 
 **Which values are used.** Each variable is read from one ICES parameter code.
 ICES splits some analytes over several codes, by method, and only the code
@@ -175,8 +177,8 @@ below is used: nitrate is nitrate alone, for example, not nitrate+nitrite.
    :header: "Variable", "ICES parameter code", "ICES dataset"
    :widths: 30, 35, 35
 
-   "Temperature", "``TEMPPR01``", "CTD"
-   "Salinity", "``PSALPR01``", "CTD"
+   "Temperature", "``TEMPPR01``", "CTD and bottle"
+   "Salinity", "``PSALPR01``", "CTD and bottle"
    "Total Alkalinity", "``ALKYZZXX``", "Bottle"
    "Ammonium", "``AMONZZXX``", "Bottle"
    "Chlorophyll", "``CPHLZZXX``", "Bottle"
@@ -185,6 +187,13 @@ below is used: nitrate is nitrate alone, for example, not nitrate+nitrite.
    "pH", "``PHXXZZXX``", "Bottle"
    "Phosphate", "``PHOSZZXX``", "Bottle"
    "Silicate", "``SLCAZZXX``", "Bottle"
+
+**Profiles in both datasets.** Bottles are fired on CTD casts, so a cast can be
+in both the CTD and the bottle data, with the same values. For temperature and
+salinity, bottle values at a station the CTD data already has (the same date,
+and the same position to 0.01°) are left out, so each cast is counted once, and
+``matchup`` says how many were. The bottle data adds the stations without a CTD
+profile, which are many in older years.
 
 **Quality flags.** A value is kept only if its own quality flag and the flag of
 its depth are both 0 (good). Values flagged 1 (unknown quality), 4
@@ -201,8 +210,8 @@ observation dated only to the month or the year, or whose time cannot be read,
 is left out rather than given a day, and ``matchup`` says how many were.
 
 **Values.** Values are used as ICES gives them, in the units in the table
-above. OceanVal does not screen them for range or remove duplicates beyond the
-quality flags. ICES revises its data, so a later download can differ.
+above. OceanVal does not screen them for range or remove duplicates, beyond the
+quality flags and the repeated stations above. ICES revises its data, so a later download can differ.
 
 Dataset notes
 -------------

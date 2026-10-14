@@ -174,8 +174,8 @@ def test_invalid_recipe_definitions_raise(recipe, message):
 
 
 ICES_RECIPE_CASES = [
-    ("temperature", "TEMPPR01", "CTD", "Temperature"),
-    ("salinity", "PSALPR01", "CTD", "Salinity"),
+    ("temperature", "TEMPPR01", ["CTD", "ICE"], "Temperature"),
+    ("salinity", "PSALPR01", ["CTD", "ICE"], "Salinity"),
     ("alkalinity", "ALKYZZXX", "ICE", "Total Alkalinity"),
     ("ammonium", "AMONZZXX", "ICE", "Ammonium"),
     ("chlorophyll", "CPHLZZXX", "ICE", "Chlorophyll"),

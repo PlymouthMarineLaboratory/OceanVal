@@ -233,7 +233,7 @@ oceanval.add_gridded_comparison(
 
 # Temperature - ICES Oceanographic database (https://ocean.ices.dk)
 # recipe: 'ices'
-# High resolution CTD profiles, reported in degrees Celsius.
+# CTD profiles and bottle data, reported in degrees Celsius.
 # Only observations with good (quality flag 0) flags are kept.
 oceanval.add_point_comparison(
     name="temperature",
@@ -244,7 +244,7 @@ oceanval.add_point_comparison(
 
 # Salinity - ICES Oceanographic database (https://ocean.ices.dk)
 # recipe: 'ices'
-# High resolution CTD profiles, reported in practical salinity units.
+# CTD profiles and bottle data, reported in practical salinity units.
 # Only observations with good (quality flag 0) flags are kept.
 oceanval.add_point_comparison(
     name="salinity",

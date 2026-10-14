@@ -249,13 +249,15 @@ def find_recipe(x, start=None, end=None, cwd=None):
         output["source_info"] = "In-situ observations from the ICES Oceanographic database (https://ocean.ices.dk), International Council for the Exploration of the Sea, Copenhagen. Licensed under CC BY 4.0."
         output["name"] = name.lower()
         output["point"] = True
+        # temperature and salinity are in both the CTD and the bottle
+        # datasets, listed in order of preference (see ices.py)
         if name.lower() == "temperature":
             output["ices_parameter"] = "TEMPPR01"
-            output["ices_dataset"] = "CTD"
+            output["ices_dataset"] = ["CTD", "ICE"]
             return output
         if name.lower() == "salinity":
             output["ices_parameter"] = "PSALPR01"
-            output["ices_dataset"] = "CTD"
+            output["ices_dataset"] = ["CTD", "ICE"]
             return output
         if name.lower() == "alkalinity":
             output["ices_parameter"] = "ALKYZZXX"
