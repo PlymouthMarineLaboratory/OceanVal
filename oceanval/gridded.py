@@ -592,7 +592,7 @@ def gridded_matchup(
 
                     if len(month_sel) < 12:
                         try:
-                            months = ds.months
+                            months = ds_obs.months
                             if len(months) > 1:
                                 ds_obs.subset(months=month_sel)
                         except:
