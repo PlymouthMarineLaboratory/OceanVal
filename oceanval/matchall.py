@@ -508,7 +508,24 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
 
 example_files = dict()
 
-def get_time_res(x, folder=None):
+
+def _stream_files(paths, example, strict_names, exclude=(), require=None):
+    """The files in paths that belong to one output stream, whose example
+    file is example: those the file filters keep and, with strict_names, whose
+    names are as long as the example's. A "*" in a pattern also matches the
+    words that tell a stream's sibling apart, as in grid_T_globmean_*.nc beside
+    grid_T_*.nc, and only the length of the name does."""
+    for req in require or ():
+        paths = [x for x in paths if f"{req}" in os.path.basename(x)]
+    for exc in exclude or ():
+        paths = [x for x in paths if f"{exc}" not in os.path.basename(x)]
+    if strict_names and example is not None:
+        len_example = len(os.path.basename(example))
+        paths = [x for x in paths if len(os.path.basename(x)) == len_example]
+    return paths
+
+
+def get_time_res(x, folder=None, exclude=()):
     """
     Get the time resolution of the netCDF files
 
@@ -518,6 +535,9 @@ def get_time_res(x, folder=None):
         The extension of the file
     folder : str
         The folder containing the netCDF files
+    exclude : list
+        Words that leave out the files whose names have them, as matchup's
+        exclude does
 
     Returns
     -------------
@@ -539,13 +559,29 @@ def get_time_res(x, folder=None):
 
     wild_card = os.path.basename(wild_card)
     paths = sorted(str(y) for y in pathlib.Path(folder).glob(wild_card))
+    # the files matchup reads for the pattern, and no others
+    paths = _stream_files(
+        paths,
+        example_files.get(x),
+        session_info.get("strict_names", True),
+        exclude,
+        session_info.get("require"),
+    ) or paths
 
     # output with one time in each file says nothing about its resolution
-    # alone, so the times of the next files are added to it
+    # alone, so the times of the next files are added to it. A file with the
+    # times of one already read is another output of the same period, not
+    # later times of this one
     df_times = []
-    for path in paths[:3]:
-        df_times.append(_file_times(path))
-        if len(pd.concat(df_times)) > 1:
+    read = []
+    for path in paths[:6]:
+        times = _file_times(path)
+        dates = list(zip(times.year, times.month, times.day))
+        if dates in read:
+            continue
+        read.append(dates)
+        df_times.append(times)
+        if len(pd.concat(df_times)) > 1 or len(read) >= 3:
             break
     df_times = pd.concat(df_times).reset_index(drop=True)
 
@@ -803,15 +839,13 @@ def _files_found(sim_dir, patterns, exclude, require, strict_names):
     final_extension = extension_of_directory(sim_dir)
     found = dict()
     for pattern in patterns:
-        paths = glob.glob(sim_dir + final_extension + pattern)
-        if require is not None:
-            for req in require:
-                paths = [x for x in paths if f"{req}" in os.path.basename(x)]
-        for exc in exclude:
-            paths = [x for x in paths if f"{exc}" not in os.path.basename(x)]
-        if strict_names:
-            len_example = len(os.path.basename(example_files[pattern]))
-            paths = [x for x in paths if len(os.path.basename(x)) == len_example]
+        paths = _stream_files(
+            glob.glob(sim_dir + final_extension + pattern),
+            example_files[pattern] if strict_names else None,
+            strict_names,
+            exclude,
+            require,
+        )
         found[pattern] = sorted(x for x in paths if "restart" not in x)
     return found
 
@@ -949,7 +983,7 @@ def extract_variable_mapping(folder, exclude=[], n_check=None):
     patterns = set(all_df.pattern)
     resolution_dict = dict()
     for folder in patterns:
-        resolution_dict[folder] = get_time_res(folder, new_directory)
+        resolution_dict[folder] = get_time_res(folder, new_directory, exclude)
     all_df["time_res"] = [resolution_dict[x] for x in all_df.pattern]
 
     # the finest output holding each variable
@@ -1940,19 +1974,12 @@ def matchup(
 
             for pattern in patterns:
                 final_extension = extension_of_directory(sim_dir)
-                ensemble = glob.glob(sim_dir + final_extension + pattern)
-                for exc in exclude:
-                    ensemble = [
-                        x for x in ensemble if f"{exc}" not in os.path.basename(x)
-                    ]
-                # find length of example file
-                if strict_names:
-                    len_example = len(os.path.basename(example_files[pattern]))
-                    ensemble = [
-                        x
-                        for x in ensemble
-                        if len(os.path.basename(x)) == len_example
-                    ]
+                ensemble = _stream_files(
+                    glob.glob(sim_dir + final_extension + pattern),
+                    example_files[pattern] if strict_names else None,
+                    strict_names,
+                    exclude,
+                )
 
                 df_times = []
                 days = []
