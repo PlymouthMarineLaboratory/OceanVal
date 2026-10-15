@@ -30,7 +30,7 @@ with open("requirements.txt") as f:
     REQUIREMENTS = [i.strip() for i in f if i.strip()]
 
 setup(name='oceanval',
-      version='0.5.8',
+      version='0.6.0',
       description=DESCRIPTION,
       long_description=LONG_DESCRIPTION,
       long_description_content_type="text/markdown",
