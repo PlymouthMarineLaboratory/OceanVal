@@ -15,8 +15,9 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    aspect-ratio: 2.65;
     gap: 10px;
-    padding: 22px 24px;
+    padding: 40px 24px 22px;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
     background: var(--bg);
@@ -40,14 +41,14 @@
     color: var(--teal-600);
   }
   .choice__icon svg { width: 24px; height: 24px; }
-  .choice__title { font: 600 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
-  .choice__text { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .choice__title { font: 600 20px/1.3 var(--font-head); letter-spacing: -0.2px; }
+  .choice__text { color: var(--muted); font-size: 16px; line-height: 1.5; }
   /* the demo, below the four, across both columns */
-  .choice.is-demo { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 18px; border-style: dashed; border-color: var(--teal-200); background: var(--teal-50); box-shadow: none; }
+  .choice.is-demo { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 18px; padding-top: 22px; border-style: dashed; border-color: var(--teal-200); background: var(--teal-50); box-shadow: none; }
   .choice.is-demo .choice__icon { flex: none; margin: 0; background: var(--bg); }
   .choice.is-demo .choice__body { display: grid; gap: 4px; }
   /* registering recipes of your own: across both columns, between the four and the demo */
-  .choice.is-register { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 18px; }
+  .choice.is-register { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 18px; padding-top: 22px; }
   .choice.is-register .choice__icon { flex: none; margin: 0; }
   .choice.is-register .choice__body { display: grid; gap: 4px; }
 
@@ -103,7 +104,7 @@
   #view-own:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
   #view-own .own-question { margin: 0 0 32px; font: 600 34px/1.25 var(--font-head); letter-spacing: -0.4px; text-align: center; }
   #view-own .choices.is-two { width: 100%; max-width: 980px; gap: 28px; }
-  #view-own .choice { align-items: center; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: center; text-align: center; }
+  #view-own .choice { align-items: center; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: center; text-align: center; }
   #view-own .choice__icon { width: 64px; height: 64px; margin-bottom: 6px; border-radius: 16px; }
   #view-own .choice__icon svg { width: 32px; height: 32px; }
   #view-own .choice__title { font-size: 24px; }
@@ -556,6 +557,7 @@
 
   @media (max-width: 1000px) {
     .choices { grid-template-columns: 1fr; }
+    .choice, .choice.is-demo, .choice.is-register { aspect-ratio: auto; }
   }
   @media (max-width: 760px) {
     .picker { padding: 10px; }
@@ -745,7 +747,7 @@
   }
 
   /* ---- the settings: a button beside the wordmark, and a panel over nearly all the page ---- */
-  .settings-open {
+  .settings-open, .info-open {
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -762,10 +764,12 @@
     cursor: pointer;
     transition: background-color 0.15s, border-color 0.15s;
   }
-  .settings-open:hover { border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.16); }
-  .settings-open:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
+  .info-open { margin-left: 5px; }
+  .settings-open:hover, .info-open:hover { border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.16); }
+  .settings-open:focus-visible, .info-open:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
   .settings-open__icon { display: inline-flex; width: 17px; height: 17px; }
-  .settings-open__icon svg { width: 100%; height: 100%; }
+  .info-open__icon { display: inline-flex; width: 24px; height: 24px; }
+  .settings-open__icon svg, .info-open__icon svg { width: 100%; height: 100%; }
   .settings__card { max-width: none; height: 100%; max-height: none; }
   .settings__head { padding: 24px 32px 18px; border-bottom: 1px solid var(--line); }
   .settings__head h2 { margin: 0; font: 600 24px/1.25 var(--font-head); letter-spacing: -0.3px; }
@@ -810,7 +814,22 @@
     .settings { padding: 10px; }
     .settings__head, .settings__body, .settings__foot { padding-left: 16px; padding-right: 16px; }
     .settings-open { margin-left: 6px; }
+    .info-open { margin-left: 3px; }
   }
+
+  /* ---- the info: links, and the built-in datasets ---- */
+  .info__links { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
+  .info__links a { color: var(--teal-700); font-weight: 600; text-underline-offset: 2px; }
+  .info__links a:hover { color: var(--teal-900); }
+  .info__table-wrap { overflow-x: auto; max-width: 1040px; border: 1px solid var(--line); border-radius: 12px; }
+  .info__table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; }
+  .info__table th, .info__table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  .info__table th { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .info__table tbody tr:last-child td { border-bottom: 0; }
+  .info__table code { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
+  .info__table a { color: var(--teal-700); text-underline-offset: 2px; }
+  .info__table .is-no { color: var(--muted); }
+  .info__subtitle { margin: 18px 0 8px; font: 600 15px/1.3 var(--font-head); }
 </style>
 </head>
 <body>
@@ -820,6 +839,7 @@
     <div class="brand">
       <span class="brand__word">Ocean<span>Val</span></span>
       <button type="button" class="settings-open" id="settings-open" aria-haspopup="dialog" aria-controls="settings" aria-label="Preferences" title="Preferences"><span class="settings-open__icon" data-icon="settings" aria-hidden="true"></span></button>
+      <button type="button" class="info-open" id="info-open" aria-haspopup="dialog" aria-controls="info" aria-label="About OceanVal" title="About OceanVal"><span class="info-open__icon" data-icon="info" aria-hidden="true"></span></button>
     </div>
     <h1 id="title">Validate an ocean model</h1>
     <ul class="meta" id="meta" aria-label="Where OceanVal is working"></ul>
@@ -1458,6 +1478,35 @@
   </div>
 </div>
 
+<div class="picker settings" id="info" hidden>
+  <div class="picker__card settings__card" role="dialog" aria-modal="true" aria-labelledby="info-title">
+    <div class="settings__head">
+      <h2 id="info-title">About OceanVal</h2>
+      <p class="settings__where" id="info-version"></p>
+    </div>
+    <div class="settings__body">
+      <fieldset class="settings__group">
+        <legend class="settings__legend">Links</legend>
+        <ul class="info__links">
+          <li><a href="https://pmlmodelling.github.io/OceanVal/" target="_blank" rel="noopener" id="info-website">The OceanVal website</a></li>
+          <li><a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" id="info-github">OceanVal on GitHub</a></li>
+        </ul>
+      </fieldset>
+      <fieldset class="settings__group">
+        <legend class="settings__legend">Built-in datasets</legend>
+        <p class="settings__hint">The observational datasets OceanVal can compare a simulation with. Water-column means the whole water column can be validated, not just the surface.</p>
+        <h3 class="info__subtitle">Gridded data</h3>
+        <div class="info__table-wrap" id="info-gridded"></div>
+        <h3 class="info__subtitle">Point data</h3>
+        <div class="info__table-wrap" id="info-point"></div>
+      </fieldset>
+    </div>
+    <div class="picker__foot settings__foot">
+      <button type="button" class="btn btn--primary" id="info-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" hidden></div>
 <datalist id="own-variable-options"></datalist>
 
@@ -1484,6 +1533,7 @@
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11.5v5M9.5 14h5"/></svg>',
     settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 17v-6M12 7.5h.01" stroke-width="2.6"/></svg>',
     warn: ICONS.warn,
     check: ICONS.check,
   };
@@ -1540,7 +1590,7 @@
   function title() {
     const run = state.run;
     switch (state.view) {
-      case "start": return "Validate an ocean model";
+      case "start": return "";  // the cards speak for themselves
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
       case "setup": return "What kind of datasets do you want to use for validation?";
@@ -5350,6 +5400,47 @@
     if (event.key === "Escape") {
       event.preventDefault();
       closeSettings();
+    }
+  });
+
+  // ---- the info: the website, GitHub and the built-in datasets ----
+  function datasetTable(rows) {
+    const head = ["Region", "Variable", "Dataset", "Water-column", "Units"];
+    return el("table", { class: "info__table" },
+      el("thead", {}, el("tr", {}, ...head.map((name) => el("th", { scope: "col", text: name })))),
+      el("tbody", {}, ...rows.map((row) => el("tr", {},
+        el("td", { text: row.region }),
+        el("td", { text: row.variable }),
+        el("td", {}, row.url
+          ? el("a", { href: row.url, target: "_blank", rel: "noopener", text: row.dataset })
+          : row.dataset),
+        el("td", { class: row.water_column ? null : "is-no", text: row.water_column ? "Yes" : "No" }),
+        el("td", {}, el("code", { text: row.units }))))));
+  }
+
+  function openInfo() {
+    const datasets = state.datasets || [];
+    $("info-gridded").replaceChildren(datasetTable(datasets.filter((row) => !row.point)));
+    $("info-point").replaceChildren(datasetTable(datasets.filter((row) => row.point)));
+    $("info-version").textContent = `Version ${state.oceanval_version}`;
+    $("info").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    $("info-website").focus();
+  }
+
+  function closeInfo() {
+    $("info").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+    $("info-open").focus();
+  }
+
+  $("info-open").addEventListener("click", openInfo);
+  $("info-close").addEventListener("click", closeInfo);
+  $("info").addEventListener("click", (event) => { if (event.target === $("info")) closeInfo(); });
+  $("info").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeInfo();
     }
   });
 

@@ -153,7 +153,8 @@ The cog beside the OceanVal name at the top left of the window (**Preferences**)
 the window looks (Default, Dark, Silver or Blue) and whether the first page
 offers **Try a demo**. They are kept under `"settings"` in the `.oceanvalrc`
 file in your home directory (or the file `OCEANVALRC` names), and read each
-time the window opens.
+time the window opens. The **i** beside it shows the version of OceanVal, links to the website and
+GitHub, and the built-in datasets.
 
 Outside the window, `matchup(live_validation=...)` builds the same interim
 report (HTML only, in `oceanval_interim_report`), with `True` or a dict of

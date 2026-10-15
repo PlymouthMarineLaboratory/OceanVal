@@ -46,6 +46,7 @@ import mimetypes
 import os
 import queue
 import random
+import re
 import secrets
 import select
 import shlex
@@ -64,6 +65,8 @@ from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
 from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
+    POINT_RECIPE_CATALOGUE,
+    RECIPE_CATALOGUE,
     _create_recipes,
     _literal,
     _unknown_variables,
@@ -72,6 +75,47 @@ from oceanval.create_recipes import (
     simulation_years,
 )
 from oceanval.parsers import find_recipe
+
+
+# the regions of the built-in recipes, as https://pmlmodelling.github.io/OceanVal/recipes.html
+# names them (the ICES catalogue entries carry none)
+_DATASET_REGIONS = {"Northwest European Shelf": "NW European Shelf"}
+_POINT_DATASET_REGION = "Northeast Atlantic"
+# the web pages of the datasets whose catalogue entries give none, or a better one
+_DATASET_URLS = {
+    "nsbc": "https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html",
+    "ices": "https://www.ices.dk/data/data-portals/Pages/ocean.aspx",
+}
+_DATASET_NOTE = re.compile(r"^(?P<title>.+?) - (?P<dataset>.+?)(?: \((?P<url>https?://\S+)\))?$")
+
+
+def builtin_datasets():
+    """The built-in recipes for the Info panel's table: what the recipes
+    page of the website lists, a dict of the region, variable, recipe,
+    dataset (and its url, if there is one), whether it is water-column
+    ("vertical" is an option) and the units, for the gridded recipes and then
+    the point ones. The user's own recipes are left out."""
+    rows = []
+    for point, catalogue in ((False, RECIPE_CATALOGUE), (True, POINT_RECIPE_CATALOGUE)):
+        for entry in catalogue:
+            note = _DATASET_NOTE.match(entry["notes"][0])
+            region = entry.get("region")
+            rows.append(
+                {
+                    "point": point,
+                    "region": _POINT_DATASET_REGION if point else _DATASET_REGIONS.get(region, region),
+                    "variable": note["title"],
+                    "recipe": entry["recipe"],
+                    "dataset": note["dataset"],
+                    "url": _DATASET_URLS.get(entry["recipe"], note["url"]),
+                    "water_column": any("vertical" in line for line in entry["arguments"]),
+                    "units": entry["units"],
+                }
+            )
+    return rows
+
+
+BUILTIN_DATASETS = builtin_datasets()
 
 # what the first step offers: the last registers recipes of your own (see
 # oceanval.user_recipes), which is not a run
@@ -1582,6 +1626,9 @@ class App:
                     "files": self.leftovers,
                 },
                 "interim": self._interim_state(),
+                # the version is setup.py's: the installed package's metadata, never typed in here
+                "oceanval_version": oceanval.__version__,
+                "datasets": BUILTIN_DATASETS,
                 "user_settings": {
                     "values": dict(self.settings),
                     "themes": [[key, label] for key, label in user_settings.THEMES.items()],
@@ -2350,7 +2397,7 @@ class App:
         """Take a recipe out of the file it is in. Returns the HTTP status
         and the reply for the page."""
         with self._lock:
-            if self.view not in ("register_point", "register_gridded"):
+            if self.view not in ("register_kind", "register_point", "register_gridded"):
                 return 409, {"ok": False, "error": "This step is over."}
         if where not in user_recipes.WHERE:
             return 400, {"ok": False, "error": "Choose which file it is in."}

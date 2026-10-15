@@ -13,6 +13,9 @@ __pycache__/
 data/soc/*
 matched/*
 /oceanval_*
+# the promo video and the scripts that make it, kept off GitHub
+/oceanval_promo/
+/oceanval_promo.mp4
 # recipes of your own, for the directory worked in
 /.oceanvalrc
 /hidden/

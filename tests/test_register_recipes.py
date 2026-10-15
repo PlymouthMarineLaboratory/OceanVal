@@ -238,6 +238,16 @@ class TestSaving:
         assert post(app, "/api/recipe_remove", body)[0] == 409
         assert app.state(console=False)["register"]["recipes"] == []
 
+    def test_recipes_are_removed_on_the_kind_page(self, app):
+        register(app)
+        post(app, "/api/recipe_save", {"kind": "gridded", "form": gridded_form()})
+        assert post(app, "/api/back")[0] == 200
+        assert app.view == "register_kind"
+        assert len(app.state(console=False)["register"]["recipes"]) == 1
+        body = {"variable": "nitrate", "key": "mysat", "where": "local"}
+        assert post(app, "/api/recipe_remove", body)[0] == 200
+        assert app.state(console=False)["register"]["recipes"] == []
+
     def test_a_file_that_cannot_be_read_is_not_written_over(self, app, tmp_path):
         register(app)
         (tmp_path / ".oceanvalrc").write_text("{broken")

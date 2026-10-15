@@ -4044,15 +4044,17 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         page = browser.new_page()
         page.goto(url)
         assert "Choose what to do. Matchups, scripts and reports are written" not in page.text_content("#view-start")
-        # the title is at the top right, level with the name, and there is no row of steps
+        # the first page has no title, the cards speak for themselves, and there is no row of steps
         assert page.locator("#steps").count() == 0
-        name, title = page.locator(".brand__word").bounding_box(), page.locator("#title").bounding_box()
-        assert title["x"] > name["x"] + name["width"]
-        assert title["y"] < name["y"] + name["height"]
+        assert page.is_hidden("#title")
         page.click('button.choice[data-action="matchup"]')
         page.wait_for_function(
             "document.querySelector('#title').textContent === 'What kind of datasets do you want to use for validation?'"
         )
+        # after it, the title is at the top right, level with the name
+        name, title = page.locator(".brand__word").bounding_box(), page.locator("#title").bounding_box()
+        assert title["x"] > name["x"] + name["width"]
+        assert title["y"] < name["y"] + name["height"]
         assert page.text_content("#title") == "What kind of datasets do you want to use for validation?"
         assert page.locator("#m-domain").count() == 0
         assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "nowrap"
@@ -4299,7 +4301,7 @@ def test_a_saved_matchup_script_opens_run_instructions(browser, tmp_path):
         assert page.text_content("#script-saved-path") == str(script)
         assert "matching up" not in page.text_content("#console-text")
         page.click('#actions button:has-text("Start again")')
-        page.wait_for_function("document.querySelector('#title').textContent === 'Validate an ocean model'")
+        page.wait_for_selector("#view-start:not([hidden])")
     finally:
         app.close()
 
@@ -6371,5 +6373,75 @@ class TestSettings:
             assert page.is_visible("#settings")
             assert page.get_attribute("html", "data-theme") is None
             assert oceanvalrc.read_text() == "{ not json"
+        finally:
+            app.close()
+
+
+class TestInfo:
+    """The info panel: the website, GitHub and the built-in datasets."""
+
+    def test_the_state_lists_the_built_in_datasets(self, app):
+        from oceanval.create_recipes import POINT_RECIPE_CATALOGUE, RECIPE_CATALOGUE
+
+        rows = app.state()["datasets"]
+        assert [row["point"] for row in rows].count(False) == len(RECIPE_CATALOGUE)
+        assert [row["point"] for row in rows].count(True) == len(POINT_RECIPE_CATALOGUE)
+        for row in rows:
+            assert row["variable"] and row["recipe"] and row["dataset"] and row["units"]
+        woa = next(r for r in rows if (r["variable"], r["recipe"]) == ("Nitrate", "woa23"))
+        assert woa["dataset"] == "World Ocean Atlas 2023" and woa["water_column"]
+        assert woa["url"].startswith("https://")
+        glodap = next(r for r in rows if r["recipe"] == "glodap" and r["variable"] == "Alkalinity")
+        assert not glodap["water_column"] and glodap["region"] == "Global"
+        nsbc = next(r for r in rows if r["recipe"] == "nsbc")
+        assert nsbc["dataset"] == "North Sea Biogeochemical Climatology"
+        assert nsbc["url"] == "https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html"
+        ices = next(r for r in rows if r["recipe"] == "ices")
+        assert ices["url"] == "https://www.ices.dk/data/data-portals/Pages/ocean.aspx"
+        assert all(r["url"] for r in rows)
+        assert {r["region"] for r in rows if r["point"]} == {"Northeast Atlantic"}
+
+    def test_the_version_is_the_packages(self, app):
+        import oceanval
+
+        assert app.state()["oceanval_version"] == oceanval.__version__
+
+    def test_the_users_own_recipes_are_left_out(self, tmp_path):
+        from oceanval import user_recipes
+
+        before = App(cwd=str(tmp_path)).state()["datasets"]
+        user_recipes.save(
+            dict(variable="nitrate", kind="gridded", source="MySat", source_info="My nitrate product",
+                 location="disk", obs_path="/x/n.nc", obs_variable="N3_n", climatology=True,
+                 units="mmol N/m^3"),
+            "local", str(tmp_path),
+        )
+        app = App(cwd=str(tmp_path))
+        assert [e for e in user_recipes.load(str(tmp_path))]
+        assert app.state()["datasets"] == before
+        assert "MySat" not in json.dumps(app.state()["datasets"])
+
+    def test_the_info_panel_in_a_browser(self, browser, tmp_path):
+        app = App(cwd=str(tmp_path))
+        url = app.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-start:not([hidden])")
+            assert page.is_hidden("#info")
+            page.click("#info-open")
+            assert page.is_visible("#info")
+            assert page.text_content("#info-version") == f"Version {app.state()['oceanval_version']}"
+            assert page.get_attribute("#info-website", "href") == "https://pmlmodelling.github.io/OceanVal/"
+            assert page.get_attribute("#info-github", "href") == "https://github.com/pmlmodelling/oceanVal"
+            assert page.locator("#info-gridded tbody tr").count() == 19
+            assert page.locator("#info-point tbody tr").count() == 10
+            assert page.locator("#info-gridded tbody tr", has_text="GLODAPv2.2016b").first.is_visible()
+            page.keyboard.press("Escape")
+            assert page.is_hidden("#info")
+            assert page.evaluate("document.activeElement.id") == "info-open"
+            page.click("#info-open")
+            page.click("#info-close")
+            assert page.is_hidden("#info")
         finally:
             app.close()

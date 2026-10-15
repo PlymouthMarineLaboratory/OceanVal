@@ -63,7 +63,8 @@ The cog beside the OceanVal name at the top left of the window
 (**Preferences**) sets how the window looks (Default, Dark, Silver or Blue) and whether the first
 page offers **Try a demo**. Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
 your home directory (or the file ``OCEANVALRC`` names), and read each time the
-window opens.
+window opens. The **i** beside it shows the version of OceanVal, links to the website and
+GitHub, and the built-in datasets.
 
 To see how it works first, choose **Try a demo**, below the four choices. It
 asks you to choose one of three CMIP6 climate models, each from a different
