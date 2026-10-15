@@ -15,7 +15,7 @@ import statistics
 # combinations the docs recommend and the report describes
 POINT_TIME_RES_OPTIONS = (
     (("year", "month", "day"), "Year, month, day", "Exact dates"),
-    (("year", "month"), "Year, month", "For monthly model output"),
+    (("year", "month"), "Year, month", "For monthly simulation output"),
     (("month", "day"), "Month, day", "Climatological: the year is ignored"),
     (("month",), "Month", "Climatological, by month"),
 )

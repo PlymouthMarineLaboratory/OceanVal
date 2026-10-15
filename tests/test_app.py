@@ -1428,7 +1428,7 @@ class TestServer:
         status, body = get(app, "/recipes/")
         state = page_state(body)
         assert status == 200
-        assert state["context"]["app"] == {"action": action, "own_vertical": False}
+        assert state["context"]["app"] == {"action": action, "own_vertical": False, "own_point": False}
         # its requests are answered by the app's own server
         assert state["token"] == app.token
         # the output directory was chosen with the simulation
@@ -3165,8 +3165,13 @@ class TestRecipesRestore:
     held when it was left, and app.recipes_restore picks what still
     applies."""
 
-    ROWS = recipe_rows({"temperature": "thetao", "nitrate": "N3_n"}, "global")
     AVAILABLE = {"thetao", "N3_n"}
+
+    @property
+    def ROWS(self):
+        # made in the test, not when the module is imported, as only then is
+        # the user's own .oceanvalrc kept out of it (see conftest.oceanvalrc)
+        return recipe_rows({"temperature": "thetao", "nitrate": "N3_n"}, "global")
 
     def left(self, rows, **settings):
         """What the window held, left with these rows and settings."""
@@ -4049,7 +4054,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
             "document.querySelector('#title').textContent === 'What kind of datasets do you want to use for validation?'"
         )
         assert page.text_content("#title") == "What kind of datasets do you want to use for validation?"
-        assert "Note: selections can be modified later." in page.text_content("#m-domain")
+        assert page.locator("#m-domain").count() == 0
         assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "nowrap"
         assert "OceanVal is running from" not in page.text_content("#meta")
         assert "Next, OceanVal reads the simulation, and shows you what it found." not in page.text_content("#bar")
@@ -4063,12 +4068,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.locator("#f-ndown").evaluate(
             "node => node.getBoundingClientRect().width"
         ) <= 100
-        assert page.locator("#ndown-example").evaluate(
-            "node => node.getBoundingClientRect().left >= document.querySelector('#f-ndown').getBoundingClientRect().right"
-        )
-        assert page.locator("#ndown-example").evaluate(
-            "node => getComputedStyle(node).color"
-        ) == "rgb(7, 92, 104)"
+        assert page.locator("#ndown-example").count() == 0
         ndown_label = page.locator('label[for="f-ndown"]')
         assert page.locator("#f-ndown").evaluate("node => node.required")
         assert ndown_label.evaluate("node => getComputedStyle(node).color") == "rgb(192, 57, 43)"
@@ -4115,10 +4115,8 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         # the app always asks
         assert page.is_hidden("#s-ask")
         fill_required_recipe_years(page)
-        # the thickness hint is between its box and the missing-values label
-        assert "What should be treated as missing values?" in page.evaluate(
-            "document.getElementById('g-thickness').nextElementSibling.textContent"
-        )
+        # nothing is Vertical, so no thickness is asked for
+        assert page.is_hidden("#row-thickness")
         # a dataset through the water column cannot go ahead without a thickness
         nsbc = 'input[aria-label="NSBC, Northwest European Shelf, for Temperature"]'
         page.check(nsbc)
@@ -4126,10 +4124,16 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
             'input[aria-label="Validate NSBC observations for Temperature through the full water column"]'
         )
         assert page.is_disabled("#write")
+        assert page.is_visible("#row-thickness")
+        # the thickness box is between its hint and the missing-values label
+        assert "What should be treated as missing values?" in page.evaluate(
+            "document.getElementById('row-thickness').nextElementSibling.textContent"
+        )
         assert "a thickness is needed" in page.text_content("#g-thickness")
         page.fill("#s-thickness", "z_level")
         assert page.is_enabled("#write")
         page.uncheck(nsbc)
+        assert page.is_hidden("#row-thickness")
         page.click("#write")
         # the units have to be confirmed, once they have been read
         page.wait_for_selector("#units-body-gridded tr[data-units-row]")
@@ -4146,7 +4150,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_hidden("#progress")
         assert page.is_hidden("#ask")
         assert page.locator("#review th").all_text_contents() == [
-            "Variable", "Years", "Model variable", "Observation source", "File pattern to be used",
+            "Variable", "Years", "Simulation variable", "Observation source", "File pattern to be used",
             "Time resolution", "Dates",
         ]
         # the answers are in the bar, Back first, and none are in the card
@@ -4353,7 +4357,7 @@ def test_the_time_shift_question_in_a_browser(browser, tmp_path):
         assert page.text_content("#title") == "Are the model's times at the end of each mean?"
         # OceanVal's suggestion, in red and bold
         assert page.is_checked("#ts-mode-shift")
-        assert page.text_content("#ts-shift-label") == "Shift the model's times back one day"
+        assert page.text_content("#ts-shift-label") == "Shift the simulation's times back one day"
         label = page.locator("#ts-shift-label")
         assert label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
         assert label.evaluate("node => getComputedStyle(node).color") == page.locator(
@@ -4564,7 +4568,7 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
         assert page.locator("#review thead th").all_text_contents() == [
-            "Variable", "Years", "Model variable", "Observation source", "File pattern to be used",
+            "Variable", "Years", "Simulation variable", "Observation source", "File pattern to be used",
             "Time resolution", "Dates",
         ]
         # the table says which files are used, so there is no note of it
@@ -5652,7 +5656,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         fill_required_recipe_years(page)
         # carrying on from the fine-tune page, and a model variable box that is text only
         assert page.text_content("#write") == "Continue"
-        assert page.locator('input[aria-label^="Model variable for"]').first.get_attribute("list") is None
+        assert page.locator('input[aria-label^="Simulation variable for"]').first.get_attribute("list") is None
         assert page.locator("#model-variables").count() == 0
         page.check(nsbc)
         page.fill(nsbc_start, "2012")
@@ -5769,11 +5773,11 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
         assert dropped.text_content() == "N3_n+thetao, chosen before, is not in this simulation's output."
         assert look(dropped) == red_bold
         # temperature is kept, with its datasets ticked as for the domain, and the years
-        assert page.input_value('input[aria-label="Model variable for Temperature"]') == "thetao"
+        assert page.input_value('input[aria-label="Simulation variable for Temperature"]') == "thetao"
         assert page.is_checked('input[aria-label="NSBC, Northwest European Shelf, for Temperature"]')
         assert (page.input_value("#s-start"), page.input_value("#s-end")) == ("2011", "2012")
         # once nitrate is filled in, it is the user's
-        page.fill('input[aria-label="Model variable for Nitrate"]', "thetao")
+        page.fill('input[aria-label="Simulation variable for Nitrate"]', "thetao")
         assert page.locator("#message-nitrate .oceanval-change").count() == 0
     finally:
         app.close()
@@ -5912,7 +5916,7 @@ def test_choosing_directories_in_a_browser(browser, tmp_path):
             "#f-simdir-folders option", "options => options.map(o => o.value)"
         ) == ["sim/", "sim_old/"]
 
-        page.click("text=Back")
+        page.click("#actions >> text=Back")
         page.click('button.choice[data-action="validate"]')
         # concise or detailed is the last option, and concise to start with, with
         # only the depth bins after it, as the matchups may be through the water column
@@ -5973,6 +5977,32 @@ def test_viewing_files_in_a_random_directory_in_a_browser(browser, tmp_path):
         )
         page.click("#sample-close")
         assert page.is_hidden("#sample")
+    finally:
+        app.close()
+
+
+def test_how_files_are_identified_pop_up_in_a_browser(browser, tmp_path):
+    """The pop-up on the simulation step that explains how OceanVal finds the
+    simulation files, and why the skip and only boxes are there."""
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click('button.choice[data-action="matchup"]')
+        assert page.is_hidden("#how")
+        page.click("#how-files")
+        assert page.is_visible("#how")
+        text = page.text_content("#how")
+        assert "highest temporal resolution" in text
+        assert "Skip file names containing" in text
+        assert "Only include file names containing" in text
+        page.keyboard.press("Escape")
+        assert page.is_hidden("#how")
+        assert page.evaluate("document.activeElement.id") == "how-files"
+        page.click("#how-files")
+        page.click("#how-close")
+        assert page.is_hidden("#how")
     finally:
         app.close()
 

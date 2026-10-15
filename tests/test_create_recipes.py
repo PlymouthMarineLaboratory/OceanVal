@@ -953,6 +953,22 @@ class TestGui:
         assert shown["context"]["region"] == "Northwest European Shelf"
         assert (shown["context"]["start"], shown["context"]["end"]) == (2011, 2012)
         assert shown["context"]["out"] == str(tmp_path / "matchup.py")
+        assert shown["context"]["own_data"] == {}
+
+    def test_the_window_is_given_your_own_data(self, simulation, tmp_path, monkeypatch):
+        shown = {}
+
+        def window(mapping, domain, available, context, write):
+            shown.update(context=context)
+            return None
+
+        monkeypatch.setattr("oceanval.recipes_gui.choose_recipes", window)
+        own = {"point": [{"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+                          "obs_path": str(tmp_path)}], "gridded": []}
+        self._create(simulation, tmp_path, ask=False, own_data=own)
+
+        # to show it in its variable's row (see recipes_gui.recipe_rows)
+        assert shown["context"]["own_data"] == own
 
     def test_what_is_chosen_in_the_window_is_written(
         self, simulation, tmp_path, monkeypatch, capsys

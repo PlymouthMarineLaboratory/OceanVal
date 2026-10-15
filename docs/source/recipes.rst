@@ -285,8 +285,9 @@ names in the report. What OceanVal will use unless you change it is filled in
 name, the variable's name, and everywhere (your home directory). The units of
 csv files, which do not say, and of a netCDF variable without them, are marked
 in red, and have to be given. Data on a server is checked first, as above. In
-the matchup it is saved from, it is registered as your own data, so its recipe
-is left out of that matchup's recipes window.
+the matchup it is saved from, it is registered as your own data, so that
+matchup's recipes window shows it in its variable's row, ticked and tagged
+**Your data**, in place of its recipe.
 
 Once saved, a recipe is offered in the recipes window beside OceanVal's own,
 with a **Yours** tag, ticked wherever a model variable is found for it. For a

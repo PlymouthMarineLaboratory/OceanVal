@@ -94,6 +94,9 @@
   .chip__region.is-domain { background: var(--accent-soft); color: var(--teal-700); }
   /* the recipes the user registered */
   .chip__region.is-yours { background: rgba(215, 107, 69, 0.14); color: var(--coral-dark); }
+  /* the user's own data in the matchup, matched up whatever is ticked */
+  .chip.is-own, .chip.is-own:hover { cursor: default; border-color: var(--teal-400); background: var(--teal-50); color: var(--teal-900); }
+  .own__model { display: block; padding-top: 8px; color: var(--ink); font: 500 13.5px/20px var(--font-mono); overflow-wrap: anywhere; }
   .none { display: inline-block; padding-top: 8px; color: var(--muted-light); }
 
   /* ---- global settings ---- */
@@ -319,9 +322,11 @@
           </fieldset>
           <fieldset class="group">
             <legend>Model data info</legend>
-            <label class="g-row"><span class="g-label">Is the model z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" list="thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <div id="row-thickness">
+            <label class="g-row"><span class="g-label">Is the simulation z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" list="thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
             <div id="thickness-picker"></div>
             <p class="group__msg" id="g-thickness"></p>
+            </div>
             <div class="g-row">
               <span class="g-label">What should be treated as missing values?</span>
               <div class="span-row">
@@ -340,19 +345,19 @@
           </fieldset>
         </div>
         <div class="settings__column">
-          <fieldset class="group">
+          <fieldset class="group" id="group-point">
             <div class="g-row has-help">
               <div class="g-label-row">
                 <label class="g-label" for="s-point_time_res">Match point observations by</label>
                 <details class="opts__help" id="help-point_time_res">
                   <summary aria-label="Explain how point observations are matched" title="How point observations are matched">?</summary>
                   <div class="opts__help-popover" role="note">
-                    <p>Each observation has a date: a year, a month and a day. This chooses which of those are used to find the model output it is compared with. Anything a dataset does not have is simply not used, and only observations from the First to Last years are used.</p>
+                    <p>Each observation has a date: a year, a month and a day. This chooses which of those are used to find the simulation output it is compared with. Anything a dataset does not have is simply not used, and only observations from the First to Last years are used.</p>
                     <dl>
                       <dt>Year, month, day</dt>
-                      <dd>Exact dates. Each observation is compared with the model on the day it was made. Use this for daily, or finer, model output.</dd>
+                      <dd>Exact dates. Each observation is compared with the simulation on the day it was made. Use this for daily, or finer, simulation output.</dd>
                       <dt>Year, month</dt>
-                      <dd>Each observation is compared with the model's mean for that month of that year, and the day is ignored. Use this for monthly model output.</dd>
+                      <dd>Each observation is compared with the simulation's mean for that month of that year, and the day is ignored. Use this for monthly simulation output.</dd>
                       <dt>Month, day</dt>
                       <dd>Climatological: the year is ignored. Observations from any year are compared with the simulation's average for the same day of the year.</dd>
                       <dt>Month</dt>
@@ -409,7 +414,7 @@
       <thead>
         <tr>
           <th scope="col">Environmental variable</th>
-          <th scope="col">What is the model variable name?</th>
+          <th scope="col">What is the simulation variable name?</th>
           <th scope="col">What gridded datasets do you want?</th>
           <th scope="col">What point datasets do you want?</th>
         </tr>
@@ -512,12 +517,19 @@
   }
 
   $("lede").append(
-    "Check the model variable matched to each observational variable, and tick the datasets " +
+    "Check the simulation variable matched to each observational variable, and tick the datasets " +
     "to validate it against. Each row starts with the datasets OceanVal would use for the ",
     el("strong", { text: context.region }),
     " domain ticked. Anything left unticked is still written to the script, commented out, " +
     "so it can be switched on later."
   );
+  // the user's own data, which the script registers whatever is ticked
+  const hasOwnData = state.rows.some((row) => row.own.length);
+  if (hasOwnData) {
+    $("lede").append(" Your own data is always matched up, so is ticked in its row, marked ",
+      el("strong", { text: "Your data" }), ", with options like the other datasets'",
+      app ? "; go Back to change anything else about it, or remove it." : ".");
+  }
   if (app && app.prefilled) {
     $("lede").append(" For the demo, OceanVal has filled in the year and the longitude and latitude limits, ",
       el("strong", { class: "oceanval-change", text: "in red and bold" }), ".");
@@ -645,9 +657,18 @@
     state.woa23_periods.find(([first, last]) => years[0] >= first && years[1] <= last);
   const hasOwnYears = (dataset) => ["start", "end"].some((name) => String(dataset.opts[name]).trim());
   // matchup needs a thickness to validate anything through the water column
-  const needsThickness = () => !context.fvcom && (Boolean(app && app.own_vertical)
+  // the user's own data as the window has it, or else as the app says it is
+  const ownVertical = () => ownChipList.length
+    ? ownChipList.some(({ chip }) => chip.dataset.opts.vertical) : Boolean(app && app.own_vertical);
+  const ownPoint = () => ownChipList.length
+    ? ownChipList.some(({ chip }) => chip.dataset.kind === "point") : Boolean(app && app.own_point);
+  const needsThickness = () => !context.fvcom && (ownVertical()
     || rows.some((row) => row.status === "ok" && row.datasets.some(
       (dataset) => dataset.checked && dataset.opts.vertical)));
+  // the point time resolution is only for point datasets: ticked ones, or the user's own
+  const needsPointTimeRes = () => ownPoint()
+    || rows.some((row) => row.status === "ok" && row.datasets.some(
+      (dataset) => dataset.checked && dataset.kind === "point"));
   const THICKNESS_NEEDED = "A dataset is set to Vertical, so a thickness is needed: z_level, a cell thickness variable or a file.";
 
   // the same rules create_recipes applies, so most problems show as you type
@@ -679,7 +700,7 @@
     const thickness = String(form.thickness).trim();
     if (thickness && !context.fvcom && !/^z[ _-]level$/.test(thickness)
         && !available.has(thickness) && !/[\/~.]/.test(thickness)) {
-      errors.thickness = "Not a variable in the model output, or a file that exists.";
+      errors.thickness = "Not a variable in the simulation output, or a file that exists.";
     } else if (!thickness && app && needsThickness()) {
       errors.thickness = THICKNESS_NEEDED;
     }
@@ -735,17 +756,16 @@
         return warning ? [...hints, warning] : hints;
       }
       case "subset":
-        return [{ text: "Optional: only model output and observations inside this box are matched up. "
+        return [{ text: "Optional: only simulation output and observations inside this box are matched up. "
           + (context.fvcom ? "Empty: the extent of the FVCOM mesh." : "Empty: the whole domain.") }];
       case "output":
         return [{ text: "Empty: the directory you run the script from. The report is built there too." }];
       case "thickness": {
-        const hints = [{ text: context.fvcom
-          ? "FVCOM output is regridded onto z-levels, so no thickness is needed."
-          : "Thickness: z_level, a cell thickness variable or a file, only used by recipes with vertical=True." }];
+        // only shown when a dataset is set to Vertical, which needs it
+        const hints = [{ text: "A dataset is set to Vertical, so OceanVal needs the simulation's cell thickness: z_level, a cell thickness variable or a file." }];
         // in the app, a missing thickness is an error instead
-        if (!app && needsThickness() && !String(form.thickness).trim()) {
-          hints.push({ text: "A dataset is set to Vertical, so matchup needs a thickness.", warn: true });
+        if (!app && !String(form.thickness).trim()) {
+          hints.push({ text: "Matchup needs a thickness.", warn: true });
         }
         return hints;
       }
@@ -773,6 +793,10 @@
   // boxes need fixing
   function refreshSettings() {
     const errors = { ...settingErrors(), ...serverErrors };
+    // a box that is not needed is not shown, so nothing in it can be wrong
+    $("row-thickness").hidden = !needsThickness();
+    $("group-point").hidden = !needsPointTimeRes();
+    if (!needsThickness()) delete errors.thickness;
     $("row-subregions_file").hidden = form.subregions !== "file";
     for (const [group, names] of Object.entries(GROUPS)) {
       for (const name of names) {
@@ -801,7 +825,11 @@
   const blankOptions = (kind) => kind === "point"
     ? { point_time_res: "", start: "", end: "", vertical: false }
     : { start: "", end: "", vertical: false };
-  const rows = state.rows.map((row) => ({
+  // a row with datasets to tick; one with only the user's own data is only shown
+  const hasDatasets = (row) => row.gridded.length + row.point.length > 0;
+  // the user's own datasets' chips, as { row, chip }, built with the rows
+  const ownChipList = [];
+  const rows = state.rows.filter(hasDatasets).map((row) => ({
     ...row,
     original: row.model_variable,
     value: row.model_variable,
@@ -831,7 +859,7 @@
     if (unknown.length) {
       const list = unknown.length === 1 ? unknown[0]
         : unknown.slice(0, -1).join(", ") + " and " + unknown[unknown.length - 1];
-      return { status: "invalid", message: `${list} ${unknown.length === 1 ? "is" : "are"} not in the model output.` };
+      return { status: "invalid", message: `${list} ${unknown.length === 1 ? "is" : "are"} not in the simulation output.` };
     }
     return { status: "ok", message: "" };
   }
@@ -876,7 +904,7 @@
         return [icon("warn"), el("span", {}, `Cleared, so its datasets are off. It was ${row.original}. `, undo(row))];
       }
       return [icon("warn"), el("span", {}, dropped, dropped ? " " : null,
-        "Not identified. Type or pick a model variable to use its datasets.")];
+        "Not identified. Type or pick a simulation variable to use its datasets.")];
     }
     if (edited) {
       const was = row.original ? `Changed from ${row.original}. ` : "Not identified automatically. ";
@@ -932,7 +960,8 @@
   // shows a ticked dataset's options; returns whether they need fixing
   function refreshOptions(row, chip) {
     const { dataset, opts } = chip;
-    const shown = row.status === "ok" && dataset.checked;
+    // the user's own data has its own simulation variable
+    const shown = dataset.own || (row.status === "ok" && dataset.checked);
     opts.block.hidden = !shown;
     for (const [name, control] of Object.entries(opts.controls)) {
       if (name === "vertical") control.checked = dataset.opts.vertical;
@@ -981,6 +1010,13 @@
       controls.point_time_res = el("select", { class: "s-select is-small", "aria-label": `Match ${name} by` },
         el("option", { value: "", text: "Global setting" }),
         ...state.time_res_options.map((option) => el("option", { value: option.value, text: option.label })));
+      const given = dataset.own ? dataset.opts.point_time_res : "";
+      if (given && !timeRes.has(given)) {
+        // the own data step can give any of year, month and day
+        const text = given.split(",").join(", ");
+        timeRes.set(given, { value: given, label: text, hint: "As given with your data" });
+        controls.point_time_res.append(el("option", { value: given, text: text[0].toUpperCase() + text.slice(1) }));
+      }
       parts.push(el("div", { class: "opts__row" },
         el("span", { class: "opts__label", text: "Match by" }), controls.point_time_res));
     }
@@ -1022,6 +1058,7 @@
       control.addEventListener(tick || control.tagName === "SELECT" ? "change" : "input", () => {
         dataset.opts[key] = tick ? control.checked : control.value;
         delete dataset.serverErrors[key];
+        delete dataset.serverErrors[""];
         summarise();
       });
     }
@@ -1053,6 +1090,44 @@
     return { dataset, box, label, opts: buildOptions(row, dataset) };
   }
 
+  // the user's own data, which the script registers whatever is ticked here,
+  // so its box is ticked for good, with options as a recipe's dataset has.
+  // Returns a chip as buildChip does, and lists it in ownChipList
+  function ownChip(row, entry) {
+    const dataset = {
+      ...entry,
+      own: true,
+      checked: true,
+      // the calls take Vertical for any data, though csv files need a depth column
+      vertical_option: true,
+      decadal: false,
+      opts: { ...entry.opts },
+      // as the window was shown with them, for Reset
+      initial: { ...entry.opts },
+      serverErrors: {},
+    };
+    const details = [
+      `${entry.label}: your own ${entry.kind} data`,
+      entry.path,
+      entry.model_variable ? `Matched with the simulation's ${entry.model_variable}` : null,
+      entry.saved ? "Saved as a recipe too, which later matchups offer" : null,
+      app ? "Added in the step before: go Back to change anything else about it, or remove it."
+        : "Given to create_recipes as own_data.",
+    ];
+    const label = el("label", { class: "chip is-own", title: details.filter(Boolean).join("\n") },
+      el("input", {
+        type: "checkbox",
+        checked: true,
+        disabled: true,
+        "aria-label": `${entry.label}, your data, for ${row.title}: always matched up`,
+      }),
+      el("span", { class: "chip__name", text: entry.label }),
+      el("span", { class: "chip__region is-yours", text: "Your data" }));
+    const chip = { dataset, label, opts: buildOptions(row, dataset) };
+    ownChipList.push({ row, chip });
+    return chip;
+  }
+
   function datasetsCell(label, chips, emptyTitle) {
     return el("td", { "data-label": label },
       chips.length
@@ -1060,6 +1135,10 @@
           el("div", { class: "dataset" }, chip.label, chip.opts.block)))
         : el("span", { class: "none", title: emptyTitle, "aria-label": emptyTitle, text: "—" }));
   }
+
+  // the user's own data of a kind in a row, as chips
+  const ownChips = (row, kind) =>
+    row.own.filter((entry) => entry.kind === kind).map((entry) => ownChip(row, entry));
 
   // the model's variables and their long_names, in a pop-out under a box
   // that can be searched; the table is only built when it is first opened, as
@@ -1118,7 +1197,7 @@
         return el("li", {},
           el("span", { class: "vars__picked-text" },
             el("span", { class: "vars__picked-name", text: name }),
-            known ? (longName ? ` ${longName}` : "") : el("span", { class: "vars__picked-note", text: " not in the model output" })),
+            known ? (longName ? ` ${longName}` : "") : el("span", { class: "vars__picked-note", text: " not in the simulation output" })),
           remove);
       }));
     };
@@ -1196,7 +1275,7 @@
       spellcheck: "false",
       autocomplete: "off",
       autocapitalize: "off",
-      "aria-label": `Model variable for ${row.title}`,
+      "aria-label": `Simulation variable for ${row.title}`,
       "aria-describedby": `message-${row.variable}`,
     });
     input.addEventListener("input", () => setValue(row, input.value));
@@ -1206,13 +1285,30 @@
       el("td", {},
         el("span", { class: "obs__title", text: row.title }),
         row.variable === row.title.toLowerCase() ? null : el("code", { class: "obs__key", text: row.variable })),
-      el("td", { "data-label": "What is the model variable name?" }, input, msg, variablesTable(row)),
-      datasetsCell("What gridded datasets do you want?", chips.filter((chip) => chip.dataset.kind === "gridded"),
+      el("td", { "data-label": "What is the simulation variable name?" }, input, msg, variablesTable(row)),
+      datasetsCell("What gridded datasets do you want?",
+        [...chips.filter((chip) => chip.dataset.kind === "gridded"), ...ownChips(row, "gridded")],
         `No gridded dataset for ${row.title}`),
-      datasetsCell("What point datasets do you want?", chips.filter((chip) => chip.dataset.kind === "point"),
+      datasetsCell("What point datasets do you want?",
+        [...chips.filter((chip) => chip.dataset.kind === "point"), ...ownChips(row, "point")],
         `No point dataset for ${row.title}`));
     row.dom = { tr, input, msg, chips };
     return tr;
+  }
+
+  // a row with only the user's own data, which has its own simulation
+  // variable, so there is nothing in it to change
+  function buildOwnRow(row) {
+    const names = [...new Set(row.own.map((entry) => entry.model_variable).filter(Boolean))];
+    return el("tr", { class: "is-own" },
+      el("td", {},
+        el("span", { class: "obs__title", text: row.title }),
+        row.variable === row.title.toLowerCase() ? null : el("code", { class: "obs__key", text: row.variable })),
+      el("td", { "data-label": "What is the simulation variable name?" },
+        el("span", { class: "own__model", text: names.join(", ") }),
+        el("p", { class: "field__msg", text: "Given with your data." })),
+      datasetsCell("What gridded datasets do you want?", ownChips(row, "gridded"), `No gridded dataset for ${row.title}`),
+      datasetsCell("What point datasets do you want?", ownChips(row, "point"), `No point dataset for ${row.title}`));
   }
 
   // a row as it was left: its model variable and, unless the domain has
@@ -1248,7 +1344,12 @@
   }
 
   const tbody = $("rows");
-  for (const row of rows) {
+  for (const shown of state.rows) {
+    const row = rows.find((candidate) => candidate.variable === shown.variable);
+    if (!row) {
+      tbody.append(buildOwnRow(shown));
+      continue;
+    }
     tbody.append(buildRow(row));
     Object.assign(row, check(row.value));
     update(row);
@@ -1276,8 +1377,10 @@
   writeButton.textContent = writeLabel;
   if (app) cancelButton.textContent = "Back";
 
+  const ownChanged = ({ dataset }) => Object.keys(dataset.opts).some((name) => dataset.opts[name] !== dataset.initial[name]);
   const changed = () =>
     FIELDS.some((name) => form[name] !== initialForm[name])
+    || ownChipList.some(ownChanged)
     || rows.some((row) => row.value.trim() !== row.original || row.datasets.some((dataset) =>
       dataset.checked !== dataset.ticked
       || Object.values(dataset.opts).some(
@@ -1294,15 +1397,20 @@
         if (refreshOptions(row, chip)) settingsToFix += 1;
       }
     }
+    for (const { row, chip } of ownChipList) {
+      if (refreshOptions(row, chip)) settingsToFix += 1;
+    }
     const parts = [];
     if (invalid) {
-      parts.push(el("span", { class: "summary__warn", text: `${plural(invalid, "model variable")} to fix` }));
+      parts.push(el("span", { class: "summary__warn", text: `${plural(invalid, "simulation variable")} to fix` }));
     }
     if (settingsToFix) {
       parts.push(el("span", { class: "summary__warn", text: `${plural(settingsToFix, "setting")} to fix` }));
     }
     if (!invalid && !settingsToFix && !comparisons) {
-      parts.push(el("span", { class: "summary__warn is-soft", text: "Nothing ticked, so every recipe will be commented out" }));
+      parts.push(el("span", { class: "summary__warn is-soft", text: hasOwnData
+        ? "Only your own data is ticked, so every recipe will be commented out"
+        : "Nothing ticked, so every recipe will be commented out" }));
     }
     const summary = $("summary");
     summary.replaceChildren();
@@ -1375,9 +1483,10 @@
   // what the window holds, to write the script with, or kept with Back for the
   // window to be shown with again. Write is disabled while a model variable
   // needs fixing, and an empty row has nothing ticked.
-  function choices() {
+  function choices(write = false) {
     return {
-      settings: form,
+      // a thickness that no dataset needs is left out of the script
+      settings: write && !needsThickness() ? { ...form, thickness: "" } : form,
       rows: rows.map((row) => {
         const options = { gridded: {}, point: {} };
         for (const dataset of row.datasets) {
@@ -1390,6 +1499,11 @@
           ...options,
         };
       }),
+      // the user's own data's options, by where it is in its list
+      own: ownChipList.reduce((own, { chip }) => {
+        own[chip.dataset.kind][chip.dataset.index] = chip.dataset.opts;
+        return own;
+      }, { point: {}, gridded: {} }),
     };
   }
 
@@ -1398,7 +1512,7 @@
     setBusy(true);
     let reply;
     try {
-      reply = await post("write", choices());
+      reply = await post("write", choices(true));
     } catch (error) {
       finish("gone");
       return;
@@ -1413,7 +1527,14 @@
     const rowErrors = reply.errors || {};
     const settingProblems = reply.setting_errors || {};
     const optionProblems = { gridded: reply.gridded_errors || {}, point: reply.point_errors || {} };
-    if ([rowErrors, settingProblems, ...Object.values(optionProblems)].some((errors) => Object.keys(errors).length)) {
+    const ownProblems = reply.own_errors || {};
+    if ([rowErrors, settingProblems, ...Object.values(optionProblems), ownProblems].some((errors) => Object.keys(errors).length)) {
+      for (const [kind, byIndex] of Object.entries(ownProblems)) {
+        for (const [index, problems] of Object.entries(byIndex)) {
+          const found = ownChipList.find(({ chip }) => chip.dataset.kind === kind && String(chip.dataset.index) === index);
+          if (found) found.chip.dataset.serverErrors = { ...problems };
+        }
+      }
       Object.assign(serverErrors, settingProblems);
       for (const [kind, byVariable] of Object.entries(optionProblems)) {
         for (const [variable, byRecipe] of Object.entries(byVariable)) {
@@ -1471,6 +1592,10 @@
     Object.assign(form, initialForm);
     for (const name of Object.keys(serverErrors)) delete serverErrors[name];
     FIELDS.forEach(setControl);
+    for (const { chip } of ownChipList) {
+      chip.dataset.opts = { ...chip.dataset.initial };
+      chip.dataset.serverErrors = {};
+    }
     for (const row of rows) {
       row.datasets.forEach((dataset) => {
         dataset.checked = dataset.ticked;
@@ -1480,6 +1605,7 @@
       row.needsDefaults = !row.original;
       setValue(row, row.original);
     }
+    summarise();
   });
 
   summarise();

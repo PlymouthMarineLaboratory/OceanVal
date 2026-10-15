@@ -1,6 +1,7 @@
 """The create_recipes window: its rows, the server behind it and, where a
 browser can be run, the page itself."""
 
+import copy
 import json
 import queue
 import re
@@ -26,6 +27,8 @@ from oceanval.recipes_gui import (
     choose_recipes,
     default_form,
     default_settings,
+    check_own_options,
+    own_options,
     recipe_rows,
 )
 
@@ -102,6 +105,54 @@ class TestRows:
         assert "occci" in datasets(rows, "chlorophyll")
         # a variable only those recipes were for has no row left
         assert datasets(rows, "dic") is None
+
+    def test_the_users_own_data_is_shown_in_its_variables_row(self, tmp_path):
+        cwd = str(tmp_path)
+        user_recipes.save(
+            {"variable": "temperature", "kind": "point", "source": "pygetm",
+             "obs_path": "/points", "depth_resolved": True},
+            "local", cwd,
+        )
+        own = {
+            "point": [{"name": "Temperature", "source": "pygetm", "model_variable": "temp",
+                       "obs_path": "/points", "vertical": True}],
+            "gridded": [
+                {"name": "dic", "source": "MyDic", "model_variable": "O3_c",
+                 "obs_path": "/dic.nc", "short_title": "DIC"},
+                {"name": "zooc", "source": "Zoo", "model_variable": "Z4_c", "obs_path": "/zoo.nc"},
+            ],
+        }
+        replaced = replaced_recipes(own, cwd)
+        assert replaced == {("temperature", "pygetm")}
+
+        rows = recipe_rows({"temperature": "temp"}, "global", cwd, replaced, own)
+        found = {row["variable"]: row for row in rows}
+        assert [row["variable"] for row in rows] == sorted(found)
+        # json, for the page
+        json.dumps(rows)
+
+        # beside the datasets, in place of the recipe it was saved as
+        temperature = found["temperature"]
+        assert [d["recipe"] for d in temperature["point"]] == ["ices"]
+        assert temperature["own"] == [{
+            "kind": "point", "index": 0, "label": "pygetm", "model_variable": "temp",
+            "path": "/points", "saved": True,
+            # its options, as the window's boxes show them
+            "opts": {"start": "", "end": "", "vertical": True, "point_time_res": ""},
+        }]
+        # a variable only the user's own data is for has a row with it alone,
+        # named as add_gridded_comparison names it
+        assert (found["dic"]["title"], found["zooc"]["title"]) == ("DIC", "Zooc")
+        for index, (variable, source) in enumerate((("dic", "MyDic"), ("zooc", "Zoo"))):
+            assert found[variable]["gridded"] == found[variable]["point"] == []
+            assert [(item["label"], item["index"], item["saved"]) for item in found[variable]["own"]] == [
+                (source, index, False)
+            ]
+        assert found["dic"]["own"][0]["opts"] == {"start": "", "end": "", "vertical": False}
+        assert all(row["own"] == [] for row in rows if row["variable"] not in ("temperature", "dic", "zooc"))
+
+        # without it, every row's is empty
+        assert all(row["own"] == [] for row in recipe_rows({}, "global", cwd))
 
 
 class TestErsemDetection:
@@ -297,7 +348,7 @@ class TestServer:
         )
 
         assert status == 400
-        assert reply["errors"] == {"temperature": "thetaoo is not in the model output."}
+        assert reply["errors"] == {"temperature": "thetaoo is not in the simulation output."}
         assert page.written == []
         assert not page._done.is_set()
 
@@ -735,6 +786,112 @@ class TestHosting:
         settings = dict(page.form, thickness="z_level")
         assert page.submit({"rows": self.VERTICAL, "settings": settings})[0] == 200
 
+    def own_page(self, own, app=None):
+        """The window with the user's own data, whose script is written
+        with what it holds then."""
+        written = []
+        page = RecipePage(
+            recipe_rows({"temperature": "thetao"}, "global", own_data=own),
+            {"thetao"},
+            dict(CONTEXT, own_data=own, **({"app": app} if app else {})),
+            lambda *chosen: written.append(copy.deepcopy(own)) or "/out/matchup.py",
+        )
+        page.written = written
+        return page
+
+    def test_your_own_datas_options_are_written_into_it(self, tmp_path):
+        (tmp_path / "obs.csv").write_text("observation,lon,lat,depth,year,month,day\n1,3,56,1,2011,1,2\n")
+        own = {
+            "point": [{"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+                       "obs_path": str(tmp_path), "start": 2000, "binning": [0.5, 0.5]}],
+            "gridded": [],
+        }
+        page = self.own_page(own)
+        sent = {"point": {"0": {"point_time_res": "year,month", "start": "", "end": "2012", "vertical": True}}}
+        status, _ = page.submit({"rows": [], "own": sent})
+
+        assert status == 200
+        # into the same lists, which the script is written from; what the
+        # window has no box for is kept, and an emptied box goes
+        assert page.written[0]["point"] == own["point"] == [
+            {"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+             "obs_path": str(tmp_path), "end": 2012, "binning": [0.5, 0.5],
+             "point_time_res": ["year", "month"], "vertical": True}
+        ]
+        # shown again with them
+        (row,) = [row for row in page._rows_now() if row["own"]]
+        assert row["own"][0]["opts"] == {"start": "", "end": "2012", "vertical": True,
+                                         "point_time_res": "year,month"}
+
+    def test_your_own_datas_options_are_checked(self, tmp_path):
+        (tmp_path / "obs.csv").write_text("observation,lon,lat,year,month,day\n1,3,56,2011,1,2\n")
+        given = {"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+                 "obs_path": str(tmp_path)}
+        own = {"point": [dict(given)], "gridded": []}
+        page = self.own_page(own)
+
+        # as a recipe's: these years miss 2011-2012
+        status, reply = page.submit({"rows": [], "own": {"point": {"0": {"start": "1990", "end": "1995"}}}})
+        assert status == 400
+        assert set(reply["own_errors"]["point"]["0"]) == {"end"}
+        # and as the own data step's: these csv files have no depth column
+        status, reply = page.submit({"rows": [], "own": {"point": {"0": {"vertical": True}}}})
+        assert status == 400
+        assert "no depth column" in reply["own_errors"]["point"]["0"]["vertical"]
+        assert own["point"] == [given]
+        assert page.written == []
+
+    def test_a_time_resolution_the_window_does_not_offer_is_kept_while_unchanged(self):
+        own = {"point": [{"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+                          "obs_path": "/points", "point_time_res": ["year"]}], "gridded": []}
+        page = self.own_page(own)
+        (row,) = [row for row in page._rows_now() if row["own"]]
+        assert row["own"][0]["opts"]["point_time_res"] == "year"
+        # unchanged, nothing is checked again, as it was when it was added
+        status, _ = page.submit({"rows": [], "own": {"point": {"0": own_options("point", own["point"][0])}}})
+        assert status == 200
+        assert own["point"][0]["point_time_res"] == ["year"]
+        assert check_own_options("point", own["point"][0], {"point_time_res": "day"}, None)[1] == {
+            "point_time_res": "Choose one of the options."
+        }
+
+    def test_in_the_app_back_keeps_your_own_datas_options(self, tmp_path):
+        (tmp_path / "obs.csv").write_text("observation,lon,lat,depth\n1,3,56,1\n")
+        own = {"point": [{"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+                          "obs_path": str(tmp_path)}], "gridded": []}
+        page = self.own_page(own, app={"action": "matchup"})
+        page.cancel({"rows": [], "own": {"point": {"0": {"start": "2011", "end": "", "vertical": True}}}})
+
+        assert own["point"][0]["start"] == 2011
+        assert own["point"][0]["vertical"] is True
+
+    def test_vertical_in_your_own_data_needs_a_thickness_in_the_app(self, tmp_path):
+        (tmp_path / "obs.csv").write_text("observation,lon,lat,depth\n1,3,56,1\n")
+        own = {"point": [{"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+                          "obs_path": str(tmp_path), "vertical": True}], "gridded": []}
+        page = self.own_page(own, app={"action": "matchup", "own_vertical": True})
+        assert "thickness" in page.submit({"rows": []})[1]["setting_errors"]
+        # unticked in the window, it needs none
+        status, _ = page.submit({"rows": [], "own": {"point": {"0": {"vertical": False}}}})
+        assert status == 200
+        assert "vertical" not in own["point"][0]
+
+    def test_a_row_of_only_your_own_data_is_not_matched_up_by_the_window(self):
+        own = {"gridded": [{"name": "zooc", "source": "Zoo", "model_variable": "Z4_c",
+                            "obs_path": "/zoo.nc"}]}
+        written = []
+        page = RecipePage(
+            recipe_rows({"temperature": "thetao"}, "global", own_data=own),
+            {"thetao", "Z4_c"},
+            dict(CONTEXT),
+            lambda *chosen: written.append(chosen) or "/out/matchup.py",
+        )
+        # the script registers it, with its own model variable
+        status, _ = page.submit({"rows": [{"variable": "zooc", "model_variable": "Z4_c", "selected": []}]})
+
+        assert status == 200
+        assert "zooc" not in written[0][0]
+
     def test_so_does_your_own_data_through_the_water_column(self):
         assert "thickness" in self.app_page(own_vertical=True).submit({"rows": []})[1]["setting_errors"]
         # FVCOM output is regridded onto z-levels
@@ -949,13 +1106,13 @@ class TestModelVariablesTable:
 
             # typing in the box is followed, and a name the model lacks is flagged
             box.fill("time+missing")
-            assert entries() == ["time", "missing not in the model output"]
+            assert entries() == ["time", "missing not in the simulation output"]
 
             # the x unticks, as the tick box does
             picked.get_by_role("button", name="Remove time").click()
             assert box.input_value() == "missing"
             assert not tick("time").is_checked()
-            assert entries() == ["missing not in the model output"]
+            assert entries() == ["missing not in the simulation output"]
             picked.get_by_role("button", name="Remove missing").click()
             assert box.input_value() == ""
             assert picked.is_hidden()
@@ -972,7 +1129,8 @@ class TestThicknessPopOut:
         return RecipePage(
             recipe_rows({"temperature": "thetao"}, "global"),
             {"e3t", "thetao", "so"},
-            dict(CONTEXT, long_names=long_names, fvcom=fvcom),
+            # a thickness is only asked for when a dataset needs one
+            dict(CONTEXT, long_names=long_names, fvcom=fvcom, app={"action": "matchup", "own_vertical": True}),
             lambda *chosen: "/out/matchup.py",
         )
 
@@ -1116,10 +1274,11 @@ class TestChooseRecipes:
         assert recipes_gui._can_open_browser()
 
 
-def _open_window(browser, tmp_path, monkeypatch):
+def _open_window(browser, tmp_path, monkeypatch, own_data=None):
     """Run create_recipes(gui=True) on a small NEMO-like simulation, whose KD490
-    is not identified, and open its window. Returns the page, the path the
-    script is written to, and a function waiting for create_recipes."""
+    is not identified, and open its window, with the user's own data if given.
+    Returns the page, the path the script is written to, and a function
+    waiting for create_recipes."""
     values = np.random.rand(1, 3, 2, 2).astype("f4")
     dims = ("time", "deptht", "y", "x")
     dataset = xr.Dataset(
@@ -1142,7 +1301,7 @@ def _open_window(browser, tmp_path, monkeypatch):
         target=lambda: returned.update(
             out=oceanval.create_recipes(
                 simdir=str(tmp_path / "sim"), ndown=0, out=out, domain="nwes",
-                start=2011, end=2012, ask=False, gui=True,
+                start=2011, end=2012, ask=False, gui=True, own_data=own_data,
             )
         ),
         daemon=True,
@@ -1163,7 +1322,7 @@ def test_filling_in_a_variable_in_the_browser(browser, tmp_path, monkeypatch):
     """The page, driven as a user would: fill in the variable that was not
     identified, and write the script."""
     page, out, finished = _open_window(browser, tmp_path, monkeypatch)
-    kd490 = page.locator('input[aria-label="Model variable for KD490"]')
+    kd490 = page.locator('input[aria-label="Simulation variable for KD490"]')
     occci = page.locator('input[aria-label="OC-CCI, Global, for KD490"]')
     assert kd490.input_value() == ""
     assert occci.is_disabled()
@@ -1215,7 +1374,8 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.locator(".settings__sub").count() == 0
     assert "Matchup" not in page.locator(".settings__grid legend").all_text_contents()
     assert page.locator("#group-subset legend").text_content() == "Do you want a spatial subset?"
-    assert page.locator("#s-thickness").evaluate("node => node.previousElementSibling.textContent") == "Is the model z-level or is thickness supplied?"
+    # no dataset is set to Vertical yet, so no thickness is asked for
+    assert page.locator("#row-thickness").is_hidden()
     assert page.locator("#s-missing_from").evaluate("node => node.closest('.g-row').querySelector('.g-label').textContent") == "What should be treated as missing values?"
     assert page.locator("#s-point_time_res").evaluate("node => node.closest('.g-row').querySelector('.g-label').textContent") == "Match point observations by"
     # a "?" beside it explains each option, and only opens when asked
@@ -1262,6 +1422,8 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     page.check(
         'input[aria-label="Validate NSBC observations for Temperature through the full water column"]'
     )
+    assert page.locator("#row-thickness").is_visible()
+    assert page.locator("#s-thickness").evaluate("node => node.previousElementSibling.textContent") == "Is the simulation z-level or is thickness supplied?"
     assert page.locator(
         'input[aria-label="Validate COBE2 observations for Temperature through the full water column"]'
     ).count() == 0
@@ -1279,6 +1441,83 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
         '    climatology=True,\n'
         '    vertical=True,'
     ) in script
+
+
+def test_only_the_settings_the_datasets_need_are_shown_in_the_browser(browser, tmp_path, monkeypatch):
+    """Match point observations by is for point datasets, and the thickness for
+    those validated through the water column: neither is shown otherwise."""
+    page, _, _ = _open_window(browser, tmp_path, monkeypatch)
+    ices = 'input[aria-label="ICES, Northwest European Shelf, for Temperature"]'
+    vertical = 'input[aria-label="Validate NSBC observations for Temperature through the full water column"]'
+
+    # nwes ticks ICES, a point dataset, and no dataset is Vertical
+    assert page.locator("#group-point").is_visible()
+    assert page.locator("#row-thickness").is_hidden()
+
+    page.check(vertical)
+    assert page.locator("#row-thickness").is_visible()
+    page.uncheck(vertical)
+    assert page.locator("#row-thickness").is_hidden()
+
+    page.click("#clear-selections")
+    assert page.locator("#group-point").is_hidden()
+    assert page.locator("#row-thickness").is_hidden()
+
+    page.check(ices)
+    assert page.locator("#group-point").is_visible()
+
+
+def test_your_own_data_is_shown_ticked_in_the_browser(browser, tmp_path, monkeypatch):
+    """The user's own data is in its variable's row, ticked for good, with
+    the options a recipe's dataset has, and a variable only it is for has a
+    row of its own. The script registers it whatever is ticked, with the
+    options chosen."""
+    (tmp_path / "points").mkdir()
+    (tmp_path / "points" / "obs.csv").write_text("observation,lon,lat,depth,year,month,day\n1,3,56,1,2011,1,2\n")
+    own_data = {
+        "point": [{"name": "temperature", "source": "pygetm", "model_variable": "thetao",
+                   "obs_path": str(tmp_path / "points")}],
+        "gridded": [{"name": "zooc", "source": "Zoo", "model_variable": "kd_misc",
+                     "obs_path": str(tmp_path / "zoo.nc"), "obs_variable": "zoo", "climatology": False}],
+    }
+    page, out, finished = _open_window(browser, tmp_path, monkeypatch, own_data)
+    pygetm = page.locator('input[aria-label="pygetm, your data, for Temperature: always matched up"]')
+    assert pygetm.is_checked()
+    assert pygetm.is_disabled()
+    assert pygetm.evaluate("node => node.closest('td').dataset.label") == "What point datasets do you want?"
+    assert page.locator("label.chip.is-own", has=pygetm).inner_text().split() == ["pygetm", "Your", "data"]
+    assert "Your own data is always matched up, so is ticked in its row" in page.inner_text("#lede")
+
+    zooc = page.locator("tr.is-own")
+    assert zooc.count() == 1
+    assert zooc.locator(".obs__title").inner_text() == "Zooc"
+    assert zooc.locator(".own__model").inner_text() == "kd_misc"
+    assert zooc.locator("input.field__input").count() == 0
+
+    page.click("#clear-selections")
+    assert pygetm.is_checked()
+    assert "Only your own data is ticked" in page.inner_text("#summary")
+
+    # its options, as ICES has them, shown whether or not the row is ticked
+    name = "pygetm observations for Temperature"
+    assert page.locator(f'select[aria-label="Match {name} by"]').is_visible()
+    assert page.locator(f'input[aria-label="First year of {name}"]').is_visible()
+    page.check(f'input[aria-label="Validate {name} through the full water column"]')
+    page.select_option(f'select[aria-label="Match {name} by"]', "year,month")
+    # checked as a recipe's are
+    page.fill(f'input[aria-label="Last year of {name}"]', "1990")
+    assert page.is_disabled("#write")
+    page.fill(f'input[aria-label="Last year of {name}"]', "")
+    assert page.locator('input[aria-label="Validate Zoo observations for Zooc through the full water column"]').count() == 1
+
+    page.click("#write")
+    page.wait_for_selector("#done:not([hidden])")
+    assert finished() == out
+    script = open(out).read()
+    block = script.split('\noceanval.add_point_comparison(\n    name="temperature",\n    source="pygetm",\n')[1].split(")\n")[0]
+    assert "    vertical=True,\n" in block
+    assert "point_time_res=" in block and '"month"' in block
+    assert '\noceanval.add_gridded_comparison(\n    name="zooc",\n' in script
 
 
 def test_woa23_dataset_years_are_required_when_global_years_have_no_decade(browser, tmp_path, monkeypatch):

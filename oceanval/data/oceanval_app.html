@@ -99,6 +99,15 @@
 
   /* ---- your own observations ---- */
   .choices.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
+  /* the first question of this part gets the whole page: big cards in the middle of the free space */
+  #view-own:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
+  #view-own .own-question { margin: 0 0 32px; font: 600 34px/1.25 var(--font-head); letter-spacing: -0.4px; text-align: center; }
+  #view-own .choices.is-two { width: 100%; max-width: 980px; gap: 28px; }
+  #view-own .choice { align-items: center; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: center; text-align: center; }
+  #view-own .choice__icon { width: 64px; height: 64px; margin-bottom: 6px; border-radius: 16px; }
+  #view-own .choice__icon svg { width: 32px; height: 32px; }
+  #view-own .choice__title { font-size: 24px; }
+  #view-own .choice__text { font-size: 16px; }
   /* the answer given before, when the step is reached again */
   .choice.is-chosen { border-color: var(--teal-400); box-shadow: 0 0 0 1px var(--teal-400), var(--shadow-md); }
   .choice__tag { padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -163,7 +172,7 @@
   .reg-form .s-input.is-oceanval, .reg-form .s-select.is-oceanval, .reg-form .group__line.is-oceanval { color: var(--red); font-weight: 700; }
   .reg-form .s-input:disabled.is-oceanval { color: var(--red); -webkit-text-fill-color: var(--red); opacity: 1; }
   @media (max-width: 720px) { .reg-labels { grid-template-columns: minmax(0, 1fr); } }
-  @media (max-width: 720px) { .own-fields, .choices.is-two { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 720px) { .own-fields, .choices.is-two { grid-template-columns: minmax(0, 1fr); } #view-own .choice { min-height: 0; padding: 26px 22px; } }
 
   /* ---- your own data, saved for future use too ---- */
   .own-actions { flex-wrap: wrap; }
@@ -193,15 +202,20 @@
     padding: 24px 26px 26px;
   }
   .form__wide { grid-column: 1 / -1; }
+  .setup-form { display: grid; gap: 18px; margin: 0; }
+  .setup-box { padding: 24px 26px 26px; }
+  .setup-box__script { margin-top: 18px; }
+  /* a legend straddles its fieldset's top edge; floated, it sits inside the padding */
+  .setup-box > legend { float: left; width: 100%; }
+  .setup-box > legend + * { clear: both; }
   .form__row { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 16px; align-items: end; }
   .form__row > .g-row + .g-row { margin-top: 0; }
   .form__row + .form__row { margin-top: 14px; }
   .form__row.is-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ndown-row { display: grid; grid-template-columns: max-content 84px minmax(0, 1fr); gap: 12px; align-items: center; margin-top: 12px; }
+  .ndown-row { display: grid; grid-template-columns: max-content 84px; gap: 12px; align-items: center; margin-top: 12px; }
   .ndown-row > .g-label { margin: 0; }
   .ndown-row > .g-label.is-required { color: var(--red); font-weight: 700; }
   .ndown-row > .s-input { width: 84px; text-align: center; }
-  .group__intro.ndown-example { margin: 0; color: var(--teal-700); font-weight: 500; }
   .group__intro { margin: -2px 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
   .group__line.is-ok { color: var(--teal-700); }
   .group__line .link { font-size: inherit; }
@@ -523,6 +537,10 @@
   .picker__info code { overflow-wrap: anywhere; }
   #files-intro { margin-bottom: 10px; }
   .picker__card--narrow { max-width: 540px; }
+  .how__body { flex: 1; overflow-y: auto; padding: 0 22px 4px; overscroll-behavior: contain; }
+  .how__body p { margin: 0 0 12px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+  .how__body strong { color: var(--ink); font-weight: 600; }
+  .how__body code { padding: 1px 5px; border-radius: 5px; background: var(--bg-alt); font: 500 12.5px var(--font-mono); }
   .leftovers__intro { margin-top: 0; margin-bottom: 14px; font-size: 14px; color: var(--ink-soft); }
   #leftovers-notice { margin-bottom: 4px; }
   #leftovers-info:empty { display: none; }
@@ -543,13 +561,14 @@
     .picker { padding: 10px; }
     .picker__card { max-height: calc(100vh - 20px); }
     .picker__head, .picker__crumbs, .picker__foot { padding-left: 16px; padding-right: 16px; }
+    .how__body { padding-left: 16px; padding-right: 16px; }
     .picker__filter, .picker__list, .picker__info, .files__notice { margin-left: 16px; margin-right: 16px; }
     .form { grid-template-columns: 1fr; padding: 20px 16px 22px; }
+    .setup-box { padding: 20px 16px 22px; }
     .form__row, .form__row.is-pair { grid-template-columns: 1fr; }
     .form__row > .g-row + .g-row { margin-top: 10px; }
-    .ndown-row { grid-template-columns: 84px minmax(0, 1fr); gap: 6px 10px; }
+    .ndown-row { grid-template-columns: 84px; gap: 6px 10px; }
     .ndown-row > .g-label { grid-column: 1 / -1; }
-    .ndown-row > .ndown-example { align-self: center; }
     .ask { grid-template-columns: auto minmax(0, 1fr); }
     .ask__answer { grid-column: 1 / -1; justify-content: flex-start; }
     .ask__answer .s-input { flex: 1; width: auto; }
@@ -573,10 +592,11 @@
   .units-reading { margin: 0 0 18px; font-size: 14px; }
   /* what OceanVal filled in is red and bold, so that none of it is missed */
   .lede .oceanval-change, .units .s-input.is-oceanval, .units .group__line.is-oceanval,
-  .form .s-input.is-oceanval, .form .s-select.is-oceanval, .demo-about .oceanval-change,
+  .form .s-input.is-oceanval, .form .s-select.is-oceanval, .setup-form .s-input.is-oceanval,
+  .setup-form .s-select.is-oceanval, .demo-about .oceanval-change,
   .ptr-mode .oceanval-change { color: var(--red); font-weight: 700; }
   /* a box ticked for the user, which has no text of its own to colour: its label's */
-  .form .tick-label:has(.tick.is-oceanval) { color: var(--red); font-weight: 700; }
+  .form .tick-label:has(.tick.is-oceanval), .setup-form .tick-label:has(.tick.is-oceanval) { color: var(--red); font-weight: 700; }
   /* the units always have to be confirmed, beside Back and Continue */
   .summary__question.summary__confirm { gap: 12px; color: var(--ink); font: 600 18px/1.3 var(--font-head); cursor: pointer; }
   .ptr-choice { margin-bottom: 16px; }
@@ -908,36 +928,33 @@
 
   <section id="view-setup" hidden>
     <div class="banner" id="setup-error" role="alert" hidden></div>
-    <form class="form card" id="setup-form" novalidate autocomplete="off">
-      <fieldset class="group form__wide">
+    <form class="setup-form" id="setup-form" novalidate autocomplete="off">
+      <fieldset class="group card setup-box">
         <legend>Tell OceanVal about your simulation files</legend>
-        <div class="g-row"><label class="g-label is-required" for="f-simdir">Which directory stores your simulation data? <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/model/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label is-required" for="f-simdir">Which directory stores your simulation data? <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
         <div class="ndown-row">
-          <label class="g-label is-required" for="f-ndown">How many directories below this can you find your files? <span class="own-req">Required</span></label>
+          <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
           <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required>
-          <p class="group__intro ndown-example" id="ndown-example">Use 2 for output filed as sim/YYYY/MM/*.nc, 1 for sim/YYYY/*.nc, and 0 for a single directory.</p>
         </div>
         <div class="form__row is-pair">
           <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-          <label class="g-row"><span class="g-label">Only file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+          <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
         </div>
         <p class="group__msg" id="m-simulation"></p>
         <p class="group__intro"><button type="button" class="link" id="view-files" aria-haspopup="dialog">Click here to view the files in a random subdirectory of the listed directory</button></p>
-        <p class="group__intro">Once you have told OceanVal the names of model variables it will be able to identify which files contain them, and it will use the files with the highest temporal resolution. However, sometimes you have files that could trip up OceanVal's file identifier. For example, you might have files covering the entire simulation, but others covering a spatial subregion. In this case, OceanVal needs to be told some further details to dig down.</p>
+        <p class="group__intro"><button type="button" class="link" id="how-files" aria-haspopup="dialog">How does OceanVal identify simulation files to matchup?</button></p>
       </fieldset>
-      <fieldset class="group">
-        <legend>Which type of data do you want to use for validation?</legend>
+      <fieldset class="group card setup-box">
+        <legend>What spatial coverage do you need for your observational data?</legend>
         <div class="segmented" id="f-domain" role="radiogroup" aria-label="Domain"></div>
-        <p class="group__msg" id="m-domain"></p>
+        <p class="group__msg">OceanVal will select appropriate datasets. These can be modified later.</p>
       </fieldset>
-      <fieldset class="group form__wide">
+      <fieldset class="group card setup-box">
         <legend>Tell OceanVal where you want output to be saved</legend>
         <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
         <label class="tick-label" id="row-overwrite" hidden><input type="checkbox" class="tick" id="f-overwrite">Do you want to overwrite existing matchups in this directory?</label>
-      </fieldset>
-      <fieldset class="group form__wide">
-        <label class="g-row"><span class="g-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off"></label>
+        <label class="g-row setup-box__script"><span class="g-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off"></label>
         <p class="group__intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
         <p class="group__msg" id="m-out"></p>
       </fieldset>
@@ -948,17 +965,19 @@
   </section>
 
   <section id="view-own" hidden>
-    <p class="lede">As well as OceanVal's built-in datasets, you can validate against observations of your own, point data (csv files) or gridded data (netCDF). Do you have any to add?</p>
+    <h2 class="own-question">Do you have your own observational data?</h2>
     <div class="choices is-two">
       <button type="button" class="choice" id="own-yes">
         <span class="choice__tag" hidden>Your answer before</span>
+        <span class="choice__icon" data-icon="up"></span>
         <span class="choice__title">Yes, I have my own data</span>
         <span class="choice__text">Add point and gridded observations one at a time, in the next two steps.</span>
       </button>
       <button type="button" class="choice" id="own-no">
         <span class="choice__tag" hidden>Your answer before</span>
+        <span class="choice__icon" data-icon="check"></span>
         <span class="choice__title">No, just the built-in datasets</span>
-        <span class="choice__text">Go straight on to choosing which of OceanVal's recipes to use.</span>
+        <span class="choice__text">Go straight on to choosing which of OceanVal's built-in datasets to use.</span>
       </button>
     </div>
   </section>
@@ -987,16 +1006,16 @@
   <section id="view-register-gridded" hidden data-register="gridded"></section>
 
   <section id="view-units-table" hidden>
-    <p class="lede">A model and its observations can report the same quantity in different units, for example nutrients in mmol/m3 against µmol/kg, and OceanVal compares the values as they are. So OceanVal has compared the units of each matchup. Where it thinks they are the same, it has left the boxes empty, and where it thinks they differ, it has suggested a conversion: the observations become <strong>observations × multiply by + add</strong> before they are compared with the model.</p>
-    <p class="lede">The model's units are read from its netCDF files, and the observations' from OceanVal's recipes (as on the recipes page of the documentation) or from the netCDF file you supplied. OceanVal can get this wrong, so check every row, not only the conversions it suggests, which are <strong class="oceanval-change">in red and bold</strong>, and fill in any it could not work out. Leave the boxes empty where you agree that no conversion is needed. The units always have to be confirmed, with the tick box beside Continue, before the matchup starts.</p>
-    <p class="group__msg units-reading" id="units-reading" hidden>Reading the model's units from the simulation…</p>
+    <p class="lede">OceanVal has just identified whether the units are the same or whether the observational data needs to be adjusted to be in the model units. Please check the unit conversions below before proceeding.</p>
+    <p class="lede">Each observation becomes <strong>observation × Multiply by + Add</strong> before it is compared with the model. <strong>Multiply by</strong> rescales the units: roughly 1.025 turns µmol/kg into mmol/m3. <strong>Add</strong> shifts the zero point: 273.15 turns °C into K. Leave both boxes empty when no conversion is needed, and fill in any row OceanVal could not work out. Its suggestions are <strong class="oceanval-change">in red and bold</strong>. The units must be confirmed, with the tick box beside Continue, before the matchup starts.</p>
+    <p class="group__msg units-reading" id="units-reading" hidden>Reading the units from the simulation…</p>
     <section class="units-section" id="units-section-gridded" aria-labelledby="units-title-gridded">
       <h2 class="section-title" id="units-title-gridded">Gridded datasets</h2>
       <p class="lede">OceanVal's gridded recipes, and your own gridded data (netCDF).</p>
       <div class="card units"><table>
         <colgroup><col style="width:19%"><col style="width:11%"><col style="width:13%"><col style="width:14%"><col style="width:19%"><col style="width:12%"><col style="width:12%"></colgroup>
         <thead><tr>
-        <th scope="col">Matchup</th><th scope="col">Model variable</th><th scope="col">Model units</th>
+        <th scope="col">Matchup</th><th scope="col">Simulation variable</th><th scope="col">Simulation units</th>
         <th scope="col">Observation variable</th><th scope="col">Observation units</th>
         <th scope="col">Multiply by</th><th scope="col">Add</th>
         </tr></thead>
@@ -1006,11 +1025,11 @@
     </section>
     <section class="units-section" id="units-section-point" aria-labelledby="units-title-point">
       <h2 class="section-title" id="units-title-point">Point datasets</h2>
-      <p class="lede">OceanVal's ICES recipes, and your own point data. Your own point data is csv files, which have no units, so it is up to you to make sure they match the model's.</p>
+      <p class="lede">OceanVal's ICES recipes, and your own point data. Your own point data is csv files, which have no units, so it is up to you to make sure they match the simulation's.</p>
       <div class="card units"><table>
         <colgroup><col style="width:19%"><col style="width:11%"><col style="width:13%"><col style="width:14%"><col style="width:19%"><col style="width:12%"><col style="width:12%"></colgroup>
         <thead><tr>
-        <th scope="col">Matchup</th><th scope="col">Model variable</th><th scope="col">Model units</th>
+        <th scope="col">Matchup</th><th scope="col">Simulation variable</th><th scope="col">Simulation units</th>
         <th scope="col">Observation variable</th><th scope="col">Observation units</th>
         <th scope="col">Multiply by</th><th scope="col">Add</th>
         </tr></thead>
@@ -1021,8 +1040,8 @@
   </section>
 
   <section id="view-point-time-res" hidden>
-    <p class="lede">OceanVal matches each observation in these point datasets to the model output on the same day, as their point_time_res includes <strong>day</strong>. But the model output for their variables is coarser than daily: monthly, or once every few days. So most of their observations may find no model output on the same day, and be left out of the matchups.</p>
-    <p class="lede">Matching them by year and month instead compares each observation with the model output for its month. OceanVal suggests that, <strong class="oceanval-change">in red and bold</strong>, but you can choose for all of them at once, for each one, or keep them as they are.</p>
+    <p class="lede">OceanVal matches each observation in these point datasets to the simulation output on the same day, as their point_time_res includes <strong>day</strong>. But the simulation output for their variables is coarser than daily: monthly, or once every few days. So most of their observations may find no simulation output on the same day, and be left out of the matchups.</p>
+    <p class="lede">Matching them by year and month instead compares each observation with the simulation output for its month. OceanVal suggests that, <strong class="oceanval-change">in red and bold</strong>, but you can choose for all of them at once, for each one, or keep them as they are.</p>
     <div class="card ptr-choice" role="radiogroup" aria-label="What to do with these point datasets">
       <div class="ptr-modes">
         <label class="ptr-mode"><input type="radio" name="ptr-mode" value="all" id="ptr-mode-all">Change all of them to <select class="s-select" id="ptr-all" aria-label="How to match all of them"></select></label>
@@ -1134,7 +1153,7 @@
       </div>
       <fieldset class="group form__wide">
         <legend>Options</legend>
-        <div class="g-row" id="row-fixed_scale"><label class="tick-label" title="Cap the seasonal plots' colour scales at the 2nd and 98th percentiles of the model and observations"><input type="checkbox" class="tick" id="v-fixed_scale">Do you want model and observations to always use fixed colour scales?</label></div>
+        <div class="g-row" id="row-fixed_scale"><label class="tick-label" title="Cap the seasonal plots' colour scales at the 2nd and 98th percentiles of the simulation and observations"><input type="checkbox" class="tick" id="v-fixed_scale">Do you want simulation and observations to always use fixed colour scales?</label></div>
         <div class="g-row detail-row" role="group" aria-labelledby="v-formats-label">
           <span class="g-label" id="v-formats-label">What additional report formats do you want?</span>
           <div class="ticks">
@@ -1221,12 +1240,12 @@
       </div>
     </div>
     <div class="card" id="interim" role="status" aria-live="polite" hidden></div>
-    <section class="time-shift" id="time-shift" aria-label="Whether to shift the model's times" hidden>
-      <p class="lede">These model variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, matched up as they are, a January mean is compared with February's observations, and the year's last mean falls in the next year and is left out.</p>
-      <p class="lede" id="ts-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every model time <span id="ts-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers.</p>
-      <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the model's times">
+    <section class="time-shift" id="time-shift" aria-label="Whether to shift the simulation's times" hidden>
+      <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, matched up as they are, a January mean is compared with February's observations, and the year's last mean falls in the next year and is left out.</p>
+      <p class="lede" id="ts-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every simulation time <span id="ts-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers.</p>
+      <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the simulation's times">
         <div class="ptr-modes">
-          <label class="ptr-mode"><input type="radio" name="ts-mode" value="shift" id="ts-mode-shift"><span class="oceanval-change" id="ts-shift-label">Shift the model's times back one day</span></label>
+          <label class="ptr-mode"><input type="radio" name="ts-mode" value="shift" id="ts-mode-shift"><span class="oceanval-change" id="ts-shift-label">Shift the simulation's times back one day</span></label>
           <label class="ptr-mode"><input type="radio" name="ts-mode" value="keep" id="ts-mode-keep">Keep the times as they are</label>
         </div>
       </div>
@@ -1255,13 +1274,13 @@
       <div class="review__table"><table>
         <colgroup><col style="width:15%"><col style="width:104px"><col style="width:13%"><col style="width:15%"><col style="width:30%"><col style="width:112px"><col style="width:27%"></colgroup>
         <thead><tr>
-        <th scope="col">Variable</th><th scope="col" class="is-centered">Years</th><th scope="col">Model variable</th><th scope="col">Observation source</th><th scope="col">File pattern to be used</th><th scope="col" class="is-centered">Time resolution</th><th scope="col">Dates</th>
+        <th scope="col">Variable</th><th scope="col" class="is-centered">Years</th><th scope="col">Simulation variable</th><th scope="col">Observation source</th><th scope="col">File pattern to be used</th><th scope="col" class="is-centered">Time resolution</th><th scope="col">Dates</th>
         </tr></thead>
         <tbody id="review-body"></tbody>
       </table></div>
       <div class="review__filters" id="review-filters">
         <h3 class="review__filters-title">Not the right files?</h3>
-        <p class="review__filters-intro">Change which file names are used. OceanVal will read the simulation again with them and return to the recipes, to check the model variables, keeping your choices where they still apply.</p>
+        <p class="review__filters-intro">Change which file names are used. OceanVal will read the simulation again with them and return to the recipes, to check the simulation variables, keeping your choices where they still apply.</p>
         <div class="form__row is-pair">
           <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
           <label class="g-row"><span class="g-label">Only file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
@@ -1350,6 +1369,23 @@
     <div class="picker__foot">
       <button type="button" class="btn btn--ghost" id="sample-another">Show another directory</button>
       <button type="button" class="btn btn--primary" id="sample-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="picker" id="how" hidden>
+  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="how-title">
+    <div class="picker__head">
+      <h2 id="how-title">How does OceanVal identify simulation files to matchup?</h2>
+    </div>
+    <div class="how__body">
+      <p><strong>Where it looks.</strong> OceanVal searches the directory you give, and the number of directories below it that you say, for netCDF files. Once you have told it the names of your simulation variables, it works out which files contain each one.</p>
+      <p><strong>Which files it uses.</strong> Where a variable is held at more than one time resolution, for example in both daily and monthly files, OceanVal uses the files with the highest temporal resolution, so your matchups are as detailed as your output allows.</p>
+      <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Put words from the names of the files to leave out in <strong>Skip file names containing</strong> (for example <code>restart 5d</code>), or words that the files you want share in <strong>Only include file names containing</strong> (for example <code>grid_T</code>).</p>
+      <p>Only file names are checked, not directory names. To choose words, look at the names of the files in your simulation with &ldquo;Click here to view the files&rdquo;.</p>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--primary" id="how-close">Close</button>
     </div>
   </div>
 </div>
@@ -1449,6 +1485,7 @@
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11.5v5M9.5 14h5"/></svg>',
     settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     warn: ICONS.warn,
+    check: ICONS.check,
   };
   document.querySelectorAll("[data-icon]").forEach((node) => { node.innerHTML = PICTURES[node.dataset.icon]; });
 
@@ -1507,7 +1544,7 @@
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
       case "setup": return "What kind of datasets do you want to use for validation?";
-      case "own_data": return "Do you have your own data?";
+      case "own_data": return "";  // asked on the page itself
       case "register_kind": return "Which kind of data is your recipe for?";
       case "register_point": return "Register a point data recipe";
       case "register_gridded": return "Register a gridded data recipe";
@@ -1540,6 +1577,7 @@
 
   function renderHeader() {
     $("title").textContent = title();
+    $("title").hidden = !$("title").textContent;
     $("title").classList.toggle("is-setup-title", state.view === "setup" || state.view === "report_options");
     const meta = $("meta");
     meta.replaceChildren();
@@ -1949,10 +1987,6 @@
   }
 
   // ---- 2: the simulation ----
-  const DOMAIN_HINTS = {
-    global: "World Ocean Atlas 2023, Ocean Colour CCI, GLODAP and COBE-SST 2 start ticked.",
-    nwes: "The North Sea Biogeochemical Climatology and ICES in-situ observations start ticked.",
-  };
   const SETUP_FIELDS = ["simdir", "ndown", "exclude", "require", "start", "end", "out_dir", "out"];
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require", "out_dir", "out"]);
@@ -2187,17 +2221,12 @@
     }
     message("m-simulation", simulation, false);
 
-    message("m-domain", [
-      line(DOMAIN_HINTS[setup.domain] + " Where a variable has datasets in both regions, the domain decides which is ticked."),
-      line("Note: selections can be modified later."),
-    ]);
-
     if (errors.out_dir) {
       message("m-out_dir", [line(errors.out_dir, "error")], true);
     } else {
       const saved = state.action === "matchup"
-        ? "The matchups are saved in oceanval_matchups, inside this directory."
-        : "The matchups are saved in oceanval_matchups, and the report in oceanval_report, inside this directory.";
+        ? "The matchups will be saved in oceanval_matchups, inside this directory."
+        : "The matchups will be saved in oceanval_matchups, and the validation report in oceanval_report, inside this directory.";
       const lines = [line(String(setup.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
       if (probe && probe.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
       if (probe && probe.out_dir_has_matchups) {
@@ -2818,7 +2847,7 @@
         help: "The variable in the data to compare with.", input: select }));
     }
     contents.push(regField(kind, "units", { label: "Units", required: true,
-      help: gridded ? "What the observations are measured in, e.g. mg m-3. It is read from the data where it says." : "What the observations are measured in, e.g. mg m-3. A csv file does not say, so make sure they are the model's, or convert them in the units step.",
+      help: gridded ? "What the observations are measured in, e.g. mg m-3. It is read from the data where it says." : "What the observations are measured in, e.g. mg m-3. A csv file does not say, so make sure they are the simulation's, or convert them in the units step.",
       input: regText(kind, "units", { placeholder: "e.g. mg m-3" }) }));
     if (gridded) {
       contents.push(regField(kind, "climatology", { label: "Climatology", required: true,
@@ -4033,7 +4062,7 @@
   // what the folder browser says about the directory shown, for each box
   const DESCRIBE = {
     "f-simdir": {
-      title: "Choose the directory with the model output",
+      title: "Choose the directory with the simulation output",
       describe: (listing) => listing.nc_files
         ? [`${listing.nc_files} netCDF file${listing.nc_files === 1 ? "" : "s"} directly in here, e.g. ${listing.example}.`, "ok"]
         : ["No netCDF files directly in here, which is fine if they are in folders below it.", ""],
@@ -4042,7 +4071,7 @@
       title: "Choose where to save the output",
       describe: (listing) => listing.has_matchups
         ? ["There are matchups here already, from an earlier run.", "warn"]
-        : ["The matchups are saved in oceanval_matchups, inside it.", ""],
+        : ["The matchups will be saved in oceanval_matchups, inside it.", ""],
     },
     "v-data_dir": {
       title: "Choose the directory the matchups were made in",
@@ -4230,7 +4259,7 @@
     if (number !== sample.number || $("sample").hidden) return;
     sample.path = found.path;
     let problem = null;
-    if (found.directory === "empty") problem = "Enter the directory with the model output first.";
+    if (found.directory === "empty") problem = "Enter the directory with the simulation output first.";
     else if (found.directory === "missing") problem = "There is no directory at this path.";
     else if (found.ndown === null) problem = "Enter how many directories below it the files are first: a whole number, 0 or more.";
     else if (!found.files.length) problem = `There are no netCDF files ${depthText(found.ndown)}.`;
@@ -4264,6 +4293,28 @@
     sample.number += 1;
     if (sample.opener) sample.opener.focus();
   }
+
+  function openHow() {
+    $("how").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    $("how-close").focus();
+  }
+
+  function closeHow() {
+    $("how").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+    $("how-files").focus();
+  }
+
+  $("how-files").addEventListener("click", openHow);
+  $("how-close").addEventListener("click", closeHow);
+  $("how").addEventListener("click", (event) => { if (event.target === $("how")) closeHow(); });
+  $("how").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeHow();
+    }
+  });
 
   $("view-files").addEventListener("click", openSample);
   $("sample-another").addEventListener("click", () => showSample(sample.path));
@@ -4426,7 +4477,7 @@
     const question = state.question;
     if (state.view === "preparing") {
       return { title: "Reading the simulation",
-        text: "OceanVal is reading the model output, to work out which variables it holds and which observations they can be compared with." };
+        text: "OceanVal is reading the simulation output, to work out which variables it holds and which observations they can be compared with." };
     }
     // the tables ask their own questions, so there is nothing more to say
     if (question && question.details && ["matchups", "time_shift"].includes(question.details.kind)) return null;
@@ -4436,7 +4487,7 @@
     }
     if (run.identifying) {
       return { title: "Identifying files that meet criteria. Please wait!",
-        text: "OceanVal is finding the model output files that hold each variable. It then shows you what it found, to check before anything is matched up." };
+        text: "OceanVal is finding the simulation output files that hold each variable. It then shows you what it found, to check before anything is matched up." };
     }
     if (!run.status || run.status === "starting") {
       return { title: "Starting the run", text: "OceanVal is starting the matchup process." };
@@ -4447,11 +4498,11 @@
     }
     if (interim && interim.expected) {
       return { title: `Matching up: ${interim.pages} of ${plural(interim.expected, "matchup")} made`,
-        text: "OceanVal is matching the model to each observational dataset in turn. A link to the interim report appears below once the first matchup is in, so you can look at the results while the rest are made.",
+        text: "OceanVal is matching the simulation to each observational dataset in turn. A link to the interim report appears below once the first matchup is in, so you can look at the results while the rest are made.",
         done: interim.pages, of: interim.expected };
     }
     return { title: "Matching the model to the observations",
-      text: "OceanVal is matching the model output to each observational dataset in turn." };
+      text: "OceanVal is matching the simulation output to each observational dataset in turn." };
   }
 
   function renderProgress() {
@@ -4509,7 +4560,7 @@
       path = run.report_exists ? run.report : null;
     } else if (run.status === "stopped" && run.rejected) {
       heading = "The run was stopped";
-      text = `You said the matchups were not right, so nothing was ${state.action === "matchup" ? "matched up" : "matched up or validated"}. Start again to change the model variables or the file filters.`;
+      text = `You said the matchups were not right, so nothing was ${state.action === "matchup" ? "matched up" : "matched up or validated"}. Start again to change the simulation variables or the file filters.`;
       picture = "cross";
       tone = " is-off";
     } else if (run.status === "stopped") {
@@ -4736,7 +4787,7 @@
     const rows = question.details.rows || [];
     const { form, suggested } = state.time_shift;
     $("ts-suggested").textContent = suggested;
-    $("ts-shift-label").textContent = `Shift the model's times ${suggested}`;
+    $("ts-shift-label").textContent = `Shift the simulation's times ${suggested}`;
     // with bounds that put each time at the end of its period, the files do say
     $("ts-bounds").hidden = rows.length > 0 && rows.every((row) => row.has_bounds);
     $(`ts-mode-${form.mode}`).checked = true;
@@ -4795,7 +4846,7 @@
   function renderReview(question) {
     const details = question.details;
     $("review-lede").replaceChildren(
-      "Model output found in ",
+      "Simulation output found in ",
       el("code", { text: details.sim_dir }),
       ".");
     reviewDates.question = question.id;

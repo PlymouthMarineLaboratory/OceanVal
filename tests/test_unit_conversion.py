@@ -116,7 +116,7 @@ def test_what_is_assumed_is_said():
 
 def test_what_could_not_be_read_is_named():
     assert "“banana”" in suggest("nitrate", "mmol/m^3", "banana")["note"]
-    assert "the model's files do not give its units" in suggest(
+    assert "the simulation's files do not give its units" in suggest(
         "nitrate", "mmol/m^3", None
     )["note"]
 

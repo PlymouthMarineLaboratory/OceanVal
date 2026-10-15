@@ -30,7 +30,7 @@ from oceanval.unit_conversion import suggest, unknown
 # what to show where the units are not known
 NOT_AVAILABLE = None
 # what to tell the user about their own point data's units
-POINT_NOTE = "csv files have no units: make sure they match the model's"
+POINT_NOTE = "csv files have no units: make sure they match the simulation's"
 
 
 def model_units(simdir, ndown, names, exclude=None, require=None):
@@ -121,7 +121,7 @@ def _check(variable, obs_units, model):
         return suggest(variable, obs_units, None)
     for other in parts[1:]:
         if suggest(variable, other, parts[0])["status"] != "same":
-            return unknown("the model variables in the sum are in different units")
+            return unknown("the simulation variables in the sum are in different units")
     return suggest(variable, obs_units, parts[0])
 
 

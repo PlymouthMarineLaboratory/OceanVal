@@ -46,9 +46,13 @@ that takes you through these steps:
    below), after a page asking for what a recipe needs that the form did not,
    such as the units, with what OceanVal will assume in amber.
 4. **Recipes**: the recipes window, to check the model
-   variables found and choose the observations to validate against. A
-   dataset validated through the water column (Vertical) needs a thickness
-   before you can carry on.
+   variables found and choose the observations to validate against. Your own
+   data from step 3 is shown in its variable's row, ticked and tagged **Your
+   data**, as it is always matched up, with the same options as the other
+   datasets (Match by for point data, the years and Vertical), which are
+   written into its call; go back to change anything else about it, or remove
+   it. A dataset validated through the water column (Vertical) needs a
+   thickness before you can carry on.
 5. **Units**: a table of the units of every gridded and point matchup, read
    from the model's netCDF files and, for the observations, from the recipes
    (the Units column of the recipes page) or from your own netCDF file. Where

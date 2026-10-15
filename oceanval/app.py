@@ -466,7 +466,7 @@ def check_setup(form, cwd):
     arguments, errors = {}, {}
 
     if not form["simdir"]:
-        errors["simdir"] = "Enter the directory the model output is in."
+        errors["simdir"] = "Enter the directory the simulation output is in."
     elif not os.path.isdir(_path(form["simdir"], cwd)):
         errors["simdir"] = "There is no directory at this path."
     else:
@@ -2748,6 +2748,8 @@ class App:
                 for entries in self.own_data.values()
                 for arguments in entries
             ),
+            # the window's point_time_res applies to these too
+            "own_point": bool(self.own_data["point"]),
         }
         # chosen in the simulation step; the directory worked in is matchup's default
         page.form["out_dir"] = "" if self.out_dir == self.cwd else self.out_dir

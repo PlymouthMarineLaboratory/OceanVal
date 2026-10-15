@@ -113,9 +113,9 @@ _SOURCE = _field(
 )
 _MODEL_VARIABLE = _field(
     "model_variable",
-    "Model variable",
+    "Simulation variable",
     required=True,
-    help="The model variable to compare with. Use a+b+c to add variables together.",
+    help="The simulation variable to compare with. Use a+b+c to add variables together.",
 )
 
 POINT_FIELDS = [
@@ -164,7 +164,7 @@ POINT_FIELDS = [
         "point_time_res",
         "Time resolution",
         "multi",
-        help="Which of these the observations are matched to the model by, "
+        help="Which of these the observations are matched to the simulation by, "
         "in place of matchup's own setting.",
         choices=["year", "month", "day"],
     ),

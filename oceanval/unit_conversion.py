@@ -381,7 +381,7 @@ def _suggest(variable, obs_units, model_units):
     if _missing(obs_units):
         return unknown("the observations' units are not known")
     if _missing(model_units):
-        return unknown("the model's files do not give its units")
+        return unknown("the simulation's files do not give its units")
     obs_units, model_units = str(obs_units), str(model_units)
     if variable == "salinity":
         if _words(obs_units) in _SALINITY and _words(model_units) in _SALINITY:

@@ -1734,6 +1734,8 @@ def _create_recipes(
             "require": require,
             # for the table of the model's variables
             "long_names": long_names,
+            # shown in their variables' rows, ticked, as the script registers them
+            "own_data": own_data or {},
             # left out, as the user's own data registers them
             "replaced": sorted(replaced),
         }

@@ -568,7 +568,7 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         page.wait_for_function("!document.querySelector('#register-save').disabled")
 
         # Back keeps what was entered
-        page.click("text=Back")
+        page.click("#actions >> text=Back")
         page.wait_for_selector("#view-register-kind:not([hidden])")
         page.click("#register-gridded")
         page.wait_for_selector("#view-register-gridded:not([hidden])")
@@ -596,7 +596,7 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         assert user_recipes.get("nitrate", "mysat", str(tmp_path)) is None
 
         # point data is on this machine only
-        page.click("text=Back")
+        page.click("#actions >> text=Back")
         page.click("#register-point")
         page.wait_for_selector("#view-register-point:not([hidden])")
         assert page.locator("#r-point-location").count() == 0
@@ -645,7 +645,7 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#view-own-future:not([hidden])")
         assert page.text_content("#title") == "Save your point data for future use"
         assert 'recipe={"dic": "dicpts"}' in page.text_content(".future-summary")
-        assert "Model variable (thetao)" in page.text_content("#fu-run")
+        assert "Simulation variable (thetao)" in page.text_content("#fu-run")
 
         # a csv file says nothing of its units, so they have to be given
         assert page.input_value("#fu-units") == ""

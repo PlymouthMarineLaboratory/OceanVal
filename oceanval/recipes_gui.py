@@ -43,7 +43,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import time_res, user_settings
+from oceanval import own_data, time_res, user_recipes, user_settings
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -202,7 +202,7 @@ def check_settings(form, available, fvcom=False):
             settings["thickness"] = thickness
         else:
             errors["thickness"] = (
-                "Not a variable in the model output, or a file that exists."
+                "Not a variable in the simulation output, or a file that exists."
             )
 
     low, high = text("missing_from"), text("missing_to")
@@ -400,18 +400,75 @@ def check_gridded_options(form, years, vertical_option=False, decadal=False):
     return options, errors
 
 
-def _title(variable, cwd=None):
+# the boxes the window has for one of the user's own datasets
+OWN_BOXES = {
+    "point": ("point_time_res", "start", "end", "vertical"),
+    "gridded": ("start", "end", "vertical"),
+}
+
+
+def own_options(kind, arguments):
+    """One of the user's own datasets' options, from the arguments of its
+    call, as the window's boxes for them show them."""
+    options = {
+        name: "" if arguments.get(name) is None else str(arguments[name])
+        for name in ("start", "end")
+    }
+    options["vertical"] = bool(arguments.get("vertical"))
+    if kind == "point":
+        options["point_time_res"] = ",".join(arguments.get("point_time_res") or [])
+    return options
+
+
+def check_own_options(kind, arguments, form, years):
+    """One of the user's own datasets (the arguments of its call) with the
+    options the window sent for it (form), checked as a recipe's are.
+    Returns (arguments, errors). A time resolution the window does not
+    offer, which the own data step can give, is kept while it is unchanged."""
+    form = form if isinstance(form, dict) else {}
+    if kind == "point":
+        choice = str(form.get("point_time_res") or "").strip()
+        kept = choice not in _TIME_RES and choice == own_options(kind, arguments)["point_time_res"]
+        options, errors = check_point_options(
+            dict(form, point_time_res="" if kept else choice), years
+        )
+        if kept and choice:
+            options["point_time_res"] = list(arguments["point_time_res"])
+    else:
+        # the calls take Vertical for any data
+        options, errors = check_gridded_options(form, years, vertical_option=True)
+    # an option left as the call's default is not given, as in the own data step
+    changed = {name: value for name, value in arguments.items() if name not in options}
+    changed.update((name, value) for name, value in options.items() if value is not None)
+    return changed, errors
+
+
+def _title(variable, cwd=None, own=()):
     """How a variable is named in the window, e.g. "pH" or "KD490".
 
     Taken from the notes its first recipe opens with, "<title> - <source>",
     or the title of a recipe of the user's, for a variable only they have.
+    A variable only the user's own data in the matchup is for (own, the
+    arguments of its calls) is named as add_point_comparison and
+    add_gridded_comparison name it.
     """
     entry = next(
-        entry
-        for entry in gridded_catalogue(cwd) + point_catalogue(cwd)
-        if entry["variable"] == variable
+        (
+            entry
+            for entry in gridded_catalogue(cwd) + point_catalogue(cwd)
+            if entry["variable"] == variable
+        ),
+        None,
     )
-    return entry.get("title") or entry["notes"][0].split(" - ")[0]
+    if entry is not None:
+        return entry.get("title") or entry["notes"][0].split(" - ")[0]
+    labels = user_recipes.labels(variable, cwd)
+    if labels is not None:
+        return labels[2]
+    for arguments in own:
+        if arguments.get("short_title"):
+            return str(arguments["short_title"])
+    return variable.title()
 
 
 def _description(entry):
@@ -428,7 +485,7 @@ def _description(entry):
     return source, details
 
 
-def recipe_rows(mapping, domain, cwd=None, replaced=()):
+def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
     """One row of the window per observational variable, alphabetically.
 
     A dataset starts ticked where the script would register it were nothing
@@ -441,9 +498,35 @@ def recipe_rows(mapping, domain, cwd=None, replaced=()):
     replaced, (variable, recipe) pairs that the user's own data in the
     matchup takes the place of (see create_recipes.replaced_recipes), which
     are left out, as is a row left with no datasets.
+
+    That data, own_data ({"point": [...], "gridded": [...]}, the arguments
+    of each of its calls), is matched up whatever the window says, so is
+    shown in its variable's row as "own", ticked for good, with the options
+    a recipe's dataset has ("opts", see own_options): a variable only it is
+    for has a row with no datasets but it.
     """
-    variables = recipe_variables(cwd)
     replaced = {tuple(pair) for pair in replaced}
+    own = {}
+    for kind in ("gridded", "point"):
+        for index, arguments in enumerate((own_data or {}).get(kind) or []):
+            variable = str(arguments.get("name", "")).lower()
+            source = str(arguments.get("source", ""))
+            own.setdefault(variable, []).append(
+                {
+                    "kind": kind,
+                    # where it is in own_data, for the page to send its options back
+                    "index": index,
+                    "label": source,
+                    "model_variable": str(arguments.get("model_variable") or ""),
+                    "path": str(arguments.get("obs_path") or ""),
+                    # saved as a recipe too, which it takes the place of
+                    "saved": (variable, user_recipes.key_of(source)) in replaced,
+                    "opts": own_options(kind, arguments),
+                    "arguments": arguments,
+                }
+            )
+    variables = recipe_variables(cwd)
+    variables += tuple(variable for variable in own if variable not in variables)
     ticked = default_selection(mapping, domain, cwd)
     defaults = default_selection({variable: variable for variable in variables}, domain, cwd)
 
@@ -473,7 +556,9 @@ def recipe_rows(mapping, domain, cwd=None, replaced=()):
     rows = [
         {
             "variable": variable,
-            "title": _title(variable, cwd),
+            "title": _title(
+                variable, cwd, [item["arguments"] for item in own.get(variable, [])]
+            ),
             "model_variable": mapping.get(variable) or "",
             "gridded": [
                 dataset(entry, entry["region"])
@@ -485,10 +570,14 @@ def recipe_rows(mapping, domain, cwd=None, replaced=()):
                 for entry in point_catalogue(cwd)
                 if entry["variable"] == variable and shown(entry)
             ],
+            "own": [
+                {key: value for key, value in item.items() if key != "arguments"}
+                for item in own.get(variable, [])
+            ],
         }
         for variable in sorted(variables)
     ]
-    return [row for row in rows if row["gridded"] or row["point"]]
+    return [row for row in rows if row["gridded"] or row["point"] or row["own"]]
 
 
 def render_page(template, state):
@@ -528,7 +617,7 @@ def _unknown_message(unknown):
     if "" in unknown:
         return 'Remove the empty name beside "+".'
     verb = "is" if len(unknown) == 1 else "are"
-    return f"{', '.join(unknown)} {verb} not in the model output."
+    return f"{', '.join(unknown)} {verb} not in the simulation output."
 
 
 # set by hosted_by: the oceanval app, which shows the create_recipes window
@@ -664,9 +753,78 @@ class RecipePage:
             token.encode("utf-8"), self.token.encode("utf-8")
         )
 
+    def _own(self):
+        """The user's own data in the matchup (see recipe_rows), whose
+        entries the window's options for them are written into."""
+        return self.context.get("own_data") or {}
+
+    def _rows_now(self):
+        """The rows, with the user's own data's options as they are now:
+        the window may have changed them, before it is shown again."""
+        own, rows = self._own(), []
+        for row in self.rows:
+            items = []
+            for item in row["own"]:
+                with contextlib.suppress(KeyError, IndexError, TypeError):
+                    arguments = own[item["kind"]][item["index"]]
+                    item = dict(item, opts=own_options(item["kind"], arguments))
+                items.append(item)
+            rows.append(dict(row, own=items))
+        return rows
+
+    def _own_changes(self, sent, years):
+        """The user's own datasets whose options the page changed, from what
+        it sent for them (sent: {kind: {index: options}}), as
+        ({(kind, index): arguments}, errors): errors are {kind: {index:
+        {box: reason}}}. Those it sent nothing for are left as they are."""
+        sent = sent if isinstance(sent, dict) else {}
+        changes, errors = {}, {}
+        for kind, entries in self._own().items():
+            forms = sent.get(kind) if isinstance(sent.get(kind), dict) else {}
+            for index, arguments in enumerate(entries or []):
+                if str(index) not in forms:
+                    continue
+                changed, problems = check_own_options(kind, arguments, forms[str(index)], years)
+                if problems:
+                    errors.setdefault(kind, {})[str(index)] = problems
+                elif changed != arguments:
+                    changes[kind, index] = changed
+        return changes, errors
+
+    def _refused(self, changes):
+        """What the calls refuse the changed datasets with, as for
+        _own_changes' errors, as the own data step checks them: e.g.
+        Vertical, for csv files with no depth column."""
+        own = self._own()
+        entries = [
+            ((kind, index), changes.get((kind, index), arguments))
+            for kind in own_data.KINDS
+            for index, arguments in enumerate(own.get(kind) or [])
+        ]
+        errors = {}
+        for (kind, index), arguments in entries:
+            if (kind, index) not in changes:
+                continue
+            existing = [(where[0], other) for where, other in entries if where != (kind, index)]
+            reason = own_data.refusal(kind, arguments, existing)
+            if reason is not None:
+                box = own_data._blame(kind, reason)
+                errors.setdefault(kind, {})[str(index)] = {
+                    box if box in OWN_BOXES[kind] else "": reason
+                }
+        return errors
+
+    def _keep_own(self, changes):
+        """Write the changed options into the user's own data, whose lists
+        the script is written from (and, in the oceanval app, the steps
+        after this one)."""
+        own = self._own()
+        for (kind, index), arguments in changes.items():
+            own[kind][index] = arguments
+
     def html(self):
         state = {
-            "rows": self.rows,
+            "rows": self._rows_now(),
             "available": sorted(self.available, key=lambda v: (v.lower(), v)),
             # each model variable's long_name, for the table under its box
             "long_names": self.context.get("long_names") or {},
@@ -718,6 +876,7 @@ class RecipePage:
             mapping, selection, errors = {}, set(), {}
             point_options, point_errors = {}, {}
             gridded_options, gridded_errors = {}, {}
+            own_changes, own_errors = self._own_changes(payload.get("own"), years)
             for item in sent:
                 if not isinstance(item, dict) or item.get("variable") not in rows:
                     return 400, {
@@ -727,7 +886,9 @@ class RecipePage:
                     }
                 variable = item["variable"]
                 answer = str(item.get("model_variable") or "").strip()
-                if not answer:
+                if not answer or not (rows[variable]["gridded"] or rows[variable]["point"]):
+                    # nothing to match up, or only the user's own data,
+                    # which has its own model variable
                     continue
                 unknown = _unknown_variables(answer, self.available)
                 if unknown:
@@ -780,7 +941,17 @@ class RecipePage:
             if app:
                 # the app answers matchup's questions in its window
                 settings["ask"] = True
-                vertical = app.get("own_vertical") or any(
+                own = [
+                    own_changes.get((kind, index), arguments)
+                    for kind, entries in self._own().items()
+                    for index, arguments in enumerate(entries or [])
+                ]
+                own_vertical = (
+                    any(arguments.get("vertical") for arguments in own)
+                    if own
+                    else app.get("own_vertical")
+                )
+                vertical = own_vertical or any(
                     options.get("vertical")
                     for options in [*gridded_options.values(), *point_options.values()]
                 )
@@ -792,14 +963,19 @@ class RecipePage:
                 ):
                     setting_errors["thickness"] = THICKNESS_NEEDED
 
-            if errors or setting_errors or point_errors or gridded_errors:
+            if not (errors or setting_errors or point_errors or gridded_errors or own_errors):
+                # only once all else is right, as it opens the data
+                own_errors = self._refused(own_changes)
+            if errors or setting_errors or point_errors or gridded_errors or own_errors:
                 return 400, {
                     "ok": False,
                     "errors": errors,
                     "setting_errors": setting_errors,
                     "point_errors": point_errors,
                     "gridded_errors": gridded_errors,
+                    "own_errors": own_errors,
                 }
+            self._keep_own(own_changes)
             try:
                 out = self.write(
                     mapping, selection, settings, point_options, gridded_options
@@ -822,6 +998,16 @@ class RecipePage:
             if not self._used:
                 if isinstance(sent, dict):
                     self.sent = sent
+                    if self.context.get("app"):
+                        # kept for Back, as the rest of the window is: those
+                        # that can be used, as the years are checked again
+                        changes, _ = self._own_changes(sent.get("own"), None)
+                        refused = self._refused(changes)
+                        self._keep_own({
+                            (kind, index): arguments
+                            for (kind, index), arguments in changes.items()
+                            if str(index) not in refused.get(kind, {})
+                        })
                 self.result = None
                 self._used = True
 
@@ -992,8 +1178,9 @@ def choose_recipes(mapping, domain, available, context, write, open_browser=True
 
     mapping is what create_recipes identified, available every variable in
     the model output, and context what the page's header shows, along with
-    the start and end the Global settings begin with, and the recipes of the
-    user's that their own data takes the place of ("replaced"), which the
+    the start and end the Global settings begin with, the user's own data
+    in the matchup ("own_data"), which the window shows ticked, and the
+    recipes of the user's that it takes the place of ("replaced"), which the
     window leaves out (see recipe_rows). When the page is submitted,
     write(mapping, selection, settings, point_options, gridded_options)
     writes the script and returns its path. Returns what write was called
@@ -1001,7 +1188,13 @@ def choose_recipes(mapping, domain, available, context, write, open_browser=True
     is one of the host's pages instead.
     """
     page = RecipePage(
-        recipe_rows(mapping, domain, context.get("cwd"), context.get("replaced") or ()),
+        recipe_rows(
+            mapping,
+            domain,
+            context.get("cwd"),
+            context.get("replaced") or (),
+            context.get("own_data"),
+        ),
         available,
         context,
         write,
