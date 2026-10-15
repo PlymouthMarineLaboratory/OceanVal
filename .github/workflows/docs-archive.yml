@@ -81,6 +81,7 @@ jobs:
           dest = Path(sys.argv[1])
           live_only_pages = [
               "installing.html", "quickstart.html", "browser.html",
+              "app.html", "datasets.html",
               "how-to-use.html", "recipes.html",
               "obs-data.html", "qa.html", "about.html",
               "example-report/", "version-history.html",
@@ -99,6 +100,9 @@ jobs:
                   raise SystemExit(f"Expected one nav-links block in {page}, found {n}")
               for name in live_only_pages:
                   html = html.replace(f'href="{name}', f'href="../../{name}')
+              # the landing page's video lives in media/, shared by every version
+              for attr in ("src", "poster"):
+                  html = html.replace(f'{attr}="media/', f'{attr}="../../media/')
               page.write_text(html)
           PY
 

@@ -282,6 +282,34 @@
       .catch(function () { /* no index (e.g. a local preview): leave search off */ });
   }
 
+  /* ---------- landing page animation: autoplay, with a pause button ---------- */
+  var heroVideo = document.querySelector("#hero-video");
+  var heroToggle = document.querySelector("#hero-video-toggle");
+  if (heroVideo && heroToggle) {
+    var syncToggle = function () {
+      var paused = heroVideo.paused;
+      heroToggle.classList.toggle("is-paused", paused);
+      heroToggle.setAttribute("aria-label", paused ? "Play the animation" : "Pause the animation");
+    };
+    heroVideo.addEventListener("play", syncToggle);
+    heroVideo.addEventListener("pause", syncToggle);
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      /* the poster stays up until the visitor asks for the motion */
+      heroVideo.removeAttribute("autoplay");
+      heroVideo.pause();
+      var still = function () { heroVideo.currentTime = 7.9; }; /* the datasets step, as the poster */
+      if (heroVideo.readyState >= 1) still(); else heroVideo.addEventListener("loadedmetadata", still, { once: true });
+    } else {
+      var started = heroVideo.play();
+      if (started && started.catch) started.catch(function () { /* autoplay blocked: poster + Play button */ });
+    }
+    syncToggle();
+    heroToggle.addEventListener("click", function () {
+      if (heroVideo.paused) heroVideo.play(); else heroVideo.pause();
+    });
+  }
+
   /* ---------- back to top ---------- */
   var backToTop = document.querySelector(".back-to-top");
   if (backToTop) {

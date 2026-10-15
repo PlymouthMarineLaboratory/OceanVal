@@ -26,8 +26,9 @@ updating to match, and update whichever do:
    roughly 1:1 (`api.rst`↔`api.html`, `how_to_use.rst`↔`how-to-use.html`,
    `index.rst`↔`index.html`, `installing.rst`↔`installing.html`,
    `obs_data.rst`↔`obs-data.html`, `q_a.rst`↔`qa.html`,
-   `quickstart.rst`↔`quickstart.html`, `recipes.rst`↔`recipes.html`,
-   `info.rst`↔`about.html`). Check both, since they can drift independently.
+   `quickstart.rst`↔`how-to-use.html#quickstart`, `recipes.rst`↔`recipes.html`,
+   `info.rst`↔`about.html`; `app.html` and `datasets.html` have no `.rst`
+   counterpart). Check both, since they can drift independently.
 3. **`README.md`** (repo root) — usage examples and the feature list should
    match current behaviour.
 4. **`docs-site/example-report/`** — the sample validation report embedded

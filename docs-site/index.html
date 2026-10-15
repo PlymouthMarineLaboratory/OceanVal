@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OceanVal — Automated Ocean Model Validation</title>
-<meta name="description" content="OceanVal is a Python package that matches ocean model output against observational datasets and builds a polished, shareable HTML validation report in a few lines of code.">
+<meta name="description" content="OceanVal matches ocean model output against observational datasets and builds a polished, shareable HTML validation report, from your browser or in Python.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,15 +21,15 @@
     </a>
     <nav class="nav-links" id="nav-links">
       <a href="installing.html" data-page="installing.html">Install</a>
-      <a href="quickstart.html" data-page="quickstart.html">Quickstart</a>
+      <a href="app.html" data-page="app.html">The OceanVal app</a>
+      <a href="datasets.html" data-page="datasets.html">Datasets</a>
       <div class="nav-drop">
         <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
-          How to use
+          How to use in Python
           <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="nav-drop-menu">
           <a href="how-to-use.html" data-page="how-to-use.html">Guide</a>
-          <a href="browser.html" data-page="browser.html">From your browser</a>
           <a href="recipes.html" data-page="recipes.html">Recipes</a>
           <a href="obs-data.html" data-page="obs-data.html">Data formats</a>
           <a href="qa.html" data-page="qa.html">Q&amp;A</a>
@@ -59,73 +59,48 @@
 </header>
 
 <section class="hero">
-  <div class="container hero-grid">
-    <div>
-      <h1>Ocean model validation, <em>without the busywork</em></h1>
-      <p class="hero-sub">Point OceanVal at your model output. It matches simulation results against trusted observational datasets, computes the statistics, and builds a polished, shareable HTML report — all in a few lines of Python.</p>
-      <div class="hero-actions">
-        <a class="btn btn-primary" href="quickstart.html">
-          Get started
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </a>
-        <a class="btn btn-ghost" href="example-report/notebooks/002_summary.html" target="_blank" rel="noopener">
-          View an example report
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        </a>
+  <div class="container hero-stack">
+    <h1>Ocean model validation, <em>without the busywork</em></h1>
+    <p class="hero-sub">Point OceanVal at your model output. It matches simulation results against trusted observational datasets, computes the statistics, and builds a polished, shareable HTML report — all from your browser.</p>
+    <div class="code-card hero-video-card">
+      <div class="code-card__bar">
+        <div class="code-card__dots"><span></span><span></span><span></span></div>
+        <span class="code-card__label">oceanval</span>
+        <button class="hero-video__toggle" id="hero-video-toggle" type="button" aria-label="Pause the animation">
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="7 4 20 12 7 20"/></svg>
+        </button>
       </div>
-      <ul class="hero-points">
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <span>Validate CF-compliant simulation output</span>
-        </li>
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <span>Save hassle with recipes that download and validate against popular ocean datasets</span>
-        </li>
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <span>Build a shareable report in three function calls</span>
-        </li>
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <span>Export to HTML, PDF and Word</span>
-        </li>
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <span>Compare multiple simulations side by side</span>
-        </li>
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <span>Auto-generates bias, RMSD, correlation, and Taylor diagrams</span>
-        </li>
-      </ul>
+      <video id="hero-video" class="hero-video" autoplay muted loop playsinline preload="auto" width="1600" height="900" poster="media/oceanval-hero-poster.jpg" aria-label="A short animation of the OceanVal app: choosing a simulation and observations, checking the units, setting the report options, and the validation report it builds.">
+        <source src="media/oceanval-hero.mp4" type="video/mp4">
+      </video>
     </div>
-    <div class="hero-panel">
-      <div class="code-card">
-        <div class="code-card__bar">
-          <div class="code-card__dots"><span></span><span></span><span></span></div>
-          <span class="code-card__label">validate.py</span>
-          <button class="code-card__copy" data-copy-target="#hero-code">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <span class="copy-label">Copy</span>
-          </button>
-        </div>
-        <pre id="hero-code"><span class="tok-kw">import</span> oceanval
-
-oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
-    name=<span class="tok-str">"temperature"</span>,
-    model_variable=<span class="tok-str">"thetao"</span>,
-    recipe={<span class="tok-str">"temperature"</span>: <span class="tok-str">"woa23"</span>},
-    start=<span class="tok-num">2005</span>, end=<span class="tok-num">2014</span>,
-    climatology=<span class="tok-kw">True</span>,
-)
-
-oceanval.<a href="api.html#matchup"><span class="tok-fn">matchup</span></a>(sim_dir=<span class="tok-str">"/path/to/model/output"</span>,
-                start=<span class="tok-num">2005</span>, end=<span class="tok-num">2014</span>)
-
-oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()  <span class="tok-com"># -> a full HTML report</span></pre>
-      </div>
-    </div>
+    <ul class="hero-points">
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>Validate CF-compliant simulation output</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>Built-in observational datasets, downloaded for you</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>From model output to a shareable report in a few clicks</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>Export to HTML, PDF and Word</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>Compare multiple simulations side by side</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>Auto-generates bias, RMSD, correlation, and Taylor diagrams</span>
+      </li>
+    </ul>
   </div>
   <div class="wave-divider">
     <svg viewBox="0 0 1440 110" preserveAspectRatio="none">
@@ -150,13 +125,13 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>() 
       </div>
       <div class="step-card">
         <span class="step-num">2</span>
-        <h3>Match with <a href="api.html#matchup"><code>matchup()</code></a></h3>
+        <h3>Matchup your model with observations</h3>
         <p>OceanVal scans your simulation directory, regrids where needed, and pairs model values with observed values, like-for-like &mdash; and can <a href="how-to-use.html#live">build an interim report as it goes</a>, so you can read the results while the rest are matched.</p>
         <span class="step-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
       </div>
       <div class="step-card">
         <span class="step-num">3</span>
-        <h3>Report with <a href="api.html#validate"><code>validate()</code></a></h3>
+        <h3>Produce a validation report</h3>
         <p>Bias, RMSD, correlation, seasonality and spatial patterns are computed and written to a shareable HTML report — built from editable notebooks.</p>
       </div>
     </div>
@@ -194,113 +169,13 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>() 
       <div class="feature-card">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
         <h3>Works with your model</h3>
-        <p>NEMO, CMEMS, CMIP-style output, and any CF-compliant NetCDF. FVCOM is supported with <code>matchup(fvcom=True)</code>.</p>
+        <p>NEMO, CMEMS, CMIP-style output, and any CF-compliant NetCDF.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
         <h3>Compare simulations</h3>
-        <p>Build side-by-side comparison reports for multiple runs with a single <a href="api.html#compare"><code>oceanval.compare()</code></a> call.</p>
+        <p>Build side-by-side comparison reports for multiple runs</p>
       </div>
-    </div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="container">
-    <div class="preview-panel">
-      <div>
-        <span class="kicker">See it in action</span>
-        <h2>A report your collaborators will actually read</h2>
-        <p>Every <a href="api.html#validate"><code>validate()</code></a> run produces a self-contained HTML report: climatology and bias maps, seasonality plots, spatial correlation tables, vertical profiles, sections along a transect, and a documented methods section — generated from Jupyter notebooks you can inspect and rebuild.</p>
-        <p>Need it in another format? <a href="how-to-use.html#formats"><code>word=True</code> or <code>pdf=True</code></a> also writes the report as a Word document or PDF, with the equations kept editable in Word.</p>
-        <a class="btn btn-outline" href="example-report/notebooks/002_summary.html" target="_blank" rel="noopener">
-          Open a live example report
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        </a>
-      </div>
-      <div class="browser-mock">
-        <div class="browser-mock__bar">
-          <span></span><span></span><span></span>
-          <div class="browser-mock__url">pmlmodelling.github.io/oceanval_docs/example-report</div>
-        </div>
-        <div class="browser-mock__body">
-          <div class="fake-title"></div>
-          <div class="mock-stat-row">
-            <div class="mock-stat"><span>Bias</span><strong>-0.14 °C</strong></div>
-            <div class="mock-stat"><span>RMSD</span><strong>0.62 °C</strong></div>
-            <div class="mock-stat"><span>Correlation</span><strong>0.94</strong></div>
-          </div>
-          <div class="mock-chart">
-            <svg viewBox="0 0 400 130" preserveAspectRatio="none">
-              <polyline points="0,90 40,70 80,85 120,50 160,60 200,30 240,45 280,25 320,40 360,20 400,35" fill="none" stroke="#087f8c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-              <polyline points="0,100 40,95 80,100 120,80 160,88 200,65 240,75 280,58 320,68 360,52 400,60" fill="none" stroke="#d76b45" stroke-width="2.5" stroke-dasharray="5 5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="section section-alt">
-  <div class="container">
-    <div class="sample">
-      <div class="code-card">
-        <div class="code-card__bar">
-          <div class="code-card__dots"><span></span><span></span><span></span></div>
-          <span class="code-card__label">terminal</span>
-        </div>
-        <pre><span class="tok-com"># install</span>
-conda install -c conda-forge oceanval
-
-<span class="tok-com"># from an empty working directory</span>
-<span class="tok-kw">import</span> oceanval
-
-oceanval.<a href="api.html#add_point_comparison"><span class="tok-fn">add_point_comparison</span></a>(
-    name=<span class="tok-str">"nitrate"</span>, source=<span class="tok-str">"ICES"</span>,
-    model_variable=<span class="tok-str">"no3"</span>, obs_path=<span class="tok-str">"obs/"</span>,
-)
-
-oceanval.<a href="api.html#matchup"><span class="tok-fn">matchup</span></a>(sim_dir=<span class="tok-str">"model/"</span>, start=<span class="tok-num">2005</span>, end=<span class="tok-num">2014</span>, cores=<span class="tok-num">4</span>)
-oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()</pre>
-      </div>
-      <div>
-        <span class="kicker">Get started in minutes</span>
-        <h2>From raw NetCDF to a validation report</h2>
-        <p>Work from a fresh directory, register the datasets you care about — built-in recipes or your own files — then run <a href="api.html#matchup"><code>matchup()</code></a> and <a href="api.html#validate"><code>validate()</code></a>. OceanVal handles regridding, unit conversion, and figure generation for you.</p>
-        <ul>
-          <li>Works with directories of NetCDF files, or year/month subfolders.</li>
-          <li>Vertical profiles supported wherever cell thickness is available.</li>
-          <li>Rebuild a report after editing its notebooks with <a href="api.html#rebuild"><code>oceanval.rebuild()</code></a>.</li>
-        </ul>
-        <a class="btn btn-primary" href="quickstart.html">
-          Read the quickstart
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="container">
-    <div class="section-head">
-      <span class="kicker">Trusted datasets</span>
-      <h2>Validate against the observational data you already trust</h2>
-      <p>19 built-in recipes cover global and Northwest European Shelf observations — no manual downloads, no metadata wrangling.</p>
-    </div>
-    <ul class="pill-list" style="justify-content:center;">
-      <li>World Ocean Atlas 2023</li>
-      <li>COBE-SST 2</li>
-      <li>Ocean Colour CCI</li>
-      <li>GLODAPv2.2016b</li>
-      <li>North Sea Biogeochemical Climatology</li>
-    </ul>
-    <div style="text-align:center; margin-top:1.6rem;">
-      <a class="btn btn-outline" href="recipes.html">
-        Browse all recipes
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-      </a>
     </div>
   </div>
 </section>
@@ -326,7 +201,7 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()<
   <div class="container footer-top">
     <div class="footer-brand">
       <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
-      <p>Automated ocean model validation in Python. Match, compute, and report — in a few lines of code.</p>
+      <p>Automated ocean model validation. Match, compute, and report — from your browser or in Python.</p>
       <div class="footer-social">
         <a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" aria-label="GitHub">
           <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
@@ -340,15 +215,15 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()<
       <h4>Documentation</h4>
       <ul>
         <li><a href="installing.html">Installing</a></li>
-        <li><a href="quickstart.html">Quickstart</a></li>
-        <li><a href="how-to-use.html">How to use OceanVal</a></li>
-        <li><a href="browser.html">Validating from your browser</a></li>
+        <li><a href="app.html">The OceanVal app</a></li>
+        <li><a href="how-to-use.html">How to use OceanVal in Python</a></li>
         <li><a href="api.html">API reference</a></li>
       </ul>
     </div>
     <div class="footer-col">
       <h4>Data</h4>
       <ul>
+        <li><a href="datasets.html">Built-in observational datasets</a></li>
         <li><a href="recipes.html">Observation recipes</a></li>
         <li><a href="obs-data.html">Compatible data formats</a></li>
         <li><a href="qa.html">Q&amp;A</a></li>

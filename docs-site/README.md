@@ -7,24 +7,32 @@ oceanVal repository). Plain static HTML/CSS/JS — no build step, no dependencie
 
 ```
 index.html          Landing page
+datasets.html       Built-in observational datasets, for users of the app
+                     (no recipes or Python): the same data as recipes.html
+app.html            The OceanVal app (`oceanval` browser window), development
+                     version only
 installing.html      \
-quickstart.html       \
-browser.html           Development-version page: the `oceanval` browser window
-how-to-use.html         Documentation, mirrors docs/source/*.rst in the
-recipes.html             oceanVal package, redesigned
-obs-data.html            /
-qa.html                 /
-api.html               /
+how-to-use.html       \  Documentation, mirrors docs/source/*.rst in the
+recipes.html           \ oceanVal package, redesigned (how-to-use.html's
+obs-data.html          /  #quickstart is quickstart.rst)
+qa.html               /
+api.html             /
 about.html          /
+quickstart.html     Redirect stubs to app.html (old URLs), not in the nav,
+browser.html         noindex and ignored by the search index
 version-history.html   Links to archive/vX.Y.Z/ snapshots - see "Archived
                         versions" below
 assets/
   css/style.css      Design system (design tokens, components)
   js/main.js         Nav, copy-to-clipboard, FAQ accordion, recipe filters, scrollspy
   img/               Logo (from oceanval/data/oceanval_wordmark.svg), PML logo, favicon
-media/               The browser window's demo video and poster. Deliberately outside
-                      assets/, which every archive snapshot copies - a ~10 MB
-                      video would be duplicated into each release.
+media/               The app's demo video and poster, and the landing page's hero
+                      animation (oceanval-hero.mp4 + poster, 1920x1080, a few MB, a looping
+                      ~26 s cut of the promo video, made by
+                      oceanval_promo/web.py). Deliberately outside assets/, which
+                      every archive snapshot copies - the videos would be
+                      duplicated into each release; the snapshot's index.html
+                      points its src/poster at the live media/ instead.
 archive/             Per-release snapshots of just index.html + api.html
                       (nav simplified to a single Version history link) +
                       assets/, written by .github/workflows/docs-archive.yml.
@@ -133,9 +141,9 @@ reliably and was reverted. Don't rebuild that without being asked - see
 created. It reads the version from `setup.py` (the source of truth - not the
 release's tag name, not PyPI, since PyPI's publish can race this workflow),
 and copies only `index.html`, `api.html`, and `assets/` into
-`archive/vX.Y.Z/` — the other pages (`installing.html`,
-`quickstart.html`, `browser.html`, `how-to-use.html`, `recipes.html`, `obs-data.html`,
-`qa.html`, `about.html`) aren't meaningfully version-specific, and archiving
+`archive/vX.Y.Z/` — the other pages (`datasets.html`, `installing.html`,
+`app.html`, `how-to-use.html`, `recipes.html`, `obs-data.html`,
+`qa.html`, `about.html`, and the `quickstart.html`/`browser.html` stubs) aren't meaningfully version-specific, and archiving
 all ten pages of every release indefinitely doesn't scale. Within the
 snapshot, the nav on both pages is simplified down to a single "Version
 history" link, and any link to one of the eight un-archived pages (plus

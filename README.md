@@ -15,7 +15,7 @@ OceanVal is designed for the automated creation of validation reports. You provi
 ## Running OceanVal from the terminal
 
 The browser window is in the development version only (`main`), not yet in a tagged
-release; there is a [page and demo video on the website](https://pmlmodelling.github.io/OceanVal/browser.html).
+release; there is a [page and demo video on the website](https://pmlmodelling.github.io/OceanVal/app.html).
 
 The quickest way needs no Python at all. In a terminal, in the directory to
 work in, run `oceanval` (or `OceanVal`). A page opens in your web browser

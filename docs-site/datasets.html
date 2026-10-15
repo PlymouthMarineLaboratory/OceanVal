@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Built-in observational datasets — OceanVal</title>
+<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, Ocean Colour CCI, GLODAP, the North Sea Biogeochemical Climatology and ICES.">
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="index.html">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <span id="oceanval-docs-version" class="brand-version">v&hellip;</span>
+    </a>
+    <nav class="nav-links" id="nav-links">
+      <a href="installing.html" data-page="installing.html">Install</a>
+      <a href="app.html" data-page="app.html">The OceanVal app</a>
+      <a href="datasets.html" data-page="datasets.html">Datasets</a>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          How to use in Python
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="how-to-use.html" data-page="how-to-use.html">Guide</a>
+          <a href="recipes.html" data-page="recipes.html">Recipes</a>
+          <a href="obs-data.html" data-page="obs-data.html">Data formats</a>
+          <a href="qa.html" data-page="qa.html">Q&amp;A</a>
+          <a href="api.html" data-page="api.html">API</a>
+        </div>
+      </div>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          Info
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="about.html" data-page="about.html">About</a>
+          <a href="version-history.html" data-page="version-history.html">Version history</a>
+        </div>
+      </div>
+    </nav>
+    <div class="nav-actions">
+      <a class="icon-btn" href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" aria-label="OceanVal on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+      </a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="page-hero">
+  <div class="container">
+    <div class="breadcrumb"><a href="index.html">Home</a> / Built-in observational datasets</div>
+    <h1>Built-in observational datasets</h1>
+    <p class="lead">The observations OceanVal can validate your simulation against without any files of your own. It downloads what it needs as the matchup runs.</p>
+  </div>
+</div>
+
+<div class="container docs-layout">
+  <aside class="docs-toc">
+    <div class="docs-toc-title">On this page</div>
+    <ul>
+      <li><a href="#using">Using them</a></li>
+      <li><a href="#gridded">Gridded datasets</a></li>
+      <li class="docs-toc-sub"><a href="#woa23">World Ocean Atlas 2023 periods</a></li>
+      <li><a href="#point">Point datasets</a></li>
+      <li class="docs-toc-sub"><a href="#ices-data">How ICES data is treated</a></li>
+      <li><a href="#units">Units</a></li>
+      <li><a href="#own-data">Your own data</a></li>
+    </ul>
+  </aside>
+
+  <div class="docs-content">
+    <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen, nutrients, chlorophyll, the carbonate system and light attenuation, globally and on the Northwest European Shelf.</p>
+
+    <h2 id="using">Using them</h2>
+    <p>In the <a href="app.html">OceanVal app</a>, the datasets are offered in the step where you choose the observations to validate against (step&nbsp;4 of <a href="app.html">the steps</a>). OceanVal reads your simulation, works out which of its variables holds each observed variable, and ticks every dataset for the domain you chose (global or the Northwest European Shelf) that it finds a variable for. Check what it found, and untick anything you do not want.</p>
+    <p>Nothing has to be downloaded beforehand. The observations are downloaded when the matchup runs, in most cases from THREDDS servers, so only what is needed is downloaded. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
+
+    <h2 id="gridded">Gridded datasets</h2>
+    <p>Click a row for more about the dataset. <strong>Water column</strong> says whether it can be validated below the surface as well as at it.</p>
+
+    <div class="recipe-toolbar">
+      <div class="recipe-search">
+        <input type="search" id="recipe-search" placeholder="Search variable or dataset…" aria-label="Search datasets">
+      </div>
+      <div class="filter-pills">
+        <button class="filter-pill active" data-region="all">All regions</button>
+        <button class="filter-pill" data-region="global">Global</button>
+        <button class="filter-pill" data-region="nwes">Northwest European Shelf</button>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:1.6rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>Region</th>
+            <th>Variable</th>
+            <th>Dataset</th>
+            <th>Water column</th>
+            <th>Units</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Alkalinity</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td><td><code><code>micro-mol kg-1</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>An annual climatology covering 1972&ndash;2013, at the surface only, in micromoles per kilogram. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Chlorophyll</td><td><a href="https://esa-oceancolour-cci.org/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ocean Colour CCI</a></td><td><span class="badge badge-no">No</span></td><td><code><code>milligram m-3</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>Satellite surface chlorophyll, in milligrams per cubic metre, compared year by year rather than as a climatology. Ocean Colour CCI also provides KD490.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>KD490</td><td><a href="https://esa-oceancolour-cci.org/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ocean Colour CCI</a></td><td><span class="badge badge-no">No</span></td><td><code><code>m-1</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>The diffuse attenuation coefficient at 490&nbsp;nm, from satellite, in inverse metres, compared year by year rather than as a climatology.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Nitrate</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Oxygen</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>pH</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td><td><code><code>total scale</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>An annual climatology covering 1972&ndash;2013, at the surface only, on the total scale.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Phosphate</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Salinity</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>1</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A decadal climatology, through the water column to about 800&nbsp;m: the years you match up must fall within one of its periods (see <a href="#woa23">below</a>).</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Silicate</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Temperature</td><td><a href="https://psl.noaa.gov/data/gridded/data.cobe2.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">COBE-SST 2</a></td><td><span class="badge badge-no">No</span></td><td><code><code>degC</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>Monthly sea surface temperature, for validating a full time series rather than a climatology.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Temperature</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>degC</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A decadal climatology, through the water column to about 800&nbsp;m: the years you match up must fall within one of its periods (see <a href="#woa23">below</a>).</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Ammonium</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Chlorophyll</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mg/m^3</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Nitrate</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Oxygen</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Phosphate</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Salinity</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>1</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Silicate</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Temperature</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>degC</code></code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          </div></td></tr>
+
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout" id="woa23" style="margin-top:2rem;">
+      <div class="callout-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>World Ocean Atlas 2023 temperature and salinity</div>
+      <p>The World Ocean Atlas&rsquo;s temperature and salinity are decadal climatologies, one for each of these periods:</p>
+      <ul class="pill-list">
+        <li>1955–1964</li><li>1965–1974</li><li>1975–1984</li><li>1985–1994</li><li>1995–2004</li><li>2005–2014</li><li>2015–2022</li>
+      </ul>
+      <p>The years you match up have to fall within one period: choose the period your simulation covers, and set the years in the app to it, such as 1995 to 2004. Years that straddle two periods, such as 2000 to 2008, are refused, as is anything longer than a decade, so validate one period at a time. The nutrients and oxygen use a single long-term climatology, and can be matched up with any years.</p>
+    </div>
+
+    <h2 id="point" style="margin-top:2.4rem;">Point datasets</h2>
+    <p style="max-width:70ch;">Measurements at sea, from the ICES Oceanographic database, are downloaded for the years you match up, in the area given by the longitude and latitude limits you set in the app or, if you set none, the area your simulation covers. See <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
+    <div class="table-wrap" style="margin-top:1.6rem; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Region</th>
+            <th>Variable</th>
+            <th>Dataset</th>
+            <th>Water column</th>
+            <th>Units</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Northeast Atlantic</td><td>Temperature</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td><span class="badge badge-yes">Yes</span></td><td>&deg;C</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Salinity</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td><span class="badge badge-yes">Yes</span></td><td>dimensionless</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Total Alkalinity</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>mEq/l</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Ammonium</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Chlorophyll</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;g/l</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Nitrate</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Oxygen</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>ml/l</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>pH</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>pH units</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Phosphate</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+          </tr>
+          <tr>
+            <td>Northeast Atlantic</td><td>Silicate</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="ices-data" style="margin-top:2rem;">How ICES data is treated</h3>
+    <p style="max-width:70ch;"><strong>What is downloaded.</strong> For each variable, OceanVal asks ICES for an export of every profile in the area you match up (or your simulation&rsquo;s own area) in the years you match up. Everything but temperature and salinity comes from the bottle and low resolution CTD data. Temperature and salinity take two exports, one of the high resolution CTD profiles and one of the bottle and low resolution CTD data, which are joined (see <em>Profiles in both datasets</em> below). An export holds every variable measured at its profiles, so large areas or long periods make for a large download.</p>
+    <p style="max-width:70ch;"><strong>Which values are used.</strong> Each variable is read from one ICES parameter code. ICES splits some analytes over several codes, by method, and only the code below is used: nitrate is nitrate alone, for example, not nitrate+nitrite.</p>
+    <div class="table-wrap" style="max-width:520px; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>ICES parameter code</th><th>ICES dataset</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Temperature</td><td><code>TEMPPR01</code></td><td>CTD and bottle</td></tr>
+          <tr><td>Salinity</td><td><code>PSALPR01</code></td><td>CTD and bottle</td></tr>
+          <tr><td>Total Alkalinity</td><td><code>ALKYZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Ammonium</td><td><code>AMONZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Chlorophyll</td><td><code>CPHLZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Nitrate</td><td><code>NTRAZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Oxygen</td><td><code>DOXYZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>pH</td><td><code>PHXXZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Phosphate</td><td><code>PHOSZZXX</code></td><td>Bottle</td></tr>
+          <tr><td>Silicate</td><td><code>SLCAZZXX</code></td><td>Bottle</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="max-width:70ch; margin-top:1.2rem;"><strong>Profiles in both datasets.</strong> Bottles are fired on CTD casts, so a cast can be in both the CTD and the bottle data, with the same values. For temperature and salinity, bottle values at a station the CTD data already has (the same date, and the same position to 0.01&deg;) are left out, so each cast is counted once, and the run&rsquo;s output says how many were. The bottle data adds the stations without a CTD profile, which are many in older years.</p>
+    <p style="max-width:70ch;"><strong>Quality flags.</strong> A value is kept only if its own quality flag and the flag of its depth are both 0 (good). Values flagged 1 (unknown quality), 4 (questionable) or 8 (bad) are left out. Recent years have many values flagged 1, so they can have few observations, or none.</p>
+    <p style="max-width:70ch;"><strong>Depth.</strong> The depth is ICES&rsquo;s adopted depth (<code>ADEPZZ01</code>), in metres. Observations at 5&nbsp;m or less make up the surface layer. Through the water column, an observation above the centre of the model&rsquo;s top cell, as many bottle values at 0&nbsp;m are, is compared with the top cell.</p>
+    <p style="max-width:70ch;"><strong>Time.</strong> Only the date of an observation is used, not the time of day. Times without a time zone are taken as UTC. A time written as hour 24 (<code>1981-04-27T24</code>) is 00:00 of the next day, as ISO&nbsp;8601 has it. An observation dated only to the month or the year, or whose time cannot be read, is left out rather than given a day, and the run&rsquo;s output says how many were.</p>
+    <p style="max-width:70ch;"><strong>Values.</strong> Values are used as ICES gives them, in the units in the table above. OceanVal does not screen them for range or remove duplicates, beyond the quality flags and the repeated stations above. ICES revises its data, so a later download can differ.</p>
+
+    <h2 id="units" style="margin-top:2.4rem;">Units</h2>
+    <p style="max-width:70ch;">The Units columns give the units of the observations as each dataset&rsquo;s files state them. Your model may use others, such as mmol/m&sup3; for nutrients where the World Ocean Atlas uses &micro;mol/kg. The app&rsquo;s <a href="app.html">Units step</a> lists the units of your model and of the observations side by side, suggests a conversion where it can tell how to convert one into the other, and asks you to confirm them before anything is matched up. Check the units, and for the World Ocean Atlas the period, every time.</p>
+
+    <h2 id="own-data" style="margin-top:2.4rem;">Your own data</h2>
+    <p style="max-width:70ch;">You can validate against observations of your own as well, point data in csv files or gridded data in netCDF files. Add them in the app&rsquo;s <strong>Own data</strong> step for one matchup, or choose <strong>Add your own validation data for future use</strong> on its first page to keep them, so that later matchups offer them beside the built-in datasets. See <a href="app.html">the steps</a>, and <a href="obs-data.html">compatible data formats</a> for how the files must be laid out.</p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container footer-pml">
+    <a href="https://pml.ac.uk/" target="_blank" rel="noopener"><img src="assets/img/pml_logo.jpg" alt="Plymouth Marine Laboratory"></a>
+    <span>Developed by the Environmental Intelligence group at Plymouth Marine Laboratory</span>
+  </div>
+  <div class="container footer-top">
+    <div class="footer-brand">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <p>Automated ocean model validation. Match, compute, and report — from your browser or in Python.</p>
+      <div class="footer-social">
+        <a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" aria-label="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+        </a>
+        <a href="mailto:rwi@pml.ac.uk" aria-label="Email">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Documentation</h4>
+      <ul>
+        <li><a href="installing.html">Installing</a></li>
+        <li><a href="app.html">The OceanVal app</a></li>
+        <li><a href="how-to-use.html">How to use OceanVal in Python</a></li>
+        <li><a href="api.html">API reference</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Data</h4>
+      <ul>
+        <li><a href="datasets.html">Built-in observational datasets</a></li>
+        <li><a href="recipes.html">Observation recipes</a></li>
+        <li><a href="obs-data.html">Compatible data formats</a></li>
+        <li><a href="qa.html">Q&amp;A</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="about.html">About &amp; contact</a></li>
+        <li><a href="version-history.html">Version history</a></li>
+        <li><a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener">GitHub repository</a></li>
+        <li><a href="https://github.com/pmlmodelling/oceanVal/issues" target="_blank" rel="noopener">Report an issue</a></li>
+        <li><a href="https://anaconda.org/conda-forge/oceanval" target="_blank" rel="noopener">conda-forge package</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <span>© 2026 Plymouth Marine Laboratory. Released under the GNU GPLv3 license.</span>
+    <span>Built for ocean modellers, by ocean modellers.</span>
+  </div>
+</footer>
+
+<button class="back-to-top" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+</button>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>
