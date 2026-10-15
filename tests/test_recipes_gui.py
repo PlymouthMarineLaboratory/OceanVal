@@ -267,6 +267,46 @@ class TestErsemDetection:
                 assert "recipe:" not in dataset["details"]
 
 
+def _panels_work(page, oceanvalrc, theme):
+    """The cog and the i beside the wordmark open their panels on this page,
+    and Apply saves the theme."""
+    assert page.locator(".masthead .brand #settings-open").count() == 1
+    assert page.locator(".masthead .brand #info-open").count() == 1
+    assert page.is_hidden("#preferences")
+    page.click("#settings-open")
+    assert page.is_visible("#preferences")
+    page.click(f'label.theme-option:has(input[value="{theme}"])')
+    page.click("#settings-apply")
+    page.wait_for_selector("#preferences", state="hidden")
+    assert page.get_attribute("html", "data-theme") == theme
+    assert json.loads(oceanvalrc.read_text())["settings"]["theme"] == theme
+    assert page.evaluate("document.activeElement.id") == "settings-open"
+
+    page.click("#info-open")
+    assert page.is_visible("#info")
+    assert page.text_content("#info-version") == f"Version {oceanval.__version__}"
+    assert page.locator("#info-gridded tbody tr").count() > 0
+    page.keyboard.press("Escape")
+    assert page.is_hidden("#info")
+    assert page.evaluate("document.activeElement.id") == "info-open"
+
+
+def test_the_preferences_and_info_are_in_the_window_too(browser, oceanvalrc):
+    recipe_page = RecipePage(
+        recipe_rows({"temperature": "thetao"}, "nwes"),
+        {"thetao"},
+        CONTEXT,
+        lambda *chosen: "/out/matchup.py",
+    )
+    url = recipe_page.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        _panels_work(page, oceanvalrc, "dark")
+    finally:
+        recipe_page.close()
+
+
 def _get(page, query=""):
     url = page.url.split("?")[0] + query
     try:

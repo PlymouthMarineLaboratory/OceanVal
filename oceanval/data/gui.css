@@ -506,3 +506,117 @@ input.tick { cursor: pointer; }
   .bar .wrap { flex-direction: column; align-items: stretch; }
   .actions { justify-content: flex-end; }
 }
+
+/* ---- dialogs, the preferences and about panels the header's buttons open ---- */
+.picker {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--backdrop);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.picker__card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 660px;
+  max-height: min(740px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--bg);
+  box-shadow: var(--shadow-lg);
+}
+.picker__foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px 20px; }
+/* ---- the settings: a button beside the wordmark, and a panel over nearly all the page ---- */
+.settings-open, .info-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  margin-left: 10px;
+  padding: 0;
+  justify-content: center;
+  width: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: 600 13px/1 var(--font-body);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.info-open { margin-left: 5px; }
+.settings-open:hover, .info-open:hover { border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.16); }
+.settings-open:focus-visible, .info-open:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
+.settings-open__icon { display: inline-flex; width: 17px; height: 17px; }
+.info-open__icon { display: inline-flex; width: 24px; height: 24px; }
+.settings-open__icon svg, .info-open__icon svg { width: 100%; height: 100%; }
+.prefs__card { max-width: none; height: 100%; max-height: none; }
+.prefs__head { padding: 24px 32px 18px; border-bottom: 1px solid var(--line); }
+.prefs__head h2 { margin: 0; font: 600 24px/1.25 var(--font-head); letter-spacing: -0.3px; }
+.prefs__where { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.prefs__where code { font-size: 13px; overflow-wrap: anywhere; }
+.prefs__body { flex: 1; overflow-y: auto; padding: 8px 32px 24px; overscroll-behavior: contain; }
+/* the space is a margin, as a fieldset's top padding goes below its legend */
+.prefs__group { max-width: 1040px; margin: 22px 0 0; padding: 0 0 22px; border: 0; border-bottom: 1px solid var(--line-soft); }
+.prefs__group:last-of-type { border-bottom: 0; }
+.prefs__legend { padding: 0; font: 600 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
+.prefs__hint { margin: 4px 0 16px; color: var(--muted); font-size: 14px; }
+.prefs__themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.theme-option {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.theme-option:hover { border-color: var(--teal-200); }
+.theme-option.is-chosen { border-color: var(--teal-600); box-shadow: var(--focus); }
+.theme-option__name { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 600; }
+.theme-option__name input { width: 17px; height: 17px; margin: 0; accent-color: var(--teal-600); cursor: pointer; }
+.theme-option__name small { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+/* a small picture of the window in a theme: its header, and a card on the page */
+.swatch { display: grid; grid-template-rows: 30px 1fr; height: 112px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-alt); }
+.swatch__mast { display: flex; align-items: center; gap: 4px; padding: 0 10px; background: var(--masthead-bg); }
+.swatch__mast i { width: 26px; height: 7px; border-radius: 4px; background: #fff; }
+.swatch__mast i + i { width: 16px; background: var(--brand-accent); }
+.swatch__page { padding: 10px; }
+.swatch__card { display: grid; gap: 6px; align-content: start; height: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+.swatch__card i { width: 70%; height: 6px; border-radius: 3px; background: var(--ink-soft); }
+.swatch__card i + i { width: 90%; background: var(--muted-light); }
+.swatch__card b { justify-self: end; width: 36px; height: 12px; margin-top: 2px; border-radius: 4px; background: var(--teal-600); }
+.prefs__check { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 15px; cursor: pointer; }
+.prefs__error { max-width: 1040px; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 10px; background: var(--red-bg); color: var(--red); font-size: 14px; }
+.prefs__foot { padding: 16px 32px 20px; border-top: 1px solid var(--line); }
+@media (max-width: 760px) {
+  .prefs { padding: 10px; }
+  .prefs__head, .prefs__body, .prefs__foot { padding-left: 16px; padding-right: 16px; }
+  .settings-open { margin-left: 6px; }
+  .info-open { margin-left: 3px; }
+}
+
+/* ---- the info: links, and the built-in datasets ---- */
+.info__links { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
+.info__links a { color: var(--teal-700); font-weight: 600; text-underline-offset: 2px; }
+.info__links a:hover { color: var(--teal-900); }
+.info__table-wrap { overflow-x: auto; max-width: 1040px; border: 1px solid var(--line); border-radius: 12px; }
+.info__table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; }
+.info__table th, .info__table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.info__table th { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.info__table tbody tr:last-child td { border-bottom: 0; }
+.info__table code { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
+.info__table a { color: var(--teal-700); text-underline-offset: 2px; }
+.info__table .is-no { color: var(--muted); }
+.info__subtitle { margin: 18px 0 8px; font: 600 15px/1.3 var(--font-head); }
+@media (max-width: 760px) {
+  .picker { padding: 10px; }
+  .picker__card { max-height: calc(100vh - 20px); }
+}

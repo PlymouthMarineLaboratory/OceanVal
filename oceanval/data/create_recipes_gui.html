@@ -1608,6 +1608,15 @@
     summarise();
   });
 
+
+  // ---- the preferences and the info, from the buttons beside the wordmark ----
+  // in the app they are saved by the app, which keeps them for its other pages
+  OceanValGUI.mountChrome({
+    state: () => state,
+    post,
+    settingsPath: app ? "../api/settings" : "settings",
+    behind: () => [document.querySelector(".masthead"), document.querySelector("main"), document.querySelector(".bar")],
+  });
   summarise();
 })();
 </script>

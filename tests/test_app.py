@@ -5338,6 +5338,44 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
         app.close()
 
 
+def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc, tmp_path):
+    write_simulation(tmp_path / "sim")
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click('button.choice[data-action="matchup_validate"]')
+        page.fill("#f-simdir", "sim")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        page.fill("#f-ndown", "2")
+        page.click("#continue")
+        page.click("#own-no")
+        page.wait_for_url("**/recipes/**", timeout=90000)
+        assert page.text_content("#page-title") == "Let's fine-tune what you want to matchup"
+        assert page.locator(".masthead .brand #settings-open").count() == 1
+        assert page.locator(".masthead .brand #info-open").count() == 1
+
+        page.click("#settings-open")
+        assert page.is_visible("#preferences")
+        page.click('label.theme-option:has(input[value="dark"])')
+        page.click("#settings-apply")
+        page.wait_for_selector("#preferences", state="hidden")
+        assert page.get_attribute("html", "data-theme") == "dark"
+        # saved through the app, which keeps it for its other pages
+        assert app.state()["user_settings"]["values"]["theme"] == "dark"
+        assert json.loads(oceanvalrc.read_text())["settings"]["theme"] == "dark"
+
+        page.click("#info-open")
+        assert page.is_visible("#info")
+        assert page.text_content("#info-version") == f"Version {app.state()['oceanval_version']}"
+        assert page.locator("#info-point tbody tr").count() == 10
+        page.click("#info-close")
+        assert page.is_hidden("#info")
+    finally:
+        app.close()
+
+
 def test_overwrite_choice_only_appears_for_existing_matchups(browser, tmp_path):
     write_simulation(tmp_path / "sim")
     (tmp_path / "old" / "oceanval_matchups").mkdir(parents=True)
@@ -6307,13 +6345,13 @@ class TestSettings:
 
             # Cancel leaves everything as it was
             page.click("#settings-open")
-            assert page.is_visible("#settings")
+            assert page.is_visible("#preferences")
             assert page.is_checked("#settings-show-demo")
             assert page.is_checked('input[name="settings-theme"][value="default"]')
             page.check('input[name="settings-theme"][value="dark"]')
             page.uncheck("#settings-show-demo")
             page.click("#settings-cancel")
-            assert page.is_hidden("#settings")
+            assert page.is_hidden("#preferences")
             assert page.get_attribute("html", "data-theme") is None
             assert page.is_visible("#choice-demo")
             assert not oceanvalrc.exists()
@@ -6324,14 +6362,14 @@ class TestSettings:
             assert page.is_checked('input[name="settings-theme"][value="default"]')
             assert page.is_checked("#settings-show-demo")
             page.keyboard.press("Escape")
-            assert page.is_hidden("#settings")
+            assert page.is_hidden("#preferences")
 
             page.click("#settings-open")
             page.click('label.theme-option:has(input[value="dark"])')
             assert page.is_checked('input[name="settings-theme"][value="dark"]')
             page.uncheck("#settings-show-demo")
             page.click("#settings-apply")
-            page.wait_for_selector("#settings", state="hidden")
+            page.wait_for_selector("#preferences", state="hidden")
             assert page.get_attribute("html", "data-theme") == "dark"
             assert page.is_hidden("#choice-demo")
             assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False}
@@ -6349,7 +6387,7 @@ class TestSettings:
             page.check('input[name="settings-theme"][value="default"]')
             page.check("#settings-show-demo")
             page.click("#settings-apply")
-            page.wait_for_selector("#settings", state="hidden")
+            page.wait_for_selector("#preferences", state="hidden")
             assert page.get_attribute("html", "data-theme") is None
             assert page.is_visible("#choice-demo")
             assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(244, 250, 250)"
@@ -6370,7 +6408,7 @@ class TestSettings:
             page.click("#settings-apply")
             page.wait_for_selector("#settings-error:not([hidden])")
             assert "could not be read" in page.text_content("#settings-error")
-            assert page.is_visible("#settings")
+            assert page.is_visible("#preferences")
             assert page.get_attribute("html", "data-theme") is None
             assert oceanvalrc.read_text() == "{ not json"
         finally:

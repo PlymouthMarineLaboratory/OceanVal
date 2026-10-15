@@ -290,29 +290,6 @@
   .combo__option:hover, .combo__option.is-active { background: var(--teal-50); }
 
   /* ---- the folder browser ---- */
-  .picker {
-    position: fixed;
-    inset: 0;
-    z-index: 25;
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    background: var(--backdrop);
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-  }
-  .picker__card {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    max-width: 660px;
-    max-height: min(740px, calc(100vh - 48px));
-    overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--bg);
-    box-shadow: var(--shadow-lg);
-  }
   .picker__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 20px 22px 10px; }
   .picker__head h2 { margin: 0; font: 600 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
   .picker__places { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -365,7 +342,6 @@
   .picker__info.is-error { color: var(--red); }
   .picker__file { margin: 0; padding: 6px 12px; border-bottom: 1px solid var(--line-soft); font: 400 13px/1.4 var(--font-mono); overflow-wrap: anywhere; }
   .picker__file:last-child { border-bottom: 0; }
-  .picker__foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px 20px; }
 
   /* ---- the run ---- */
   .result { display: flex; gap: 16px; align-items: flex-start; margin: 0 0 18px; padding: 18px 20px; }
@@ -560,8 +536,6 @@
     .choice, .choice.is-demo, .choice.is-register { aspect-ratio: auto; }
   }
   @media (max-width: 760px) {
-    .picker { padding: 10px; }
-    .picker__card { max-height: calc(100vh - 20px); }
     .picker__head, .picker__crumbs, .picker__foot { padding-left: 16px; padding-right: 16px; }
     .how__body { padding-left: 16px; padding-right: 16px; }
     .picker__filter, .picker__list, .picker__info, .files__notice { margin-left: 16px; margin-right: 16px; }
@@ -746,90 +720,6 @@
     .depth-bin { grid-template-columns: 26px minmax(0, 1fr) 8px minmax(0, 1fr) 30px; gap: 8px; padding-left: 10px; padding-right: 10px; }
   }
 
-  /* ---- the settings: a button beside the wordmark, and a panel over nearly all the page ---- */
-  .settings-open, .info-open {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    height: 32px;
-    margin-left: 10px;
-    padding: 0;
-    justify-content: center;
-    width: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-    font: 600 13px/1 var(--font-body);
-    cursor: pointer;
-    transition: background-color 0.15s, border-color 0.15s;
-  }
-  .info-open { margin-left: 5px; }
-  .settings-open:hover, .info-open:hover { border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.16); }
-  .settings-open:focus-visible, .info-open:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
-  .settings-open__icon { display: inline-flex; width: 17px; height: 17px; }
-  .info-open__icon { display: inline-flex; width: 24px; height: 24px; }
-  .settings-open__icon svg, .info-open__icon svg { width: 100%; height: 100%; }
-  .settings__card { max-width: none; height: 100%; max-height: none; }
-  .settings__head { padding: 24px 32px 18px; border-bottom: 1px solid var(--line); }
-  .settings__head h2 { margin: 0; font: 600 24px/1.25 var(--font-head); letter-spacing: -0.3px; }
-  .settings__where { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
-  .settings__where code { font-size: 13px; overflow-wrap: anywhere; }
-  .settings__body { flex: 1; overflow-y: auto; padding: 8px 32px 24px; overscroll-behavior: contain; }
-  /* the space is a margin, as a fieldset's top padding goes below its legend */
-  .settings__group { max-width: 1040px; margin: 22px 0 0; padding: 0 0 22px; border: 0; border-bottom: 1px solid var(--line-soft); }
-  .settings__group:last-of-type { border-bottom: 0; }
-  .settings__legend { padding: 0; font: 600 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
-  .settings__hint { margin: 4px 0 16px; color: var(--muted); font-size: 14px; }
-  .settings__themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
-  .theme-option {
-    display: grid;
-    gap: 10px;
-    padding: 12px;
-    border: 1.5px solid var(--line);
-    border-radius: var(--radius-md);
-    background: var(--bg);
-    cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .theme-option:hover { border-color: var(--teal-200); }
-  .theme-option.is-chosen { border-color: var(--teal-600); box-shadow: var(--focus); }
-  .theme-option__name { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 600; }
-  .theme-option__name input { width: 17px; height: 17px; margin: 0; accent-color: var(--teal-600); cursor: pointer; }
-  .theme-option__name small { color: var(--muted); font-size: 12.5px; font-weight: 500; }
-  /* a small picture of the window in a theme: its header, and a card on the page */
-  .swatch { display: grid; grid-template-rows: 30px 1fr; height: 112px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-alt); }
-  .swatch__mast { display: flex; align-items: center; gap: 4px; padding: 0 10px; background: var(--masthead-bg); }
-  .swatch__mast i { width: 26px; height: 7px; border-radius: 4px; background: #fff; }
-  .swatch__mast i + i { width: 16px; background: var(--brand-accent); }
-  .swatch__page { padding: 10px; }
-  .swatch__card { display: grid; gap: 6px; align-content: start; height: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
-  .swatch__card i { width: 70%; height: 6px; border-radius: 3px; background: var(--ink-soft); }
-  .swatch__card i + i { width: 90%; background: var(--muted-light); }
-  .swatch__card b { justify-self: end; width: 36px; height: 12px; margin-top: 2px; border-radius: 4px; background: var(--teal-600); }
-  .settings__check { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 15px; cursor: pointer; }
-  .settings__error { max-width: 1040px; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 10px; background: var(--red-bg); color: var(--red); font-size: 14px; }
-  .settings__foot { padding: 16px 32px 20px; border-top: 1px solid var(--line); }
-  @media (max-width: 760px) {
-    .settings { padding: 10px; }
-    .settings__head, .settings__body, .settings__foot { padding-left: 16px; padding-right: 16px; }
-    .settings-open { margin-left: 6px; }
-    .info-open { margin-left: 3px; }
-  }
-
-  /* ---- the info: links, and the built-in datasets ---- */
-  .info__links { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
-  .info__links a { color: var(--teal-700); font-weight: 600; text-underline-offset: 2px; }
-  .info__links a:hover { color: var(--teal-900); }
-  .info__table-wrap { overflow-x: auto; max-width: 1040px; border: 1px solid var(--line); border-radius: 12px; }
-  .info__table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; }
-  .info__table th, .info__table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-  .info__table th { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-  .info__table tbody tr:last-child td { border-bottom: 0; }
-  .info__table code { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
-  .info__table a { color: var(--teal-700); text-underline-offset: 2px; }
-  .info__table .is-no { color: var(--muted); }
-  .info__subtitle { margin: 18px 0 8px; font: 600 15px/1.3 var(--font-head); }
 </style>
 </head>
 <body>
@@ -838,8 +728,6 @@
   <div class="wrap">
     <div class="brand">
       <span class="brand__word">Ocean<span>Val</span></span>
-      <button type="button" class="settings-open" id="settings-open" aria-haspopup="dialog" aria-controls="settings" aria-label="Preferences" title="Preferences"><span class="settings-open__icon" data-icon="settings" aria-hidden="true"></span></button>
-      <button type="button" class="info-open" id="info-open" aria-haspopup="dialog" aria-controls="info" aria-label="About OceanVal" title="About OceanVal"><span class="info-open__icon" data-icon="info" aria-hidden="true"></span></button>
     </div>
     <h1 id="title">Validate an ocean model</h1>
     <ul class="meta" id="meta" aria-label="Where OceanVal is working"></ul>
@@ -1452,61 +1340,6 @@
   </div>
 </div>
 
-<div class="picker settings" id="settings" hidden>
-  <div class="picker__card settings__card" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-describedby="settings-where">
-    <div class="settings__head">
-      <h2 id="settings-title">Preferences</h2>
-      <p class="settings__where" id="settings-where"></p>
-    </div>
-    <div class="settings__body">
-      <fieldset class="settings__group">
-        <legend class="settings__legend">Colour</legend>
-        <p class="settings__hint">How the OceanVal window looks.</p>
-        <div class="settings__themes" id="settings-themes"></div>
-      </fieldset>
-      <fieldset class="settings__group">
-        <legend class="settings__legend">Demo</legend>
-        <p class="settings__hint">Should the first page offer the demo?</p>
-        <label class="settings__check"><input type="checkbox" class="tick" id="settings-show-demo">Yes, show &ldquo;Try a demo&rdquo; on the first page</label>
-      </fieldset>
-      <p class="settings__error" id="settings-error" role="alert" hidden></p>
-    </div>
-    <div class="picker__foot settings__foot">
-      <button type="button" class="btn btn--ghost" id="settings-cancel">Cancel</button>
-      <button type="button" class="btn btn--primary" id="settings-apply">Apply</button>
-    </div>
-  </div>
-</div>
-
-<div class="picker settings" id="info" hidden>
-  <div class="picker__card settings__card" role="dialog" aria-modal="true" aria-labelledby="info-title">
-    <div class="settings__head">
-      <h2 id="info-title">About OceanVal</h2>
-      <p class="settings__where" id="info-version"></p>
-    </div>
-    <div class="settings__body">
-      <fieldset class="settings__group">
-        <legend class="settings__legend">Links</legend>
-        <ul class="info__links">
-          <li><a href="https://pmlmodelling.github.io/OceanVal/" target="_blank" rel="noopener" id="info-website">The OceanVal website</a></li>
-          <li><a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" id="info-github">OceanVal on GitHub</a></li>
-        </ul>
-      </fieldset>
-      <fieldset class="settings__group">
-        <legend class="settings__legend">Built-in datasets</legend>
-        <p class="settings__hint">The observational datasets OceanVal can compare a simulation with. Water-column means the whole water column can be validated, not just the surface.</p>
-        <h3 class="info__subtitle">Gridded data</h3>
-        <div class="info__table-wrap" id="info-gridded"></div>
-        <h3 class="info__subtitle">Point data</h3>
-        <div class="info__table-wrap" id="info-point"></div>
-      </fieldset>
-    </div>
-    <div class="picker__foot settings__foot">
-      <button type="button" class="btn btn--primary" id="info-close">Close</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast" role="status" hidden></div>
 <datalist id="own-variable-options"></datalist>
 
@@ -1532,8 +1365,6 @@
     report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 14.5 2 2 4-4.5"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11.5v5M9.5 14h5"/></svg>',
-    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 17v-6M12 7.5h.01" stroke-width="2.6"/></svg>',
     warn: ICONS.warn,
     check: ICONS.check,
   };
@@ -5331,117 +5162,14 @@
     }
   });
 
-  // ---- the settings, kept in the home .oceanvalrc ----
-  function applyTheme(theme) {
-    if (theme === "default") delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = theme;
-  }
-
-  function chooseTheme(theme) {
-    $("settings-themes").querySelectorAll(".theme-option").forEach((option) => {
-      option.classList.toggle("is-chosen", option.querySelector("input").value === theme);
-    });
-  }
-
-  // what is saved, each time it is opened: Cancel leaves it as it was
-  function openSettings() {
-    const { values, themes, path } = state.user_settings;
-    $("settings-where").replaceChildren("Saved in ", el("code", { text: path }),
-      ", and used each time OceanVal's window opens.");
-    $("settings-themes").replaceChildren(...themes.map(([key, label]) => el("label", { class: "theme-option" },
-      el("span", { class: "swatch", "data-theme": key, "aria-hidden": "true" },
-        el("span", { class: "swatch__mast" }, el("i"), el("i")),
-        el("span", { class: "swatch__page" }, el("span", { class: "swatch__card" }, el("i"), el("i"), el("b")))),
-      el("span", { class: "theme-option__name" },
-        el("input", { type: "radio", name: "settings-theme", value: key, checked: key === values.theme,
-          onchange: () => chooseTheme(key) }),
-        label,
-        key === "default" ? el("small", { text: "OceanVal's own" }) : null))));
-    chooseTheme(values.theme);
-    $("settings-show-demo").checked = values.show_demo !== false;
-    $("settings-error").hidden = true;
-    $("settings-apply").disabled = false;
-    $("settings").hidden = false;
-    BEHIND.forEach((node) => { node.inert = true; });
-    $("settings-themes").querySelector("input:checked").focus();
-  }
-
-  function closeSettings() {
-    $("settings").hidden = true;
-    BEHIND.forEach((node) => { node.inert = false; });
-    $("settings-open").focus();
-  }
-
-  async function applySettings() {
-    const settings = {
-      theme: $("settings-themes").querySelector("input:checked").value,
-      show_demo: $("settings-show-demo").checked,
-    };
-    $("settings-apply").disabled = true;
-    const reply = await post("api/settings", { settings });
-    $("settings-apply").disabled = false;
-    if (!reply.ok) {
-      $("settings-error").textContent = reply.error || "Your preferences could not be saved.";
-      $("settings-error").hidden = false;
-      return;
-    }
-    state.user_settings.values = reply.settings;
-    applyTheme(reply.settings.theme);
-    closeSettings();
-    render();
-    toast("Preferences saved.");
-  }
-
-  $("settings-open").addEventListener("click", openSettings);
-  $("settings-cancel").addEventListener("click", closeSettings);
-  $("settings-apply").addEventListener("click", applySettings);
-  $("settings").addEventListener("click", (event) => { if (event.target === $("settings")) closeSettings(); });
-  $("settings").addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeSettings();
-    }
-  });
-
-  // ---- the info: the website, GitHub and the built-in datasets ----
-  function datasetTable(rows) {
-    const head = ["Region", "Variable", "Dataset", "Water-column", "Units"];
-    return el("table", { class: "info__table" },
-      el("thead", {}, el("tr", {}, ...head.map((name) => el("th", { scope: "col", text: name })))),
-      el("tbody", {}, ...rows.map((row) => el("tr", {},
-        el("td", { text: row.region }),
-        el("td", { text: row.variable }),
-        el("td", {}, row.url
-          ? el("a", { href: row.url, target: "_blank", rel: "noopener", text: row.dataset })
-          : row.dataset),
-        el("td", { class: row.water_column ? null : "is-no", text: row.water_column ? "Yes" : "No" }),
-        el("td", {}, el("code", { text: row.units }))))));
-  }
-
-  function openInfo() {
-    const datasets = state.datasets || [];
-    $("info-gridded").replaceChildren(datasetTable(datasets.filter((row) => !row.point)));
-    $("info-point").replaceChildren(datasetTable(datasets.filter((row) => row.point)));
-    $("info-version").textContent = `Version ${state.oceanval_version}`;
-    $("info").hidden = false;
-    BEHIND.forEach((node) => { node.inert = true; });
-    $("info-website").focus();
-  }
-
-  function closeInfo() {
-    $("info").hidden = true;
-    BEHIND.forEach((node) => { node.inert = false; });
-    $("info-open").focus();
-  }
-
-  $("info-open").addEventListener("click", openInfo);
-  $("info-close").addEventListener("click", closeInfo);
-  $("info").addEventListener("click", (event) => { if (event.target === $("info")) closeInfo(); });
-  $("info").addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeInfo();
-    }
+  // ---- the preferences and the info, from the buttons beside the wordmark ----
+  OceanValGUI.mountChrome({
+    state: () => state,
+    post,
+    settingsPath: "api/settings",
+    behind: () => BEHIND,
+    // the first page shows or hides the demo
+    onSaved: render,
   });
 
   // ---- keeping up with oceanval ----
