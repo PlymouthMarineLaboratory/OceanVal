@@ -62,7 +62,6 @@
   <div class="container">
     <div class="breadcrumb"><a href="index.html">Home</a> / Built-in observational datasets</div>
     <h1>Built-in observational datasets</h1>
-    <p class="lead">The observations OceanVal can validate your simulation against without any files of your own. It downloads what it needs as the matchup runs.</p>
   </div>
 </div>
 
@@ -70,10 +69,9 @@
   <aside class="docs-toc">
     <div class="docs-toc-title">On this page</div>
     <ul>
-      <li><a href="#using">Using them</a></li>
-      <li><a href="#gridded">Gridded datasets</a></li>
+      <li><a href="#gridded">What gridded datasets are available?</a></li>
       <li class="docs-toc-sub"><a href="#woa23">World Ocean Atlas 2023 periods</a></li>
-      <li><a href="#point">Point datasets</a></li>
+      <li><a href="#point">What point datasets are available?</a></li>
       <li class="docs-toc-sub"><a href="#ices-data">How ICES data is treated</a></li>
       <li><a href="#units">Units</a></li>
       <li><a href="#own-data">Your own data</a></li>
@@ -83,11 +81,10 @@
   <div class="docs-content">
     <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen, nutrients, chlorophyll, the carbonate system and light attenuation, globally and on the Northwest European Shelf.</p>
 
-    <h2 id="using">Using them</h2>
-    <p>In the <a href="app.html">OceanVal app</a>, the datasets are offered in the step where you choose the observations to validate against (step&nbsp;4 of <a href="app.html">the steps</a>). OceanVal reads your simulation, works out which of its variables holds each observed variable, and ticks every dataset for the domain you chose (global or the Northwest European Shelf) that it finds a variable for. Check what it found, and untick anything you do not want.</p>
-    <p>Nothing has to be downloaded beforehand. The observations are downloaded when the matchup runs, in most cases from THREDDS servers, so only what is needed is downloaded. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
+    <p>In the <a href="app.html">OceanVal app</a>, the datasets are offered in the step where you choose the observations to validate against. OceanVal reads your simulation, works out which of its variables holds each observed variable, and ticks every dataset for the domain you chose (global or the Northwest European Shelf) that it finds a variable for. Check what it found, and untick anything you do not want.</p>
+    <p>The observations are <strong>downloaded for you</strong> when the matchup runs, in most cases from THREDDS servers, so only what is needed is downloaded. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
 
-    <h2 id="gridded">Gridded datasets</h2>
+    <h2 id="gridded">What gridded datasets are available?</h2>
     <p>Click a row for more about the dataset. <strong>Water column</strong> says whether it can be validated below the surface as well as at it.</p>
 
     <div class="recipe-toolbar">
@@ -260,7 +257,7 @@
       <p>The years you match up have to fall within one period: choose the period your simulation covers, and set the years in the app to it, such as 1995 to 2004. Years that straddle two periods, such as 2000 to 2008, are refused, as is anything longer than a decade, so validate one period at a time. The nutrients and oxygen use a single long-term climatology, and can be matched up with any years.</p>
     </div>
 
-    <h2 id="point" style="margin-top:2.4rem;">Point datasets</h2>
+    <h2 id="point" style="margin-top:2.4rem;">What point datasets are available?</h2>
     <p style="max-width:70ch;">Measurements at sea, from the ICES Oceanographic database, are downloaded for the years you match up, in the area given by the longitude and latitude limits you set in the app or, if you set none, the area your simulation covers. See <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
     <div class="table-wrap" style="margin-top:1.6rem; overflow-x:auto;">
       <table>

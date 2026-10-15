@@ -262,6 +262,10 @@
   }
   .segmented input:checked + span { background: var(--bg); color: var(--teal-700); box-shadow: var(--shadow-sm), 0 0 0 1px var(--teal-200); }
   .segmented input:focus-visible + span { box-shadow: var(--focus); }
+  /* the domain's options are separate buttons, as there is no default to join them under */
+  #f-domain { gap: 14px; padding: 0; border: 0; background: none; }
+  #f-domain span { padding: 9px 18px; border: 1px solid var(--line); background: var(--bg-alt); border-radius: 10px; }
+  #f-domain input:checked + span { border-color: var(--teal-200); }
 
   /* a directory box, with its Browse… button */
   .path-field { display: flex; gap: 8px; }
@@ -853,7 +857,7 @@
         <p class="group__intro"><button type="button" class="link" id="how-files" aria-haspopup="dialog">How does OceanVal identify simulation files to matchup?</button></p>
       </fieldset>
       <fieldset class="group card setup-box">
-        <legend>What spatial coverage do you need for your observational data?</legend>
+        <legend>What spatial coverage do you need for your observational data? <span class="own-req">Required</span></legend>
         <div class="segmented" id="f-domain" role="radiogroup" aria-label="Domain"></div>
         <p class="group__msg">OceanVal will select appropriate datasets. These can be modified later.</p>
       </fieldset>
@@ -2045,6 +2049,7 @@
     if (!errors.start && !errors.end && +setup.end < +setup.start) errors.end = "End must not be before start.";
     if (!errors.out_dir && probe && probe.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
     if (!text("out")) errors.out = errors.out || "";
+    if (!setup.domain) errors.domain = errors.domain || "";
     return errors;
   }
 

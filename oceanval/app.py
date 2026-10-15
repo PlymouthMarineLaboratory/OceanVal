@@ -237,7 +237,7 @@ def default_setup_form():
     return {
         "simdir": "",
         "ndown": "",
-        "domain": "global",
+        "domain": "",
         "start": "",
         "end": "",
         "exclude": "",
@@ -294,6 +294,7 @@ def demo_setup_form(model):
         default_setup_form(),
         simdir=os.path.join(DEMO_FOLDER, "simulation"),
         ndown="0",
+        domain="global",
         require=model,
         start=str(DEMO_YEAR),
         end=str(DEMO_YEAR),
@@ -525,7 +526,9 @@ def check_setup(form, cwd):
     if form["domain"] in DOMAIN_REGIONS:
         arguments["domain"] = form["domain"]
     else:
-        errors["domain"] = "Choose one of the domains."
+        errors["domain"] = (
+            "Choose one of the domains." if form["domain"] else ""
+        )
     for name in ("start", "end"):
         try:
             arguments[name] = int(form[name])

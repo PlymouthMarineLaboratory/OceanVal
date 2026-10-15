@@ -97,6 +97,11 @@ def units_match(app):
     assert post(app, "/api/units_continue", {"conversions": {}, "confirmed": True})[0] == 200
 
 
+def choose_domain(page, domain="global"):
+    """Choose the spatial coverage on the setup page, which has no default."""
+    page.check(f'#f-domain input[value="{domain}"]')
+
+
 def fill_required_recipe_years(page):
     red = "rgb(192, 57, 43)"
     for name in ("start", "end"):
@@ -601,6 +606,7 @@ class TestSetupChecks:
             ({"ndown": "-1"}, "ndown"),
             ({"ndown": "two"}, "ndown"),
             ({"domain": "arctic"}, "domain"),
+            ({"domain": ""}, "domain"),
             ({"start": "x"}, "start"),
             ({"end": "2010"}, "end"),
             ({"out": ""}, "out"),
@@ -1410,7 +1416,7 @@ class TestServer:
         status, reply = post(app, "/api/setup", {"form": {"simdir": "nowhere"}})
 
         assert status == 400
-        assert set(reply["errors"]) == {"simdir", "ndown", "start", "end"}
+        assert set(reply["errors"]) == {"simdir", "ndown", "domain", "start", "end"}
         assert app.view == "setup"
 
     @pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
@@ -4092,6 +4098,9 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_disabled("#continue")
         assert page.input_value("#f-start") == "2011"
         page.fill("#f-ndown", "2")
+        # there is no default domain: it has to be chosen too
+        assert page.is_disabled("#continue")
+        choose_domain(page)
         assert page.is_enabled("#continue")
         # the output goes where oceanval was started, unless changed
         assert page.input_value("#f-out_dir") == str(tmp_path)
@@ -5349,6 +5358,7 @@ def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc,
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -5388,6 +5398,7 @@ def test_overwrite_choice_only_appears_for_existing_matchups(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         assert page.is_hidden("#row-overwrite")
 
         page.fill("#f-out_dir", "old")
@@ -5452,6 +5463,7 @@ def test_the_recipes_window_keeps_the_app_open(browser, tmp_path, monkeypatch):
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -5553,6 +5565,7 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -5690,6 +5703,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -5836,6 +5850,7 @@ def test_clearing_every_selection_in_a_browser(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -5872,6 +5887,7 @@ def test_adding_your_own_data_in_a_browser(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         page.click("#continue")
         page.click("#own-yes")
         page.wait_for_selector("#own-form-point")
@@ -5888,7 +5904,11 @@ def test_adding_your_own_data_in_a_browser(browser, tmp_path):
         closed_chevron = chevron.evaluate("node => getComputedStyle(node).transform")
         page.locator("#own-optional-point > summary").click()
         assert optional.evaluate("node => node.open")
-        assert chevron.evaluate("node => getComputedStyle(node).transform") != closed_chevron
+        # it turns over a CSS transition, so is read once that has begun
+        page.wait_for_function(
+            "([node, before]) => getComputedStyle(node).transform !== before",
+            arg=[chevron.element_handle(), closed_chevron],
+        )
         red = "rgb(192, 57, 43)"
 
         def field_of(name):
