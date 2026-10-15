@@ -205,6 +205,8 @@ How do I ensure the model and observational data have the same units?
 Internally, OceanVal will assume that the model and observational data are in the same units.
 However, you can modify the observational data units using the `obs_multiplier` or `obs_adder` arguments in the `oceanval.add_point_comparison` and `oceanval.add_gridded_comparison` functions.
 In the `oceanval` window, the Units step does this for you: it lists the units of each matchup, and fills in `obs_multiplier` and `obs_adder` where it can tell how to convert the observations. You always have to confirm the units there before the matchup starts.
+It reads units however models write them, e.g. `mmol N/m**3`, `mmolN/m3` or `meq/m**3`, and converts between a mass and moles where the units name what the mass is of, e.g. `mg N/m3`, or for oxygen, e.g. `mg/l`, taken as O2.
+Where the simulation gives Absolute Salinity or Conservative Temperature (TEOS-10), as its `long_name` or `standard_name` says, it warns you: observations are usually Practical Salinity and in-situ or potential temperature, which no `obs_multiplier` and `obs_adder` turn into these.
 
 For example, if you wanted to convert observational data from mol/m3 to mmol/m3, you could do: 
 

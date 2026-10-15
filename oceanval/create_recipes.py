@@ -517,11 +517,14 @@ def _candidate_long_names(variable, contents):
     names = _long_names(contents)
 
     def plain(term, *excluded):
+        # sea ice's own salinity and temperature are output beside the
+        # ocean's, on a category axis that makes them look like water column
         return [
             name
             for name in names
             if term in name.lower()
             and not any(word in name.lower() for word in ("benthic", "river"))
+            and not re.search(r"\b(?:ice|snow)\b", name.lower())
             and not any(word in name.lower() for word in excluded)
         ]
 

@@ -12,9 +12,16 @@ and the one in "mmol N/m^3" as newton, and cannot read "degrees_C", "1e-3" or
 against the short list of units ocean concentrations are given in, and anything
 else is left for the user to check. Some conversions need more than units, too:
 a seawater density between per kilogram and per volume, the micromoles in a
-millilitre of oxygen, for oxygen in ml/l, and an equivalent taken as a mole, for
-alkalinity. Salinity and pH are never converted: 1, 1e-3 and psu are the same
-scale of salinity, and pH has no units.
+millilitre of oxygen, for oxygen in ml/l, an equivalent taken as a mole, for
+alkalinity, and a molar mass, between a mass and moles, which the units have to
+name the substance for, as "mg N/m^3" does (oxygen is taken as O2). Salinity
+and pH are never converted: 1, 1e-3 and psu are the same scale of salinity, and
+pH has no units.
+
+Nor are Absolute Salinity and Conservative Temperature, which models using
+TEOS-10 give, and their long_name or standard_name says: observations are seldom
+on these scales, and no multiplier and adder turn one into the other, so the
+user is warned of them instead.
 """
 
 import functools
@@ -27,6 +34,55 @@ import pint
 SEAWATER_DENSITY = 1025
 # the micromoles in a millilitre of oxygen (Garcia and Gordon, 1992)
 OXYGEN_UMOL_PER_ML = 44.661
+
+# the molar masses, in g/mol, of what units can name the substance they count
+# by as, to go between a mass and moles
+_MOLAR_MASSES = {
+    "N": 14.007,
+    "P": 30.974,
+    "Si": 28.085,
+    "C": 12.011,
+    "O2": 31.998,
+    "O_2": 31.998,
+    "Fe": 55.845,
+    "NO3": 62.004,
+    "PO4": 94.970,
+    "NH4": 18.039,
+    "SiO4": 92.081,
+    "SiOH4": 96.113,
+    "Si(OH)4": 96.113,
+    "CO2": 44.009,
+}
+
+# what each variable with rules of its own can be counted as, so that, e.g., a
+# mass of phosphorus is not taken for nitrate
+_SUBSTANCES = {
+    "nitrate": {"N", "NO3"},
+    "ammonium": {"N", "NH4"},
+    "phosphate": {"P", "PO4"},
+    "silicate": {"Si", "SiO4", "SiOH4", "Si(OH)4"},
+    "oxygen": {"O2", "O_2"},
+}
+
+# what a model's long_name or standard_name says when it gives a TEOS-10
+# variable, and what to tell the user of it. Absolute Salinity is 35.16504/35
+# times Practical Salinity give or take the water's composition, which is why
+# no conversion is suggested.
+_TEOS10 = {
+    "salinity": (
+        "absolute salinity",
+        "the simulation's salinity is Absolute Salinity, and observations are "
+        "usually Practical Salinity, which is about 0.5% lower (0.16 at a "
+        "salinity of 35): check which these observations are",
+    ),
+    "temperature": (
+        "conservative temperature",
+        "the simulation's temperature is Conservative Temperature, and "
+        "observations are usually in-situ or potential temperature, which "
+        "differ from it slightly: no multiplier and adder turn one into the "
+        "other",
+    ),
+}
 
 # what else a variable can be called, for the variables with rules of their own
 _ALIASES = {
@@ -131,6 +187,15 @@ _LABELS = {
     "chl-a",
 }
 
+# a label written onto the unit it counts by: "mmolN", "mgChl", "mol-C"
+_GLUED = re.compile(
+    r"(?<![A-Za-z])((?:"
+    + "|".join(sorted(_PREFIXES, key=len, reverse=True))
+    + r")?(?:moles|mole|mol|grammes|gramme|grams|gram|g|eq|Eq))[-_]?("
+    + "|".join(re.escape(label) for label in sorted(_LABELS, key=len, reverse=True))
+    + r")(?![A-Za-z0-9])"
+)
+
 _TEMPERATURE = re.compile(
     r"(?:deg(?:ree)?s?\s?)?(?P<scale>c|celsius|centigrade|k|kelvin|f|fahrenheit)"
 )
@@ -226,15 +291,31 @@ def _prepare(text):
     text = re.sub(r"(?i)^per\s+", "1/", text.strip())
     text = re.sub(r"(?i)_per_|\s+per\s+", "/", text)
     # micro-mol
-    return re.sub(r"(?i)\b(pico|nano|micro|milli|centi|deci|kilo)-", r"\1", text)
+    text = re.sub(r"(?i)\b(pico|nano|micro|milli|centi|deci|kilo)-", r"\1", text)
+    # powers as Python and Fortran write them, m**3, which would otherwise be
+    # split at the *s
+    text = text.replace("**", "^")
+    # /m
+    text = re.sub(r"^/", "1/", text)
+    return _GLUED.sub(r"\1 \2", text)
+
+
+class _Unread(Exception):
+    """A word in some units that OceanVal does not know."""
+
+    def __init__(self, word):
+        super().__init__(word)
+        self.word = word
 
 
 def _parse(text, variable):
     """What one of the units in text is, as a pint quantity, with what had to
-    be assumed to read it. None if OceanVal does not know them."""
+    be assumed to read it and the labels naming what it counts. None if
+    OceanVal does not know them, and _Unread for a word it cannot read."""
     factor = 1.0
     # (unit, prefix, power), in pint's names
     items = []
+    labels = []
     for index, part in enumerate(_prepare(text).split("/")):
         sign = 1 if index == 0 else -1
         tokens = [
@@ -247,6 +328,7 @@ def _parse(text, variable):
         for token in tokens:
             if token in _LABELS:
                 chlorophyll = token.lower().startswith("chl")
+                labels.append(token)
                 continue
             # chl a
             if chlorophyll and token == "a":
@@ -259,7 +341,7 @@ def _parse(text, variable):
                 continue
             match = _UNIT.fullmatch(token)
             if match is None:
-                return None
+                raise _Unread(token)
             prefix = _PREFIXES.get(match["prefix"] or "", "")
             items.append(
                 (_UNITS[match["unit"]], prefix, int(match["power"] or 1) * sign)
@@ -299,7 +381,7 @@ def _parse(text, variable):
     if _kind(quantity) is None:
         # e.g. a rate, or labels OceanVal does not know read as units
         return None
-    return quantity, assumed
+    return quantity, assumed, list(dict.fromkeys(labels))
 
 
 def _kind(quantity):
@@ -323,6 +405,52 @@ def _missing(units):
     return units is None or not str(units).strip()
 
 
+def _salinity_scale(units):
+    """Whether units are one of the ways the salinity scale is written."""
+    words = _words(units)
+    if words in _SALINITY:
+        return True
+    try:
+        # 1.e-3, 1.0e-3
+        return float(words) in (1.0, 1e-3)
+    except ValueError:
+        return False
+
+
+def _molar_mass(variable, labels, units):
+    """The molar mass, in g/mol, of what a mass in units is of, by the labels
+    naming it, with what was assumed for it. None, and why, if OceanVal cannot
+    tell."""
+    if not labels:
+        if variable == "oxygen":
+            return _MOLAR_MASSES["O2"], "oxygen mass"
+        return None, (
+            "OceanVal can only turn a mass into moles where the units say what "
+            f"it is a mass of, as “mg N/m^3” does, and “{units}” does not"
+        )
+    label = labels[0]
+    if (
+        len(labels) > 1
+        or label not in _MOLAR_MASSES
+        or label not in _SUBSTANCES.get(variable, {label})
+    ):
+        return None, f"OceanVal cannot turn the mass in “{units}” into moles of {variable}"
+    return _MOLAR_MASSES[label], f"molar mass:{label}"
+
+
+def _assumption(name):
+    """What OceanVal assumed, as the note says it."""
+    if name.startswith("molar mass:"):
+        label = name.partition(":")[2]
+        return f"a molar mass of {_MOLAR_MASSES[label]} g/mol for {label.replace('_', '')}"
+    return {
+        "density": f"a seawater density of {SEAWATER_DENSITY} kg/m³",
+        "oxygen": f"a millilitre of oxygen as {OXYGEN_UMOL_PER_ML} µmol",
+        "equivalents": "an equivalent of alkalinity as a mole",
+        "oxygen mass": f"the oxygen as O₂, of {_MOLAR_MASSES['O2']} g/mol",
+    }[name]
+
+
 def same(note="OceanVal thinks these are the same units, so no conversion should be needed."):
     return {"status": "same", "multiplier": 1, "adder": 0, "note": note}
 
@@ -343,14 +471,9 @@ def _converted(multiplier, adder, assumed=()):
     multiplier, adder = _number(multiplier), _number(adder)
     if (multiplier, adder) == (1, 0):
         return same()
-    assumptions = {
-        "density": f"a seawater density of {SEAWATER_DENSITY} kg/m³",
-        "oxygen": f"a millilitre of oxygen as {OXYGEN_UMOL_PER_ML} µmol",
-        "equivalents": "an equivalent of alkalinity as a mole",
-    }
     note = "Suggested by OceanVal"
     if assumed:
-        note += ", taking " + " and ".join(assumptions[name] for name in sorted(assumed))
+        note += ", taking " + " and ".join(_assumption(name) for name in sorted(assumed))
     return {
         "status": "convert",
         "multiplier": multiplier,
@@ -359,20 +482,45 @@ def _converted(multiplier, adder, assumed=()):
     }
 
 
-def suggest(variable, obs_units, model_units):
+def suggest(variable, obs_units, model_units, model_description=None, obs_description=None):
     """How to turn a matchup's observations, in obs_units, into the model's
     model_units, as observations x multiplier + adder.
 
     variable is the one the matchup is of, as the recipes name it, e.g.
-    "nitrate", which some conversions depend on. Returns a dict holding the
-    status, "same", "convert" or "unknown" (when OceanVal cannot tell), the
+    "nitrate", which some conversions depend on. model_description and
+    obs_description are the long_name and standard_name of the model's
+    variable and of the observations', where they are known, which tell
+    Absolute Salinity and Conservative Temperature apart. Returns a dict
+    holding the status, "same", "convert", "warn" (the same units, but not
+    the same quantity) or "unknown" (when OceanVal cannot tell), the
     multiplier and adder (None if unknown), and a note on what was found.
     """
+    variable = _variable(variable)
     try:
-        return _suggest(_variable(variable), obs_units, model_units)
+        found = _suggest(variable, obs_units, model_units)
     except (pint.PintError, ArithmeticError, ValueError, TypeError):
         # e.g. a unit with 0 in it: never a reason to stop the units step
-        return unknown("OceanVal could not read these units")
+        found = unknown("OceanVal could not read these units")
+    return _teos10(variable, found, model_description, obs_description)
+
+
+def _teos10(variable, found, model_description, obs_description):
+    """found, with a warning if the model gives Absolute Salinity or
+    Conservative Temperature and the observations are not said to."""
+    if variable not in _TEOS10:
+        return found
+    phrase, warning = _TEOS10[variable]
+    if phrase not in _words(str(model_description or "")) or phrase in _words(
+        str(obs_description or "")
+    ):
+        return found
+    if found["status"] == "same":
+        return dict(
+            found,
+            status="warn",
+            note=f"OceanVal thinks the units are the same, but {warning}.",
+        )
+    return dict(found, note=f"{found['note']} Also, {warning}.")
 
 
 def _suggest(variable, obs_units, model_units):
@@ -384,7 +532,7 @@ def _suggest(variable, obs_units, model_units):
         return unknown("the simulation's files do not give its units")
     obs_units, model_units = str(obs_units), str(model_units)
     if variable == "salinity":
-        if _words(obs_units) in _SALINITY and _words(model_units) in _SALINITY:
+        if _salinity_scale(obs_units) and _salinity_scale(model_units):
             return same(
                 "OceanVal thinks salinity is on the same scale in these units, "
                 "so no conversion should be needed."
@@ -403,11 +551,35 @@ def _suggest(variable, obs_units, model_units):
     if any(temperatures):
         return unknown("only one of them is a temperature")
 
-    obs, model = _parse(obs_units, variable), _parse(model_units, variable)
-    for parsed, units in ((obs, obs_units), (model, model_units)):
+    sides = []
+    for units in (obs_units, model_units):
+        try:
+            parsed = _parse(units, variable)
+        except _Unread as unread:
+            if unread.word != units.strip():
+                return unknown(
+                    f"OceanVal does not recognise “{unread.word}” in the units “{units}”"
+                )
+            parsed = None
         if parsed is None:
             return unknown(f"OceanVal does not recognise the units “{units}”")
-    (obs, obs_assumed), (model, model_assumed) = obs, model
+        sides.append(list(parsed))
+
+    # a mass compared with moles: the mass is turned into moles of what it is of
+    kinds = [_kind(quantity) for quantity, _, _ in sides]
+    if "mass per volume" in kinds and {"amount per volume", "amount per mass"} & set(kinds):
+        for side, kind, units in zip(sides, kinds, (obs_units, model_units)):
+            if kind != "mass per volume":
+                continue
+            molar_mass, assumption = _molar_mass(variable, side[2], units)
+            if molar_mass is None:
+                return unknown(assumption)
+            side[0] = (side[0] / _registry().Quantity(molar_mass, "g / mol")).to(
+                "mol / m ** 3"
+            )
+            side[1] = side[1] | {assumption}
+
+    (obs, obs_assumed, _), (model, model_assumed, _) = sides
     assumed = obs_assumed | model_assumed
     kinds = {_kind(obs), _kind(model)}
     contexts = ()

@@ -3024,7 +3024,7 @@ class App:
         units.matchups). It reads the simulation's files, so is not called
         with the lock held."""
         mapping, selection, settings, point_options, gridded_options = choices
-        model_units = units.model_units(
+        attributes = units.model_attributes(
             setup["simdir"],
             setup["ndown"],
             units.model_variables(mapping, selection, own, self.cwd),
@@ -3038,8 +3038,11 @@ class App:
             gridded_options,
             point_options,
             own,
-            model_units,
+            {name: found["units"] for name, found in attributes.items()},
             self.cwd,
+            model_descriptions={
+                name: found["description"] for name, found in attributes.items()
+            },
         )
 
     def units_continue(self, sent, confirmed=False):

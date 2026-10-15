@@ -33,11 +33,23 @@ NOT_AVAILABLE = None
 POINT_NOTE = "csv files have no units: make sure they match the simulation's"
 
 
-def model_units(simdir, ndown, names, exclude=None, require=None):
-    """The units attribute of each of the model variables in names.
+def _description(attributes):
+    """A variable's long_name and standard_name, which can tell, e.g., Absolute
+    Salinity from Practical, as one string."""
+    return " ".join(
+        str(attributes[name])
+        for name in ("long_name", "standard_name")
+        if attributes.get(name) is not None
+    )
 
-    Returned as {name: units}, with None for a variable whose files do not
-    give units. One file per output stream is read, as only one has to be.
+
+def model_attributes(simdir, ndown, names, exclude=None, require=None):
+    """The units and description of each of the model variables in names.
+
+    Returned as {name: {"units": units, "description": description}}, the
+    units None for a variable whose files do not give them, and the
+    description its long_name and standard_name. One file per output stream
+    is read, as only one has to be.
     """
     wanted = set(names)
     found = {}
@@ -54,11 +66,29 @@ def model_units(simdir, ndown, names, exclude=None, require=None):
             ) as ds:
                 for name in wanted - set(found):
                     if name in ds.variables:
-                        units = ds[name].attrs.get("units")
-                        found[name] = str(units) if units is not None else None
+                        attributes = ds[name].attrs
+                        units = attributes.get("units")
+                        found[name] = {
+                            "units": str(units) if units is not None else None,
+                            "description": _description(attributes),
+                        }
         except Exception:
             continue
-    return {name: found.get(name) for name in names}
+    return {
+        name: found.get(name, {"units": None, "description": ""}) for name in names
+    }
+
+
+def model_units(simdir, ndown, names, exclude=None, require=None):
+    """The units attribute of each of the model variables in names.
+
+    Returned as {name: units}, with None for a variable whose files do not
+    give units (see model_attributes).
+    """
+    return {
+        name: found["units"]
+        for name, found in model_attributes(simdir, ndown, names, exclude, require).items()
+    }
 
 
 def _local_files(obs_path, cwd="."):
@@ -68,21 +98,29 @@ def _local_files(obs_path, cwd="."):
     return sorted(glob.glob(os.path.join(cwd, os.path.expanduser(obs_path))))
 
 
-def own_obs_units(arguments, cwd="."):
+def own_obs_attributes(arguments, cwd="."):
     """The units of the observations in one of the user's own gridded
-    datasets, read from its netCDF file, or None where that cannot be done
-    (a URL, a THREDDS server, "auto", or a file that cannot be read). A
-    relative path is relative to cwd."""
+    datasets, and their description (long_name and standard_name), read from
+    its netCDF file. The units are None where that cannot be done (a URL, a
+    THREDDS server, "auto", or a file that cannot be read), and the
+    description is then "". A relative path is relative to cwd."""
     variable = arguments.get("obs_variable")
     files = _local_files(arguments.get("obs_path"), cwd)
     if not variable or not files:
-        return NOT_AVAILABLE
+        return NOT_AVAILABLE, ""
     try:
         with xr.open_dataset(files[0], decode_times=False, decode_cf=False) as ds:
-            units = ds[variable].attrs.get("units")
+            attributes = dict(ds[variable].attrs)
     except Exception:
-        return NOT_AVAILABLE
-    return str(units) if units is not None else None
+        return NOT_AVAILABLE, ""
+    units = attributes.get("units")
+    return str(units) if units is not None else None, _description(attributes)
+
+
+def own_obs_units(arguments, cwd="."):
+    """The units of the observations in one of the user's own gridded
+    datasets, or None (see own_obs_attributes)."""
+    return own_obs_attributes(arguments, cwd)[0]
 
 
 def _recipe_entry(variable, recipe, point=False, cwd=None):
@@ -113,19 +151,37 @@ def _model_side(model_variable, units):
     }
 
 
-def _check(variable, obs_units, model):
+def _check(variable, obs_units, model, descriptions=None, obs_description=None):
     """What OceanVal makes of a row's units (see unit_conversion.suggest). A sum
-    of model variables is checked only if they are all in the same units."""
+    of model variables is checked only if they are all in the same units.
+    descriptions is {model variable: its long_name and standard_name}, and
+    obs_description the observations', where known."""
     parts = [part["units"] for part in model["parts"]]
     if not parts or None in parts:
         return suggest(variable, obs_units, None)
-    for other in parts[1:]:
-        if suggest(variable, other, parts[0])["status"] != "same":
+    # units written the same way are the same, whether OceanVal can read them
+    # or not, and ones it cannot read are named, not called different
+    written = list(dict.fromkeys(str(units).strip() for units in parts))
+    for units in written:
+        read = suggest(variable, units, units)
+        if read["status"] == "unknown":
+            return read
+    for other in written[1:]:
+        if suggest(variable, other, written[0])["status"] != "same":
             return unknown("the simulation variables in the sum are in different units")
-    return suggest(variable, obs_units, parts[0])
+    first = model["parts"][0]["name"]
+    return suggest(
+        variable,
+        obs_units,
+        parts[0],
+        model_description=(descriptions or {}).get(first),
+        obs_description=obs_description,
+    )
 
 
-def _recipe_rows(point, mapping, selection, options, model_unit_lookup, cwd=None):
+def _recipe_rows(
+    point, mapping, selection, options, model_unit_lookup, cwd=None, descriptions=None
+):
     """The rows for the selected recipes of one kind, point or gridded, that
     have a model variable."""
     catalogue = point_catalogue(cwd) if point else gridded_catalogue(cwd)
@@ -150,7 +206,7 @@ def _recipe_rows(point, mapping, selection, options, model_unit_lookup, cwd=None
                 "obs_units": entry["units"],
                 "obs_multiplier": chosen.get("obs_multiplier", 1),
                 "obs_adder": chosen.get("obs_adder", 0),
-                "check": _check(variable, entry["units"], model),
+                "check": _check(variable, entry["units"], model, descriptions),
             }
         )
     return rows
@@ -164,6 +220,7 @@ def matchups(
     own_data,
     model_unit_lookup,
     cwd=".",
+    model_descriptions=None,
 ):
     """One row for each gridded and point matchup the script makes.
 
@@ -180,15 +237,23 @@ def matchups(
     then the point recipes, then the user's own gridded and point data. The units of the user's own point data
     are None, with a note saying so, as csv files have none, and their
     observation variable is the csv's observation column.
+    model_descriptions, {model variable: its long_name and standard_name}, is
+    what tells the check of Absolute Salinity and Conservative Temperature.
     """
-    rows = _recipe_rows(False, mapping, selection, gridded_options, model_unit_lookup, cwd)
-    rows += _recipe_rows(True, mapping, selection, point_options, model_unit_lookup, cwd)
+    rows = _recipe_rows(
+        False, mapping, selection, gridded_options, model_unit_lookup, cwd, model_descriptions
+    )
+    rows += _recipe_rows(
+        True, mapping, selection, point_options, model_unit_lookup, cwd, model_descriptions
+    )
     for kind, prefix in (("gridded", "own"), ("point", "ownpoint")):
         point = kind == "point"
         for index, arguments in enumerate(own_data.get(kind) or []):
             what = "your own point data" if point else "your own data"
             model = _model_side(arguments.get("model_variable", ""), model_unit_lookup)
-            obs_units = None if point else own_obs_units(arguments, cwd)
+            obs_units, obs_description = (
+                (None, "") if point else own_obs_attributes(arguments, cwd)
+            )
             rows.append(
                 {
                     "kind": kind,
@@ -201,7 +266,13 @@ def matchups(
                     "obs_multiplier": arguments.get("obs_multiplier", 1),
                     "obs_adder": arguments.get("obs_adder", 0),
                     # its name is the variable, if it is one OceanVal knows
-                    "check": _check(arguments.get("name"), obs_units, model),
+                    "check": _check(
+                        arguments.get("name"),
+                        obs_units,
+                        model,
+                        model_descriptions,
+                        obs_description,
+                    ),
                 }
             )
     return rows

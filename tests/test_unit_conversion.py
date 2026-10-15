@@ -26,6 +26,19 @@ CONVERTED = [
     ("temperature", "degF", "degrees_C", 0.555556, -17.7778),
     # another name for a variable with rules of its own
     ("sst", "K", "degree_C", 1, -273.15),
+    # powers as NEMO-MEDUSA writes them
+    ("silicate", "micromoles_per_kilogram", "mmol Si/m**3", 1.025, 0),
+    ("nitrate", "micromoles_per_kilogram", "mmol N/m**3", 1.025, 0),
+    ("oxygen", "micromoles_per_kilogram", "mmol O_2/m**3", 1.025, 0),
+    ("alkalinity", "micro-mol kg-1", "meq/m**3", 1.025, 0),
+    # a label written onto its unit
+    ("nitrate", "micromoles_per_kilogram", "mmolN/m3", 1.025, 0),
+    ("nitrate", "\u00b5mol/l", "mol-N/L", 1e-06, 0),
+    # a mass, where the units say what it is of, or of oxygen, taken as O2
+    ("nitrate", "\u00b5mol/l", "mg N/m3", 14.007, 0),
+    ("phosphate", "mg P/m3", "mmol/m3", 0.0322851, 0),
+    ("oxygen", "ml/l", "mg/l", 1.42906, 0),
+    ("oxygen", "micromoles_per_kilogram", "mg O2/l", 0.032798, 0),
 ]
 
 SAME = [
@@ -39,8 +52,12 @@ SAME = [
     ("chlorophyll", "milligram m-3", "mg Chl/m^3"),
     ("chlorophyll", "mg/m^3", "mg chl a m-3"),
     ("chlorophyll", "mg/m³", "mg m⁻³"),
+    ("chlorophyll", "milligram m-3", "mg chl/m**3"),
+    ("chlorophyll", "mg/m^3", "mgChl/m3"),
     ("kd490", "m-1", "1/m"),
     ("kd490", "m-1", "per m"),
+    ("kd490", "m-1", "m**-1"),
+    ("kd490", "m-1", "/m"),
     ("temperature", "°C", "degrees_C"),
     ("temperature", "degC", "degree_Celsius"),
     ("temperature", "degC", "C"),
@@ -50,6 +67,7 @@ SAME = [
     ("salinity", "psu", "1e-3"),
     ("salinity", "1", "PSU"),
     ("Salinity", "0.001", "practical_salinity_units"),
+    ("salinity", "1", "1.e-3"),
     # and pH has no units, even where they are missing
     ("ph", "total scale", "-"),
     ("ph", "pH units", None),
@@ -58,6 +76,9 @@ SAME = [
 UNKNOWN = [
     # moles and grams
     ("nitrate", "mmol/m^3", "mg/m^3"),
+    ("chlorophyll", "mg/m3", "mmol/m3"),
+    # a mass of something the variable is not
+    ("nitrate", "mg P/m3", "mmol/m3"),
     ("nitrate", "mmol/m^3", None),
     ("nitrate", None, "mmol/m^3"),
     ("nitrate", "mmol/m^3", " "),
@@ -114,11 +135,72 @@ def test_what_is_assumed_is_said():
     )["note"]
 
 
+def test_what_a_mass_is_taken_to_be_is_said():
+    assert "a molar mass of 14.007 g/mol for N" in suggest(
+        "nitrate", "\u00b5mol/l", "mg N/m3"
+    )["note"]
+    assert "the oxygen as O\u2082" in suggest("oxygen", "ml/l", "mg/l")["note"]
+    # and why a mass cannot be turned into moles
+    assert "“mg/m^3” does not" in suggest("nitrate", "mmol/m^3", "mg/m^3")["note"]
+
+
 def test_what_could_not_be_read_is_named():
     assert "“banana”" in suggest("nitrate", "mmol/m^3", "banana")["note"]
+    assert "“banana” in the units “mmol banana/m3”" in suggest(
+        "nitrate", "mmol/m^3", "mmol banana/m3"
+    )["note"]
     assert "the simulation's files do not give its units" in suggest(
         "nitrate", "mmol/m^3", None
     )["note"]
+
+
+ABSOLUTE = "absolute salinity sea_water_absolute_salinity"
+CONSERVATIVE = "conservative temperature sea_water_conservative_temperature"
+
+
+@pytest.mark.parametrize(
+    "variable, obs, model, description, said",
+    [
+        ("salinity", "1", "1e-3", ABSOLUTE, "Absolute Salinity"),
+        ("so", "psu", "g/kg", "sea_water_absolute_salinity", "Absolute Salinity"),
+        ("temperature", "degC", "degC", CONSERVATIVE, "Conservative Temperature"),
+    ],
+)
+def test_teos10_variables_are_warned_of(variable, obs, model, description, said):
+    """The units are the same, but observations are seldom these quantities,
+    and no multiplier and adder turn one into the other."""
+    found = suggest(variable, obs, model, model_description=description)
+
+    assert (found["status"], found["multiplier"], found["adder"]) == ("warn", 1, 0)
+    assert said in found["note"]
+
+
+def test_a_teos10_warning_goes_with_a_conversion():
+    found = suggest("temperature", "K", "degC", model_description=CONSERVATIVE)
+
+    assert (found["status"], found["multiplier"], found["adder"]) == ("convert", 1, -273.15)
+    assert "Conservative Temperature" in found["note"]
+
+
+@pytest.mark.parametrize(
+    "model_description, obs_description",
+    [
+        (None, None),
+        ("sea water practical salinity", None),
+        # observations of Absolute Salinity too
+        (ABSOLUTE, "Absolute Salinity"),
+    ],
+)
+def test_no_warning_where_the_quantities_are_the_same(model_description, obs_description):
+    found = suggest(
+        "salinity",
+        "1",
+        "1e-3",
+        model_description=model_description,
+        obs_description=obs_description,
+    )
+
+    assert found["status"] == "same"
 
 
 @pytest.mark.parametrize(

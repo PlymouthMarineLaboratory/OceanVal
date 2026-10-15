@@ -459,6 +459,22 @@ class TestVariableIdentification:
         # sst comes first alphabetically, but cannot be matched at depth
         assert mapping["temperature"] == "temp"
 
+    def test_sea_ice_salinity_and_temperature_are_not_the_oceans(self, tmp_path):
+        # as NEMO-SI3 writes them, in an icemod stream beside grid_T, with a
+        # level for each category of ice, so they look like the water column
+        write_netcdf(str(tmp_path / "sim" / "1970" / "eORCA1_1m_197001_grid_T.nc"),
+                     {"so_abs": "absolute salinity", "thetao_con": "conservative temperature"})
+        write_netcdf(str(tmp_path / "sim" / "1970" / "eORCA1_1m_197001_icemod.nc"),
+                     {"sisalcat": "Sea-Ice Bulk salinity per category",
+                      "sitemcat": "Ice temperature per category",
+                      "sisali": "SURF:Sea ice salinity"})
+
+        mapping = extract_recipe_variable_mapping(str(tmp_path / "sim"), 1)
+
+        # each ties with the ocean's, and comes first alphabetically
+        assert mapping["salinity"] == "so_abs"
+        assert mapping["temperature"] == "thetao_con"
+
     def test_only_one_file_per_output_stream_is_read(self, simulation):
         files = simulation_files(simulation, 2)
 

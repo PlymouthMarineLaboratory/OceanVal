@@ -3837,8 +3837,9 @@
         && (check.multiplier !== row.obs_multiplier || check.adder !== row.obs_adder)) {
       return line(`OceanVal would multiply by ${check.multiplier} and add ${check.adder}, but the conversion you gave is kept.`, "ok");
     }
-    // what OceanVal thinks are the same units is a suggestion, so it gets no tick: it is amber
-    return line(check.note, { unknown: "warn", same: "same" }[check.status] ?? "ok");
+    // what OceanVal thinks are the same units is a suggestion, so it gets no tick: it is amber.
+    // The same units of another quantity (e.g. Absolute Salinity) are a warning.
+    return line(check.note, { unknown: "warn", warn: "warn", same: "same" }[check.status] ?? "ok");
   }
 
   function unitsRow(row) {

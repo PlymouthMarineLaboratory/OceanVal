@@ -96,6 +96,26 @@ class TestModelUnits:
 
         assert units.model_units(str(tmp_path), 2, ["chl"]) == {"chl": None}
 
+    def test_descriptions_are_read_with_the_units(self, tmp_path):
+        folder = tmp_path / "2011" / "01"
+        folder.mkdir(parents=True)
+        attributes = {
+            "units": "1e-3",
+            "long_name": "absolute salinity",
+            "standard_name": "sea_water_absolute_salinity",
+        }
+        xr.Dataset({"so_abs": (("y", "x"), np.ones((2, 2)), attributes)}).to_netcdf(
+            folder / "a.nc"
+        )
+
+        assert units.model_attributes(str(tmp_path), 2, ["so_abs", "nowhere"]) == {
+            "so_abs": {
+                "units": "1e-3",
+                "description": "absolute salinity sea_water_absolute_salinity",
+            },
+            "nowhere": {"units": None, "description": ""},
+        }
+
 
 class TestOwnObsUnits:
     def test_read_from_the_file(self, tmp_path):
@@ -122,6 +142,15 @@ class TestOwnObsUnits:
 
         arguments = {"obs_path": str(tmp_path / "obs.nc"), "obs_variable": "chl"}
         assert units.own_obs_units(arguments) is None
+
+    def test_the_description_is_read_with_the_units(self, tmp_path):
+        attributes = {"units": "g/kg", "long_name": "Absolute Salinity"}
+        xr.Dataset({"sa": (("y", "x"), np.ones((2, 2)), attributes)}).to_netcdf(
+            tmp_path / "obs.nc"
+        )
+
+        arguments = {"obs_path": str(tmp_path / "obs.nc"), "obs_variable": "sa"}
+        assert units.own_obs_attributes(arguments) == ("g/kg", "Absolute Salinity")
 
 
 class TestMatchups:
@@ -234,6 +263,50 @@ class TestMatchups:
         assert check({"N3_n": "mmol N m-3", "N4_n": "mmol N/m^3"})["multiplier"] == 1.025
         assert "different units" in check({"N3_n": "mmol N m-3", "N4_n": "mg/m3"})["note"]
         assert "do not give" in check({"N3_n": "mmol N m-3", "N4_n": None})["note"]
+        # units written the same way are the same, and ones OceanVal cannot
+        # read are named rather than called different
+        assert check({"N3_n": "mmol N/m**3", "N4_n": "mmol N/m**3"})["multiplier"] == 1.025
+        unread = check({"N3_n": "mmol banana", "N4_n": "mmol banana"})["note"]
+        assert "“banana”" in unread and "different units" not in unread
+
+    def test_teos10_variables_are_warned_of(self):
+        (row,) = units.matchups(
+            {"salinity": "so_abs"},
+            {("salinity", "woa23")},
+            {},
+            {},
+            {"gridded": [], "point": []},
+            {"so_abs": "1e-3"},
+            model_descriptions={"so_abs": "absolute salinity sea_water_absolute_salinity"},
+        )
+
+        assert (row["check"]["status"], row["check"]["multiplier"]) == ("warn", 1)
+        assert "Absolute Salinity" in row["check"]["note"]
+        assert row["model"]["parts"] == [{"name": "so_abs", "units": "1e-3"}]
+
+    def test_own_observations_of_absolute_salinity_are_not_warned_of(self, tmp_path):
+        attributes = {"units": "g/kg", "standard_name": "sea_water_absolute_salinity"}
+        xr.Dataset({"sa": (("y", "x"), np.ones((2, 2)), attributes)}).to_netcdf(
+            tmp_path / "obs.nc"
+        )
+        own = {
+            "name": "salinity",
+            "model_variable": "so_abs",
+            "obs_path": str(tmp_path / "obs.nc"),
+            "obs_variable": "sa",
+        }
+
+        (row,) = units.matchups(
+            {},
+            set(),
+            {},
+            {},
+            {"gridded": [own], "point": []},
+            {"so_abs": "1e-3"},
+            model_descriptions={"so_abs": "absolute salinity"},
+        )
+
+        assert row["check"]["status"] == "same"
 
     def test_the_model_variables_to_read(self):
         names = units.model_variables(
