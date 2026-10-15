@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, follow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Reference — OceanVal</title>
+<meta name="description" content="Function reference for oceanval: add_point_comparison, add_gridded_comparison, matchup, create_recipes, validate, reset, compare, rebuild, deep_clean and fvcom_preprocess.">
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="index.html">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <span class="brand-version">v0.6.0 (archived)</span>
+    </a>
+    <nav class="nav-links" id="nav-links">
+      <a href="../../version-history.html" data-page="version-history.html">Version history</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="icon-btn" href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" aria-label="OceanVal on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+      </a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="page-hero">
+  <div class="container">
+    <div class="breadcrumb"><a href="index.html">Home</a> / API</div>
+    <h1>API reference</h1>
+    <p class="lead">All of OceanVal's public functions are available directly from the top-level <code>oceanval</code> namespace. Every signature below shows the complete call with default arguments — expand "Parameters" on any function for the full description of each one.</p>
+  </div>
+</div>
+
+<div class="container docs-layout">
+  <aside class="docs-toc">
+    <div class="docs-toc-title">Functions</div>
+    <ul>
+      <li><a href="#add_point_comparison">add_point_comparison</a></li>
+      <li><a href="#add_gridded_comparison">add_gridded_comparison</a></li>
+      <li><a href="#matchup">matchup</a></li>
+      <li><a href="#create_recipes">create_recipes</a></li>
+      <li><a href="#validate">validate</a></li>
+      <li><a href="#reset">reset</a></li>
+      <li><a href="#compare">compare</a></li>
+      <li><a href="#rebuild">rebuild</a></li>
+      <li><a href="#deep_clean">deep_clean</a></li>
+      <li><a href="#fvcom_preprocess">fvcom_preprocess</a></li>
+    </ul>
+  </aside>
+
+  <div class="docs-content">
+
+    <span class="kicker">Configuration and matching</span>
+
+    <div class="api-card" id="add_point_comparison">
+      <div class="api-card__head"><div class="sig">oceanval.add_point_comparison(name=None, source=None, model_variable=None, obs_path=None, source_info=None, short_name=None, long_name=None, short_title=None, vertical=False, start=-1000, end=3000, obs_multiplier=1, obs_adder=0, binning=None, recipe=None)</div></div>
+      <div class="api-card__body">
+        <p>Register an in-situ (point) observational dataset for validation, e.g. cruise or mooring data supplied as CSV.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <p>Required:</p>
+          <ul class="param-list">
+            <li><code class="param-name">name</code> <span class="param-tag">required</span><p>A name for the dataset, e.g. "temperature" — used internally to keep track of things. Letters and numbers only.</p></li>
+            <li><code class="param-name">source</code> <span class="param-tag">required</span><p>The source of the observational data, e.g. "NOAA".</p></li>
+            <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations. Not currently enforced by the function but should always be supplied.</p></li>
+            <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to a file or directory containing the observational data. If a directory, ensure it only contains files relevant to this variable — OceanVal recursively uses all NetCDF files inside it.</p></li>
+          </ul>
+          <p>Optional:</p>
+          <ul class="param-list">
+            <li><code class="param-name">source_info</code><p>Additional information about the source, e.g. publication details.</p></li>
+            <li><code class="param-name">short_name</code><p>A short name for the observational variable, e.g. "temp".</p></li>
+            <li><code class="param-name">long_name</code><p>A long name for the variable, e.g. "sea surface temperature".</p></li>
+            <li><code class="param-name">short_title</code><p>A short title for plots, e.g. "Nitrate Concentration".</p></li>
+            <li><code class="param-name">vertical</code><p>Whether to carry out vertical validation. Default <code>False</code> (surface only).</p></li>
+            <li><code class="param-name">start</code> / <code class="param-name">end</code><p>First / last year of observations to use. Default to all available years.</p></li>
+            <li><code class="param-name">obs_multiplier</code><p>Multiplier applied to observational data, e.g. for unit conversion. Default <code>1</code>.</p></li>
+            <li><code class="param-name">obs_adder</code><p>Value added to observational data, e.g. 273.15 to convert Kelvin to Celsius. Default <code>0</code>.</p></li>
+            <li><code class="param-name">binning</code><p>Spatially bin data to a <code>[lon_bin_size, lat_bin_size]</code> resolution in degrees. Off by default.</p></li>
+            <li><code class="param-name">recipe</code><p>A built-in <a href="../../recipes.html#point-recipes">point recipe</a> to use instead of <code>obs_path</code>, e.g. <code>{"temperature": "ices"}</code>. The observations are downloaded during <code>matchup</code> for the years and <code>lon_lim</code>/<code>lat_lim</code> area being matched (or the model's own extent), and <code>name</code>, <code>source</code> and the labels default to the recipe's.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="api-card" id="add_gridded_comparison">
+      <div class="api-card__head"><div class="sig">oceanval.add_gridded_comparison(name=None, source=None, model_variable=None, obs_path=None, climatology=None, obs_variable=None, source_info=None, short_name=None, long_name=None, short_title=None, vertical=False, start=-1000, end=3000, obs_multiplier=1, obs_adder=0, recipe=None, thredds=False, file_check=True)</div></div>
+      <div class="api-card__body">
+        <p>Register a gridded observational dataset (NetCDF), either your own files or a built-in <a href="../../recipes.html"><code>recipe</code></a>.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <p>Required:</p>
+          <ul class="param-list">
+            <li><code class="param-name">name</code> <span class="param-tag">required</span><p>A name for the dataset, e.g. "temperature".</p></li>
+            <li><code class="param-name">source</code> <span class="param-tag">required</span><p>The source of the observational data, e.g. "CMEMS".</p></li>
+            <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations.</p></li>
+            <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to the directory containing the observational data files.</p></li>
+            <li><code class="param-name">climatology</code> <span class="param-tag">required</span><p>Whether the observational data is a climatology.</p></li>
+          </ul>
+          <p>Optional:</p>
+          <ul class="param-list">
+            <li><code class="param-name">obs_variable</code><p>Name of the variable in the observational files. If omitted, OceanVal assumes a single variable is present.</p></li>
+            <li><code class="param-name">source_info</code><p>Additional information about the source, e.g. publication details.</p></li>
+            <li><code class="param-name">short_name</code><p>A short name for the observational variable, e.g. "temp".</p></li>
+            <li><code class="param-name">long_name</code><p>A long name for the variable, e.g. "sea surface temperature".</p></li>
+            <li><code class="param-name">short_title</code><p>A short title for plots, e.g. "Nitrate Concentration".</p></li>
+            <li><code class="param-name">vertical</code><p>Whether to carry out vertical validation. Default <code>False</code> (surface only).</p></li>
+            <li><code class="param-name">start</code> / <code class="param-name">end</code><p>First / last year of observations to use. Default to all available years.</p></li>
+            <li><code class="param-name">obs_multiplier</code><p>Multiplier applied to observational data, e.g. for unit conversion. Default <code>1</code>.</p></li>
+            <li><code class="param-name">obs_adder</code><p>Value added to observational data, e.g. 273.15 to convert Kelvin to Celsius. Default <code>0</code>.</p></li>
+            <li><code class="param-name">recipe</code><p>A built-in <a href="../../recipes.html">recipe</a> dict, e.g. <code>{"temperature": "woa23"}</code>, providing standard metadata and file locations automatically.</p></li>
+            <li><code class="param-name">thredds</code><p>Whether <code>obs_path</code> is a remote OPeNDAP/THREDDS URL rather than a local file or directory. Default <code>False</code>.</p></li>
+            <li><code class="param-name">file_check</code><p>Whether to check that <code>obs_path</code> exists and its variables are valid. Default <code>True</code>.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="api-card" id="matchup">
+      <div class="api-card__head"><div class="sig">oceanval.matchup(sim_dir=None, start=None, end=None, thickness=None, cores=6, lon_lim=None, lat_lim=None, n_dirs_down=2, overwrite=True, ask=True, cache=False, exclude=[], require=None, out_dir="", point_time_res=["year", "month", "day"], n_check=None, as_missing=None, strict_names=True, fvcom=False, live_validation=None, time_shift=None)</div></div>
+      <div class="api-card__body">
+        <p>Pair registered observations with model output.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <p>Required:</p>
+          <ul class="param-list">
+            <li><code class="param-name">sim_dir</code> <span class="param-tag">required</span><p>Path to the directory containing the model simulation output files.</p></li>
+            <li><code class="param-name">start</code> / <code class="param-name">end</code> <span class="param-tag">required</span><p>First / last year of the simulation to use for validation.</p></li>
+            <li><code class="param-name">thickness</code> <span class="param-tag">vertical only</span><p><code>"z_level"</code> or the exact name of the variable holding the cell thickness, e.g. <code>"e3t"</code> (a variable that only has it in its name, such as <code>O3_c_e3t</code>, is not used) — required for vertical validation. The thickness can have a time dimension or not (a static thickness such as <code>e3t_0</code>), and its vertical coordinate needs a <code>positive</code> attribute (<code>"down"</code> for NEMO). A thickness file must hold only the thickness variable. With <code>"z_level"</code>, the model&rsquo;s levels must be depths (positive down); output on heights (positive up) needs the cell thickness instead.</p></li>
+          </ul>
+          <p>Optional:</p>
+          <ul class="param-list">
+            <li><code class="param-name">cores</code><p>Number of CPU cores to use for parallel processing. Default <code>6</code>.</p></li>
+            <li><code class="param-name">lon_lim</code> / <code class="param-name">lat_lim</code><p>Longitude / latitude limits for the validation region, e.g. <code>[-180, 180]</code>.</p></li>
+            <li><code class="param-name">n_dirs_down</code><p>Directory levels to search down for output files. Default <code>2</code>, assuming a <code>YYYY/MM/</code> structure.</p></li>
+            <li><code class="param-name">overwrite</code> / <code class="param-name">ask</code><p>Whether to overwrite existing matchup files, and whether to confirm first. <code>ask</code> defaults to <code>True</code>.</p></li>
+            <li><code class="param-name">cache</code><p>Whether to cache intermediate results. Default <code>False</code>.</p></li>
+            <li><code class="param-name">exclude</code><p>Strings that should not appear in any simulation file paths.</p></li>
+            <li><code class="param-name">require</code><p>Strings that must appear in a simulation file path for it to be included — useful when multiple simulations share a directory.</p></li>
+            <li><code class="param-name">out_dir</code><p>Directory to save matchup files in. Defaults to the execution directory.</p></li>
+            <li><code class="param-name">point_time_res</code><p>Time resolution for point matchups. Default <code>["year", "month", "day"]</code>; set to <code>["month", "day"]</code> to compare climatological output with observations.</p></li>
+            <li><code class="param-name">n_check</code><p>Number of files checked when identifying the file naming convention.</p></li>
+            <li><code class="param-name">as_missing</code><p>A float or <code>[min, max]</code> range of values to treat as missing in the model output.</p></li>
+            <li><code class="param-name">strict_names</code><p>Whether to strictly enforce variable naming conventions. Default <code>True</code>.</p></li>
+            <li><code class="param-name">fvcom</code><p>Set to <code>True</code> if <code>sim_dir</code> contains raw FVCOM output. Each file is regridded with <code>fvcom_preprocess</code> before matching: surface values for comparisons with <code>vertical=False</code>, and 0&ndash;150&nbsp;m every 5&nbsp;m for <code>vertical=True</code>. Point comparisons use a 0.05&deg; grid; gridded comparisons use twice the resolution of the observations. <code>thickness</code> is not needed, <code>lon_lim</code> / <code>lat_lim</code> default to the mesh extent, and the regridded files are deleted afterwards. Default <code>False</code>.</p></li>
+            <li><code class="param-name">live_validation</code> <span class="param-tag">jupyter-book 2</span><p>Build an interim validation report, HTML only, as the matchups are made: each matchup&rsquo;s page is added as soon as the matchup is made, and the summary is run again, so the results can be read long before the last matchup is made. <code>True</code> builds it with <a href="#validate"><code>validate</code></a>&rsquo;s defaults; a dict gives <code>validate</code>&rsquo;s report options &mdash; <code>out_dir</code>, <code>lon_lim</code>, <code>lat_lim</code>, <code>subregions</code>, <code>fixed_scale</code>, <code>concise</code>, <code>transect</code>, <code>depth_bins</code> and <code>variables</code> (<code>pdf</code>, <code>word</code> and <code>zip</code> are for the full report). Matchups <code>variables</code> leaves out are still made, but have no page in it. It is built in <code>oceanval_interim_report</code> in <code>out_dir</code>, starting at <code>oceanval_report/_build/html/notebooks/summary.html</code>, and <code>matchup</code> waits for it to be finished before returning. Build the full report with <code>validate</code> afterwards, as usual. Needs jupyter-book 2 or later. Default <code>None</code>.</p></li>
+            <li><code class="param-name">time_shift</code><p>Number of days to shift every model time by before matching up, e.g. <code>-1</code> for output that dates each time mean at the end of the period it covers (00:00 on 1 February for a January mean): shifted back a day, each mean falls in the period it covers. By default (<code>None</code>) <code>matchup</code> checks whether the times of time means look like the ends of their periods and, if so, asks whether to shift them back a day; with <code>ask=False</code> it only says so, and leaves them as they are. <code>0</code> leaves the times as they are, without checking.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="api-card" id="create_recipes">
+      <div class="api-card__head"><div class="sig">oceanval.create_recipes(simdir=None, ndown=None, out=None, domain=None, start=None, end=None, ask=True, fvcom=None, gui=True, validate=True, exclude=None, require=None)</div></div>
+      <div class="api-card__body">
+        <p><strong>Deprecated:</strong> use the <code>oceanval</code> command instead, which opens the same window in your web browser and goes on to run the matchup and the report. <code>create_recipes</code> now warns when called, and will be removed in a future release.</p>
+        <p>Scan a simulation directory and write out a ready-to-run matchup script. Every built-in recipe is included: the ones OceanVal could identify a model variable for are live, with that variable filled in, and the rest are commented out for you to complete by hand. The model variables are identified from the <code>long_name</code> attributes in the netCDF files, so they need not be named after the observational dataset. By default, you can check and change them in a page in your web browser first.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <ul class="param-list">
+            <li><code class="param-name">simdir</code><p>Directory holding the model output. Required.</p></li>
+            <li><code class="param-name">ndown</code><p>How many directories below <code>simdir</code> the output files sit, the same idea as <code>n_dirs_down</code> on <code>matchup</code>. Required.</p></li>
+            <li><code class="param-name">out</code><p>Path of the Python file to write. Required.</p></li>
+            <li><code class="param-name">domain</code><p>Either <code>"global"</code> or <code>"nwes"</code>. Where a variable has a recipe in both regions (e.g. temperature), the one for this domain is left live and the other is commented out as an alternative; a variable with a recipe only outside this domain still gets that one. Required.</p></li>
+            <li><code class="param-name">start</code> / <code class="param-name">end</code><p>First / last year of the simulation to validate. Passed straight through to the generated script's <code>matchup()</code> call, and used to pick the WOA23 decadal period for the temperature and salinity recipes. Required.</p></li>
+            <li><code class="param-name">ask</code><p>Whether to ask you to confirm output that looks like FVCOM, and for the model variable of anything that could not be identified (press Enter to skip). Only asks when run from an interactive terminal. With <code>gui=True</code>, the model variables are filled in in the window instead. Default <code>True</code>.</p></li>
+            <li><code class="param-name">fvcom</code><p>Whether <code>simdir</code> holds raw FVCOM output. If <code>True</code>, the variables are read with xarray, as CDO cannot read FVCOM's, and the script calls <a href="#matchup"><code>matchup</code></a> with <code>fvcom=True</code>. Default <code>None</code>: the files are checked for FVCOM's unstructured mesh and, if they have one, you are asked to confirm &mdash; or, when OceanVal cannot ask, they are assumed to be FVCOM output and it says so.</p></li>
+            <li><code class="param-name">gui</code><p>Whether to choose the recipes in a page in your web browser before the script is written. Each observational variable gets a row with the model variable identified for it, which you can change (a pop-out under the box lists every variable in the model output with its <code>long_name</code>; search it, and tick several to sum them as <code>var1+var2+var3</code>), and tick-boxes for the gridded and point datasets available for it, ticked where the script would otherwise use them. Every ticked dataset is written out live, so a variable can be validated against several. A ticked dataset can be given years of its own and, if its observations are resolved in depth (WOA23, NSBC and ICES), be set to Vertical to validate the full water column. Cancelling, in the page or with Ctrl+C, writes nothing and returns <code>None</code>. <code>create_recipes</code> waits for the page, so pass <code>gui=False</code> where no one can answer it, e.g. in a batch job. Default <code>True</code>.</p></li>
+            <li><code class="param-name">validate</code><p>Whether the script builds the validation report, with <a href="#validate"><code>validate</code></a>, once <code>matchup</code> has run. With <code>validate=False</code> the call is still written, commented out, to run once the matchups are made. Default <code>True</code>.</p></li>
+            <li><code class="param-name">exclude</code> / <code class="param-name">require</code><p>A string or list of strings: leave out output files whose names contain any of <code>exclude</code>, and use only those whose names contain each of <code>require</code>, as <a href="#matchup"><code>matchup</code></a> does. Only file names are checked, not directories. Both are passed straight through to the script's <code>matchup()</code> call. Default <code>None</code>.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <span class="kicker">Reports and maintenance</span>
+
+    <div class="api-card" id="validate">
+      <div class="api-card__head"><div class="sig">oceanval.validate(lon_lim=None, lat_lim=None, concise=True, fixed_scale=False, subregions=None, data_dir=".", out_dir=".", pdf=False, word=False, zip=False, transect=None, depth_bins=None, variables=None)</div></div>
+      <div class="api-card__body">
+        <p>Compute validation statistics from matched data and build the HTML report. Run from the same directory used for <code>matchup</code>.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <ul class="param-list">
+            <li><code class="param-name">lon_lim</code> / <code class="param-name">lat_lim</code><p>Longitude / latitude limits for the validation region.</p></li>
+            <li><code class="param-name">subregions</code><p>The sub-regions used for the regional summaries: <code>"global"</code>, <code>"nwes"</code> (Northwest European Shelf), or a path to your own regions netCDF (<code>.nc</code>) file. The file needs one variable per region, with 1 for grid cells in the region and missing values elsewhere. Any 0 is set to missing and ignored in regional summaries. See <a href="../../how-to-use.html#own-regions">Using your own regions</a>.</p></li>
+            <li><code class="param-name">concise</code><p>Whether to generate a concise HTML summary page. Default <code>True</code>.</p></li>
+            <li><code class="param-name">fixed_scale</code><p>Whether to use a fixed colour scale for the seasonal plots, capping min/max to the 2nd/98th percentile. Default <code>False</code>.</p></li>
+            <li><code class="param-name">data_dir</code> / <code class="param-name">out_dir</code><p>Where matchup data is read from / the report is written to. Default to the current directory.</p></li>
+            <li><code class="param-name">pdf</code><p>Whether to also generate PDF downloads of the report (a per-page PDF and a combined PDF of the whole report). Default <code>False</code> — generating them is slow, and most users only need the HTML report.</p></li>
+            <li><code class="param-name">word</code><p>Whether to also generate Word versions of the report &mdash; one per page, plus a combined <code>oceanval_report.docx</code> &mdash; with figures, tables and editable Word equations. Default <code>False</code>. Requires <a href="https://pandoc.org/" target="_blank" rel="noopener">pandoc</a>.</p></li>
+            <li><code class="param-name">zip</code><p>Whether to also bundle the report into a zip archive (<code>oceanval_report.zip</code>) in the output directory, containing just the files needed to view the complete report — the HTML pages, plus the PDFs and Word file if those were generated. Default <code>False</code>.</p></li>
+            <li><code class="param-name">transect</code><p>A transect to validate the gridded matchups along, as a dict of its start and end, each <code>[lon, lat]</code>: <code>{"start": [-30, 0], "end": [-30, 65]}</code>. It must run north&ndash;south (the same longitude at both ends) or east&ndash;west (the same latitude at both ends). Each gridded matchup&rsquo;s page then maps the transect, shows the monthly climatology of the surface values along it, and, for matchups made through the water column (<code>vertical=True</code>), a section of the annual mean along it, interpolated onto 30 evenly spaced depths from the shallowest to the deepest. Needs nctoolkit 1.3.6 or later. Default <code>None</code>. See <a href="../../how-to-use.html#transects">Validating along a transect</a>.</p></li>
+            <li><code class="param-name">depth_bins</code><p>The depth ranges, in metres, that point matchups made through the water column (<code>vertical=True</code>) are summarised in, as a list of <code>[min, max]</code> pairs: <code>[[0, 20], [20, 200], [200, None]]</code>. A depth is in a bin if it is deeper than its min and no deeper than its max (the shallowest bin also takes its min). The deepest bin can have a max of <code>None</code>, for everything below its min. Bins can leave gaps, whose observations are left out, but cannot overlap. The same bins are used for every point dataset, and in the summary. Default <code>None</code>: 0&ndash;10, 10&ndash;30, 30&ndash;60, 60&ndash;100, 100&ndash;150, 150&ndash;300, 300&ndash;600, 600&ndash;1000 and &gt;1000&nbsp;m. See <a href="../../how-to-use.html#depth-bins">Choosing the depth bins</a>.</p></li>
+            <li><code class="param-name">variables</code><p>The matchups to validate, if not all of them. Each entry is a variable, for all its sources, or <code>"variable/source"</code>, for one: <code>["temperature", "nitrate/WOA23"]</code>. They are as named in the matchups (<code>oceanval_matchups</code>), not case sensitive, and each must match at least one matchup. The summary covers only the matchups validated. Default <code>None</code>: every matchup.</p></li>
+            <li><code class="param-name">region</code><p>Deprecated. Use <code>subregions</code> instead.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="api-card" id="reset">
+      <div class="api-card__head"><div class="sig">oceanval.reset()</div></div>
+      <div class="api-card__body">
+        <p>Reset the matchup definitions to their default state — clears any datasets previously registered with <code>add_point_comparison</code> / <code>add_gridded_comparison</code>. Use this between validating different simulations in the same script.</p>
+      </div>
+    </div>
+
+    <div class="api-card" id="compare">
+      <div class="api-card__head"><div class="sig">oceanval.compare(model_dict=None, view=True, ask=True, pdf=False, word=False)</div></div>
+      <div class="api-card__body">
+        <p>Compare the validation output from multiple already-validated simulations, writing a shared comparison report. Output: <code>oceanval_comparison/compare/_build/html/notebooks/comparison_seasonal.html</code>.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <ul class="param-list">
+            <li><code class="param-name">model_dict</code> <span class="param-tag">required</span><p>Dictionary mapping a short model name to the path of its validation output.</p></li>
+            <li><code class="param-name">view</code><p>Open the comparison report in a browser once built. Default <code>True</code>.</p></li>
+            <li><code class="param-name">ask</code><p>Ask for confirmation before replacing an existing comparison directory. Default <code>True</code>.</p></li>
+            <li><code class="param-name">pdf</code><p>Whether to also generate PDF downloads of the comparison report. Default <code>False</code>.</p></li>
+            <li><code class="param-name">word</code><p>Whether to also generate Word versions of the comparison report — one per page, plus a combined <code>oceanval_report.docx</code>. Default <code>False</code>. Requires <a href="https://pandoc.org/" target="_blank" rel="noopener">pandoc</a>.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="api-card" id="rebuild">
+      <div class="api-card__head"><div class="sig">oceanval.rebuild(data_dir=".", pdf=False)</div></div>
+      <div class="api-card__body">
+        <p>Rebuild the validation report after modifying its Jupyter notebooks by hand.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <ul class="param-list">
+            <li><code class="param-name">data_dir</code><p>Directory containing <code>oceanval_report</code>. Defaults to the current directory.</p></li>
+            <li><code class="param-name">pdf</code><p>Whether to also generate PDF downloads of the report. Default <code>False</code>.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="api-card" id="deep_clean">
+      <div class="api-card__head"><div class="sig">oceanval.deep_clean()</div></div>
+      <div class="api-card__body">
+        <p>Remove all temporary files ever created by OceanVal, across the current and previous sessions — useful if a crash left files behind.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <span class="kicker">Model support</span>
+
+    <div class="api-card" id="fvcom_preprocess">
+      <div class="api-card__head"><div class="sig">oceanval.fvcom_preprocess(variables=None, paths=None, lon_lim=None, lat_lim=None, res=0.05, out_dir=None, model_res=None, missing=None, z_level=False, levels=None)</div></div>
+      <div class="api-card__body">
+        <p>Preprocess unstructured FVCOM output onto a regular grid so it can be used with the rest of OceanVal. By default only the surface sigma layer is kept; set <code>z_level=True</code> to interpolate onto fixed depth levels instead, then run <code>matchup</code> with <code>thickness="z_level"</code>.</p>
+        <details class="param-details">
+          <summary>Parameters</summary>
+          <p>Required:</p>
+          <ul class="param-list">
+            <li><code class="param-name">out_dir</code> <span class="param-tag">required</span><p>Output directory for the processed data — an error is raised if not supplied.</p></li>
+          </ul>
+          <p>Optional:</p>
+          <ul class="param-list">
+            <li><code class="param-name">variables</code><p>List of NetCDF variable names to process.</p></li>
+            <li><code class="param-name">paths</code><p>List of file paths to the FVCOM data files.</p></li>
+            <li><code class="param-name">lon_lim</code> / <code class="param-name">lat_lim</code><p>Minimum and maximum longitude / latitude for regridding.</p></li>
+            <li><code class="param-name">res</code><p>Regridding resolution in degrees. Default <code>0.05</code>, suitable for point matchups.</p></li>
+            <li><code class="param-name">model_res</code><p>Approximate native resolution of the FVCOM mesh in degrees, used to build the land/sea mask by binning node positions. If <code>None</code> (default), the mask is built from the mesh triangles instead: a grid cell is sea if its centre lies inside the mesh.</p></li>
+            <li><code class="param-name">missing</code><p>Value used to represent missing data in the FVCOM output.</p></li>
+            <li><code class="param-name">z_level</code><p>If <code>True</code>, variables on sigma layers are interpolated onto fixed depth levels below the free surface before regridding. Depths above the top layer centre take the top layer value, depths between the bottom layer centre and the seabed take the bottom layer value, and depths below the seabed are missing. Default <code>False</code> (surface only).</p></li>
+            <li><code class="param-name">levels</code><p>Depth levels in metres (positive down) to interpolate to. Supplying levels implies <code>z_level=True</code>. Defaults to the WOA23 standard depths, down to the maximum model depth.</p></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container footer-pml">
+    <a href="https://pml.ac.uk/" target="_blank" rel="noopener"><img src="assets/img/pml_logo.jpg" alt="Plymouth Marine Laboratory"></a>
+    <span>Developed by the Environmental Intelligence group at Plymouth Marine Laboratory</span>
+  </div>
+  <div class="container footer-top">
+    <div class="footer-brand">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <p>Automated ocean model validation. Match, compute, and report — from your browser or in Python.</p>
+      <div class="footer-social">
+        <a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" aria-label="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+        </a>
+        <a href="mailto:rwi@pml.ac.uk" aria-label="Email">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Documentation</h4>
+      <ul>
+        <li><a href="../../installing.html">Installing</a></li>
+        <li><a href="../../app.html">The OceanVal app</a></li>
+        <li><a href="../../how-to-use.html">How to use OceanVal in Python</a></li>
+        <li><a href="api.html">API reference</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Data</h4>
+      <ul>
+        <li><a href="../../datasets.html">Built-in observational datasets</a></li>
+        <li><a href="../../recipes.html">Observation recipes</a></li>
+        <li><a href="../../obs-data.html">Compatible data formats</a></li>
+        <li><a href="../../qa.html">Q&amp;A</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="../../about.html">About &amp; contact</a></li>
+        <li><a href="../../version-history.html">Version history</a></li>
+        <li><a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener">GitHub repository</a></li>
+        <li><a href="https://github.com/pmlmodelling/oceanVal/issues" target="_blank" rel="noopener">Report an issue</a></li>
+        <li><a href="https://anaconda.org/conda-forge/oceanval" target="_blank" rel="noopener">conda-forge package</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <span>© 2026 Plymouth Marine Laboratory. Released under the GNU GPLv3 license.</span>
+    <span>Built for ocean modellers, by ocean modellers.</span>
+  </div>
+</footer>
+
+<button class="back-to-top" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+</button>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>
