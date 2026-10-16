@@ -56,10 +56,12 @@ import math
 import os
 import re
 import shutil
+import stat
 import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 
@@ -97,6 +99,15 @@ DOWNLOADS = {
         "file": "https://downloads.psl.noaa.gov/Datasets/COBE2/sst.mon.mean.nc",
     },
 }
+# where OceanVal's own datasets are downloaded from: an entry for any other
+# address is not built-in data (checked against the recipes by the tests)
+BUILTIN_HOSTS = (
+    "www.ncei.noaa.gov",
+    "psl.noaa.gov",
+    "downloads.psl.noaa.gov",
+    "www.oceancolour.org",
+    "icdc.cen.uni-hamburg.de",
+)
 # the names OceanVal gives the pieces' files: no other file is ever used or
 # removed, whatever the index says
 PIECE_NAME = re.compile(r"^(?:" + "|".join(GRIDDED + ("ices",)) + r")/[0-9a-f]{32}\.(?:nc|csv\.gz)$")
@@ -1102,3 +1113,268 @@ def size(root_dir):
             _size_cache.clear()
         _size_cache[signature] = total
     return total
+
+
+# --------------------------------------------------------------------------
+# checking the store
+
+# a file younger than this may be one a run is writing as it is looked at
+CHECK_YOUNG = 10 * 60
+# how many of what is found each group of the check lists
+CHECK_LISTED = 20
+# what a check can find, in the order it says it, with whether it is a problem
+CHECK_GROUPS = (
+    ("index", "Problems with the index", "problem"),
+    ("missing", "Files that are missing, or not the size they were", "problem"),
+    ("named", "Entries naming a file OceanVal does not use", "problem"),
+    ("duplicate", "Data held twice", "problem"),
+    ("shared", "Files or ids used by more than one entry", "problem"),
+    ("not_ours", "In the data store, and not OceanVal's", "problem"),
+    ("not_builtin", "Entries that are not built-in data", "problem"),
+    ("overlap", "Pieces that overlap", "note"),
+    ("orphan", "Piece files that are not in the index", "note"),
+    ("leftover", "Left behind, to be tidied away", "note"),
+    ("marker", "The marker file", "note"),
+)
+
+
+def _describe(entry):
+    """What an entry is, for saying so."""
+    if not isinstance(entry, dict):
+        return f"An entry ({entry!r})"
+    if entry.get("kind") == "ices":
+        return f"ICES {entry.get('dataset')} for {entry.get('year')}"
+    last = str(entry.get("url")).rsplit("/", 1)[-1]
+    year = f" {entry['year']}" if entry.get("year") is not None else ""
+    return f"{str(entry.get('dataset')).upper()} {entry.get('variable')}{year} ({last})"
+
+
+def _bytes_text(n):
+    for power, unit in enumerate(("bytes", "KB", "MB", "GB")):
+        if n < 1024 ** (power + 1) or unit == "GB":
+            return f"{n} bytes" if power == 0 else f"{n / 1024 ** power:.1f} {unit}"
+
+
+def _overlap(a, b):
+    """Whether two boxes have any area in common."""
+    return min(a[1], b[1]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[2], b[2])
+
+
+def _walk(root_dir):
+    """What is in the store's folder, without following a link or changing
+    anything: (relative path, lstat) of the files, and the paths of what
+    OceanVal would not put there (a link, a folder it does not make)."""
+    files, strays = [], []
+    piece_folders = GRIDDED + ("ices",)
+
+    def look(folder, relative):
+        try:
+            names = sorted(os.listdir(folder))
+        except OSError as error:
+            strays.append(f"{relative or './'} (cannot be read: {error.strerror or error})")
+            return
+        for name in names:
+            path = os.path.join(folder, name)
+            where = f"{relative}{name}"
+            try:
+                info = os.lstat(path)
+            except OSError:
+                continue
+            if stat.S_ISLNK(info.st_mode):
+                strays.append(f"{where} (a link)")
+            elif stat.S_ISDIR(info.st_mode):
+                if not relative and (name in piece_folders or name == ".partial"):
+                    look(path, f"{where}/")
+                else:
+                    strays.append(f"{where}/ (a folder)")
+            else:
+                files.append((where, info))
+
+    look(root_dir, "")
+    return files, strays
+
+
+def check(root_dir):
+    """Look at the data store in root_dir for what is wrong with it, and say
+    what is found. It only looks: nothing is written, removed or made, and
+    nothing is locked, so it can be run while a matchup uses the store.
+
+    Returns {"checked", "pieces", "bytes", "problems", "notes", "groups"}: the
+    groups (see CHECK_GROUPS) that have something in them, each as {"key",
+    "title", "level", "count", "items"} with the first CHECK_LISTED items said.
+    Raises ValueError if there is no store folder.
+    """
+    if not os.path.isdir(root_dir) or os.path.islink(root_dir):
+        raise ValueError(f"{root_dir} is not there, so there is nothing to check.")
+    found = {key: [] for key, _, _ in CHECK_GROUPS}
+
+    # the folder is looked at before the index is read, so that a piece a run
+    # saves in between is in the index by the time it is looked for there
+    files, strays = _walk(root_dir)
+    data, problem = _load(root_dir)
+    on_disk = {where: info for where, info in files}
+    has_index = INDEX in on_disk
+
+    found["not_ours"] += strays
+    pieces_on_disk = []
+    for where, info in files:
+        if where in (INDEX, MARKER, ".lock"):
+            continue
+        young = time.time() - info.st_mtime < CHECK_YOUNG
+        if PIECE_NAME.match(where):
+            pieces_on_disk.append(where)
+        elif any(x.match(where) for x in LEFTOVER_NAMES):
+            if not young:
+                found["leftover"].append(f"{where} ({_bytes_text(info.st_size)}), left by a download that did not finish")
+        else:
+            found["not_ours"].append(f"{where} ({_bytes_text(info.st_size)})")
+    if MARKER not in on_disk:
+        found["marker"].append(
+            f"{MARKER} is not there. It says the folder is OceanVal's, and is put back the next "
+            "time a matchup uses the data store."
+        )
+
+    entries, retired = [], []
+    if problem:
+        found["index"].append(f"{INDEX} could not be read, so what it holds was not checked: {problem}")
+    else:
+        entries, retired = data["entries"], data["retired"]
+        if not has_index and pieces_on_disk:
+            found["index"].append(f"There are {len(pieces_on_disk)} piece files, and no {INDEX} to say what they are.")
+
+    live = []
+    for number, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            found["index"].append(f"Entry {number} of the index is not an entry ({entry!r}).")
+        elif _box(entry) is None:
+            found["index"].append(f"{_describe(entry)} has no area that can be used.")
+        else:
+            live.append(entry)
+    records = [x for x in entries if isinstance(x, dict)]
+
+    total = 0
+    for entry in records:
+        name = entry.get("file")
+        who = _describe(entry)
+        if name is None:
+            if entry.get("rows") != 0:
+                found["missing"].append(f"{who} has no file, and is not one that was found to have no data.")
+            continue
+        folder = "ices" if entry.get("kind") == "ices" else entry.get("dataset")
+        if not isinstance(name, str) or not PIECE_NAME.match(name) or name.split("/")[0] != folder:
+            found["named"].append(
+                f"{who} names {name!r}, which is not a name OceanVal gives a piece. It is never used or removed."
+            )
+            continue
+        try:
+            info = os.lstat(os.path.join(root_dir, name))
+        except OSError:
+            found["missing"].append(f"{who}: {name} is not in the data store.")
+            continue
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+            found["named"].append(f"{who}: {name} is a link, or not a file. It is never used or removed.")
+            continue
+        total += info.st_size
+        wanted = entry.get("bytes")
+        if isinstance(wanted, int) and not isinstance(wanted, bool) and wanted != info.st_size:
+            found["missing"].append(
+                f"{who}: {name} is {info.st_size} bytes, and was {wanted} when it was saved. "
+                "It may be damaged or have been changed."
+            )
+
+    # data held more than once
+    for label, values in (("id", [x.get("id") for x in records]), ("file", [x.get("file") for x in records])):
+        for value in sorted({str(v) for v in values if v is not None}):
+            users = [x for x in records if str(x.get("id" if label == "id" else "file")) == value]
+            if len(users) > 1:
+                found["shared"].append(
+                    f"The {label} {value} is used by {len(users)} entries: " + "; ".join(_describe(x) for x in users) + "."
+                )
+    live_files = {x.get("file") for x in records if x.get("file")}
+    for old in retired:
+        if isinstance(old, dict) and old.get("file") in live_files:
+            found["shared"].append(
+                f"{old.get('file')} is in the data store as a piece, and as a replaced piece "
+                "that is waiting to be removed."
+            )
+
+    units = {}
+    for entry in live:
+        key = (entry.get("kind"), entry.get("dataset"), entry.get("url"), entry.get("variable"), entry.get("year"))
+        units.setdefault(key, []).append(entry)
+    for same in units.values():
+        for i, a in enumerate(same):
+            for b in same[i + 1:]:
+                box_a, box_b = _box(a), _box(b)
+                if contains(box_a, box_b) and _levels_cover(a.get("levels"), b.get("levels")):
+                    inner, outer = b, a
+                elif contains(box_b, box_a) and _levels_cover(b.get("levels"), a.get("levels")):
+                    inner, outer = a, b
+                else:
+                    inner = None
+                if inner is not None:
+                    found["duplicate"].append(
+                        f"{_describe(inner)} for the area {_box(inner)} is held twice: it is inside "
+                        f"the piece for {_box(outer)} ({inner.get('file')} and {outer.get('file')})."
+                    )
+                elif _overlap(box_a, box_b):
+                    found["overlap"].append(
+                        f"{_describe(a)} is held for the areas {box_a} and {box_b}, which overlap "
+                        f"({a.get('file')} and {b.get('file')})."
+                    )
+
+    # data that should not be there
+    for entry in records:
+        kind, dataset = entry.get("kind"), entry.get("dataset")
+        if kind == "ices":
+            continue
+        why = None
+        if kind != "gridded" or dataset not in GRIDDED:
+            why = f"it is for {dataset!r} ({kind!r}), which is not one of OceanVal's built-in datasets"
+        else:
+            url = entry.get("url")
+            parsed = urllib.parse.urlparse(url) if isinstance(url, str) else None
+            if parsed is None or parsed.scheme not in ("http", "https") or parsed.hostname not in BUILTIN_HOSTS:
+                why = f"its address, {url!r}, is not one of the built-in sources"
+        if why:
+            found["not_builtin"].append(f"{_describe(entry)}: {why}.")
+
+    named = live_files | {x.get("file") for x in retired if isinstance(x, dict)}
+    if not problem:
+        for where in pieces_on_disk:
+            if where not in named and time.time() - on_disk[where].st_mtime >= CHECK_YOUNG:
+                found["orphan"].append(f"{where} ({_bytes_text(on_disk[where].st_size)}) is not named in the index.")
+    for old in retired:
+        if isinstance(old, dict) and old.get("file") not in live_files and old.get("file") in on_disk:
+            found["leftover"].append(f"{old['file']} was replaced, and is removed a day after that.")
+
+    groups = []
+    for key, title, level in CHECK_GROUPS:
+        items = found[key]
+        if not items:
+            continue
+        shown = items[:CHECK_LISTED]
+        if len(items) > CHECK_LISTED:
+            shown.append(f"and {len(items) - CHECK_LISTED} more")
+        groups.append({"key": key, "title": title, "level": level, "count": len(items), "items": shown})
+    return {
+        "checked": datetime.datetime.now().isoformat(timespec="seconds"),
+        "pieces": len([x for x in records if x.get("file")]),
+        "bytes": total,
+        "problems": sum(x["count"] for x in groups if x["level"] == "problem"),
+        "notes": sum(x["count"] for x in groups if x["level"] == "note"),
+        "groups": groups,
+    }
+
+
+def check_reply(settings):
+    """The Preferences panel's check on the data store the settings have set,
+    as (HTTP status, reply). The folder is the one saved, never one the page
+    names."""
+    folder = (settings or {}).get("data_store") or ""
+    if not folder:
+        return 400, {"ok": False, "error": "There is no data store to check: set a folder first."}
+    try:
+        return 200, {"ok": True, "check": check(root(folder))}
+    except Exception as error:
+        return 400, {"ok": False, "error": f"The data store could not be checked: {error}"}

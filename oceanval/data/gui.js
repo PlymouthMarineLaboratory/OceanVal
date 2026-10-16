@@ -109,6 +109,12 @@ const OceanValGUI = (() => {
         <label class="g-label" for="settings-data-store">Folder</label>
         <input type="text" class="s-input is-mono prefs__path" id="settings-data-store" placeholder="The folder's full path, e.g. /data/me" spellcheck="false" autocomplete="off" aria-describedby="settings-data-store-status">
         <p class="prefs__status" id="settings-data-store-status" aria-live="polite"></p>
+        <p class="prefs__size" id="settings-data-store-size" aria-live="polite" hidden></p>
+        <div class="prefs__check-row">
+          <button type="button" class="btn btn--ghost" id="settings-data-store-check" disabled>Run a check on the data store</button>
+          <span class="prefs__hint-inline" id="settings-data-store-check-hint">It only looks: nothing is changed, removed or fixed.</span>
+        </div>
+        <div class="check" id="settings-data-store-result" aria-live="polite" hidden></div>
         <div class="prefs__choices" id="settings-data-store-uses" role="radiogroup" aria-label="How matchups use the data store"></div>
         <p class="prefs__note" id="settings-data-store-note">Choose a disk with a reasonable amount of free space: the data store grows as more data is kept in it, and can come to several GB.</p>
       </fieldset>
@@ -181,19 +187,70 @@ const OceanValGUI = (() => {
       return `${i === 0 ? n : n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
     }
 
+    let checking = false;
+
+    // what a check of the data store found: a line saying how it went, and then
+    // each kind of thing found with what it is
+    function showCheck(check) {
+      const out = $("settings-data-store-result");
+      const { problems, notes } = check;
+      const looked = `Looked at ${check.pieces} piece${check.pieces === 1 ? "" : "s"} (${bytes(check.bytes)}).`;
+      const kind = problems ? "problem" : notes ? "note" : "ok";
+      const said = problems
+        ? `${problems} problem${problems === 1 ? "" : "s"} found${notes ? `, and ${notes} thing${notes === 1 ? "" : "s"} to know about` : ""}.`
+        : notes ? `No problems found, but ${notes} thing${notes === 1 ? "" : "s"} to know about.` : "No problems found.";
+      out.replaceChildren(
+        el("p", { class: `check__summary check__summary--${kind}` },
+          el("strong", { text: `${problems ? "Problems: " : notes ? "Notes: " : "All clear: "}` }), `${said} ${looked}`),
+        ...check.groups.map((group) => el("section", { class: `check__group check__group--${group.level}` },
+          el("h4", { class: "check__title" },
+            el("span", { class: "check__badge", text: group.level === "problem" ? "Problem" : "Note" }),
+            `${group.title} (${group.count})`),
+          el("ul", { class: "check__list" }, ...group.items.map((item) => el("li", { text: item }))))),
+        el("p", { class: "check__foot", text: `Checked at ${check.checked.replace("T", " ")}. Nothing was changed.` }));
+      out.hidden = false;
+    }
+
+    async function runCheck() {
+      const button = $("settings-data-store-check");
+      const out = $("settings-data-store-result");
+      checking = true;
+      button.disabled = true;
+      out.replaceChildren(el("p", { class: "check__foot", text: "Checking the data store..." }));
+      out.hidden = false;
+      const reply = await post(settingsPath.replace(/settings$/, "data_store_check"), {});
+      checking = false;
+      showDataStore();
+      if (!reply.ok) {
+        out.replaceChildren(el("p", { class: "check__summary check__summary--problem", text: reply.error || "The data store could not be checked." }));
+        out.hidden = false;
+        return;
+      }
+      showCheck(reply.check);
+    }
+
     // the data store: where it is, or will be once applied, and how it is
     // used, which cannot be chosen without a folder
     function showDataStore() {
       const typed = $("settings-data-store").value.trim();
       const { values, data_store: info = {} } = state().user_settings;
       const status = $("settings-data-store-status");
+      const size = $("settings-data-store-size");
+      const applied = typed && typed === values.data_store && info.root;
+      size.hidden = !applied;
+      // a check is of the folder saved, so of one applied; what was found is of the folder as it was
+      $("settings-data-store-check").disabled = !applied || checking;
+      $("settings-data-store-check-hint").textContent = applied
+        ? "It only looks: nothing is changed, removed or fixed."
+        : "Apply a folder first: the check is of the data store that is saved.";
+      if (!applied) $("settings-data-store-result").hidden = true;
       if (!typed) {
         status.replaceChildren("No data store: built-in observational data is downloaded each time it is needed.");
-      } else if (typed === values.data_store && info.root) {
+      } else if (applied) {
         const free = bytes(info.free);
-        status.replaceChildren("Kept in ", el("code", { text: info.root }), ". ",
-          free ? `${free} free on that disk; ` : "",
-          `it holds ${bytes(info.size || 0)}.`);
+        status.replaceChildren("Kept in ", el("code", { text: info.root }), ".",
+          free ? ` ${free} free on that disk.` : "");
+        size.replaceChildren("Size of the data store: ", el("strong", { text: bytes(info.size || 0) }));
       } else {
         status.replaceChildren("Once applied, it is kept in ",
           el("code", { text: `${typed.replace(/\/+$/, "")}/oceanval_datastore` }), ".");
@@ -224,6 +281,7 @@ const OceanValGUI = (() => {
         el("input", { type: "radio", name: "settings-data-store-use", value: key,
           checked: key === (values.data_store_use || "always") }),
         el("span", {}, label, note ? el("small", { text: note }) : null))));
+      $("settings-data-store-result").hidden = true;
       showDataStore();
       $("settings-error").hidden = true;
       $("settings-apply").disabled = false;
@@ -266,6 +324,7 @@ const OceanValGUI = (() => {
     $("settings-cancel").addEventListener("click", closeSettings);
     $("settings-apply").addEventListener("click", applySettings);
     $("settings-data-store").addEventListener("input", showDataStore);
+    $("settings-data-store-check").addEventListener("click", runCheck);
     $("preferences").addEventListener("click", (event) => { if (event.target === $("preferences")) closeSettings(); });
     $("preferences").addEventListener("keydown", (event) => {
       if (event.key === "Escape") {

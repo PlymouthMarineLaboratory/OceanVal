@@ -112,6 +112,7 @@ oceanval</pre>
 
     <h2 id="data-store">Keeping the data downloaded</h2>
     <p>The built-in observational datasets are downloaded every time a matchup needs them, and their servers can be slow or out of reach. To keep what is downloaded for later matchups, open <strong>Preferences</strong> (the cog beside the OceanVal name) and give a folder for the <strong>data store</strong>. The folder must already exist: OceanVal keeps everything in an <code>oceanval_datastore</code> folder it makes inside it, and never writes or removes anything outside that. Choose a disk with a reasonable amount of free space, as the store grows as more data is kept in it and can come to several GB. Leave the folder empty to keep nothing.</p>
+    <p>Once the folder is saved, Preferences shows where the store is, how much space is free on its disk and the size of the data store. <strong>Run a check on the data store</strong> looks for data held twice, files that are missing or not the size they were, and anything in the store that is not OceanVal&rsquo;s built-in data (files of yours, for one), and says what it finds. It only looks: nothing is changed, removed or fixed.</p>
     <p>Choose how matchups use it:</p>
     <ul>
       <li><strong>Always use data from your data store, if available</strong>: what is in the store is used, and only what is not is downloaded, and kept.</li>

@@ -2186,6 +2186,13 @@ class App:
             self._notify()
         return 200, {"ok": True, "settings": dict(saved), "data_store": data_store.panel(saved)}
 
+    def check_data_store(self):
+        """Look at the saved data store for what is wrong with it, and say so.
+        It changes nothing. Returns the HTTP status and the reply."""
+        with self._lock:
+            settings = dict(self.settings)
+        return data_store.check_reply(settings)
+
     def restart(self):
         with self._lock:
             if self.view not in ("finished", "script_saved"):
@@ -4248,6 +4255,9 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/settings":
             self._reply_json(*app.apply_settings(payload.get("settings")))
+            return
+        if path == "/api/data_store_check":
+            self._reply_json(*app.check_data_store())
             return
         if path == "/api/validate":
             self._reply_json(*app.validate(payload.get("form")))

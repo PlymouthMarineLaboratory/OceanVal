@@ -7,9 +7,13 @@ be relied on here.
 
 import json
 import os
+import pathlib
 import re
 import shutil
+import tempfile
 import threading
+import time
+import urllib.parse
 
 import nctoolkit as nc
 import numpy as np
@@ -956,6 +960,299 @@ def nctoolkit_temp(path):
 
 def snapshot(paths):
     return {str(x): (os.lstat(x).st_mtime_ns, x.read_bytes() if not x.is_symlink() else os.readlink(x)) for x in paths}
+
+
+def groups(report):
+    """What a check found, as {key: items}."""
+    return {x["key"]: x["items"] for x in report["groups"]}
+
+
+def tree(root):
+    """Everything in a folder, folders included, as it is: names, times, contents."""
+    found = {}
+    for where, folders, names in os.walk(root):
+        for name in folders + names:
+            path = os.path.join(where, name)
+            info = os.lstat(path)
+            body = os.readlink(path) if os.path.islink(path) else (open(path, "rb").read() if os.path.isfile(path) else None)
+            found[os.path.relpath(path, root)] = (info.st_mtime_ns, info.st_size, body)
+    return found
+
+
+def write_index(root, **changes):
+    path = os.path.join(root, data_store.INDEX)
+    with open(path) as handle:
+        data = json.load(handle)
+    data.update(changes)
+    with open(path, "w") as handle:
+        json.dump(data, handle)
+    return data
+
+
+def age(path, seconds=3600):
+    old = time.time() - seconds
+    os.utime(path, (old, old), follow_symlinks=False)
+
+
+class TestCheck:
+    @pytest.fixture
+    def kept(self, store, server):
+        """A store with WOA23 (12 months), COBE2 (2 years) and an ICES year that had no data in it."""
+        root = store()
+        data_store.gridded(woa_comparison(), WOA_URLS, True, MODEL_BOX, "top")
+        data_store.gridded({"builtin": "cobe2", "obs_variable": "sst", "recipe": True}, COBE2_URL, True,
+                           (-10.3, 5.2, 45.1, 60.2), "all", years=[2000, 2001])
+        data_store._save(root, dict(kind="ices", dataset="ICE", year=2000, box=[3, 4, 54, 55], rows=0),
+                         None, None, lambda old: False)
+        for where, _, names in os.walk(root):
+            for name in names:
+                age(os.path.join(where, name))
+        return pathlib.Path(root)
+
+    def test_a_store_with_nothing_wrong_is_all_clear(self, kept):
+        report = data_store.check(kept)
+        assert report["groups"] == []
+        assert report["problems"] == 0 and report["notes"] == 0
+        assert report["pieces"] == 14
+        assert report["bytes"] == data_store.size(kept)
+
+    def test_an_empty_store_is_all_clear(self, store):
+        root = store()
+        assert data_store.check(root)["groups"] == []
+
+    def test_a_folder_that_is_not_there_is_refused(self, tmp_path):
+        with pytest.raises(ValueError, match="nothing to check"):
+            data_store.check(str(tmp_path / "gone"))
+
+    def test_it_only_looks(self, kept, monkeypatch):
+        # a store with something of every kind wrong with it, and nothing changed by looking
+        (kept / "mine.txt").write_text("mine")
+        (kept / "woa23" / "notes.txt").write_text("mine")
+        (kept / "folder").mkdir()
+        os.symlink(str(kept / "mine.txt"), str(kept / "link"))
+        (kept / ".partial").mkdir(exist_ok=True)
+        (kept / ".partial" / ("c" * 32 + ".nc")).write_text("half")
+        (kept / "woa23" / ("d" * 32 + ".nc")).write_text("nobody's")
+        (kept / data_store.MARKER).unlink()
+        data = write_index(kept)
+        os.remove(kept / data["entries"][0]["file"])
+        for path in [kept / "mine.txt", kept / "woa23" / "notes.txt", kept / ".partial" / ("c" * 32 + ".nc"),
+                     kept / "woa23" / ("d" * 32 + ".nc")]:
+            age(path)
+        before = tree(kept)
+
+        def refuse(name):
+            def fail(*args, **kwargs):
+                raise AssertionError(f"a check called {name}")
+            return fail
+
+        for name in ("_save", "_write", "_mkdir", "_remove", "_tidy", "_locked", "prepare", "start"):
+            monkeypatch.setattr(data_store, name, refuse(name))
+        for module, name in ((os, "remove"), (os, "unlink"), (os, "rmdir"), (os, "replace"), (os, "rename"),
+                             (os, "mkdir"), (os, "makedirs"), (shutil, "rmtree"), (shutil, "move"),
+                             (shutil, "copyfile"), (tempfile, "mkstemp")):
+            monkeypatch.setattr(module, name, refuse(name))
+        report = data_store.check(str(kept))
+        assert report["problems"] > 0 and report["notes"] > 0
+        monkeypatch.undo()
+        assert tree(kept) == before
+
+    def test_a_missing_file(self, kept):
+        data = write_index(kept)
+        gone = data["entries"][3]["file"]
+        os.remove(kept / gone)
+        found = groups(data_store.check(kept))
+        assert len(found["missing"]) == 1 and gone in found["missing"][0]
+        assert "WOA23" in found["missing"][0]
+        assert set(found) == {"missing"}
+
+    def test_a_file_that_is_not_the_size_it_was(self, kept):
+        data = write_index(kept)
+        name = data["entries"][0]["file"]
+        with open(kept / name, "ab") as handle:
+            handle.write(b"x")
+        found = groups(data_store.check(kept))
+        assert "may be damaged" in found["missing"][0]
+
+    def test_a_piece_without_data_is_not_a_missing_file(self, kept):
+        report = data_store.check(kept)
+        assert report["groups"] == []
+        assert any(x.get("file") is None for x in json.load(open(kept / data_store.INDEX))["entries"])
+
+    @pytest.mark.parametrize("name", ["../mine.nc", "woa23/mine.nc", "cobe2/" + "a" * 32 + ".nc", "/etc/passwd", 5])
+    def test_an_entry_naming_a_file_that_is_not_a_piece(self, kept, name):
+        data = write_index(kept)
+        data["entries"][0]["file"] = name
+        write_index(kept, entries=data["entries"])
+        found = groups(data_store.check(kept))
+        assert len(found["named"]) == 1 and "never used or removed" in found["named"][0]
+
+    def test_two_entries_for_one_file_or_id(self, kept):
+        data = write_index(kept)
+        data["entries"][1]["file"] = data["entries"][0]["file"]
+        data["entries"][2]["id"] = data["entries"][3]["id"]
+        write_index(kept, entries=data["entries"])
+        found = groups(data_store.check(kept))
+        assert len(found["shared"]) == 2
+        assert any("The file" in x for x in found["shared"]) and any("The id" in x for x in found["shared"])
+
+    def test_a_replaced_piece_whose_file_is_a_live_one(self, kept):
+        data = write_index(kept)
+        write_index(kept, retired=[{"file": data["entries"][0]["file"], "bytes": 1, "retired": time.time()}])
+        found = groups(data_store.check(kept))
+        assert "waiting to be removed" in found["shared"][0]
+
+    def test_data_held_twice(self, kept):
+        data = write_index(kept)
+        first = dict(data["entries"][0])
+        # the same file of the server, for an area inside the one it already has, in a file of its own
+        shutil.copyfile(kept / first["file"], kept / "woa23" / ("e" * 32 + ".nc"))
+        twin = dict(first, id="e" * 32, file="woa23/" + "e" * 32 + ".nc", box=[3, 4, 54, 55])
+        write_index(kept, entries=data["entries"] + [twin])
+        found = groups(data_store.check(kept))
+        assert len(found["duplicate"]) == 1
+        assert "is inside" in found["duplicate"][0]
+        assert set(found) == {"duplicate"}
+
+    def test_data_held_twice_when_levels_cover_it(self, kept):
+        data = write_index(kept)
+        first = dict(data["entries"][0], levels="all")
+        shutil.copyfile(kept / first["file"], kept / "woa23" / ("f" * 32 + ".nc"))
+        twin = dict(first, id="f" * 32, file="woa23/" + "f" * 32 + ".nc", levels="top")
+        entries_ = [first] + data["entries"][1:] + [twin]
+        write_index(kept, entries=entries_)
+        assert len(groups(data_store.check(kept))["duplicate"]) == 1
+
+    def test_pieces_that_overlap_are_a_note(self, kept):
+        data = write_index(kept)
+        first = dict(data["entries"][0], box=[0, 10, 50, 60])
+        shutil.copyfile(kept / first["file"], kept / "woa23" / ("1" * 32 + ".nc"))
+        other = dict(first, id="1" * 32, file="woa23/" + "1" * 32 + ".nc", box=[5, 15, 55, 65])
+        write_index(kept, entries=[first] + data["entries"][1:] + [other])
+        report = data_store.check(kept)
+        assert set(groups(report)) == {"overlap"}
+        assert report["problems"] == 0 and report["notes"] == 1
+
+    def test_pieces_of_different_years_or_files_are_not_duplicates(self, kept):
+        # the 12 months and 2 years, all with the same area, are not
+        assert data_store.check(kept)["groups"] == []
+
+    def test_an_index_that_cannot_be_read(self, kept):
+        (kept / data_store.INDEX).write_text("{ not json")
+        report = data_store.check(kept)
+        assert set(groups(report)) == {"index"}
+        assert "could not be read" in groups(report)["index"][0]
+
+    def test_files_and_no_index(self, kept):
+        (kept / data_store.INDEX).unlink()
+        found = groups(data_store.check(kept))
+        assert "no oceanval_data_store.json" in found["index"][0]
+
+    def test_an_entry_that_is_not_one_or_has_no_area(self, kept):
+        data = write_index(kept)
+        data["entries"][0]["box"] = "global"
+        write_index(kept, entries=data["entries"] + ["rubbish", 4])
+        found = groups(data_store.check(kept))
+        assert len(found["index"]) == 3
+
+    def test_what_is_not_oceanvals(self, kept):
+        (kept / "mine.txt").write_text("mine")
+        (kept / "woa23" / "mine.nc").write_text("mine")
+        (kept / "folder").mkdir()
+        (kept / "woa23" / "inner").mkdir()
+        os.symlink(str(kept / "mine.txt"), str(kept / "link"))
+        found = groups(data_store.check(kept))["not_ours"]
+        joined = "\n".join(found)
+        for expected in ("mine.txt", "woa23/mine.nc", "folder/ (a folder)", "woa23/inner/ (a folder)", "link (a link)"):
+            assert expected in joined, expected
+        assert len(found) == 5
+        # and none of it is touched
+        assert (kept / "mine.txt").read_text() == "mine"
+
+    def test_a_young_file_may_be_a_run_writing_it(self, kept):
+        (kept / "woa23" / ("2" * 32 + ".nc")).write_text("being written")
+        (kept / ".partial").mkdir(exist_ok=True)
+        (kept / ".partial" / ("3" * 32 + ".nc")).write_text("being written")
+        assert data_store.check(kept)["groups"] == []
+
+    def test_piece_files_that_are_not_in_the_index(self, kept):
+        path = kept / "woa23" / ("4" * 32 + ".nc")
+        path.write_bytes(b"x" * 2048)
+        age(path)
+        report = data_store.check(kept)
+        assert set(groups(report)) == {"orphan"}
+        assert "2.0 KB" in groups(report)["orphan"][0]
+        assert report["problems"] == 0
+
+    def test_what_a_download_left_behind_and_replaced_pieces_are_notes(self, kept):
+        left = kept / ".partial" / ("5" * 32 + ".nc")
+        left.parent.mkdir(exist_ok=True)
+        left.write_text("half")
+        age(left)
+        piece = kept / "woa23" / ("6" * 32 + ".nc")
+        piece.write_text("old")
+        age(piece)
+        write_index(kept, retired=[{"file": "woa23/" + "6" * 32 + ".nc", "bytes": 3, "retired": time.time()}])
+        report = data_store.check(kept)
+        assert set(groups(report)) == {"leftover"}
+        assert len(groups(report)["leftover"]) == 2
+        assert report["problems"] == 0 and report["notes"] == 2
+
+    def test_a_missing_marker_is_a_note(self, kept):
+        (kept / data_store.MARKER).unlink()
+        report = data_store.check(kept)
+        assert set(groups(report)) == {"marker"} and report["problems"] == 0
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            {"dataset": "mydata"},
+            {"kind": "own"},
+            {"url": "/data/me/obs/n01.nc"},
+            {"url": "https://example.org/thredds/dodsC/mine.nc"},
+            {"url": None},
+        ],
+    )
+    def test_an_entry_that_is_not_built_in_data(self, kept, change):
+        data = write_index(kept)
+        data["entries"][0].update(change)
+        write_index(kept, entries=data["entries"])
+        found = groups(data_store.check(kept))
+        assert len(found["not_builtin"]) == 1
+
+    def test_the_built_in_sources_are_all_on_the_list(self):
+        from oceanval.create_recipes import RECIPE_CATALOGUE
+
+        hosts = set()
+        for recipe in RECIPE_CATALOGUE:
+            if recipe["recipe"] not in data_store.GRIDDED:
+                continue
+            found = find_recipe({recipe["variable"]: recipe["recipe"]}, start=2000, end=2001)
+            paths = found["obs_path"]
+            for path in [paths] if isinstance(paths, str) else paths:
+                if str(path).startswith("http"):
+                    hosts.add(urllib.parse.urlparse(path).hostname)
+        assert hosts and hosts <= set(data_store.BUILTIN_HOSTS)
+        # and the ones the store falls back to
+        for found in data_store.DOWNLOADS.values():
+            assert {urllib.parse.urlparse(x).hostname for x in found.values()} <= set(data_store.BUILTIN_HOSTS)
+
+    def test_a_long_list_is_cut_short_and_counted(self, kept):
+        for number in range(30):
+            (kept / f"mine{number}.txt").write_text("mine")
+        report = data_store.check(kept)
+        group = report["groups"][0]
+        assert group["count"] == 30 and report["problems"] == 30
+        assert len(group["items"]) == data_store.CHECK_LISTED + 1
+        assert group["items"][-1] == "and 10 more"
+
+    def test_the_reply_is_of_the_folder_saved(self, kept, tmp_path):
+        status, reply = data_store.check_reply({"data_store": str(tmp_path)})
+        assert status == 200 and reply["check"]["groups"] == []
+        status, reply = data_store.check_reply({"data_store": ""})
+        assert status == 400 and "no data store" in reply["error"]
+        status, reply = data_store.check_reply({"data_store": str(tmp_path / "gone")})
+        assert status == 400 and not reply["ok"]
 
 
 class TestNothingOfYoursIsRemoved:

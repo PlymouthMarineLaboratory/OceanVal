@@ -78,6 +78,9 @@ area and years of what it has: gridded data is kept for the model's area, rounde
 degrees (the whole globe for a model covering 90% of it), ICES data a year at a time, and a
 matchup inside what is kept takes it from the store. The setting is used by every matchup,
 including those run from Python; ``matchup(..., data_store=False)`` leaves it out for one run.
+**Run a check on the data store** looks for data held twice, files that are missing or not the
+size they were, and anything in the store that is not OceanVal's built-in data (files of yours,
+for one), and says what it finds. It only looks: nothing is changed, removed or fixed.
 
 To see how it works first, choose **Try a demo**, below the four choices. It
 asks you to choose one of three CMIP6 climate models, each from a different

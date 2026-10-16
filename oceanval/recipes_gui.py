@@ -722,6 +722,9 @@ class _Handler(http.server.BaseHTTPRequestHandler):
                 self._reply_json(
                     200, {"ok": True, "settings": dict(saved), "data_store": data_store.panel(saved)}
                 )
+        elif path == "/data_store_check":
+            # looks at the saved data store, and changes nothing
+            self._reply_json(*data_store.check_reply(user_settings.load()))
         else:
             self._reply_json(404, {"ok": False, "error": "Not found"})
 

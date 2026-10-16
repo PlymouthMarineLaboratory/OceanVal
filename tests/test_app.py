@@ -6459,6 +6459,7 @@ class TestSettings:
             page.click("#settings-open")
             assert page.input_value("#settings-data-store") == ""
             assert "No data store" in page.text_content("#settings-data-store-status")
+            assert not page.is_visible("#settings-data-store-size")
             uses = page.locator('input[name="settings-data-store-use"]')
             assert uses.count() == 2
             # how it is used cannot be chosen without a folder
@@ -6473,6 +6474,8 @@ class TestSettings:
             page.fill("#settings-data-store", "store")
             assert not uses.nth(0).is_disabled()
             assert "store/oceanval_datastore" in page.text_content("#settings-data-store-status")
+            # a folder not applied yet has no size to show
+            assert not page.is_visible("#settings-data-store-size")
             page.click("#settings-apply")
             page.wait_for_selector("#settings-error:not([hidden])")
             assert "full path" in page.text_content("#settings-error")
@@ -6495,7 +6498,9 @@ class TestSettings:
             status = page.text_content("#settings-data-store-status")
             assert f"Kept in {folder}/oceanval_datastore." in status
             assert "free on that disk" in status
-            assert "it holds 0 bytes" in status
+            # and its size, on a line of its own
+            assert page.is_visible("#settings-data-store-size")
+            assert page.text_content("#settings-data-store-size") == "Size of the data store: 0 bytes"
 
             # emptied, there is no data store
             page.fill("#settings-data-store", "")
@@ -6507,6 +6512,77 @@ class TestSettings:
             assert (folder / "oceanval_datastore").is_dir()
         finally:
             app.close()
+
+    def test_the_data_store_check_in_the_settings_panel(self, browser, oceanvalrc, tmp_path):
+        folder = tmp_path / "store"
+        folder.mkdir()
+        app = App(cwd=str(tmp_path))
+        url = app.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-start:not([hidden])")
+            page.click("#settings-open")
+            button = page.locator("#settings-data-store-check")
+            assert button.text_content() == "Run a check on the data store"
+            # nothing to check until a folder is saved
+            assert button.is_disabled()
+            page.fill("#settings-data-store", str(folder))
+            assert button.is_disabled()
+            assert "Apply a folder first" in page.text_content("#settings-data-store-check-hint")
+            page.click("#settings-apply")
+            page.wait_for_selector("#preferences", state="hidden")
+
+            page.click("#settings-open")
+            assert not button.is_disabled()
+            assert "nothing is changed, removed or fixed" in page.text_content("#settings-data-store-check-hint")
+            assert page.is_hidden("#settings-data-store-result")
+            button.click()
+            page.wait_for_selector("#settings-data-store-result .check__summary")
+            assert "No problems found." in page.text_content("#settings-data-store-result")
+            assert "Nothing was changed." in page.text_content("#settings-data-store-result")
+
+            # something of yours in the store, and a piece that has gone, are found and left as they are
+            store = folder / "oceanval_datastore"
+            (store / "mine.txt").write_text("mine")
+            (store / "woa23").mkdir()
+            piece = "a" * 32 + ".nc"
+            (store / "woa23" / piece).write_text("data")
+            # not young enough to be one a run is writing
+            os.utime(store / "woa23" / piece, (1_600_000_000, 1_600_000_000))
+            (store / "oceanval_data_store.json").write_text(json.dumps({"version": 1, "entries": [
+                {"id": "a" * 32, "kind": "gridded", "dataset": "woa23", "variable": "n_an",
+                 "url": "https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa23/DATA/nitrate/netcdf/all/1.00/woa23_all_n01_01.nc",
+                 "year": None, "levels": "top", "box": [-180, 180, -90, 90], "file": f"woa23/{'b' * 32}.nc", "bytes": 4},
+            ], "retired": []}))
+            before = {x.name: x.read_bytes() for x in store.iterdir() if x.is_file()}
+            button.click()
+            page.wait_for_selector("#settings-data-store-result .check__group")
+            found = page.text_content("#settings-data-store-result")
+            assert "2 problems found" in found
+            assert "mine.txt" in found
+            assert f"woa23/{'b' * 32}.nc is not in the data store" in found
+            assert "1 thing to know about" in found
+            assert piece not in page.locator(".check__group--problem").all_text_contents()
+            assert {x.name: x.read_bytes() for x in store.iterdir() if x.is_file()} == before
+            assert (store / "woa23" / piece).read_text() == "data"
+
+            # a folder typed in is no longer the one that was checked
+            page.fill("#settings-data-store", str(tmp_path))
+            assert button.is_disabled() and page.is_hidden("#settings-data-store-result")
+        finally:
+            app.close()
+
+    def test_the_data_store_check_is_of_the_folder_saved(self, app, oceanvalrc, tmp_path):
+        status, reply = post(app, "/api/data_store_check")
+        assert status == 400 and "no data store" in reply["error"]
+        folder = tmp_path / "store"
+        folder.mkdir()
+        post(app, "/api/settings", {"settings": {"data_store": str(folder)}})
+        # a folder in the request is ignored
+        status, reply = post(app, "/api/data_store_check", {"data_store": "/", "folder": "/"})
+        assert status == 200
+        assert reply["check"]["groups"] == [] and reply["check"]["pieces"] == 0
 
     def test_a_settings_problem_is_shown_in_the_panel(self, browser, oceanvalrc, tmp_path):
         app = App(cwd=str(tmp_path))

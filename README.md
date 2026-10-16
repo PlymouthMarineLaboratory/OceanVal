@@ -169,6 +169,9 @@ it has (the model's area, rounded out to whole degrees, for gridded data; a
 year at a time for ICES), so a matchup inside them is taken from it. Every
 matchup uses it, including those run from Python; `matchup(...,
 data_store=False)` leaves it out for one run.
+**Run a check on the data store** in Preferences looks for data held twice, files that are
+missing or not the size they were, and anything in the store that is not OceanVal's built-in
+data, and says what it finds. It only looks: nothing is changed, removed or fixed.
 
 Outside the window, `matchup(live_validation=...)` builds the same interim
 report (HTML only, in `oceanval_interim_report`), with `True` or a dict of

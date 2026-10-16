@@ -17,7 +17,7 @@ import xarray as xr
 
 import oceanval
 import oceanval.recipes_gui as recipes_gui
-from oceanval import user_recipes
+from oceanval import user_recipes, user_settings
 from oceanval.create_recipes import RECIPE_VARIABLES, default_selection, replaced_recipes
 from oceanval.recipes_gui import (
     RecipePage,
@@ -279,6 +279,7 @@ def _panels_work(page, oceanvalrc, theme):
     assert page.is_visible("#settings-data-store")
     assert page.locator('input[name="settings-data-store-use"]').count() == 2
     assert "reasonable amount of free space" in page.text_content("#settings-data-store-note")
+    assert page.text_content("#settings-data-store-check") == "Run a check on the data store"
     page.click(f'label.theme-option:has(input[value="{theme}"])')
     page.click("#settings-apply")
     page.wait_for_selector("#preferences", state="hidden")
@@ -538,6 +539,18 @@ class TestServer:
         assert status == 400
         assert set(reply["setting_errors"]) == {"cores", "lon_max", "lat_min", "lat_max"}
         assert page.written == []
+
+    def test_the_data_store_check_is_answered_here_too(self, page, tmp_path):
+        status, reply = _post(page.url, "/data_store_check", {})
+        assert status == 400 and "no data store" in reply["error"]
+        folder = tmp_path / "store"
+        folder.mkdir()
+        user_settings.save({"data_store": str(folder)})
+        (folder / "oceanval_datastore" / "mine.txt").write_text("mine")
+        status, reply = _post(page.url, "/data_store_check", {"data_store": "/"})
+        assert status == 200
+        assert reply["check"]["problems"] == 1
+        assert (folder / "oceanval_datastore" / "mine.txt").read_text() == "mine"
 
     def test_point_options_that_cannot_be_used_are_sent_back(self, page):
         rows = [{
