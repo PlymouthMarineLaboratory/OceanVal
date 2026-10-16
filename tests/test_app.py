@@ -6320,6 +6320,10 @@ def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path)
         app.close()
 
 
+# the data store settings, as they are without a data store
+NO_STORE = {"data_store": "", "data_store_use": "always"}
+
+
 class TestSettings:
     """The window's settings, saved in the home .oceanvalrc from its panel."""
 
@@ -6327,7 +6331,7 @@ class TestSettings:
         oceanvalrc.write_text(json.dumps({"settings": {"theme": "blue", "show_demo": False}}))
         app = App(cwd=str(tmp_path))
         settings = app.state()["user_settings"]
-        assert settings["values"] == {"theme": "blue", "show_demo": False}
+        assert settings["values"] == {"theme": "blue", "show_demo": False, **NO_STORE}
         assert settings["path"] == str(oceanvalrc)
         assert [key for key, _label in settings["themes"]] == ["default", "dark", "silver", "blue"]
 
@@ -6335,8 +6339,10 @@ class TestSettings:
         version = app.version
         status, reply = post(app, "/api/settings", {"settings": {"theme": "dark", "show_demo": False}})
         assert status == 200
-        assert reply == {"ok": True, "settings": {"theme": "dark", "show_demo": False}}
-        assert app.state()["user_settings"]["values"] == {"theme": "dark", "show_demo": False}
+        assert reply["ok"] is True
+        assert reply["settings"] == {"theme": "dark", "show_demo": False, **NO_STORE}
+        assert reply["data_store"]["root"] is None
+        assert app.state()["user_settings"]["values"] == {"theme": "dark", "show_demo": False, **NO_STORE}
         assert app.version > version
         assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False}
         # and the page is in its colours from then on
@@ -6346,7 +6352,7 @@ class TestSettings:
         status, reply = post(app, "/api/settings", {"settings": {"theme": "purple"}})
         assert status == 400
         assert not reply["ok"] and "purple" in reply["error"]
-        assert app.state()["user_settings"]["values"] == {"theme": "default", "show_demo": True}
+        assert app.state()["user_settings"]["values"] == {"theme": "default", "show_demo": True, **NO_STORE}
         assert not oceanvalrc.exists()
 
     def test_applying_needs_the_token(self, app, oceanvalrc):
@@ -6392,7 +6398,7 @@ class TestSettings:
             page.wait_for_selector("#preferences", state="hidden")
             assert page.get_attribute("html", "data-theme") == "dark"
             assert page.is_hidden("#choice-demo")
-            assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False}
+            assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False, **NO_STORE}
             # the page's own colours follow
             assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(13, 26, 31)"
 
@@ -6411,6 +6417,94 @@ class TestSettings:
             assert page.get_attribute("html", "data-theme") is None
             assert page.is_visible("#choice-demo")
             assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(244, 250, 250)"
+        finally:
+            app.close()
+
+    def test_a_data_store_is_kept_with_its_folder_made(self, app, oceanvalrc, tmp_path):
+        folder = tmp_path / "store"
+        folder.mkdir()
+        status, reply = post(app, "/api/settings", {"settings": {
+            "data_store": str(folder), "data_store_use": "fallback"}})
+        assert status == 200
+        assert reply["settings"]["data_store"] == str(folder)
+        assert reply["settings"]["data_store_use"] == "fallback"
+        assert reply["data_store"]["root"] == str(folder / "oceanval_datastore")
+        assert reply["data_store"]["size"] == 0
+        assert reply["data_store"]["free"] > 0
+        assert (folder / "oceanval_datastore").is_dir()
+        info = app.state()["user_settings"]["data_store"]
+        assert info["root"] == str(folder / "oceanval_datastore")
+        assert [x[:2] for x in info["uses"]] == [
+            ["always", "Always use data from your data store, if available"],
+            ["fallback", "Only use the data store when download fails"],
+        ]
+
+    @pytest.mark.parametrize("folder, error", [("data", "full path"), ("/no/such/folder", "does not exist")])
+    def test_a_data_store_folder_that_cannot_be_used_is_refused(self, app, oceanvalrc, folder, error):
+        status, reply = post(app, "/api/settings", {"settings": {"data_store": folder}})
+        assert status == 400
+        assert error in reply["error"]
+        assert app.state()["user_settings"]["values"]["data_store"] == ""
+        assert not oceanvalrc.exists()
+
+    def test_the_data_store_in_the_settings_panel(self, browser, oceanvalrc, tmp_path):
+        folder = tmp_path / "store"
+        folder.mkdir()
+        app = App(cwd=str(tmp_path))
+        url = app.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-start:not([hidden])")
+            page.click("#settings-open")
+            assert page.input_value("#settings-data-store") == ""
+            assert "No data store" in page.text_content("#settings-data-store-status")
+            uses = page.locator('input[name="settings-data-store-use"]')
+            assert uses.count() == 2
+            # how it is used cannot be chosen without a folder
+            assert all(uses.nth(i).is_disabled() for i in range(2))
+            assert page.is_checked('input[name="settings-data-store-use"][value="always"]')
+            labels = page.locator("#settings-data-store-uses .prefs__use").all_text_contents()
+            assert labels[0].startswith("Always use data from your data store, if available")
+            assert labels[1].startswith("Only use the data store when download fails")
+            assert "reasonable amount of free space" in page.text_content("#settings-data-store-note")
+
+            # a folder that is not a full path is refused, and said why
+            page.fill("#settings-data-store", "store")
+            assert not uses.nth(0).is_disabled()
+            assert "store/oceanval_datastore" in page.text_content("#settings-data-store-status")
+            page.click("#settings-apply")
+            page.wait_for_selector("#settings-error:not([hidden])")
+            assert "full path" in page.text_content("#settings-error")
+            assert page.is_visible("#preferences")
+            assert not oceanvalrc.exists()
+
+            page.fill("#settings-data-store", str(folder))
+            page.check('input[name="settings-data-store-use"][value="fallback"]')
+            page.click("#settings-apply")
+            page.wait_for_selector("#preferences", state="hidden")
+            saved = json.loads(oceanvalrc.read_text())["settings"]
+            assert saved["data_store"] == str(folder)
+            assert saved["data_store_use"] == "fallback"
+            assert (folder / "oceanval_datastore").is_dir()
+
+            # opened again, it says where the store is and how much it holds
+            page.click("#settings-open")
+            assert page.input_value("#settings-data-store") == str(folder)
+            assert page.is_checked('input[name="settings-data-store-use"][value="fallback"]')
+            status = page.text_content("#settings-data-store-status")
+            assert f"Kept in {folder}/oceanval_datastore." in status
+            assert "free on that disk" in status
+            assert "it holds 0 bytes" in status
+
+            # emptied, there is no data store
+            page.fill("#settings-data-store", "")
+            assert uses.nth(1).is_disabled()
+            page.click("#settings-apply")
+            page.wait_for_selector("#preferences", state="hidden")
+            assert json.loads(oceanvalrc.read_text())["settings"]["data_store"] == ""
+            # and what it held is left as it was
+            assert (folder / "oceanval_datastore").is_dir()
         finally:
             app.close()
 

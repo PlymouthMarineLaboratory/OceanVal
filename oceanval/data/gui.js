@@ -103,6 +103,15 @@ const OceanValGUI = (() => {
         <p class="prefs__hint">Should the first page offer the demo?</p>
         <label class="prefs__check"><input type="checkbox" class="tick" id="settings-show-demo">Yes, show &ldquo;Try a demo&rdquo; on the first page</label>
       </fieldset>
+      <fieldset class="prefs__group" id="settings-data-store-group">
+        <legend class="prefs__legend">Data store</legend>
+        <p class="prefs__hint">A folder to keep the built-in observational data OceanVal downloads (WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES), so that later matchups need not download it again. Your own data is never kept in it. Everything is kept in an <code>oceanval_datastore</code> folder inside the one you give, which must already exist. Leave it empty to keep nothing.</p>
+        <label class="g-label" for="settings-data-store">Folder</label>
+        <input type="text" class="s-input is-mono prefs__path" id="settings-data-store" placeholder="The folder's full path, e.g. /data/me" spellcheck="false" autocomplete="off" aria-describedby="settings-data-store-status">
+        <p class="prefs__status" id="settings-data-store-status" aria-live="polite"></p>
+        <div class="prefs__choices" id="settings-data-store-uses" role="radiogroup" aria-label="How matchups use the data store"></div>
+        <p class="prefs__note" id="settings-data-store-note">Choose a disk with a reasonable amount of free space: the data store grows as more data is kept in it, and can come to several GB.</p>
+      </fieldset>
       <p class="prefs__error" id="settings-error" role="alert" hidden></p>
     </div>
     <div class="picker__foot prefs__foot">
@@ -164,6 +173,35 @@ const OceanValGUI = (() => {
 
     const hideBehind = (hidden) => { behind().forEach((node) => { node.inert = hidden; }); };
 
+    function bytes(n) {
+      if (n === null || n === undefined) return null;
+      const units = ["bytes", "KB", "MB", "GB", "TB"];
+      let i = 0;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i += 1; }
+      return `${i === 0 ? n : n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
+    }
+
+    // the data store: where it is, or will be once applied, and how it is
+    // used, which cannot be chosen without a folder
+    function showDataStore() {
+      const typed = $("settings-data-store").value.trim();
+      const { values, data_store: info = {} } = state().user_settings;
+      const status = $("settings-data-store-status");
+      if (!typed) {
+        status.replaceChildren("No data store: built-in observational data is downloaded each time it is needed.");
+      } else if (typed === values.data_store && info.root) {
+        const free = bytes(info.free);
+        status.replaceChildren("Kept in ", el("code", { text: info.root }), ". ",
+          free ? `${free} free on that disk; ` : "",
+          `it holds ${bytes(info.size || 0)}.`);
+      } else {
+        status.replaceChildren("Once applied, it is kept in ",
+          el("code", { text: `${typed.replace(/\/+$/, "")}/oceanval_datastore` }), ".");
+      }
+      $("settings-data-store-uses").querySelectorAll("input").forEach((input) => { input.disabled = !typed; });
+      $("settings-data-store-uses").classList.toggle("is-disabled", !typed);
+    }
+
     // what is saved, each time it is opened: Cancel leaves it as it was
     function openSettings() {
       const { values, themes, path } = state().user_settings;
@@ -180,6 +218,13 @@ const OceanValGUI = (() => {
           key === "default" ? el("small", { text: "OceanVal's own" }) : null))));
       chooseTheme(values.theme);
       $("settings-show-demo").checked = values.show_demo !== false;
+      $("settings-data-store").value = values.data_store || "";
+      const uses = (state().user_settings.data_store || {}).uses || [];
+      $("settings-data-store-uses").replaceChildren(...uses.map(([key, label, note]) => el("label", { class: "prefs__check prefs__use" },
+        el("input", { type: "radio", name: "settings-data-store-use", value: key,
+          checked: key === (values.data_store_use || "always") }),
+        el("span", {}, label, note ? el("small", { text: note }) : null))));
+      showDataStore();
       $("settings-error").hidden = true;
       $("settings-apply").disabled = false;
       $("preferences").hidden = false;
@@ -197,7 +242,10 @@ const OceanValGUI = (() => {
       const settings = {
         theme: $("settings-themes").querySelector("input:checked").value,
         show_demo: $("settings-show-demo").checked,
+        data_store: $("settings-data-store").value.trim(),
       };
+      const use = $("settings-data-store-uses").querySelector("input:checked");
+      if (use) settings.data_store_use = use.value;
       $("settings-apply").disabled = true;
       const reply = await post(settingsPath, { settings });
       $("settings-apply").disabled = false;
@@ -207,6 +255,7 @@ const OceanValGUI = (() => {
         return;
       }
       state().user_settings.values = reply.settings;
+      if (reply.data_store) state().user_settings.data_store = reply.data_store;
       applyTheme(reply.settings.theme);
       closeSettings();
       onSaved();
@@ -216,6 +265,7 @@ const OceanValGUI = (() => {
     $("settings-open").addEventListener("click", openSettings);
     $("settings-cancel").addEventListener("click", closeSettings);
     $("settings-apply").addEventListener("click", applySettings);
+    $("settings-data-store").addEventListener("input", showDataStore);
     $("preferences").addEventListener("click", (event) => { if (event.target === $("preferences")) closeSettings(); });
     $("preferences").addEventListener("keydown", (event) => {
       if (event.key === "Escape") {

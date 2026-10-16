@@ -150,11 +150,25 @@ seconds, stopping anything it is running, whichever browser you use. So do
 **Quit** (which is instant) and Ctrl+C.
 
 The cog beside the OceanVal name at the top left of every page of the window (**Preferences**) sets how
-the window looks (Default, Dark, Silver or Blue) and whether the first page
-offers **Try a demo**. They are kept under `"settings"` in the `.oceanvalrc`
+the window looks (Default, Dark, Silver or Blue), whether the first page
+offers **Try a demo**, and the **data store** (below). They are kept under `"settings"` in the `.oceanvalrc`
 file in your home directory (or the file `OCEANVALRC` names), and read each
 time the window opens. The **i** beside it shows the version of OceanVal, links to the website and
 GitHub, and the built-in datasets.
+
+The **data store** keeps the built-in observational data that is downloaded
+(WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES) in a folder of your choosing, so
+later matchups need not download it again; your own data is never kept in it.
+Everything goes in an `oceanval_datastore` folder inside the one given, which
+must already exist, and OceanVal never writes or removes anything outside it.
+It needs a reasonable amount of free space. **Always use data from your data
+store, if available** downloads only what it does not have; **Only use the
+data store when download fails** downloads everything each time and uses the
+store only for what cannot be downloaded. It keeps track of the area and years
+it has (the model's area, rounded out to whole degrees, for gridded data; a
+year at a time for ICES), so a matchup inside them is taken from it. Every
+matchup uses it, including those run from Python; `matchup(...,
+data_store=False)` leaves it out for one run.
 
 Outside the window, `matchup(live_validation=...)` builds the same interim
 report (HTML only, in `oceanval_interim_report`), with `True` or a dict of

@@ -12,6 +12,7 @@ import numpy as np
 import nctoolkit as nc
 import xarray as xr
 
+from oceanval import data_store
 from oceanval import prompts
 from oceanval.fixers import tidy_warnings
 from oceanval.fvcom import fvcom_matchup_files
@@ -126,6 +127,12 @@ def record_gridded_failure(vv, source, error):
         "a connection problem rather than a problem with your model output.",
         "Moving on to the next variable.",
     ]
+    if "429" in str(error) and "Too Many Requests" in str(error):
+        details[5:5] = [
+            "The server is limiting how fast you can read from it (HTTP 429).",
+            "Wait for a while before trying again: it will let you back in.",
+            "",
+        ]
     if log_file is not None:
         details += ["", f"Logged to {log_file}"]
 
@@ -422,7 +429,14 @@ def gridded_matchup(
                     # regrid FVCOM output at twice the resolution of the observations
                     if _is_url(dir_var) and dir_var.endswith(".nc") and not comparison["thredds"]:
                         # downloaded once, for the resolution and the matchup
-                        obs_download = _open_obs(dir_var, False)
+                        if data_store.active() is not None and data_store.keeps(comparison):
+                            # a whole file, which the store keeps whole
+                            obs_download = data_store.gridded(
+                                comparison, dir_var, False, data_store.GLOBAL, "all",
+                                label=f"{vv_source} {vv}",
+                            )
+                        if obs_download is None:
+                            obs_download = _open_obs(dir_var, False)
                     fvcom_res = [
                         x / 2 for x in _obs_resolution(comparison, obs_download)
                     ]
@@ -526,7 +540,35 @@ def gridded_matchup(
                     if obs_download is not None:
                         ds_obs = obs_download.copy()
                     else:
-                        ds_obs = _open_obs(vv_file, thredds)
+                        ds_obs = None
+                        if data_store.active() is not None and data_store.keeps(comparison):
+                            # OceanVal's own data comes by way of the data store, as
+                            # local files cut to (at least) the model's area
+                            ds_obs = data_store.gridded(
+                                comparison,
+                                vv_file,
+                                thredds,
+                                _lonlat_bounds(ds_model),
+                                # only the first level is used of WOA23's at the surface (below)
+                                "top" if (vertical_gridded is False and comparison["recipe"] and vv_source == "WOA23") else "all",
+                                years=sim_years,
+                                label=f"{vv_source} {vv}",
+                            )
+                        if ds_obs is not None:
+                            thredds = False
+                            vv_file = ds_obs[0]
+                        else:
+                            download = None
+                            if thredds and comparison.get("builtin") and isinstance(vv_file, str):
+                                # a server turning requests away is not asked for more
+                                download = data_store.download_instead(comparison["builtin"], vv_file)
+                            if download is not None:
+                                data_store.told_to_download(
+                                    f"{vv_source} {vv}", "the thredds server is turning requests away (HTTP 429)"
+                                )
+                                thredds = False
+                                vv_file = download
+                            ds_obs = _open_obs(vv_file, thredds)
                     bad_clim = False
 
                     if vertical_gridded is False:

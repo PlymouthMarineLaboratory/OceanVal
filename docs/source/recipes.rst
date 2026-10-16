@@ -40,7 +40,9 @@ How are recipes processed?
 OceanVal will automatically download the observational data when the
 :func:`oceanval.matchup` function is called. In most cases this happens via
 THREDDS servers, which makes things efficient: OceanVal only downloads what
-is needed. Once the data is downloaded, the model and observations are
+is needed. The server for COBE-SST 2 limits how many requests it answers
+(HTTP 429), and when it turns them away OceanVal downloads the whole file
+instead. Once the data is downloaded, the model and observations are
 regridded to a common spatial grid, and model and observational data are
 averaged per month and year, where appropriate.
 

@@ -5,6 +5,9 @@ queued for each ICES dataset a recipe uses, polled until it finishes, and
 its zipped ODV-style csv is read straight into a dataframe in oceanval's
 point format. A recipe using more than one dataset gets them joined, leaving
 out what a later dataset has at a station an earlier one already has.
+
+With a data store (see oceanval.data_store), the exports are kept in it a
+year at a time, as ICES gave them, and what it has is taken from it.
 """
 
 import io
@@ -13,6 +16,8 @@ import zipfile
 
 import pandas as pd
 import requests
+
+from oceanval import data_store
 
 API_BASE = "https://ocean.ices.dk/api"
 POLL_INTERVAL = 5
@@ -57,16 +62,80 @@ def _wait_for_job(session, job_id):
     raise RuntimeError(f"Timed out after {TIMEOUT}s waiting for ICES export job {job_id}")
 
 
-def _read_export(zip_bytes):
-    """The data csv from an ICES export zip, which also holds criteria and
-    disclaimer files. The csv opens with a block of "//" comment lines."""
+def _export_lines(zip_bytes):
+    """The lines of the data csv in an ICES export zip, which also holds
+    criteria and disclaimer files, without the block of "//" comment lines it
+    opens with."""
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         member = [x for x in zf.namelist() if x.lower().endswith(".csv")][0]
         lines = zf.read(member).decode("utf-8", errors="replace").splitlines()
-    lines = [x for x in lines if not x.startswith("//")]
+    return [x for x in lines if not x.startswith("//")]
+
+
+def _read_export(zip_bytes):
+    """The data csv from an ICES export zip."""
+    lines = _export_lines(zip_bytes)
     if len(lines) == 0:
         return pd.DataFrame()
     return pd.read_csv(io.StringIO("\n".join(lines)), low_memory=False)
+
+
+def _rows_by_year(zip_bytes, first_year, last_year):
+    """An ICES export's rows by the year of their timestamp, as text, so they
+    can be kept in the data store as they came. The year is read from the
+    timestamp as written, as ICES picks the rows for dateFrom and dateTo."""
+    lines = _export_lines(zip_bytes)
+    if len(lines) == 0:
+        return {}
+    rows = pd.read_csv(io.StringIO("\n".join(lines)), dtype=str, keep_default_na=False)
+    if TIME_COLUMN not in rows.columns:
+        raise ValueError(f"The ICES export has no {TIME_COLUMN} column")
+    year = rows[TIME_COLUMN].str.strip().str[:4]
+    return {x: rows.loc[year == str(x)] for x in range(int(first_year), int(last_year) + 1)}
+
+
+def _download_exports(wanted):
+    """Download ICES exports by way of the data store: for each (dataset,
+    first_year, last_year, box) wanted, its rows by year, or the exception
+    that stopped it. Every export is asked for before any is waited on, so
+    ICES prepares them side by side."""
+    results = [None] * len(wanted)
+    with requests.Session() as session:
+        jobs = []
+        for i, (dataset, first, last, box) in enumerate(wanted):
+            print(f"Downloading ICES {dataset} data for {first}-{last}, lon {box[:2]}, lat {box[2:]}")
+            try:
+                jobs.append((i, _start_job(session, _criteria(dataset, first, last, box[:2], box[2:]))))
+            except Exception as error:
+                results[i] = error
+        for i, job_id in jobs:
+            dataset, first, last, _ = wanted[i]
+            try:
+                if not _wait_for_job(session, job_id):
+                    print(f"ICES has no {dataset} data for {first}-{last} in this area")
+                    results[i] = {}
+                    continue
+                resp = session.get(f"{API_BASE}/Download/GetStationDataFile/{job_id}", timeout=600)
+                resp.raise_for_status()
+                results[i] = _rows_by_year(resp.content, first, last)
+            except Exception as error:
+                results[i] = error
+    return results
+
+
+def _in_box(frames, lon_lim, lat_lim):
+    """Rows of exports, as one, cut to the box lon_lim x lat_lim (edges in)."""
+    frames = [x for x in frames if len(x) > 0]
+    if len(frames) == 0:
+        return pd.DataFrame()
+    raw = pd.concat(frames, ignore_index=True)
+    lon = pd.to_numeric(raw[LON_COLUMN], errors="coerce")
+    lat = pd.to_numeric(raw[LAT_COLUMN], errors="coerce")
+    inside = (
+        (lon >= float(lon_lim[0])) & (lon <= float(lon_lim[1]))
+        & (lat >= float(lat_lim[0])) & (lat <= float(lat_lim[1]))
+    )
+    return raw.loc[inside].reset_index(drop=True)
 
 
 def _value_and_flag(raw, code):
@@ -246,6 +315,21 @@ def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
     datasets = recipe["dataset"]
     if isinstance(datasets, str):
         datasets = [datasets]
+
+    # by way of the data store, if there is one: what it has of these years
+    # and this area is taken from it, and what is downloaded is kept in it
+    stored = data_store.ices(datasets, start_year, end_year, lon_lim, lat_lim, _download_exports)
+    if stored is not None:
+        frames = []
+        for dataset in datasets:
+            df = to_oceanval_format(_in_box(stored[dataset], lon_lim, lat_lim), recipe["parameter"])
+            if len(datasets) > 1:
+                print(f"{len(df)} ICES {dataset} observations passed quality control")
+            frames.append((dataset, df))
+        df = without_repeated_stations(frames)
+        print(f"{len(df)} ICES observations passed quality control")
+        return df
+
     print(
         f"Downloading ICES {' and '.join(datasets)} data ({recipe['parameter']}) for "
         f"{int(start_year)}-{int(end_year)}, lon {lon_lim}, lat {lat_lim}"

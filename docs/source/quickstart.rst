@@ -60,11 +60,24 @@ Closing the browser window quits ``oceanval`` in the terminal, within about
 do **Quit** (which is instant) and Ctrl+C.
 
 The cog beside the OceanVal name at the top left of every page of the window
-(**Preferences**) sets how the window looks (Default, Dark, Silver or Blue) and whether the first
-page offers **Try a demo**. Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
+(**Preferences**) sets how the window looks (Default, Dark, Silver or Blue), whether the first
+page offers **Try a demo**, and the **data store** (below). Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
 your home directory (or the file ``OCEANVALRC`` names), and read each time the
 window opens. The **i** beside it shows the version of OceanVal, links to the website and
 GitHub, and the built-in datasets.
+
+The **data store** is a folder for keeping the built-in observational data that is downloaded
+(WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES), so later matchups need not download it again.
+Your own data is never kept in it. The folder must already exist: OceanVal keeps everything in an
+``oceanval_datastore`` folder it makes inside it, and never writes or removes anything outside
+that. Choose a disk with a reasonable amount of free space, as the store can come to several GB.
+Choose **Always use data from your data store, if available** to download only what it does not
+have, or **Only use the data store when download fails** to download everything each time (and
+keep it), using what is kept only for what cannot be downloaded. The store keeps track of the
+area and years of what it has: gridded data is kept for the model's area, rounded out to whole
+degrees (the whole globe for a model covering 90% of it), ICES data a year at a time, and a
+matchup inside what is kept takes it from the store. The setting is used by every matchup,
+including those run from Python; ``matchup(..., data_store=False)`` leaves it out for one run.
 
 To see how it works first, choose **Try a demo**, below the four choices. It
 asks you to choose one of three CMIP6 climate models, each from a different

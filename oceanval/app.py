@@ -62,6 +62,7 @@ import urllib.parse
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
+from oceanval import data_store
 from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
@@ -1636,6 +1637,7 @@ class App:
                     "values": dict(self.settings),
                     "themes": [[key, label] for key, label in user_settings.THEMES.items()],
                     "path": user_settings.path(),
+                    "data_store": data_store.panel(self.settings),
                 },
                 "demo": (
                     None
@@ -2182,7 +2184,7 @@ class App:
         with self._lock:
             self.settings = saved
             self._notify()
-        return 200, {"ok": True, "settings": dict(saved)}
+        return 200, {"ok": True, "settings": dict(saved), "data_store": data_store.panel(saved)}
 
     def restart(self):
         with self._lock:

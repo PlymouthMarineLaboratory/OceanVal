@@ -173,6 +173,7 @@ The following optional parameters can also be specified:
 - `as_missing`: A float or list of floats providing a range , i.e [min, max], specifying values to be treated as missing in the model output.
 - `live_validation`: Build an interim HTML validation report as the matchups are made, so that each one's results can be looked at as soon as it is made. Needs jupyter-book 2 or later. See "Looking at the results while the matchups run" below.
 - `time_shift`: The number of days to shift every model time by before matching up, e.g. -1 for output that dates each time mean at the end of the period it covers (as GETM does: January's mean at 00:00 on 1 February). By default OceanVal checks whether the model's times look like that and, if so, asks whether to shift them back a day. Set 0 to leave the times as they are without checking. See the Q&A.
+- `data_store`: Whether to use your data store, the folder set in the oceanval window's Preferences where the built-in observational data downloaded (WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES) is kept for later matchups. Your own data is never kept in it. By default it is used if one is set; `False` leaves it out for this run.
 
 An example is shown below:
 

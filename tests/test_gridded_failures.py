@@ -178,6 +178,29 @@ class TestFailedRemoteMatchup:
         assert "COULD NOT MATCH UP" in shouted
 
 
+    def test_a_server_turning_requests_away_is_said_to_be(self, monkeypatch, capsys):
+        oceanval.add_gridded_comparison(
+            name="nitrate",
+            model_variable="N3_n",
+            recipe={"nitrate": "woa23"},
+            climatology=True,
+            file_check=False,
+        )
+
+        def limited(*args, **kwargs):
+            raise RuntimeError(
+                "syntax error, unexpected WORD_WORD\ncontext: <html><head><title>429 Too Many "
+                "Requests</title></head><body><center><h1>429 Too Many Requests</h1>"
+            )
+
+        monkeypatch.setattr(nc, "open_thredds", limited)
+        with pytest.warns(UserWarning, match="Could not match up gridded nitrate"):
+            oceanval.matchup(sim_dir="data/example", start=2000, end=2000, ask=False, cores=1)
+        shouted = capsys.readouterr().out
+        assert "limiting how fast you can read" in shouted
+        assert "HTTP 429" in shouted
+
+
 class TestRetryPrompt:
     def test_declining_records_the_failure_and_moves_on(self, monkeypatch):
         session_info["out_dir"] = ""

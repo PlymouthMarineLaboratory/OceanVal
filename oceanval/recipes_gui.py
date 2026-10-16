@@ -43,7 +43,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import own_data, time_res, user_recipes, user_settings
+from oceanval import data_store, own_data, time_res, user_recipes, user_settings
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -719,7 +719,9 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             except (OSError, ValueError) as error:
                 self._reply_json(400, {"ok": False, "error": f"{error}"})
             else:
-                self._reply_json(200, {"ok": True, "settings": dict(saved)})
+                self._reply_json(
+                    200, {"ok": True, "settings": dict(saved), "data_store": data_store.panel(saved)}
+                )
         else:
             self._reply_json(404, {"ok": False, "error": "Not found"})
 
@@ -860,6 +862,7 @@ class RecipePage:
                 "values": user_settings.load(),
                 "themes": [[key, label] for key, label in user_settings.THEMES.items()],
                 "path": user_settings.path(),
+                "data_store": data_store.panel(user_settings.load()),
             },
         }
         return render_page("create_recipes_gui.html", state)

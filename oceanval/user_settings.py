@@ -2,7 +2,13 @@
 
 They sit beside your recipes, under ``"settings"``::
 
-    {"version": 1, "recipes": {...}, "settings": {"theme": "dark", "show_demo": false}}
+    {"version": 1, "recipes": {...},
+     "settings": {"theme": "dark", "show_demo": false,
+                  "data_store": "/data/me", "data_store_use": "always"}}
+
+``data_store`` is the folder the data store is kept in (see
+oceanval.data_store), "" for none, and ``data_store_use`` how matchup uses it.
+Unlike the others, they are not only the window's: every matchup uses them.
 
 The file is the one for everywhere (see oceanval.user_recipes.global_path), so
 the settings follow you to whichever directory OceanVal runs in. Saving them
@@ -28,7 +34,13 @@ THEMES = {
     "blue": "Blue",
 }
 
-DEFAULTS = {"theme": "default", "show_demo": True}
+# how matchup uses the data store, in the order the settings show them
+DATA_STORE_USES = {
+    "always": "Always use data from your data store, if available",
+    "fallback": "Only use the data store when download fails",
+}
+
+DEFAULTS = {"theme": "default", "show_demo": True, "data_store": "", "data_store_use": "always"}
 
 # a file that is unreadable is said so once, not on every look
 _warned = set()
@@ -44,7 +56,40 @@ def _valid(name, value):
         return value in THEMES
     if name == "show_demo":
         return isinstance(value, bool)
+    if name == "data_store":
+        # a folder for everywhere, so a full path
+        return isinstance(value, str) and (value == "" or os.path.isabs(value))
+    if name == "data_store_use":
+        return value in DATA_STORE_USES
     return False
+
+
+def _data_store(value, current):
+    """The data store's folder as it is kept: the full path of a folder that
+    exists, with the store's own folder made in it, or "" for none. Raises
+    ValueError saying what is wrong otherwise. The folder already set
+    (current) is not checked again, so that a disk that is away for now does
+    not stop the other settings being saved."""
+    if not isinstance(value, str):
+        raise ValueError(f"{value!r} cannot be used for data_store.")
+    value = value.strip()
+    if value == "":
+        return ""
+    value = os.path.expanduser(value)
+    if not os.path.isabs(value):
+        raise ValueError(
+            "Give the data store folder's full path, as it is used wherever OceanVal is run."
+        )
+    value = os.path.normpath(value)
+    if value == current:
+        return value
+    if os.path.exists(value) and not os.path.isdir(value):
+        raise ValueError(f"{value} is a file, not a folder.")
+    # not imported at the top, as the data store reads the settings
+    from oceanval import data_store
+
+    data_store.prepare(value)
+    return value
 
 
 def load():
@@ -85,6 +130,9 @@ def save(settings):
     unknown = sorted(set(settings) - set(DEFAULTS))
     if unknown:
         raise ValueError(f"There is no setting called {', '.join(unknown)}.")
+    settings = dict(settings)
+    if "data_store" in settings:
+        settings["data_store"] = _data_store(settings["data_store"], load()["data_store"])
     for name, value in settings.items():
         if not _valid(name, value):
             raise ValueError(f"{value!r} cannot be used for {name}.")

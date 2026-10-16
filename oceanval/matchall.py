@@ -36,6 +36,7 @@ from oceanval.utils import extension_of_directory
 from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
 from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
+from oceanval import data_store as obs_store
 from oceanval import ices
 from oceanval import live
 from oceanval import model_check
@@ -1067,6 +1068,7 @@ def matchup(
     fvcom = False,
     live_validation = None,
     time_shift = None,
+    data_store = None,
 ):
     """
     Match up model with observational data
@@ -1147,6 +1149,11 @@ def matchup(
         Default is None: matchup checks whether the times of time means look like the ends of
         their periods and, if so, asks whether to shift them back a day (with ask=False it only
         says so, and leaves them as they are). 0 leaves the times as they are, without checking.
+    data_store : None or False
+        Whether to use your data store, the folder set in the oceanval window's Preferences
+        where the built-in observational data downloaded (WOA23, OCCCI, NSBC, COBE2, GLODAP and
+        ICES) is kept for later matchups, used as the Preferences say. Your own data is never
+        kept in it. Default is None, to use it if one is set; False does not use it for this run.
 
     Returns
     -------------
@@ -1238,6 +1245,9 @@ def matchup(
 
     if not isinstance(ask, bool):
         raise TypeError("ask must be a boolean")
+
+    # where the built-in observations downloaded are kept, if anywhere
+    obs_store.start(obs_store.config(data_store))
 
     # ensure out_dir is a string
 

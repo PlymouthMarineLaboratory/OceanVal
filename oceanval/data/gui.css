@@ -594,6 +594,16 @@ input.tick { cursor: pointer; }
 .swatch__card i + i { width: 90%; background: var(--muted-light); }
 .swatch__card b { justify-self: end; width: 36px; height: 12px; margin-top: 2px; border-radius: 4px; background: var(--teal-600); }
 .prefs__check { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 15px; cursor: pointer; }
+.prefs__hint code, .prefs__status code { font-size: 13px; overflow-wrap: anywhere; }
+.prefs__path { max-width: 640px; }
+.prefs__status { margin: 8px 0 0; color: var(--muted); font-size: 13.5px; }
+.prefs__choices { display: grid; gap: 12px; margin-top: 16px; }
+.prefs__use { align-items: flex-start; }
+.prefs__use input { width: 17px; height: 17px; margin: 2px 0 0; flex: none; accent-color: var(--teal-600); cursor: pointer; }
+.prefs__use small { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
+.prefs__choices.is-disabled .prefs__use { color: var(--muted); cursor: not-allowed; }
+.prefs__choices.is-disabled .prefs__use input { cursor: not-allowed; }
+.prefs__note { max-width: 1040px; margin: 16px 0 0; padding: 10px 12px; border-left: 3px solid var(--amber); border-radius: 4px; background: var(--amber-bg); color: var(--ink); font-size: 14px; }
 .prefs__error { max-width: 1040px; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 10px; background: var(--red-bg); color: var(--red); font-size: 14px; }
 .prefs__foot { padding: 16px 32px 20px; border-top: 1px solid var(--line); }
 @media (max-width: 760px) {

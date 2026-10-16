@@ -275,6 +275,10 @@ def _panels_work(page, oceanvalrc, theme):
     assert page.is_hidden("#preferences")
     page.click("#settings-open")
     assert page.is_visible("#preferences")
+    # the data store is set here too
+    assert page.is_visible("#settings-data-store")
+    assert page.locator('input[name="settings-data-store-use"]').count() == 2
+    assert "reasonable amount of free space" in page.text_content("#settings-data-store-note")
     page.click(f'label.theme-option:has(input[value="{theme}"])')
     page.click("#settings-apply")
     page.wait_for_selector("#preferences", state="hidden")

@@ -90,6 +90,10 @@ def find_recipe(x, start=None, end=None, cwd=None):
             f"{user_recipes.local_path(cwd)} or {user_recipes.global_path()}."
         )
 
+    # which of OceanVal's own datasets this is, so its downloads can be kept
+    # in the data store (see oceanval.data_store), which never holds yours
+    output["builtin"] = value
+
     if value == "glodap":
         if name.lower() == "ph":
             output["obs_path"] = "https://www.ncei.noaa.gov/data/oceans/archive/arc0221/0286118/1.1/data/0-data/GLODAPv2.2016b_MappedClimatologies/GLODAPv2.2016b.pHtsinsitutp.nc"
@@ -448,11 +452,14 @@ class Validator:
 
         # maybe include an averaging option: daily, monthly, annual etc.
 
+        builtin = None
         if recipe is not None:
             recipe_info = find_recipe(recipe, start=start, end=end)
             if recipe_info["point"]:
                 raise ValueError(f"Recipe {recipe} is for point data, so use add_point_comparison")
+            # data given in place of the recipe's own is not OceanVal's
             if obs_path is None:
+                builtin = recipe_info.get("builtin")
                 obs_path = recipe_info["obs_path"]
             if source is None:
                 source = recipe_info["source"]
@@ -650,6 +657,7 @@ class Validator:
             obs_adder = obs_adder,
             thredds = thredds,
             recipe = recipe,
+            builtin = builtin,
         )
         self[name].sources[source_name] = source_info
         self[name].n_levels = 1
