@@ -983,7 +983,8 @@ def transect_figure(results_dir, key, index, option):
             "absolute_change": legend(f"{variable['name']} change", variable["units"]),
             "percentage_change": f"{variable['name']} change (%)",
         }[saved["how"]]
-        code = _line_code(path, line, saved["title"], label)
+        title = saved["title"] + (f", {saved['window']}-year rolling mean" if (saved.get("window") or 1) > 1 else "")
+        code = _line_code(path, line, title, label)
         kind = "line"
     _run(code, "transect_figure")
     return Drawn(code, False, {"kind": kind}, _about(info))
@@ -1003,6 +1004,13 @@ def transect_text(variable, index, option):
     name = variable["name"]
     years = _years_range(saved["start"], saved["end"])
     units = unit_html(variable["units"])
+    window = saved.get("window") or 1
+    rolling = (
+        f" The annual means were smoothed by a rolling mean of {window} years, with nctoolkit's rolling_mean, before this was worked out."
+        if window > 1 and option == "trends"
+        else ""
+    )
+    rolled = f" (after a {window}-year rolling mean)" if window > 1 else ""
     if option == "climatology":
         if saved["months"] > 1:
             method = f"The surface climatology of {name} is its mean in each month of the year over {years}, at each point along the transect."
@@ -1024,22 +1032,33 @@ def transect_text(variable, index, option):
     elif saved["how"] == "absolute":
         method = (
             f"The trend is the slope of a straight line fitted by least squares to the annual means of surface {name} over {years}, at each point along the transect, in {unit_html(saved['units'])}. "
-            "A year's mean is the mean of its months' means, and it is left out if it has months missing."
+            "A year's mean is the mean of its months' means, worked out with nctoolkit, and it is left out if it has months missing."
+            + rolling
         )
-        caption = f"Trend in surface {name} along the transect, {years}, in {unit_html(saved['units'])}."
+        caption = f"Trend in surface {name} along the transect, {years}, in {unit_html(saved['units'])}{rolled}."
     elif saved["how"] == "absolute_change":
         method = (
-            f"The change is the annual mean of surface {name} in {saved['end']} minus its annual mean in {saved['start']}, at each point along the transect. "
-            "A year's mean is the mean of its months' means."
+            (
+                f"The change is the annual mean of surface {name} in {saved['end']} minus its annual mean in {saved['start']}, at each point along the transect. "
+                "A year's mean is the mean of its months' means, worked out with nctoolkit."
+                if window == 1
+                else f"The change is the mean of the last {window} years of surface {name} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), at each point along the transect."
+            )
+            + rolling
         )
-        caption = f"Change in surface {name} ({units}) along the transect, from {saved['start']} to {saved['end']}."
+        caption = f"Change in surface {name} ({units}) along the transect, from {saved['start']} to {saved['end']}{rolled}."
     else:
         method = (
-            f"The percentage change is the annual mean of surface {name} in {saved['end']} minus its annual mean in {saved['start']}, "
-            "as a percentage of the absolute value of the annual mean in the first, so that an increase is always positive. "
+            (
+                f"The percentage change is the annual mean of surface {name} in {saved['end']} minus its annual mean in {saved['start']}, "
+                if window == 1
+                else f"The percentage change is the mean of the last {window} years of surface {name} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), "
+            )
+            + "as a percentage of the absolute value of the first, so that an increase is always positive. "
             "It is missing where that is zero. A year's mean is the mean of its months' means."
+            + rolling
         )
-        caption = f"Percentage change in surface {name} along the transect, from {saved['start']} to {saved['end']}."
+        caption = f"Percentage change in surface {name} along the transect, from {saved['start']} to {saved['end']}{rolled}."
     return {"title": saved["title"], "method": method, "caption": caption}
 
 

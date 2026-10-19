@@ -188,7 +188,8 @@ jupyter-book, pandoc, texlive, then `pip install .` and `pytest tests/test*.py`.
   `lon_lim`/`lat_lim`. The chunks are `chunk_longterm`/`chunk_seasonalseries` (letters only:
   `chunkers.is_chunk` matches `chunk_.[a-z]*`).
 - `analyze(cores=)` has **no default** (it must be given, as the window's empty cores box
-  enforces), and `as_missing` is applied in `_model_data` and to the thickness, as matchup
+  enforces), the years of every analysis must lie inside the output's (`analysis_forms._years` in the window,
+  `analyze()` against `row["times"]`: a start before its first year or an end after its last is refused), and `as_missing` is applied in `_model_data` and to the thickness, as matchup
   does. **Nothing is pre-selected in the window**: the forms start empty (rows, ticks, years,
   thickness, `how`); the years of the output are only placeholders/hints. The one assumption
   is validate's: a NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) fills the
@@ -199,7 +200,9 @@ jupyter-book, pandoc, texlive, then `pip install .` and `pytest tests/test*.py`.
   `oceanval.transects.check_transect`, as validate's), each with its ends and at least one of
   `climatology` (surface monthly climatology), `vertical` (annual-mean section) and `trends`
   (surface, `how` "absolute" slope per year / "absolute_change" last year minus first /
-  "percentage_change"), **each option with its own `start`/`end` years**. The monthly means come
+  "percentage_change", with an optional `window`: a nctoolkit `rolling_mean` of the annual means, default 1 =
+  none), **each option with its own `start`/`end` years**. The trends' annual means are nctoolkit's
+  (`annual_means`: complete years only, `tmean("year")`, then `rolling_mean`), not numpy. The monthly means come
   first (`analysis.monthly_means_of`, once per layer over the union of years, the surface or
   `LEVELS`), then nctoolkit's `to_transect` on a copy, then `derive` makes a small CSV per
   option (`<key>_transect_<n>_<option>.csv`: `position`, `depth` or `month`, `value`) that the

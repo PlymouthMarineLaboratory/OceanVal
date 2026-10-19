@@ -1021,7 +1021,9 @@ def analyze(
         {"Chlorophyll": "P1_Chl+P2_Chl+P3_Chl+P4_Chl", "Temperature": "votemper"}.
     climatology : dict
         The variables to work out climatologies of: for each, by its name in
-        variables, a dict of "start" and "end" (the years to average over),
+        variables, a dict of "start" and "end" (the years to average over,
+        which must be years the output has: all the years given to analyze()
+        are checked against the times of the files),
         and "surface" (True for the surface), "bottom" (True for the deepest
         value that is not missing, found with nctoolkit's bottom method, with
         choice="value") and/or "water_column" ("mean" for the vertical mean,
@@ -1105,8 +1107,12 @@ def analyze(
         "climatology": {"start": 2000, "end": 2009}, "trends": {"start": 2000,
         "end": 2009, "how": "absolute"}}]}. Requires nctoolkit 1.3.6 or later.
         Each month of each year is averaged first, a year's mean is the mean of
-        its months' means, and years without all their months are left out of
-        the trends.
+        its months' means (worked out with nctoolkit), and years without all
+        their months are left out of the trends. "trends" can also have a
+        "window", the number of years of a rolling mean of the annual means,
+        worked out with nctoolkit's rolling_mean before the trend is: the
+        default, 1, is no rolling mean, and with a window of N a change is
+        the mean of the last N years minus the mean of the first N.
     figure_code : bool
         Give each figure in the report a "Copy code to reproduce figure"
         button, which copies the Python code that draws it from the analysis's
@@ -1218,6 +1224,13 @@ def analyze(
                     f"{row['name']} has no output in {entry['start']}-{entry['end']}, the years "
                     f"of its {kind}."
                 )
+            else:
+                output = [int(year) for df in own.values() for year in df.year]
+                if output and (entry["start"] < min(output) or entry["end"] > max(output)):
+                    problems.append(
+                        f"{row['name']}'s output is from {min(output)} to {max(output)}, so the years "
+                        f"of its {kind}, {entry['start']}-{entry['end']}, are not all in it."
+                    )
             entry["dates"] = _dates(own, entry["start"], entry["end"], row["time_res"])
         if row["long_term"] or row["seasonal"]:
             first = min(row[kind]["start"] for kind in ("long_term", "seasonal") if row[kind])
@@ -1244,7 +1257,7 @@ def analyze(
                 analysis_transects.MIN_TREND_YEARS
                 if trends["how"] == analysis_transects.ABSOLUTE
                 else analysis_transects.MIN_CHANGE_YEARS
-            )
+            ) + trends.get("window", 1) - 1
             if len(output) < needed:
                 problems.append(
                     f"The {analysis_transects.HOWS[trends['how']].lower()} trends of transect {number} of "

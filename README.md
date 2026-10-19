@@ -387,7 +387,9 @@ observations, through these steps:
    linear trend of the annual means, per year), **Absolute change** (the last
    year minus the first) and **Percentage change**. Trends need at least 3 years
    of output (2 for the changes), and are not offered when a variable has only
-   one year. Each variable's years of
+   one year. A **Rolling mean (years)** box under it, 1 to start with (none),
+   smooths the annual means with nctoolkit's `rolling_mean` before the trend is
+   worked out. Each variable's years of
    output are shown beside it as a hint. Below the boxes you must say **how many cores** OceanVal may use
    (there is no default), and what should be **treated as missing values**,
    which OceanVal fills in, as it does for validation, if the simulation looks
@@ -467,7 +469,11 @@ oceanval.analyze(
   `how` of `"absolute"`, the linear trend of the annual means per year,
   `"absolute_change"`, the last year's annual mean minus the first's, or
   `"percentage_change"`, that as a percentage of the first year's), each a dict of
-  its own `start` and `end` years. Each month of each year is averaged first, a
+  its own `start` and `end` years. `trends` can also have a `window`, the
+  number of years of a rolling mean of the annual means (nctoolkit's
+  `rolling_mean`, applied after the annual means are worked out): the default,
+  1, is no rolling mean, and with a window of N a change is the mean of the last
+  N years minus the mean of the first N. Each month of each year is averaged first, a
   year's mean is the mean of its months' means, and years without all their
   months are left out of the trends. The report maps each transect and draws each
   option. Needs nctoolkit 1.3.6 or later.
@@ -486,6 +492,8 @@ Everything is saved in `oceanval_analysis/`, in `out_dir`: the fields as
 netCDF (and `analysis.json`, which says what is in them) in `results/`, the
 report's book in `report/`, and `report.html`, a link to its first page.
 `time_shift=-1` shifts times dated at the end of each mean, as for matchup.
+The years you give must be ones the output has: `analyze()` refuses a start before
+the output's first year or an end after its last, and the app says so beside the box.
 
 ## Comparing multiple validation outputs
 

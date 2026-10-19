@@ -13,7 +13,10 @@ years of its own:
   "absolute" (the linear trend of the annual means, per year),
   "absolute_change" (the annual mean of the last year minus that of the first)
   or "percentage_change" (that as a percentage of the first year's mean, of its
-  absolute value, so that an increase is positive).
+  absolute value, so that an increase is positive). The annual means are
+  worked out with nctoolkit, and with a "window" of more than 1 year smoothed
+  by nctoolkit's rolling_mean before the trend is worked out, so that a change
+  is then the mean of the last window years minus the mean of the first.
 
 The monthly means are taken first, as for the climatology and the time series,
 then extracted along the line with nctoolkit's to_transect, and what is worked
@@ -135,16 +138,24 @@ def check_lines(lines, name):
                 raise ValueError(
                     f"The trends of {which} need \"how\", one of {', '.join(repr(key) for key in HOWS)}, not {how!r}."
                 )
-            if set(entry) - {"start", "end", "how"}:
-                raise ValueError(f"The trends of {which} have only start and end years, and how.")
+            if set(entry) - {"start", "end", "how", "window"}:
+                raise ValueError(f"The trends of {which} have only start and end years, how and window.")
+            window = entry.get("window", 1)
+            if isinstance(window, bool) or not isinstance(window, (int, np.integer)) or window < 1:
+                raise ValueError(
+                    f"The window of the trends of {which} is the number of years of the rolling mean, "
+                    f"a whole number of 1 or more (1 is no rolling mean), not {window!r}."
+                )
             span = end - start + 1
             needed = MIN_TREND_YEARS if how == ABSOLUTE else MIN_CHANGE_YEARS
-            if span < needed:
+            if span - window + 1 < needed:
                 raise ValueError(
-                    f"The {HOWS[how].lower()} trends of {which} need at least {needed} years: "
-                    f"{start}-{end} is {span}."
+                    f"The {HOWS[how].lower()} trends of {which} need at least {needed} years"
+                    + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
+                    + f": {start}-{end} is {span}."
                 )
             out[TRENDS]["how"] = how
+            out[TRENDS]["window"] = int(window)
         if not any(out[option] for option in OPTIONS):
             raise ValueError(f'{which} needs at least one of "climatology", "vertical" and "trends".')
         checked.append(out)
@@ -224,18 +235,36 @@ def _along(path, key, line, vertical):
 # ---- what is worked out ----
 
 
-def _annual(values, times, start, end, per_year):
-    """The mean of each year's monthly means, as an array by year (from start
-    to end, then as values): missing for a year with fewer than per_year months."""
-    years = list(range(start, end + 1))
-    out = np.full((len(years),) + values.shape[1:], np.nan)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        for number, year in enumerate(years):
-            which = [index for index, (y, _) in enumerate(times) if y == year]
-            if len(which) >= per_year:
-                out[number] = np.nanmean(values[which], axis=0)
-    return years, out
+def complete_years(times, start, end, per_year):
+    """The years from start to end that have all their months (or the one
+    value of annual output) among times, each (year, month)."""
+    return [
+        year for year in range(start, end + 1) if sum(1 for y, _ in times if y == year) >= per_year
+    ]
+
+
+def annual_means(extracted, key, line, times, spec, per_year):
+    """The annual means of a transect's monthly means, with nctoolkit,
+    smoothed by its rolling_mean if the window is more than 1 year: (positions,
+    the years, the values by year then position), or (None, [], None) if no
+    year has all its months, or there are fewer years than the window.
+    extracted is the dataset of monthly means along the line, which is left as
+    it is; times are its (year, month). Only years with all their months are
+    used, so that a year with months missing does not count. The years are
+    those of the output: with a window, each is the last year of its window."""
+    window = spec.get("window", 1)
+    years = complete_years(times, spec["start"], spec["end"], per_year)
+    if not years or len(years) < window:
+        return None, [], None
+    ds = extracted.copy()
+    ds.subset(years=years)
+    ds.tmean("year")
+    if window > 1:
+        ds.rolling_mean(window)
+    ds.run()
+    out_years = [time.year for time in ds.times]
+    positions, _, values = _along(ds.current[0], key, line, False)
+    return positions, out_years, values
 
 
 def slope(annual, years):
@@ -332,13 +361,12 @@ def _in_years(values, times, start, end):
 
 
 def derive(option, positions, depths, values, times, spec, per_year):
-    """What one option of a transect works out from values (see _along, with
-    their times, each (year, month)): (a data frame, notes). spec is the
-    option's {"start", "end"} (and "how", for the trends). The frame has
+    """What the surface climatology or the vertical section of a transect
+    works out from values (see _along, with their times, each (year, month)):
+    (a data frame, notes). spec is the option's {"start", "end"}. The frame has
     position, then depth for the vertical, then month for the surface
-    climatology (unless the output is annual), then value, and, for an
-    absolute trend, years, the number of years it is from. notes are what the
-    report must say of years that were left out."""
+    climatology (unless the output is annual), then value. The trends are
+    derive_trends."""
     start, end = spec["start"], spec["end"]
     notes = []
     if option in (CLIMATOLOGY, VERTICAL):
@@ -364,18 +392,43 @@ def derive(option, positions, depths, values, times, spec, per_year):
             )
             return frame, notes
         return _table(positions, None, {"value": climatology[0]}), notes
-    years, annual = _annual(values, times, start, end, per_year)
-    left_out = [year for year, row in zip(years, annual) if not np.isfinite(row).any()]
-    how = spec["how"]
+    raise ValueError(f"{option} is not something that derive works out.")
+
+
+def derive_trends(positions, years, values, spec, left_out, per_year):
+    """The trends of a transect from its annual means (see annual_means):
+    (a data frame, notes). positions are along the transect and spec the
+    option's {"start", "end", "how", "window"}; left_out the years from start
+    to end that were left out because they do not have all their months. The
+    frame has position, value and, for the absolute trend, years, the number
+    of annual means it is from. values is None if there are none."""
+    start, end, how = spec["start"], spec["end"], spec["how"]
+    window = spec.get("window", 1)
+    notes = []
+    if values is None:
+        columns = {"value": np.full(len(positions), np.nan)}
+        if how == ABSOLUTE:
+            columns["years"] = np.zeros(len(positions), dtype=int)
+        if left_out:
+            notes.append(_left_out(left_out, per_year))
+        return _table(positions, None, columns), notes
     if how == ABSOLUTE:
         if left_out:
             notes.append(_left_out(left_out, per_year))
-        trend, count = slope(annual, years)
+            if window > 1:
+                notes.append("The rolling mean is over the years there is output for.")
+        trend, count = slope(values, years)
         return _table(positions, None, {"value": trend, "years": count}), notes
-    first, last = annual[0], annual[-1]
-    for year in (start, end):
-        if year in left_out:
-            notes.append(f"{year} " + ("does not have all 12 months of output" if per_year > 1 else "has no output") + ", so there is no change.")
+    # the first and the last window years of the years, which the change is between
+    ends = list(range(start, start + window)) + list(range(end - window + 1, end + 1))
+    missing = [year for year in dict.fromkeys(ends) if year in left_out]
+    for year in missing:
+        notes.append(
+            f"{year} " + ("does not have all 12 months of output" if per_year > 1 else "has no output") + ", so there is no change."
+        )
+    if missing or len(values) == 0:
+        return _table(positions, None, {"value": np.full(len(positions), np.nan)}), notes
+    first, last = values[0], values[-1]
     change = last - first
     if how == PERCENTAGE_CHANGE:
         with warnings.catch_warnings():
@@ -423,6 +476,7 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
     per_year = months_per_year(present)
     # the monthly means of each layer, once, over every year any transect asks of it
     monthly = {}
+    extracted_for = {}
     for vertical in (False, True):
         used = [
             line[option]
@@ -455,13 +509,23 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
             if vertical and thickness != Z_LEVEL:
                 depths = _depths_along(row, line, steps, ends, thickness, thickness_for)
             along[vertical] = (positions, depths, values, times)
+            extracted_for[vertical] = extracted
         options = {}
         for option in OPTIONS:
             spec = line[option]
             if not spec:
                 continue
             positions, depths, values, times = along[option == VERTICAL]
-            frame, notes = derive(option, positions, depths, values, times, spec, per_year)
+            if option == TRENDS:
+                _, series_years, series = annual_means(
+                    extracted_for[False], row["key"], line, times, spec, per_year
+                )
+                left_out = [
+                    year for year in range(spec["start"], spec["end"] + 1) if year not in complete_years(times, year, year, per_year)
+                ]
+                frame, notes = derive_trends(positions, series_years, series, spec, left_out, per_year)
+            else:
+                frame, notes = derive(option, positions, depths, values, times, spec, per_year)
             csv = f"{row['key']}_transect_{number}_{option}.csv"
             frame.to_csv(os.path.join(results_dir, csv), index=False)
             how = spec.get("how")
@@ -470,6 +534,7 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
                 "start": spec["start"],
                 "end": spec["end"],
                 "how": how,
+                "window": spec.get("window"),
                 "units": _units(row["units"], option, how),
                 "depths": None if option != VERTICAL else ("levels" if thickness == Z_LEVEL else "thickness"),
                 "csv": csv,

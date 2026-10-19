@@ -192,7 +192,8 @@ def _year(text):
 
 def _years(box, errors, known):
     """A row's start and end years, with errors added for what is wrong
-    with them. known is the first and last years of the output, if known."""
+    with them, including years the output does not have. known is the first
+    and last years of the output, if known."""
     start, end = _year(box.get("start", "")), _year(box.get("end", ""))
     if start is None:
         errors["start"] = "Start must be a year, e.g. 2011."
@@ -203,6 +204,12 @@ def _years(box, errors, known):
     if known and start is not None and end is not None and not errors:
         if end < known[0] or start > known[1]:
             errors["start"] = f"The output is from {known[0]} to {known[1]}."
+        else:
+            # the years must be ones the output has
+            if start < known[0]:
+                errors["start"] = f"The output starts in {known[0]}."
+            if end > known[1]:
+                errors["end"] = f"The output ends in {known[1]}."
     return start, end
 
 
@@ -362,7 +369,7 @@ def blank_transect():
         **{box: "" for box in TRANSECT_BOXES},
         "climatology": False, "climatology_start": "", "climatology_end": "",
         "vertical": False, "vertical_start": "", "vertical_end": "",
-        "trends": "", "trends_start": "", "trends_end": "",
+        "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
     }
 
 
@@ -373,7 +380,8 @@ def default_transects(placed):
 
 
 def _blank(line):
-    return not any(line[box] for box in blank_transect())
+    # the window starts as 1, which is not something that was entered
+    return not any(line[box] for box in blank_transect() if box != "trends_window")
 
 
 def clean_transects(form, placed):
@@ -449,21 +457,36 @@ def check_transects(form, placed, known_years, available=(), cwd="."):
             if line["vertical"] and row["levels"] < 2:
                 found["vertical"] = "It has only one vertical level, so it has no section through the water column."
             how = line["trends"]
+            window = 1
+            if how:
+                text = line["trends_window"] or "1"
+                if not text.isdigit() or int(text) < 1:
+                    found["trends_window"] = "The window is a whole number of years, 1 or more: 1 is no rolling mean."
+                else:
+                    window = int(text)
             output = known_years(row["name"])
-            if how and output:
+            if how and output and "trends_window" not in found:
                 n_output = output[1] - output[0] + 1
                 needed = analysis_transects.MIN_TREND_YEARS if how == analysis_transects.ABSOLUTE else analysis_transects.MIN_CHANGE_YEARS
-                if n_output < needed:
+                if n_output - window + 1 < needed:
                     found["trends"] = (
-                        f"{analysis_transects.HOWS[how]} needs at least {needed} years of output: "
-                        f"{row['name']}'s is {'from ' + str(output[0]) + ' to ' + str(output[1]) if n_output > 1 else 'only ' + str(output[0])}."
+                        f"{analysis_transects.HOWS[how]} needs at least {needed} years of output"
+                        + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
+                        + f": {row['name']}'s is {'from ' + str(output[0]) + ' to ' + str(output[1]) if n_output > 1 else 'only ' + str(output[0])}."
                     )
             if how and "trends" in options and not any(name.startswith("trends_") or name == "trends" for name in found):
                 span = options["trends"]["end"] - options["trends"]["start"] + 1
                 needed = analysis_transects.MIN_TREND_YEARS if how == analysis_transects.ABSOLUTE else analysis_transects.MIN_CHANGE_YEARS
-                if span < needed:
-                    found["trends_end"] = f"{analysis_transects.HOWS[how]} needs at least {needed} years, and this is {span}."
+                if span - window + 1 < needed:
+                    found["trends_end"] = (
+                        f"{analysis_transects.HOWS[how]} needs at least {needed} years"
+                        + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
+                        + f", and this is {span}."
+                    )
                 options["trends"]["how"] = how
+                # 1 is no rolling mean, and is not written
+                if window > 1:
+                    options["trends"]["window"] = window
             if found:
                 found_lines[str(number)] = found
             elif ends is not None:

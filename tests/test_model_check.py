@@ -577,7 +577,7 @@ class TestModelCheck:
         changed = []
         check = ModelCheck(7, self.request(files), lambda: changed.append(1))
         # its groups are known before their files and dates are
-        assert check.state()["rows"] == [{"variable": "temperature", "total": None, "groups": [
+        assert check.state()["rows"] == [{"variable": "temperature", "total": None, "time_res": "1d", "groups": [
             {"years": [2002, 2002], "sources": ["NSBC"], "count": None, "dates": None},
         ]}]
         try:

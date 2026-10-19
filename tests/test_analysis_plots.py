@@ -99,6 +99,8 @@ def analyses(tmp_path_factory):
         {"start": [-4.0, 51.0], "end": [0.0, 51.0], "trends": dict(years, how="absolute")},
         {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "trends": dict(years, how="absolute_change")},
         {"start": [-4.0, 51.5], "end": [0.0, 51.5], "trends": dict(years, how="percentage_change")},
+        {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "trends": dict(years, how="absolute_change", window=2)},
+        {"start": [-4.0, 51.5], "end": [0.0, 51.5], "trends": dict(years, how="percentage_change", window=2)},
         # all three, over years of their own
         {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": {"start": 2012, "end": 2013}, "vertical": years,
          "trends": {"start": 2013, "end": 2014, "how": "absolute_change"}},

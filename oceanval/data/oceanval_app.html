@@ -692,6 +692,9 @@
   .transect-card thead th { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
   .transect-card tbody th { color: var(--ink-soft); font-size: 13px; font-weight: 600; white-space: nowrap; }
   .transect-card .s-input.is-num { width: 104px; }
+  .transect-window { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+  .transect-window.is-off { opacity: 0.55; }
+  .transect-card .s-input.is-window { width: 64px; text-align: center; }
   .transect-card td small { display: block; max-width: 190px; margin-top: 3px; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
   .transect-card .s-input.is-year { width: 84px; }
   .transect-card .s-select { width: auto; min-width: 190px; margin-top: 0; }
@@ -3340,6 +3343,12 @@
     trends.value = TRANSECT_HOWS.some(([value]) => value === values.trends) && !(trends.querySelector(`option[value="${values.trends}"]`) || {}).disabled ? values.trends : "";
     trends.disabled = noTrends;
     const trendsNote = noTrends ? el("small", { text: "Only one year of output: there is no trend to work out." }) : null;
+    // the rolling mean of the annual means, in years: 1 is no rolling mean
+    const rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric",
+      value: values.trends_window || "1", placeholder: "1", "aria-label": "Years of the rolling mean of the annual means (1 is none)",
+      spellcheck: "false", autocomplete: "off" });
+    rolling.disabled = noTrends;
+    const rolling_row = el("label", { class: "transect-window" }, el("span", { text: "Rolling mean (years)" }), rolling);
     const years = {
       climatology: optionYears(values, "climatology", "surface climatology", hint),
       vertical: optionYears(values, "vertical", "vertical section", hint),
@@ -3360,16 +3369,19 @@
           el("tbody", {},
             el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, climatology, "Surface climatology")), ...yearCells("climatology")),
             el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, vertical, "Vertical climatology")), ...yearCells("vertical")),
-            el("tr", {}, el("td", {}, trends, trendsNote), ...yearCells("trends")))),
+            el("tr", {}, el("td", {}, trends, trendsNote, rolling_row), ...yearCells("trends")))),
       ),
       msg);
-    const row = { card, heading, inputs, climatology, vertical, trends, years, msg };
+    const row = { card, heading, inputs, climatology, vertical, trends, rolling, years, msg };
     const on = { climatology: () => climatology.checked, vertical: () => vertical.checked, trends: () => Boolean(trends.value) };
     // what has to be given is red: the ends, one of the options, and the years of those chosen
     const refresh = () => {
       for (const input of Object.values(inputs)) input.classList.toggle("is-need", !input.value.trim());
       const any = Object.keys(on).some((option) => on[option]());
       trends.classList.toggle("is-need", !any && !noTrends);
+      // the window only means something once a way of showing trends is chosen
+      rolling.disabled = noTrends || !trends.value;
+      rolling_row.classList.toggle("is-off", rolling.disabled);
       for (const option of Object.keys(on)) {
         for (const box of [years[option].start, years[option].end]) {
           box.disabled = !on[option]();
@@ -3379,7 +3391,7 @@
     };
     for (const control of [climatology, vertical, trends]) control.addEventListener("change", refresh);
     vertical.addEventListener("change", refreshThickness);
-    for (const input of [...Object.values(inputs), ...Object.values(years).flatMap((pair) => [pair.start, pair.end])]) {
+    for (const input of [...Object.values(inputs), rolling, ...Object.values(years).flatMap((pair) => [pair.start, pair.end])]) {
       input.addEventListener("input", refresh);
     }
     remove.addEventListener("click", () => {
@@ -3447,6 +3459,7 @@
       climatology: row.climatology.checked, climatology_start: row.years.climatology.start.value, climatology_end: row.years.climatology.end.value,
       vertical: row.vertical.checked, vertical_start: row.years.vertical.start.value, vertical_end: row.years.vertical.end.value,
       trends: row.trends.value, trends_start: row.years.trends.start.value, trends_end: row.years.trends.end.value,
+      trends_window: row.rolling.value,
     }));
   }
 

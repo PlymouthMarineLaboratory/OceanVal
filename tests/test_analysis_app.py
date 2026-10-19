@@ -351,6 +351,7 @@ TRANSECT = {
     "start_lon": "-2", "start_lat": "50", "end_lon": "-2", "end_lat": "53",
     "climatology": True, "climatology_start": "2013", "climatology_end": "2014",
     "vertical": False, "vertical_start": "", "vertical_end": "", "trends": "", "trends_start": "", "trends_end": "",
+    "trends_window": "1",
 }
 EAST_WEST = dict(
     TRANSECT, start_lon="-4", start_lat="51", end_lon="0", end_lat="51", climatology=False, climatology_start="", climatology_end="",
@@ -370,7 +371,7 @@ class TestTransects:
             "start_lon": "", "start_lat": "", "end_lon": "", "end_lat": "",
             "climatology": False, "climatology_start": "", "climatology_end": "",
             "vertical": False, "vertical_start": "", "vertical_end": "",
-            "trends": "", "trends_start": "", "trends_end": "",
+            "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
         }
         # each variable has transects of its own
         assert state["forms"]["transects"] == {
@@ -715,6 +716,9 @@ def test_transects_in_a_browser(browser, tmp_path):
         assert [x.strip() for x in cards.first.locator("select option").all_inner_texts()] == [
             "Trends: choose…", "Absolute", "Absolute change", "Percentage change",
         ]
+        # the rolling mean window starts at 1, and is only open once trends are chosen
+        window = cards.first.locator("input.is-window")
+        assert window.input_value() == "1" and window.is_disabled()
         # chlorophyll has no depth levels
         assert "No depth levels" in sections.nth(1).inner_text()
         temperature.locator(".transect-var__head input[type=checkbox]").check()
@@ -739,6 +743,7 @@ def test_transects_in_a_browser(browser, tmp_path):
         for box, value in zip(cards.nth(1).locator("table").first.locator("input").all(), ["0", "5", "0", "5"]):
             box.fill(value)
         cards.nth(1).locator("select").select_option("absolute_change")
+        assert cards.nth(1).locator("input.is-window").is_enabled()
         cards.nth(1).locator("table.transect-options input.is-year").nth(4).fill("2013")
         cards.nth(1).locator("table.transect-options input.is-year").nth(5).fill("2014")
         page.click("#trans-confirm")
@@ -753,6 +758,14 @@ def test_transects_in_a_browser(browser, tmp_path):
         assert cards.count() == 1 and "Transect 1" in cards.first.inner_text()
         for box, value in zip(cards.first.locator("table").first.locator("input").all(), ["-4", "0", "51", "51"]):
             box.fill(value)
+        # a rolling mean that leaves too few years is said
+        cards.first.locator("input.is-window").fill("5")
+        page.click("#trans-confirm")
+        page.wait_for_function(
+            "() => document.querySelector('#trans-body .transect-card .analyze-msg').textContent.includes('rolling mean of 5')"
+        )
+        assert page.is_visible("#trans-dialog")
+        cards.first.locator("input.is-window").fill("1")
         page.click("#trans-confirm")
         page.wait_for_selector("#trans-dialog", state="hidden")
         wait_for(lambda: app.analyze_chosen["transects"] is not None)

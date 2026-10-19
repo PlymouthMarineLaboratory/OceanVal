@@ -308,6 +308,16 @@ class TestClimatology:
             )
         assert not os.path.exists(os.path.join(str(tmp_path), analysis.FOLDER))
 
+    @pytest.mark.parametrize("start, end", [(2012, 2014), (2013, 2015), (2012, 2015)])
+    def test_years_that_stick_out_of_the_output_are_refused(self, daily, tmp_path, no_report, start, end):
+        with pytest.raises(ValueError, match="output is from 2013 to 2014, so the years of its climatology"):
+            oceanval.analyze(
+                daily, {"Temperature": "thetao"},
+                climatology={"Temperature": {"start": start, "end": end, "surface": True}},
+                n_dirs_down=1, out_dir=str(tmp_path), cores=1, view=False,
+            )
+        assert not os.path.exists(os.path.join(str(tmp_path), analysis.FOLDER))
+
     def test_years_without_output_are_refused(self, daily, tmp_path, no_report):
         with pytest.raises(ValueError, match="no output in 1990-1991"):
             oceanval.analyze(
@@ -592,6 +602,19 @@ class TestForms:
         assert analysis_forms.check_climatology(form, placed, years, set(), str(tmp_path))[2] == {
             "Temperature": {"start": "The output is from 2013 to 2014."}
         }
+        # years the output starts after or ends before are refused, each in its own box
+        for start, end, expected in [
+            ("2012", "2014", {"start": "The output starts in 2013."}),
+            ("2013", "2015", {"end": "The output ends in 2014."}),
+            ("2012", "2015", {"start": "The output starts in 2013.", "end": "The output ends in 2014."}),
+        ]:
+            form["rows"]["Temperature"].update(start=start, end=end)
+            assert analysis_forms.check_climatology(form, placed, years, set(), str(tmp_path))[2] == {
+                "Temperature": expected
+            }
+        # the output's own years are fine
+        form["rows"]["Temperature"].update(start="2013", end="2014")
+        assert analysis_forms.check_climatology(form, placed, years, set(), str(tmp_path))[2] == {}
 
     def test_nothing_ticked_is_an_error(self, daily, tmp_path):
         placed = self.placed(daily)

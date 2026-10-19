@@ -1291,8 +1291,11 @@ def _leftover(directory, name="nctoolkit_me_abcdnctoolkit_oceanval_output_p99999
 
 @pytest.fixture
 def app(tmp_path):
+    """An app on the validation page, which its landing page's Validate tile leads to."""
     app = App(cwd=str(tmp_path))
     app.start()
+    assert app.view == "home"
+    assert app.choose("validate_menu")
     yield app
     app.close()
 
@@ -2124,7 +2127,7 @@ class TestServer:
         # the answer follows the question, as at a terminal
         assert state["console"]["text"].endswith("Happy? (y/n) n\nanswer: n\n")
         assert post(app, "/api/restart")[0] == 200
-        assert app.view == "start"
+        assert app.view == "home"
 
     def matchups_script(self, tmp_path):
         """A stand-in for matchup, asking whether the matchups are right with

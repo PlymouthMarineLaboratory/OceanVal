@@ -93,7 +93,10 @@ class TestArguments:
             ([line(NORTH_SOUTH, climatology=dict(ALL_YEARS, how="absolute"))], "only start and end years"),
             ([line(NORTH_SOUTH, trends=ALL_YEARS)], "need \"how\""),
             ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="slope"))], "need \"how\""),
-            ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", n=2))], "have only start and end years, and how"),
+            ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", n=2))], "have only start and end years, how and window"),
+            ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=0))], "whole number of 1 or more"),
+            ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=2.5))], "whole number of 1 or more"),
+            ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window="3"))], "whole number of 1 or more"),
         ],
     )
     def test_what_is_wrong_is_said(self, lines, message):
@@ -107,6 +110,17 @@ class TestArguments:
         with pytest.raises(ValueError, match="at least 2 years"):
             self.check([line(NORTH_SOUTH, trends={"start": 2010, "end": 2010, "how": "absolute_change"})])
         assert self.check([line(NORTH_SOUTH, trends={"start": 2010, "end": 2011, "how": "absolute_change"})])
+
+    @needs_to_transect
+    def test_the_window_is_one_by_default_and_must_leave_enough_years(self):
+        assert self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute"))])[0]["trends"]["window"] == 1
+        assert self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=4))])[0]["trends"]["window"] == 4
+        # six years with a window of 5 leave two smoothed years: enough for a change, not for a slope
+        with pytest.raises(ValueError, match="at least 3 years after a rolling mean of 5, so 7"):
+            self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=5))])
+        assert self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=5))])
+        with pytest.raises(ValueError, match="at least 2 years after a rolling mean of 6, so 7"):
+            self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=6))])
 
     def test_there_must_be_something_to_analyze(self):
         with pytest.raises(ValueError, match="nothing to analyze"):
@@ -186,6 +200,55 @@ class TestWhatIsWorkedOut:
         # 2015 is 5 degrees warmer than 2010; the surface of 2010 has a mean of 10 + 6.5
         assert absolute["trends"].value.to_numpy() == pytest.approx(5.0)
         assert percent["trends"].value.to_numpy() == pytest.approx(100 * 5.0 / 16.5)
+
+    @needs_to_transect
+    def test_a_rolling_mean_is_applied_to_the_annual_means(self, monthly, tmp_path, no_report):
+        saved, _ = run(
+            monthly,
+            [
+                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=3)),
+                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=2)),
+                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="percentage_change", window=2)),
+                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change")),
+            ],
+            tmp_path,
+        )
+        options = [x["options"]["trends"] for x in saved["lines"]]
+        assert [x["window"] for x in options] == [3, 2, 2, 1]
+        frames = [pd.read_csv(os.path.join(results(str(tmp_path)), x["csv"])) for x in options]
+        # a straight line is still a straight line when smoothed, from the four 3-year means of six years
+        assert frames[0].value.to_numpy() == pytest.approx(1.0) and (frames[0].years == 4).all()
+        # the last two years (2014-15) are 4 degrees warmer than the first two (2010-11)
+        assert frames[1].value.to_numpy() == pytest.approx(4.0)
+        assert frames[2].value.to_numpy() == pytest.approx(100 * 4.0 / (10 + 6.5 + 0.5))
+        # a window of 1 is the change from the first year to the last
+        assert frames[3].value.to_numpy() == pytest.approx(5.0)
+
+    @needs_to_transect
+    def test_a_rolling_mean_over_a_year_that_was_left_out(self, tmp_path, no_report):
+        root = tmp_path / "sim"
+        write_analysis_simulation(str(root), years=YEARS, daily=False, trend=1.0)
+        path = glob.glob(os.path.join(str(root), "2012", "*grid_T.nc"))[0]
+        with xr.open_dataset(path) as ds:
+            kept = ds.isel(time=list(range(11))).load()
+        kept.to_netcdf(path)
+        saved, _ = run(
+            str(root),
+            [
+                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=2)),
+                # 2012 is in neither the first nor the last two years: it does not matter to the change
+                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=2)),
+                line(NORTH_SOUTH, trends={"start": 2012, "end": 2015, "how": "absolute_change", "window": 2}),
+            ],
+            tmp_path / "out",
+        )
+        first, second, third = (x["options"]["trends"] for x in saved["lines"])
+        assert first["notes"] == [
+            "2012 was left out, as the output does not have all 12 months in it.",
+            "The rolling mean is over the years there is output for.",
+        ]
+        assert second["notes"] == [] and not second["empty"]
+        assert third["notes"] == ["2012 does not have all 12 months of output, so there is no change."] and third["empty"]
 
     @needs_to_transect
     def test_each_option_has_its_own_years_and_a_line_may_have_all_three(self, monthly, tmp_path, no_report):
@@ -324,14 +387,11 @@ class TestTheSums:
         trend, count = analysis_transects.slope(annual[:2], years[:2])
         assert np.isnan(trend).all() and list(count) == [2, 1]
 
-    def test_annual_output_has_a_mean_for_each_year(self):
-        values = np.arange(5, dtype=float).reshape(5, 1)
-        times = [(2000 + i, 7) for i in range(5)]
-        years, annual = analysis_transects._annual(values, times, 2000, 2004, 1)
-        assert years == list(range(2000, 2005)) and annual[:, 0].tolist() == [0, 1, 2, 3, 4]
-        # a month of twelve is not a year
-        years, annual = analysis_transects._annual(values, times, 2000, 2004, 12)
-        assert np.isnan(annual).all()
+    def test_a_year_is_complete_if_it_has_all_its_months(self):
+        times = [(2000, month) for month in range(1, 13)] + [(2001, month) for month in range(1, 12)]
+        assert analysis_transects.complete_years(times, 2000, 2002, 12) == [2000]
+        # annual output has one value for a year
+        assert analysis_transects.complete_years([(2000, 7), (2002, 7)], 2000, 2003, 1) == [2000, 2002]
 
     def test_annual_output_has_no_monthly_climatology(self):
         positions = np.array([50.0, 51.0])
@@ -346,9 +406,8 @@ class TestTheSums:
     def test_a_percentage_change_is_of_the_size_of_the_first_year(self):
         positions = np.array([50.0, 51.0, 52.0])
         values = np.array([[-10.0, 0.0, 10.0], [-5.0, 5.0, 20.0]])
-        times = [(2000, 7), (2001, 7)]
         spec = {"start": 2000, "end": 2001, "how": "percentage_change"}
-        frame, _ = analysis_transects.derive("trends", positions, None, values, times, spec, 1)
+        frame, _ = analysis_transects.derive_trends(positions, [2000, 2001], values, spec, [], 1)
         value = frame.value.to_numpy()
         # warming of a negative mean is an increase; no change from zero can be a percentage
         assert value[0] == pytest.approx(50.0) and np.isnan(value[1]) and value[2] == pytest.approx(100.0)
@@ -410,7 +469,7 @@ class TestForms:
             "start_lon": "", "start_lat": "", "end_lon": "", "end_lat": "",
             "climatology": False, "climatology_start": "", "climatology_end": "",
             "vertical": False, "vertical_start": "", "vertical_end": "",
-            "trends": "", "trends_start": "", "trends_end": "",
+            "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
         }
         chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))
         assert chosen is None and errors == {"rows": "Tick at least one variable to work out transects of."}
@@ -488,7 +547,34 @@ class TestForms:
         _, errors = check(dict(trends, trends="absolute", trends_start="2013", trends_end="2014"), (2013, 2014))
         assert "needs at least 3 years of output: Temperature's is from 2013 to 2014" in errors["Temperature"]["transects"]["0"]["trends"]
         # what is not a trend is not affected
-        assert check(self.box(), (2013, 2013))[1] == {}
+        assert check(self.box(climatology_start="2013", climatology_end="2013"), (2013, 2013))[1] == {}
+
+    @needs_to_transect
+    def test_the_rolling_mean_window_is_checked(self, monthly):
+        placed = self.placed(monthly)
+        trends = self.box(climatology=False, trends="absolute_change", trends_start="2010", trends_end="2015")
+        check = lambda **changes: self.check(placed, self.form(placed, Temperature=[dict(trends, **changes)]))
+        # 1 is the default, and is not written
+        chosen, errors = check()
+        assert errors == {} and chosen["rows"]["Temperature"][0]["trends"] == {"start": 2010, "end": 2015, "how": "absolute_change"}
+        assert check(trends_window="")[1] == {}
+        chosen, errors = check(trends_window="3")
+        assert chosen["rows"]["Temperature"][0]["trends"]["window"] == 3
+        for text in ("0", "x", "2.5", "-1"):
+            assert check(trends_window=text)[1]["Temperature"]["transects"]["0"] == {
+                "trends_window": "The window is a whole number of years, 1 or more: 1 is no rolling mean."
+            }
+        # too few years are left for the trend: of the years typed, and of the output
+        _, errors = analysis_forms.check_transects(
+            self.form(placed, Temperature=[dict(trends, trends_window="6")]), placed, lambda name: (2000, 2030), {"e3t"}, "."
+        )
+        assert "after a rolling mean of 6, so 7" in errors["Temperature"]["transects"]["0"]["trends_end"]
+        _, errors = analysis_forms.check_transects(
+            self.form(placed, Temperature=[dict(trends, trends_window="6")]), placed, lambda name: (2013, 2018), {"e3t"}, "."
+        )
+        assert errors["Temperature"]["transects"]["0"]["trends"].startswith("Absolute change needs at least 2 years of output after a rolling mean of 6")
+        # a window with no trends is not looked at
+        assert self.check(placed, self.form(placed, Temperature=[self.box(trends_window="x")]))[1] == {}
 
     @needs_to_transect
     def test_vertical_needs_the_thickness(self, monthly):
