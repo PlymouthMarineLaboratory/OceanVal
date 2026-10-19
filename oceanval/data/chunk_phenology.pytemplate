@@ -1,0 +1,44 @@
+# %% tags=["remove-input"]
+phen = entry["phenology"]
+md("## Phenology")
+
+# %% tags=["remove-input"]
+years = years_text(phen)
+md(
+    f"The phenology of {name} is the time of its seasonal peak at the surface. In each grid cell, "
+    f"it is the day of the year with the highest value in {name}'s daily climatology: its mean on each "
+    f"day of the year over {years}, read from {phen['files']} file{'s' if phen['files'] != 1 else ''}. "
+    f"The climatology has {phen['days']} days. "
+    + dates_text(phen)
+)
+
+# %% tags=["remove-input"]
+drawn = ap.peak_day_map(results_dir, variable)
+ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+md(
+    f"**Figure {i_figure}**: Day of the year of the seasonal peak of surface {name}, from its daily climatology over {years}. "
+    "The colours are cyclic, so days at the end of the year are close in colour to those at its start."
+    + regridded_text(drawn.regridded)
+)
+i_figure += 1
+
+# %% tags=["remove-input"]
+drawn = ap.peak_value_map(results_dir, variable)
+ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+md(
+    f"**Figure {i_figure}**: The seasonal peak of surface {name} ({units}): the highest value of its daily climatology over {years}. "
+    "The colours run from the 2nd to the 98th percentile of the map."
+    + regridded_text(drawn.regridded)
+)
+i_figure += 1
+
+# %% tags=["remove-input"]
+drawn = ap.daily_cycle(results_dir, variable)
+day, month_day, grid_note = drawn.found["day"], drawn.found["month_day"], drawn.found["note"]
+ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+peak_text = f" Over the domain as a whole, the peak is on {ap.day_text(month_day)}, day {day} of the year." if day else ""
+md(
+    f"**Figure {i_figure}**: The mean of surface {name} over the model's domain on each day of the year, over {years}. "
+    "The dashed line marks the peak." + peak_text + (f" {grid_note}" if grid_note else "")
+)
+i_figure += 1

@@ -648,3 +648,40 @@ input.tick { cursor: pointer; }
   .picker { padding: 10px; }
   .picker__card { max-height: calc(100vh - 20px); }
 }
+
+/* the model's variables in a pop-out under a box (OceanValGUI.variablesPicker),
+   in the create_recipes window and the oceanval window's Analyze steps */
+.vars { position: relative; margin-top: 6px; }
+.vars > summary { display: inline-block; color: var(--teal-700); font-size: 12.5px; cursor: pointer; list-style: none; }
+.vars > summary::-webkit-details-marker { display: none; }
+.vars > summary:hover { text-decoration: underline; }
+.vars > summary:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 4px; }
+.vars__popover { position: absolute; top: calc(100% + 4px); left: 0; z-index: 8; display: flex; flex-direction: column; width: min(520px, 80vw); max-height: 320px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); box-shadow: var(--shadow-lg); font-size: 12px; line-height: 1.4; }
+.vars__bar { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.vars__search { flex: 1; min-width: 0; padding: 5px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); font: 400 12.5px/18px var(--font-body); }
+.vars__search:focus { outline: none; border-color: var(--teal-500); box-shadow: var(--focus); }
+.vars__count { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.vars__picked { flex: none; max-height: 112px; overflow: auto; padding: 6px 12px 8px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.vars__picked[hidden] { display: none; }
+.vars__picked-title { margin: 0 0 2px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.vars__picked ul { margin: 0; padding: 0; list-style: none; }
+.vars__picked li { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
+.vars__picked-text { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink-soft); }
+.vars__picked-name { font-family: var(--font-mono, monospace); color: var(--ink); }
+.vars__picked-note { color: var(--muted); font-style: italic; }
+.vars__picked-remove { flex: none; padding: 0 6px; border: 0; border-radius: 4px; background: none; color: var(--muted); font: inherit; line-height: 1.4; cursor: pointer; }
+.vars__picked-remove:hover { color: var(--ink); background: var(--line); }
+.vars__picked-remove:focus-visible { outline: none; box-shadow: var(--focus); }
+.vars__scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 12px 8px; }
+.vars__none { margin: 10px 0 2px; color: var(--muted); }
+/* the narrow-screen layout makes the page's tables blocks; this one stays a table */
+.vars__popover table { display: table; width: 100%; border-collapse: collapse; table-layout: auto; }
+.vars__popover thead { display: table-header-group; }
+.vars__popover tbody { display: table-row-group; }
+.vars__popover tr { display: table-row; padding: 0; border: 0; }
+.vars__popover tr[hidden] { display: none; }
+.vars__popover th { position: sticky; top: 0; padding: 8px 8px 6px 0; background: var(--bg); color: var(--muted); font-size: 11px; font-weight: 600; text-align: left; text-transform: none; letter-spacing: 0; }
+.vars__popover td { display: table-cell; width: auto; padding: 3px 8px 3px 0; border: 0; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink-soft); }
+.vars__popover td:nth-child(2) { font-family: var(--font-mono, monospace); color: var(--ink); white-space: nowrap; }
+.vars__popover th:first-child, .vars__popover td:first-child { width: 1%; padding-right: 10px; }
+.vars__popover td:first-child input { margin: 1px 0; cursor: pointer; }

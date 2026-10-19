@@ -626,6 +626,101 @@
   .review__issues { margin: 0; padding-left: 20px; color: var(--ink-soft); font-size: 13.5px; line-height: 1.55; }
   .review__legend + .review__issues { margin-top: 14px; }
   .review__issues li + li { margin-top: 4px; }
+
+  /* ---- the landing page: Analyze or Validate ---- */
+  #view-home:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
+  #view-home .choices.is-two { width: 100%; max-width: 980px; gap: 28px; }
+  #view-home .choice { align-items: center; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: center; text-align: center; }
+  #view-home .choice__icon { width: 64px; height: 64px; margin-bottom: 6px; border-radius: 16px; }
+  #view-home .choice__icon svg { width: 32px; height: 32px; }
+  #view-home .choice__title { font-size: 26px; }
+  #view-home .choice__text { font-size: 16px; }
+
+  /* ---- Analyze (see oceanval.analysis_app) ---- */
+  .analyze-reading { margin: 0 0 18px; }
+  .analyze-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .analyze-legend b { color: var(--red); font-weight: 700; }
+  .analyze-legend .is-assumed { color: var(--amber); font-weight: 700; }
+  .analyze-note { margin: 0 0 14px; color: var(--red); font-weight: 700; }
+  .analyze-table { padding: 0; }
+  /* the table's own cells, not those of a pop-out of variables in it */
+  .analyze-table > table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+  .analyze-table > table > * > tr > th, .analyze-table > table > * > tr > td { padding: 12px 16px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  .analyze-table > table > thead > tr > th { background: var(--bg-alt); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .analyze-table > table > * > tr > :first-child { padding-left: 22px; }
+  .analyze-table > table > tbody > tr:last-child > td { border-bottom: 0; }
+  .analyze-table .s-input { width: 100%; }
+  .analyze-table .s-input.is-oceanval { color: var(--red); font-weight: 700; }
+  .analyze-msg { margin: 6px 0 0; color: var(--red); font-size: 12.5px; line-height: 1.4; }
+  .analyze-msg.is-warn { color: var(--amber); }
+  .analyze-msg:empty { display: none; }
+  .analyze-remove { padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); font: 600 18px/1 var(--font-body); cursor: pointer; }
+  .analyze-remove:hover { background: var(--line); color: var(--ink); }
+  .analyze-remove:focus-visible { outline: none; box-shadow: var(--focus); }
+  .analyze-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 14px 0 0; }
+  .analyze-foot .group__msg { margin: 0; }
+  .analyze-files .review__head { padding-bottom: 4px; }
+  .analyze-options.choices.is-two { max-width: 980px; gap: 28px; }
+  .analyze-options .choice { aspect-ratio: auto; min-height: 200px; padding-top: 30px; }
+  .analyze-area { max-width: 980px; margin: 28px 0 0; }
+  .analyze-area .s-select { width: auto; min-width: 280px; }
+  .analyze-area .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
+  .analyze-area .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
+  .analyze-code { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; }
+  .analyze-code__help { margin: 10px 0 0; }
+  .analyze-stations { margin: 22px 0 6px; }
+  .analyze-stations h3 { margin: 0 0 6px; font-size: 15px; }
+  .analyze-stations table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 10px; }
+  .analyze-stations th, .analyze-stations td { padding: 6px 12px 6px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  .analyze-stations th { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+  .analyze-stations .s-input.is-num { width: 120px; }
+  .analyze-stations .s-input.is-name { width: 100%; min-width: 160px; }
+  .analyze-options .choice__tag { margin-top: auto; }
+  .analyze-options__intro { margin-bottom: 22px; }
+  /* the transects pop-out: a section for each variable, and in it a card for each transect */
+  .transect-vars { display: grid; gap: 22px; }
+  .transect-var { padding: 0 0 4px; border-top: 1px solid var(--line); }
+  .transect-var__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 12px 0 8px; }
+  .transect-var__head small { color: var(--muted); font-size: 12.5px; }
+  .transect-var.is-off .transect-cards, .transect-var.is-off .transect-var__add { opacity: 0.55; }
+  .transect-cards { display: grid; gap: 12px; margin: 0 0 12px; }
+  .transect-card { padding: 12px 14px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .transect-card__head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; }
+  .transect-card__body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 40px; }
+  .transect-card table { width: auto; border-collapse: collapse; font-size: 14px; }
+  .transect-card th, .transect-card td { padding: 3px 10px 3px 0; text-align: left; vertical-align: middle; border: 0; }
+  .transect-card thead th { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .transect-card tbody th { color: var(--ink-soft); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .transect-card .s-input.is-num { width: 104px; }
+  .transect-card td small { display: block; max-width: 190px; margin-top: 3px; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+  .transect-card .s-input.is-year { width: 84px; }
+  .transect-card .s-select { width: auto; min-width: 190px; margin-top: 0; }
+  .analyze-dialog .transect-card .s-input.is-need, .analyze-dialog .transect-card .s-select.is-need { border-color: var(--red-field-line); }
+  .picker__card.is-wide { max-width: 1000px; }
+  .analyze-dialog__body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px 6px; overscroll-behavior: contain; }
+  .analyze-dialog__intro { margin: 0 0 14px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+  .analyze-dialog__intro b { color: var(--amber); }
+  .analyze-dialog__body > table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .analyze-dialog__body > table > * > tr > th, .analyze-dialog__body > table > * > tr > td { padding: 10px 12px 10px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  .analyze-dialog__body > table > thead > tr > th { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+  .analyze-dialog__body > table > tbody > tr > td small { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; }
+  .analyze-dialog .is-mono { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
+  .analyze-dialog .s-input.is-year { width: 84px; text-align: center; }
+  .analyze-dialog .s-input.is-assumed { color: var(--amber); font-weight: 600; }
+  .analyze-dialog .s-select { width: auto; margin-top: 6px; }
+  .analyze-dialog__body > table > tbody > tr.is-off > td { color: var(--muted); }
+  .analyze-dialog__body > table > tbody > tr.is-off .s-input { opacity: 0.6; }
+  .analyze-dialog .tick-label { color: var(--ink); white-space: nowrap; }
+  /* what has to be given is red: the years of a ticked row, how to take the water column, the thickness */
+  .analyze-dialog tr.is-on .s-input.is-year, .analyze-dialog .s-select.is-required, .analyze-thickness .s-input { border-color: var(--red-field-line); }
+  .analyze-dialog thead .own-req { margin-left: 4px; padding: 0 6px; font-size: 9.5px; }
+  .analyze-dialog thead tr.is-need > th { padding-bottom: 2px; border-bottom: 0; text-transform: none; }
+  .own-opt { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: middle; }
+  .analyze-dialog .picker__foot .analyze-remove-analysis { margin-right: auto; }
+  .analyze-thickness { margin: 16px 0 6px; }
+  .analyze-thickness .s-input { max-width: 360px; }
+  .analyze-thickness .s-input.is-assumed { color: var(--amber); font-weight: 600; }
+  .analyze-dialog .analyze-msg.is-rows { margin: 10px 0 0; }
   @media (max-width: 720px) {
     .review__grid { grid-template-columns: 40px repeat(12, minmax(0, 1fr)); gap: 2px; }
   }
@@ -739,6 +834,21 @@
 </header>
 
 <main class="wrap">
+  <section id="view-home" hidden>
+    <div class="choices is-two">
+      <button type="button" class="choice" data-action="analyze" id="home-analyze">
+        <span class="choice__icon" data-icon="analyze"></span>
+        <span class="choice__title">Analyze</span>
+        <span class="choice__text">Look at a simulation on its own: the climatology and the phenology of its variables, in an HTML report.</span>
+      </button>
+      <button type="button" class="choice" data-action="validate_menu" id="home-validate">
+        <span class="choice__icon" data-icon="report"></span>
+        <span class="choice__title">Validate</span>
+        <span class="choice__text">Compare a simulation with observations: match it up, validate it, and compare validations.</span>
+      </button>
+    </div>
+  </section>
+
   <section id="view-start" hidden>
     <div class="choices">
       <button type="button" class="choice" data-action="matchup_validate">
@@ -856,7 +966,7 @@
         <p class="group__intro"><button type="button" class="link" id="view-files" aria-haspopup="dialog">Click here to view the files in a random subdirectory of the listed directory</button></p>
         <p class="group__intro"><button type="button" class="link" id="how-files" aria-haspopup="dialog">How does OceanVal identify simulation files to matchup?</button></p>
       </fieldset>
-      <fieldset class="group card setup-box">
+      <fieldset class="group card setup-box" id="setup-domain">
         <legend>What spatial coverage do you need for your observational data? <span class="own-req">Required</span></legend>
         <div class="segmented" id="f-domain" role="radiogroup" aria-label="Domain"></div>
         <p class="group__msg">OceanVal will select appropriate datasets. These can be modified later.</p>
@@ -866,8 +976,8 @@
         <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
         <label class="tick-label" id="row-overwrite" hidden><input type="checkbox" class="tick" id="f-overwrite">Do you want to overwrite existing matchups in this directory?</label>
-        <label class="g-row setup-box__script"><span class="g-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off"></label>
-        <p class="group__intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
+        <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off"></label>
+        <p class="group__intro" id="f-out-intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
         <p class="group__msg" id="m-out"></p>
       </fieldset>
       <input type="hidden" id="f-start">
@@ -1140,6 +1250,146 @@
     </form>
   </section>
 
+  <section id="view-analyze-variables" hidden>
+    <div class="progress card analyze-reading" id="av-reading" role="status" aria-live="polite" hidden>
+      <span class="identify__spinner" aria-hidden="true"></span>
+      <div class="progress__body">
+        <h2 class="identify__title">Reading the simulation's files</h2>
+        <p class="identify__text" id="av-reading-text">OceanVal is finding the simulation's output files, and the variables in them.</p>
+      </div>
+    </div>
+    <div class="banner" id="av-error" role="alert" hidden></div>
+    <div id="av-main" hidden>
+      <p class="lede">Give each variable a name of your own, and the model variable holding it. Several model variables can be summed, as <code>a+b</code>. Pick them from the model's variables, or type them.</p>
+      <p class="analyze-note" id="av-refilled" hidden>The simulation has changed, so OceanVal filled in the variables it recognised again. The rows you gave yourself are kept.</p>
+      <div class="card analyze-table"><table>
+        <colgroup><col style="width:34%"><col><col style="width:56px"></colgroup>
+        <thead><tr><th scope="col">Your name <span class="own-req">Required</span></th><th scope="col">Model name <span class="own-req">Required</span></th><th scope="col" aria-label="Remove"></th></tr></thead>
+        <tbody id="av-rows"></tbody>
+      </table></div>
+      <div class="analyze-foot">
+        <button type="button" class="btn btn--ghost" id="av-add">Add a variable</button>
+        <p class="group__msg is-error" id="av-msg" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-analyze-files" hidden>
+    <section class="time-shift" id="af-shift" aria-label="Whether to shift the simulation's times" hidden>
+      <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, a January mean would count as February's, and the year's last mean would fall in the next year.</p>
+      <p class="lede" id="af-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every simulation time <span id="af-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers. The dates of the files are read once you have chosen.</p>
+      <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the simulation's times">
+        <div class="ptr-modes">
+          <label class="ptr-mode"><input type="radio" name="af-mode" value="shift" id="af-mode-shift"><span class="oceanval-change" id="af-shift-label">Shift the simulation's times back one day</span></label>
+          <label class="ptr-mode"><input type="radio" name="af-mode" value="keep" id="af-mode-keep">Keep the times as they are</label>
+        </div>
+      </div>
+      <div class="card units ptr"><table>
+        <colgroup><col style="width:18%"><col style="width:22%"><col style="width:18%"><col style="width:18%"><col style="width:24%"></colgroup>
+        <thead><tr>
+        <th scope="col">Variable</th><th scope="col">Files</th><th scope="col">Times now</th>
+        <th scope="col">Shifted</th><th scope="col">Why they look like ends</th>
+        </tr></thead>
+        <tbody id="af-shift-body"></tbody>
+      </table></div>
+    </section>
+    <div class="progress card analyze-reading" id="af-stamps" role="status" aria-live="polite" hidden>
+      <span class="identify__spinner" aria-hidden="true"></span>
+      <div class="progress__body">
+        <h2 class="identify__title">Looking at the files' times</h2>
+        <p class="identify__text">OceanVal is checking whether the times of the files are the start or the end of the period each mean covers.</p>
+      </div>
+    </div>
+    <section class="review card analyze-files" id="af-review" aria-labelledby="af-title" hidden>
+      <div class="review__head">
+        <h2 class="review__title" id="af-title" tabindex="-1">The files holding each variable, and any gaps in their times</h2>
+        <p class="review__lede" id="af-lede"></p>
+      </div>
+      <div class="review__dates-progress" id="af-progress" hidden>
+        <span class="identify__spinner" aria-hidden="true"></span>
+        <div class="progress__body">
+          <span class="review__dates-label" id="af-progress-label" role="status" aria-live="polite"></span>
+          <div class="progress__bar" role="progressbar" aria-labelledby="af-progress-label" id="af-progress-bar"><span id="af-progress-fill" style="width:0%"></span></div>
+        </div>
+      </div>
+      <p class="review__dates-note" id="af-note" role="status" hidden></p>
+      <div class="review__table"><table>
+        <colgroup><col style="width:18%"><col style="width:17%"><col style="width:30%"><col style="width:112px"><col style="width:30%"></colgroup>
+        <thead><tr>
+        <th scope="col">Variable</th><th scope="col">Model variable</th><th scope="col">Files</th><th scope="col" class="is-centered">Time resolution</th><th scope="col">Dates</th>
+        </tr></thead>
+        <tbody id="af-body"></tbody>
+      </table></div>
+    </section>
+  </section>
+
+  <section id="view-analyze-options" hidden>
+    <p class="lede analyze-options__intro">Choose what to work out. Each opens a window to choose the variables, and the years, for it.</p>
+    <p class="own-legend" id="ao-need"><span class="own-swatch" aria-hidden="true"></span><span><b>Required:</b> choose at least one of these.</span></p>
+    <div class="choices is-two analyze-options">
+      <button type="button" class="choice" id="ao-climatology" aria-haspopup="dialog">
+        <span class="choice__icon" data-icon="climatology"></span>
+        <span class="choice__title">Climatology</span>
+        <span class="choice__text" id="ao-climatology-text"></span>
+        <span class="choice__tag" hidden>Chosen</span>
+      </button>
+      <button type="button" class="choice" id="ao-phenology" aria-haspopup="dialog">
+        <span class="choice__icon" data-icon="phenology"></span>
+        <span class="choice__title">Phenology</span>
+        <span class="choice__text" id="ao-phenology-text"></span>
+        <span class="choice__tag" hidden>Chosen</span>
+      </button>
+      <button type="button" class="choice" id="ao-long_term" aria-haspopup="dialog">
+        <span class="choice__icon" data-icon="longterm"></span>
+        <span class="choice__title">Long-term time series</span>
+        <span class="choice__text" id="ao-long_term-text"></span>
+        <span class="choice__tag" hidden>Chosen</span>
+      </button>
+      <button type="button" class="choice" id="ao-seasonal" aria-haspopup="dialog">
+        <span class="choice__icon" data-icon="seasonal"></span>
+        <span class="choice__title">Seasonal time series</span>
+        <span class="choice__text" id="ao-seasonal-text"></span>
+        <span class="choice__tag" hidden>Chosen</span>
+      </button>
+      <button type="button" class="choice" id="ao-transects" aria-haspopup="dialog">
+        <span class="choice__icon" data-icon="transect"></span>
+        <span class="choice__title">Transects</span>
+        <span class="choice__text" id="ao-transects-text"></span>
+        <span class="choice__tag" hidden>Chosen</span>
+      </button>
+    </div>
+    <fieldset class="group analyze-area" id="ao-cores-group">
+      <legend>Cores <span class="own-req">Required</span></legend>
+      <label class="g-row"><span class="g-label is-required">How many cores should OceanVal use?</span><input class="s-input is-num" id="ao-cores" placeholder="e.g. 4" inputmode="numeric" spellcheck="false" autocomplete="off"></label>
+      <p class="group__msg" id="ao-cores-msg"></p>
+    </fieldset>
+    <fieldset class="group analyze-area" id="ao-missing-group">
+      <legend>Missing values</legend>
+      <div class="g-row">
+        <span class="g-label">What should be treated as missing values?</span>
+        <div class="span-row">
+          <input class="s-input is-num" id="ao-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+          <span class="dash">–</span>
+          <input class="s-input is-num" id="ao-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+        </div>
+      </div>
+      <p class="group__msg" id="ao-missing-msg"></p>
+      <p class="group__line is-ersem" id="ao-missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
+    </fieldset>
+    <fieldset class="group analyze-area" id="ao-code-group">
+      <legend>Figure code <span class="own-req">Required</span></legend>
+      <div class="g-row">
+        <span class="g-label is-required" id="ao-code-question">Do you want the report to contain code to reproduce figures?</span>
+        <div class="analyze-code" role="radiogroup" aria-labelledby="ao-code-question">
+          <label class="ptr-mode"><input type="radio" name="ao-code" value="yes" id="ao-code-yes">Yes</label>
+          <label class="ptr-mode"><input type="radio" name="ao-code" value="no" id="ao-code-no">No</label>
+        </div>
+      </div>
+      <p class="group__intro analyze-code__help">With Yes, each figure in the report has a <strong>Copy code to reproduce figure</strong> button at its top right. It copies the Python code that draws the figure from the analysis's saved results, which you can change and run in the conda environment OceanVal ran in.</p>
+      <p class="group__msg" id="ao-code-msg"></p>
+    </fieldset>
+  </section>
+
   <section id="view-run" hidden>
     <div class="result card" id="result" hidden></div>
     <div class="progress card" id="progress" role="status" aria-live="polite" hidden>
@@ -1316,6 +1566,123 @@
   </div>
 </div>
 
+<div class="picker analyze-dialog" id="clim-dialog" hidden>
+  <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="clim-title">
+    <div class="picker__head">
+      <h2 id="clim-title">Climatology</h2>
+    </div>
+    <div class="analyze-dialog__body">
+      <p class="analyze-dialog__intro" id="clim-intro"></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, for at least one variable, and the years of each variable ticked.</span></p>
+      <p class="analyze-msg is-rows" id="clim-msg" role="status" aria-live="polite"></p>
+      <table>
+        <thead>
+          <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th></tr>
+          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th></tr>
+        </thead>
+        <tbody id="clim-body"></tbody>
+      </table>
+      <div class="analyze-thickness" id="clim-thickness-row" hidden>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" list="clim-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+        <div id="clim-thickness-picker"></div>
+        <p class="analyze-msg" id="clim-thickness-msg"></p>
+        <datalist id="clim-thickness-options"></datalist>
+      </div>
+      <div class="analyze-stations" id="clim-area" hidden>
+        <h3>Regional subdomains and area <span class="own-opt">Optional</span></h3>
+        <p class="analyze-dialog__intro">The time series are always worked out for the model's domain as a whole. Choose regional subdomains, as in the validation, to work them out for each region too, and cut a box out of the domain if you want only part of it. The long-term and the seasonal time series share these, and the stations are not cut by the box.</p>
+        <div class="g-row">
+          <select class="s-select" id="area-subregions" aria-label="Which regional subdomains do you want?">
+            <option value="">None</option>
+            <option value="nwes">Northwest European Shelf subregions</option>
+            <option value="global">Global subregions</option>
+            <option value="file">A .nc file of your own…</option>
+          </select>
+        </div>
+        <label class="g-row" id="area-row-file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="area-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off"></label>
+        <p class="analyze-msg" id="area-msg-subregions"></p>
+        <div class="g-row span-row">
+          <span class="span-row__label">Longitude</span>
+          <input class="s-input is-num" id="area-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false">
+          <span class="dash">–</span>
+          <input class="s-input is-num" id="area-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false">
+        </div>
+        <div class="g-row span-row">
+          <span class="span-row__label">Latitude</span>
+          <input class="s-input is-num" id="area-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false">
+          <span class="dash">–</span>
+          <input class="s-input is-num" id="area-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false">
+        </div>
+        <p class="analyze-msg" id="area-msg-subset"></p>
+      </div>
+      <div class="analyze-stations" id="clim-stations" hidden>
+        <h3>Stations <span class="own-opt">Optional</span></h3>
+        <p class="analyze-dialog__intro">Add places to work the series out at too: the name of each and its longitude and latitude. The nearest cell of the model with values is used. The stations are the same for the long-term and the seasonal time series.</p>
+        <table>
+          <thead><tr><th scope="col">Name</th><th scope="col">Longitude</th><th scope="col">Latitude</th><th scope="col" aria-label="Remove"></th></tr></thead>
+          <tbody id="clim-stations-body"></tbody>
+        </table>
+        <button type="button" class="btn btn--ghost" id="clim-stations-add">Add a station</button>
+        <p class="analyze-msg" id="clim-stations-msg"></p>
+      </div>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost analyze-remove-analysis" id="clim-remove" hidden>Remove this analysis</button>
+      <button type="button" class="btn btn--ghost" id="clim-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="clim-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="picker analyze-dialog" id="phen-dialog" hidden>
+  <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="phen-title">
+    <div class="picker__head">
+      <h2 id="phen-title">Phenology</h2>
+    </div>
+    <div class="analyze-dialog__body">
+      <p class="analyze-dialog__intro">The time of the seasonal peak at the surface: in each grid cell, the day of the year with the highest value in the variable's daily climatology over the years from Start to End. It needs daily output. Tick the variables to work it out for, and give the years.</p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked, and the years of each variable ticked.</span></p>
+      <table>
+        <thead><tr><th scope="col">Model variable <span class="own-req">Tick at least one</span></th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th></tr></thead>
+        <tbody id="phen-body"></tbody>
+      </table>
+      <p class="analyze-msg is-rows" id="phen-msg" role="status" aria-live="polite"></p>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost analyze-remove-analysis" id="phen-remove" hidden>Remove this analysis</button>
+      <button type="button" class="btn btn--ghost" id="phen-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="phen-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="picker analyze-dialog" id="trans-dialog" hidden>
+  <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="trans-title">
+    <div class="picker__head">
+      <h2 id="trans-title">Transects</h2>
+    </div>
+    <div class="analyze-dialog__body">
+      <p class="analyze-dialog__intro">The model's values along straight lines. Each variable has transects of its own: tick the variables to work transects out for, add as many transects as you like to each, and choose what to work out along each one, and the years of each.</p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked; for each transect, where it starts and ends, at least one of <b>Surface climatology</b>, <b>Vertical climatology</b> and <b>Trends</b>, and the years of each of them.</span></p>
+      <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
+      <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. <strong>Surface climatology</strong> is the mean of each month of the year along it, <strong>Vertical climatology</strong> a section of the annual mean through the water column, and <strong>Trends</strong> how the surface changed over the years.</p>
+      <div class="analyze-thickness" id="trans-thickness-row" hidden>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" list="trans-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+        <div id="trans-thickness-picker"></div>
+        <p class="analyze-msg" id="trans-thickness-msg"></p>
+        <datalist id="trans-thickness-options"></datalist>
+        <p class="analyze-dialog__intro">A vertical section needs to know where each cell is. With <code>z_level</code> the model's levels are the depths. With a thickness, each cell is placed at its depth, from the top of the water column, and the section is put on evenly spaced depths.</p>
+      </div>
+      <div class="transect-vars" id="trans-body"></div>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost analyze-remove-analysis" id="trans-remove" hidden>Remove this analysis</button>
+      <button type="button" class="btn btn--ghost" id="trans-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="trans-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div class="picker" id="leftovers" hidden>
   <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="leftovers-title">
     <div class="picker__head">
@@ -1369,6 +1736,12 @@
     report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 14.5 2 2 4-4.5"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11.5v5M9.5 14h5"/></svg>',
+    analyze: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M7 12l2-2.5 2 1.5 2.5-3"/></svg>',
+    climatology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>',
+    phenology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M4 17c3 0 4-10 8-10s5 10 8 10"/><path d="M12 4v3" stroke-dasharray="1.5 2"/></svg>',
+    longterm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7 16 3-2.5 3 1 4-5 2-1.5"/><path d="M17 8h3v3"/></svg>',
+    seasonal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c1.5-6 3.5-6 6 0s4.5 6 6 0c1-3 2-4.2 3-4.5"/><path d="M3 20h18"/><path d="M8 20v-1.5M12 20v-1.5M16 20v-1.5"/></svg>',
+    transect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6 17.6 6.4"/><path d="M3 3v6M3 3h6" opacity=".45"/></svg>',
     warn: ICONS.warn,
     check: ICONS.check,
   };
@@ -1379,6 +1752,7 @@
     matchup: "Matching up",
     validate: "Building the report",
     compare: "Comparing the validations",
+    analyze: "Analysing the simulation",
   };
 
   function depthText(depth) {
@@ -1425,10 +1799,17 @@
   function title() {
     const run = state.run;
     switch (state.view) {
-      case "start": return "";  // the cards speak for themselves
+      case "home": return "";  // the cards speak for themselves
+      case "start": return "";
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
-      case "setup": return "What kind of datasets do you want to use for validation?";
+      case "setup": return state.action === "analyze" ? "Tell OceanVal about your simulation"
+        : "What kind of datasets do you want to use for validation?";
+      case "analyze_variables": return "What variables do you want to analyse?";
+      case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
+        && !state.analyze.time_shift.choice ? "Are the model's times at the end of each mean?"
+        : "Check the files of each variable";
+      case "analyze_options": return "What do you want to work out?";
       case "own_data": return "";  // asked on the page itself
       case "register_kind": return "Which kind of data is your recipe for?";
       case "register_point": return "Register a point data recipe";
@@ -1485,9 +1866,11 @@
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
       state.demo && state.demo.status, demoKey(), Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
-      state.register.saved.length].join("|");
+      state.register.saved.length, analyzeFilesReady()].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
+      if (view === "analyze_variables") refreshAnalyzeVariables();
+      if (view === "analyze_options") renderAnalyzeOptions();
       return;
     }
     barShown = key;
@@ -1502,9 +1885,26 @@
     } else if (view === "demo_instructions") {
       actions.push(button("Back", "ghost", () => post("api/back")),
         button("Continue", "primary", () => post("api/demo_continue"), { id: "demo-continue" }));
+    } else if (view === "start") {
+      // to the landing page
+      actions.push(button("Back", "ghost", () => post("api/back")));
     } else if (view === "setup") {
-      actions.push(button("Back", "ghost", () => post("api/back")),
+      // an analysis keeps its boxes, for when it is reached again
+      actions.push(button("Back", "ghost", () => post("api/back", state.action === "analyze" ? { form: setup } : {})),
         button("Continue", "primary", submitSetup, { id: "continue" }));
+    } else if (view === "analyze_variables") {
+      // with the rows, which are shown again as they are
+      actions.push(button("Back", "ghost", () => post("api/back", { rows: readAnalyzeRows() })),
+        button("Continue", "primary", submitAnalyzeVariables, { id: "av-continue", disabled: true }));
+    } else if (view === "analyze_files") {
+      actions.push(button("Back", "ghost", () => post("api/back")),
+        button("Continue", "primary", async () => {
+          const reply = await post("api/analyze_files");
+          if (!reply.ok) toast(reply.error || "That cannot be done now.");
+        }, { id: "af-continue", disabled: !analyzeFilesReady() }));
+    } else if (view === "analyze_options") {
+      actions.push(button("Back", "ghost", () => post("api/back")),
+        button("Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }));
     } else if (view === "register_kind") {
       actions.push(button("Back", "ghost", () => post("api/back")));
       if (state.register.saved.length) actions.push(button("Finish", "primary", () => post("api/register_done")));
@@ -1605,6 +2005,8 @@
     $("actions").replaceChildren(...actions);
     $("bar").hidden = actions.length === 0;
     if (view === "setup") refreshSetup();
+    if (view === "analyze_variables") refreshAnalyzeVariables();
+    if (view === "analyze_options") renderAnalyzeOptions();
     // the new button is held back as the transect says
     if (view === "validate" || view === "report_options") refreshValidate();
     if (view === "compare") refreshCompare();
@@ -1613,7 +2015,8 @@
   }
 
   // ---- the views ----
-  const VIEWS = { start: "view-start", demo: "view-demo", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
+  const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
+    analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
     own_future: "view-own-future",
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
@@ -1633,8 +2036,20 @@
     } else if (view === "validate" || view === "report_options") {
       fillValidate();
       $(view === "validate" ? "v-data_dir" : "v-lon_min").focus();
+    } else if (view === "home") {
+      $("home-analyze").focus();
     } else if (view === "start") {
-      document.querySelector(".choice").focus();
+      document.querySelector("#view-start .choice").focus();
+    } else if (view === "analyze_variables") {
+      // built afresh from what the server kept, once the simulation is read
+      analyzeVariables.built = false;
+      analyzeVariables.busy = false;
+      $("av-rows").replaceChildren();
+    } else if (view === "analyze_files") {
+      analyzeFiles.key = null;
+      analyzeFiles.shift = null;
+    } else if (view === "analyze_options") {
+      $("ao-climatology").focus();
     } else if (view === "demo") {
       $("demo-choose").scrollIntoView({ block: "start" });
     } else if (view === "units_table") {
@@ -1702,6 +2117,9 @@
     if (state.view === "register_gridded") renderRegister("gridded");
     // the units are read after the step is shown
     if (state.view === "units_table" && !unitsFilled && state.units.rows) fillUnits();
+    if (state.view === "analyze_variables") renderAnalyzeVariables();
+    if (state.view === "analyze_files") renderAnalyzeFiles();
+    if (state.view === "analyze_options") renderAnalyzeOptions();
     if (VIEWS[state.view] === "view-run") renderRun();
     if (state.view === "script_saved") renderSavedScript();
     if (!state.demo) {
@@ -1732,7 +2150,7 @@
   });
 
   // ---- 1: choosing what to do ----
-  document.querySelectorAll("#view-start .choice").forEach((choice) => {
+  document.querySelectorAll("#view-start .choice, #view-home .choice").forEach((choice) => {
     choice.addEventListener("click", () => post("api/choose", { action: choice.dataset.action }));
   });
 
@@ -1927,7 +2345,7 @@
     recentToggle.hidden = !recent.length;
     $("f-simdir-combo").classList.toggle("has-recent", recent.length > 0);
     recentList.replaceChildren(
-      el("li", { class: "combo__head", role: "presentation", text: "Validated before" }),
+      el("li", { class: "combo__head", role: "presentation", text: state.action === "analyze" ? "Used before" : "Validated before" }),
       ...recent.map((dir) => el("li", {
         class: "combo__option", role: "option", "aria-selected": "false", title: dir, text: dir,
         // mousedown, so the box keeps its focus
@@ -1975,9 +2393,18 @@
     $("f-overwrite").checked = Boolean(setup.overwrite);
     segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
     $("f-out_dir").placeholder = state.cwd;
-    $("f-out_dir-label").textContent = state.action === "matchup"
+    const analyzing = state.action === "analyze";
+    $("f-out_dir-label").textContent = analyzing ? "Where do you want the analysis to be saved?"
+      : state.action === "matchup"
       ? "Where do you want matchups to be saved?"
       : "Where do you want matchups and validation output to be saved?";
+    // an analysis has no observations, so no domain to choose
+    $("setup-domain").hidden = analyzing;
+    $("f-out-label").textContent = analyzing ? "What do you want the analysis script to be called"
+      : "What do you want the matchup script to be called";
+    $("f-out-intro").textContent = analyzing
+      ? "This is created to produce a fully reproducible version of this analysis that can be run from the command line. You will not need to run this, and the file is saved for completeness."
+      : "This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.";
     setupErrors = {};
     // the demo's one year is not to be widened to the years its file covers
     autoYears = Boolean(setup.start && setup.end) && !state.demo;
@@ -2043,13 +2470,15 @@
     else if (probe && probe.directory === "missing") errors.simdir = "There is no directory at this path.";
     if (!isInteger(setup.ndown) || +setup.ndown < 0) errors.ndown = errors.ndown || (text("ndown") ? "This must be a whole number, 0 or more." : "");
     else if (probe && probe.directory === "found" && probe.files === 0) errors.ndown = errors.ndown || "";
-    for (const name of ["start", "end"]) {
+    // an analysis chooses its years later, for each variable, and has no domain
+    const analyzing = state.action === "analyze";
+    for (const name of analyzing ? [] : ["start", "end"]) {
       if (!isInteger(setup[name])) errors[name] = errors[name] || (text(name) ? `${name === "start" ? "Start" : "End"} must be a year, e.g. 2011.` : "");
     }
-    if (!errors.start && !errors.end && +setup.end < +setup.start) errors.end = "End must not be before start.";
+    if (!errors.start && !errors.end && +setup.end < +setup.start && !analyzing) errors.end = "End must not be before start.";
     if (!errors.out_dir && probe && probe.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
     if (!text("out")) errors.out = errors.out || "";
-    if (!setup.domain) errors.domain = errors.domain || "";
+    if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
     return errors;
   }
 
@@ -2103,12 +2532,20 @@
       }
     }
     if (String(setup.exclude).trim() || String(setup.require).trim()) {
-      simulation.push(line("Only file names are checked, not directories. The filters are passed on to matchup, too."));
+      simulation.push(line(`Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
     message("m-simulation", simulation, false);
 
     if (errors.out_dir) {
       message("m-out_dir", [line(errors.out_dir, "error")], true);
+    } else if (state.action === "analyze") {
+      const saved = "The analysis will be saved in oceanval_analysis, inside this directory.";
+      const lines = [line(String(setup.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
+      if (probe && probe.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
+      if (probe && probe.out_dir_has_analysis) {
+        lines.push(line("There is an analysis here already, from an earlier run. It will be replaced: choose another directory to keep it.", "warn"));
+      }
+      message("m-out_dir", lines);
     } else {
       const saved = state.action === "matchup"
         ? "The matchups will be saved in oceanval_matchups, inside this directory."
@@ -2120,10 +2557,10 @@
       }
       message("m-out_dir", lines);
     }
-    $("row-overwrite").hidden = !(probe && probe.out_dir_has_matchups);
+    $("row-overwrite").hidden = state.action === "analyze" || !(probe && probe.out_dir_has_matchups);
 
     if (errors.out) message("m-out", [line(errors.out, "error")], true);
-    else if (probe && probe.out_exists) message("m-out", [line("This file already exists, and will be replaced. Unless you plan to run this matchup file yourself, there is no need to worry about the name.", "warn")]);
+    else if (probe && probe.out_exists) message("m-out", [line(`This file already exists, and will be replaced. Unless you plan to run this ${state.action === "analyze" ? "analysis" : "matchup"} file yourself, there is no need to worry about the name.`, "warn")]);
     else message("m-out", []);
 
     const blocked = Object.keys(errors).length > 0;
@@ -2149,6 +2586,1031 @@
     const banner = $("setup-error");
     banner.hidden = !state.setup.error;
     if (state.setup.error) banner.replaceChildren(icon("error"), el("span", { text: state.setup.error }));
+  }
+
+  // ---- Analyze: the variables to analyse, their files, and what to work out (see oceanval.analysis_app) ----
+  // a name as analyze() names files after it (see oceanval.analysis.variable_key)
+  function variableKey(name) {
+    const key = String(name).trim().replace(/[^0-9a-zA-Z]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
+    return key && /^[0-9]/.test(key) ? `v_${key}` : key;
+  }
+
+  const modelNames = (text) => String(text).split("+").map((name) => name.trim()).filter(Boolean);
+  const analyzePicker = () => state.analyze.picker || { available: [], long_names: {}, levels: {} };
+
+  // a time resolution (see oceanval.time_res.label) in words
+  function resolutionText(res) {
+    if (!res) return "not known";
+    if (res === "monthly") return "monthly";
+    if (res === "1d") return "daily";
+    const days = /^(\d+)d$/.exec(res);
+    return days ? `every ${days[1]} days` : res;
+  }
+
+  // the rows of the variables step as they are on the page, and whether they
+  // have been built from what OceanVal sent since the step was reached
+  const analyzeVariables = { rows: [], built: false, busy: false };
+
+  function variableRow(row) {
+    const item = {
+      name: row.name || "", model_variable: row.model_variable || "", filled: Boolean(row.filled), server: {},
+    };
+    const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Chlorophyll",
+      spellcheck: "false", autocomplete: "off", "aria-label": "Your name for the variable" });
+    const model = el("input", { class: "s-input is-mono", type: "text", value: item.model_variable, placeholder: "e.g. P1_Chl+P2_Chl",
+      spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": "The model variable holding it" });
+    // what OceanVal filled in is red and bold until it is changed
+    if (item.filled) [name, model].forEach((box) => box.classList.add("is-oceanval"));
+    const yours = () => {
+      item.server = {};
+      if (!item.filled) return;
+      item.filled = false;
+      [name, model].forEach((box) => box.classList.remove("is-oceanval"));
+    };
+    const picked = analyzePicker();
+    const picker = OceanValGUI.variablesPicker({
+      available: picked.available, longNames: picked.long_names, multi: true,
+      get: () => item.model_variable,
+      set: (value) => {
+        item.model_variable = model.value = value;
+        yours();
+        if (item.sync) item.sync();
+        refreshAnalyzeVariables();
+      },
+    });
+    item.sync = picker ? picker.sync : null;
+    name.addEventListener("input", () => { item.name = name.value; yours(); refreshAnalyzeVariables(); });
+    model.addEventListener("input", () => {
+      item.model_variable = model.value;
+      yours();
+      if (item.sync) item.sync();
+      refreshAnalyzeVariables();
+    });
+    const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: "Remove this variable", "aria-label": "Remove this variable" });
+    remove.addEventListener("click", () => {
+      analyzeVariables.rows.splice(analyzeVariables.rows.indexOf(item), 1);
+      item.tr.remove();
+      refreshAnalyzeVariables();
+    });
+    item.nameMsg = el("p", { class: "analyze-msg" });
+    item.modelMsg = el("p", { class: "analyze-msg" });
+    item.nameBox = name;
+    item.modelBox = model;
+    item.tr = el("tr", {},
+      el("td", { "data-label": "Your name" }, name, item.nameMsg),
+      el("td", { "data-label": "Model name" }, model, item.modelMsg, picker ? picker.details : null),
+      el("td", {}, remove));
+    return item;
+  }
+
+  function buildAnalyzeVariables() {
+    const rows = state.analyze.rows && state.analyze.rows.length ? state.analyze.rows : [{}];
+    analyzeVariables.rows = rows.map(variableRow);
+    $("av-rows").replaceChildren(...analyzeVariables.rows.map((item) => item.tr));
+    analyzeVariables.built = true;
+    refreshAnalyzeVariables();
+  }
+
+  function readAnalyzeRows() {
+    return analyzeVariables.rows.map((item) => ({ name: item.name, model_variable: item.model_variable, filled: item.filled }));
+  }
+
+  // what is wrong with each row, as far as the page can tell: [nameError, modelError]
+  function analyzeRowProblems() {
+    const available = new Set(analyzePicker().available);
+    const keys = {};
+    return analyzeVariables.rows.map((item) => {
+      const name = item.name.trim();
+      const names = modelNames(item.model_variable);
+      let nameError = item.server.name || "";
+      let modelError = item.server.model_variable || "";
+      if (!name && !names.length) return ["", ""];
+      if (!nameError) {
+        const key = variableKey(name);
+        if (!name) nameError = "Give this variable a name.";
+        else if (!key) nameError = "The name needs a letter or a digit in it.";
+        else if (keys[key]) nameError = `This is the same name as ${keys[key]}: give it another.`;
+        else keys[key] = name;
+      }
+      if (!modelError) {
+        const missing = names.filter((part) => !available.has(part));
+        if (!names.length) modelError = "Give the model variable holding it.";
+        else if (missing.length) modelError = `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not in the simulation's output.`;
+      }
+      return [nameError, modelError];
+    });
+  }
+
+  function refreshAnalyzeVariables() {
+    const problems = analyzeRowProblems();
+    let complete = 0;
+    analyzeVariables.rows.forEach((item, index) => {
+      const [nameError, modelError] = problems[index];
+      item.nameMsg.textContent = nameError;
+      item.modelMsg.textContent = modelError;
+      item.nameBox.classList.toggle("is-invalid", Boolean(nameError));
+      item.modelBox.classList.toggle("is-invalid", Boolean(modelError));
+      if (item.name.trim() && item.model_variable.trim() && !nameError && !modelError) complete += 1;
+    });
+    const wrong = problems.some(([a, b]) => a || b);
+    $("av-msg").textContent = !complete && !wrong ? "Add a variable to analyse." : "";
+    const next = $("av-continue");
+    if (next) {
+      next.disabled = analyzeVariables.busy || wrong || !complete || !analyzeVariables.built;
+      next.textContent = analyzeVariables.busy ? "Checking…" : "Continue";
+    }
+  }
+
+  function renderAnalyzeVariables() {
+    const found = state.analyze.found;
+    const reading = !found || found.status === "reading";
+    $("av-reading").hidden = !reading;
+    if (reading) {
+      const progress = (found && found.progress) || { done: 0, total: 0 };
+      $("av-reading-text").textContent = progress.total
+        ? `OceanVal is reading the variables of the simulation's output files: ${progress.done} of ${plural(progress.total, "kind")} of file read.`
+        : "OceanVal is finding the simulation's output files, and the variables in them.";
+    }
+    const failed = Boolean(found) && found.status === "failed";
+    $("av-error").hidden = !failed;
+    if (failed) $("av-error").replaceChildren(icon("error"), el("span", { text: `${found.error} Go back to check the simulation.` }));
+    const done = Boolean(found) && found.status === "done";
+    $("av-main").hidden = !done;
+    $("av-refilled").hidden = !state.analyze.refilled;
+    if (done && !analyzeVariables.built) buildAnalyzeVariables();
+    else if (analyzeVariables.built) refreshAnalyzeVariables();
+  }
+
+  $("av-add").addEventListener("click", () => {
+    const item = variableRow({});
+    analyzeVariables.rows.push(item);
+    $("av-rows").append(item.tr);
+    refreshAnalyzeVariables();
+    item.nameBox.focus();
+  });
+
+  async function submitAnalyzeVariables() {
+    analyzeVariables.busy = true;
+    refreshAnalyzeVariables();
+    const sent = analyzeVariables.rows.slice();
+    const reply = await post("api/analyze_variables", { rows: readAnalyzeRows() });
+    analyzeVariables.busy = false;
+    if (!reply.ok) {
+      const errors = reply.errors || {};
+      sent.forEach((item, index) => { item.server = errors[String(index)] || {}; });
+      if (errors.rows) $("av-msg").textContent = errors.rows;
+      if (reply.error) toast(reply.error);
+    }
+    refreshAnalyzeVariables();
+  }
+
+  // ---- Analyze: the files of the variables, and the gaps in their dates ----
+  const analyzeFiles = { key: null, rows: {}, shift: null };
+
+  function fillAnalyzeShift(shift) {
+    const key = JSON.stringify([shift.rows, shift.choice]);
+    if (analyzeFiles.shift === key) return;
+    analyzeFiles.shift = key;
+    const suggested = state.analyze.suggested_shift;
+    $("af-suggested").textContent = suggested;
+    $("af-shift-label").textContent = `Shift the simulation's times ${suggested}`;
+    $("af-bounds").hidden = shift.rows.length > 0 && shift.rows.every((row) => row.has_bounds);
+    $("af-mode-shift").checked = shift.choice === "shift";
+    $("af-mode-keep").checked = shift.choice === "keep";
+    $("af-shift-body").replaceChildren(...shift.rows.map((row) => el("tr", {},
+      el("td", {}, el("strong", { text: row.title }), el("br"), el("span", { class: "is-mono", text: row.model_variable })),
+      el("td", {}, el("span", { class: "is-mono", text: row.pattern })),
+      el("td", {}, ...dates(row.first, row.last)),
+      el("td", {}, el("span", { class: "ts-shifted" }, ...dates(row.first_shifted, row.last_shifted))),
+      el("td", {}, el("span", { text: row.reason }), el("br"),
+        el("span", { class: "ts-why", text: `cell_methods "${row.cell_methods}", ${row.has_bounds ? "time bounds" : "no time bounds"}` })))));
+  }
+
+  document.querySelectorAll("input[name=af-mode]").forEach((radio) =>
+    radio.addEventListener("change", () => post("api/analyze_time_shift", { choice: radio.value })));
+
+  function buildAnalyzeFiles() {
+    const placed = state.analyze.placed;
+    analyzeFiles.key = JSON.stringify(placed.map((row) => [row.name, row.model_variable, row.pattern]));
+    analyzeFiles.rows = {};
+    $("af-lede").replaceChildren("Simulation output found in ", el("code", { text: state.analyze.sim_dir || "" }),
+      ". OceanVal reads the dates of each variable's files, to find any gaps in them.");
+    let number = 0;
+    $("af-body").replaceChildren(...placed.flatMap((row) => {
+      const files = el("div", { class: "review__found" });
+      const resolution = el("td", { class: "is-centered" });
+      const datesCell = el("td", { class: "review__dates" });
+      const fold = el("tr", { class: "review__fold-row", id: `af-fold-${number++}`, hidden: true },
+        el("td", { class: "review__fold", colspan: "5" }));
+      const main = el("tr", { "data-variable": row.name },
+        el("td", {}, el("strong", { text: row.name })),
+        el("td", {}, el("span", { class: "is-mono", text: row.model_variable })),
+        el("td", {}, el("span", { class: "is-mono", text: row.pattern }), files),
+        resolution,
+        datesCell);
+      analyzeFiles.rows[row.name] = { row, main, fold, files, resolution, dates: datesCell, toggle: null, open: false, drawn: null };
+      return [main, fold];
+    }));
+  }
+
+  function drawAnalyzeRow(shown, found, status) {
+    const { row } = shown;
+    const group = found && found.groups && found.groups[0] && found.groups[0].dates ? found.groups[0] : null;
+    const res = (found && found.time_res) || row.time_res;
+    shown.resolution.replaceChildren(el("span", { text: res ? resolutionText(res) : "—" }));
+    const list = button("List files", "text", () => openAnalyzeFiles(shown),
+      { class: "btn btn--text btn--small", "aria-haspopup": "dialog", "aria-label": `List the files for ${row.name}` });
+    shown.toggle = null;
+    if (!group) {
+      shown.files.replaceChildren(el("div", { class: "review__files" }, el("small", { text: `${plural(row.files, "file")} found` })));
+      shown.dates.replaceChildren(status === "running" || !status
+        ? el("span", { class: "review__wait" }, el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Reading the dates…")
+        : el("p", { class: "review__muted", text: "Not known" }));
+      shown.fold.firstChild.replaceChildren();
+      showFold(shown);
+      return;
+    }
+    const dated = group.dates;
+    shown.files.replaceChildren(
+      el("div", { class: "review__files" },
+        el("small", { text: plural(group.count, "file").replace(/^\d+/, group.count.toLocaleString()) }), list),
+      dated.first ? el("small", { class: "review__span",
+        text: `${dated.first} to ${dated.last}, ${plural(dated.steps, "time step").replace(/^\d+/, dated.steps.toLocaleString())}` }) : null);
+    const body = datesDetail(dated);
+    shown.fold.firstChild.replaceChildren(...(body.length
+      ? [el("div", { class: "review__fold-body", role: "region", "aria-label": `The dates of ${row.name}` }, ...body)] : []));
+    const verdict = dated.gaps
+      ? el("p", { class: "review__verdict is-gaps" }, icon("warn"), "Some dates appear to be missing")
+      : el("p", { class: "review__verdict is-ok" }, icon("check"), dated.issues.length ? "No dates are missing" : dated.summary);
+    if (body.length) {
+      const grid = dated.gaps && dated.years.length > 0;
+      shown.toggle = button("", "text", () => {
+        shown.open = !shown.open;
+        showFold(shown);
+      }, { class: "btn btn--text btn--small review__toggle", "aria-controls": shown.fold.id, "data-what": grid ? "the months" : "the notes" });
+    }
+    shown.dates.replaceChildren(verdict, ...(shown.toggle ? [shown.toggle] : []));
+    showFold(shown);
+  }
+
+  function renderAnalyzeFiles() {
+    const analysis = state.analyze;
+    const shift = analysis.time_shift || { status: "checking", rows: [], choice: null };
+    $("af-stamps").hidden = shift.status !== "checking";
+    const asked = shift.status === "asked";
+    $("af-shift").hidden = !asked;
+    if (asked) fillAnalyzeShift(shift);
+    const shown = shift.status === "none" || (asked && Boolean(shift.choice));
+    $("af-review").hidden = !shown;
+    if (!shown) return;
+    const key = JSON.stringify(analysis.placed.map((row) => [row.name, row.model_variable, row.pattern]));
+    if (analyzeFiles.key !== key) buildAnalyzeFiles();
+    const check = analysis.check;
+    const running = !check || check.status === "running";
+    $("af-progress").hidden = !running;
+    if (running) {
+      const progress = (check && check.progress) || { done: 0, total: 0 };
+      const share = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+      $("af-progress-fill").style.width = `${share}%`;
+      $("af-progress-bar").setAttribute("aria-valuenow", String(share));
+      $("af-progress-label").textContent = progress.total
+        ? `Reading the dates of ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} ${progress.total === 1 ? "file" : "files"}, to find any dates missing from them.`
+        : "Starting to read the dates of the files…";
+    }
+    const failed = Boolean(check) && check.status === "failed";
+    $("af-note").hidden = !failed;
+    if (failed) {
+      $("af-note").replaceChildren(icon("error"), el("span", {
+        text: `The dates of the files could not be read: ${check.error || "the check stopped."} OceanVal reads them again as it analyses the simulation.`,
+      }));
+    }
+    const found = {};
+    for (const row of (check && check.rows) || []) found[row.variable] = row;
+    for (const shownRow of Object.values(analyzeFiles.rows)) {
+      const status = check ? check.status : null;
+      const drawn = JSON.stringify([found[shownRow.row.name] || null, status]);
+      if (shownRow.drawn === drawn) continue;
+      shownRow.drawn = drawn;
+      drawAnalyzeRow(shownRow, found[shownRow.row.name], status);
+    }
+  }
+
+  function analyzeFilesReady() {
+    const shift = state.analyze.time_shift || {};
+    const check = state.analyze.check;
+    if (shift.status === "checking" || !shift.status) return false;
+    if (shift.status === "asked" && !shift.choice) return false;
+    return Boolean(check) && check.status !== "running";
+  }
+
+  async function openAnalyzeFiles(shown) {
+    const { row } = shown;
+    filesDialog.opener = document.activeElement;
+    const number = ++filesDialog.number;
+    $("files-title").textContent = `${row.name}: files`;
+    $("files-notice").hidden = true;
+    $("files-intro").replaceChildren();
+    $("files-list").replaceChildren(el("p", { class: "picker__empty", text: "Loading…" }));
+    $("files").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    $("files-close").focus();
+    let found = null;
+    try {
+      const response = await fetch(`api/analyze_check_files?${query({ variable: row.name })}`, { cache: "no-store" });
+      const reply = await response.json();
+      if (reply.ok) found = reply.files;
+    } catch (error) {
+      // said below
+    }
+    if (number !== filesDialog.number || $("files").hidden) return;
+    if (!found) {
+      $("files-list").replaceChildren(el("p", { class: "picker__empty", text: "The files are not known yet." }));
+      return;
+    }
+    $("files-intro").replaceChildren(el("span", {}, `${plural(found.length, "file")} in `,
+      el("code", { text: state.analyze.sim_dir || "" }), ` ${found.length === 1 ? "matches" : "match"} `,
+      el("code", { text: row.pattern }), "."));
+    $("files-list").replaceChildren(...found.map((name) => el("p", { class: "picker__file", text: name })));
+    $("files-list").scrollTop = 0;
+  }
+
+  // ---- Analyze: what to work out, each chosen in a pop-out ----
+  // The climatology and the two time series are chosen in the same pop-out,
+  // with the same boxes, so it is built for each (see openAnalyzeDialog).
+  const ANALYSES = ["climatology", "phenology", "long_term", "seasonal", "transects"];
+  const LAYERED = ["climatology", "long_term", "seasonal"];
+  const SERIES = ["long_term", "seasonal"];
+  const KIND_DIALOGS = { climatology: "clim-dialog", long_term: "clim-dialog", seasonal: "clim-dialog", phenology: "phen-dialog", transects: "trans-dialog" };
+  const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal time series", transects: "transects" };
+  const KIND_TITLES = { climatology: "Climatology", phenology: "Phenology", long_term: "Long-term time series", seasonal: "Seasonal time series", transects: "Transects" };
+  const KIND_NOT_CHOSEN = {
+    climatology: "The annual mean, from the mean of each month of the year, at the surface, the bottom or through the water column. Not chosen yet.",
+    phenology: "The time of the seasonal peak at the surface, from a daily climatology. Not chosen yet.",
+    long_term: "The mean of each year, over the model's domain, its regions and at stations. Not chosen yet.",
+    seasonal: "The mean of each month of each year, and the mean seasonal cycle, over the model's domain, its regions and at stations. Not chosen yet.",
+    transects: "The model's values along straight north–south or east–west lines, as many as you like: their mean, their trend, or the change between the first and last years. Not chosen yet.",
+  };
+  const KIND_INTROS = {
+    climatology: "The mean of each month of the year, and the annual mean, over the years from Start to End. Each is mapped.",
+    long_term: "The mean of each year from Start to End, which is the mean of its months, over the model's domain as a whole, over each region you choose on the page, and at each station.",
+    seasonal: "The mean of each month from Start to End, and so the mean seasonal cycle, over the model's domain as a whole, over each region you choose on the page, and at each station.",
+  };
+  const analyzeDialog = { kind: null, opener: null, rows: {}, thickness: null, stations: [] };
+
+  function yearSpan(start, end) {
+    return String(start) === String(end) ? String(start) : `${start}–${end}`;
+  }
+
+  function analyzeSummary(kind) {
+    const chosen = state.analyze.chosen[kind];
+    if (!chosen) return KIND_NOT_CHOSEN[kind];
+    if (kind === "transects") {
+      const where = Object.entries(chosen.rows).map(([name, lines]) => `${name}, ${lines.length} transect${lines.length === 1 ? "" : "s"}`);
+      return `For ${where.join("; ")}.`;
+    }
+    const names = Object.entries(chosen.rows).map(([name, entry]) => {
+      if (kind === "phenology") return `${name}, ${yearSpan(entry.start, entry.end)}`;
+      const layers = [entry.surface ? "surface" : null, entry.bottom ? "bottom" : null,
+        entry.water_column ? (entry.water_column === "mean" ? "vertical mean" : "depth integral") : null].filter(Boolean);
+      return `${name}, ${yearSpan(entry.start, entry.end)} (${layers.join(" and ")})`;
+    });
+    return `For ${names.join("; ")}.`;
+  }
+
+  function renderAnalyzeOptions() {
+    for (const kind of ANALYSES) {
+      const tile = $(`ao-${kind}`);
+      const chosen = Boolean(state.analyze.chosen[kind]);
+      tile.classList.toggle("is-chosen", chosen);
+      tile.querySelector(".choice__tag").hidden = !chosen;
+      $(`ao-${kind}-text`).textContent = analyzeSummary(kind);
+    }
+    fillCores();
+    fillMissing();
+    fillFigureCode();
+    updateRun();
+  }
+
+  // ---- cores: there is no default, so the analysis cannot be run until they are given ----
+  const coresGiven = () => /^[1-9][0-9]*$/.test($("ao-cores").value.trim());
+
+  function updateRun() {
+    const run = $("ao-run");
+    $("ao-need").hidden = ANALYSES.some((kind) => state.analyze.chosen[kind]);
+    if (run) run.disabled = !(ANALYSES.some((kind) => state.analyze.chosen[kind]) && coresGiven() && figureCodeGiven());
+  }
+
+  // a box being typed in, or whose text has not been sent yet, is not filled in from the state
+  let coresTimer = null;
+  function fillCores() {
+    if (document.activeElement !== $("ao-cores") && coresTimer === null) $("ao-cores").value = state.analyze.cores || "";
+  }
+
+  $("ao-cores").addEventListener("input", () => {
+    updateRun();
+    clearTimeout(coresTimer);
+    coresTimer = setTimeout(async () => {
+      coresTimer = null;
+      const reply = await post("api/analyze_option", { kind: "cores", form: { cores: $("ao-cores").value } });
+      // an empty box is not an error yet: it is what it starts as
+      $("ao-cores-msg").textContent = !reply.ok && $("ao-cores").value.trim() ? ((reply.errors || {}).cores || "") : "";
+    }, 350);
+  });
+
+  // ---- whether the report has code to reproduce its figures: nothing is chosen, and it must be answered ----
+  const figureCodeGiven = () => Boolean(document.querySelector('input[name="ao-code"]:checked'));
+  // the answer clicked, until the state has it
+  let figureCodeSent = null;
+
+  function fillFigureCode() {
+    const saved = state.analyze.figure_code || "";
+    if (figureCodeSent !== null && saved === figureCodeSent) figureCodeSent = null;
+    const choice = figureCodeSent !== null ? figureCodeSent : saved;
+    for (const value of ["yes", "no"]) $(`ao-code-${value}`).checked = choice === value;
+  }
+
+  for (const value of ["yes", "no"]) {
+    $(`ao-code-${value}`).addEventListener("change", async () => {
+      figureCodeSent = value;
+      $("ao-code-msg").textContent = "";
+      updateRun();
+      const reply = await post("api/analyze_option", { kind: "figure_code", form: { choice: value } });
+      if (!reply.ok) {
+        figureCodeSent = null;
+        $("ao-code-msg").textContent = (reply.errors || {}).figure_code || reply.error || "";
+        renderAnalyzeOptions();
+      }
+    });
+  }
+
+  // ---- what to treat as missing, which OceanVal assumes for an ERSEM simulation, as validate does ----
+  let missingTimer = null;
+  function fillMissing() {
+    const active = document.activeElement;
+    const missing = state.analyze.missing || {};
+    if (active !== $("ao-missing_from") && active !== $("ao-missing_to") && missingTimer === null) {
+      $("ao-missing_from").value = missing.from || "";
+      $("ao-missing_to").value = missing.to || "";
+    }
+    fillMissingClasses();
+  }
+
+  for (const name of ["from", "to"]) {
+    $(`ao-missing_${name}`).addEventListener("input", () => {
+      fillMissingClasses();
+      clearTimeout(missingTimer);
+      missingTimer = setTimeout(async () => {
+        missingTimer = null;
+        const reply = await post("api/analyze_option", {
+          kind: "missing", form: { from: $("ao-missing_from").value, to: $("ao-missing_to").value } });
+        const errors = reply.ok ? {} : reply.errors || {};
+        $("ao-missing-msg").textContent = errors.missing_from || errors.missing_to || "";
+      }, 350);
+    });
+  }
+
+  // typing over what OceanVal assumed makes it the user's
+  function fillMissingClasses() {
+    const assumed = Boolean(state.analyze.nemo_ersem) && $("ao-missing_from").value === "0" && $("ao-missing_to").value === "0";
+    $("ao-missing_from").classList.toggle("is-ersem", assumed);
+    $("ao-missing_to").classList.toggle("is-ersem", assumed);
+    $("ao-missing-ersem").hidden = !assumed;
+  }
+
+  // ---- the regions and area of the time series ----
+  const AREA_BOXES = ["subregions", "subregions_file", "lon_min", "lon_max", "lat_min", "lat_max"];
+
+  // the boxes hold what was last confirmed, and are read when a time series is confirmed
+  function fillArea() {
+    const area = state.analyze.area || {};
+    for (const name of AREA_BOXES) $(`area-${name}`).value = area[name] || "";
+    $("area-row-file").hidden = $("area-subregions").value !== "file";
+    showAreaErrors({});
+  }
+
+  function readArea() {
+    const area = {};
+    for (const name of AREA_BOXES) area[name] = $(`area-${name}`).value;
+    return area;
+  }
+
+  function showAreaErrors(errors) {
+    $("area-msg-subregions").textContent = errors.subregions || errors.subregions_file || "";
+    $("area-msg-subset").textContent = errors.lon_min || errors.lon_max || errors.lat_min || errors.lat_max || "";
+  }
+
+  $("area-subregions").addEventListener("change", () => {
+    $("area-row-file").hidden = $("area-subregions").value !== "file";
+  });
+
+  // a year box, empty until a year is typed: the year of the output it could be is only its hint
+  function yearBox(value, hint, label) {
+    return el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric", value: value || "",
+      placeholder: hint ? String(hint) : "", "aria-label": label, spellcheck: "false", autocomplete: "off" });
+  }
+
+  // the years of a variable's output, under its name
+  function outputYears(name) {
+    const years = placedRow(name).years;
+    return years ? el("small", { text: `Output from ${years[0]} to ${years[1]}` }) : null;
+  }
+
+  function placedRow(name) {
+    return state.analyze.placed.find((row) => row.name === name) || {};
+  }
+
+  function defaultYears(name) {
+    return placedRow(name).default_years || [null, null];
+  }
+
+  function climatologyRows(form, kind) {
+    analyzeDialog.rows = {};
+    const noun = KIND_NAMES[kind];
+    $("clim-body").replaceChildren(...state.analyze.placed.map((row) => {
+      const box = form.rows[row.name] || {};
+      const [startYear, endYear] = defaultYears(row.name);
+      const start = yearBox(box.start, startYear, `Start of the ${noun} of ${row.name}`);
+      const end = yearBox(box.end, endYear, `End of the ${noun} of ${row.name}`);
+      const surface = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the surface` });
+      surface.checked = Boolean(box.use) && Boolean(box.surface);
+      const column = row.levels > 1;
+      const bottom = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the bottom` });
+      bottom.checked = column && Boolean(box.use) && Boolean(box.bottom);
+      bottom.disabled = !column;
+      const water = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} through the water column` });
+      water.checked = column && Boolean(box.use) && Boolean(box.water_column);
+      water.disabled = !column;
+      const how = el("select", { class: "s-select", "aria-label": `How to take ${row.name} through the water column` },
+        el("option", { value: "", text: "Choose…" }),
+        el("option", { value: "mean", text: "Vertical mean" }), el("option", { value: "integral", text: "Depth integral" }));
+      how.value = box.how === "integral" || box.how === "mean" ? box.how : "";
+      const msg = el("p", { class: "analyze-msg" });
+      const tr = el("tr", {},
+        el("td", {}, el("strong", { text: row.name }), el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name), msg),
+        el("td", {}, start), el("td", {}, end),
+        el("td", {}, el("label", { class: "tick-label" }, surface, "Surface")),
+        el("td", {}, column
+          ? el("label", { class: "tick-label" }, bottom, "Bottom")
+          : el("small", { text: "No depth levels" })),
+        el("td", {}, column
+          ? el("div", {}, el("label", { class: "tick-label" }, water, "Water column"), how)
+          : el("small", { text: "No depth levels" })));
+      const refresh = () => {
+        how.disabled = !water.checked;
+        tr.classList.toggle("is-off", !surface.checked && !bottom.checked && !water.checked);
+        tr.classList.toggle("is-on", surface.checked || bottom.checked || water.checked);
+        how.classList.toggle("is-required", water.checked);
+        refreshThickness();
+        refreshConfirm();
+      };
+      surface.addEventListener("change", refresh);
+      bottom.addEventListener("change", refresh);
+      water.addEventListener("change", refresh);
+      analyzeDialog.rows[row.name] = { start, end, surface, bottom, water, how, msg, refresh };
+      refresh();
+      return tr;
+    }));
+  }
+
+  // Confirm needs a variable ticked: the surface, the bottom, the water column or more than one (the phenology's one tick)
+  function refreshConfirm() {
+    const kind = analyzeDialog.kind;
+    if (!kind) return;
+    const rows = Object.values(analyzeDialog.rows);
+    const layered = LAYERED.includes(kind);
+    const ticked = rows.some((row) => (layered ? row.surface.checked || row.bottom.checked || row.water.checked : row.use.checked));
+    const prefix = dialogPrefix(kind);
+    $(`${prefix}-confirm`).disabled = !ticked;
+    $(`${prefix}-msg`).textContent = ticked ? "" :
+      (layered ? "Tick Surface, Bottom, Water column, or more than one, for at least one variable." : "Tick at least one variable.");
+  }
+
+  function refreshThickness() {
+    if (analyzeDialog.kind === "transects") {
+      // a vertical section, of a variable that is ticked
+      const vertical = Object.values(analyzeDialog.rows).some((section) => section.use.checked && section.cards.some((card) => card.vertical.checked));
+      $("trans-thickness-row").hidden = !vertical;
+      return;
+    }
+    const any = Object.values(analyzeDialog.rows).some((row) => row.water && row.water.checked);
+    $("clim-thickness-row").hidden = !any;
+  }
+
+  // the cell thickness of another of the pop-outs that has been confirmed: there is one for all of them
+  function otherThickness(kind) {
+    for (const other of [...LAYERED, "transects"]) {
+      const form = state.analyze.forms[other];
+      if (other !== kind && state.analyze.chosen[other] && form && form.thickness) return form.thickness;
+    }
+    return "";
+  }
+
+  let thicknessPicker = null;
+  function fillThickness(form, kind) {
+    const prefix = dialogPrefix(kind);
+    const box = $(`${prefix}-thickness`);
+    const suggested = state.analyze.thickness_suggested;
+    box.value = form.thickness || otherThickness(kind);
+    // what it might be is only a hint: nothing is chosen for the user
+    box.placeholder = `e.g. ${suggested || "e3t"}, or ${state.analyze.z_level}`;
+    const picked = analyzePicker();
+    $(`${prefix}-thickness-options`).replaceChildren(el("option", { value: state.analyze.z_level }),
+      ...picked.available.filter((name) => /e3|thick/i.test(name)).map((name) => el("option", { value: name })));
+    thicknessPicker = OceanValGUI.variablesPicker({
+      available: picked.available, longNames: picked.long_names, multi: false,
+      get: () => box.value,
+      set: (value) => {
+        box.value = value;
+        if (thicknessPicker) thicknessPicker.sync();
+      },
+    });
+    $(`${prefix}-thickness-picker`).replaceChildren(...(thicknessPicker ? [thicknessPicker.details] : []));
+    $(`${prefix}-thickness-msg`).textContent = "";
+  }
+
+  for (const prefix of ["clim", "trans"]) {
+    $(`${prefix}-thickness`).addEventListener("input", () => {
+      if (thicknessPicker) thicknessPicker.sync();
+    });
+  }
+
+  // ---- the stations of the time series ----
+  function stationRow(values) {
+    const name = el("input", { class: "s-input is-name", type: "text", value: values[0] || "", placeholder: "e.g. L4",
+      "aria-label": "Name of the station", spellcheck: "false", autocomplete: "off" });
+    const lon = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[1] || "",
+      placeholder: "e.g. -4.217", "aria-label": "Longitude of the station", spellcheck: "false", autocomplete: "off" });
+    const lat = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[2] || "",
+      placeholder: "e.g. 50.25", "aria-label": "Latitude of the station", spellcheck: "false", autocomplete: "off" });
+    const msg = el("p", { class: "analyze-msg" });
+    const remove = el("button", { type: "button", class: "btn btn--ghost", "aria-label": "Remove this station", text: "×" });
+    const tr = el("tr", {}, el("td", {}, name, msg), el("td", {}, lon), el("td", {}, lat), el("td", {}, remove));
+    remove.addEventListener("click", () => {
+      analyzeDialog.stations = analyzeDialog.stations.filter((row) => row.tr !== tr);
+      tr.remove();
+    });
+    const row = { tr, name, lon, lat, msg };
+    analyzeDialog.stations.push(row);
+    return tr;
+  }
+
+  function stationRows() {
+    analyzeDialog.stations = [];
+    const given = (state.analyze.area && state.analyze.area.stations) || [];
+    $("clim-stations-body").replaceChildren(...given.map((values) => stationRow(values)));
+    $("clim-stations-msg").textContent = "";
+  }
+
+  $("clim-stations-add").addEventListener("click", () => {
+    const tr = stationRow(["", "", ""]);
+    $("clim-stations-body").append(tr);
+    tr.querySelector("input").focus();
+  });
+
+  function phenologyRows(form) {
+    analyzeDialog.rows = {};
+    $("phen-body").replaceChildren(...state.analyze.placed.map((row) => {
+      const box = form.rows[row.name] || {};
+      const daily = row.time_res === state.analyze.daily;
+      const [startYear, endYear] = defaultYears(row.name);
+      const use = el("input", { type: "checkbox", class: "tick", "aria-label": `The phenology of ${row.name}` });
+      use.checked = daily && Boolean(box.use);
+      use.disabled = !daily;
+      const start = yearBox(box.start, startYear, `Start of the phenology of ${row.name}`);
+      const end = yearBox(box.end, endYear, `End of the phenology of ${row.name}`);
+      const msg = el("p", { class: "analyze-msg" });
+      const tr = el("tr", {},
+        el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
+          el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name),
+          daily ? null : el("small", { text: `Needs daily output (this is ${resolutionText(row.time_res)})` }), msg),
+        el("td", {}, start), el("td", {}, end));
+      const refresh = () => {
+        tr.classList.toggle("is-off", !use.checked);
+        tr.classList.toggle("is-on", use.checked);
+        start.disabled = end.disabled = !daily;
+        refreshConfirm();
+      };
+      use.addEventListener("change", refresh);
+      analyzeDialog.rows[row.name] = { use, start, end, msg, refresh };
+      refresh();
+      return tr;
+    }));
+  }
+
+  // ---- the transects pop-out: a section for each variable, with a card for each of its transects ----
+  const TRANSECT_HOWS = [["absolute", "Absolute"], ["absolute_change", "Absolute change"], ["percentage_change", "Percentage change"]];
+  // the years of output each way of showing a trend needs, as analysis_transects has them
+  const TRANSECT_MIN_YEARS = { absolute: 3, absolute_change: 2, percentage_change: 2 };
+  const TRANSECT_END_BOXES = [["start_lon", "Longitude of the start", "e.g. -30"], ["end_lon", "Longitude of the end", "e.g. -30"],
+    ["start_lat", "Latitude of the start", "e.g. 0"], ["end_lat", "Latitude of the end", "e.g. 65"]];
+
+  // the years of one option of a transect: Start and End, which are only open once the option is chosen
+  function optionYears(values, option, name, hint) {
+    const box = (part, label) => el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric",
+      value: values[`${option}_${part}`] || "", placeholder: hint[part === "start" ? 0 : 1] ? String(hint[part === "start" ? 0 : 1]) : "",
+      "aria-label": `${label} of the ${name}`, spellcheck: "false", autocomplete: "off" });
+    return { start: box("start", "Start"), end: box("end", "End") };
+  }
+
+  // one transect's card, for the variable `row`: its ends (a row for the longitudes, a row for the latitudes), then to
+  // their right its three options, each with the years it is worked out over
+  function transectCard(variable, values, section) {
+    const hint = defaultYears(variable.name);
+    const inputs = {};
+    for (const [name, label, placeholder] of TRANSECT_END_BOXES) {
+      inputs[name] = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[name] || "",
+        placeholder, "aria-label": label, spellcheck: "false", autocomplete: "off" });
+    }
+    const heading = el("strong", { text: "" });
+    const remove = el("button", { type: "button", class: "btn btn--ghost", "aria-label": "Remove this transect", text: "×" });
+    const climatology = el("input", { type: "checkbox", class: "tick", "aria-label": "Surface climatology" });
+    climatology.checked = Boolean(values.climatology);
+    const vertical = el("input", { type: "checkbox", class: "tick", "aria-label": "Vertical climatology: a section through the water column" });
+    vertical.checked = Boolean(values.vertical);
+    const trends = el("select", { class: "s-select", "aria-label": "Trends" },
+      el("option", { value: "", text: "Trends: choose…" }),
+      ...TRANSECT_HOWS.map(([value, text]) => el("option", { value, text })));
+    // trends are not offered where the output has too few years: none at all for one year
+    const outputYears = placedRow(variable.name).years;
+    const available = outputYears ? outputYears[1] - outputYears[0] + 1 : null;
+    for (const option of trends.options) {
+      if (option.value && available !== null && available < TRANSECT_MIN_YEARS[option.value]) option.disabled = true;
+    }
+    const noTrends = available !== null && available < 2;
+    trends.value = TRANSECT_HOWS.some(([value]) => value === values.trends) && !(trends.querySelector(`option[value="${values.trends}"]`) || {}).disabled ? values.trends : "";
+    trends.disabled = noTrends;
+    const trendsNote = noTrends ? el("small", { text: "Only one year of output: there is no trend to work out." }) : null;
+    const years = {
+      climatology: optionYears(values, "climatology", "surface climatology", hint),
+      vertical: optionYears(values, "vertical", "vertical section", hint),
+      trends: optionYears(values, "trends", "trends", hint),
+    };
+    const msg = el("p", { class: "analyze-msg" });
+    const yearCells = (option) => [el("td", {}, years[option].start), el("td", {}, years[option].end)];
+    const card = el("div", { class: "transect-card" },
+      el("div", { class: "transect-card__head" }, heading, remove),
+      el("div", { class: "transect-card__body" },
+        el("table", {},
+          el("thead", {}, el("tr", {}, el("th", { scope: "col" }), el("th", { scope: "col", text: "Start" }), el("th", { scope: "col", text: "End" }))),
+          el("tbody", {},
+            el("tr", {}, el("th", { scope: "row", text: "Longitude (°E)" }), el("td", {}, inputs.start_lon), el("td", {}, inputs.end_lon)),
+            el("tr", {}, el("th", { scope: "row", text: "Latitude (°N)" }), el("td", {}, inputs.start_lat), el("td", {}, inputs.end_lat)))),
+        el("table", { class: "transect-options" },
+          el("thead", {}, el("tr", {}, el("th", { scope: "col" }), el("th", { scope: "col", text: "Start year" }), el("th", { scope: "col", text: "End year" }))),
+          el("tbody", {},
+            el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, climatology, "Surface climatology")), ...yearCells("climatology")),
+            el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, vertical, "Vertical climatology")), ...yearCells("vertical")),
+            el("tr", {}, el("td", {}, trends, trendsNote), ...yearCells("trends")))),
+      ),
+      msg);
+    const row = { card, heading, inputs, climatology, vertical, trends, years, msg };
+    const on = { climatology: () => climatology.checked, vertical: () => vertical.checked, trends: () => Boolean(trends.value) };
+    // what has to be given is red: the ends, one of the options, and the years of those chosen
+    const refresh = () => {
+      for (const input of Object.values(inputs)) input.classList.toggle("is-need", !input.value.trim());
+      const any = Object.keys(on).some((option) => on[option]());
+      trends.classList.toggle("is-need", !any && !noTrends);
+      for (const option of Object.keys(on)) {
+        for (const box of [years[option].start, years[option].end]) {
+          box.disabled = !on[option]();
+          box.classList.toggle("is-need", on[option]() && !box.value.trim());
+        }
+      }
+    };
+    for (const control of [climatology, vertical, trends]) control.addEventListener("change", refresh);
+    vertical.addEventListener("change", refreshThickness);
+    for (const input of [...Object.values(inputs), ...Object.values(years).flatMap((pair) => [pair.start, pair.end])]) {
+      input.addEventListener("input", refresh);
+    }
+    remove.addEventListener("click", () => {
+      section.cards = section.cards.filter((other) => other !== row);
+      card.remove();
+      numberTransects(section);
+      refreshThickness();
+    });
+    refresh();
+    section.cards.push(row);
+    return card;
+  }
+
+  function numberTransects(section) {
+    section.cards.forEach((row, index) => { row.heading.textContent = `Transect ${index + 1}`; });
+  }
+
+  // a variable's section: whether it has transects, and a card for each
+  function transectSection(variable, form) {
+    const box = form.rows[variable.name] || {};
+    const section = { cards: [], use: null, msg: null, row: null };
+    const use = el("input", { type: "checkbox", class: "tick", "aria-label": `Transects of ${variable.name}` });
+    use.checked = Boolean(box.use);
+    const msg = el("p", { class: "analyze-msg" });
+    const cards = el("div", { class: "transect-cards" });
+    const add = el("button", { type: "button", class: "btn btn--ghost transect-var__add", text: "Add a transect" });
+    const wrapper = el("section", { class: "transect-var" },
+      el("div", { class: "transect-var__head" },
+        el("label", { class: "tick-label" }, use, el("strong", { text: variable.name })),
+        el("small", { class: "is-mono", text: variable.model_variable }), outputYears(variable.name),
+        variable.levels > 1 ? null : el("small", { text: "No depth levels: it has no Vertical climatology" })),
+      msg, cards, add);
+    const lines = (box.transects && box.transects.length) ? box.transects : [{}];
+    section.cards = [];
+    cards.replaceChildren(...lines.map((values) => transectCard(variable, values, section)));
+    numberTransects(section);
+    add.addEventListener("click", () => {
+      const card = transectCard(variable, {}, section);
+      cards.append(card);
+      numberTransects(section);
+      card.querySelector("input").focus();
+    });
+    const refresh = () => {
+      wrapper.classList.toggle("is-off", !use.checked);
+      refreshConfirm();
+      refreshThickness();
+    };
+    use.addEventListener("change", refresh);
+    Object.assign(section, { use, msg, refresh });
+    analyzeDialog.rows[variable.name] = section;
+    refresh();
+    return wrapper;
+  }
+
+  function transectSections(form) {
+    analyzeDialog.rows = {};
+    $("trans-body").replaceChildren(...state.analyze.placed.map((variable) => transectSection(variable, form)));
+  }
+
+  // the transects of a variable, as the form sends them
+  function readTransects(section) {
+    return section.cards.map((row) => ({
+      start_lon: row.inputs.start_lon.value, start_lat: row.inputs.start_lat.value,
+      end_lon: row.inputs.end_lon.value, end_lat: row.inputs.end_lat.value,
+      climatology: row.climatology.checked, climatology_start: row.years.climatology.start.value, climatology_end: row.years.climatology.end.value,
+      vertical: row.vertical.checked, vertical_start: row.years.vertical.start.value, vertical_end: row.years.vertical.end.value,
+      trends: row.trends.value, trends_start: row.years.trends.start.value, trends_end: row.years.trends.end.value,
+    }));
+  }
+
+  const dialogPrefix = (kind) => (kind === "phenology" ? "phen" : kind === "transects" ? "trans" : "clim");
+
+  function openAnalyzeDialog(kind) {
+    const form = state.analyze.forms[kind];
+    if (!form) return;
+    analyzeDialog.kind = kind;
+    analyzeDialog.opener = document.activeElement;
+    if (LAYERED.includes(kind)) {
+      $("clim-title").textContent = KIND_TITLES[kind];
+      $("clim-intro").replaceChildren(
+        `${KIND_INTROS[kind]} Tick the surface, the bottom (the deepest value that is not missing), the water column, or more than one, for each variable to work it out for, and give the years: the water column is its vertical mean or its depth integral.`);
+      climatologyRows(form, kind);
+      fillThickness(form, kind);
+      refreshThickness();
+      $("clim-stations").hidden = !SERIES.includes(kind);
+      $("clim-area").hidden = !SERIES.includes(kind);
+      if (SERIES.includes(kind)) {
+        fillArea();
+        stationRows();
+      }
+    } else if (kind === "transects") {
+      transectSections(form);
+      fillThickness(form, kind);
+      refreshThickness();
+    } else {
+      phenologyRows(form);
+    }
+    $(`${dialogPrefix(kind)}-remove`).hidden = !state.analyze.chosen[kind];
+    refreshConfirm();
+    $(KIND_DIALOGS[kind]).hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    const first = $(KIND_DIALOGS[kind]).querySelector("input:not(:disabled)");
+    if (first) first.focus();
+  }
+
+  function closeAnalyzeDialog() {
+    const kind = analyzeDialog.kind;
+    if (!kind) return;
+    $(KIND_DIALOGS[kind]).hidden = true;
+    analyzeDialog.kind = null;
+    BEHIND.forEach((node) => { node.inert = false; });
+    if (analyzeDialog.opener && document.contains(analyzeDialog.opener)) analyzeDialog.opener.focus();
+  }
+
+  function readAnalyzeDialog(kind) {
+    const rows = {};
+    if (kind === "transects") {
+      for (const [name, section] of Object.entries(analyzeDialog.rows)) rows[name] = { use: section.use.checked, transects: readTransects(section) };
+      return { rows, thickness: $("trans-thickness").value };
+    }
+    for (const [name, row] of Object.entries(analyzeDialog.rows)) {
+      if (LAYERED.includes(kind)) {
+        rows[name] = { use: row.surface.checked || row.bottom.checked || row.water.checked, start: row.start.value, end: row.end.value,
+          surface: row.surface.checked, bottom: row.bottom.checked, water_column: row.water.checked, how: row.how.value };
+      } else {
+        rows[name] = { use: row.use.checked, start: row.start.value, end: row.end.value };
+      }
+    }
+    if (!LAYERED.includes(kind)) return { rows };
+    const form = { rows, thickness: $("clim-thickness").value };
+    if (SERIES.includes(kind)) {
+      form.stations = analyzeDialog.stations.map((row) => [row.name.value, row.lon.value, row.lat.value]);
+      form.area = readArea();
+    }
+    return form;
+  }
+
+  async function confirmAnalyzeDialog() {
+    const kind = analyzeDialog.kind;
+    if (!kind) return;
+    const confirm = $(`${dialogPrefix(kind)}-confirm`);
+    confirm.disabled = true;
+    const reply = await post("api/analyze_option", { kind, form: readAnalyzeDialog(kind) });
+    refreshConfirm();
+    for (const row of Object.values(analyzeDialog.rows)) {
+      row.msg.textContent = "";
+      for (const card of row.cards || []) card.msg.textContent = "";
+    }
+    for (const row of analyzeDialog.stations) row.msg.textContent = "";
+    if (reply.ok) {
+      closeAnalyzeDialog();
+      return;
+    }
+    const errors = reply.errors || {};
+    showAreaErrors(errors.area || {});
+    for (const [name, found] of Object.entries(errors)) {
+      if (name === "area") continue;
+      if (name === "stations") {
+        // the rows with something wrong, by their number in the table
+        for (const [index, problems] of Object.entries(found)) {
+          const row = analyzeDialog.stations[Number(index)];
+          if (row) row.msg.textContent = Object.values(problems).join(" ");
+        }
+      } else if (kind === "transects" && analyzeDialog.rows[name]) {
+        // a variable's own problem, and its transects with something wrong, by their number in its section
+        const section = analyzeDialog.rows[name];
+        section.msg.textContent = found.use || "";
+        for (const [index, problems] of Object.entries(found.transects || {})) {
+          const card = section.cards[Number(index)];
+          if (card) card.msg.textContent = Object.values(problems).join(" ");
+        }
+      } else if (analyzeDialog.rows[name]) {
+        analyzeDialog.rows[name].msg.textContent = Object.values(found).join(" ");
+      }
+    }
+    if (LAYERED.includes(kind) || kind === "transects") $(`${dialogPrefix(kind)}-thickness-msg`).textContent = errors.thickness || "";
+    $(`${dialogPrefix(kind)}-msg`).textContent = reply.error || (errors.rows || "");
+  }
+
+  // an analysis chosen before is left out again; the boxes are kept for next time
+  async function removeAnalysis() {
+    const kind = analyzeDialog.kind;
+    if (!kind) return;
+    const reply = await post("api/analyze_option", { kind, form: { remove: true } });
+    if (reply.ok) closeAnalyzeDialog();
+    else $(`${dialogPrefix(kind)}-msg`).textContent = reply.error || "This could not be removed.";
+  }
+
+  for (const kind of ANALYSES) $(`ao-${kind}`).addEventListener("click", () => openAnalyzeDialog(kind));
+  for (const prefix of ["clim", "phen", "trans"]) {
+    $(`${prefix}-cancel`).addEventListener("click", closeAnalyzeDialog);
+    $(`${prefix}-remove`).addEventListener("click", removeAnalysis);
+    $(`${prefix}-confirm`).addEventListener("click", confirmAnalyzeDialog);
+    $(`${prefix}-dialog`).addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      // a pop-out of variables inside it closes first
+      if (event.target.closest && event.target.closest("details.vars[open]")) return;
+      event.preventDefault();
+      closeAnalyzeDialog();
+    });
+  }
+
+  // a pop-out of the model's variables closes when anything else is clicked
+  document.addEventListener("mousedown", (event) => {
+    document.querySelectorAll("details.vars[open]").forEach((details) => {
+      if (!details.contains(event.target)) details.open = false;
+    });
+  });
+
+  async function runAnalysis() {
+    $("ao-run").disabled = true;
+    const reply = await post("api/analyze_run");
+    if (!reply.ok) {
+      if (reply.errors && reply.errors.area) toast("Open the time series and put its regions and area right.");
+      if (reply.errors && reply.errors.cores) $("ao-cores-msg").textContent = reply.errors.cores;
+      if (reply.errors && reply.errors.figure_code) $("ao-code-msg").textContent = reply.errors.figure_code;
+      if (reply.errors && reply.errors.missing) {
+        $("ao-missing-msg").textContent = reply.errors.missing.missing_from || reply.errors.missing.missing_to || "";
+      }
+      toast(reply.error || "The analysis could not be started.");
+      renderAnalyzeOptions();
+    }
+  }
+
+  // what analyze() said it is doing last, in the output (see oceanval.analysis)
+  function lastSaid() {
+    const lines = (committed.data + currentText).split("\n");
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      if (lines[index].startsWith("OceanVal: ")) return lines[index].slice("OceanVal: ".length);
+    }
+    return null;
   }
 
   // ---- 3: your own observations ----
@@ -4376,6 +5838,11 @@
       return { title: "Identifying files that meet criteria. Please wait!",
         text: "OceanVal is finding the simulation output files that hold each variable. It then shows you what it found, to check before anything is matched up." };
     }
+    if (state.action === "analyze") {
+      const said = lastSaid();
+      return { title: "Analysing the simulation",
+        text: said ? `${said}…` : "OceanVal is starting the analysis. It works out what you chose for each variable, and then builds the report." };
+    }
     if (!run.status || run.status === "starting") {
       return { title: "Starting the run", text: "OceanVal is starting the matchup process." };
     }
@@ -4437,6 +5904,10 @@
       heading = "The matchups are ready";
       text = "Build the report from them now, with Validate these matchups, or later.";
       path = run.matchups;
+    } else if (run.status === "finished" && state.action === "analyze") {
+      heading = run.report_exists ? "The analysis report is ready" : "The run has finished";
+      text = run.report_exists ? "It is saved here:" : "The output below says what was made.";
+      path = run.report_exists ? run.report : null;
     } else if (run.status === "finished" && state.action === "compare") {
       heading = run.report_exists ? "The comparison report is ready" : "The run has finished";
       text = run.report_exists ? "It is saved here:" : "The output above says what was made.";
@@ -4464,7 +5935,8 @@
     // the report opens from here, as a file:// link would not
     const link = run.status === "finished" && run.report_href
       ? el("div", { class: "result__link" }, openLink(run.report_href,
-        state.action === "compare" ? "Open the comparison report" : "Open the validation report"))
+        state.action === "compare" ? "Open the comparison report"
+          : state.action === "analyze" ? "Open the analysis report" : "Open the validation report"))
       : null;
     const reminder = state.demo
       ? el("p", { class: "result__reminder", text: `Remember to remove ${state.demo.folder} when you have finished with the demo.` })

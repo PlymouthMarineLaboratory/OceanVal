@@ -1,0 +1,572 @@
+"""The time series of analyze(): long-term (annual means) and seasonal (monthly
+means), of the model's domain and of the regions of a regional summary, and at
+stations.
+
+For each variable and layer (the surface, the bottom, or the water column's vertical
+mean or depth integral) the model's mean of each month of each year is worked out first,
+as the climatology does. The means over the domain, over each region and at
+each station are then taken from it:
+
+- the domain, and the regions, are area-weighted means, worked out as
+  validate's regional summaries are: a region's map is put on the model's grid
+  by nearest neighbour, the model's field is multiplied by it, and its spatial
+  mean taken. A lon/lat box (lon_lim and lat_lim) is cut out of the model's
+  domain first, which leaves the stations as they are.
+- a station is the nearest cell of the model's grid that has a value.
+
+The long-term series are the means of each year's monthly means, so that a year
+with a gap is the mean of its months there are, which the report says.
+"""
+
+import os
+import warnings
+
+import nctoolkit as nc
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+from oceanval.analysis import (
+    BOTTOM,
+    LAYER_TITLES,
+    SURFACE,
+    WATER_COLUMN,
+    _labelled,
+    _say,
+    _time_dim,
+    integral_units,
+    monthly_means_of,
+    thickness_data,
+)
+
+# the model's domain as a series is called this, whatever the regions are
+DOMAIN = "Model domain"
+# what each series is of
+SERIES_KINDS = ("domain", "region", "station")
+# the columns of what is saved, and the files it is saved in
+COLUMNS = ["kind", "name", "year", "month", "value"]
+# a station further than this many grid cells from a cell with values is not in the model
+STATION_CELLS = 2
+EARTH_KM = 6371.0
+
+
+def station_name_ok(name):
+    return isinstance(name, str) and bool(name.strip())
+
+
+def check_stations(stations):
+    """stations, as {name: [lon, lat]}, with the longitudes in -180 to 180 and
+    the values as floats. Raises ValueError saying what is wrong."""
+    if stations is None:
+        return {}
+    if not isinstance(stations, dict):
+        raise ValueError('stations must be a dict of the names of the stations and their [lon, lat], e.g. {"L4": [-4.217, 50.25]}.')
+    checked = {}
+    for name, position in stations.items():
+        if not station_name_ok(name):
+            raise ValueError("Each station needs a name.")
+        name = name.strip()
+        if name in checked:
+            raise ValueError(f"There are two stations called {name!r}.")
+        try:
+            lon, lat = (float(x) for x in position)
+            if len(position) != 2 or not (np.isfinite(lon) and np.isfinite(lat)):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError(f"The position of station {name!r} must be [lon, lat], two numbers.")
+        if not -180 <= lon <= 360:
+            raise ValueError(f"The longitude of station {name!r} must be between -180 and 360.")
+        if not -90 <= lat <= 90:
+            raise ValueError(f"The latitude of station {name!r} must be between -90 and 90.")
+        checked[name] = [wrap(lon), lat]
+    return checked
+
+
+def wrap(lon):
+    """lon in -180 to 180."""
+    if -180 <= lon <= 180:
+        return float(lon)
+    return round(float((lon + 180) % 360 - 180), 10)
+
+
+def check_limits(lon_lim, lat_lim):
+    """lon_lim and lat_lim as lists of two floats, or None. Raises ValueError
+    saying what is wrong."""
+    if (lon_lim is None) != (lat_lim is None):
+        raise ValueError("Give lon_lim and lat_lim together, or neither of them.")
+    if lon_lim is None:
+        return None, None
+    out = []
+    for name, limits, low, high in (("lon_lim", lon_lim, -180, 360), ("lat_lim", lat_lim, -90, 90)):
+        try:
+            first, last = (float(x) for x in limits)
+            if len(limits) != 2:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError(f"{name} must be two numbers, [minimum, maximum].")
+        if first < low or last > high:
+            raise ValueError(f"{name} must be between {low} and {high}.")
+        if first >= last:
+            raise ValueError(f"The maximum of {name} must be more than its minimum.")
+        out.append([first, last])
+    return out[0], out[1]
+
+
+# ---- the model's grid ----
+
+
+def _grid(ds_xr, variable):
+    """The longitudes and latitudes of the cells of variable, as 2D arrays in
+    the order of its (squeezed) spatial dimensions, with the longitudes in -180
+    to 180."""
+    names = list(ds_xr.coords) + list(ds_xr.variables)
+    lon_name = next(name for name in names if "lon" in name.lower())
+    lat_name = next(name for name in names if "lat" in name.lower())
+    lon, lat = ds_xr[lon_name], ds_xr[lat_name]
+    if lon.ndim == 1 and lat.ndim == 1:
+        lat2, lon2 = np.meshgrid(lat.values, lon.values, indexing="ij")
+        # the variable's own order of its dimensions
+        if variable.dims[-1] == lat.dims[0] and variable.dims[-2] == lon.dims[0]:
+            lon2, lat2 = lon2.T, lat2.T
+    else:
+        lon2, lat2 = lon.values, lat.values
+    lon2 = (np.asarray(lon2, dtype="float64") + 180) % 360 - 180
+    return lon2, np.asarray(lat2, dtype="float64")
+
+
+def _distance(lon1, lat1, lon2, lat2):
+    """Great-circle distance in km, from the position (lon1, lat1) to the
+    arrays lon2, lat2, all in degrees."""
+    p1, p2 = np.radians(lat1), np.radians(lat2)
+    dphi = p2 - p1
+    dlam = np.radians(lon2 - lon1)
+    a = np.sin(dphi / 2) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dlam / 2) ** 2
+    return 2 * EARTH_KM * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+
+
+def _spacing(lon, lat):
+    """The usual distance in km between neighbouring cells of a grid."""
+    steps = []
+    for axis in (0, 1):
+        if lon.shape[axis] < 2:
+            continue
+        first = [slice(None)] * 2
+        later = [slice(None)] * 2
+        first[axis], later[axis] = slice(None, -1), slice(1, None)
+        first, later = tuple(first), tuple(later)
+        steps.append(np.nanmedian(_distance(lon[first], lat[first], lon[later], lat[later])))
+    return float(max(steps)) if steps else float("nan")
+
+
+def station_values(path, key, stations, times):
+    """The values of key at each station, from the monthly means in path, as
+    (rows, found): rows a list of (kind, name, year, month, value), and found
+    {name: {"lon", "lat", "distance"}} of the cell each station is in, its
+    longitude, latitude and its distance from the station in km. Raises
+    ValueError for the stations that are not in the model's domain: further
+    than STATION_CELLS cells from a cell with values."""
+    rows, found, problems = [], {}, []
+    with xr.open_dataset(path, decode_times=False) as ds_xr:
+        variable = ds_xr[key]
+        time_dim = _time_dim(variable, ds_xr)
+        # the horizontal grid only: any level dimension has been taken, or has one level
+        extra = [dim for dim in variable.dims if dim != time_dim and variable.sizes[dim] == 1]
+        variable = variable.squeeze(extra)
+        variable = variable.transpose(time_dim, *[dim for dim in variable.dims if dim != time_dim])
+        values = np.asarray(variable.values, dtype="float64")
+        lon, lat = _grid(ds_xr, variable)
+    if values.ndim != 3 or lon.shape != values.shape[1:]:
+        raise ValueError(f"The grid of {key} cannot be read, to find the stations on it.")
+    has_values = np.isfinite(values).any(axis=0)
+    spacing = _spacing(lon, lat)
+    for name, (station_lon, station_lat) in stations.items():
+        distance = _distance(station_lon, station_lat, lon, lat)
+        distance = np.where(has_values, distance, np.inf)
+        if not np.isfinite(distance).any():
+            problems.append(f"{name} has no cell with values near it.")
+            continue
+        index = np.unravel_index(np.argmin(distance), distance.shape)
+        km = float(distance[index])
+        if np.isfinite(spacing) and km > STATION_CELLS * spacing:
+            problems.append(
+                f"{name} is {km:.0f} km from the nearest cell with values, more than "
+                f"{STATION_CELLS} grid cells ({STATION_CELLS * spacing:.0f} km): it is on land, or outside the model."
+            )
+            continue
+        found[name] = {"lon": float(lon[index]), "lat": float(lat[index]), "distance": round(km, 2)}
+        series = values[(slice(None),) + index]
+        for (year, month), value in zip(times, series):
+            rows.append(("station", name, year, month, float(value) if np.isfinite(value) else np.nan))
+    if problems:
+        raise ValueError("; ".join(problems))
+    return rows, found
+
+
+# ---- the regions ----
+
+
+# ---- spatial means, which must not rest on a grid whose cell areas cannot be worked out ----
+
+# the most cells a grid regridded for a spatial mean may have
+MOST_CELLS = 4_000_000
+
+
+def _grid_problem(caught):
+    """Whether any of the warnings in caught (from warnings.catch_warnings) say
+    that the cell areas the spatial mean is weighted by could not be worked
+    out, so constant weights were used. nctoolkit says "Grid cell bounds are
+    not available. Constant grid cell weights are used for spatial mean!", and
+    passes on CDO's own warnings of the same."""
+    for warning in caught:
+        text = str(warning.message).lower()
+        if "grid cell" in text and ("bounds" in text or "weights" in text or "corner" in text):
+            return True
+    return False
+
+
+def _forget_pending_warnings():
+    """Empty nctoolkit's list of the warnings it has yet to give.
+
+    nctoolkit keeps each warning it finds in session.session_warnings, gives it
+    after every run, and is meant to take it out once it has: but it looks for
+    it with `in`, which never finds it (a warning is not equal to the copy that
+    comes back from the list's manager), so it stays, and is given again after
+    every later run in the Python session. A warning that the cell bounds of one
+    grid are missing would then be given for the cells of every grid after it."""
+    try:
+        from nctoolkit import session
+
+        del session.session_warnings[:]
+    except Exception:
+        pass
+
+
+def _mean_once(ds, key, n_times):
+    """The spatial mean of key in ds at each time, as (values, problem). ds
+    itself is left as it is: the mean is of a copy of it, so that it can be
+    calculated again, and problem is whether the weights could not be
+    worked out. Every warning is caught and looked at."""
+    work = ds.copy()
+    _forget_pending_warnings()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        work.spatial_mean()
+        work.run()
+    # so that this mean's warnings are not given again for the next
+    _forget_pending_warnings()
+    with xr.open_dataset(work[0], decode_times=False) as means:
+        values = np.asarray(means[key].values, dtype="float64")
+    return values.reshape(n_times, -1)[:, 0], _grid_problem(caught)
+
+
+def grid_geometry(path, key):
+    """The longitudes and latitudes of the cells of the grid key is on in
+    path, wrapped to -180 to 180, as flat arrays, and the shape of the grid, or
+    None for a grid of cells with no shape (an unstructured one)."""
+    with xr.open_dataset(path, decode_times=False) as ds_xr:
+        variable = ds_xr[key]
+        time_dim = _time_dim(variable, ds_xr)
+        extra = [dim for dim in variable.dims if dim != time_dim and variable.sizes[dim] == 1]
+        variable = variable.squeeze(extra)
+        names = list(ds_xr.coords) + list(ds_xr.variables)
+        lon = ds_xr[next(name for name in names if "lon" in name.lower())]
+        lat = ds_xr[next(name for name in names if "lat" in name.lower())]
+        if lon.ndim == 1 and lat.ndim == 1 and lon.dims == lat.dims:
+            lon2, lat2, shape = lon.values, lat.values, None
+        else:
+            lon2, lat2 = _grid(ds_xr, variable)
+            shape = lon2.shape
+    lon2 = (np.asarray(lon2, dtype="float64") + 180) % 360 - 180
+    return lon2, np.asarray(lat2, dtype="float64"), shape
+
+
+def estimate_grid(path, key):
+    """The regular lon-lat grid to regrid the grid key is on in path to, so
+    that a spatial mean can be worked out on it: {"lon": [min, max], "lat":
+    [min, max], "res": [lon resolution, lat resolution]}, all in degrees.
+
+    The resolution is the usual distance between neighbouring cells, in
+    longitude and in latitude (the larger over the two directions of the grid,
+    which is right for a regular grid and for a curvilinear one); the extent is
+    that of the cells, with two cells of extra space around it. A grid across
+    the whole of the globe, or over the dateline, is all of the longitudes."""
+    lon, lat, shape = grid_geometry(path, key)
+    finite = np.isfinite(lon) & np.isfinite(lat)
+    lon_min, lon_max = float(np.nanmin(lon[finite])), float(np.nanmax(lon[finite]))
+    lat_min, lat_max = float(np.nanmin(lat[finite])), float(np.nanmax(lat[finite]))
+    res_lon = res_lat = 0.0
+    if shape is not None:
+        for axis in (0, 1):
+            if shape[axis] < 2:
+                continue
+            first, later = [slice(None)] * 2, [slice(None)] * 2
+            first[axis], later[axis] = slice(None, -1), slice(1, None)
+            first, later = tuple(first), tuple(later)
+            step_lon = np.abs((lon[later] - lon[first] + 180) % 360 - 180)
+            step_lat = np.abs(lat[later] - lat[first])
+            res_lon = max(res_lon, float(np.nanmedian(step_lon)))
+            res_lat = max(res_lat, float(np.nanmedian(step_lat)))
+    else:
+        # cells with no neighbours: the side of the square each would have if they covered the extent evenly
+        res_lon = res_lat = float(np.sqrt(max((lon_max - lon_min) * (lat_max - lat_min), 1e-6) / max(lon.size, 1)))
+    res_lon = res_lon or res_lat or 1.0
+    res_lat = res_lat or res_lon
+    res_lon, res_lat = max(res_lon, 0.01), max(res_lat, 0.01)
+    spans_globe = lon_max - lon_min > 300
+    lon_lim = [-180.0, 180.0] if spans_globe else [lon_min - 2 * res_lon, lon_max + 2 * res_lon]
+    lat_lim = [max(lat_min - 2 * res_lat, -90.0), min(lat_max + 2 * res_lat, 90.0)]
+    lon_lim = [max(lon_lim[0], -180.0), min(lon_lim[1], 180.0)]
+    # not so many cells that the regridding is slow
+    cells = (lon_lim[1] - lon_lim[0]) / res_lon * (lat_lim[1] - lat_lim[0]) / res_lat
+    if cells > MOST_CELLS:
+        scale = float(np.sqrt(cells / MOST_CELLS))
+        res_lon, res_lat = res_lon * scale, res_lat * scale
+    return {"lon": lon_lim, "lat": lat_lim, "res": [res_lon, res_lat]}
+
+
+def robust_spatial_mean(ds, key, n_times):
+    """The mean of key over the domain of ds at each of its n_times, by
+    nctoolkit's spatial_mean, as (values, note).
+
+    The mean is of a copy of ds, with every warning caught. If nctoolkit
+    warns that the grid has no cell bounds, so that its cells are weighted
+    equally whatever their areas, the mean cannot be relied on. The grid is
+    then regridded with to_latlon to a regular lon-lat grid, as fine as the
+    grid itself and a little larger, and the mean worked out again, from a copy
+    of ds each time, once regridded by nearest neighbour ("nn") and once by
+    bilinear interpolation ("bil"). The values are the bilinear ones, and the
+    nearest neighbour's are the check of them. note is what the report must say
+    about that, "" if it was not done."""
+    values, problem = _mean_once(ds, key, n_times)
+    if not problem:
+        return values, ""
+    ds.run()
+    grid = estimate_grid(ds[0], key)
+    means, still = {}, False
+    for method in ("nn", "bil"):
+        regridded = ds.copy()
+        try:
+            regridded.to_latlon(lon=grid["lon"], lat=grid["lat"], res=grid["res"], method=method)
+            regridded.run()
+        except Exception as error:
+            raise ValueError(
+                "The grid of the model has no cell bounds, so its spatial mean cannot be weighted by cell "
+                f"area, and regridding it to a regular lon-lat grid to work it out by {method} failed: {error}"
+            )
+        means[method], more = _mean_once(regridded, key, n_times)
+        still = still or more
+    nn, bil = means["nn"], means["bil"]
+    scale = np.nanmean(np.abs(bil)) if np.isfinite(bil).any() else np.nan
+    gap = np.nanmax(np.abs(nn - bil)) if np.isfinite(nn - bil).any() else np.nan
+    percent = 100 * gap / scale if np.isfinite(gap) and scale and np.isfinite(scale) else np.nan
+    note = (
+        "The raw grid of the model did not have sufficient information to calculate grid cell areas, so its "
+        f"spatial means were calculated after regridding it to a regular lon-lat grid of {grid['res'][0]:.3g} by "
+        f"{grid['res'][1]:.3g} degrees, by bilinear interpolation"
+    )
+    if np.isfinite(percent):
+        note += f"; regridding by nearest neighbour instead changed them by at most {percent:.2g}%"
+    note += "."
+    if still:
+        note += " The regridded grid also lacked cell bounds, so these means should be treated with caution."
+    return bil, note
+
+
+def _spatial_means(ds, key, times):
+    """The mean of key over the domain of ds at each of times, and what the
+    report must say about how it was worked out (see robust_spatial_mean)."""
+    return robust_spatial_mean(ds, key, len(times))
+
+
+def _box(ds, lon_lim, lat_lim):
+    """ds in the lon/lat box. A grid the box cannot be cut from is regridded to
+    a regular lon-lat grid first."""
+    from oceanval import analysis_plots
+
+    out = ds.copy()
+    try:
+        out.subset(lon=lon_lim, lat=lat_lim)
+        out.run()
+        return out
+    except Exception:
+        out = analysis_plots.regridded(ds)
+        out.subset(lon=lon_lim, lat=lat_lim)
+        out.run()
+        return out
+
+
+def region_masks(region_file, ds):
+    """The regions in region_file as one dataset, with 1 where a region is and
+    missing elsewhere, on the grid of ds, and their names: (ds_regions,
+    {variable: name}). As validate's regional summaries."""
+    ds_regions = nc.open_data(region_file, checks=False)
+    ds_regions.as_missing(0)
+    ds_regions.set_fill(-9999)
+    ds_regions.run()
+    ds_regions.regrid(ds, method="nn")
+    ds_regions.run()
+    contents = ds_regions.contents
+    # regions without a long_name are named by their variable
+    names = {
+        row.variable: (row.long_name if isinstance(row.long_name, str) and row.long_name else row.variable)
+        for row in contents.itertuples()
+    }
+    return ds_regions, names
+
+
+def region_values(ds, key, times, region_file, lon_lim, lat_lim, masks_for, grid_key):
+    """The mean of key over the domain, and over each region in region_file
+    (if any), at each of times, in the lon/lat box if there is one: (rows,
+    notes). rows are (kind, name, year, month, value), notes what was left out.
+    masks_for keeps the regions on the grid of each grid_key."""
+    notes = []
+    if lon_lim is not None:
+        ds = _box(ds, lon_lim, lat_lim)
+    times = [(time.year, time.month) for time in ds.times]
+    values, grid_note = _spatial_means(ds, key, times)
+    rows = [("domain", DOMAIN, y, m, v) for (y, m), v in zip(times, values)]
+    if grid_note:
+        notes.append(grid_note)
+    if region_file is None:
+        return rows, notes
+    if grid_key not in masks_for:
+        masks_for[grid_key] = region_masks(region_file, ds)
+    ds_regions, names = masks_for[grid_key]
+    for variable, name in names.items():
+        ds_region = ds_regions.copy()
+        ds_region.subset(variables=variable)
+        ds_region.run()
+        ds_masked = ds.copy()
+        with warnings.catch_warnings(record=True):
+            ds_masked.multiply(ds_region)
+            ds_masked.run()
+        values, grid_note = _spatial_means(ds_masked, key, times)
+        if grid_note and grid_note not in notes:
+            notes.append(grid_note)
+        if not np.isfinite(values).any():
+            notes.append(f"{name} has no cells in the model's domain{' and box' if lon_lim else ''}, so it is left out.")
+            continue
+        rows.extend(("region", name, y, m, v) for (y, m), v in zip(times, values))
+    return rows, notes
+
+
+# ---- the series ----
+
+
+def _frame(rows):
+    return pd.DataFrame(rows, columns=COLUMNS).astype({"year": "int64", "month": "int64", "value": "float64"})
+
+
+def _complete_months(frame, start, end):
+    """frame with a row for every month from the start to the end year of
+    each series in it, with value missing where the output has none, so that
+    a gap in the output is a gap in the series."""
+    pieces = []
+    full = pd.DataFrame(
+        [(year, month) for year in range(start, end + 1) for month in range(1, 13)], columns=["year", "month"]
+    )
+    for (kind, name), part in frame.groupby(["kind", "name"], sort=False):
+        part = full.merge(part.drop(columns=["kind", "name"]), how="left", on=["year", "month"])
+        part.insert(0, "name", name)
+        part.insert(0, "kind", kind)
+        pieces.append(part)
+    return pd.concat(pieces, ignore_index=True) if pieces else frame
+
+
+def monthly_series(frame, start, end):
+    """The seasonal series: every month of start to end of each series in
+    frame, missing where the output has none."""
+    return _complete_months(frame[(frame.year >= start) & (frame.year <= end)], start, end)
+
+
+def annual_series(frame, start, end, months_per_year):
+    """The long-term series: for each series in frame, the mean of each year's
+    monthly means, and how many months it is the mean of. months_per_year is 12
+    for monthly or finer output, and 1 for annual output."""
+    frame = frame[(frame.year >= start) & (frame.year <= end)]
+    out = []
+    for (kind, name), part in frame.groupby(["kind", "name"], sort=False):
+        by_year = part.groupby("year")["value"].agg(value="mean", months="count")
+        by_year = by_year.reindex(range(start, end + 1))
+        by_year["months"] = by_year["months"].fillna(0).astype(int)
+        by_year = by_year.reset_index().rename(columns={"index": "year"})
+        by_year.insert(0, "name", name)
+        by_year.insert(0, "kind", kind)
+        out.append(by_year)
+    result = pd.concat(out, ignore_index=True)
+    result["complete"] = result["months"] >= months_per_year
+    return result
+
+
+def months_per_year(times):
+    """12 if the output has more than one month in any year, else 1 (annual
+    output). times are the (year, month) of the output."""
+    by_year = {}
+    for year, month in times:
+        by_year.setdefault(year, set()).add(month)
+    return 12 if any(len(months) > 1 for months in by_year.values()) else 1
+
+
+def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks_for):
+    """The long-term and seasonal series that row asks for (see
+    check_arguments, with its files and times added by analyze), saved in
+    results_dir. Returns {"long_term": ..., "seasonal": ...} for what
+    INFO_FILE says of each, None for those not asked for. area is
+    {"region_file", "lon_lim", "lat_lim", "stations"}."""
+    kinds = [kind for kind in ("long_term", "seasonal") if row[kind]]
+    start = min(row[kind]["start"] for kind in kinds)
+    end = max(row[kind]["end"] for kind in kinds)
+    layers = [layer for layer in (SURFACE, BOTTOM, *WATER_COLUMN) if any(layer in row[kind]["layers"] for kind in kinds)]
+    files = row["series_files"]
+    present = {(int(y), int(m)) for df in row["times"].values() for y, m in zip(df.year, df.month)}
+    entries = {kind: {"layers": {}, "regions": [], "notes": [], "stations": {}} for kind in kinds}
+    for kind in kinds:
+        entries[kind].update(
+            {
+                "start": row[kind]["start"],
+                "end": row[kind]["end"],
+                "files": len(row[kind]["files"]),
+                "dates": row[kind]["dates"],
+            }
+        )
+    for layer in layers:
+        what = ", ".join(sorted({kind.replace("_", "-") for kind in kinds}))
+        _say(f"Working out the {what} series of {row['name']}: {LAYER_TITLES[layer].lower()}")
+        ds_thickness = None
+        if layer in WATER_COLUMN:
+            if row["pattern"] not in thickness_for:
+                thickness_for[row["pattern"]] = thickness_data(thickness, row["files"])
+            ds_thickness = thickness_for[row["pattern"]]
+        ds = monthly_means_of(files, row, layer, (start, end), time_shift, row["levels"], ds_thickness)
+        units = integral_units(row["units"]) if layer == "integral" else row["units"]
+        _labelled(ds, row, units, LAYER_TITLES[layer].lower())
+        ds.run()
+        times = [(time.year, time.month) for time in ds.times]
+        rows, found = [], {}
+        if area["stations"]:
+            rows, found = station_values(ds[0], row["key"], area["stations"], times)
+        region_rows, notes = region_values(
+            ds, row["key"], times, area["region_file"], area["lon_lim"], area["lat_lim"], masks_for, row["pattern"]
+        )
+        frame = _frame(region_rows + rows)
+        names = list(dict.fromkeys(name for kind, name, *_ in region_rows if kind == "region"))
+        for kind in kinds:
+            if layer not in row[kind]["layers"]:
+                continue
+            if kind == "seasonal":
+                out = monthly_series(frame, row[kind]["start"], row[kind]["end"])
+            else:
+                out = annual_series(frame, row[kind]["start"], row[kind]["end"], months_per_year(present))
+            csv = f"{row['key']}_{layer}_{kind}.csv"
+            out.to_csv(os.path.join(results_dir, csv), index=False)
+            saved = {"title": LAYER_TITLES[layer], "units": units, "csv": csv, "stations": found}
+            if kind == "long_term":
+                saved["incomplete"] = sorted(
+                    int(year) for year in out[(out.kind == "domain") & ~out.complete & (out.months > 0)].year
+                )
+                saved["missing"] = sorted(int(year) for year in out[(out.kind == "domain") & (out.months == 0)].year)
+            entries[kind]["layers"][layer] = saved
+            entries[kind]["regions"] = names
+            entries[kind]["stations"].update(found)
+            entries[kind]["notes"] = sorted(set(entries[kind]["notes"]) | set(notes))
+    return {kind: entries.get(kind) for kind in ("long_term", "seasonal")}

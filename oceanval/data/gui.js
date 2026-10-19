@@ -375,5 +375,124 @@ const OceanValGUI = (() => {
     });
   }
 
-  return { ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, mountChrome };
+  // the model's variables (available, their names) and their long_names
+  // (longNames, by name), in a pop-out under a box that can be searched;
+  // the table is only built when it is first opened, as a model can have
+  // hundreds of variables. get() is what the box holds and set(text) puts a
+  // new value in it. With multi, several can be ticked and are summed as
+  // var1+var2; without, one at most. Returns the pop-out and sync(), which
+  // ticks what the box holds, or null if there are no variables. Shared by
+  // the create_recipes window and the oceanval window's Analyze steps.
+  function variablesPicker({ available, longNames = {}, get, set, multi, className = "" }) {
+    if (!available.length) return null;
+    const search = el("input", {
+      class: "vars__search",
+      type: "search",
+      placeholder: "Search variables",
+      spellcheck: "false",
+      autocomplete: "off",
+      autocapitalize: "off",
+      "aria-label": "Search the model's variables and their long names",
+    });
+    const count = el("span", { class: "vars__count vars__shown", "aria-live": "polite" });
+    const ticked = el("span", { class: "vars__count vars__ticked" });
+    const none = el("p", { class: "vars__none", text: "No variables match.", hidden: "" });
+    const scroll = el("div", { class: "vars__scroll" });
+    // what the box holds, with long_names, pinned above the table
+    const pickedList = el("ul");
+    const picked = el("div", { class: "vars__picked", hidden: "" },
+      el("p", { class: "vars__picked-title", text: "Selected" }), pickedList);
+    const body = el("div", { class: "vars__popover" },
+      el("div", { class: "vars__bar" }, search, count, ticked), picked, scroll);
+    const details = el("details", { class: `vars ${className}`.trim() },
+      el("summary", { text: "Select from the model's variables" }), body);
+    let rows = [];
+    // the names in the box, which may include ones the model does not have;
+    // a single box may also hold z_level or a file, which are not variables
+    const named = () => multi
+      ? get().split("+").map((name) => name.trim()).filter(Boolean)
+      : [get().trim()].filter((name) => available.includes(name));
+    // the ticks show what the box holds, wherever it was changed
+    const syncTicks = () => {
+      const names = new Set(named());
+      for (const item of rows) item.box.checked = names.has(item.name);
+      ticked.textContent = multi && names.size > 1 ? `${names.size} ticked, summed` : "";
+      const used = named();
+      picked.hidden = !used.length;
+      pickedList.replaceChildren(...used.map((name) => {
+        const longName = longNames[name] || "";
+        const known = available.includes(name);
+        const remove = el("button", {
+          type: "button",
+          class: "vars__picked-remove",
+          title: `Remove ${name}`,
+          "aria-label": `Remove ${name}`,
+          text: "×",
+        });
+        remove.addEventListener("click", () => set(named().filter((other) => other !== name).join("+")));
+        return el("li", {},
+          el("span", { class: "vars__picked-text" },
+            el("span", { class: "vars__picked-name", text: name }),
+            known ? (longName ? ` ${longName}` : "") : el("span", { class: "vars__picked-note", text: " not in the simulation output" })),
+          remove);
+      }));
+    };
+    // every word typed must be in the variable's name or its long_name
+    const filter = () => {
+      const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+      let shown = 0;
+      for (const { tr, text } of rows) {
+        tr.hidden = !words.every((word) => text.includes(word));
+        if (!tr.hidden) shown += 1;
+      }
+      none.hidden = shown > 0;
+      count.textContent = words.length ? `${shown} of ${rows.length}` : `${rows.length}`;
+    };
+    search.addEventListener("input", filter);
+    search.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (search.value) {
+        search.value = "";
+        filter();
+      } else {
+        details.open = false;
+        details.querySelector("summary").focus();
+      }
+    });
+    details.addEventListener("toggle", () => {
+      if (!details.open) return;
+      if (!rows.length) {
+        rows = available.map((name) => {
+          const longName = longNames[name] || "";
+          const box = el("input", { type: "checkbox", class: "tick", "aria-label": `Use ${name}` });
+          // ticking several gives their sum, as var1+var2+var3
+          box.addEventListener("change", () => {
+            const names = multi ? named().filter((used) => used !== name) : [];
+            if (box.checked) names.push(name);
+            set(names.join("+"));
+          });
+          return {
+            name,
+            box,
+            text: `${name} ${longName}`.toLowerCase(),
+            tr: el("tr", {}, el("td", {}, box), el("td", { text: name }), el("td", { text: longName })),
+          };
+        });
+        scroll.append(
+          el("table", {},
+            el("thead", {}, el("tr", {}, el("th", { scope: "col", "aria-label": "Use" }),
+              el("th", { scope: "col", text: "Variable" }), el("th", { scope: "col", text: "long_name" }))),
+            el("tbody", {}, ...rows.map((row) => row.tr))),
+          none);
+      }
+      search.value = "";
+      filter();
+      syncTicks();
+      search.focus();
+    });
+    return { details, sync: syncTicks };
+  }
+
+  return { ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, mountChrome, variablesPicker };
 })();

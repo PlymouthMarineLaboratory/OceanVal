@@ -10,7 +10,7 @@ Ocean model validation made easy in Python.
 
 To learn more about the package, visit the [OceanVal website](https://pmlmodelling.github.io/OceanVal/). The
 
-OceanVal is designed for the automated creation of validation reports. You provide the model and validation data. OceanVal does the rest. A short example of what the report looks like can be found [here](https://pmlmodelling.github.io/oceanval_example/index.html). 
+OceanVal is designed for the automated creation of validation reports. You provide the model and validation data. OceanVal does the rest. It can also analyse a simulation on its own, with no observations: the climatology and the phenology of its variables, in an HTML report (see [Analyzing a simulation](#analyzing-a-simulation)). A short example of what the report looks like can be found [here](https://pmlmodelling.github.io/oceanval_example/index.html). 
 
 ## Running OceanVal from the terminal
 
@@ -21,8 +21,10 @@ The quickest way needs no Python at all. In a terminal, in the directory to
 work in, run `oceanval` (or `OceanVal`). A page opens in your web browser
 that takes you through these steps:
 
-1. **Choose** to match up new data and validate it, to match up only, or to
-   validate matchups made earlier.
+1. **Choose** between **Analyze** (see [Analyzing a simulation in the
+   window](#analyzing-a-simulation-in-the-window)) and **Validate**, which
+   opens the choices to match up new data and validate it, to match up only,
+   or to validate matchups made earlier.
    **Add your own validation data for future use** saves observations of your own as
    recipes in a `.oceanvalrc` file (see below), instead of running anything.
 2. **Simulation**: where the model output is, how many directories down its
@@ -343,6 +345,147 @@ With `validate=False`, the script's `validate()` call is written commented
 out, to build the report once the matchups are made. `exclude` and `require`
 leave out output files by name, as `matchup()` does (e.g. `exclude="5d"`),
 and are passed on to the script's `matchup()` call.
+
+### Analyzing a simulation in the window
+
+**Analyze**, on the first page, looks at a simulation on its own, with no
+observations, through these steps:
+
+1. **Simulation**: as for a validation, but with no domain, and the analysis
+   is saved in a folder called `oceanval_analysis` in the directory you choose
+   (an analysis already there is replaced).
+2. **Variables**: "What variables do you want to analyse?" A row for each,
+   with **Your name** for it and the **Model name** holding it, typed or
+   ticked in the pop-out of the model's variables under the box (ticking
+   several sums them, as `a+b`). Nothing is filled in for you: the rows start
+   empty.
+3. **Files**: the files holding each variable, its time resolution, and its
+   dates, with any gaps in them (**Show the months** shows which). If the
+   model's time means look dated at the end of the period each covers, the
+   page first asks whether to shift every time back a day, as matchup does.
+4. **Analyses**: five boxes, **Climatology**, **Phenology**, **Long-term time
+   series**, **Seasonal time series** and **Transects**, each opening a pop-out with a row
+   for each variable and **Cancel** and **Confirm** at the bottom. Nothing is
+   ticked or filled in to start with. Climatology: the years from **Start** to
+   **End**, and **Surface** and/or **Water column**, the vertical mean or the
+   depth integral (which needs the cell thickness, the name of its variable,
+   a file, or `z_level`). Phenology: the years, for each variable with daily
+   output. The two time series have the same boxes, and a table of
+   **Stations** (a name, longitude and latitude each). Once a time series is
+   chosen, a card sets their **regions and area**: regional summaries (none,
+   the northwest European Shelf, global, or your own `.nc` file) and a
+   lon/lat box. Transects: tick each variable you want transects of, and add as many
+   transects as you like to each (they are separate for each variable). A
+   transect is a card with the longitude and latitude of its **Start** and
+   **End** (it must run north–south, the same longitude at both ends, or
+   east–west, the same latitude), and, to their right, its options, each with
+   its own **Start year** and **End year**, which are required: **Surface
+   climatology** (the monthly climatology along the line, as in the
+   validation), **Vertical climatology** (a section of the annual mean through the water
+   column, as in the validation, which asks whether the simulation is z-level or
+   where its cell thickness is) and **Trends**, a drop-down of **Absolute** (the
+   linear trend of the annual means, per year), **Absolute change** (the last
+   year minus the first) and **Percentage change**. Trends need at least 3 years
+   of output (2 for the changes), and are not offered when a variable has only
+   one year. Each variable's years of
+   output are shown beside it as a hint. Below the boxes you must say **how many cores** OceanVal may use
+   (there is no default), and what should be **treated as missing values**,
+   which OceanVal fills in, as it does for validation, if the simulation looks
+   like NEMO-ERSEM (zeros).
+5. **Run**: the window writes the `oceanval.analyze()` call into a script
+   (`analysis.py` unless you choose another name), runs it, and links to the
+   report when it is built.
+
+## Analyzing a simulation
+
+`oceanval.analyze()` works out climatologies and phenology from a
+simulation's output alone, and builds an HTML report of them the way
+`validate()` builds the validation report:
+
+```python
+import oceanval
+
+oceanval.analyze(
+    sim_dir="/path/to/simulation",
+    variables={"Chlorophyll": "P1_Chl+P2_Chl+P3_Chl+P4_Chl", "Temperature": "votemper"},
+    climatology={
+        "Temperature": {"start": 2000, "end": 2009, "surface": True, "bottom": True, "water_column": "mean"},
+        "Chlorophyll": {"start": 2000, "end": 2009, "surface": True, "water_column": "integral"},
+    },
+    phenology={"Chlorophyll": {"start": 2000, "end": 2009}},
+    long_term={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+    seasonal={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+    transects={
+        "Temperature": [
+            {"start": [-30, 0], "end": [-30, 65],
+             "climatology": {"start": 2000, "end": 2009},
+             "vertical": {"start": 2000, "end": 2009},
+             "trends": {"start": 2000, "end": 2009, "how": "absolute"}},
+            {"start": [-20, 50], "end": [0, 50],
+             "trends": {"start": 2000, "end": 2009, "how": "percentage_change"}},
+        ],
+    },
+    stations={"L4": [-4.217, 50.25]},
+    subregions="nwes",
+    n_dirs_down=2,
+    thickness="e3t",
+    cores=4,  # there is no default: say how many
+)
+```
+
+- **Climatology**: the mean of each month of the year over the years from
+  `start` to `end` (each month of each year first, so daily and monthly
+  output count alike), and the annual mean, mapped (and each month, mapped), at
+  the surface (the first value from the top that is not missing), at the
+  bottom (`bottom=True`: the deepest value that is not missing, from
+  nctoolkit's `bottom` method with `choice="value"`) and/or through the water
+  column:
+  `"mean"`, weighted by the cell thickness, or `"integral"`, the depth
+  integral (per m³ becomes per m²). The water column needs `thickness`: the
+  thickness variable in the output, a file with it, or `"z_level"`.
+- **Phenology**: the day of the year of the seasonal peak at the surface in
+  each grid cell, from the variable's daily climatology (its mean on each day
+  of the year), so it needs daily output. Days are counted in the model's own
+  calendar.
+- **Long-term time series** (`long_term`): the mean of each year from `start`
+  to `end` (the mean of its months' means), over the model's domain, over each
+  region of `subregions` (`"nwes"`, `"global"` or the path of your own regions
+  `.nc` file, as in `validate()`), and at each of `stations`, a dict of names
+  and `[lon, lat]` (the nearest model cell with values, within two grid cells).
+  `lon_lim` and `lat_lim` cut a box out of the domain for the domain and region
+  means. Years with output missing are the mean of the months there are, and
+  are marked as such in the report.
+- **Seasonal time series** (`seasonal`): the same, month by month, and the mean
+  seasonal cycle of each. It needs monthly output, or output more often.
+- **Transects** (`transects`): the model's values along straight lines that run
+  north–south (the same longitude at both ends) or east–west (the same latitude),
+  as many as you like, for each variable on its own. Each variable has a list of
+  transects, each a dict of `start` and `end` (`[lon, lat]`) and at least one of
+  `climatology` (the monthly climatology at the surface), `vertical` (the annual
+  mean through the water column, in a section; it needs `thickness`, which places
+  each cell at its depth, or `"z_level"`) and `trends` (at the surface, with
+  `how` of `"absolute"`, the linear trend of the annual means per year,
+  `"absolute_change"`, the last year's annual mean minus the first's, or
+  `"percentage_change"`, that as a percentage of the first year's), each a dict of
+  its own `start` and `end` years. Each month of each year is averaged first, a
+  year's mean is the mean of its months' means, and years without all their
+  months are left out of the trends. The report maps each transect and draws each
+  option. Needs nctoolkit 1.3.6 or later.
+- `cores` has no default: you must say how many cores OceanVal may use.
+  `as_missing` is a value, or `[minimum, maximum]`, to treat as missing, as in
+  `matchup()`.
+- `figure_code=True` gives each figure in the report a **Copy code to reproduce
+  figure** button at its top right. It copies the Python code that draws the
+  figure from the analysis's saved results, with its colour scale, labels and
+  colours written out, so you can change it and run it in the conda environment
+  OceanVal ran in. In the app, the options page asks whether you want this, and
+  you must answer.
+  All spatial means are worked out with nctoolkit's `spatial_mean`. If nctoolkit warns that the model's grid has no cell bounds, so that the cell areas cannot be worked out, the mean is worked out again after regridding the grid to a regular lon-lat grid with `to_latlon`, by nearest neighbour and by bilinear interpolation (the bilinear values are used, and the report says how far the two differ), and the report says that the raw grid did not have enough information to calculate grid cell areas.
+
+Everything is saved in `oceanval_analysis/`, in `out_dir`: the fields as
+netCDF (and `analysis.json`, which says what is in them) in `results/`, the
+report's book in `report/`, and `report.html`, a link to its first page.
+`time_shift=-1` shifts times dated at the end of each mean, as for matchup.
 
 ## Comparing multiple validation outputs
 

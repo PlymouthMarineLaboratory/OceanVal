@@ -124,13 +124,15 @@ KEEP_FOR = 24 * 60 * 60
 # the folders OceanVal empties or removes as a whole, which the store must
 # never be in: validate's oceanval_report and oceanval_results, the interim
 # report's oceanval_interim_report (oceanval.live.FOLDER), compare's
-# oceanval_comparison, and the matchups' oceanval_matchups
+# oceanval_comparison, the matchups' oceanval_matchups, and analyze()'s
+# oceanval_analysis (oceanval.analysis.FOLDER)
 CLEARED_FOLDERS = (
     "oceanval_report",
     "oceanval_results",
     "oceanval_interim_report",
     "oceanval_comparison",
     "oceanval_matchups",
+    "oceanval_analysis",
 )
 
 # the ids of the pieces saved during this run, which are not downloaded again

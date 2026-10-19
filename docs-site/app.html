@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The OceanVal app — OceanVal</title>
-<meta name="description" content="The OceanVal app: validate a simulation from a browser window, with no Python. Choose a simulation and observations, check the units, and watch the matchup and validation report being made.">
+<meta name="description" content="The OceanVal app: validate or analyse a simulation from a browser window, with no Python. Choose a simulation and observations, check the units, and watch the matchup and validation report being made, or work out the climatology, phenology and time series of its variables.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,7 +62,7 @@
   <div class="container">
     <div class="breadcrumb"><a href="index.html">Home</a> / The OceanVal app</div>
     <h1>The OceanVal app</h1>
-    <p class="lead">Validate a simulation from a browser window, with no Python.</p>
+    <p class="lead">Validate or analyse a simulation from a browser window, with no Python.</p>
   </div>
 </div>
 
@@ -72,6 +72,7 @@
     <ul>
       <li><a href="#start">Start it</a></li>
       <li><a href="#demo">Demo</a></li>
+      <li><a href="#analyze">Analyzing a simulation</a></li>
       <li><a href="#remote">On a remote machine</a></li>
       <li><a href="#data-store">Keeping the data downloaded</a></li>
       <li><a href="#python">Running the output from Python</a></li>
@@ -80,7 +81,7 @@
   </aside>
 
   <div class="docs-content">
-    <p>The OceanVal app lets you validate a simulation without writing any Python. Run <code>oceanval</code> in a terminal and a page opens in your web browser that takes you from a folder of model output to a validation report: you choose what to do, point it at your simulation, choose the observations to validate against, check the units, and watch the run.</p>
+    <p>The OceanVal app lets you validate a simulation without writing any Python. Run <code>oceanval</code> in a terminal and a page opens in your web browser that takes you from a folder of model output to a validation report: you choose what to do, point it at your simulation, choose the observations to validate against, check the units, and watch the run. The first page offers <strong>Analyze</strong> and <strong>Validate</strong>: Validate leads to the validation choices, and Analyze looks at a simulation on its own (see <a href="#analyze">below</a>).</p>
 
     <h2 id="start">Start it</h2>
     <p><code>oceanval</code> only runs from a conda environment that has OceanVal installed (see <a href="installing.html">Installing</a>), as it needs the R packages, <code>cdo</code> and <code>nco</code> that conda provides. In a terminal, activate that environment, then run <code>oceanval</code> in the directory to work in:</p>
@@ -106,6 +107,16 @@ oceanval</pre>
       </video>
       <figcaption>A 35-second tour, from choosing what to do to the report. The simulation is a small synthetic one and the matchup output is staged so that it finishes in seconds; the report at the end is OceanVal&rsquo;s published <a href="example-report/notebooks/002_summary.html">example report</a>.</figcaption>
     </figure>
+
+    <h2 id="analyze">Analyzing a simulation</h2>
+    <p><strong>Analyze</strong> works out the climatology, the phenology, time series and transects of a simulation&rsquo;s variables, with no observations, and builds an HTML report of them, laid out like a validation report. It takes you through these pages, each with <strong>Back</strong>, which keeps what you entered:</p>
+    <ol>
+      <li><strong>Simulation</strong>: where the model output is, as for a validation, but with no domain to choose. The analysis is saved in a folder called <code>oceanval_analysis</code> in the directory you choose, replacing any analysis there.</li>
+      <li><strong>What variables do you want to analyse?</strong> A row for each variable, with <strong>Your name</strong> for it and the <strong>Model name</strong> holding it, typed or ticked in the pop-out of the model&rsquo;s variables under the box; ticking several sums them. Nothing is filled in for you: the rows start empty.</li>
+      <li><strong>The files</strong> holding each variable, their time resolution and their dates. OceanVal reads the date of every file and says whether any are missing; <strong>Show the months</strong> shows which. If the model&rsquo;s time means look dated at the end of the period each covers, the page first asks whether to shift every time back a day.</li>
+      <li><strong>What do you want to work out?</strong> Five boxes, <strong>Climatology</strong>, <strong>Phenology</strong>, <strong>Long-term time series</strong>, <strong>Seasonal time series</strong> and <strong>Transects</strong>, each opening a pop-out with a row for each variable, and <strong>Cancel</strong> and <strong>Confirm</strong> at the bottom. What has to be given is marked <strong>Required</strong>, in red: <strong>Confirm</strong> stays greyed out until at least one variable has <strong>Surface</strong>, <strong>Bottom</strong>, <strong>Water column</strong> or more than one ticked (or, for the phenology, is ticked), and each ticked variable needs its years. Once an analysis has been confirmed, a <strong>Remove this analysis</strong> button appears in its pop-out to leave it out again. The climatology is the mean of each month of the year, and the annual mean, over the years from Start to End, at the <strong>Surface</strong>, at the <strong>Bottom</strong> (the deepest value that is not missing) and/or through the <strong>Water column</strong>, as its vertical mean or its depth integral, which needs the cell thickness (the name of its variable, a file, or <code>z_level</code>). The phenology is the day of the seasonal peak at the surface, from a daily climatology, so it is offered only for daily output. The two time series are the mean of each year, and of each month, over the model&rsquo;s domain, each region you choose and each <strong>station</strong> (a name, longitude and latitude, in a table in their pop-outs; the nearest model cell is used). Once one is chosen, a card sets the <strong>regions and area</strong> they share: no regional summaries, the northwest European Shelf, global, or your own <code>.nc</code> file, and a lon/lat box. <strong>Transects</strong> are the model&rsquo;s values along straight lines: tick each variable you want transects of, and add as many transects as you like to each, on its own. A transect is a card with the longitude and latitude of its <strong>Start</strong> and <strong>End</strong> (it must run north&ndash;south, with the same longitude at both ends, or east&ndash;west, with the same latitude), and, to their right, its options, each with its own required <strong>Start year</strong> and <strong>End year</strong>: <strong>Surface climatology</strong>, the monthly climatology along the line; <strong>Vertical climatology</strong>, a section of the annual mean through the water column, which asks whether the simulation is z-level or where its cell thickness is; and <strong>Trends</strong>, a drop-down of <strong>Absolute</strong> (the linear trend per year), <strong>Absolute change</strong> (the last year minus the first) and <strong>Percentage change</strong>, which are not offered for a variable with only one year of output (the absolute trend needs three). Nothing is ticked or filled in to start with, and each variable&rsquo;s years of output are shown beside it as a hint. Below the boxes you must say <strong>how many cores</strong> OceanVal may use, which has no default, and what to treat as <strong>missing values</strong>; as for validation, a NEMO-ERSEM simulation is recognised and zeros are assumed, marked as such. You must also answer <strong>Do you want the report to contain code to reproduce figures?</strong>, Yes or No, with neither chosen to start with: with Yes, each figure in the report has a <strong>Copy code to reproduce figure</strong> button at its top right, which copies the Python code that draws it from the analysis&rsquo;s saved results, to change and run in the conda environment OceanVal ran in.</li>
+      <li><strong>Run the analysis</strong>: the window writes the <code>oceanval.analyze()</code> call into a script, <code>analysis.py</code> unless you choose another name, runs it, and links to the report once it is built. The netCDF fields it worked out are kept beside the report, in <code>oceanval_analysis/results</code>.</li>
+    </ol>
 
     <h2 id="remote">On a remote machine</h2>
     <p>If <code>oceanval</code> cannot open a browser for you, it prints a link to open. VS Code forwards its port for you. Over plain SSH, for example from a Windows terminal, it prints the command that forwards the port, such as <code>ssh -L 8765:127.0.0.1:8765 you@server</code>: run it in a <em>new</em> terminal on your own computer (PowerShell on Windows 10 or later has <code>ssh</code>), leave it open, and open the link in your browser. When it prints that command, <code>oceanval</code> uses port 8765 if it is free, so the command is the same every time; choose another port with <code>--port</code>. When it opens the browser itself, as in VS Code, it uses any free port. The printed login is a guess: use the one you normally connect with. The run carries on if you close the page, and you can come back to it with the same link.</p>

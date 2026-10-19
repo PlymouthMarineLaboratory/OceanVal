@@ -1,0 +1,40 @@
+# %% tags=["remove-input"]
+tr = entry["transects"]
+md("## Transects")
+
+# %% tags=["remove-input"]
+count = len(tr["lines"])
+md(
+    f"The model's {name} was extracted along {count} transect{'s' if count != 1 else ''}, straight lines that run north-south or east-west, "
+    f"from its monthly means, read from {tr['files']} file{'s' if tr['files'] != 1 else ''}. "
+    "Each month of each year is averaged first, so a month of daily output counts as much as a month of monthly output. "
+    "The model's values were bilinearly interpolated onto evenly spaced points along each transect, about one for each grid cell it crosses, using nctoolkit's to_transect. "
+    + dates_text(tr)
+)
+
+# %% tags=["remove-input"]
+for line in tr["lines"]:
+    number = line["index"]
+    display(md(f"### Transect {number}: {line['description']}"))
+    display(md(f"It is sampled at {line['steps']} points."))
+    if line["empty"]:
+        display(md("The model has no values along this transect: it is on land, or outside the model's domain."))
+        continue
+    drawn = ap.transect_map(results_dir, variable, number)
+    ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    display(md(f"**Figure {i_figure}**: Transect {number}, which runs {line['description']}."))
+    i_figure += 1
+    for option, saved in line["options"].items():
+        text = ap.transect_text(entry, number, option)
+        display(md(f"#### Transect {number}: {text['title']}"))
+        display(md(text["method"]))
+        if saved["notes"]:
+            display(md(" ".join(saved["notes"])))
+        drawn = ap.transect_figure(results_dir, variable, number, option)
+        if drawn is None:
+            display(md("The model has no values for this along the transect."))
+            continue
+        ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+        extra = " Grey shows land, or where there are no values." if drawn.found["kind"] in ("months", "section") else ""
+        display(md(f"**Figure {i_figure}**: {text['caption']}{extra}"))
+        i_figure += 1

@@ -62,6 +62,8 @@ import urllib.parse
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
+from oceanval.analysis_app import AnalyzeSteps
+from oceanval import analysis
 from oceanval import data_store
 from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
@@ -118,9 +120,12 @@ def builtin_datasets():
 
 BUILTIN_DATASETS = builtin_datasets()
 
-# what the first step offers: the last registers recipes of your own (see
-# oceanval.user_recipes), which is not a run
+# what the validation page offers: the last registers recipes of your own
+# (see oceanval.user_recipes), which is not a run. The landing page offers
+# "analyze" (see oceanval.analysis_app), and VALIDATE_MENU, the validation page
 ACTIONS = ("matchup_validate", "matchup", "validate", "compare", "register")
+ANALYZE = "analyze"
+VALIDATE_MENU = "validate_menu"
 
 # closing the browser quits the command: a page open in it has a request
 # waiting on the app (the state's, or a heartbeat held for HEARTBEAT_HOLD
@@ -1353,10 +1358,12 @@ class Run:
                 self.process.wait(timeout=timeout)
 
 
-class App:
+class App(AnalyzeSteps):
     """What the oceanval window shows, and the server showing it.
 
-    view is the step the page is on: "start", then "setup", "own_data" (whether
+    view is the step the page is on: "home", the landing page, whose Analyze
+    tile starts an analysis (see oceanval.analysis_app) and whose Validate
+    tile goes to "start", the validation page. From there: "setup", "own_data" (whether
     there are observations of your own), "point_data" and "gridded_data" (adding
     them, with "own_future" between for one to be saved as a recipe too, see
     own_future), "preparing" (while create_recipes reads the simulation) and
@@ -1396,7 +1403,7 @@ class App:
         self._changed = threading.Condition(self._lock)
         self.version = 0
         self.console = Console(self._notify)
-        self.view = "start"
+        self.view = "home"
         self.action = None
         self.setup_form = dict(default_setup_form(), out_dir=self.cwd)
         self.setup_error = None
@@ -1496,6 +1503,7 @@ class App:
         # the window's settings, from the home .oceanvalrc as it opens
         self.settings = user_settings.load()
         self._server = None
+        self._init_analyze()
 
     # ---- state ----
 
@@ -1584,6 +1592,9 @@ class App:
                     self.compare_arguments["out_dir"], *COMPARISON_HTML, *COMPARISON_LANDING
                 )
                 which = "comparison"
+            elif self.action == ANALYZE and self.results_dir:
+                report = os.path.join(self.results_dir, analysis.FOLDER, analysis.REPORT_LINK)
+                which = "analysis"
             report_exists = bool(report and os.path.exists(report))
             return {
                 "version": self.version,
@@ -1592,7 +1603,7 @@ class App:
                 "action": self.action,
                 "cwd": self.cwd,
                 "setup": {
-                    "form": self.setup_form,
+                    "form": self.analyze_setup_form if self.action == ANALYZE else self.setup_form,
                     "error": self.setup_error,
                     "recent": [d for d in user_cache.recent_sim_dirs() if os.path.isdir(d)],
                 },
@@ -1623,6 +1634,7 @@ class App:
                 "point_time_res": self._point_time_res_state(),
                 "time_shift": self._time_shift_state(),
                 "model_check": self._model_check_state(),
+                "analyze": self._analyze_state(),
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -1717,9 +1729,10 @@ class App:
     def report_root(self, which):
         """The directory of the HTML pages served at /<which>/<token>/:
         which is "interim", for the interim report a matchup and validate
-        run builds as it goes, "report", for the full report, or
-        "comparison", for a comparison and the validation reports it links
-        to (see report_folders)."""
+        run builds as it goes, "report", for the full report, "analysis",
+        for an analysis's report (see oceanval.analysis), or "comparison",
+        for a comparison and the validation reports it links to (see
+        report_folders)."""
         if which == "comparison":
             folders = self.report_folders(which)
             return os.path.commonpath(folders) if folders else None
@@ -1731,6 +1744,8 @@ class App:
             )
         if which == "report":
             return os.path.join(self.results_dir, "oceanval_report", "_build", "html")
+        if which == "analysis":
+            return os.path.join(self.results_dir, analysis.FOLDER, analysis.REPORT, "_build", "html")
         return None
 
     def report_folders(self, which):
@@ -1810,6 +1825,25 @@ class App:
         validate, or compare - or try the demo, which is a matchup and
         validate run. data_dir fills in the matchups to validate."""
         with self._lock:
+            if action == VALIDATE_MENU:
+                # the landing page's Validate tile
+                if self.view != "home":
+                    return False
+                self.view = "start"
+                self._notify()
+                return True
+            if action == ANALYZE:
+                if self.view not in ("home", "finished"):
+                    return False
+                self._end_demo()
+                self._forget_steps()
+                self.question = None
+                self.interim = None
+                self.action = action
+                self.setup_error = None
+                self.view = "setup"
+                self._notify()
+                return True
             if action not in ACTIONS + ("demo",) or self.view not in ("start", "finished"):
                 return False
             self._end_demo()
@@ -1895,7 +1929,19 @@ class App:
     def _step_back(self, sent):
         """Back from a step with no thread waiting on it. Called with the
         lock held."""
+        if self.action == ANALYZE:
+            if self.view == "setup":
+                # the boxes are shown again as they were left
+                if isinstance(sent.get("form"), dict):
+                    self.analyze_setup_form = self._analyze_form(sent["form"])
+                self.view = "home"
+                self._notify()
+                return True
+            went = self._analyze_back(sent)
+            if went is not None:
+                return went
         earlier = {
+            "start": "home",
             "setup": "demo_instructions" if self.demo is not None else "start",
             "demo_instructions": "demo",
             "validate": "start",
@@ -2197,7 +2243,7 @@ class App:
         with self._lock:
             if self.view not in ("finished", "script_saved"):
                 return False
-            self.view = "start"
+            self.view = "home"
             self.action = None
             self._end_demo()
             self.matchup_script_saved = False
@@ -2208,6 +2254,8 @@ class App:
     def setup(self, form):
         """Read the simulation with create_recipes, from the simulation step's
         boxes. Returns the HTTP status and the reply for the page."""
+        if self.action == ANALYZE:
+            return self._analyze_setup(form)
         with self._lock:
             if self.view != "setup":
                 return 409, {"ok": False, "error": "This step is over."}
@@ -3637,6 +3685,7 @@ class App:
         found["out_dir_has_matchups"] = os.path.isdir(
             os.path.join(results, "oceanval_matchups")
         )
+        found["out_dir_has_analysis"] = os.path.isdir(os.path.join(results, analysis.FOLDER))
         if not simdir.strip():
             return found
         path = _path(simdir.strip(), self.cwd)
@@ -4032,6 +4081,7 @@ class App:
             run, page = self.run, self.recipes_page
             self._cancel_register_check()
             self._drop_model_check()
+            self._drop_analyze_check()
             self._notify()
         if run is not None:
             run.stop()
@@ -4096,8 +4146,9 @@ class _Handler(recipes_gui._Handler):
         self.end_headers()
 
     def _report_file(self, path):
-        """A file of the interim report, the full report or a comparison:
-        path is /interim/<token>/<page>, /report/<token>/<page> or
+        """A file of the interim report, the full report, an analysis's
+        report or a comparison: path is /interim/<token>/<page>,
+        /report/<token>/<page>, /analysis/<token>/<page> or
         /comparison/<token>/<page>. The token is in the path, not the query,
         so that the reports' own relative links carry it from page to page."""
         which, _, rest = path[1:].partition("/")
@@ -4134,7 +4185,7 @@ class _Handler(recipes_gui._Handler):
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
-        if url.path.startswith(("/interim/", "/report/", "/comparison/")):
+        if url.path.startswith(("/interim/", "/report/", "/analysis/", "/comparison/")):
             self._report_file(url.path)
             return
         query = {
@@ -4151,6 +4202,7 @@ class _Handler(recipes_gui._Handler):
             "/api/files",
             "/api/question_files",
             "/api/model_check_files",
+            "/api/analyze_check_files",
         ):
             self._reply(404, "Not found", "text/plain; charset=utf-8")
         elif not self.app.authorised(query.get("token", "")):
@@ -4212,6 +4264,12 @@ class _Handler(recipes_gui._Handler):
                 )
             else:
                 self._reply_json(200, {"ok": True, "files": files})
+        elif url.path == "/api/analyze_check_files":
+            files = self.app.analyze_check_files(query.get("variable", ""))
+            if files is None:
+                self._reply_json(409, {"ok": False, "error": "The files are not known yet."})
+            else:
+                self._reply_json(200, {"ok": True, "files": files})
         elif url.path == "/api/model_check_files":
             files = self.app.model_check_files(query.get("variable", ""), _number(query.get("group")))
             if files is None:
@@ -4264,6 +4322,18 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/compare":
             self._reply_json(*app.compare(payload.get("form")))
+            return
+        if path == "/api/analyze_variables":
+            self._reply_json(*app.analyze_variables(payload.get("rows")))
+            return
+        if path == "/api/analyze_files":
+            self._reply_json(*app.analyze_files())
+            return
+        if path == "/api/analyze_option":
+            self._reply_json(*app.analyze_option(payload.get("kind"), payload.get("form")))
+            return
+        if path == "/api/analyze_run":
+            self._reply_json(*app.analyze_run())
             return
         if path == "/api/report":
             self._reply_json(*app.report(payload.get("form")))
@@ -4332,6 +4402,7 @@ class _Handler(recipes_gui._Handler):
             "/api/own_future_check": app.own_future_check,
             "/api/register_kind": lambda: app.register_kind(payload.get("kind")),
             "/api/register_done": app.register_done,
+            "/api/analyze_time_shift": lambda: app.analyze_time_shift(payload.get("choice")),
             # with what the step's boxes hold
             "/api/back": lambda: app.back(payload),
             "/api/restart": app.restart,

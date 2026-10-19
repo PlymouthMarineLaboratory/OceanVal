@@ -15,6 +15,14 @@ Configuration and matching
    matchup
    create_recipes
 
+Analysis
+--------
+
+.. autosummary::
+   :toctree: generated/
+
+   analyze
+
 Reports and maintenance
 -----------------------
 

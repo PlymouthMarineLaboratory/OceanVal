@@ -1,0 +1,778 @@
+"""The oceanval window's landing page, and its Analyze steps (see
+oceanval.analysis_app): the simulation, the variables, their files and the
+gaps in them, the climatology and phenology pop-outs, and the run."""
+
+import ast
+import os
+
+import numpy as np
+import pytest
+import xarray as xr
+
+from oceanval import analysis, model_check, transects
+from oceanval.app import App
+from simulations import write_analysis_simulation
+from test_app import get, get_json, leftover_dir, post, wait_for  # noqa: F401 (leftover_dir is autouse)
+
+
+@pytest.fixture
+def app(tmp_path):
+    app = App(cwd=str(tmp_path))
+    app.start()
+    yield app
+    app.close()
+
+
+@pytest.fixture
+def runs(app, monkeypatch):
+    """The runs the app starts, which are recorded rather than started."""
+    started = []
+    monkeypatch.setattr(app, "start_run", lambda args, label: started.append((args, label)))
+    return started
+
+
+@pytest.fixture
+def sim(tmp_path):
+    write_analysis_simulation(str(tmp_path / "sim"))
+    return "sim"
+
+
+def setup_form(app, simdir="sim", **changes):
+    return dict(app.analyze_setup_form, simdir=simdir, ndown="1", **changes)
+
+
+def to_variables(app, simdir="sim"):
+    assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
+    assert post(app, "/api/setup", {"form": setup_form(app, simdir)}) == (200, {"ok": True})
+    wait_for(lambda: app.analyze_found["status"] != "reading")
+    return get_json(app, "/api/state")[1]["analyze"]
+
+
+ROWS = [
+    {"name": "Chlorophyll", "model_variable": "P1_Chl+P2_Chl"},
+    {"name": "Temperature", "model_variable": "thetao"},
+]
+
+
+def to_files(app, rows=ROWS):
+    to_variables(app)
+    assert post(app, "/api/analyze_variables", {"rows": rows}) == (200, {"ok": True})
+    wait_for(lambda: app.analyze_check is not None and app.analyze_check.status != "running")
+    return get_json(app, "/api/state")[1]["analyze"]
+
+
+def to_options(app):
+    to_files(app)
+    assert post(app, "/api/analyze_files") == (200, {"ok": True})
+    return get_json(app, "/api/state")[1]["analyze"]
+
+
+CLIMATOLOGY = {
+    "rows": {
+        "Chlorophyll": {"use": True, "start": "2013", "end": "2014", "surface": True},
+        "Temperature": {"use": True, "start": "2014", "end": "2014", "surface": False, "water_column": True, "how": "integral"},
+    },
+    "thickness": "e3t",
+}
+
+
+class TestLanding:
+    def test_the_window_opens_on_analyze_or_validate(self, app):
+        state = get_json(app, "/api/state")[1]
+        assert state["view"] == "home"
+        page = get(app, "/")[1]
+        assert 'data-action="analyze"' in page and 'data-action="validate_menu"' in page
+
+    def test_validate_opens_the_validation_page_and_back_returns(self, app):
+        # the validation page's choices are not taken from the landing page
+        assert post(app, "/api/choose", {"action": "matchup"})[0] == 409
+        assert post(app, "/api/choose", {"action": "validate_menu"})[0] == 200
+        assert app.view == "start"
+        assert post(app, "/api/choose", {"action": "matchup"})[0] == 200
+        assert app.view == "setup"
+        assert post(app, "/api/back")[0] == 200
+        assert app.view == "start"
+        assert post(app, "/api/back")[0] == 200
+        assert app.view == "home"
+
+    def test_start_again_returns_to_the_landing_page(self, app):
+        app.view = "finished"
+        app.action = "analyze"
+        assert post(app, "/api/restart")[0] == 200
+        assert (app.view, app.action) == ("home", None)
+
+
+class TestSimulation:
+    def test_an_analysis_needs_no_domain_or_years(self, app, sim):
+        state = to_variables(app)
+        assert app.view == "analyze_variables"
+        assert app.analyze_setup["simdir"].endswith("sim")
+        assert state["found"]["status"] == "done"
+        assert state["found"]["streams"] == 2
+        # nothing is chosen for the user: the rows start empty
+        assert state["rows"] == []
+        assert state["picker"]["available"] == ["P1_Chl", "P2_Chl", "e3t", "thetao"]
+
+    def test_the_setup_page_is_its_own(self, app, sim):
+        assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
+        state = get_json(app, "/api/state")[1]
+        assert state["setup"]["form"]["out"] == "analysis.py"
+        assert state["setup"]["form"]["domain"] == ""
+        status, reply = post(app, "/api/setup", {"form": setup_form(app, "nowhere")})
+        assert status == 400 and set(reply["errors"]) == {"simdir"}
+        # an analysis already there is said to be replaced
+        os.makedirs(os.path.join(app.cwd, analysis.FOLDER))
+        assert get_json(app, "/api/probe", simdir="sim", ndown="1", out="", out_dir="")[1]["out_dir_has_analysis"]
+
+    def test_a_simulation_that_cannot_be_analysed(self, app, tmp_path):
+        os.makedirs(tmp_path / "empty" / "2013")
+        state = to_variables(app, "empty")
+        assert state["found"]["status"] == "failed"
+        assert "No netCDF files" in state["found"]["error"]
+        assert post(app, "/api/analyze_variables", {"rows": ROWS})[0] == 409
+
+
+class TestVariables:
+    def test_the_rows_are_checked(self, app, sim):
+        to_variables(app)
+        status, reply = post(app, "/api/analyze_variables", {"rows": ROWS + [{"name": "Odd", "model_variable": "nope"}]})
+        assert status == 400
+        assert reply["errors"] == {"2": {"model_variable": "nope is not in the simulation's output."}}
+        assert app.view == "analyze_variables"
+        # what was sent is kept, to be shown again
+        assert app.analyze_rows[2]["name"] == "Odd"
+
+    def test_the_files_and_their_dates(self, app, sim):
+        state = to_files(app)
+        assert app.view == "analyze_files"
+        assert state["time_shift"] == {"status": "none", "rows": [], "choice": None}
+        assert [row["pattern"] for row in state["placed"]] == ["sim_1d_**_**_ptrc_T.nc", "sim_1d_**_**_grid_T.nc"]
+        assert [row["time_res"] for row in state["placed"]] == ["1d", "1d"]
+        assert [row["years"] for row in state["placed"]] == [[2013, 2014], [2013, 2014]]
+        check = state["check"]
+        assert check["status"] == "done"
+        dates = check["rows"][0]["groups"][0]["dates"]
+        assert dates["gaps"] is False and dates["first"] == "2013-01-01"
+        status, reply = get_json(app, "/api/analyze_check_files", variable="Chlorophyll")
+        assert reply["files"] == ["2013/sim_1d_20130101_20131231_ptrc_T.nc", "2014/sim_1d_20140101_20141231_ptrc_T.nc"]
+
+    def test_a_change_of_simulation_keeps_your_rows(self, app, sim, tmp_path):
+        to_variables(app)
+        rows = [dict(row, filled=False) for row in ROWS[:1]] + [{"name": "Mine", "model_variable": "e3t"}]
+        assert post(app, "/api/back", {"rows": rows})[0] == 200
+        assert app.view == "setup"
+        write_analysis_simulation(str(tmp_path / "other"), years=(2015,))
+        assert post(app, "/api/setup", {"form": setup_form(app, "other")})[0] == 200
+        wait_for(lambda: app.analyze_found["status"] != "reading")
+        state = get_json(app, "/api/state")[1]["analyze"]
+        assert [row["name"] for row in state["rows"]] == ["Chlorophyll", "Mine"]
+        assert state["refilled"] is False
+
+
+class TestTimeShift:
+    def test_times_at_the_end_of_each_mean_are_asked_about_first(self, app, tmp_path):
+        for year in (2013, 2014):
+            os.makedirs(tmp_path / "getm" / str(year))
+            times = [np.datetime64(f"{year + month // 12}-{month % 12 + 1:02d}-01") for month in range(1, 13)]
+            xr.Dataset(
+                {"temp": (("time", "lat", "lon"), np.ones((12, 2, 2)), {"units": "degC", "cell_methods": "time: mean"})},
+                coords={"time": times, "lat": [50.0, 51.0], "lon": [0.0, 1.0]},
+            ).to_netcdf(tmp_path / "getm" / str(year) / f"getm_{year}.nc")
+        to_variables(app, "getm")
+        assert post(app, "/api/analyze_variables", {"rows": [{"name": "Temperature", "model_variable": "temp"}]})[0] == 200
+        wait_for(lambda: app.analyze_shift["status"] != "checking")
+        assert app.analyze_shift["status"] == "asked"
+        # the dates are only read once it is answered, as they are shifted
+        assert app.analyze_check is None
+        assert post(app, "/api/analyze_files")[0] == 409
+        assert post(app, "/api/analyze_time_shift", {"choice": "maybe"})[0] == 409
+        assert post(app, "/api/analyze_time_shift", {"choice": "shift"})[0] == 200
+        wait_for(lambda: app.analyze_check.status != "running")
+        dates = app.analyze_check.state()["rows"][0]["groups"][0]["dates"]
+        assert (dates["first"], dates["last"]) == ("2013-01-31", "2014-12-31")
+        assert post(app, "/api/analyze_files")[0] == 200
+        assert app._shift_days() == -1
+
+
+class TestOptions:
+    def test_the_pop_outs_start_with_nothing_chosen(self, app, sim):
+        state = to_options(app)
+        assert app.view == "analyze_options"
+        for kind in ("climatology", "long_term", "seasonal"):
+            assert state["forms"][kind]["rows"]["Temperature"] == {
+                "use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            }
+        assert state["forms"]["phenology"]["rows"]["Chlorophyll"] == {"use": False, "start": "", "end": ""}
+        assert state["forms"]["climatology"]["thickness"] == ""
+        assert state["cores"] == "" and state["missing"] == {"from": "", "to": ""}
+        # nor whether the report has code to reproduce its figures
+        assert state["figure_code"] == ""
+        assert state["nemo_ersem"] is False
+        assert state["chosen"] == {
+            "climatology": None, "phenology": None, "long_term": None, "seasonal": None, "transects": None,
+        }
+        assert state["thickness_suggested"] == "e3t"
+        assert state["placed"][0]["default_years"] == [2013, 2014]
+
+    def test_an_ersem_simulation_is_assumed_to_have_zeros_as_missing(self, app, sim, monkeypatch):
+        from oceanval import recipes_gui
+
+        monkeypatch.setattr(recipes_gui, "is_likely_nemo_ersem", lambda variables: True)
+        state = to_options(app)
+        assert state["nemo_ersem"] is True
+        assert state["missing"] == {"from": "0", "to": "0"}
+        # what the user sets is kept, and a change of simulation does not undo it
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "", "to": ""}})[0] == 200
+        assert app.analyze_missing == {"from": "", "to": ""}
+        app._read_simulation()
+        wait_for(lambda: app.analyze_found["status"] != "reading")
+        assert app.analyze_missing == {"from": "", "to": ""}
+
+    def test_the_time_series_hold_the_regions_and_area(self, app, sim):
+        to_options(app)
+        area = {"subregions": "global", "lon_min": "-5", "lon_max": "0", "lat_min": "49", "lat_max": "55"}
+        form = dict(CLIMATOLOGY, area=area, stations=[["L4", "-4.2", "50.2"], ["", "", ""]])
+        assert post(app, "/api/analyze_option", {"kind": "long_term", "form": form}) == (200, {"ok": True})
+        assert app.analyze_area == dict(area, subregions_file="", stations=[["L4", "-4.2", "50.2"]])
+        assert get_json(app, "/api/state")[1]["analyze"]["area"]["subregions"] == "global"
+        assert app.analyze_chosen["long_term"]["rows"]["Chlorophyll"]["start"] == 2013
+        # a bad box or file is said, beside the area, and nothing is kept
+        bad = dict(form, area=dict(area, lon_max="", subregions="file", subregions_file="nowhere.nc"))
+        status, reply = post(app, "/api/analyze_option", {"kind": "seasonal", "form": bad})
+        assert status == 400
+        assert set(reply["errors"]["area"]) == {"lon_max", "subregions_file"}
+        assert app.analyze_chosen["seasonal"] is None and app.analyze_area["subregions"] == "global"
+        # the climatology has no area
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": dict(CLIMATOLOGY, area=bad["area"])})[0] == 200
+        assert app.analyze_area["subregions"] == "global"
+        # and it is run with the time series
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "1"}})[0] == 200
+
+    def test_confirm_checks_and_keeps(self, app, sim):
+        to_options(app)
+        bad = dict(CLIMATOLOGY, thickness="")
+        status, reply = post(app, "/api/analyze_option", {"kind": "climatology", "form": bad})
+        assert status == 400 and set(reply["errors"]) == {"thickness"}
+        assert app.analyze_chosen["climatology"] is None
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})[0] == 200
+        assert app.analyze_chosen["climatology"] == {
+            "rows": {
+                "Chlorophyll": {"start": 2013, "end": 2014, "surface": True, "bottom": False, "water_column": None},
+                "Temperature": {"start": 2014, "end": 2014, "surface": False, "bottom": False, "water_column": "integral"},
+            },
+            "thickness": "e3t",
+        }
+        # nothing ticked cannot be confirmed, whatever was chosen before
+        none = {"rows": {name: {"use": False} for name in ("Chlorophyll", "Temperature")}}
+        status, reply = post(app, "/api/analyze_option", {"kind": "phenology", "form": none})
+        assert status == 400 and "rows" in reply["errors"]
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": dict(CLIMATOLOGY, rows=none["rows"])})[0] == 400
+        assert app.analyze_chosen["climatology"] is not None
+
+    def test_a_chosen_analysis_is_removed_with_its_boxes_kept(self, app, sim):
+        to_options(app)
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})[0] == 200
+        assert app.analyze_chosen["climatology"] is not None
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": {"remove": True}}) == (200, {"ok": True})
+        assert app.analyze_chosen["climatology"] is None
+        assert app.analyze_forms["climatology"]["rows"]["Chlorophyll"]["use"] is True
+
+    def test_back_keeps_every_step(self, app, sim):
+        to_options(app)
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        check = app.analyze_check
+        for view in ("analyze_files", "analyze_variables", "setup"):
+            assert post(app, "/api/back", {"rows": ROWS} if view == "setup" else {})[0] == 200
+            assert app.view == view
+        assert post(app, "/api/setup", {"form": setup_form(app)})[0] == 200
+        # the same simulation is not read again
+        assert app.analyze_found["status"] == "done"
+        assert [row["name"] for row in get_json(app, "/api/state")[1]["analyze"]["rows"]] == ["Chlorophyll", "Temperature"]
+        assert post(app, "/api/analyze_variables", {"rows": ROWS})[0] == 200
+        # nor are the dates of the same files
+        assert app.analyze_check is check
+        assert post(app, "/api/analyze_files")[0] == 200
+        assert app.analyze_forms["climatology"]["rows"]["Temperature"]["how"] == "integral"
+        assert app.analyze_chosen["climatology"]["rows"]["Temperature"]["water_column"] == "integral"
+        assert get_json(app, "/api/state")[1]["analyze"]["figure_code"] == "no"
+
+    def test_a_variable_taken_away_is_left_out(self, app, sim):
+        to_options(app)
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})[0] == 200
+        assert post(app, "/api/back")[0] == 200
+        assert post(app, "/api/back")[0] == 200
+        assert post(app, "/api/analyze_variables", {"rows": ROWS[:1]})[0] == 200
+        wait_for(lambda: app.analyze_check is not None and app.analyze_check.status != "running")
+        assert post(app, "/api/analyze_files")[0] == 200
+        assert list(app.analyze_chosen["climatology"]["rows"]) == ["Chlorophyll"]
+
+    def test_the_run_writes_the_script_and_runs_it(self, app, sim, runs):
+        to_options(app)
+        assert post(app, "/api/analyze_run")[0] == 400
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})[0] == 200
+        # there is no default number of cores
+        status, reply = post(app, "/api/analyze_run")
+        assert status == 400 and reply["errors"] == {"cores": "Say how many cores OceanVal may use."}
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "0"}})[0] == 400
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}}) == (200, {"ok": True})
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "x", "to": ""}})[0] == 400
+        assert post(app, "/api/analyze_run")[0] == 400
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
+        # whether the report has code to reproduce its figures must be answered
+        status, reply = post(app, "/api/analyze_run")
+        assert status == 400 and reply["errors"] == {
+            "figure_code": "Say whether the report should have code to reproduce its figures."
+        }
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "maybe"}})[0] == 400
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "yes"}}) == (200, {"ok": True})
+        assert get_json(app, "/api/state")[1]["analyze"]["figure_code"] == "yes"
+        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        script = os.path.join(app.cwd, "analysis.py")
+        assert runs == [(["analyze", script], "python analysis.py")]
+        assert app.results_dir == app.cwd
+        tree = ast.parse(open(script).read())
+        call = tree.body[-1].value
+        assert ast.unparse(call.func) == "oceanval.analyze"
+        given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
+        assert given["variables"] == {"Chlorophyll": "P1_Chl+P2_Chl", "Temperature": "thetao"}
+        assert given["climatology"]["Temperature"]["water_column"] == "integral"
+        assert given["phenology"] is None
+        assert given["thickness"] == "e3t"
+        assert given["n_dirs_down"] == 1
+        assert given["cores"] == 2 and given["as_missing"] == [0.0, 0.0]
+        assert given["figure_code"] is True
+
+
+needs_to_transect = pytest.mark.skipif(not transects.available(), reason="nctoolkit cannot extract transects")
+
+# a transect's boxes: its ends and its surface climatology
+TRANSECT = {
+    "start_lon": "-2", "start_lat": "50", "end_lon": "-2", "end_lat": "53",
+    "climatology": True, "climatology_start": "2013", "climatology_end": "2014",
+    "vertical": False, "vertical_start": "", "vertical_end": "", "trends": "", "trends_start": "", "trends_end": "",
+}
+EAST_WEST = dict(
+    TRANSECT, start_lon="-4", start_lat="51", end_lon="0", end_lat="51", climatology=False, climatology_start="", climatology_end="",
+    vertical=True, vertical_start="2013", vertical_end="2014", trends="absolute_change", trends_start="2013", trends_end="2014",
+)
+
+
+def transects_form(**variables):
+    """The pop-out's boxes: the transects of each variable named, which ticks it."""
+    return {"rows": {name: {"use": True, "transects": boxes} for name, boxes in variables.items()}}
+
+
+class TestTransects:
+    def test_the_pop_out_starts_with_nothing_chosen(self, app, sim):
+        state = to_options(app)
+        blank = {
+            "start_lon": "", "start_lat": "", "end_lon": "", "end_lat": "",
+            "climatology": False, "climatology_start": "", "climatology_end": "",
+            "vertical": False, "vertical_start": "", "vertical_end": "",
+            "trends": "", "trends_start": "", "trends_end": "",
+        }
+        # each variable has transects of its own
+        assert state["forms"]["transects"] == {
+            "rows": {name: {"use": False, "transects": [blank]} for name in ("Chlorophyll", "Temperature")},
+            "thickness": "",
+        }
+        assert state["chosen"]["transects"] is None
+        assert 'id="ao-transects"' in get(app, "/")[1] and 'id="trans-dialog"' in get(app, "/")[1]
+
+    @needs_to_transect
+    def test_confirm_checks_and_keeps(self, app, sim):
+        to_options(app)
+        # nothing ticked, or no transect for what is, cannot be confirmed
+        status, reply = post(app, "/api/analyze_option", {"kind": "transects", "form": {"rows": {}}})
+        assert status == 400 and "Tick at least one variable" in reply["errors"]["rows"]
+        status, reply = post(app, "/api/analyze_option", {"kind": "transects", "form": transects_form(Temperature=[{}])})
+        assert status == 400 and "Add a transect for this variable" in reply["errors"]["Temperature"]["use"]
+        # a transect has to follow the rule and say what to work out, and is said by its number for its variable
+        diagonal = dict(TRANSECT, end_lon="3", climatology=False)
+        status, reply = post(app, "/api/analyze_option", {"kind": "transects", "form": transects_form(Temperature=[TRANSECT, diagonal])})
+        assert status == 400 and set(reply["errors"]) == {"Temperature"}
+        found = reply["errors"]["Temperature"]["transects"]
+        assert set(found) == {"1"} and {"start_lon", "end_lat", "options"} <= set(found["1"])
+        assert app.analyze_chosen["transects"] is None
+        # as many as are wanted, and different for each variable
+        form = transects_form(Temperature=[TRANSECT, EAST_WEST], Chlorophyll=[dict(TRANSECT, end_lat="52")])
+        # a vertical section needs to know whether the simulation is z-level, or where its thickness is
+        status, reply = post(app, "/api/analyze_option", {"kind": "transects", "form": form})
+        assert status == 400 and set(reply["errors"]) == {"thickness"}
+        assert post(app, "/api/analyze_option", {"kind": "transects", "form": dict(form, thickness="e3t")}) == (200, {"ok": True})
+        assert app.analyze_chosen["transects"]["thickness"] == "e3t"
+        chosen = app.analyze_chosen["transects"]["rows"]
+        assert [line["end"] for line in chosen["Temperature"]] == [[-2.0, 53.0], [0.0, 51.0]]
+        assert chosen["Chlorophyll"][0]["end"] == [-2.0, 52.0]
+        assert chosen["Temperature"][1] == {
+            "start": [-4.0, 51.0], "end": [0.0, 51.0], "climatology": None, "vertical": {"start": 2013, "end": 2014},
+            "trends": {"start": 2013, "end": 2014, "how": "absolute_change"},
+        }
+        state = get_json(app, "/api/state")[1]["analyze"]
+        assert state["forms"]["transects"]["rows"]["Temperature"]["transects"][1]["end_lon"] == "0"
+        assert state["forms"]["transects"]["thickness"] == "e3t"
+        # it is removed with its boxes kept
+        assert post(app, "/api/analyze_option", {"kind": "transects", "form": {"remove": True}}) == (200, {"ok": True})
+        assert app.analyze_chosen["transects"] is None
+        assert len(app.analyze_forms["transects"]["rows"]["Temperature"]["transects"]) == 2
+
+    @needs_to_transect
+    def test_a_vertical_transect_needs_a_variable_with_levels(self, app, sim):
+        to_options(app)
+        form = dict(transects_form(Chlorophyll=[EAST_WEST]), thickness="e3t")
+        status, reply = post(app, "/api/analyze_option", {"kind": "transects", "form": form})
+        assert status == 400
+        assert "vertical" in reply["errors"]["Chlorophyll"]["transects"]["0"]
+
+    @needs_to_transect
+    def test_back_keeps_them_and_a_variable_taken_away_is_left_out(self, app, sim):
+        to_options(app)
+        form = transects_form(Temperature=[TRANSECT], Chlorophyll=[TRANSECT])
+        assert post(app, "/api/analyze_option", {"kind": "transects", "form": form})[0] == 200
+        assert sorted(app.analyze_chosen["transects"]["rows"]) == ["Chlorophyll", "Temperature"]
+        assert post(app, "/api/back")[0] == 200 and post(app, "/api/back")[0] == 200
+        assert post(app, "/api/analyze_variables", {"rows": ROWS[1:]})[0] == 200
+        wait_for(lambda: app.analyze_check is not None and app.analyze_check.status != "running")
+        assert post(app, "/api/analyze_files")[0] == 200
+        assert list(app.analyze_chosen["transects"]["rows"]) == ["Temperature"]
+        assert app.analyze_forms["transects"]["rows"]["Temperature"]["transects"][0]["end_lat"] == "53"
+
+    @needs_to_transect
+    def test_the_run_writes_the_transects_into_the_script(self, app, sim, runs):
+        to_options(app)
+        form = dict(transects_form(Temperature=[TRANSECT, EAST_WEST]), thickness="z_level")
+        assert post(app, "/api/analyze_option", {"kind": "transects", "form": form})[0] == 200
+        for kind, answer in (("cores", {"cores": "1"}), ("figure_code", {"choice": "no"})):
+            assert post(app, "/api/analyze_option", {"kind": kind, "form": answer})[0] == 200
+        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        text = open(os.path.join(app.cwd, "analysis.py")).read()
+        call = ast.parse(text).body[-1].value
+        given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
+        assert given["variables"] == {"Temperature": "thetao"}
+        assert given["climatology"] is None and given["phenology"] is None and given["thickness"] == "z_level"
+        assert given["transects"] == {
+            "Temperature": [
+                {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": {"start": 2013, "end": 2014}},
+                {
+                    "start": [-4.0, 51.0], "end": [0.0, 51.0], "vertical": {"start": 2013, "end": 2014},
+                    "trends": {"start": 2013, "end": 2014, "how": "absolute_change"},
+                },
+            ]
+        }
+
+
+def test_the_analysis_report_is_served(app, tmp_path):
+    pages = tmp_path / analysis.FOLDER / analysis.REPORT / "_build" / "html" / "notebooks"
+    os.makedirs(pages)
+    (pages / "000_overview.html").write_text("<p>overview</p>")
+    os.symlink(os.path.join(analysis.REPORT, "_build", "html", "notebooks", "000_overview.html"),
+               tmp_path / analysis.FOLDER / analysis.REPORT_LINK)
+    app.action = "analyze"
+    app.results_dir = str(tmp_path)
+    run = get_json(app, "/api/state")[1]["run"]
+    assert run["report_exists"]
+    assert run["report_href"].startswith(f"analysis/{app.token}/")
+    status, body = get(app, "/" + run["report_href"], token=None)
+    assert (status, body) == (200, "<p>overview</p>")
+    assert get(app, f"/analysis/wrong/notebooks/000_overview.html")[0] == 403
+
+
+def test_the_dates_check_works_out_the_resolution(tmp_path):
+    write_analysis_simulation(str(tmp_path / "sim"), daily=False)
+    files = sorted(str(path) for path in (tmp_path / "sim").glob("*/*ptrc_T.nc"))
+    events = []
+    model_check.check(
+        {
+            "sim_dir": str(tmp_path / "sim"),
+            "years": [2013, 2014],
+            "rows": [{"variable": "chl", "pattern": "p", "time_res": None}],
+            "files": {"p": files},
+            "out_dir": str(tmp_path),
+        },
+        events.append,
+    )
+    found = next(event for event in events if event["event"] == "files")
+    assert found["time_res"] == "monthly"
+
+
+def test_analyze_in_a_browser(browser, tmp_path):
+    """The landing page, the variables OceanVal fills in in red and bold,
+    and a pop-out whose Cancel forgets what was changed and whose Confirm
+    keeps it."""
+    write_analysis_simulation(str(tmp_path / "sim"))
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-analyze")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        # an analysis has no domain to choose
+        assert page.is_hidden("#setup-domain")
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "1")
+        page.wait_for_function("() => !document.querySelector('#continue').disabled")
+        page.click("#continue")
+        page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+        # nothing is filled in for the user: there is one empty row
+        assert page.locator("#av-rows > tr").count() == 1
+        first = page.locator("#av-rows > tr").first.locator("td").first.locator("input")
+        model = page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input").first
+        assert first.input_value() == "" and model.input_value() == ""
+        first.fill("Temperature")
+        model.fill("thetao")
+        page.click("#av-continue")
+        page.wait_for_selector("#view-analyze-files:not([hidden])")
+        page.wait_for_function("() => !document.querySelector('#af-continue').disabled", timeout=60000)
+        page.click("#af-continue")
+        page.wait_for_selector("#view-analyze-options:not([hidden])")
+        assert page.is_disabled("#ao-run")
+        # nothing is chosen, not even the number of cores, or whether the report has figure code
+        assert page.input_value("#ao-cores") == "" and page.input_value("#ao-missing_from") == ""
+        assert not page.is_checked("#ao-code-yes") and not page.is_checked("#ao-code-no")
+        # the regional subdomains are in the time series' pop-outs, not on this page
+        assert page.locator("#area-subregions").count() == 1 and page.is_hidden("#area-subregions")
+
+        surface = page.locator("#clim-body > tr").first.locator("input[type=checkbox]").first
+        page.click("#ao-climatology")
+        page.wait_for_selector("#clim-dialog:not([hidden])")
+        # nothing to remove yet
+        assert page.is_hidden("#clim-remove")
+        assert page.locator("#clim-dialog .picker__foot button:visible").all_inner_texts() == ["Cancel", "Confirm"]
+        assert not surface.is_checked()
+        # what has to be given is marked, and Confirm waits for a tick
+        assert "required" in page.inner_text("#clim-dialog thead").lower()
+        assert page.is_disabled("#clim-confirm")
+        assert "Surface, Bottom, Water column, or more than one" in page.inner_text("#clim-msg")
+        assert page.locator("#clim-body input.is-year").first.get_attribute("placeholder") == "2013"
+        surface.check()
+        assert page.is_enabled("#clim-confirm")
+        surface.uncheck()
+        assert page.is_disabled("#clim-confirm")
+        # the bottom is a layer of its own, which needs no thickness
+        bottom = page.locator("#clim-body > tr").first.locator("input[type=checkbox]").nth(1)
+        assert not bottom.is_checked()
+        assert "bottom" in page.inner_text("#clim-dialog thead").lower()
+        bottom.check()
+        assert page.is_enabled("#clim-confirm") and page.is_hidden("#clim-thickness-row")
+        bottom.uncheck()
+        assert page.is_disabled("#clim-confirm")
+        surface.check()
+        page.click("#clim-cancel")
+        page.wait_for_selector("#clim-dialog", state="hidden")
+        assert app.analyze_chosen["climatology"] is None
+        page.click("#ao-climatology")
+        assert not surface.is_checked()
+        surface.check()
+        page.locator("#clim-body input.is-year").nth(0).fill("2013")
+        page.locator("#clim-body input.is-year").nth(1).fill("2014")
+        page.click("#clim-confirm")
+        page.wait_for_selector("#clim-dialog", state="hidden")
+        wait_for(lambda: app.analyze_chosen["climatology"] is not None)
+        assert list(app.analyze_chosen["climatology"]["rows"]) == ["Temperature"]
+        page.wait_for_selector("#ao-climatology.is-chosen")
+        # the analysis cannot be run until the cores are given, and the figure code question answered
+        assert page.is_disabled("#ao-run")
+        page.fill("#ao-cores", "2")
+        assert page.is_disabled("#ao-run")
+        page.check("#ao-code-yes")
+        assert page.is_enabled("#ao-run")
+        wait_for(lambda: app.analyze_figure_code == "yes")
+        page.click("#ao-climatology")
+        assert surface.is_checked()
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#clim-dialog", state="hidden")
+        # the cores and the figure code are marked as required, and the analysis can be removed again
+        assert "required" in page.inner_text("#ao-cores-group legend").lower()
+        assert "required" in page.inner_text("#ao-code-group legend").lower()
+        # a change of the page keeps the answer
+        assert page.is_checked("#ao-code-yes") and not page.is_checked("#ao-code-no")
+        assert page.is_hidden("#ao-need")
+        page.click("#ao-climatology")
+        page.click("#clim-remove")
+        page.wait_for_selector("#clim-dialog", state="hidden")
+        wait_for(lambda: app.analyze_chosen["climatology"] is None)
+        page.wait_for_selector("#ao-climatology:not(.is-chosen)")
+        assert page.is_visible("#ao-need") and page.is_disabled("#ao-run")
+        assert errors == []
+    finally:
+        app.close()
+
+
+def open_transects_in_browser(browser, tmp_path, years):
+    """The transects pop-out of a simulation of years, with Temperature's
+    transect card: (the page, the app, the card's locator, the errors)."""
+    write_analysis_simulation(str(tmp_path / "sim"), years=years)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(url)
+    page.wait_for_selector("#view-home:not([hidden])")
+    page.click("#home-analyze")
+    page.wait_for_selector("#view-setup:not([hidden])")
+    page.fill("#f-simdir", "sim")
+    page.fill("#f-ndown", "1")
+    page.wait_for_function("() => !document.querySelector('#continue').disabled")
+    page.click("#continue")
+    page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+    page.locator("#av-rows > tr").first.locator("td").first.locator("input").fill("Temperature")
+    page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input").first.fill("thetao")
+    page.click("#av-continue")
+    page.wait_for_selector("#view-analyze-files:not([hidden])")
+    page.wait_for_function("() => !document.querySelector('#af-continue').disabled", timeout=60000)
+    page.click("#af-continue")
+    page.wait_for_selector("#view-analyze-options:not([hidden])")
+    page.click("#ao-transects")
+    page.wait_for_selector("#trans-dialog:not([hidden])")
+    return page, app, page.locator("#trans-body .transect-card").first, errors
+
+
+@needs_to_transect
+def test_trends_are_not_offered_for_one_year_of_output(browser, tmp_path):
+    page, app, card, errors = open_transects_in_browser(browser, tmp_path, (2013,))
+    try:
+        trends = card.locator("select")
+        assert trends.is_disabled() and "Only one year of output" in card.inner_text()
+        assert all(card.locator("table.transect-options input.is-year").nth(i).is_disabled() for i in (4, 5))
+        # the other options are there
+        card.locator("input[type=checkbox]").first.check()
+        assert card.locator("table.transect-options input.is-year").nth(0).is_enabled()
+        assert errors == []
+    finally:
+        app.close()
+
+
+@needs_to_transect
+def test_the_absolute_trend_needs_three_years(browser, tmp_path):
+    page, app, card, errors = open_transects_in_browser(browser, tmp_path, (2013, 2014))
+    try:
+        trends = card.locator("select")
+        assert trends.is_enabled() and "Only one year" not in card.inner_text()
+        disabled = {o.get_attribute("value"): o.is_disabled() for o in trends.locator("option").all() if o.get_attribute("value")}
+        assert disabled == {"absolute": True, "absolute_change": False, "percentage_change": False}
+        assert errors == []
+    finally:
+        app.close()
+
+
+@needs_to_transect
+def test_transects_in_a_browser(browser, tmp_path):
+    """The transects pop-out: a section for each variable, with a card for each
+    of its transects: the ends, and the surface climatology, vertical and trends
+    options, each with its own years."""
+    write_analysis_simulation(str(tmp_path / "sim"))
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page(viewport={"width": 1280, "height": 1000})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-analyze")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "1")
+        page.wait_for_function("() => !document.querySelector('#continue').disabled")
+        page.click("#continue")
+        page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+        rows = [("Temperature", "thetao"), ("Chlorophyll", "P1_Chl+P2_Chl")]
+        for number, (name, model) in enumerate(rows):
+            if number:
+                page.click("#av-add")
+            page.locator("#av-rows > tr").nth(number).locator("td").first.locator("input").fill(name)
+            page.locator("#av-rows > tr").nth(number).locator("td").nth(1).locator("input").first.fill(model)
+        page.click("#av-continue")
+        page.wait_for_selector("#view-analyze-files:not([hidden])")
+        page.wait_for_function("() => !document.querySelector('#af-continue').disabled", timeout=60000)
+        page.click("#af-continue")
+        page.wait_for_selector("#view-analyze-options:not([hidden])")
+        assert "Not chosen yet" in page.inner_text("#ao-transects-text")
+        page.click("#ao-transects")
+        page.wait_for_selector("#trans-dialog:not([hidden])")
+        assert page.is_hidden("#trans-remove")
+        assert page.locator("#trans-dialog .picker__foot button:visible").all_inner_texts() == ["Cancel", "Confirm"]
+        # a section for each variable, none ticked, each with one transect with nothing in it
+        sections = page.locator("#trans-body .transect-var")
+        assert sections.count() == 2 and page.is_disabled("#trans-confirm")
+        assert "north–south" in page.inner_text("#trans-dialog .transect-rule")
+        temperature = sections.nth(0)
+        assert not temperature.locator(".transect-var__head input[type=checkbox]").is_checked()
+        cards = temperature.locator(".transect-card")
+        assert cards.count() == 1 and "Transect 1" in cards.first.inner_text()
+        # the years of an option are shut until it is chosen, and the options are right of the ends
+        ends = cards.first.locator("table").first.bounding_box()
+        options = cards.first.locator("table.transect-options").bounding_box()
+        assert options["x"] > ends["x"] + ends["width"] - 1
+        years = cards.first.locator("table.transect-options input.is-year")
+        assert years.count() == 6 and all(years.nth(i).is_disabled() for i in range(6))
+        assert [x.strip() for x in cards.first.locator("select option").all_inner_texts()] == [
+            "Trends: choose…", "Absolute", "Absolute change", "Percentage change",
+        ]
+        # chlorophyll has no depth levels
+        assert "No depth levels" in sections.nth(1).inner_text()
+        temperature.locator(".transect-var__head input[type=checkbox]").check()
+        assert page.is_enabled("#trans-confirm")
+        for box, value in zip(cards.first.locator("table").first.locator("input").all(), ["-2", "-2", "50", "53"]):
+            box.fill(value)
+        cards.first.locator("input[type=checkbox]").first.check()
+        assert years.nth(0).is_enabled() and years.nth(2).is_disabled()
+        years.nth(0).fill("2013")
+        years.nth(1).fill("2014")
+        # a vertical section asks whether the simulation is z-level, or where its thickness is
+        assert page.is_hidden("#trans-thickness-row")
+        vertical = cards.first.locator("input[type=checkbox]").nth(1)
+        vertical.check()
+        assert page.is_visible("#trans-thickness-row") and years.nth(2).is_enabled()
+        page.fill("#trans-thickness", "e3t")
+        vertical.uncheck()
+        assert page.is_hidden("#trans-thickness-row")
+        # a second transect, with the trends, which does not follow the rule, is said by its number
+        temperature.get_by_role("button", name="Add a transect").click()
+        assert cards.count() == 2 and "Transect 2" in cards.nth(1).inner_text()
+        for box, value in zip(cards.nth(1).locator("table").first.locator("input").all(), ["0", "5", "0", "5"]):
+            box.fill(value)
+        cards.nth(1).locator("select").select_option("absolute_change")
+        cards.nth(1).locator("table.transect-options input.is-year").nth(4).fill("2013")
+        cards.nth(1).locator("table.transect-options input.is-year").nth(5).fill("2014")
+        page.click("#trans-confirm")
+        page.wait_for_function(
+            "() => document.querySelectorAll('#trans-body .transect-var')[0].querySelectorAll('.transect-card')[1].querySelector('.analyze-msg').textContent.length > 0"
+        )
+        assert "north–south or east–west" in cards.nth(1).locator(".analyze-msg").inner_text()
+        assert cards.first.locator(".analyze-msg").inner_text() == ""
+        assert page.is_visible("#trans-dialog") and app.analyze_chosen["transects"] is None
+        # a transect is taken away, and the rest are numbered again
+        cards.first.locator("button[aria-label='Remove this transect']").click()
+        assert cards.count() == 1 and "Transect 1" in cards.first.inner_text()
+        for box, value in zip(cards.first.locator("table").first.locator("input").all(), ["-4", "0", "51", "51"]):
+            box.fill(value)
+        page.click("#trans-confirm")
+        page.wait_for_selector("#trans-dialog", state="hidden")
+        wait_for(lambda: app.analyze_chosen["transects"] is not None)
+        assert app.analyze_chosen["transects"]["rows"] == {
+            "Temperature": [
+                {"start": [-4.0, 51.0], "end": [0.0, 51.0], "climatology": None, "vertical": None,
+                 "trends": {"start": 2013, "end": 2014, "how": "absolute_change"}}
+            ]
+        }
+        page.wait_for_selector("#ao-transects.is-chosen")
+        assert "Temperature, 1 transect" in page.inner_text("#ao-transects-text")
+        assert page.is_disabled("#ao-run")
+        # what was chosen is there when it is opened again, and can be removed
+        page.click("#ao-transects")
+        assert page.locator("#trans-body .transect-var").nth(0).locator(".transect-var__head input[type=checkbox]").is_checked()
+        assert page.locator("#trans-body .transect-card select").first.input_value() == "absolute_change"
+        assert page.is_visible("#trans-remove")
+        page.click("#trans-remove")
+        page.wait_for_selector("#trans-dialog", state="hidden")
+        wait_for(lambda: app.analyze_chosen["transects"] is None)
+        assert errors == []
+    finally:
+        app.close()

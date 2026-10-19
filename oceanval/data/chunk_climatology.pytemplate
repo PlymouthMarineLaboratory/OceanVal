@@ -1,0 +1,33 @@
+# %% tags=["remove-input"]
+clim = entry["climatology"]
+md("## Climatology")
+
+# %% tags=["remove-input"]
+years = years_text(clim)
+md(
+    f"The climatology of {name} is its mean in each month of the year over {years}, read from "
+    f"{clim['files']} file{'s' if clim['files'] != 1 else ''}, and the annual mean is the mean of the monthly means. "
+    + dates_text(clim)
+)
+
+# %% tags=["remove-input"]
+for layer, saved in clim["layers"].items():
+    display(md(f"### {saved['title']}"))
+    where = {"surface": "surface", "bottom": "bottom", "mean": "depth-averaged", "integral": "depth-integrated"}[layer]
+    layer_units = ap.unit_html(saved["units"])
+    drawn = ap.annual_map(results_dir, variable, layer)
+    ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    display(md(
+        f"**Figure {i_figure}**: Annual mean {where} {name} ({layer_units}), {years}. "
+        "The colours run from the 2nd to the 98th percentile of the map, and arrows show that values go beyond them."
+        + regridded_text(drawn.regridded)
+    ))
+    i_figure += 1
+    drawn = ap.monthly_maps(results_dir, variable, layer)
+    ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    display(md(
+        f"**Figure {i_figure}**: Mean {where} {name} ({layer_units}) in each month of the year, {years}. "
+        "All months share one colour scale, from the 2nd to the 98th percentile of all of them."
+        + regridded_text(drawn.regridded)
+    ))
+    i_figure += 1

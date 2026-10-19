@@ -1,14 +1,17 @@
-"""The process the oceanval command runs matchup, validate and compare in.
+"""The process the oceanval command runs matchup, validate, compare and
+analyze in.
 
     python -m oceanval.app_child script <path>
     python -m oceanval.app_child matchup <path>
     python -m oceanval.app_child validate <arguments as JSON>
     python -m oceanval.app_child compare <arguments as JSON>
+    python -m oceanval.app_child analyze <path>
 
 The first runs a script create_recipes wrote, the second runs one without
 its validate() call, which the window makes afterwards with the report
-options chosen once the matchups are checked, the third validate(), and the
-fourth compare(). What
+options chosen once the matchups are checked, the third validate(), the
+fourth compare(), and the fifth the analysis script the window wrote (see
+oceanval.analysis_app). What
 they print is shown in the oceanval window (see oceanval.app), which reads
 it from this process's stdout. A question asked through oceanval.prompts is
 written there as one line, QUESTION_MARKER followed by the question as JSON,
@@ -63,12 +66,13 @@ def _validate_later(*args, **kwargs):
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 2 or argv[0] not in ("script", "matchup", "validate", "compare"):
+    if len(argv) != 2 or argv[0] not in ("script", "matchup", "validate", "compare", "analyze"):
         sys.exit(
             "usage: python -m oceanval.app_child script <path>\n"
             "       python -m oceanval.app_child matchup <path>\n"
             "       python -m oceanval.app_child validate <arguments as JSON>\n"
-            "       python -m oceanval.app_child compare <arguments as JSON>"
+            "       python -m oceanval.app_child compare <arguments as JSON>\n"
+            "       python -m oceanval.app_child analyze <path>"
         )
     kind, argument = argv
 
@@ -83,7 +87,10 @@ def main(argv=None):
         webbrowser.open = _say_where
 
     with prompts.answered_by(_ask_the_window):
-        if kind in ("script", "matchup"):
+        if kind == "analyze":
+            sys.argv = [argument]
+            runpy.run_path(argument, run_name="__main__")
+        elif kind in ("script", "matchup"):
             if kind == "matchup":
                 oceanval.validate = _validate_later
             # the window shows the matchups to check before anything is

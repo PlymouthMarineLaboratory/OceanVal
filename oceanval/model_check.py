@@ -352,6 +352,18 @@ def _bounded(years, times):
     return [start, end]
 
 
+def _time_res(times):
+    """The time resolution of the times of a row's files ({path: DataFrame}),
+    as oceanval.time_res.label gives it, or None if there are none."""
+    import pandas as pd
+
+    from oceanval import time_res
+
+    if not times:
+        return None
+    return time_res.label(pd.concat(times.values(), ignore_index=True))
+
+
 def check(request, emit):
     """Check the model output request describes, saying what is found with
     emit(event) as it goes. request is
@@ -369,7 +381,8 @@ def check(request, emit):
     "event", are:
         "progress"  {"done", "total"}, as the times of the files are read
         "indexed"   {"index"}, where they are saved (see load_times_index)
-        "files"     {"variable", "total", "groups": [{"years", "sources",
+        "files"     {"variable", "total", "time_res" (the row's, or its files'
+                     own if it gave none), "groups": [{"years", "sources",
                      "files" (those with output in its years, relative to
                      sim_dir), "dates" (see date_report)}]}, for each row,
                      its groups in the same order, with years that are no
@@ -424,6 +437,9 @@ def check(request, emit):
     for row in request["rows"]:
         paths = files.get(row["pattern"]) or []
         own = {path: times[path] for path in paths if path in times}
+        # a row given no time resolution has its files' own (an analysis's:
+        # see oceanval.analysis_app)
+        resolution = row.get("time_res") or _time_res(own)
         groups = []
         for group in row.get("groups") or year_groups([], [start, end]):
             years = _bounded(group["years"], own)
@@ -435,11 +451,19 @@ def check(request, emit):
                         os.path.relpath(path, sim_dir) for path in files_in_years(own, *years)
                     ],
                     "dates": date_report(
-                        own, *years, row.get("time_res") or "monthly", bool(group.get("gridded"))
+                        own, *years, resolution or "monthly", bool(group.get("gridded"))
                     ),
                 }
             )
-        emit({"event": "files", "variable": row["variable"], "total": len(paths), "groups": groups})
+        emit(
+            {
+                "event": "files",
+                "variable": row["variable"],
+                "total": len(paths),
+                "time_res": resolution,
+                "groups": groups,
+            }
+        )
     emit({"event": "done"})
 
 
@@ -500,6 +524,7 @@ class ModelCheck:
         self.rows = {
             row["variable"]: {
                 "total": None,
+                "time_res": row.get("time_res"),
                 "groups": [
                     {
                         "years": list(group["years"]),
@@ -570,6 +595,7 @@ class ModelCheck:
             elif kind == "files" and event["variable"] in self.rows:
                 row = self.rows[event["variable"]]
                 row["total"] = int(event["total"])
+                row["time_res"] = event.get("time_res") or row["time_res"]
                 row["groups"] = []
                 for index, group in enumerate(event["groups"]):
                     self.files[(event["variable"], index)] = list(group["files"])
@@ -650,6 +676,7 @@ class ModelCheck:
                 {
                     "variable": row["variable"],
                     "total": self.rows[row["variable"]]["total"],
+                    "time_res": self.rows[row["variable"]]["time_res"],
                     "groups": [dict(group) for group in self.rows[row["variable"]]["groups"]],
                 }
                 for row in self.request["rows"]

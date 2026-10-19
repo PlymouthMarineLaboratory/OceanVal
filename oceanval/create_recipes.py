@@ -630,6 +630,12 @@ def _recipe_mapping(path, fvcom=False, cwd=None):
         contents = fvcom_contents(path)
     else:
         contents = nc.open_data(path, checks=False).contents
+    return contents_mapping(contents, cwd)
+
+
+def contents_mapping(contents, cwd=None):
+    """_recipe_mapping's mapping and water-column variables, from a file's
+    contents as nctoolkit gives them (variable, long_name and nlevels)."""
     contents = contents.assign(long_name=[str(x) for x in contents.long_name])
 
     surface_contents = contents.query("nlevels == 1").reset_index(drop=True)
@@ -750,16 +756,25 @@ def extract_recipe_variable_mapping(
             "Check the ndown argument and the simulation directory structure."
         )
 
-    votes = {variable: {} for variable in recipe_variables(cwd)}
-    # the model variables seen with more than one vertical level
-    water_column = set()
+    found = []
     for path in paths:
         try:
-            mapping, depth_variables = _recipe_mapping(path, fvcom, cwd)
+            found.append(_recipe_mapping(path, fvcom, cwd))
         except Exception:
             # a stream OceanVal cannot read is not a reason to give up on
             # the rest of the simulation
             continue
+    return voted_mapping(found, cwd)
+
+
+def voted_mapping(found, cwd=None):
+    """The model variable most of the streams agree on for each recipe
+    variable, from each stream's (mapping, water-column variables), as
+    _recipe_mapping gives them."""
+    votes = {variable: {} for variable in recipe_variables(cwd)}
+    # the model variables seen with more than one vertical level
+    water_column = set()
+    for mapping, depth_variables in found:
         for variable, model_variable in mapping.items():
             if model_variable is None:
                 continue

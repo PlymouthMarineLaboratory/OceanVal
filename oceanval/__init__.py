@@ -13,6 +13,7 @@ nc.session_info["stamp"] = nc.session_info["stamp"] + STAMP
 import copy
 from oceanval.matchall import matchup
 from oceanval.create_recipes import create_recipes
+from oceanval.analysis import analyze
 import dill
 
 from oceanval import depths

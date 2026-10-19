@@ -365,6 +365,54 @@ Once you have generated validation reports for different simulations, you can co
 
 The `model_dict` should map a short name for each model to the directory containing that model's validation output. The HTML comparison report is written to `oceanval_comparison/compare/_build/html/index.html`.
 
+Analyzing a simulation on its own
+---------------------------------
+
+`oceanval.analyze` works out climatologies, phenology and time series from a simulation's output alone, with no observations, and builds an HTML report of them the way `validate` builds the validation report.
+
+.. code:: ipython3
+
+    oceanval.analyze(
+        sim_dir="/path/to/simulation",
+        variables={"Chlorophyll": "P1_Chl+P2_Chl+P3_Chl+P4_Chl", "Temperature": "votemper"},
+        climatology={
+            "Temperature": {"start": 2000, "end": 2009, "surface": True, "bottom": True, "water_column": "mean"},
+            "Chlorophyll": {"start": 2000, "end": 2009, "surface": True, "water_column": "integral"},
+        },
+        phenology={"Chlorophyll": {"start": 2000, "end": 2009}},
+        long_term={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+        seasonal={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+        transects={
+            "Temperature": [
+                {"start": [-30, 0], "end": [-30, 65],
+                 "climatology": {"start": 2000, "end": 2009},
+                 "vertical": {"start": 2000, "end": 2009},
+                 "trends": {"start": 2000, "end": 2009, "how": "absolute"}},
+                {"start": [-20, 50], "end": [0, 50],
+                 "trends": {"start": 2000, "end": 2009, "how": "percentage_change"}},
+            ],
+        },
+        stations={"L4": [-4.217, 50.25]},
+        subregions="nwes",
+        n_dirs_down=2,
+        thickness="e3t",
+        cores=4,
+    )
+
+- `variables`: the name to give each variable, and the model variable holding it. Several model variables can be summed, as `"a+b"`.
+- `climatology`: for each variable, the `start` and `end` years, and `surface=True`, `bottom=True` (the deepest value that is not missing, taken with nctoolkit's `bottom` method with `choice="value"`) and/or `water_column`, `"mean"` (weighted by the cell thickness) or `"integral"` (the depth integral). The mean of each month of the year is worked out, and the annual mean; both are mapped. The water column needs `thickness`: the thickness variable in the output, a file with it, or `"z_level"`.
+- `phenology`: for each variable, the `start` and `end` years. The day of the year of the seasonal peak at the surface is found in each grid cell from the variable's daily climatology, so it needs daily output.
+- `long_term`: for each variable, the `start` and `end` years and `surface`, `bottom` and/or `water_column`, as for `climatology`. The mean of each year (the mean of its months' means) is worked out over the model's domain, over each region of `subregions`, and at each of `stations`. Years with output missing are the mean of the months there are, and the report marks them.
+- `seasonal`: the same for each month from `start` to `end`, and so the mean seasonal cycle of each. It needs monthly output, or output more often.
+- `transects`: for each variable, on its own, a list of straight lines to work the model's values out along, as many as you like. Each is a dict of `start` and `end` (`[lon, lat]`), which must run north-south (the same longitude at both ends) or east-west (the same latitude at both ends), and at least one of `climatology` (the monthly climatology at the surface), `vertical` (the annual mean through the water column, in a section, as validate draws it; it needs `thickness`, which places each cell at its depth, or `"z_level"`) and `trends` (at the surface, with `how` of `"absolute"`, the linear trend of the annual means per year, `"absolute_change"`, the last year's annual mean minus the first's, or `"percentage_change"`, that as a percentage of the first year's). Each option is a dict of its own `start` and `end` years. Each month of each year is averaged first, a year's mean is the mean of its months' means, and years without all their months are left out of the trends. Trends need output in at least 3 years (2 for the changes); the app does not offer them for a variable with only one year. The report maps each transect and draws each option. It needs nctoolkit 1.3.6 or later.
+- `stations`: a dict of the name of each station and its `[lon, lat]`. The nearest cell of the model's grid with values is used, which must be within two grid cells.
+- `subregions`: `"nwes"`, `"global"` or the path of your own regions `.nc` file, as in `validate`, for the regional summaries of the time series. The model's domain as a whole is always done. `lon_lim` and `lat_lim` cut a box out of the domain first, for the domain and region means; stations are not cut by it. All spatial means are worked out with nctoolkit's `spatial_mean`. If nctoolkit warns that the model's grid has no cell bounds, so that the cell areas cannot be worked out, the mean is worked out again after regridding the grid to a regular lon-lat grid with `to_latlon`, by nearest neighbour and by bilinear interpolation (the bilinear values are used, and the report says how far the two differ), and the report says that the raw grid did not have enough information to calculate grid cell areas.
+- `cores`: the number of cores OceanVal may use. There is no default: you must say how many.
+- `as_missing`: a value, or `[minimum, maximum]`, to treat as missing in the model output, as in `matchup`.
+- `figure_code`: `True` to give each figure in the report a **Copy code to reproduce figure** button at its top right, which copies the Python code that draws the figure from the analysis's saved results. Everything it uses (the files, colour scale, labels and colours) is written out in it, so you can change the figure and run the code in the conda environment OceanVal ran in. Default `False`.
+
+Everything is saved in `oceanval_analysis` in `out_dir`: the fields as netCDF, with `analysis.json` saying what is in them, in `results`, the report in `report`, and `report.html`, a link to its first page. Any analysis already there is replaced. In the OceanVal app, the **Analyze** box on the first page does the same, with no Python. Nothing is chosen for you there: you tick what to work out, give the years, say how many cores to use, and answer whether the report should contain code to reproduce its figures; for a simulation that looks like NEMO-ERSEM, the app assumes zeros are missing values, as it does for validation.
+
 
 .. admonition:: Can I access and use OceanVal's validation code?
 
