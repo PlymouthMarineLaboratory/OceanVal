@@ -488,7 +488,7 @@ def test_the_report_with_transects(tmp_path):
     years = {"start": 2010, "end": 2013}
     lines = [
         {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": years, "trends": dict(years, how="absolute")},
-        {"start": [-4.0, 51.0], "end": [0.0, 51.0], "vertical": years},
+        {"start": [-4.0, 51.0], "end": [0.0, 51.0], "vertical": years, "vertical_trends": dict(years, how="absolute_change")},
     ]
     landing = oceanval.analyze(
         root, {"Temperature": "thetao"}, transects={"Temperature": lines}, thickness="e3t",
@@ -499,9 +499,10 @@ def test_the_report_with_transects(tmp_path):
     assert "Traceback" not in overview + page
     assert "Transect 1: north–south along 2°W, from 50°N to 53°N" in page
     assert "Transect 2: east–west along 51°N, from 4°W to 0°" in page
-    assert "Surface climatology" in page and "Trends: absolute" in page and "Vertical" in page
+    assert "Surface climatology" in page and "Surface changes: absolute" in page and "Vertical climatology" in page
+    assert "Vertical changes: absolute change" in page
     # a map for each, and a figure for each option of each
-    assert sorted(set(int(n) for n in re.findall(r"Figure (\d+)</strong>", page))) == [1, 2, 3, 4, 5]
+    assert sorted(set(int(n) for n in re.findall(r"Figure (\d+)</strong>", page))) == [1, 2, 3, 4, 5, 6]
     assert "Transects" in overview and "to_transect" in overview
     assert "oceanval-copy-code" not in page
 

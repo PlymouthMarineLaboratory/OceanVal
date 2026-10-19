@@ -15,8 +15,10 @@ these views:
     "analyze_options"    the analyses, each in a pop-out: climatology,
                          phenology, the long-term and seasonal time
                          series (which share the regions and area they are
-                         of, and their stations), and transects (as many
-                         as are wanted, each a north-south or east-west line)
+                         of, and their stations), maps of temporal changes
+                         (a historical and one or two future periods), and
+                         transects (as many as are wanted, each a north-south
+                         or east-west line)
     "running"            the script the window writes, which calls
                          oceanval.analyze(), as a matchup script is run
 
@@ -36,17 +38,18 @@ from oceanval import time_res as time_resolution
 # model_check.ModelCheck), which a matchup's question never has
 CHECK_ID = "analyze"
 
-KINDS = ("climatology", "phenology", "long_term", "seasonal", "transects")
+KINDS = ("climatology", "phenology", "long_term", "seasonal", "map_changes", "transects")
 # the pop-outs that choose the surface and/or the water column, with the same boxes
 LAYERED_KINDS = ("climatology", "long_term", "seasonal")
 # those that need the cell thickness: the water column, and a vertical transect
-THICKNESS_KINDS = LAYERED_KINDS + ("transects",)
+THICKNESS_KINDS = LAYERED_KINDS + ("map_changes", "transects")
 # what each is called when it is asked for
 LABELS = {
     "climatology": "climatology",
     "phenology": "phenology",
     "long_term": "long-term time series",
     "seasonal": "seasonal time series",
+    "map_changes": "map changes",
     "transects": "transects",
 }
 
@@ -403,6 +406,8 @@ class AnalyzeSteps:
         return 200, {"ok": True}
 
     def _default_form(self, kind, placed, found):
+        if kind == "map_changes":
+            return analysis_forms.default_map_changes(placed)
         if kind == "transects":
             return analysis_forms.default_transects(placed)
         if kind in LAYERED_KINDS:
@@ -431,6 +436,14 @@ class AnalyzeSteps:
             available = (self.analyze_found or {}).get("picker", {}).get("available", [])
             chosen, thickness, errors = analysis_forms.check_climatology(
                 form, placed, self._known_years(found), set(available), self.cwd, LABELS[kind]
+            )
+            if errors:
+                return None, errors
+            return {"rows": chosen, "thickness": thickness}, {}
+        if kind == "map_changes":
+            available = (self.analyze_found or {}).get("picker", {}).get("available", [])
+            chosen, thickness, errors = analysis_forms.check_map_changes(
+                form, placed, self._known_years(found), set(available), self.cwd
             )
             if errors:
                 return None, errors
@@ -490,7 +503,9 @@ class AnalyzeSteps:
                 self._notify()
                 return 200, {"ok": True}
             placed = self.analyze_placed
-            if kind == "transects":
+            if kind == "map_changes":
+                clean = analysis_forms.clean_map_changes(form, placed)
+            elif kind == "transects":
                 clean = analysis_forms.clean_transects(form, placed)
             elif kind in LAYERED_KINDS:
                 clean = analysis_forms.clean_climatology(form, placed)
@@ -527,7 +542,7 @@ class AnalyzeSteps:
             if not any(chosen[kind] for kind in KINDS):
                 return 400, {
                     "ok": False,
-                    "error": "Choose the climatology, the phenology, a time series, transects, or more than one.",
+                    "error": "Choose the climatology, the phenology, a time series, map changes, transects, or more than one.",
                 }
             # one cell thickness for the water column of all of them
             thicknesses = {
@@ -576,6 +591,7 @@ class AnalyzeSteps:
                 as_missing,
                 figure_code,
                 chosen["transects"],
+                chosen["map_changes"]["rows"] if chosen["map_changes"] else None,
             )
             script = _path(self.analyze_setup["out"], self.cwd)
             try:

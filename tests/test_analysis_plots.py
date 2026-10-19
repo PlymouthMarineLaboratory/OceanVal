@@ -9,6 +9,7 @@ import functools
 import http.server
 import io
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -33,7 +34,7 @@ from simulations import (  # noqa: E402
     write_curvilinear_simulation,
 )
 
-CASES = ("daily", "series", "many", "curvilinear", "transects")
+CASES = ("daily", "series", "many", "curvilinear", "transects", "changes", "curvilinear_changes")
 SERIES = {"Temperature": {"start": 2012, "end": 2014, "surface": True, "bottom": True, "water_column": "mean"}}
 
 
@@ -71,6 +72,8 @@ def analyses(tmp_path_factory):
     many = str(root / "many.nc")
     write_many_regions(many)
     one = {"SST": {"start": 2013, "end": 2013, "surface": True}}
+    curvilinear_two = str(root / "curvilinear_two_sim")
+    write_curvilinear_simulation(curvilinear_two, years=(2013, 2014))
     runs = {
         "daily": dict(
             sim_dir=daily, variables={"Chlorophyll": "P1_Chl+P2_Chl", "Temperature": "thetao"},
@@ -101,9 +104,14 @@ def analyses(tmp_path_factory):
         {"start": [-4.0, 51.5], "end": [0.0, 51.5], "trends": dict(years, how="percentage_change")},
         {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "trends": dict(years, how="absolute_change", window=2)},
         {"start": [-4.0, 51.5], "end": [0.0, 51.5], "trends": dict(years, how="percentage_change", window=2)},
-        # all three, over years of their own
+        # the changes through the water column, of each kind, along each direction
+        {"start": [-4.0, 51.0], "end": [0.0, 51.0], "vertical_trends": dict(years, how="absolute")},
+        {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "vertical_trends": dict(years, how="absolute_change")},
+        {"start": [-4.0, 51.5], "end": [0.0, 51.5], "vertical_trends": dict(years, how="percentage_change", window=2)},
+        # all four, over years of their own
         {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": {"start": 2012, "end": 2013}, "vertical": years,
-         "trends": {"start": 2013, "end": 2014, "how": "absolute_change"}},
+         "trends": {"start": 2013, "end": 2014, "how": "absolute_change"},
+         "vertical_trends": {"start": 2012, "end": 2014, "how": "absolute_change"}},
     ]
     runs["transects"] = dict(
         sim_dir=monthly, variables={"Temperature": "thetao"}, transects={"Temperature": lines}, thickness="e3t"
@@ -111,6 +119,22 @@ def analyses(tmp_path_factory):
     runs["curvilinear"]["transects"] = {
         "SST": [{"start": [-7.0, 46.0], "end": [-7.0, 50.0], "climatology": {"start": 2013, "end": 2013}}]
     }
+    # the maps of changes: two future periods and a plot of the changes, one future period and no maps of
+    # the periods but the historical one, and one with no changes; all on a grid with something to see
+    periods = {"historical": {"start": 2012, "end": 2012}, "future": [{"start": 2013, "end": 2013}, {"start": 2014, "end": 2014}]}
+    runs["changes"] = dict(
+        sim_dir=monthly, variables={"Temperature": "thetao", "Deep": "thetao", "Plain": "thetao"}, thickness="e3t",
+        map_changes={
+            "Temperature": dict(periods, plot="absolute_changes", change="percentage", surface=True, bottom=True, water_column="mean"),
+            "Deep": dict(periods, future=periods["future"][:1], plot="changes", change="absolute", surface=True),
+            "Plain": dict(periods, future=periods["future"][:1], plot="absolute", change="absolute", surface=True),
+        },
+    )
+    runs["curvilinear_changes"] = dict(
+        sim_dir=curvilinear_two, variables={"SST": "sst"},
+        map_changes={"SST": {"historical": {"start": 2013, "end": 2013}, "future": [{"start": 2014, "end": 2014}],
+                             "plot": "absolute_changes", "change": "absolute", "surface": True}},
+    )
     found = {}
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(analysis, "build_report", lambda folder, info: os.path.join(folder, "report.html"))
@@ -129,6 +153,9 @@ def figures(info):
             for layer in variable["climatology"]["layers"]:
                 yield ap.annual_map, (key, layer)
                 yield ap.monthly_maps, (key, layer)
+        if variable["map_changes"]:
+            for layer in variable["map_changes"]["layers"]:
+                yield ap.change_maps, (key, layer)
         if variable["phenology"]:
             yield ap.peak_day_map, (key,)
             yield ap.peak_value_map, (key,)
@@ -211,11 +238,43 @@ def test_each_figure_is_drawn_by_the_code_it_copies(analyses, case, tmp_path):
         # a transect's map needs only where it runs
         assert (os.path.abspath(results) in figure.code) is (name != "transect_map") and "../" not in figure.code
         # only the curvilinear grid's maps need regridding
-        maps = name in ("annual_map", "monthly_maps", "peak_day_map", "peak_value_map")
-        assert figure.regridded is (maps and case == "curvilinear")
+        maps = name in ("annual_map", "monthly_maps", "peak_day_map", "peak_value_map", "change_maps")
+        assert figure.regridded is (maps and case.startswith("curvilinear"))
         assert ("to_latlon" in figure.code) is figure.regridded
         # more regions than fit on one axes have a panel each
         assert ("panels = dict(zip(regions, grid.flat))" in figure.code) is (case == "many")
+
+
+def test_the_maps_of_changes_are_titled_by_their_years(analyses):
+    results = analyses["changes"]
+    for key, titles in (
+        ("temperature", ["2012", "2013", "2014", "2013 relative to 2012", "2014 relative to 2012"]),
+        ("deep", ["2012", "2013 minus 2012"]),
+        ("plain", ["2012", "2013"]),
+    ):
+        figure = ap.change_maps(results, key, "surface")
+        plt.close("all")
+        assert re.findall(r'^    \("([^"]*)", "', figure.code, flags=re.M) == titles
+        assert "Historical" not in figure.code and "Future" not in figure.code
+        # a colour bar below the maps of the periods, which share one, and one below the changes, if there are any
+        bars = ast.literal_eval(re.search(r"^bars = (.*)$", figure.code, flags=re.M).group(1))
+        assert [(first, last) for first, last, _, _ in bars] == {
+            "temperature": [(0, 3), (3, 5)], "deep": [(0, 1), (1, 2)], "plain": [(0, 2)],
+        }[key]
+        assert 'location="bottom"' in figure.code and "legend_position" in figure.code
+        # a row with fewer maps than the others is centred: the changes of two future periods are under the middle
+        places = ast.literal_eval(re.search(r"^places = (.*)$", figure.code, flags=re.M).group(1))
+        assert places == {
+            "temperature": [(0, 0), (0, 2), (0, 4), (1, 1), (1, 3)], "deep": [(0, 0), (0, 2)], "plain": [(0, 0), (0, 2)],
+        }[key]
+    # a one-year period is its year
+    assert ap._years_title(2013, 2013) == "2013" and ap._years_title(1970, 1989) == "1970-1989"
+    # the changes are on a scale symmetric about zero, and the periods on one of their own
+    code = ap.change_maps(results, "temperature", "surface").code
+    plt.close("all")
+    limits = ast.literal_eval(re.search(r"^limits = (.*)$", code, flags=re.M).group(1))
+    assert limits[0] == limits[1] == limits[2] and limits[3] == limits[4] and limits[3][0] == -limits[3][1]
+    assert re.search(r'^colours = \["auto", "auto", "auto", "RdBu_r", "RdBu_r"\]$', code, flags=re.M)
 
 
 def test_what_the_figures_find(analyses):

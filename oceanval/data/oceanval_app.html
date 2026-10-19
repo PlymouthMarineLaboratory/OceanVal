@@ -686,16 +686,19 @@
   .transect-cards { display: grid; gap: 12px; margin: 0 0 12px; }
   .transect-card { padding: 12px 14px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
   .transect-card__head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; }
-  .transect-card__body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 40px; }
+  .transect-ends { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; }
+  .transect-ends label { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+  .transect-ends__name { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .transect-ends__name:not(:first-child) { margin-left: 22px; }
   .transect-card table { width: auto; border-collapse: collapse; font-size: 14px; }
   .transect-card th, .transect-card td { padding: 3px 10px 3px 0; text-align: left; vertical-align: middle; border: 0; }
   .transect-card thead th { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-  .transect-card tbody th { color: var(--ink-soft); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .transect-card .transect-part th { padding-top: 10px; color: var(--ink-soft); font-size: 13px; font-weight: 700; }
   .transect-card .s-input.is-num { width: 104px; }
-  .transect-window { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+  .transect-window { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 13px; font-weight: 600; white-space: nowrap; }
   .transect-window.is-off { opacity: 0.55; }
   .transect-card .s-input.is-window { width: 64px; text-align: center; }
-  .transect-card td small { display: block; max-width: 190px; margin-top: 3px; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+  .transect-note { display: block; margin-top: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
   .transect-card .s-input.is-year { width: 84px; }
   .transect-card .s-select { width: auto; min-width: 190px; margin-top: 0; }
   .analyze-dialog .transect-card .s-input.is-need, .analyze-dialog .transect-card .s-select.is-need { border-color: var(--red-field-line); }
@@ -724,6 +727,16 @@
   .analyze-thickness .s-input { max-width: 360px; }
   .analyze-thickness .s-input.is-assumed { color: var(--amber); font-weight: 600; }
   .analyze-dialog .analyze-msg.is-rows { margin: 10px 0 0; }
+  /* the map changes pop-out: six year boxes in a row, so they are narrower, and a second row of choices for each variable */
+  #chg-dialog .s-input.is-year { width: 64px; }
+  #chg-dialog thead th[colspan="2"] { text-align: center; }
+  .analyze-dialog__body > table > tbody > tr.chg-main > td { border-bottom: 0; padding-bottom: 4px; }
+  .analyze-dialog__body > table > tbody > tr.chg-options > td { padding-top: 0; }
+  .chg-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; }
+  .chg-choices label { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+  .chg-choices .s-select { margin-top: 0; min-width: 190px; }
+  .analyze-dialog tr.is-on .s-input.is-year.is-optional { border-color: var(--line); }
+  .analyze-dialog tr.is-on .s-input.is-year.is-optional.is-need { border-color: var(--red-field-line); }
   @media (max-width: 720px) {
     .review__grid { grid-template-columns: 40px repeat(12, minmax(0, 1fr)); gap: 2px; }
   }
@@ -1354,6 +1367,12 @@
         <span class="choice__text" id="ao-seasonal-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
       </button>
+      <button type="button" class="choice" id="ao-map_changes" aria-haspopup="dialog">
+        <span class="choice__icon" data-icon="changes"></span>
+        <span class="choice__title">Map temporal changes</span>
+        <span class="choice__text" id="ao-map_changes-text"></span>
+        <span class="choice__tag" hidden>Chosen</span>
+      </button>
       <button type="button" class="choice" id="ao-transects" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="transect"></span>
         <span class="choice__title">Transects</span>
@@ -1659,6 +1678,38 @@
   </div>
 </div>
 
+<div class="picker analyze-dialog" id="chg-dialog" hidden>
+  <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="chg-title">
+    <div class="picker__head">
+      <h2 id="chg-title">Map temporal changes</h2>
+    </div>
+    <div class="analyze-dialog__body">
+      <p class="analyze-dialog__intro">Maps of how a variable changes between a historical period and one or two future periods. Each period is mapped as the mean of its years' annual means. Give the first and last years of each period, tick the surface, the bottom (the deepest value that is not missing), the water column, or more than one, and choose what to plot and whether the changes are absolute or percentages.</p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, for at least one variable, and, for each variable ticked, the years of its historical period and of its first future period, what to plot, and the kind of change. A second future period is optional: give both of its years, or neither.</span></p>
+      <p class="analyze-msg is-rows" id="chg-msg" role="status" aria-live="polite"></p>
+      <table>
+        <thead>
+          <tr class="is-need"><th></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th></tr>
+          <tr><th scope="col" rowspan="2">Variable</th><th scope="colgroup" colspan="2">Historical</th><th scope="colgroup" colspan="2">Future 1</th><th scope="colgroup" colspan="2">Future 2 <span class="own-opt">Optional</span></th><th scope="col" rowspan="2">Surface</th><th scope="col" rowspan="2">Bottom</th><th scope="col" rowspan="2">Water column</th></tr>
+          <tr><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th></tr>
+        </thead>
+        <tbody id="chg-body"></tbody>
+      </table>
+      <div class="analyze-thickness" id="chg-thickness-row" hidden>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" list="chg-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+        <div id="chg-thickness-picker"></div>
+        <p class="analyze-msg" id="chg-thickness-msg"></p>
+        <datalist id="chg-thickness-options"></datalist>
+      </div>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost analyze-remove-analysis" id="chg-remove" hidden>Remove this analysis</button>
+      <button type="button" class="btn btn--ghost" id="chg-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="chg-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div class="picker analyze-dialog" id="trans-dialog" hidden>
   <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="trans-title">
     <div class="picker__head">
@@ -1666,9 +1717,9 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">The model's values along straight lines. Each variable has transects of its own: tick the variables to work transects out for, add as many transects as you like to each, and choose what to work out along each one, and the years of each.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked; for each transect, where it starts and ends, at least one of <b>Surface climatology</b>, <b>Vertical climatology</b> and <b>Trends</b>, and the years of each of them.</span></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked; for each transect, where it starts and ends, at least one <b>Climatology</b> or <b>Changes</b>, in the <b>Surface</b> or the <b>Vertical</b>, and the years of each of them.</span></p>
       <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
-      <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. <strong>Surface climatology</strong> is the mean of each month of the year along it, <strong>Vertical climatology</strong> a section of the annual mean through the water column, and <strong>Trends</strong> how the surface changed over the years.</p>
+      <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years, with an optional rolling mean.</p>
       <div class="analyze-thickness" id="trans-thickness-row" hidden>
         <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" list="trans-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
         <div id="trans-thickness-picker"></div>
@@ -1744,6 +1795,7 @@
     phenology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M4 17c3 0 4-10 8-10s5 10 8 10"/><path d="M12 4v3" stroke-dasharray="1.5 2"/></svg>',
     longterm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7 16 3-2.5 3 1 4-5 2-1.5"/><path d="M17 8h3v3"/></svg>',
     seasonal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c1.5-6 3.5-6 6 0s4.5 6 6 0c1-3 2-4.2 3-4.5"/><path d="M3 20h18"/><path d="M8 20v-1.5M12 20v-1.5M16 20v-1.5"/></svg>',
+    changes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="7.5" height="14" rx="1.5"/><rect x="14" y="5" width="7.5" height="14" rx="1.5" stroke-dasharray="2.5 2"/><path d="M10.5 12h3m0 0-1.5-1.5M13.5 12l-1.5 1.5"/><path d="M5 15c1-3 2-3 3-5" opacity=".6"/></svg>',
     transect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6 17.6 6.4"/><path d="M3 3v6M3 3h6" opacity=".45"/></svg>',
     warn: ICONS.warn,
     check: ICONS.check,
@@ -2940,17 +2992,18 @@
   // ---- Analyze: what to work out, each chosen in a pop-out ----
   // The climatology and the two time series are chosen in the same pop-out,
   // with the same boxes, so it is built for each (see openAnalyzeDialog).
-  const ANALYSES = ["climatology", "phenology", "long_term", "seasonal", "transects"];
+  const ANALYSES = ["climatology", "phenology", "long_term", "seasonal", "map_changes", "transects"];
   const LAYERED = ["climatology", "long_term", "seasonal"];
   const SERIES = ["long_term", "seasonal"];
-  const KIND_DIALOGS = { climatology: "clim-dialog", long_term: "clim-dialog", seasonal: "clim-dialog", phenology: "phen-dialog", transects: "trans-dialog" };
-  const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal time series", transects: "transects" };
-  const KIND_TITLES = { climatology: "Climatology", phenology: "Phenology", long_term: "Long-term time series", seasonal: "Seasonal time series", transects: "Transects" };
+  const KIND_DIALOGS = { climatology: "clim-dialog", long_term: "clim-dialog", seasonal: "clim-dialog", phenology: "phen-dialog", map_changes: "chg-dialog", transects: "trans-dialog" };
+  const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal time series", map_changes: "map changes", transects: "transects" };
+  const KIND_TITLES = { climatology: "Climatology", phenology: "Phenology", long_term: "Long-term time series", seasonal: "Seasonal time series", map_changes: "Map temporal changes", transects: "Transects" };
   const KIND_NOT_CHOSEN = {
     climatology: "The annual mean, from the mean of each month of the year, at the surface, the bottom or through the water column. Not chosen yet.",
     phenology: "The time of the seasonal peak at the surface, from a daily climatology. Not chosen yet.",
     long_term: "The mean of each year, over the model's domain, its regions and at stations. Not chosen yet.",
     seasonal: "The mean of each month of each year, and the mean seasonal cycle, over the model's domain, its regions and at stations. Not chosen yet.",
+    map_changes: "Maps of how a variable changes between a historical period and one or two future periods, as absolute values and as changes. Not chosen yet.",
     transects: "The model's values along straight north–south or east–west lines, as many as you like: their mean, their trend, or the change between the first and last years. Not chosen yet.",
   };
   const KIND_INTROS = {
@@ -2958,6 +3011,11 @@
     long_term: "The mean of each year from Start to End, which is the mean of its months, over the model's domain as a whole, over each region you choose on the page, and at each station.",
     seasonal: "The mean of each month from Start to End, and so the mean seasonal cycle, over the model's domain as a whole, over each region you choose on the page, and at each station.",
   };
+  // the pop-outs whose rows choose layers: the surface, the bottom, the water column
+  const LAYER_ROWS = [...LAYERED, "map_changes"];
+  // what can be plotted, and the changes, as the map changes pop-out's drop-downs have them
+  const CHANGE_PLOTS = { absolute: "Historical + Future (absolute values)", absolute_changes: "Historical + Future (absolute values) + Changes", changes: "Historical + Changes" };
+  const CHANGE_KINDS = { absolute: "Absolute change", percentage: "Percentage change" };
   const analyzeDialog = { kind: null, opener: null, rows: {}, thickness: null, stations: [] };
 
   function yearSpan(start, end) {
@@ -2969,6 +3027,11 @@
     if (!chosen) return KIND_NOT_CHOSEN[kind];
     if (kind === "transects") {
       const where = Object.entries(chosen.rows).map(([name, lines]) => `${name}, ${lines.length} transect${lines.length === 1 ? "" : "s"}`);
+      return `For ${where.join("; ")}.`;
+    }
+    if (kind === "map_changes") {
+      const where = Object.entries(chosen.rows).map(([name, entry]) =>
+        `${name}, ${yearSpan(entry.historical.start, entry.historical.end)} to ${entry.future.map((x) => yearSpan(x.start, x.end)).join(" and ")}`);
       return `For ${where.join("; ")}.`;
     }
     const names = Object.entries(chosen.rows).map(([name, entry]) => {
@@ -3175,12 +3238,89 @@
     }));
   }
 
+  // the map changes: for each variable the years of three periods (the second future one optional), the layers,
+  // and, in a row of its own, what to plot and the kind of change
+  function changesRows(form) {
+    analyzeDialog.rows = {};
+    const periods = [["historical", "historical period"], ["future1", "first future period"], ["future2", "second future period"]];
+    $("chg-body").replaceChildren(...state.analyze.placed.flatMap((row) => {
+      const box = form.rows[row.name] || {};
+      const [startYear, endYear] = defaultYears(row.name);
+      const years = {};
+      for (const [key, label] of periods) {
+        const hints = key === "historical" ? [startYear, endYear] : [null, null];
+        years[key] = [
+          yearBox(box[`${key}_start`], hints[0], `First year of the ${label} of ${row.name}`),
+          yearBox(box[`${key}_end`], hints[1], `Last year of the ${label} of ${row.name}`),
+        ];
+      }
+      for (const boxes of [years.future2]) for (const input of boxes) input.classList.add("is-optional");
+      const surface = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the surface` });
+      surface.checked = Boolean(box.use) && Boolean(box.surface);
+      const column = row.levels > 1;
+      const bottom = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the bottom` });
+      bottom.checked = column && Boolean(box.use) && Boolean(box.bottom);
+      bottom.disabled = !column;
+      const water = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} through the water column` });
+      water.checked = column && Boolean(box.use) && Boolean(box.water_column);
+      water.disabled = !column;
+      const how = el("select", { class: "s-select", "aria-label": `How to take ${row.name} through the water column` },
+        el("option", { value: "", text: "Choose…" }),
+        el("option", { value: "mean", text: "Vertical mean" }), el("option", { value: "integral", text: "Depth integral" }));
+      how.value = box.how === "integral" || box.how === "mean" ? box.how : "";
+      const choose = (labels, value, label) => {
+        const select = el("select", { class: "s-select", "aria-label": label },
+          el("option", { value: "", text: "Choose…" }),
+          ...Object.entries(labels).map(([key, text]) => el("option", { value: key, text })));
+        select.value = value in labels ? value : "";
+        return select;
+      };
+      const plot = choose(CHANGE_PLOTS, box.plot, `What to plot of ${row.name}`);
+      const change = choose(CHANGE_KINDS, box.change, `The kind of change of ${row.name}`);
+      const msg = el("p", { class: "analyze-msg" });
+      const main = el("tr", { class: "chg-main" },
+        el("td", {}, el("strong", { text: row.name }), el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name)),
+        ...periods.flatMap(([key]) => years[key].map((input) => el("td", {}, input))),
+        el("td", {}, el("label", { class: "tick-label" }, surface, "Surface")),
+        el("td", {}, column
+          ? el("label", { class: "tick-label" }, bottom, "Bottom")
+          : el("small", { text: "No depth levels" })),
+        el("td", {}, column
+          ? el("div", {}, el("label", { class: "tick-label" }, water, "Water column"), how)
+          : el("small", { text: "No depth levels" })));
+      const options = el("tr", { class: "chg-options" },
+        el("td", { colspan: "10" }, el("div", { class: "chg-choices" },
+          el("label", {}, "Plot", plot), el("label", {}, "Change", change)), msg));
+      const refresh = () => {
+        const on = surface.checked || bottom.checked || water.checked;
+        for (const tr of [main, options]) {
+          tr.classList.toggle("is-off", !on);
+          tr.classList.toggle("is-on", on);
+        }
+        how.disabled = !water.checked;
+        how.classList.toggle("is-required", water.checked);
+        plot.classList.toggle("is-required", on && !plot.value);
+        change.classList.toggle("is-required", on && !change.value);
+        // the second future period is optional, but both its years are needed once one is given
+        const second = years.future2.some((input) => input.value.trim() !== "");
+        for (const input of years.future2) input.classList.toggle("is-need", second && input.value.trim() === "");
+        refreshThickness();
+        refreshConfirm();
+      };
+      for (const input of [surface, bottom, water, plot, change]) input.addEventListener("change", refresh);
+      for (const input of years.future2) input.addEventListener("input", refresh);
+      analyzeDialog.rows[row.name] = { years, surface, bottom, water, how, plot, change, msg, refresh };
+      refresh();
+      return [main, options];
+    }));
+  }
+
   // Confirm needs a variable ticked: the surface, the bottom, the water column or more than one (the phenology's one tick)
   function refreshConfirm() {
     const kind = analyzeDialog.kind;
     if (!kind) return;
     const rows = Object.values(analyzeDialog.rows);
-    const layered = LAYERED.includes(kind);
+    const layered = LAYER_ROWS.includes(kind);
     const ticked = rows.some((row) => (layered ? row.surface.checked || row.bottom.checked || row.water.checked : row.use.checked));
     const prefix = dialogPrefix(kind);
     $(`${prefix}-confirm`).disabled = !ticked;
@@ -3191,17 +3331,17 @@
   function refreshThickness() {
     if (analyzeDialog.kind === "transects") {
       // a vertical section, of a variable that is ticked
-      const vertical = Object.values(analyzeDialog.rows).some((section) => section.use.checked && section.cards.some((card) => card.vertical.checked));
+      const vertical = Object.values(analyzeDialog.rows).some((section) => section.use.checked && section.cards.some((card) => card.vertical.checked || card.vertical_trends.value));
       $("trans-thickness-row").hidden = !vertical;
       return;
     }
     const any = Object.values(analyzeDialog.rows).some((row) => row.water && row.water.checked);
-    $("clim-thickness-row").hidden = !any;
+    $(`${dialogPrefix(analyzeDialog.kind)}-thickness-row`).hidden = !any;
   }
 
   // the cell thickness of another of the pop-outs that has been confirmed: there is one for all of them
   function otherThickness(kind) {
-    for (const other of [...LAYERED, "transects"]) {
+    for (const other of [...LAYER_ROWS, "transects"]) {
       const form = state.analyze.forms[other];
       if (other !== kind && state.analyze.chosen[other] && form && form.thickness) return form.thickness;
     }
@@ -3231,7 +3371,7 @@
     $(`${prefix}-thickness-msg`).textContent = "";
   }
 
-  for (const prefix of ["clim", "trans"]) {
+  for (const prefix of ["clim", "chg", "trans"]) {
     $(`${prefix}-thickness`).addEventListener("input", () => {
       if (thicknessPicker) thicknessPicker.sync();
     });
@@ -3304,8 +3444,14 @@
   const TRANSECT_HOWS = [["absolute", "Absolute"], ["absolute_change", "Absolute change"], ["percentage_change", "Percentage change"]];
   // the years of output each way of showing a trend needs, as analysis_transects has them
   const TRANSECT_MIN_YEARS = { absolute: 3, absolute_change: 2, percentage_change: 2 };
-  const TRANSECT_END_BOXES = [["start_lon", "Longitude of the start", "e.g. -30"], ["end_lon", "Longitude of the end", "e.g. -30"],
-    ["start_lat", "Latitude of the start", "e.g. 0"], ["end_lat", "Latitude of the end", "e.g. 65"]];
+  // the ends of a transect, in one line: its start (longitude, latitude), then its end
+  const TRANSECT_END_BOXES = [["start_lon", "Longitude of the start", "e.g. -30"], ["start_lat", "Latitude of the start", "e.g. 0"],
+    ["end_lon", "Longitude of the end", "e.g. -30"], ["end_lat", "Latitude of the end", "e.g. 65"]];
+  // the two parts of a transect, each with a climatology and the changes over the years, as analysis_transects has them
+  const TRANSECT_PARTS = [
+    { name: "Surface", climatology: "climatology", changes: "trends" },
+    { name: "Vertical", climatology: "vertical", changes: "vertical_trends" },
+  ];
 
   // the years of one option of a transect: Start and End, which are only open once the option is chosen
   function optionYears(values, option, name, hint) {
@@ -3315,8 +3461,8 @@
     return { start: box("start", "Start"), end: box("end", "End") };
   }
 
-  // one transect's card, for the variable `row`: its ends (a row for the longitudes, a row for the latitudes), then to
-  // their right its three options, each with the years it is worked out over
+  // one transect's card, for the variable `row`: its ends in one line, then a Surface and a Vertical part, each with a
+  // Climatology and its Changes (how, its years and its rolling mean), each over the years of its own
   function transectCard(variable, values, section) {
     const hint = defaultYears(variable.name);
     const inputs = {};
@@ -3326,62 +3472,85 @@
     }
     const heading = el("strong", { text: "" });
     const remove = el("button", { type: "button", class: "btn btn--ghost", "aria-label": "Remove this transect", text: "×" });
-    const climatology = el("input", { type: "checkbox", class: "tick", "aria-label": "Surface climatology" });
-    climatology.checked = Boolean(values.climatology);
-    const vertical = el("input", { type: "checkbox", class: "tick", "aria-label": "Vertical climatology: a section through the water column" });
-    vertical.checked = Boolean(values.vertical);
-    const trends = el("select", { class: "s-select", "aria-label": "Trends" },
-      el("option", { value: "", text: "Trends: choose…" }),
-      ...TRANSECT_HOWS.map(([value, text]) => el("option", { value, text })));
-    // trends are not offered where the output has too few years: none at all for one year
+    // the changes are not offered where the output has too few years: none at all for one year
     const outputYears = placedRow(variable.name).years;
     const available = outputYears ? outputYears[1] - outputYears[0] + 1 : null;
-    for (const option of trends.options) {
-      if (option.value && available !== null && available < TRANSECT_MIN_YEARS[option.value]) option.disabled = true;
+    const noChanges = available !== null && available < 2;
+    // a variable with one level has no section through the water column
+    const noLevels = !(variable.levels > 1);
+    const ticks = {}, selects = {}, rollings = {}, rollingRows = {}, years = {};
+    const body = [];
+    for (const part of TRANSECT_PARTS) {
+      const lower = part.name.toLowerCase();
+      const tick = el("input", { type: "checkbox", class: "tick", "aria-label": `${part.name} climatology` });
+      const absent = part.climatology === "vertical" && noLevels;
+      tick.checked = Boolean(values[part.climatology]) && !absent;
+      const select = el("select", { class: "s-select", "aria-label": `${part.name} changes` },
+        el("option", { value: "", text: "Changes: choose…" }),
+        ...TRANSECT_HOWS.map(([value, text]) => el("option", { value, text })));
+      for (const option of select.options) {
+        if (option.value && available !== null && available < TRANSECT_MIN_YEARS[option.value]) option.disabled = true;
+      }
+      select.value = TRANSECT_HOWS.some(([value]) => value === values[part.changes]) && !absent && !(select.querySelector(`option[value="${values[part.changes]}"]`) || {}).disabled ? values[part.changes] : "";
+      // the rolling mean of the annual means, in years: 1 is no rolling mean
+      const rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric",
+        value: values[`${part.changes}_window`] || "1", placeholder: "1",
+        "aria-label": `Years of the rolling mean of the annual means of the ${lower} changes (1 is none)`,
+        spellcheck: "false", autocomplete: "off" });
+      const rollingRow = el("label", { class: "transect-window" }, el("span", { text: "Rolling mean (years)" }), rolling);
+      ticks[part.climatology] = tick;
+      selects[part.changes] = select;
+      rollings[part.changes] = rolling;
+      rollingRows[part.changes] = rollingRow;
+      years[part.climatology] = optionYears(values, part.climatology, `${lower} climatology`, hint);
+      years[part.changes] = optionYears(values, part.changes, `${lower} changes`, hint);
+      body.push(
+        el("tr", { class: "transect-part" }, el("th", { scope: "colgroup", colspan: "4", text: part.name })),
+        el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, tick, "Climatology")),
+          el("td", {}, years[part.climatology].start), el("td", {}, years[part.climatology].end), el("td")),
+        el("tr", {}, el("td", {}, select), el("td", {}, years[part.changes].start), el("td", {}, years[part.changes].end),
+          el("td", {}, rollingRow)));
     }
-    const noTrends = available !== null && available < 2;
-    trends.value = TRANSECT_HOWS.some(([value]) => value === values.trends) && !(trends.querySelector(`option[value="${values.trends}"]`) || {}).disabled ? values.trends : "";
-    trends.disabled = noTrends;
-    const trendsNote = noTrends ? el("small", { text: "Only one year of output: there is no trend to work out." }) : null;
-    // the rolling mean of the annual means, in years: 1 is no rolling mean
-    const rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric",
-      value: values.trends_window || "1", placeholder: "1", "aria-label": "Years of the rolling mean of the annual means (1 is none)",
-      spellcheck: "false", autocomplete: "off" });
-    rolling.disabled = noTrends;
-    const rolling_row = el("label", { class: "transect-window" }, el("span", { text: "Rolling mean (years)" }), rolling);
-    const years = {
-      climatology: optionYears(values, "climatology", "surface climatology", hint),
-      vertical: optionYears(values, "vertical", "vertical section", hint),
-      trends: optionYears(values, "trends", "trends", hint),
-    };
+    const notes = [];
+    if (noChanges) notes.push("Only one year of output: there are no changes to work out.");
+    if (noLevels) notes.push("It has one vertical level: there is no Vertical section.");
     const msg = el("p", { class: "analyze-msg" });
-    const yearCells = (option) => [el("td", {}, years[option].start), el("td", {}, years[option].end)];
+    const ends = el("div", { class: "transect-ends" },
+      el("span", { class: "transect-ends__name", text: "Start" }),
+      el("label", {}, el("span", { text: "Lon (°E)" }), inputs.start_lon),
+      el("label", {}, el("span", { text: "Lat (°N)" }), inputs.start_lat),
+      el("span", { class: "transect-ends__name", text: "End" }),
+      el("label", {}, el("span", { text: "Lon (°E)" }), inputs.end_lon),
+      el("label", {}, el("span", { text: "Lat (°N)" }), inputs.end_lat));
     const card = el("div", { class: "transect-card" },
       el("div", { class: "transect-card__head" }, heading, remove),
-      el("div", { class: "transect-card__body" },
-        el("table", {},
-          el("thead", {}, el("tr", {}, el("th", { scope: "col" }), el("th", { scope: "col", text: "Start" }), el("th", { scope: "col", text: "End" }))),
-          el("tbody", {},
-            el("tr", {}, el("th", { scope: "row", text: "Longitude (°E)" }), el("td", {}, inputs.start_lon), el("td", {}, inputs.end_lon)),
-            el("tr", {}, el("th", { scope: "row", text: "Latitude (°N)" }), el("td", {}, inputs.start_lat), el("td", {}, inputs.end_lat)))),
-        el("table", { class: "transect-options" },
-          el("thead", {}, el("tr", {}, el("th", { scope: "col" }), el("th", { scope: "col", text: "Start year" }), el("th", { scope: "col", text: "End year" }))),
-          el("tbody", {},
-            el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, climatology, "Surface climatology")), ...yearCells("climatology")),
-            el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, vertical, "Vertical climatology")), ...yearCells("vertical")),
-            el("tr", {}, el("td", {}, trends, trendsNote, rolling_row), ...yearCells("trends")))),
-      ),
+      ends,
+      el("table", { class: "transect-options" },
+        el("thead", {}, el("tr", {}, el("th", { scope: "col" }), el("th", { scope: "col", text: "Start year" }), el("th", { scope: "col", text: "End year" }), el("th", { scope: "col" }))),
+        el("tbody", {}, ...body)),
+      notes.length ? el("small", { class: "transect-note", text: notes.join(" ") }) : null,
       msg);
-    const row = { card, heading, inputs, climatology, vertical, trends, rolling, years, msg };
-    const on = { climatology: () => climatology.checked, vertical: () => vertical.checked, trends: () => Boolean(trends.value) };
+    const row = { card, heading, inputs, climatology: ticks.climatology, vertical: ticks.vertical,
+      trends: selects.trends, vertical_trends: selects.vertical_trends, rolling: rollings.trends,
+      vertical_rolling: rollings.vertical_trends, years, msg };
+    // an option is on when ticked (climatologies) or when a way of showing the changes is chosen
+    const on = {
+      climatology: () => ticks.climatology.checked, trends: () => Boolean(selects.trends.value),
+      vertical: () => ticks.vertical.checked && !noLevels, vertical_trends: () => Boolean(selects.vertical_trends.value) && !noLevels,
+    };
     // what has to be given is red: the ends, one of the options, and the years of those chosen
     const refresh = () => {
       for (const input of Object.values(inputs)) input.classList.toggle("is-need", !input.value.trim());
       const any = Object.keys(on).some((option) => on[option]());
-      trends.classList.toggle("is-need", !any && !noTrends);
-      // the window only means something once a way of showing trends is chosen
-      rolling.disabled = noTrends || !trends.value;
-      rolling_row.classList.toggle("is-off", rolling.disabled);
+      for (const part of TRANSECT_PARTS) {
+        const off = part.climatology === "vertical" && noLevels;
+        ticks[part.climatology].disabled = off;
+        selects[part.changes].disabled = noChanges || off;
+        selects[part.changes].classList.toggle("is-need", !any && !noChanges && !off);
+        // the window only means something once a way of showing the changes is chosen
+        rollings[part.changes].disabled = noChanges || off || !selects[part.changes].value;
+        rollingRows[part.changes].classList.toggle("is-off", rollings[part.changes].disabled);
+      }
       for (const option of Object.keys(on)) {
         for (const box of [years[option].start, years[option].end]) {
           box.disabled = !on[option]();
@@ -3389,9 +3558,9 @@
         }
       }
     };
-    for (const control of [climatology, vertical, trends]) control.addEventListener("change", refresh);
-    vertical.addEventListener("change", refreshThickness);
-    for (const input of [...Object.values(inputs), rolling, ...Object.values(years).flatMap((pair) => [pair.start, pair.end])]) {
+    for (const control of [...Object.values(ticks), ...Object.values(selects)]) control.addEventListener("change", refresh);
+    for (const control of [ticks.vertical, selects.vertical_trends]) control.addEventListener("change", refreshThickness);
+    for (const input of [...Object.values(inputs), ...Object.values(rollings), ...Object.values(years).flatMap((pair) => [pair.start, pair.end])]) {
       input.addEventListener("input", refresh);
     }
     remove.addEventListener("click", () => {
@@ -3422,7 +3591,7 @@
       el("div", { class: "transect-var__head" },
         el("label", { class: "tick-label" }, use, el("strong", { text: variable.name })),
         el("small", { class: "is-mono", text: variable.model_variable }), outputYears(variable.name),
-        variable.levels > 1 ? null : el("small", { text: "No depth levels: it has no Vertical climatology" })),
+        variable.levels > 1 ? null : el("small", { text: "No depth levels: it has no Vertical section" })),
       msg, cards, add);
     const lines = (box.transects && box.transects.length) ? box.transects : [{}];
     section.cards = [];
@@ -3460,10 +3629,12 @@
       vertical: row.vertical.checked, vertical_start: row.years.vertical.start.value, vertical_end: row.years.vertical.end.value,
       trends: row.trends.value, trends_start: row.years.trends.start.value, trends_end: row.years.trends.end.value,
       trends_window: row.rolling.value,
+      vertical_trends: row.vertical_trends.value, vertical_trends_start: row.years.vertical_trends.start.value,
+      vertical_trends_end: row.years.vertical_trends.end.value, vertical_trends_window: row.vertical_rolling.value,
     }));
   }
 
-  const dialogPrefix = (kind) => (kind === "phenology" ? "phen" : kind === "transects" ? "trans" : "clim");
+  const dialogPrefix = (kind) => (kind === "phenology" ? "phen" : kind === "transects" ? "trans" : kind === "map_changes" ? "chg" : "clim");
 
   function openAnalyzeDialog(kind) {
     const form = state.analyze.forms[kind];
@@ -3483,6 +3654,10 @@
         fillArea();
         stationRows();
       }
+    } else if (kind === "map_changes") {
+      changesRows(form);
+      fillThickness(form, kind);
+      refreshThickness();
     } else if (kind === "transects") {
       transectSections(form);
       fillThickness(form, kind);
@@ -3512,6 +3687,18 @@
     if (kind === "transects") {
       for (const [name, section] of Object.entries(analyzeDialog.rows)) rows[name] = { use: section.use.checked, transects: readTransects(section) };
       return { rows, thickness: $("trans-thickness").value };
+    }
+    if (kind === "map_changes") {
+      for (const [name, row] of Object.entries(analyzeDialog.rows)) {
+        rows[name] = { use: row.surface.checked || row.bottom.checked || row.water.checked,
+          plot: row.plot.value, change: row.change.value,
+          surface: row.surface.checked, bottom: row.bottom.checked, water_column: row.water.checked, how: row.how.value };
+        for (const [key, [start, end]] of Object.entries(row.years)) {
+          rows[name][`${key}_start`] = start.value;
+          rows[name][`${key}_end`] = end.value;
+        }
+      }
+      return { rows, thickness: $("chg-thickness").value };
     }
     for (const [name, row] of Object.entries(analyzeDialog.rows)) {
       if (LAYERED.includes(kind)) {
@@ -3568,7 +3755,7 @@
         analyzeDialog.rows[name].msg.textContent = Object.values(found).join(" ");
       }
     }
-    if (LAYERED.includes(kind) || kind === "transects") $(`${dialogPrefix(kind)}-thickness-msg`).textContent = errors.thickness || "";
+    if (LAYER_ROWS.includes(kind) || kind === "transects") $(`${dialogPrefix(kind)}-thickness-msg`).textContent = errors.thickness || "";
     $(`${dialogPrefix(kind)}-msg`).textContent = reply.error || (errors.rows || "");
   }
 
@@ -3582,7 +3769,7 @@
   }
 
   for (const kind of ANALYSES) $(`ao-${kind}`).addEventListener("click", () => openAnalyzeDialog(kind));
-  for (const prefix of ["clim", "phen", "trans"]) {
+  for (const prefix of ["clim", "phen", "chg", "trans"]) {
     $(`${prefix}-cancel`).addEventListener("click", closeAnalyzeDialog);
     $(`${prefix}-remove`).addEventListener("click", removeAnalysis);
     $(`${prefix}-confirm`).addEventListener("click", confirmAnalyzeDialog);

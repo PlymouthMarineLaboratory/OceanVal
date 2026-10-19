@@ -73,7 +73,7 @@ Z_LEVEL = "z_level"
 PEAK_DAY = "peak_day"
 PEAK_VALUE = "peak_value"
 # everything analyze() can work out of a variable
-KINDS = ("climatology", "phenology", "long_term", "seasonal", "transects")
+KINDS = ("climatology", "phenology", "long_term", "seasonal", "map_changes", "transects")
 
 
 # ---- the arguments ----
@@ -157,15 +157,17 @@ def check_arguments(
     long_term=None,
     seasonal=None,
     transects=None,
+    map_changes=None,
 ):
-    """analyze()'s variables, climatology, phenology, long_term, seasonal and
-    transects, checked, as
+    """analyze()'s variables, climatology, phenology, long_term, seasonal,
+    transects and map_changes, checked, as
 
         [{"name", "key", "model_variable", "parts",
           "climatology", "long_term", "seasonal": None or
           {"start", "end", "layers": [SURFACE and/or "mean" or "integral"]},
           "phenology": None or {"start", "end"},
-          "transects": None or {"start", "end", "lines": [...]}}]
+          "transects": None or {"start", "end", "lines": [...]},
+          "map_changes": None or {"plot", "change", "layers", "periods": [...]}}]
 
     in the order of variables. Raises ValueError saying what is wrong."""
     from oceanval import time_stamps
@@ -181,6 +183,7 @@ def check_arguments(
         "long_term": long_term or {},
         "seasonal": seasonal or {},
         "transects": transects or {},
+        "map_changes": map_changes or {},
     }
     for kind, given in given_by_kind.items():
         if not isinstance(given, dict):
@@ -194,7 +197,7 @@ def check_arguments(
             )
     if not any(given_by_kind.values()):
         raise ValueError(
-            "Give climatology, phenology, long_term, seasonal or transects, or more than one: there is nothing to analyze."
+            "Give climatology, phenology, long_term, seasonal, map_changes or transects, or more than one: there is nothing to analyze."
         )
     if not time_stamps.valid(time_shift):
         raise ValueError("time_shift must be None or a whole number of days, e.g. -1.")
@@ -225,6 +228,7 @@ def check_arguments(
             "long_term": None,
             "seasonal": None,
             "transects": None,
+            "map_changes": None,
         }
         for kind in LAYERED:
             if name in given_by_kind[kind]:
@@ -234,6 +238,10 @@ def check_arguments(
         if name in given_by_kind["phenology"]:
             start, end = _years(given_by_kind["phenology"][name], name, "phenology")
             row["phenology"] = {"start": start, "end": end}
+        if name in given_by_kind["map_changes"]:
+            from oceanval import analysis_changes
+
+            row["map_changes"] = analysis_changes.check_entry(given_by_kind["map_changes"][name], name)
         if name in given_by_kind["transects"]:
             from oceanval import analysis_transects
 
@@ -250,11 +258,14 @@ def check_arguments(
     if any(
         layer in WATER_COLUMN
         for row in rows
-        for kind in LAYERED
+        for kind in LAYERED + ("map_changes",)
         if row[kind]
         for layer in row[kind]["layers"]
     ) or any(
-        line["vertical"] for row in rows if row["transects"] for line in row["transects"]["lines"]
+        line["vertical"] or line["vertical_trends"]
+        for row in rows
+        if row["transects"]
+        for line in row["transects"]["lines"]
     ):
         if not isinstance(thickness, str) or not thickness.strip():
             raise ValueError(
@@ -777,6 +788,8 @@ def build_report(folder, info):
             drop.append("chunk_longterm")
         if not entry.get("seasonal"):
             drop.append("chunk_seasonalseries")
+        if not entry.get("map_changes"):
+            drop.append("chunk_mapchanges")
         if not entry.get("transects"):
             drop.append("chunk_transects")
         _fill_notebook(
@@ -903,6 +916,7 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
         "long_term": None,
         "seasonal": None,
         "transects": None,
+        "map_changes": None,
     }
     own = row["times"]
     dates = sorted(
@@ -976,6 +990,10 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
                 row, results_dir, thickness, thickness_for, time_shift, area, {} if masks_for is None else masks_for
             )
         )
+    if row["map_changes"]:
+        from oceanval import analysis_changes
+
+        entry["map_changes"] = analysis_changes.work_out(row, results_dir, time_shift, thickness, thickness_for)
     if row["transects"]:
         from oceanval import analysis_transects
 
@@ -1006,6 +1024,7 @@ def analyze(
     as_missing=None,
     figure_code=False,
     transects=None,
+    map_changes=None,
 ):
     """
     Analyze a simulation on its own, with no observations, and build an HTML
@@ -1097,9 +1116,10 @@ def analyze(
         variable on its own. For each variable, by its name in variables, a list
         of transects, each a dict of "start" and "end" ([lon, lat] of each end)
         and at least one of "climatology" (the monthly climatology at the
-        surface), "vertical" (the annual mean through the water column, in a
-        section) and "trends" (at the surface: how it changed over the years),
-        each a dict of "start" and "end" years, and, for "trends", "how":
+        surface), "trends" (at the surface: how it changed over the years),
+        "vertical" (the annual mean through the water column, in a section) and
+        "vertical_trends" (how that section changed over the years), each a
+        dict of "start" and "end" years, and, for the two trends, "how":
         "absolute" (the linear trend of the annual means, per year),
         "absolute_change" (the annual mean of the last year minus that of the
         first) or "percentage_change" (that as a percentage of the first year's
@@ -1108,11 +1128,25 @@ def analyze(
         "end": 2009, "how": "absolute"}}]}. Requires nctoolkit 1.3.6 or later.
         Each month of each year is averaged first, a year's mean is the mean of
         its months' means (worked out with nctoolkit), and years without all
-        their months are left out of the trends. "trends" can also have a
+        their months are left out of the trends. "trends" and "vertical_trends" can also have a
         "window", the number of years of a rolling mean of the annual means,
         worked out with nctoolkit's rolling_mean before the trend is: the
         default, 1, is no rolling mean, and with a window of N a change is
         the mean of the last N years minus the mean of the first N.
+    map_changes : dict
+        The variables to map the changes of, between a historical period and
+        one or two future periods. For each variable, by its name in variables,
+        a dict of "historical" (a dict of "start" and "end" years), "future" (a
+        list of one or two such dicts), "plot" ("absolute" for the historical
+        and future maps, "absolute_changes" for those and the maps of the
+        changes, or "changes" for the historical map and the changes), "change"
+        ("absolute" for future minus historical, or "percentage" for that as a
+        percentage of the historical value) and "surface", "bottom" and/or
+        "water_column", as in climatology, e.g. {"Temperature": {"historical":
+        {"start": 1990, "end": 1999}, "future": [{"start": 2040, "end": 2049},
+        {"start": 2090, "end": 2099}], "plot": "absolute_changes", "change":
+        "absolute", "surface": True}}. Each period is mapped as the mean of its
+        years' annual means, and all its years must be years the output has.
     figure_code : bool
         Give each figure in the report a "Copy code to reproduce figure"
         button, which copies the Python code that draws it from the analysis's
@@ -1145,7 +1179,9 @@ def analyze(
     if not isinstance(figure_code, (bool, np.bool_)):
         raise ValueError("figure_code must be True or False.")
     as_missing = check_as_missing(as_missing)
-    rows = check_arguments(variables, climatology, phenology, thickness, time_shift, long_term, seasonal, transects)
+    rows = check_arguments(
+        variables, climatology, phenology, thickness, time_shift, long_term, seasonal, transects, map_changes
+    )
     for row in rows:
         row["as_missing"] = as_missing
     area = check_area(rows, subregions, lon_lim, lat_lim, stations)
@@ -1176,10 +1212,11 @@ def analyze(
         row["files"] = stream["files"]
         row["time_res"] = res
         if row["levels"] < 2:
+            layered = LAYERED + ("map_changes",)
             column = [
-                layer for kind in LAYERED if row[kind] for layer in row[kind]["layers"] if layer in WATER_COLUMN
+                layer for kind in layered if row[kind] for layer in row[kind]["layers"] if layer in WATER_COLUMN
             ]
-            has_bottom = any(BOTTOM in row[kind]["layers"] for kind in LAYERED if row[kind])
+            has_bottom = any(BOTTOM in row[kind]["layers"] for kind in layered if row[kind])
             if has_bottom:
                 problems.append(
                     f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
@@ -1190,11 +1227,13 @@ def analyze(
                     f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
                     "it has no water column to take: leave out its water_column."
                 )
-            if row["transects"] and any(line["vertical"] for line in row["transects"]["lines"]):
+            if row["transects"] and any(
+                line["vertical"] or line["vertical_trends"] for line in row["transects"]["lines"]
+            ):
                 problems.append(
                     f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
                     "it has no section through the water column to take along a transect: leave out "
-                    "the vertical of its transects."
+                    "the vertical climatology and vertical changes of its transects."
                 )
     if problems:
         raise ValueError("\n".join(problems))
@@ -1216,7 +1255,7 @@ def analyze(
         row["times"] = own
         for kind in KINDS:
             entry = row[kind]
-            if entry is None:
+            if entry is None or kind == "map_changes":
                 continue
             entry["files"] = files_in_years(own, entry["start"], entry["end"])
             if not entry["files"]:
@@ -1232,6 +1271,20 @@ def analyze(
                         f"of its {kind}, {entry['start']}-{entry['end']}, are not all in it."
                     )
             entry["dates"] = _dates(own, entry["start"], entry["end"], row["time_res"])
+        for period in row["map_changes"]["periods"] if row["map_changes"] else []:
+            # each period has its own files and dates, not those of the years between them
+            period["files"] = files_in_years(own, period["start"], period["end"])
+            label = f"the {period['title'].lower()} period of its map_changes"
+            if not period["files"]:
+                problems.append(f"{row['name']} has no output in {period['start']}-{period['end']}, the years of {label}.")
+            else:
+                output = [int(year) for df in own.values() for year in df.year]
+                if output and (period["start"] < min(output) or period["end"] > max(output)):
+                    problems.append(
+                        f"{row['name']}'s output is from {min(output)} to {max(output)}, so the years "
+                        f"of {label}, {period['start']}-{period['end']}, are not all in it."
+                    )
+            period["dates"] = _dates(own, period["start"], period["end"], row["time_res"])
         if row["long_term"] or row["seasonal"]:
             first = min(row[kind]["start"] for kind in ("long_term", "seasonal") if row[kind])
             last = max(row[kind]["end"] for kind in ("long_term", "seasonal") if row[kind])
@@ -1247,23 +1300,26 @@ def analyze(
                     f"({row['pattern']}) is {_resolution_text(row['time_res'])}."
                 )
         for number, line in enumerate(row["transects"]["lines"] if row["transects"] else [], start=1):
-            trends = line["trends"]
-            if not trends:
-                continue
             from oceanval import analysis_transects
 
-            output = {int(y) for df in row["times"].values() for y in df.year if trends["start"] <= int(y) <= trends["end"]}
-            needed = (
-                analysis_transects.MIN_TREND_YEARS
-                if trends["how"] == analysis_transects.ABSOLUTE
-                else analysis_transects.MIN_CHANGE_YEARS
-            ) + trends.get("window", 1) - 1
-            if len(output) < needed:
-                problems.append(
-                    f"The {analysis_transects.HOWS[trends['how']].lower()} trends of transect {number} of "
-                    f"{row['name']} need output in at least {needed} years of {trends['start']}-{trends['end']}, "
-                    f"and it has {len(output)}."
-                )
+            for option in analysis_transects.TREND_OPTIONS:
+                trends = line[option]
+                if not trends:
+                    continue
+                output = {
+                    int(y) for df in row["times"].values() for y in df.year if trends["start"] <= int(y) <= trends["end"]
+                }
+                needed = (
+                    analysis_transects.MIN_TREND_YEARS
+                    if trends["how"] == analysis_transects.ABSOLUTE
+                    else analysis_transects.MIN_CHANGE_YEARS
+                ) + trends.get("window", 1) - 1
+                if len(output) < needed:
+                    problems.append(
+                        f"The {analysis_transects.HOWS[trends['how']].lower()} {option} of transect {number} of "
+                        f"{row['name']} need output in at least {needed} years of {trends['start']}-{trends['end']}, "
+                        f"and it has {len(output)}."
+                    )
         if row["phenology"] and row["time_res"] != time_resolution.DAILY:
             problems.append(
                 f"{row['name']}'s phenology needs daily output, and its output "

@@ -69,7 +69,7 @@ class TestArguments:
     @needs_to_transect
     def test_a_transect_is_checked(self):
         assert self.check([line(NORTH_SOUTH, climatology=ALL_YEARS)]) == [
-            {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": ALL_YEARS, "vertical": None, "trends": None}
+            {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": ALL_YEARS, "vertical": None, "trends": None, "vertical_trends": None}
         ]
         checked = self.check([line(EAST_WEST, vertical=ALL_YEARS, trends=dict(ALL_YEARS, how="percentage_change"))])
         assert checked[0]["vertical"] == ALL_YEARS and checked[0]["trends"]["how"] == "percentage_change"
@@ -97,6 +97,9 @@ class TestArguments:
             ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=0))], "whole number of 1 or more"),
             ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=2.5))], "whole number of 1 or more"),
             ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window="3"))], "whole number of 1 or more"),
+            ([line(NORTH_SOUTH, vertical_trends=ALL_YEARS)], "The vertical_trends of .* need \"how\""),
+            ([line(NORTH_SOUTH, vertical_trends=dict(ALL_YEARS, how="absolute", window=0))], "window of the vertical_trends"),
+            ([line(NORTH_SOUTH, vertical_trends={"start": 2010, "end": 2011, "how": "absolute"})], "absolute vertical_trends .* need at least 3 years"),
         ],
     )
     def test_what_is_wrong_is_said(self, lines, message):
@@ -178,7 +181,7 @@ class TestWhatIsWorkedOut:
     def test_an_absolute_trend_is_the_slope_of_the_annual_means(self, monthly, tmp_path, no_report):
         saved, (frames,) = run(monthly, [line(EAST_WEST, trends=dict(ALL_YEARS, how="absolute"))], tmp_path)
         option = saved["lines"][0]["options"]["trends"]
-        assert option["units"] == "degC per year" and option["title"] == "Trends: absolute"
+        assert option["units"] == "degC per year" and option["title"] == "Surface changes: absolute"
         assert frames["trends"].value.to_numpy() == pytest.approx(1.0) and (frames["trends"].years == 6).all()
         # over fewer years
         _, (frames,) = run(
@@ -225,6 +228,64 @@ class TestWhatIsWorkedOut:
         assert frames[3].value.to_numpy() == pytest.approx(5.0)
 
     @needs_to_transect
+    def test_the_vertical_section_has_changes_too(self, monthly, tmp_path, no_report):
+        saved, (absolute, change, percent) = run(
+            monthly,
+            [
+                line(NORTH_SOUTH, vertical_trends=dict(ALL_YEARS, how="absolute")),
+                line(NORTH_SOUTH, vertical_trends=dict(ALL_YEARS, how="absolute_change")),
+                line(NORTH_SOUTH, vertical_trends=dict(ALL_YEARS, how="percentage_change", window=2)),
+            ],
+            tmp_path,
+            thickness="z_level",
+        )
+        options = [x["options"]["vertical_trends"] for x in saved["lines"]]
+        assert [x["title"] for x in options] == [
+            "Vertical changes: absolute", "Vertical changes: absolute change", "Vertical changes: percentage change"
+        ]
+        assert [x["units"] for x in options] == ["degC per year", "degC", "%"] and options[0]["depths"] == "levels"
+        for frames in (absolute, change, percent):
+            assert set(frames["vertical_trends"].columns) == {"position", "depth", "value"}
+            assert sorted(frames["vertical_trends"].depth.unique()) == ANALYSIS_LEVELS
+        # every level warms by 1 a year, so 5 from 2010 to 2015
+        assert absolute["vertical_trends"].value.to_numpy() == pytest.approx(1.0)
+        assert change["vertical_trends"].value.to_numpy() == pytest.approx(5.0)
+        # the mean of 2014-15 less that of 2010-11 is 4, as a percentage of the first two years' mean at each level
+        for _, row in percent["vertical_trends"].iterrows():
+            level = ANALYSIS_LEVEL_VALUES[ANALYSIS_LEVELS.index(row.depth)]
+            assert row.value == pytest.approx(100 * 4.0 / (level + 6.5 + 0.5))
+
+    @needs_to_transect
+    def test_the_vertical_changes_with_a_thickness_are_on_the_common_depths(self, monthly, tmp_path, no_report):
+        saved, (frames,) = run(
+            monthly, [line(NORTH_SOUTH, vertical_trends=dict(ALL_YEARS, how="absolute_change"))], tmp_path, thickness="e3t"
+        )
+        assert saved["lines"][0]["options"]["vertical_trends"]["depths"] == "thickness"
+        frame = frames["vertical_trends"]
+        depths = sorted(frame.depth.unique())
+        assert len(depths) == analysis_transects.N_DEPTHS and depths[0] == pytest.approx(0.5) and depths[-1] == pytest.approx(6.5)
+        assert frame.value.to_numpy() == pytest.approx(5.0)
+
+    @needs_to_transect
+    def test_the_surface_and_vertical_changes_have_their_own_years_and_how(self, monthly, tmp_path, no_report):
+        saved, (frames,) = run(
+            monthly,
+            [
+                line(
+                    NORTH_SOUTH,
+                    trends={"start": 2010, "end": 2012, "how": "absolute_change"},
+                    vertical_trends={"start": 2012, "end": 2015, "how": "absolute"},
+                )
+            ],
+            tmp_path,
+            thickness="z_level",
+        )
+        options = saved["lines"][0]["options"]
+        assert list(options) == ["trends", "vertical_trends"] and (saved["start"], saved["end"]) == (2010, 2015)
+        assert frames["trends"].value.to_numpy() == pytest.approx(2.0)
+        assert frames["vertical_trends"].value.to_numpy() == pytest.approx(1.0)
+
+    @needs_to_transect
     def test_a_rolling_mean_over_a_year_that_was_left_out(self, tmp_path, no_report):
         root = tmp_path / "sim"
         write_analysis_simulation(str(root), years=YEARS, daily=False, trend=1.0)
@@ -266,8 +327,8 @@ class TestWhatIsWorkedOut:
             thickness="z_level",
         )
         options = saved["lines"][0]["options"]
-        assert list(options) == ["climatology", "vertical", "trends"]
-        assert [(o["start"], o["end"]) for o in options.values()] == [(2010, 2011), (2014, 2015), (2011, 2013)]
+        assert list(options) == ["climatology", "trends", "vertical"]
+        assert [(o["start"], o["end"]) for o in options.values()] == [(2010, 2011), (2011, 2013), (2014, 2015)]
         assert (saved["start"], saved["end"]) == (2010, 2015)
         assert frames["trends"].value.to_numpy() == pytest.approx(2.0)
         # 2014 and 2015 are 4.5 warmer than 2010 on average, and the first row is the shallowest depth
@@ -470,6 +531,7 @@ class TestForms:
             "climatology": False, "climatology_start": "", "climatology_end": "",
             "vertical": False, "vertical_start": "", "vertical_end": "",
             "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
+            "vertical_trends": "", "vertical_trends_start": "", "vertical_trends_end": "", "vertical_trends_window": "1",
         }
         chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))
         assert chosen is None and errors == {"rows": "Tick at least one variable to work out transects of."}
@@ -491,14 +553,14 @@ class TestForms:
             "thickness": "z_level",
             "rows": {
                 "Temperature": [
-                    {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": ALL_YEARS, "vertical": None, "trends": None},
+                    {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": ALL_YEARS, "vertical": None, "trends": None, "vertical_trends": None},
                     {
                         "start": [-4.0, 51.0], "end": [0.0, 51.0], "climatology": None, "vertical": {"start": 2012, "end": 2014},
-                        "trends": {"start": 2011, "end": 2015, "how": "absolute_change"},
+                        "trends": {"start": 2011, "end": 2015, "how": "absolute_change"}, "vertical_trends": None,
                     },
                 ],
                 "Chlorophyll": [
-                    {"start": [-2.0, 50.0], "end": [-2.0, 52.0], "climatology": ALL_YEARS, "vertical": None, "trends": None},
+                    {"start": [-2.0, 50.0], "end": [-2.0, 52.0], "climatology": ALL_YEARS, "vertical": None, "trends": None, "vertical_trends": None},
                 ],
             }
         }
@@ -521,7 +583,7 @@ class TestForms:
         # the first is fine
         assert set(found) == {"1", "2", "3", "4"}
         assert set(found["1"]) == {"start_lon", "start_lat", "end_lon", "end_lat"} and "north–south or east–west" in found["1"]["start_lon"]
-        assert set(found["2"]) == {"options"} and "Tick Surface climatology" in found["2"]["options"]
+        assert set(found["2"]) == {"options"} and "Tick a Climatology or choose Changes" in found["2"]["options"]
         assert found["3"]["start_lon"] == "Coordinates must be numbers." and found["3"]["vertical_end"] == "End must be a year, e.g. 2011."
         assert found["4"] == {"trends_end": "Absolute needs at least 3 years, and this is 2."}
 
@@ -593,6 +655,30 @@ class TestForms:
         assert chosen is None and set(errors) == {"Chlorophyll"}
         assert errors["Chlorophyll"]["transects"] == {
             "0": {"vertical": "It has only one vertical level, so it has no section through the water column."}
+        }
+
+    @needs_to_transect
+    def test_the_vertical_changes_are_checked_like_the_surface_ones(self, monthly):
+        placed = self.placed(monthly)
+        changes = self.box(
+            climatology=False, vertical_trends="absolute_change", vertical_trends_start="2010", vertical_trends_end="2015",
+            vertical_trends_window="3",
+        )
+        chosen, errors = self.check(placed, self.form(placed, Temperature=[changes]))
+        assert errors == {} and chosen["thickness"] == "z_level"
+        assert chosen["rows"]["Temperature"][0]["vertical_trends"] == {"start": 2010, "end": 2015, "how": "absolute_change", "window": 3}
+        assert chosen["rows"]["Temperature"][0]["trends"] is None
+        # they have a window, years and a thickness of their own to be right
+        found = self.check(placed, self.form(placed, Temperature=[dict(changes, vertical_trends_window="x", vertical_trends_end="")]))[1]
+        assert set(found["Temperature"]["transects"]["0"]) == {"vertical_trends_window", "vertical_trends_end"}
+        assert self.check(placed, self.form(placed, thickness="", Temperature=[changes]))[1]["thickness"]
+        _, errors = self.check(placed, self.form(placed, Temperature=[dict(changes, vertical_trends="absolute", vertical_trends_window="5")]))
+        # the output (2010-2015) is too short for it
+        assert "after a rolling mean of 5, so 7" in errors["Temperature"]["transects"]["0"]["vertical_trends"]
+        # a variable with one level has no section, whatever is in it
+        chosen, errors = self.check(placed, self.form(placed, Chlorophyll=[changes]))
+        assert errors["Chlorophyll"]["transects"] == {
+            "0": {"vertical_trends": "It has only one vertical level, so it has no section through the water column."}
         }
 
     @needs_to_transect

@@ -287,6 +287,20 @@ def check_thickness(thickness, available, cwd, errors):
     return thickness
 
 
+def _check_layers(box, row, found):
+    """Add to found (the errors of a variable's row) what is wrong with the
+    layers ticked in box: none, or the bottom or the water column of a
+    variable with one vertical level, or a water column with no way to take it."""
+    if not box["surface"] and not box["bottom"] and not box["water_column"]:
+        found["surface"] = "Tick the surface, the bottom, the water column, or more than one."
+    if box["bottom"] and row["levels"] < 2:
+        found["bottom"] = "It has only one vertical level."
+    if box["water_column"] and row["levels"] < 2:
+        found["water_column"] = "It has only one vertical level."
+    elif box["water_column"] and box["how"] not in analysis.WATER_COLUMN:
+        found["water_column"] = "Choose the vertical mean or the depth integral."
+
+
 def check_climatology(form, placed, known_years, available, cwd, label="climatology"):
     """Check the climatology pop-out's boxes (see clean_climatology).
     known_years(name) is the first and last years of a variable's output,
@@ -303,14 +317,7 @@ def check_climatology(form, placed, known_years, available, cwd, label="climatol
             continue
         found = {}
         start, end = _years(box, found, known_years(row["name"]))
-        if not box["surface"] and not box["bottom"] and not box["water_column"]:
-            found["surface"] = "Tick the surface, the bottom, the water column, or more than one."
-        if box["bottom"] and row["levels"] < 2:
-            found["bottom"] = "It has only one vertical level."
-        if box["water_column"] and row["levels"] < 2:
-            found["water_column"] = "It has only one vertical level."
-        elif box["water_column"] and box["how"] not in analysis.WATER_COLUMN:
-            found["water_column"] = "Choose the vertical mean or the depth integral."
+        _check_layers(box, row, found)
         if found:
             errors[row["name"]] = found
             continue
@@ -352,14 +359,117 @@ def check_phenology(form, placed, known_years, time_res_of):
     return chosen, errors
 
 
+# ---- the map changes ----
+
+# the periods of a map changes row: the historical one, and up to two future ones
+CHANGE_PERIODS = ("historical", "future1", "future2")
+CHANGE_TITLES = {"historical": "Historical", "future1": "Future 1", "future2": "Future 2"}
+CHANGE_BOXES = tuple(f"{period}_{end}" for period in CHANGE_PERIODS for end in ("start", "end"))
+
+
+def default_map_changes(placed):
+    """The map changes pop-out's boxes, as they start: nothing ticked, no
+    years, no plot and no change, for each variable."""
+    blank = {box: "" for box in CHANGE_BOXES}
+    return {
+        "rows": {
+            row["name"]: dict(
+                blank, use=False, plot="", change="", surface=False, bottom=False, water_column=False, how=""
+            )
+            for row in placed
+        },
+        "thickness": "",
+    }
+
+
+def clean_map_changes(form, placed):
+    """The map changes pop-out's boxes as the page sent them."""
+    from oceanval import analysis_changes
+
+    form = form if isinstance(form, dict) else {}
+    given = form.get("rows") if isinstance(form.get("rows"), dict) else {}
+    rows = {}
+    for row in placed:
+        box = given.get(row["name"]) if isinstance(given.get(row["name"]), dict) else {}
+        how = str(box.get("how") or "")
+        plot, change = str(box.get("plot") or ""), str(box.get("change") or "")
+        rows[row["name"]] = dict(
+            {name: str(box.get(name) or "").strip() for name in CHANGE_BOXES},
+            use=bool(box.get("use")),
+            plot=plot if plot in analysis_changes.PLOTS else "",
+            change=change if change in analysis_changes.CHANGES else "",
+            surface=bool(box.get("surface")),
+            bottom=bool(box.get("bottom")),
+            water_column=bool(box.get("water_column")),
+            how=how if how in analysis.WATER_COLUMN else "",
+        )
+    return {"rows": rows, "thickness": str(form.get("thickness") or "").strip()}
+
+
+def check_map_changes(form, placed, known_years, available, cwd):
+    """Check the map changes pop-out's boxes (see clean_map_changes). Returns
+    (map_changes, thickness, errors): map_changes as analyze() takes it,
+    errors {name: {box: reason}}, "thickness" and "rows"."""
+    errors = {}
+    chosen = {}
+    column = False
+    for row in placed:
+        box = form["rows"][row["name"]]
+        if not box["use"]:
+            continue
+        found = {}
+        years = {}
+        for period in CHANGE_PERIODS:
+            start, end = box[f"{period}_start"], box[f"{period}_end"]
+            if period == "future2" and not start and not end:
+                continue
+            here = {}
+            years[period] = _years({"start": start, "end": end}, here, known_years(row["name"]))
+            found.update({f"{period}_{name}": f"{CHANGE_TITLES[period]}: {reason}" for name, reason in here.items()})
+        clear = [x for x in years if f"{x}_start" not in found and f"{x}_end" not in found]
+        for number, period in enumerate(clear):
+            for other in clear[:number]:
+                if years[period] == years[other]:
+                    found[f"{period}_start"] = (
+                        f"{CHANGE_TITLES[period]}: these are the same years as the {CHANGE_TITLES[other].lower()} period's."
+                    )
+                    break
+        if not box["plot"]:
+            found["plot"] = "Choose what to plot."
+        if not box["change"]:
+            found["change"] = "Choose absolute or percentage changes."
+        _check_layers(box, row, found)
+        if found:
+            errors[row["name"]] = found
+            continue
+        chosen[row["name"]] = {
+            "historical": {"start": years["historical"][0], "end": years["historical"][1]},
+            "future": [{"start": years[x][0], "end": years[x][1]} for x in ("future1", "future2") if x in years],
+            "plot": box["plot"],
+            "change": box["change"],
+            "surface": box["surface"],
+            "bottom": box["bottom"],
+            "water_column": box["how"] if box["water_column"] else None,
+        }
+        column = column or box["water_column"]
+    thickness = None
+    if column:
+        thickness = check_thickness(form["thickness"], available, cwd, errors)
+    if not chosen and not errors:
+        errors["rows"] = "Tick Surface, Bottom, Water column, or more than one, for at least one variable to map the changes of."
+    return chosen, thickness, errors
+
+
 # ---- the transects ----
 
 # the boxes of a transect's ends, in the order the transect_* boxes of
 # oceanval.app.TRANSECT_BOXES have them
 TRANSECT_BOXES = ("start_lon", "start_lat", "end_lon", "end_lat")
-# the options of a transect that are ticked (the trends are chosen from a
-# drop-down), each with boxes for its years
+# the options of a transect that are ticked (the changes, at the surface and
+# in the section, are chosen from drop-downs), each with boxes for its years
 TRANSECT_TICKS = ("climatology", "vertical")
+# the changes (trends), each with a drop-down for how, and a box for its rolling mean
+TRANSECT_CHANGES = ("trends", "vertical_trends")
 
 
 def blank_transect():
@@ -370,6 +480,7 @@ def blank_transect():
         "climatology": False, "climatology_start": "", "climatology_end": "",
         "vertical": False, "vertical_start": "", "vertical_end": "",
         "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
+        "vertical_trends": "", "vertical_trends_start": "", "vertical_trends_end": "", "vertical_trends_window": "1",
     }
 
 
@@ -381,13 +492,14 @@ def default_transects(placed):
 
 def _blank(line):
     # the window starts as 1, which is not something that was entered
-    return not any(line[box] for box in blank_transect() if box != "trends_window")
+    return not any(line[box] for box in blank_transect() if not box.endswith("_window"))
 
 
 def clean_transects(form, placed):
     """The transects pop-out's boxes as the page sent them: for each variable
     whether it is ticked, and its transects, each with its ends, and each of
-    its options (surface climatology, vertical, trends) with its years."""
+    its options (surface climatology and changes, vertical climatology and
+    changes) with its years."""
     from oceanval import analysis_transects
 
     form = form if isinstance(form, dict) else {}
@@ -399,10 +511,11 @@ def clean_transects(form, placed):
         for line in (box.get("transects") if isinstance(box.get("transects"), list) else [])[:MOST_ROWS]:
             if not isinstance(line, dict):
                 continue
-            how = str(line.get("trends") or "")
             clean = {box_name: str(line.get(box_name) or "").strip() for box_name in blank_transect() if box_name not in TRANSECT_TICKS}
             clean.update({name: bool(line.get(name)) for name in TRANSECT_TICKS})
-            clean["trends"] = how if how in analysis_transects.HOWS else ""
+            for name in TRANSECT_CHANGES:
+                how = str(line.get(name) or "")
+                clean[name] = how if how in analysis_transects.HOWS else ""
             lines.append(clean)
         rows[row["name"]] = {"use": bool(box.get("use")), "transects": lines or [blank_transect()]}
     return {"rows": rows, "thickness": str(form.get("thickness") or "").strip()}
@@ -442,8 +555,8 @@ def check_transects(form, placed, known_years, available=(), cwd="."):
             if "transect" in raw:
                 errors["rows"] = raw["transect"]
             options = {}
-            if not (line["climatology"] or line["vertical"] or line["trends"]):
-                found["options"] = "Tick Surface climatology or Vertical climatology, or choose Trends, or more than one."
+            if not any(line[option] for option in analysis_transects.OPTIONS):
+                found["options"] = "Tick a Climatology or choose Changes, in the Surface or the Vertical, or more than one."
             for option in analysis_transects.OPTIONS:
                 if not line[option]:
                     continue
@@ -454,39 +567,42 @@ def check_transects(form, placed, known_years, available=(), cwd="."):
                 for name, reason in years.items():
                     found[f"{option}_{name}"] = reason
                 options[option] = {"start": start, "end": end}
-            if line["vertical"] and row["levels"] < 2:
-                found["vertical"] = "It has only one vertical level, so it has no section through the water column."
-            how = line["trends"]
-            window = 1
-            if how:
-                text = line["trends_window"] or "1"
-                if not text.isdigit() or int(text) < 1:
-                    found["trends_window"] = "The window is a whole number of years, 1 or more: 1 is no rolling mean."
-                else:
-                    window = int(text)
-            output = known_years(row["name"])
-            if how and output and "trends_window" not in found:
-                n_output = output[1] - output[0] + 1
+            if (line["vertical"] or line["vertical_trends"]) and row["levels"] < 2:
+                reason = "It has only one vertical level, so it has no section through the water column."
+                for option in ("vertical", "vertical_trends"):
+                    if line[option]:
+                        found[option] = reason
+            for option in analysis_transects.TREND_OPTIONS:
+                how = line[option]
+                window = 1
+                if how:
+                    text = line[f"{option}_window"] or "1"
+                    if not text.isdigit() or int(text) < 1:
+                        found[f"{option}_window"] = "The window is a whole number of years, 1 or more: 1 is no rolling mean."
+                    else:
+                        window = int(text)
+                output = known_years(row["name"])
                 needed = analysis_transects.MIN_TREND_YEARS if how == analysis_transects.ABSOLUTE else analysis_transects.MIN_CHANGE_YEARS
-                if n_output - window + 1 < needed:
-                    found["trends"] = (
-                        f"{analysis_transects.HOWS[how]} needs at least {needed} years of output"
-                        + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
-                        + f": {row['name']}'s is {'from ' + str(output[0]) + ' to ' + str(output[1]) if n_output > 1 else 'only ' + str(output[0])}."
-                    )
-            if how and "trends" in options and not any(name.startswith("trends_") or name == "trends" for name in found):
-                span = options["trends"]["end"] - options["trends"]["start"] + 1
-                needed = analysis_transects.MIN_TREND_YEARS if how == analysis_transects.ABSOLUTE else analysis_transects.MIN_CHANGE_YEARS
-                if span - window + 1 < needed:
-                    found["trends_end"] = (
-                        f"{analysis_transects.HOWS[how]} needs at least {needed} years"
-                        + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
-                        + f", and this is {span}."
-                    )
-                options["trends"]["how"] = how
-                # 1 is no rolling mean, and is not written
-                if window > 1:
-                    options["trends"]["window"] = window
+                if how and output and f"{option}_window" not in found:
+                    n_output = output[1] - output[0] + 1
+                    if n_output - window + 1 < needed:
+                        found[option] = (
+                            f"{analysis_transects.HOWS[how]} needs at least {needed} years of output"
+                            + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
+                            + f": {row['name']}'s is {'from ' + str(output[0]) + ' to ' + str(output[1]) if n_output > 1 else 'only ' + str(output[0])}."
+                        )
+                if how and option in options and not any(name.startswith(f"{option}_") or name == option for name in found):
+                    span = options[option]["end"] - options[option]["start"] + 1
+                    if span - window + 1 < needed:
+                        found[f"{option}_end"] = (
+                            f"{analysis_transects.HOWS[how]} needs at least {needed} years"
+                            + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
+                            + f", and this is {span}."
+                        )
+                    options[option]["how"] = how
+                    # 1 is no rolling mean, and is not written
+                    if window > 1:
+                        options[option]["window"] = window
             if found:
                 found_lines[str(number)] = found
             elif ends is not None:
@@ -505,7 +621,7 @@ def check_transects(form, placed, known_years, available=(), cwd="."):
     if not chosen and not errors:
         errors["rows"] = "Tick at least one variable to work out transects of."
     thickness = None
-    if any(line["vertical"] for lines in chosen.values() for line in lines):
+    if any(line["vertical"] or line["vertical_trends"] for lines in chosen.values() for line in lines):
         thickness = check_thickness(form["thickness"], set(available), cwd, errors)
     if errors:
         return None, errors
@@ -668,11 +784,14 @@ def arguments(
     as_missing=None,
     figure_code=None,
     transects=None,
+    map_changes=None,
 ):
     """analyze()'s arguments, from the steps. area is what check_area gave,
     with the stations (see check_stations), if a time series is asked for.
-    transects is what check_transects gave, if they are asked for."""
+    transects is what check_transects gave, if they are asked for, and
+    map_changes what check_map_changes gave."""
     used = set(climatology or {}) | set(phenology or {}) | set(long_term or {}) | set(seasonal or {})
+    used |= set(map_changes or {})
     used |= set((transects or {}).get("rows", {}))
     out = {
         "sim_dir": setup["simdir"],
@@ -685,6 +804,8 @@ def arguments(
         out["long_term"] = long_term
     if seasonal:
         out["seasonal"] = seasonal
+    if map_changes:
+        out["map_changes"] = map_changes
     if transects:
         out["transects"] = {
             name: [{key: value for key, value in line.items() if value is not None} for line in lines]

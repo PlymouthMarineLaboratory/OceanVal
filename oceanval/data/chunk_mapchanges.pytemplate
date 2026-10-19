@@ -1,0 +1,56 @@
+# %% tags=["remove-input"]
+changes = entry["map_changes"]
+md("## Map temporal changes")
+
+# %% tags=["remove-input"]
+periods = changes["periods"]
+historical, futures = periods[0], periods[1:]
+how_text = {
+    "absolute": "the absolute change: the future period's mean minus the historical period's",
+    "percentage": "the percentage change: the difference between the future period's mean and the historical period's as a percentage of the historical mean (of its absolute value, so that an increase is positive)",
+}[changes["change"]]
+shown = {
+    "absolute": "the maps of the historical and future periods",
+    "absolute_changes": "the maps of the historical and future periods, and of the changes",
+    "changes": "the map of the historical period, and of the changes",
+}[changes["plot"]]
+period_text = "; ".join(
+    f"the {x['title'].lower()} period is {years_text(x)}, read from {x['files']} file{'s' if x['files'] != 1 else ''}"
+    for x in periods
+)
+md(
+    f"The change in {name} between a historical period and {'a future period' if len(futures) == 1 else 'two future periods'} is mapped: {period_text}. "
+    f"Each period is mapped as the mean of its years' annual means, and the change is {how_text}. This page shows {shown}."
+)
+for period in periods:
+    if period["dates"]["issues"]:
+        md(f"The {period['title'].lower()} period ({years_text(period)}): gaps in the output: " + " ".join(period["dates"]["issues"]))
+
+# %% tags=["remove-input"]
+for layer, saved in changes["layers"].items():
+    display(md(f"### {saved['title']}"))
+    where = {"surface": "surface", "bottom": "bottom", "mean": "depth-averaged", "integral": "depth-integrated"}[layer]
+    layer_units = ap.unit_html(saved["units"])
+    drawn = ap.change_maps(results_dir, variable, layer)
+    ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    mapped = [historical] + ([] if changes["plot"] == "changes" else futures)
+    names = [years_text(x) for x in mapped]
+    text = f"**Figure {i_figure}**: Mean {where} {name} ({layer_units}) in " + (
+        ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else names[0]
+    )
+    if changes["plot"] != "absolute":
+        kind = "percentage change" if changes["change"] == "percentage" else "change"
+        text += (
+            f", and the {kind} ({ap.unit_html(saved['change_units'])}) from {years_text(historical)} to "
+            + " and to ".join(years_text(x) for x in futures)
+        )
+    text += ". "
+    if changes["plot"] == "absolute":
+        text += "The maps share one colour scale, from the 2nd to the 98th percentile of all of them."
+    else:
+        text += (
+            "The maps of the means share one colour scale, from the 2nd to the 98th percentile of all of them, "
+            "and the maps of the changes share another, symmetric about zero, in which red is an increase and blue a decrease."
+        )
+    display(md(text + regridded_text(drawn.regridded)))
+    i_figure += 1

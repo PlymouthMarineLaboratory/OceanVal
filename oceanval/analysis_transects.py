@@ -2,13 +2,11 @@
 east-west lines, which a user can add as many of as they like, for each
 variable on its own.
 
-Each transect can have any of three things worked out along it, each over
-years of its own:
+Each transect can have any of four things worked out along it, each over
+years of its own, two at the surface and two through the water column:
 
 - "climatology": the monthly climatology at the surface, by month and
   position (a line if the output is annual), as validate shows the surface.
-- "vertical": the annual mean through the water column, by depth and
-  position, as validate shows its section.
 - "trends": at the surface, along the line, how it changed over the years:
   "absolute" (the linear trend of the annual means, per year),
   "absolute_change" (the annual mean of the last year minus that of the first)
@@ -17,6 +15,10 @@ years of its own:
   worked out with nctoolkit, and with a "window" of more than 1 year smoothed
   by nctoolkit's rolling_mean before the trend is worked out, so that a change
   is then the mean of the last window years minus the mean of the first.
+- "vertical": the annual mean through the water column, by depth and
+  position, as validate shows its section.
+- "vertical_trends": the same changes as "trends", at each depth and position
+  of the section (the window's "Changes" of its Vertical part).
 
 The monthly means are taken first, as for the climatology and the time series,
 then extracted along the line with nctoolkit's to_transect, and what is worked
@@ -39,12 +41,18 @@ from oceanval.analysis_series import EARTH_KM, _grid, _spacing, months_per_year
 CLIMATOLOGY = "climatology"
 VERTICAL = "vertical"
 TRENDS = "trends"
+VERTICAL_TRENDS = "vertical_trends"
 # what can be worked out along a transect, and what each is called in the report
 OPTIONS = {
     CLIMATOLOGY: "Surface climatology",
+    TRENDS: "Surface changes",
     VERTICAL: "Vertical climatology",
-    TRENDS: "Trends",
+    VERTICAL_TRENDS: "Vertical changes",
 }
+# the options that are changes over the years, and those worked out at the surface and through the water column
+TREND_OPTIONS = (TRENDS, VERTICAL_TRENDS)
+SURFACE_OPTIONS = (CLIMATOLOGY, TRENDS)
+VERTICAL_OPTIONS = (VERTICAL, VERTICAL_TRENDS)
 
 ABSOLUTE = "absolute"
 ABSOLUTE_CHANGE = "absolute_change"
@@ -98,14 +106,15 @@ def check_lines(lines, name):
     """The transects of one variable in analyze()'s transects, checked (name
     is the variable): a list of {"start": [lon, lat], "end": [lon, lat],
     "climatology": None or {"start", "end"}, "vertical": None or {"start",
-    "end"}, "trends": None or {"start", "end", "how"}}. Raises ValueError saying
+    "end"}, "trends": None or {"start", "end", "how"}, "vertical_trends": None or
+    {"start", "end", "how"}}. Raises ValueError saying
     what is wrong."""
     where = f"transects[{name!r}]"
     if not isinstance(lines, (list, tuple)) or not lines:
         raise ValueError(
             f"{where} must be a list of transects, each a dict of \"start\" and \"end\" ([lon, lat]) "
-            'and at least one of "climatology", "vertical" and "trends", each a dict of "start" and "end" years '
-            '(and, for "trends", "how": ' + ", ".join(f'"{key}"' for key in HOWS) + ")."
+            'and at least one of "climatology", "trends", "vertical" and "vertical_trends", each a dict of "start" and "end" years '
+            '(and, for the trends, "how": ' + ", ".join(f'"{key}"' for key in HOWS) + ")."
         )
     checked = []
     for number, line in enumerate(lines, start=1):
@@ -122,42 +131,42 @@ def check_lines(lines, name):
             ends = transects.check_transect({"start": line["start"], "end": line["end"]})
         except (TypeError, ValueError) as error:
             raise ValueError(f"{which}: {error}")
-        out = {"start": ends["start"], "end": ends["end"], CLIMATOLOGY: None, VERTICAL: None, TRENDS: None}
+        out = {"start": ends["start"], "end": ends["end"], **{option: None for option in OPTIONS}}
         for option in OPTIONS:
             if line.get(option) is None:
                 continue
             entry = line[option]
             start, end = _option_years(entry, f"the {option} of {which}")
             out[option] = {"start": start, "end": end}
-            if option != TRENDS:
+            if option not in TREND_OPTIONS:
                 if set(entry) - {"start", "end"}:
                     raise ValueError(f"The {option} of {which} has only start and end years.")
                 continue
             how = entry.get("how")
             if how not in HOWS:
                 raise ValueError(
-                    f"The trends of {which} need \"how\", one of {', '.join(repr(key) for key in HOWS)}, not {how!r}."
+                    f"The {option} of {which} need \"how\", one of {', '.join(repr(key) for key in HOWS)}, not {how!r}."
                 )
             if set(entry) - {"start", "end", "how", "window"}:
-                raise ValueError(f"The trends of {which} have only start and end years, how and window.")
+                raise ValueError(f"The {option} of {which} have only start and end years, how and window.")
             window = entry.get("window", 1)
             if isinstance(window, bool) or not isinstance(window, (int, np.integer)) or window < 1:
                 raise ValueError(
-                    f"The window of the trends of {which} is the number of years of the rolling mean, "
+                    f"The window of the {option} of {which} is the number of years of the rolling mean, "
                     f"a whole number of 1 or more (1 is no rolling mean), not {window!r}."
                 )
             span = end - start + 1
             needed = MIN_TREND_YEARS if how == ABSOLUTE else MIN_CHANGE_YEARS
             if span - window + 1 < needed:
                 raise ValueError(
-                    f"The {HOWS[how].lower()} trends of {which} need at least {needed} years"
+                    f"The {HOWS[how].lower()} {option} of {which} need at least {needed} years"
                     + (f" after a rolling mean of {window}, so {needed + window - 1}" if window > 1 else "")
                     + f": {start}-{end} is {span}."
                 )
-            out[TRENDS]["how"] = how
-            out[TRENDS]["window"] = int(window)
+            out[option]["how"] = how
+            out[option]["window"] = int(window)
         if not any(out[option] for option in OPTIONS):
-            raise ValueError(f'{which} needs at least one of "climatology", "vertical" and "trends".')
+            raise ValueError(f'{which} needs at least one of "climatology", "trends", "vertical" and "vertical_trends".')
         checked.append(out)
     return checked
 
@@ -243,10 +252,11 @@ def complete_years(times, start, end, per_year):
     ]
 
 
-def annual_means(extracted, key, line, times, spec, per_year):
+def annual_means(extracted, key, line, times, spec, per_year, vertical=False):
     """The annual means of a transect's monthly means, with nctoolkit,
     smoothed by its rolling_mean if the window is more than 1 year: (positions,
-    the years, the values by year then position), or (None, [], None) if no
+    the years, the values by year then position, or by year, depth and position
+    if vertical), or (None, [], None) if no
     year has all its months, or there are fewer years than the window.
     extracted is the dataset of monthly means along the line, which is left as
     it is; times are its (year, month). Only years with all their months are
@@ -263,7 +273,7 @@ def annual_means(extracted, key, line, times, spec, per_year):
         ds.rolling_mean(window)
     ds.run()
     out_years = [time.year for time in ds.times]
-    positions, _, values = _along(ds.current[0], key, line, False)
+    positions, _, values = _along(ds.current[0], key, line, vertical)
     return positions, out_years, values
 
 
@@ -395,30 +405,63 @@ def derive(option, positions, depths, values, times, spec, per_year):
     raise ValueError(f"{option} is not something that derive works out.")
 
 
-def derive_trends(positions, years, values, spec, left_out, per_year):
+def _shown_depths(depths):
+    """The depths to give a frame with no values: those there are, or the
+    numbers of the cells if each position has its own."""
+    return depths if depths.ndim == 1 else np.arange(depths.shape[0], dtype="float64")
+
+
+def _trend_table(positions, depths, columns):
+    """The frame of a trend: by position, or, if depths (the depths of the
+    section, by depth if the same everywhere, or by depth then position if
+    each position has its own), by depth and position, the columns each as
+    values by depth then position (or just position)."""
+    if depths is None:
+        return _table(positions, None, columns)
+    if depths.ndim == 2:
+        # each position has its own depths
+        out = {}
+        for name, values in columns.items():
+            common, out[name] = on_common_depths(depths, values)
+        return _table(positions, common, out)
+    return _table(positions, depths, columns)
+
+
+def derive_trends(positions, years, values, spec, left_out, per_year, depths=None):
     """The trends of a transect from its annual means (see annual_means):
     (a data frame, notes). positions are along the transect and spec the
     option's {"start", "end", "how", "window"}; left_out the years from start
     to end that were left out because they do not have all their months. The
-    frame has position, value and, for the absolute trend, years, the number
-    of annual means it is from. values is None if there are none."""
+    frame has position, value and, for the absolute trend at the surface,
+    years, the number of annual means it is from. values is None if there are
+    none. For the section through the water column depths are those of the
+    cells (see derive), values are by year, depth and position, and the frame
+    has depth too."""
     start, end, how = spec["start"], spec["end"], spec["how"]
     window = spec.get("window", 1)
+    vertical = depths is not None
     notes = []
+    if vertical:
+        empty_shape = (len(_shown_depths(depths)), len(positions))
+    else:
+        empty_shape = (len(positions),)
     if values is None:
-        columns = {"value": np.full(len(positions), np.nan)}
-        if how == ABSOLUTE:
+        columns = {"value": np.full(empty_shape, np.nan)}
+        if how == ABSOLUTE and not vertical:
             columns["years"] = np.zeros(len(positions), dtype=int)
         if left_out:
             notes.append(_left_out(left_out, per_year))
-        return _table(positions, None, columns), notes
+        return _trend_table(positions, None if not vertical else _shown_depths(depths), columns), notes
     if how == ABSOLUTE:
         if left_out:
             notes.append(_left_out(left_out, per_year))
             if window > 1:
                 notes.append("The rolling mean is over the years there is output for.")
         trend, count = slope(values, years)
-        return _table(positions, None, {"value": trend, "years": count}), notes
+        columns = {"value": trend}
+        if not vertical:
+            columns["years"] = count
+        return _trend_table(positions, depths, columns), notes
     # the first and the last window years of the years, which the change is between
     ends = list(range(start, start + window)) + list(range(end - window + 1, end + 1))
     missing = [year for year in dict.fromkeys(ends) if year in left_out]
@@ -427,14 +470,16 @@ def derive_trends(positions, years, values, spec, left_out, per_year):
             f"{year} " + ("does not have all 12 months of output" if per_year > 1 else "has no output") + ", so there is no change."
         )
     if missing or len(values) == 0:
-        return _table(positions, None, {"value": np.full(len(positions), np.nan)}), notes
+        return _trend_table(
+            positions, None if not vertical else _shown_depths(depths), {"value": np.full(empty_shape, np.nan)}
+        ), notes
     first, last = values[0], values[-1]
     change = last - first
     if how == PERCENTAGE_CHANGE:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             change = np.where(first != 0, 100 * change / np.abs(first), np.nan)
-    return _table(positions, None, {"value": change}), notes
+    return _trend_table(positions, depths, {"value": change}), notes
 
 
 def _left_out(years, per_year):
@@ -448,9 +493,9 @@ def _left_out(years, per_year):
 
 def _units(units, option, how=None):
     """What the values of an option are in."""
-    if option == TRENDS and how == PERCENTAGE_CHANGE:
+    if option in TREND_OPTIONS and how == PERCENTAGE_CHANGE:
         return "%"
-    if option == TRENDS and how == ABSOLUTE:
+    if option in TREND_OPTIONS and how == ABSOLUTE:
         return f"{units} per year" if units else "per year"
     return units
 
@@ -481,7 +526,7 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
         used = [
             line[option]
             for line in asked["lines"]
-            for option in ((VERTICAL,) if vertical else (CLIMATOLOGY, TRENDS))
+            for option in (VERTICAL_OPTIONS if vertical else SURFACE_OPTIONS)
             if line[option]
         ]
         if not used:
@@ -500,7 +545,7 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
         ends = transects.line_ends(line)
         along = {}
         for vertical, (ds, times) in monthly.items():
-            if not any(line[option] for option in ((VERTICAL,) if vertical else (CLIMATOLOGY, TRENDS))):
+            if not any(line[option] for option in (VERTICAL_OPTIONS if vertical else SURFACE_OPTIONS)):
                 continue
             extracted = ds.copy()
             extracted.to_transect(start=ends[0], end=ends[1], nsteps=steps)
@@ -515,28 +560,31 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
             spec = line[option]
             if not spec:
                 continue
-            positions, depths, values, times = along[option == VERTICAL]
-            if option == TRENDS:
+            positions, depths, values, times = along[option in VERTICAL_OPTIONS]
+            if option in TREND_OPTIONS:
+                vertical = option == VERTICAL_TRENDS
                 _, series_years, series = annual_means(
-                    extracted_for[False], row["key"], line, times, spec, per_year
+                    extracted_for[vertical], row["key"], line, times, spec, per_year, vertical
                 )
                 left_out = [
                     year for year in range(spec["start"], spec["end"] + 1) if year not in complete_years(times, year, year, per_year)
                 ]
-                frame, notes = derive_trends(positions, series_years, series, spec, left_out, per_year)
+                frame, notes = derive_trends(
+                    positions, series_years, series, spec, left_out, per_year, depths if vertical else None
+                )
             else:
                 frame, notes = derive(option, positions, depths, values, times, spec, per_year)
             csv = f"{row['key']}_transect_{number}_{option}.csv"
             frame.to_csv(os.path.join(results_dir, csv), index=False)
             how = spec.get("how")
             options[option] = {
-                "title": OPTIONS[option] if option != TRENDS else f"{OPTIONS[option]}: {HOWS[how].lower()}",
+                "title": f"{OPTIONS[option]}: {HOWS[how].lower()}" if option in TREND_OPTIONS else OPTIONS[option],
                 "start": spec["start"],
                 "end": spec["end"],
                 "how": how,
                 "window": spec.get("window"),
                 "units": _units(row["units"], option, how),
-                "depths": None if option != VERTICAL else ("levels" if thickness == Z_LEVEL else "thickness"),
+                "depths": None if option not in VERTICAL_OPTIONS else ("levels" if thickness == Z_LEVEL else "thickness"),
                 "csv": csv,
                 "months": int(frame["month"].nunique()) if "month" in frame else 0,
                 # no part of it has values: it is all on land, or outside the model

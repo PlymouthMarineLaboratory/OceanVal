@@ -280,11 +280,12 @@ PANEL_WIDTH = 12.0
 PANEL_FONT = 14
 
 
-def _panel_size(path, panels):
+def _panel_size(path, panels, ncol=None, bar_rows=0):
     """The size, in inches, of a figure of `panels` maps of the grid in path, in
-    columns of up to 4: PANEL_WIDTH wide, with the maps as tall as their shape
-    needs, and room for each one's title and a colour bar."""
-    ncol = 4 if panels > 3 else panels
+    ncol columns (default: up to 4): PANEL_WIDTH wide, with the maps as tall as their
+    shape needs, and room for each one's title and a colour bar: one at the right
+    for all the maps, or, with bar_rows, one below each of that many rows."""
+    ncol = ncol or (4 if panels > 3 else panels)
     nrow = int(np.ceil(panels / ncol))
     lon, lat = _lon_lat(path)
     lon = np.where(lon > 180, lon - 360, lon)
@@ -295,8 +296,47 @@ def _panel_size(path, panels):
         mid_lat = 0.5 * float(np.nanmax(lat) + np.nanmin(lat))
         aspect = lon_span * np.cos(np.radians(mid_lat)) / lat_span if lat_span > 0 else 1.5
     aspect = min(max(float(aspect), 0.6), 2.5)
-    map_width = (PANEL_WIDTH - 1.6) / ncol
-    return [PANEL_WIDTH, round(nrow * (map_width / aspect + 0.55) + 0.3, 1)]
+    map_width = (PANEL_WIDTH - (0.4 if bar_rows else 1.6)) / ncol
+    return [PANEL_WIDTH, round(nrow * (map_width / aspect + 0.55) + 0.9 * bar_rows + 0.3, 1)]
+
+
+def _panel_draw(key, label, font, colours=None, with_calendar=False):
+    """The imports, the font code and the code that draws the `panels` (a
+    dict of titles and one-time datasets, in `ncol` columns, `size` and
+    `limits` already set) as (imports, font, draw): with nctoolkit's
+    panel_plot, or, before 1.3.2, which has none, a grid of pub_plots, which
+    leaves out the font code. colours is the colour scale's name, if it is
+    not the default."""
+    lead = "import calendar\n\n" if with_calendar else ""
+    if hasattr(nc, "panel_plot"):
+        imports = lead + MAP_IMPORTS
+        options = {"ncol": _Code("ncol"), "var": key, "limits": _Code("limits"), "legend": label}
+        if colours:
+            options["colours"] = colours
+        options.update({"grid_labels": False, "size": _Code("size")})
+        call = _call("nc.panel_plot", options, args=(_Code("panels"),))
+        draw = 'with plt.rc_context({"font.size": font_size}):\n' + "\n".join("    " + line for line in call.split("\n"))
+    else:
+        # nctoolkit before 1.3.2 has no panel_plot: a grid of pub_plots
+        imports = lead + "import matplotlib.pyplot as plt\nimport nctoolkit as nc\nimport numpy as np\n"
+        options = {"var": key, "limits": _Code("limits"), "title": _Code("title"), "legend": label,
+                   "fig": _Code("fig"), "gs": _Code("grid[index // ncol, index % ncol]")}
+        if colours:
+            options["colours"] = colours
+        if _takes_grid_labels():
+            options["grid_labels"] = False
+        draw = "\n".join(
+            [
+                "nrow = int(np.ceil(len(panels) / ncol))",
+                "fig = plt.figure(figsize=(4 * ncol, 3.2 * nrow))",
+                "grid = fig.add_gridspec(nrow, ncol)",
+                "for index, (title, ds_month) in enumerate(panels.items()):",
+                "\n".join("    " + line for line in _call("ds_month.pub_plot", options).split("\n")),
+            ]
+        )
+        # each of its panels has its own colour bar and labels, which the larger font would swamp
+        font = ""
+    return imports, font, draw
 
 
 def monthly_maps(results_dir, key, layer):
@@ -333,33 +373,7 @@ def monthly_maps(results_dir, key, layer):
         f"size = {_py(size)}\n"
         f"font_size = {PANEL_FONT}"
     )
-    if hasattr(nc, "panel_plot"):
-        imports = "import calendar\n\n" + MAP_IMPORTS
-        call = _call(
-            "nc.panel_plot",
-            {"ncol": _Code("ncol"), "var": key, "limits": _Code("limits"), "legend": label,
-             "grid_labels": False, "size": _Code("size")},
-            args=(_Code("panels"),),
-        )
-        draw = 'with plt.rc_context({"font.size": font_size}):\n' + "\n".join("    " + line for line in call.split("\n"))
-    else:
-        # nctoolkit before 1.3.2 has no panel_plot: a grid of pub_plots
-        imports = "import calendar\n\nimport matplotlib.pyplot as plt\nimport nctoolkit as nc\nimport numpy as np\n"
-        options = {"var": key, "limits": _Code("limits"), "title": _Code("title"), "legend": label,
-                   "fig": _Code("fig"), "gs": _Code("grid[index // ncol, index % ncol]")}
-        if _takes_grid_labels():
-            options["grid_labels"] = False
-        draw = "\n".join(
-            [
-                "nrow = int(np.ceil(len(panels) / ncol))",
-                "fig = plt.figure(figsize=(4 * ncol, 3.2 * nrow))",
-                "grid = fig.add_gridspec(nrow, ncol)",
-                "for index, (title, ds_month) in enumerate(panels.items()):",
-                "\n".join("    " + line for line in _call("ds_month.pub_plot", options).split("\n")),
-            ]
-        )
-        # each of its panels has its own colour bar and labels, which the larger font would swamp
-        font = ""
+    imports, font, draw = _panel_draw(key, label, font, with_calendar=True)
 
     def code_for(grid):
         return _code(
@@ -373,6 +387,141 @@ def monthly_maps(results_dir, key, layer):
         )
 
     return _map(code_for, path, info, "monthly_maps")
+
+
+def _all_values(paths, key):
+    """Every value of variable key in the files in paths."""
+    values = []
+    for path in paths:
+        with xr.open_dataset(path, decode_times=False) as ds:
+            values.append(np.asarray(ds[key].values, dtype="float64").ravel())
+    return np.concatenate(values)
+
+
+def _years_title(start, end):
+    """The years of a period as a panel's title: 2013, or 2013-2014."""
+    return str(start) if start == end else f"{start}-{end}"
+
+
+# the maps of a layer's map changes are drawn at most this many across, and with this font size
+CHANGE_COLUMNS = 3
+CHANGE_FONT = 12
+
+
+def change_maps(results_dir, key, layer):
+    """The maps of a variable's map changes in one layer, in one figure: the
+    map of the historical period, then those of the future periods and the
+    changes from the historical period to each of them, as its plot says,
+    each titled with the years it is of. The maps of periods share one colour
+    scale (the 2nd to 98th percentile of all of them) and one colour bar, below
+    them; the changes share another, symmetric about zero, with a colour bar of its own."""
+    info = load(results_dir)
+    variable = entry(info, key)
+    asked = variable["map_changes"]
+    saved = asked["layers"][layer]
+    names = [_years_title(period["start"], period["end"]) for period in asked["periods"]]
+    how = "minus" if asked["change"] == "absolute" else "relative to"
+    periods = [(names[0], saved["historical"])]
+    if asked["plot"] != "changes":
+        periods += list(zip(names[1:], saved["futures"]))
+    changes = []
+    if asked["plot"] != "absolute":
+        changes = [(f"{name} {how} {names[0]}", file) for name, file in zip(names[1:], saved["changes"])]
+    maps = [(title, _path(results_dir, file)) for title, file in periods + changes]
+    paths = [path for _, path in maps]
+    values = _all_values(paths[: len(periods)], key)
+    limits, extend = _scale(values) if len(periods) > 1 else (_limits(paths[0], key) or [None, None], "neither")
+    # the colour scale of each map, and then the colour bars: the first and last map each of them is
+    # below, its label and which of its ends have arrows
+    scales = [limits] * len(periods)
+    colours = ["auto"] * len(periods)
+    bars = [(0, len(periods), legend(variable["name"], saved["units"]), extend)]
+    if changes:
+        change_limits, change_extend = _scale(_all_values(paths[len(periods):], key), diverging=True)
+        scales += [change_limits] * len(changes)
+        colours += ["RdBu_r"] * len(changes)
+        bars.append((len(periods), len(maps), legend(f"{variable['name']}, change", saved["change_units"]), change_extend))
+    ncol = min(CHANGE_COLUMNS, len(maps))
+    size = _panel_size(paths[0], len(maps), ncol, bar_rows=int(np.ceil(len(maps) / ncol)))
+    font = (
+        "# the figure's size, in inches, and its font size: the report shows it at about the width of its page\n"
+        f"size = {_py(size)}\n"
+        f"font_size = {CHANGE_FONT}"
+    )
+    # each map is drawn by pub_plot into two of the figure's columns of half a map, so that a row with fewer
+    # maps than the others (the changes of two future periods, below the three maps of the periods) is centred
+    nrow = int(np.ceil(len(maps) / ncol))
+    places = []
+    for index in range(len(maps)):
+        row, column = divmod(index, ncol)
+        in_row = min(ncol, len(maps) - row * ncol)
+        places.append((row, (ncol - in_row) + 2 * column))
+    imports = MAP_IMPORTS + "from matplotlib.ticker import MaxNLocator\n"
+    options = {"var": key, "limits": _Code("limits[index]"), "colours": _Code("colours[index]"),
+               "title": _Code("title"), "legend_position": None, "fig": _Code("fig"),
+               "gs": _Code("grid[row, start:start + 2]")}
+    if _takes_grid_labels():
+        options["grid_labels"] = False
+    draw = "\n".join(
+        [
+            '    fig = plt.figure(figsize=size, layout="constrained")',
+            f"    grid = fig.add_gridspec({nrow}, {2 * ncol})",
+            "    for index, (title, ds_map) in enumerate(panels.items()):",
+            "        row, start = places[index]",
+            "\n".join("        " + line for line in _call("ds_map.pub_plot", options).split("\n")),
+        ]
+    )
+    colour_bars = "\n".join(
+        [
+            "    # a colour bar below the maps that share a colour scale: the colours of the first of them are used",
+            "    fig = plt.gcf()",
+            "    axes = list(fig.axes)",
+            "    # room for a colour bar's label between one row of maps and the titles of the next",
+            "    fig.get_layout_engine().set(h_pad=0.25)",
+            "    for first, last, label, extend in bars:",
+            "        below = axes[first:last]",
+            "        image = next(x for x in below[0].get_children() if hasattr(x, \"get_clim\") and x.get_array() is not None)",
+            '        bar = fig.colorbar(image, ax=below, location="bottom", extend=extend, shrink=0.6, pad=0.08)',
+            "        bar.set_label(label)",
+            "        bar.locator = MaxNLocator(nbins=6)",
+            "        bar.update_ticks()",
+        ]
+    )
+    listing = _listing("maps", maps, "the title and file of each map")
+    setup = "\n".join(
+        [
+            "# the colour scale and the colour map of each map, and each colour bar: the numbers of the first and",
+            "# last of the maps it is below, its label, and whether it has arrows at its ends",
+            f"limits = {_py(scales)}",
+            f"colours = {_py(colours)}",
+            f"bars = {_py([tuple(bar) for bar in bars])}",
+            "# the row and the column (of half a map) each map is drawn in",
+            f"places = {_py(places)}",
+        ]
+    )
+
+    def code_for(grid):
+        lines = [
+            "# open each map",
+            "panels = {}",
+            "for title, path in maps:",
+            "    ds_map = nc.open_data(path, checks=False)",
+            f"    ds_map.subset(variables={_py(key)})",
+            "    ds_map.run()",
+        ]
+        if grid:
+            lines.append("    # the model's grid cannot be drawn as it is, so it is regridded to a regular lon-lat grid")
+            lines.extend("    " + line for line in _call("ds_map.to_latlon", grid).split("\n"))
+            lines.append("    ds_map.run()")
+        lines.append("    panels[title] = ds_map")
+        return _code(
+            imports,
+            f"# the maps of {variable['name']} in each period, and the changes between them: {saved['title'].lower()}",
+            listing, setup, font, "\n".join(lines),
+            'with plt.rc_context({"font.size": font_size}):\n' + draw + "\n" + colour_bars,
+        )
+
+    return _map(code_for, paths[0], info, "change_maps")
 
 
 def domain_mean(path, variable):
@@ -984,8 +1133,14 @@ def transect_figure(results_dir, key, index, option):
             "percentage_change": f"{variable['name']} change (%)",
         }[saved["how"]]
         title = saved["title"] + (f", {saved['window']}-year rolling mean" if (saved.get("window") or 1) > 1 else "")
-        code = _line_code(path, line, title, label)
-        kind = "line"
+        if option == "vertical_trends":
+            # a change or a trend is about zero, so the colours are too
+            limits, extend = _scale(frame["value"], diverging=True)
+            code = _section_code(path, line, [("value", title, "RdBu_r", limits)], [([0], label, extend)], (6.8, 4.2))
+            kind = "section"
+        else:
+            code = _line_code(path, line, title, label)
+            kind = "line"
     _run(code, "transect_figure")
     return Drawn(code, False, {"kind": kind}, _about(info))
 
@@ -1007,10 +1162,21 @@ def transect_text(variable, index, option):
     window = saved.get("window") or 1
     rolling = (
         f" The annual means were smoothed by a rolling mean of {window} years, with nctoolkit's rolling_mean, before this was worked out."
-        if window > 1 and option == "trends"
+        if window > 1 and option in ("trends", "vertical_trends")
         else ""
     )
     rolled = f" (after a {window}-year rolling mean)" if window > 1 else ""
+    # what a trend or a change is of, and where along the transect it is worked out
+    if option == "vertical_trends":
+        thing, at = name, "at each point along the transect and each depth"
+        in_section = " in the section through the water column"
+        depths = (
+            f" Each cell is put at its depth, worked out from the cell thickness, and the section is put on {_n_depths()} evenly spaced depths."
+            if saved["depths"] == "thickness"
+            else ""
+        )
+    else:
+        thing, at, in_section, depths = f"surface {name}", "at each point along the transect", "", ""
     if option == "climatology":
         if saved["months"] > 1:
             method = f"The surface climatology of {name} is its mean in each month of the year over {years}, at each point along the transect."
@@ -1031,34 +1197,37 @@ def transect_text(variable, index, option):
         caption = f"Annual mean {name} ({units}) through the water column along the transect, {years}."
     elif saved["how"] == "absolute":
         method = (
-            f"The trend is the slope of a straight line fitted by least squares to the annual means of surface {name} over {years}, at each point along the transect, in {unit_html(saved['units'])}. "
+            f"The trend is the slope of a straight line fitted by least squares to the annual means of {thing} over {years}, {at}, in {unit_html(saved['units'])}. "
             "A year's mean is the mean of its months' means, worked out with nctoolkit, and it is left out if it has months missing."
             + rolling
+            + depths
         )
-        caption = f"Trend in surface {name} along the transect, {years}, in {unit_html(saved['units'])}{rolled}."
+        caption = f"Trend in {thing}{in_section} along the transect, {years}, in {unit_html(saved['units'])}{rolled}."
     elif saved["how"] == "absolute_change":
         method = (
             (
-                f"The change is the annual mean of surface {name} in {saved['end']} minus its annual mean in {saved['start']}, at each point along the transect. "
+                f"The change is the annual mean of {thing} in {saved['end']} minus its annual mean in {saved['start']}, {at}. "
                 "A year's mean is the mean of its months' means, worked out with nctoolkit."
                 if window == 1
-                else f"The change is the mean of the last {window} years of surface {name} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), at each point along the transect."
+                else f"The change is the mean of the last {window} years of {thing} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), {at}."
             )
             + rolling
+            + depths
         )
-        caption = f"Change in surface {name} ({units}) along the transect, from {saved['start']} to {saved['end']}{rolled}."
+        caption = f"Change in {thing}{in_section} ({units}) along the transect, from {saved['start']} to {saved['end']}{rolled}."
     else:
         method = (
             (
-                f"The percentage change is the annual mean of surface {name} in {saved['end']} minus its annual mean in {saved['start']}, "
+                f"The percentage change is the annual mean of {thing} in {saved['end']} minus its annual mean in {saved['start']}, "
                 if window == 1
-                else f"The percentage change is the mean of the last {window} years of surface {name} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), "
+                else f"The percentage change is the mean of the last {window} years of {thing} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), "
             )
             + "as a percentage of the absolute value of the first, so that an increase is always positive. "
             "It is missing where that is zero. A year's mean is the mean of its months' means."
             + rolling
+            + depths
         )
-        caption = f"Percentage change in surface {name} along the transect, from {saved['start']} to {saved['end']}{rolled}."
+        caption = f"Percentage change in {thing}{in_section} along the transect, from {saved['start']} to {saved['end']}{rolled}."
     return {"title": saved["title"], "method": method, "caption": caption}
 
 

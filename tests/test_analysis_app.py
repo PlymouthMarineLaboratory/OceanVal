@@ -209,7 +209,8 @@ class TestOptions:
         assert state["figure_code"] == ""
         assert state["nemo_ersem"] is False
         assert state["chosen"] == {
-            "climatology": None, "phenology": None, "long_term": None, "seasonal": None, "transects": None,
+            "climatology": None, "phenology": None, "long_term": None, "seasonal": None, "map_changes": None,
+            "transects": None,
         }
         assert state["thickness_suggested"] == "e3t"
         assert state["placed"][0]["default_years"] == [2013, 2014]
@@ -344,6 +345,129 @@ class TestOptions:
         assert given["figure_code"] is True
 
 
+# the map changes pop-out's boxes: the historical year against the one future year the simulation has
+CHANGES = {
+    "rows": {
+        "Temperature": {
+            "use": True, "historical_start": "2013", "historical_end": "2013", "future1_start": "2014", "future1_end": "2014",
+            "future2_start": "", "future2_end": "", "plot": "absolute_changes", "change": "percentage",
+            "surface": True, "bottom": False, "water_column": True, "how": "mean",
+        },
+    },
+    "thickness": "e3t",
+}
+
+
+def changes_form(**boxes):
+    return {"rows": {"Temperature": dict(CHANGES["rows"]["Temperature"], **boxes)}, "thickness": "e3t"}
+
+
+class TestMapChanges:
+    def test_the_pop_out_starts_with_nothing_chosen(self, app, sim):
+        state = to_options(app)
+        assert state["forms"]["map_changes"]["rows"]["Temperature"] == {
+            "use": False, "plot": "", "change": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            **{f"{period}_{end}": "" for period in ("historical", "future1", "future2") for end in ("start", "end")},
+        }
+        assert state["forms"]["map_changes"]["thickness"] == ""
+        assert state["chosen"]["map_changes"] is None
+        # the tile is served just left of Transects
+        text = get(app, "/")[1]
+        assert text.index('id="ao-map_changes"') < text.index('id="ao-transects"')
+        assert 'id="chg-dialog"' in text
+
+    def test_confirm_checks_and_keeps(self, app, sim):
+        to_options(app)
+        status, reply = post(app, "/api/analyze_option", {"kind": "map_changes", "form": CHANGES})
+        assert (status, reply) == (200, {"ok": True})
+        assert app.analyze_chosen["map_changes"] == {
+            "rows": {
+                "Temperature": {
+                    "historical": {"start": 2013, "end": 2013},
+                    "future": [{"start": 2014, "end": 2014}],
+                    "plot": "absolute_changes",
+                    "change": "percentage",
+                    "surface": True,
+                    "bottom": False,
+                    "water_column": "mean",
+                }
+            },
+            "thickness": "e3t",
+        }
+        assert app.analyze_forms["map_changes"]["rows"]["Temperature"]["plot"] == "absolute_changes"
+
+    def test_what_is_wrong_is_said_by_box(self, app, sim):
+        to_options(app)
+
+        def errors_of(**boxes):
+            status, reply = post(app, "/api/analyze_option", {"kind": "map_changes", "form": changes_form(**boxes)})
+            assert status == 400
+            return reply["errors"]
+
+        # the historical and first future periods are required, with both their years
+        found = errors_of(historical_start="", future1_end="x")["Temperature"]
+        assert set(found) == {"historical_start", "future1_end"}
+        assert found["historical_start"].startswith("Historical: ")
+        assert found["future1_end"].startswith("Future 1: ")
+        # a second future period is both years or neither
+        assert set(errors_of(future2_start="2014")["Temperature"]) == {"future2_end"}
+        # years the output does not have
+        assert errors_of(future1_start="2020", future1_end="2021")["Temperature"]["future1_start"] == (
+            "Future 1: The output is from 2013 to 2014."
+        )
+        assert errors_of(future1_end="2015")["Temperature"]["future1_end"] == "Future 1: The output ends in 2014."
+        # a future period that is the historical one is no change
+        assert "same years" in errors_of(future1_start="2013", future1_end="2013")["Temperature"]["future1_start"]
+        # what to plot and the kind of change are required
+        assert set(errors_of(plot="", change="")["Temperature"]) == {"plot", "change"}
+        assert set(errors_of(plot="everything")["Temperature"]) == {"plot"}
+        # a layer, and the thickness for the water column
+        assert set(errors_of(surface=False, water_column=False)["Temperature"]) == {"surface"}
+        assert set(errors_of(how="")["Temperature"]) == {"water_column"}
+        status, reply = post(app, "/api/analyze_option", {"kind": "map_changes", "form": dict(changes_form(), thickness="")})
+        assert status == 400 and set(reply["errors"]) == {"thickness"}
+        # nothing ticked
+        none = {"rows": {"Temperature": dict(CHANGES["rows"]["Temperature"], use=False)}, "thickness": ""}
+        status, reply = post(app, "/api/analyze_option", {"kind": "map_changes", "form": none})
+        assert status == 400 and "rows" in reply["errors"]
+        assert app.analyze_chosen["map_changes"] is None
+
+    def test_a_second_future_period_and_removal(self, app, sim):
+        to_options(app)
+        # the output has two years, so a second future period has to be the historical year or the first future one:
+        # the same as another is refused, and one that is not is a period of its own
+        form = changes_form(future2_start="2013", future2_end="2014", plot="changes", change="absolute", water_column=False)
+        status, reply = post(app, "/api/analyze_option", {"kind": "map_changes", "form": form})
+        assert (status, reply) == (200, {"ok": True})
+        assert [x["start"] for x in app.analyze_chosen["map_changes"]["rows"]["Temperature"]["future"]] == [2014, 2013]
+        assert app.analyze_chosen["map_changes"]["thickness"] is None
+        assert post(app, "/api/analyze_option", {"kind": "map_changes", "form": {"remove": True}}) == (200, {"ok": True})
+        assert app.analyze_chosen["map_changes"] is None
+        assert app.analyze_forms["map_changes"]["rows"]["Temperature"]["future2_start"] == "2013"
+
+    def test_the_run_writes_map_changes_into_the_script(self, app, sim, runs):
+        to_options(app)
+        assert post(app, "/api/analyze_option", {"kind": "map_changes", "form": CHANGES})[0] == 200
+        for kind, form in (("cores", {"cores": "1"}), ("figure_code", {"choice": "no"})):
+            assert post(app, "/api/analyze_option", {"kind": kind, "form": form})[0] == 200
+        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        tree = ast.parse(open(os.path.join(app.cwd, "analysis.py")).read())
+        given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in tree.body[-1].value.keywords}
+        assert given["map_changes"] == app.analyze_chosen["map_changes"]["rows"]
+        assert given["variables"] == {"Temperature": "thetao"}
+        assert given["thickness"] == "e3t"
+        assert given["climatology"] is None
+
+    def test_the_thickness_is_the_same_in_all_the_analyses(self, app, sim, runs):
+        to_options(app)
+        assert post(app, "/api/analyze_option", {"kind": "map_changes", "form": CHANGES})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": dict(CLIMATOLOGY, thickness="z_level")})[0] == 200
+        for kind, form in (("cores", {"cores": "1"}), ("figure_code", {"choice": "no"})):
+            assert post(app, "/api/analyze_option", {"kind": kind, "form": form})[0] == 200
+        status, reply = post(app, "/api/analyze_run")
+        assert status == 400 and "cell thickness is not the same" in reply["error"]
+
+
 needs_to_transect = pytest.mark.skipif(not transects.available(), reason="nctoolkit cannot extract transects")
 
 # a transect's boxes: its ends and its surface climatology
@@ -372,6 +496,7 @@ class TestTransects:
             "climatology": False, "climatology_start": "", "climatology_end": "",
             "vertical": False, "vertical_start": "", "vertical_end": "",
             "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
+            "vertical_trends": "", "vertical_trends_start": "", "vertical_trends_end": "", "vertical_trends_window": "1",
         }
         # each variable has transects of its own
         assert state["forms"]["transects"] == {
@@ -408,7 +533,7 @@ class TestTransects:
         assert chosen["Chlorophyll"][0]["end"] == [-2.0, 52.0]
         assert chosen["Temperature"][1] == {
             "start": [-4.0, 51.0], "end": [0.0, 51.0], "climatology": None, "vertical": {"start": 2013, "end": 2014},
-            "trends": {"start": 2013, "end": 2014, "how": "absolute_change"},
+            "trends": {"start": 2013, "end": 2014, "how": "absolute_change"}, "vertical_trends": None,
         }
         state = get_json(app, "/api/state")[1]["analyze"]
         assert state["forms"]["transects"]["rows"]["Temperature"]["transects"][1]["end_lon"] == "0"
@@ -604,6 +729,97 @@ def test_analyze_in_a_browser(browser, tmp_path):
         app.close()
 
 
+def test_map_changes_in_a_browser(browser, tmp_path):
+    """The map temporal changes pop-out: its tile is left of Transects, what has to be given is
+    red, and Confirm waits for a tick and keeps what was chosen."""
+    write_analysis_simulation(str(tmp_path / "sim"))
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-analyze")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "1")
+        page.wait_for_function("() => !document.querySelector('#continue').disabled")
+        page.click("#continue")
+        page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+        page.locator("#av-rows > tr").first.locator("td").first.locator("input").fill("Temperature")
+        page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input").first.fill("thetao")
+        page.click("#av-continue")
+        page.wait_for_selector("#view-analyze-files:not([hidden])")
+        page.wait_for_function("() => !document.querySelector('#af-continue').disabled", timeout=60000)
+        page.click("#af-continue")
+        page.wait_for_selector("#view-analyze-options:not([hidden])")
+        # the tile is just left of Transects, on the same row
+        changes, transects_tile = page.locator("#ao-map_changes").bounding_box(), page.locator("#ao-transects").bounding_box()
+        assert changes["y"] == transects_tile["y"] and changes["x"] < transects_tile["x"]
+        assert "Not chosen yet" in page.inner_text("#ao-map_changes-text")
+
+        page.click("#ao-map_changes")
+        page.wait_for_selector("#chg-dialog:not([hidden])")
+        assert page.is_hidden("#chg-remove") and page.is_disabled("#chg-confirm")
+        assert "Surface, Bottom, Water column, or more than one" in page.inner_text("#chg-msg")
+        main = page.locator("#chg-body > tr.chg-main").first
+        years = main.locator("input.is-year")
+        assert years.count() == 6
+        # nothing is chosen for the user, and what to plot and the change are asked for
+        assert years.first.get_attribute("placeholder") == "2013"
+        selects = page.locator("#chg-body > tr.chg-options select")
+        assert selects.count() == 2
+        assert selects.nth(0).input_value() == "" and selects.nth(1).input_value() == ""
+        assert [x.strip() for x in selects.nth(0).locator("option").all_inner_texts()] == [
+            "Choose…", "Historical + Future (absolute values)",
+            "Historical + Future (absolute values) + Changes", "Historical + Changes",
+        ]
+        assert selects.nth(1).locator("option").all_inner_texts() == ["Choose…", "Absolute change", "Percentage change"]
+        surface = main.locator("input[type=checkbox]").first
+        surface.check()
+        assert page.is_enabled("#chg-confirm")
+        # nothing yet: the second future period's boxes are not marked, and are once one has a year
+        def marked(index):
+            return "is-need" in (years.nth(index).get_attribute("class") or "")
+        assert not marked(4) and not marked(5)
+        years.nth(4).fill("2013")
+        assert not marked(4) and marked(5)
+        years.nth(4).fill("")
+        assert not marked(5)
+        # what is wrong is said by the variable, and nothing is kept
+        page.click("#chg-confirm")
+        page.wait_for_function("() => document.querySelector('#chg-body .analyze-msg').textContent.includes('Historical')")
+        message = page.locator("#chg-body > tr.chg-options .analyze-msg").first.inner_text()
+        assert "Future 1: Start must be a year" in message and "Choose what to plot" in message
+        assert app.analyze_chosen["map_changes"] is None and page.is_visible("#chg-dialog")
+        for index, year in enumerate(["2013", "2013", "2014", "2014"]):
+            years.nth(index).fill(year)
+        selects.nth(0).select_option("changes")
+        selects.nth(1).select_option("absolute")
+        page.click("#chg-confirm")
+        page.wait_for_selector("#chg-dialog", state="hidden")
+        wait_for(lambda: app.analyze_chosen["map_changes"] is not None)
+        chosen = app.analyze_chosen["map_changes"]["rows"]["Temperature"]
+        assert chosen["historical"] == {"start": 2013, "end": 2013}
+        assert chosen["future"] == [{"start": 2014, "end": 2014}]
+        assert (chosen["plot"], chosen["change"]) == ("changes", "absolute")
+        page.wait_for_selector("#ao-map_changes.is-chosen")
+        assert "Temperature, 2013 to 2014" in page.inner_text("#ao-map_changes-text")
+        # what was chosen is there when it is opened again, and it can be removed
+        page.click("#ao-map_changes")
+        assert page.locator("#chg-body > tr.chg-main").first.locator("input.is-year").nth(2).input_value() == "2014"
+        assert page.locator("#chg-body > tr.chg-options select").nth(0).input_value() == "changes"
+        page.click("#chg-remove")
+        page.wait_for_selector("#chg-dialog", state="hidden")
+        wait_for(lambda: app.analyze_chosen["map_changes"] is None)
+        page.wait_for_selector("#ao-map_changes:not(.is-chosen)")
+        assert errors == []
+    finally:
+        app.close()
+
+
 def open_transects_in_browser(browser, tmp_path, years):
     """The transects pop-out of a simulation of years, with Temperature's
     transect card: (the page, the app, the card's locator, the errors)."""
@@ -638,9 +854,9 @@ def open_transects_in_browser(browser, tmp_path, years):
 def test_trends_are_not_offered_for_one_year_of_output(browser, tmp_path):
     page, app, card, errors = open_transects_in_browser(browser, tmp_path, (2013,))
     try:
-        trends = card.locator("select")
-        assert trends.is_disabled() and "Only one year of output" in card.inner_text()
-        assert all(card.locator("table.transect-options input.is-year").nth(i).is_disabled() for i in (4, 5))
+        # neither the surface changes nor the vertical changes are there to choose
+        assert all(card.locator("select").nth(i).is_disabled() for i in (0, 1)) and "Only one year of output" in card.inner_text()
+        assert all(card.locator("table.transect-options input.is-year").nth(i).is_disabled() for i in (2, 3, 6, 7))
         # the other options are there
         card.locator("input[type=checkbox]").first.check()
         assert card.locator("table.transect-options input.is-year").nth(0).is_enabled()
@@ -653,10 +869,12 @@ def test_trends_are_not_offered_for_one_year_of_output(browser, tmp_path):
 def test_the_absolute_trend_needs_three_years(browser, tmp_path):
     page, app, card, errors = open_transects_in_browser(browser, tmp_path, (2013, 2014))
     try:
-        trends = card.locator("select")
-        assert trends.is_enabled() and "Only one year" not in card.inner_text()
-        disabled = {o.get_attribute("value"): o.is_disabled() for o in trends.locator("option").all() if o.get_attribute("value")}
-        assert disabled == {"absolute": True, "absolute_change": False, "percentage_change": False}
+        assert "Only one year" not in card.inner_text()
+        for number in (0, 1):
+            trends = card.locator("select").nth(number)
+            assert trends.is_enabled()
+            disabled = {o.get_attribute("value"): o.is_disabled() for o in trends.locator("option").all() if o.get_attribute("value")}
+            assert disabled == {"absolute": True, "absolute_change": False, "percentage_change": False}
         assert errors == []
     finally:
         app.close()
@@ -665,8 +883,8 @@ def test_the_absolute_trend_needs_three_years(browser, tmp_path):
 @needs_to_transect
 def test_transects_in_a_browser(browser, tmp_path):
     """The transects pop-out: a section for each variable, with a card for each
-    of its transects: the ends, and the surface climatology, vertical and trends
-    options, each with its own years."""
+    of its transects: the ends in one line, and a Surface and a Vertical part,
+    each with a climatology and its changes, each with its own years."""
     write_analysis_simulation(str(tmp_path / "sim"))
     app = App(cwd=str(tmp_path))
     url = app.start()
@@ -707,45 +925,63 @@ def test_transects_in_a_browser(browser, tmp_path):
         assert not temperature.locator(".transect-var__head input[type=checkbox]").is_checked()
         cards = temperature.locator(".transect-card")
         assert cards.count() == 1 and "Transect 1" in cards.first.inner_text()
-        # the years of an option are shut until it is chosen, and the options are right of the ends
-        ends = cards.first.locator("table").first.bounding_box()
-        options = cards.first.locator("table.transect-options").bounding_box()
-        assert options["x"] > ends["x"] + ends["width"] - 1
-        years = cards.first.locator("table.transect-options input.is-year")
-        assert years.count() == 6 and all(years.nth(i).is_disabled() for i in range(6))
-        assert [x.strip() for x in cards.first.locator("select option").all_inner_texts()] == [
-            "Trends: choose…", "Absolute", "Absolute change", "Percentage change",
+        # the ends are in one line, with the start's longitude and latitude and then the end's, above the options
+        end_boxes = cards.first.locator(".transect-ends input")
+        assert [end_boxes.nth(i).get_attribute("aria-label") for i in range(4)] == [
+            "Longitude of the start", "Latitude of the start", "Longitude of the end", "Latitude of the end",
         ]
-        # the rolling mean window starts at 1, and is only open once trends are chosen
-        window = cards.first.locator("input.is-window")
+        lines = {round(end_boxes.nth(i).bounding_box()["y"]) for i in range(4)}
+        assert len(lines) == 1
+        ends = cards.first.locator(".transect-ends").bounding_box()
+        options = cards.first.locator("table.transect-options").bounding_box()
+        assert options["y"] >= ends["y"] + ends["height"] - 1
+        # a Surface and a Vertical part
+        assert [x.strip() for x in cards.first.locator("tr.transect-part").all_inner_texts()] == ["Surface", "Vertical"]
+        # the years of an option are shut until it is chosen: a climatology and changes, in each part
+        years = cards.first.locator("table.transect-options input.is-year")
+        assert years.count() == 8 and all(years.nth(i).is_disabled() for i in range(8))
+        for number in (0, 1):
+            assert [x.strip() for x in cards.first.locator("select").nth(number).locator("option").all_inner_texts()] == [
+                "Changes: choose…", "Absolute", "Absolute change", "Percentage change",
+            ]
+        # the rolling mean window starts at 1, is only open once changes are chosen, and is right of their years
+        window = cards.first.locator("input.is-window").first
         assert window.input_value() == "1" and window.is_disabled()
+        assert window.bounding_box()["x"] > years.nth(3).bounding_box()["x"] + years.nth(3).bounding_box()["width"] - 1
         # chlorophyll has no depth levels
         assert "No depth levels" in sections.nth(1).inner_text()
         temperature.locator(".transect-var__head input[type=checkbox]").check()
         assert page.is_enabled("#trans-confirm")
-        for box, value in zip(cards.first.locator("table").first.locator("input").all(), ["-2", "-2", "50", "53"]):
+        for box, value in zip(end_boxes.all(), ["-2", "50", "-2", "53"]):
             box.fill(value)
         cards.first.locator("input[type=checkbox]").first.check()
-        assert years.nth(0).is_enabled() and years.nth(2).is_disabled()
+        assert years.nth(0).is_enabled() and years.nth(4).is_disabled()
         years.nth(0).fill("2013")
         years.nth(1).fill("2014")
         # a vertical section asks whether the simulation is z-level, or where its thickness is
         assert page.is_hidden("#trans-thickness-row")
         vertical = cards.first.locator("input[type=checkbox]").nth(1)
         vertical.check()
-        assert page.is_visible("#trans-thickness-row") and years.nth(2).is_enabled()
+        assert page.is_visible("#trans-thickness-row") and years.nth(4).is_enabled()
         page.fill("#trans-thickness", "e3t")
         vertical.uncheck()
         assert page.is_hidden("#trans-thickness-row")
-        # a second transect, with the trends, which does not follow the rule, is said by its number
+        # the vertical changes need it too, and open their own years and rolling mean
+        vertical_changes = cards.first.locator("select").nth(1)
+        vertical_changes.select_option("absolute_change")
+        assert page.is_visible("#trans-thickness-row") and years.nth(6).is_enabled() and years.nth(7).is_enabled()
+        assert cards.first.locator("input.is-window").nth(1).is_enabled() and cards.first.locator("input.is-window").first.is_disabled()
+        vertical_changes.select_option("")
+        assert page.is_hidden("#trans-thickness-row") and years.nth(6).is_disabled()
+        # a second transect, with the changes, which does not follow the rule, is said by its number
         temperature.get_by_role("button", name="Add a transect").click()
         assert cards.count() == 2 and "Transect 2" in cards.nth(1).inner_text()
-        for box, value in zip(cards.nth(1).locator("table").first.locator("input").all(), ["0", "5", "0", "5"]):
+        for box, value in zip(cards.nth(1).locator(".transect-ends input").all(), ["0", "0", "5", "5"]):
             box.fill(value)
-        cards.nth(1).locator("select").select_option("absolute_change")
-        assert cards.nth(1).locator("input.is-window").is_enabled()
-        cards.nth(1).locator("table.transect-options input.is-year").nth(4).fill("2013")
-        cards.nth(1).locator("table.transect-options input.is-year").nth(5).fill("2014")
+        cards.nth(1).locator("select").first.select_option("absolute_change")
+        assert cards.nth(1).locator("input.is-window").first.is_enabled()
+        cards.nth(1).locator("table.transect-options input.is-year").nth(2).fill("2013")
+        cards.nth(1).locator("table.transect-options input.is-year").nth(3).fill("2014")
         page.click("#trans-confirm")
         page.wait_for_function(
             "() => document.querySelectorAll('#trans-body .transect-var')[0].querySelectorAll('.transect-card')[1].querySelector('.analyze-msg').textContent.length > 0"
@@ -756,23 +992,23 @@ def test_transects_in_a_browser(browser, tmp_path):
         # a transect is taken away, and the rest are numbered again
         cards.first.locator("button[aria-label='Remove this transect']").click()
         assert cards.count() == 1 and "Transect 1" in cards.first.inner_text()
-        for box, value in zip(cards.first.locator("table").first.locator("input").all(), ["-4", "0", "51", "51"]):
+        for box, value in zip(cards.first.locator(".transect-ends input").all(), ["-4", "51", "0", "51"]):
             box.fill(value)
         # a rolling mean that leaves too few years is said
-        cards.first.locator("input.is-window").fill("5")
+        cards.first.locator("input.is-window").first.fill("5")
         page.click("#trans-confirm")
         page.wait_for_function(
             "() => document.querySelector('#trans-body .transect-card .analyze-msg').textContent.includes('rolling mean of 5')"
         )
         assert page.is_visible("#trans-dialog")
-        cards.first.locator("input.is-window").fill("1")
+        cards.first.locator("input.is-window").first.fill("1")
         page.click("#trans-confirm")
         page.wait_for_selector("#trans-dialog", state="hidden")
         wait_for(lambda: app.analyze_chosen["transects"] is not None)
         assert app.analyze_chosen["transects"]["rows"] == {
             "Temperature": [
                 {"start": [-4.0, 51.0], "end": [0.0, 51.0], "climatology": None, "vertical": None,
-                 "trends": {"start": 2013, "end": 2014, "how": "absolute_change"}}
+                 "trends": {"start": 2013, "end": 2014, "how": "absolute_change"}, "vertical_trends": None}
             ]
         }
         page.wait_for_selector("#ao-transects.is-chosen")
@@ -782,6 +1018,7 @@ def test_transects_in_a_browser(browser, tmp_path):
         page.click("#ao-transects")
         assert page.locator("#trans-body .transect-var").nth(0).locator(".transect-var__head input[type=checkbox]").is_checked()
         assert page.locator("#trans-body .transect-card select").first.input_value() == "absolute_change"
+        assert page.locator("#trans-body .transect-card select").nth(1).input_value() == ""
         assert page.is_visible("#trans-remove")
         page.click("#trans-remove")
         page.wait_for_selector("#trans-dialog", state="hidden")

@@ -363,8 +363,8 @@ observations, through these steps:
    dates, with any gaps in them (**Show the months** shows which). If the
    model's time means look dated at the end of the period each covers, the
    page first asks whether to shift every time back a day, as matchup does.
-4. **Analyses**: five boxes, **Climatology**, **Phenology**, **Long-term time
-   series**, **Seasonal time series** and **Transects**, each opening a pop-out with a row
+4. **Analyses**: six boxes, **Climatology**, **Phenology**, **Long-term time
+   series**, **Seasonal time series**, **Map temporal changes** and **Transects**, each opening a pop-out with a row
    for each variable and **Cancel** and **Confirm** at the bottom. Nothing is
    ticked or filled in to start with. Climatology: the years from **Start** to
    **End**, and **Surface** and/or **Water column**, the vertical mean or the
@@ -374,22 +374,29 @@ observations, through these steps:
    **Stations** (a name, longitude and latitude each). Once a time series is
    chosen, a card sets their **regions and area**: regional summaries (none,
    the northwest European Shelf, global, or your own `.nc` file) and a
-   lon/lat box. Transects: tick each variable you want transects of, and add as many
+   lon/lat box. Map temporal changes: for each variable ticked, the first and last
+   years of a **Historical** period and of a **Future 1** period (both required), and
+   optionally of a **Future 2** period, then **Surface**, **Bottom** and/or **Water column**
+   as for the climatology, and, in a row of their own, **Plot**
+   (*Historical + Future (absolute values)*, *Historical + Future (absolute values) +
+   Changes* or *Historical + Changes*) and **Change** (absolute or percentage),
+   neither chosen to start with. Transects: tick each variable you want transects of, and add as many
    transects as you like to each (they are separate for each variable). A
    transect is a card with the longitude and latitude of its **Start** and
-   **End** (it must run north–south, the same longitude at both ends, or
-   east–west, the same latitude), and, to their right, its options, each with
-   its own **Start year** and **End year**, which are required: **Surface
-   climatology** (the monthly climatology along the line, as in the
-   validation), **Vertical climatology** (a section of the annual mean through the water
-   column, as in the validation, which asks whether the simulation is z-level or
-   where its cell thickness is) and **Trends**, a drop-down of **Absolute** (the
-   linear trend of the annual means, per year), **Absolute change** (the last
-   year minus the first) and **Percentage change**. Trends need at least 3 years
-   of output (2 for the changes), and are not offered when a variable has only
-   one year. A **Rolling mean (years)** box under it, 1 to start with (none),
-   smooths the annual means with nctoolkit's `rolling_mean` before the trend is
-   worked out. Each variable's years of
+   **End** in one line (it must run north–south, the same longitude at both
+   ends, or east–west, the same latitude), and, below them, a **Surface** and a
+   **Vertical** part, each with a **Climatology** (at the surface, the monthly
+   climatology along the line, as in the validation; in the vertical, a section
+   of the annual mean through the water column, as in the validation, which asks
+   whether the simulation is z-level or where its cell thickness is) and its
+   **Changes**, a drop-down of **Absolute** (the linear trend of the annual
+   means, per year), **Absolute change** (the last year minus the first) and
+   **Percentage change**, at the surface or at each depth of the section. Each
+   has its own required **Start year** and **End year**. The absolute trend needs
+   at least 3 years of output (the changes 2), and none is offered when a
+   variable has only one year. A **Rolling mean (years)** box to the right of the years of
+   the changes, 1 to start with (none), smooths the annual means with
+   nctoolkit's `rolling_mean` before the change is worked out. Each variable's years of
    output are shown beside it as a hint. Below the boxes you must say **how many cores** OceanVal may use
    (there is no default), and what should be **treated as missing values**,
    which OceanVal fills in, as it does for validation, if the simulation looks
@@ -417,6 +424,13 @@ oceanval.analyze(
     phenology={"Chlorophyll": {"start": 2000, "end": 2009}},
     long_term={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
     seasonal={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+    map_changes={
+        "Temperature": {
+            "historical": {"start": 1990, "end": 1999},
+            "future": [{"start": 2040, "end": 2049}, {"start": 2090, "end": 2099}],
+            "plot": "absolute_changes", "change": "percentage", "surface": True,
+        },
+    },
     transects={
         "Temperature": [
             {"start": [-30, 0], "end": [-30, 65],
@@ -459,17 +473,31 @@ oceanval.analyze(
   are marked as such in the report.
 - **Seasonal time series** (`seasonal`): the same, month by month, and the mean
   seasonal cycle of each. It needs monthly output, or output more often.
+- **Map temporal changes** (`map_changes`): maps of how a variable changes
+  between a historical period and one or two future periods. For each
+  variable, `historical` and `future` (a list of one or two) are dicts of
+  `start` and `end` years, and the layers are `surface`, `bottom` and/or
+  `water_column`, as for `climatology`. Each period is mapped as the mean of its
+  years' annual means. `plot` is what is drawn: `"absolute"` (the historical
+  and future maps), `"absolute_changes"` (those, and the maps of the changes) or
+  `"changes"` (the historical map, and the changes); `change` is `"absolute"`
+  (future minus historical) or `"percentage"` (that as a percentage of the
+  historical value, missing where it is 0). The periods share one colour scale,
+  and the changes another, symmetric about zero. All the maps of a layer are drawn in one
+  figure, each titled by the years it is of. Each period must be years the
+  output has, but the years between them need not be.
 - **Transects** (`transects`): the model's values along straight lines that run
   north–south (the same longitude at both ends) or east–west (the same latitude),
   as many as you like, for each variable on its own. Each variable has a list of
   transects, each a dict of `start` and `end` (`[lon, lat]`) and at least one of
-  `climatology` (the monthly climatology at the surface), `vertical` (the annual
-  mean through the water column, in a section; it needs `thickness`, which places
-  each cell at its depth, or `"z_level"`) and `trends` (at the surface, with
-  `how` of `"absolute"`, the linear trend of the annual means per year,
-  `"absolute_change"`, the last year's annual mean minus the first's, or
-  `"percentage_change"`, that as a percentage of the first year's), each a dict of
-  its own `start` and `end` years. `trends` can also have a `window`, the
+  `climatology` (the monthly climatology at the surface), `trends` (at the
+  surface, with `how` of `"absolute"`, the linear trend of the annual means per
+  year, `"absolute_change"`, the last year's annual mean minus the first's, or
+  `"percentage_change"`, that as a percentage of the first year's), `vertical` (the
+  annual mean through the water column, in a section; it needs `thickness`, which
+  places each cell at its depth, or `"z_level"`) and `vertical_trends` (the same
+  `how`, at each depth and position of the section), each a dict of
+  its own `start` and `end` years. `trends` and `vertical_trends` can also have a `window`, the
   number of years of a rolling mean of the annual means (nctoolkit's
   `rolling_mean`, applied after the annual means are worked out): the default,
   1, is no rolling mean, and with a window of N a change is the mean of the last

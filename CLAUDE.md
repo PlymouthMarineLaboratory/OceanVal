@@ -195,19 +195,44 @@ jupyter-book, pandoc, texlive, then `pip install .` and `pytest tests/test*.py`.
   is validate's: a NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) fills the
   missing-value boxes with 0–0 in the `is-ersem` style, until the user edits them.
   `analysis_forms.prefill` (what OceanVal could fill the variables with) is unused for that reason.
+- Map temporal changes are `oceanval/analysis_changes.py` (`map_changes={name: {"historical":
+  {start, end}, "future": [1-2 of those], "plot": "absolute"|"absolute_changes"|"changes",
+  "change": "absolute"|"percentage", + climatology's layers}}`, checked by `check_entry`): each
+  period is a climatology's annual mean (`analysis.climatology_of` then `tmean()`) of its own
+  years, saved as `<key>_<layer>_historical/future1/future2.nc`, and the changes
+  (`derive`: future minus historical, or 100·diff/|historical|, missing at 0, done in xarray on
+  the saved files) as `<key>_<layer>_change1/2.nc`, all always, whatever `plot` says: `plot` only
+  chooses which maps are in the figure: one figure and one caption per layer,
+  `analysis_plots.change_maps`, a panel for the historical period, the futures and/or the changes,
+  each titled by its years only (`2000-2018`, `2000-2018 minus 1970-1989`, `... relative to ...`),
+  the maps of the periods on one scale and under one colour bar, the changes (`RdBu_r`, symmetric
+  about 0) under another, both at the bottom, drawn as a script: each map by `pub_plot` into a
+  gridspec of half-width columns (`places`), so a short row (two changes under three periods) is
+  centred, `panel_plot` being unable to; the bars are made by `fig.colorbar` over each group's axes.
+  **It is not in the generic per-kind loop of `analyze()`** (its files and dates are per period,
+  so the years between periods need not exist), whose `entry["start"/"end"]` is the union only to
+  pick files in `check_arguments`. Chunk `chunk_mapchanges`. In the window: `chg-dialog` (a
+  table, the layers as climatology's, and a row of its own under each variable for Plot and
+  Change, both empty to start, in `changesRows`), `analysis_forms.default/clean/check_map_changes`
+  (the period boxes are `historical|future1|future2` + `_start|_end`, errors prefixed with the
+  period's name; the second future is both years or neither), and it shares the cell thickness
+  with the other pop-outs (`THICKNESS_KINDS`, `LAYER_ROWS` in the page's JS).
 - Transects are `oceanval/analysis_transects.py`: for each variable on its own (`transects=
   {name: [lines]}`), any number of north-south/east-west lines (checked by
   `oceanval.transects.check_transect`, as validate's), each with its ends and at least one of
-  `climatology` (surface monthly climatology), `vertical` (annual-mean section) and `trends`
-  (surface, `how` "absolute" slope per year / "absolute_change" last year minus first /
-  "percentage_change", with an optional `window`: a nctoolkit `rolling_mean` of the annual means, default 1 =
-  none), **each option with its own `start`/`end` years**. The trends' annual means are nctoolkit's
+  `climatology` (surface monthly climatology), `trends` (surface, `how` "absolute" slope per year /
+  "absolute_change" last year minus first / "percentage_change", with an optional `window`: a nctoolkit
+  `rolling_mean` of the annual means, default 1 = none), `vertical` (annual-mean section) and
+  `vertical_trends` (the same `how`/`window`, at each depth of the section: `annual_means(vertical=True)`,
+  `derive_trends(depths=)`), **each option with its own `start`/`end` years**. The window shows them as
+  **Surface** and **Vertical** parts, each a Climatology and its Changes ("Changes" is the UI's word for
+  trends), the ends in one line, the rolling mean right of the changes' years. The trends' annual means are nctoolkit's
   (`annual_means`: complete years only, `tmean("year")`, then `rolling_mean`), not numpy. The monthly means come
   first (`analysis.monthly_means_of`, once per layer over the union of years, the surface or
   `LEVELS`), then nctoolkit's `to_transect` on a copy, then `derive` makes a small CSV per
   option (`<key>_transect_<n>_<option>.csv`: `position`, `depth` or `month`, `value`) that the
   figures (`analysis_plots.transect_map`/`transect_figure`, `chunk_transects`) read. `vertical`
-  needs `thickness` like the water column: `z_level` uses the levels as depths, otherwise the
+  and `vertical_trends` need `thickness` like the water column: `z_level` uses the levels as depths, otherwise the
   thickness is extracted along the line and each cell put at its depth, then the section put on
   `N_DEPTHS` shared depths. A year with months missing is left out of trends, and the points of a
   line need not form a lon-lat grid (`_along` reads both). In the window each variable has its own
@@ -215,9 +240,9 @@ jupyter-book, pandoc, texlive, then `pip install .` and `pytest tests/test*.py`.
   thickness box is shared with the other pop-outs, `THICKNESS_KINDS`). Needs nctoolkit 1.3.6+ (the
   `oceanval` env's 1.3.0 reports it as validate's transect does).
 - The window's Analyze steps live in `oceanval/analysis_app.py` (`AnalyzeSteps`, a mixin of
-  `App`; views `analyze_variables`, `analyze_files`, `analyze_options`; five pop-outs, the
+  `App`; views `analyze_variables`, `analyze_files`, `analyze_options`; six pop-outs, the
   time series' two sharing one dialog with the climatology, the regions/area card, the
-  stations, and the transects' own, `trans-dialog`, with a card for each transect), their forms and
+  stations, the map changes' own, `chg-dialog`, and the transects' own, `trans-dialog`, with a card for each transect), their forms and
   checks in `oceanval/analysis_forms.py`. The files page reuses `model_check.ModelCheck`
   (a row with no `time_res` has its files' own worked out) and asks the time_shift
   question first when `time_stamps.check_rows` finds end-stamped times. The run writes
