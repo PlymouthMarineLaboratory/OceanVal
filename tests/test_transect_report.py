@@ -113,9 +113,9 @@ def reports(matchups):
         oceanval.validate(
             data_dir=str(matchups), out_dir=str(out_dir), transect=transect, test=True
         )
-        pages[name] = page_text(
-            out_dir / "oceanval_report/_build/html/notebooks/001_foo_temperature.html"
-        )
+        # numbered by source within the variable (baz, then foo)
+        [page] = glob.glob(str(out_dir / "oceanval_report/_build/html/notebooks/*_foo_temperature.html"))
+        pages[name] = page_text(page)
     return pages
 
 

@@ -1724,7 +1724,7 @@ def validate(
 
         if len(path_df) > 0:
             path_df = pd.concat(path_df)
-            path_df = path_df.sort_values("variable").reset_index(drop=True)
+            path_df = path_df.sort_values(["variable", "path"]).reset_index(drop=True)
 
         for i in range(len(path_df)):
             file1 = path_df.path.values[i]
