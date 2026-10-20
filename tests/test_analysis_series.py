@@ -166,7 +166,9 @@ class TestArguments:
         rows = analysis.check_arguments(
             {"T": "thetao"}, long_term={"T": {"start": 2000, "end": 2001, "surface": True}}
         )
-        assert rows[0]["long_term"] == {"start": 2000, "end": 2001, "layers": ["surface"]}
+        assert rows[0]["long_term"] == {
+            "start": 2000, "end": 2001, "layers": ["surface"], "window": 1, "show": "absolute",
+        }
         assert rows[0]["seasonal"] is None
         with pytest.raises(ValueError, match="nothing to analyze"):
             analysis.check_arguments({"T": "thetao"})
@@ -409,6 +411,78 @@ class TestForms:
         # a script without a series has none of its arguments
         plain = analysis_forms.arguments(setup, placed, series_form, None, None, None, None, None, area)
         assert not {"long_term", "seasonal", "stations", "subregions", "lon_lim", "lat_lim"} & set(plain)
+
+
+class TestRollingMeanAndShow:
+    """The long-term series' "window" (a rolling mean of the annual means) and
+    "show" (the annual means, or their change from the first year)."""
+
+    def annual(self, sim, tmp_path, no_report, **entry):
+        out = str(tmp_path)
+        run(sim, out, seasonal=None, long_term={"Temperature": dict({"start": 2012, "end": 2014, "surface": True}, **entry)})
+        frame = series(out, "temperature_surface_long_term.csv")
+        return frame, no_report[0]["variables"][0]["long_term"]
+
+    def test_the_annual_means_are_the_default(self, sim, tmp_path, no_report):
+        frame, info = self.annual(sim, tmp_path, no_report)
+        expected = [np.mean([base(year, month) for month in range(1, 13)]) for year in YEARS]
+        assert frame.value.tolist() == pytest.approx(expected)
+        assert info["window"] == 1 and info["show"] == "absolute" and info["layers"]["surface"]["show"] == "absolute"
+
+    def test_a_rolling_mean_is_of_that_year_and_those_before(self, sim, tmp_path, no_report):
+        frame, info = self.annual(sim, tmp_path, no_report, window=2)
+        first, second, third = [np.mean([base(year, month) for month in range(1, 13)]) for year in YEARS]
+        assert np.isnan(frame.value.iloc[0])
+        assert frame.value.iloc[1:].tolist() == pytest.approx([(first + second) / 2, (second + third) / 2])
+        assert info["window"] == 2
+        # the years with no value because of the window are not years the output lacks
+        assert info["layers"]["surface"]["missing"] == [] and info["layers"]["surface"]["incomplete"] == []
+
+    def test_the_change_is_from_the_first_year(self, sim, tmp_path, no_report):
+        frame, info = self.annual(sim, tmp_path, no_report, show="absolute_change")
+        assert frame.value.tolist() == pytest.approx([0.0, TREND, 2 * TREND])
+        assert info["layers"]["surface"]["units"] == "degC"
+
+    def test_the_percentage_change_is_in_per_cent_of_the_first_year(self, sim, tmp_path, no_report):
+        frame, info = self.annual(sim, tmp_path, no_report, show="percentage_change")
+        first = np.mean([base(2012, month) for month in range(1, 13)])
+        assert frame.value.tolist() == pytest.approx([0.0, 100 * TREND / first, 200 * TREND / first])
+        assert info["layers"]["surface"]["units"] == "%"
+
+    def test_the_change_is_from_the_first_year_of_the_rolling_mean(self, sim, tmp_path, no_report):
+        frame, _ = self.annual(sim, tmp_path, no_report, window=2, show="absolute_change")
+        assert np.isnan(frame.value.iloc[0])
+        assert frame.value.iloc[1:].tolist() == pytest.approx([0.0, TREND])
+
+    def test_a_window_or_way_to_show_that_cannot_be_used(self, sim, tmp_path):
+        entry = {"Temperature": {"start": 2012, "end": 2014, "surface": True}}
+        for given, message in [
+            ({"window": 0}, "whole number of years"),
+            ({"window": 1.5}, "whole number of years"),
+            ({"window": True}, "whole number of years"),
+            ({"window": 4}, "more than the 3 years"),
+            ({"show": "relative"}, "must be one of"),
+            ({"window": 2, "show": "absolute_change", "end": 2013}, "needs at least 3 years"),
+            ({"show": "percentage_change", "end": 2012}, "needs at least 2 years"),
+        ]:
+            with pytest.raises(ValueError, match=message):
+                run(sim, str(tmp_path), seasonal=None, long_term={"Temperature": dict(entry["Temperature"], **given)})
+        # they are for the long-term series only
+        with pytest.raises(ValueError, match="long_term only"):
+            run(sim, str(tmp_path), long_term=None, seasonal={"Temperature": dict(entry["Temperature"], window=2)})
+
+    def test_the_figure_and_report_say_what_it_shows(self, sim, tmp_path, no_report):
+        from oceanval import analysis_plots as ap
+
+        out = str(tmp_path)
+        run(sim, out, seasonal=None, long_term={"Temperature": {"start": 2012, "end": 2014, "surface": True,
+                                                                  "window": 2, "show": "percentage_change"}})
+        results = os.path.join(out, analysis.FOLDER, analysis.RESULTS)
+        info = ap.load(results)
+        variable = ap.entry(info, "temperature")
+        assert ap.series_legend(variable, variable["long_term"]["layers"]["surface"]) == "Temperature change (%)"
+        drawn = ap.long_term_plot(results, "temperature", "surface")
+        assert "Temperature change (%)" in drawn.code
 
 
 class TestSpatialMeans:

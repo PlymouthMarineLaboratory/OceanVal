@@ -195,6 +195,7 @@ jupyter-book, pandoc, texlive, then `pip install .` and `pytest tests/test*.py`.
   is validate's: a NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) fills the
   missing-value boxes with 0–0 in the `is-ersem` style, until the user edits them.
   `analysis_forms.prefill` (what OceanVal could fill the variables with) is unused for that reason.
+- The long-term series also take `window` (rolling mean of the annual means, trailing, 1 = none) and `show` (`absolute` | `absolute_change` | `percentage_change`, from the first year with a value), `analysis.SHOWS`/`_series_options`, applied in `analysis_series.smooth_and_change` after `annual_series` (the missing/incomplete years are worked out before, from the means as they are); the csv holds the values as shown and `saved["show"]`/units `%` say what they are. In the window they are two columns after Water column in the long-term pop-out only (`is-series` cells), `analysis_forms._check_series_options`.
 - Map temporal changes are `oceanval/analysis_changes.py` (`map_changes={name: {"historical":
   {start, end}, "future": [1-2 of those], "plot": "absolute"|"absolute_changes"|"changes",
   "change": "absolute"|"percentage", + climatology's layers}}`, checked by `check_entry`): each
@@ -239,6 +240,7 @@ jupyter-book, pandoc, texlive, then `pip install .` and `pytest tests/test*.py`.
   transects (`analysis_forms.default_transects`/`clean_transects`/`check_transects`; the cell
   thickness box is shared with the other pop-outs, `THICKNESS_KINDS`). Needs nctoolkit 1.3.6+ (the
   `oceanval` env's 1.3.0 reports it as validate's transect does).
+- Every start/end year box of the Analyze pop-outs (`yearBox`, transects' `optionYears`) goes through `withYears` in `oceanval_app.html`: an arrow at its right end (or Down) opens one shared `year-list` (fixed, so the pop-out body can't clip it) of `first..last` of `placed[].years` (the dates check has no year missing between). A new year box must be made with `yearBox`/`withYears`.
 - The window's Analyze steps live in `oceanval/analysis_app.py` (`AnalyzeSteps`, a mixin of
   `App`; views `analyze_variables`, `analyze_files`, `analyze_options`; six pop-outs, the
   time series' two sharing one dialog with the climatology, the regions/area card, the

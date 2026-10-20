@@ -124,6 +124,45 @@ def _years(entry, name, kind):
 LAYERED = ("climatology", "long_term", "seasonal")
 
 
+# the ways the long-term series can be shown, as the window's drop-down has them: the annual means
+# as they are, or each year's change from the first year (the first with a value), in the units or in per cent
+SHOW_ABSOLUTE = "absolute"
+SHOW_ABSOLUTE_CHANGE = "absolute_change"
+SHOW_PERCENTAGE_CHANGE = "percentage_change"
+SHOWS = {
+    SHOW_ABSOLUTE: "Absolute value",
+    SHOW_ABSOLUTE_CHANGE: "Absolute change",
+    SHOW_PERCENTAGE_CHANGE: "Percentage change",
+}
+# the least years a change needs, once the rolling mean has taken its toll
+MIN_CHANGE_YEARS = 2
+
+
+def _series_options(entry, name, start, end):
+    """The "window" (the years of the rolling mean of the annual means, 1 for
+    none) and "show" (see SHOWS) of a long_term entry, checked against its years:
+    (window, show)."""
+    window = entry.get("window", 1)
+    if isinstance(window, bool) or not isinstance(window, (int, np.integer)) or window < 1:
+        raise ValueError(f"The window of long_term[{name!r}] must be a whole number of years, 1 or more, not {window!r}.")
+    window = int(window)
+    show = entry.get("show", SHOW_ABSOLUTE)
+    if show not in SHOWS:
+        raise ValueError(f"The show of long_term[{name!r}] must be one of {', '.join(repr(x) for x in SHOWS)}, not {show!r}.")
+    years = end - start + 1
+    if window > years:
+        raise ValueError(
+            f"The window of long_term[{name!r}], {window} years, is more than the {years} years from {start} to {end}."
+        )
+    if show != SHOW_ABSOLUTE and years - window + 1 < MIN_CHANGE_YEARS:
+        raise ValueError(
+            f"A change in long_term[{name!r}] needs at least {MIN_CHANGE_YEARS + window - 1} years"
+            + (f" with a rolling mean of {window}" if window > 1 else "")
+            + f", not the {years} from {start} to {end}."
+        )
+    return window, show
+
+
 def _layers(entry, name, kind):
     """The layers of one variable's entry in a layered kind (see LAYERED):
     SURFACE and/or BOTTOM and/or "mean" or "integral"."""
@@ -235,6 +274,10 @@ def check_arguments(
                 entry = given_by_kind[kind][name]
                 start, end = _years(entry, name, kind)
                 row[kind] = {"start": start, "end": end, "layers": _layers(entry, name, kind)}
+                if kind == "long_term":
+                    row[kind]["window"], row[kind]["show"] = _series_options(entry, name, start, end)
+                elif {"window", "show"} & set(entry):
+                    raise ValueError(f"window and show are for long_term only, not {kind}[{name!r}].")
         if name in given_by_kind["phenology"]:
             start, end = _years(given_by_kind["phenology"][name], name, "phenology")
             row["phenology"] = {"start": start, "end": end}
@@ -1084,6 +1127,11 @@ def analyze(
         years, and "surface", "bottom" and/or "water_column". Each year's mean is the
         mean of its months' means, and is worked out for the model's domain
         as a whole, for each region of subregions, and at each of stations.
+        Two more keys are for long_term only: "window", the number of years of a
+        rolling mean of the annual means (each the mean of that year and the
+        ones before it; 1, the default, is none), and "show", "absolute" (the
+        default), "absolute_change" (each year minus the first year with a
+        value) or "percentage_change" (that, in per cent of the first).
     seasonal : dict
         The variables to work out seasonal time series of, in the same form
         as long_term: the mean of every month from start to end, for the

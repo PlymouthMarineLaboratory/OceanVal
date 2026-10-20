@@ -642,6 +642,7 @@ class TestForms:
         climatology = analysis_forms.default_climatology(placed, lambda name: (2013, 2014))
         assert climatology["rows"]["Temperature"] == {
             "use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            "window": "1", "show": "absolute",
         }
         res = {"Chlorophyll": "1d", "Temperature": "monthly"}
         phenology = analysis_forms.default_phenology(placed, lambda name: (2013, 2014), res.get)

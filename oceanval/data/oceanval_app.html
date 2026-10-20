@@ -697,7 +697,8 @@
   .transect-card .s-input.is-num { width: 104px; }
   .transect-window { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 13px; font-weight: 600; white-space: nowrap; }
   .transect-window.is-off { opacity: 0.55; }
-  .transect-card .s-input.is-window { width: 64px; text-align: center; }
+  .transect-card .s-input.is-window, .analyze-dialog .s-input.is-window { width: 64px; text-align: center; }
+  .analyze-dialog td > .s-select.is-show { margin-top: 0; }
   .transect-note { display: block; margin-top: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
   .transect-card .s-input.is-year { width: 84px; }
   .transect-card .s-select { width: auto; min-width: 190px; margin-top: 0; }
@@ -712,6 +713,14 @@
   .analyze-dialog__body > table > tbody > tr > td small { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; }
   .analyze-dialog .is-mono { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
   .analyze-dialog .s-input.is-year { width: 84px; text-align: center; }
+  /* the arrow of a year box that has a list of the output's years */
+  .s-input.is-year.has-years {
+    padding-left: 6px; padding-right: 16px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237c94a0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 6px center; background-size: 9px 5px;
+  }
+  .s-input.is-year.has-years:disabled { background-image: none; }
+  .year-list { position: fixed; right: auto; z-index: 40; width: max-content; max-height: 200px; text-align: center; }
   .analyze-dialog .s-input.is-assumed { color: var(--amber); font-weight: 600; }
   .analyze-dialog .s-select { width: auto; margin-top: 6px; }
   .analyze-dialog__body > table > tbody > tr.is-off > td { color: var(--muted); }
@@ -1599,8 +1608,8 @@
       <p class="analyze-msg is-rows" id="clim-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
-          <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th></tr>
-          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th></tr>
+          <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th><th colspan="2" class="is-series" hidden></th></tr>
+          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th><th scope="col" class="is-series" hidden>Rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
         </thead>
         <tbody id="clim-body"></tbody>
       </table>
@@ -2995,6 +3004,8 @@
   const ANALYSES = ["climatology", "phenology", "long_term", "seasonal", "map_changes", "transects"];
   const LAYERED = ["climatology", "long_term", "seasonal"];
   const SERIES = ["long_term", "seasonal"];
+  // the ways to show the long-term series, as analysis.SHOWS has them
+  const SERIES_SHOWS = { absolute: "Absolute value", absolute_change: "Absolute change", percentage_change: "Percentage change" };
   const KIND_DIALOGS = { climatology: "clim-dialog", long_term: "clim-dialog", seasonal: "clim-dialog", phenology: "phen-dialog", map_changes: "chg-dialog", transects: "trans-dialog" };
   const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal time series", map_changes: "map changes", transects: "transects" };
   const KIND_TITLES = { climatology: "Climatology", phenology: "Phenology", long_term: "Long-term time series", seasonal: "Seasonal time series", map_changes: "Map temporal changes", transects: "Transects" };
@@ -3008,7 +3019,7 @@
   };
   const KIND_INTROS = {
     climatology: "The mean of each month of the year, and the annual mean, over the years from Start to End. Each is mapped.",
-    long_term: "The mean of each year from Start to End, which is the mean of its months, over the model's domain as a whole, over each region you choose on the page, and at each station.",
+    long_term: "The mean of each year from Start to End, which is the mean of its months, over the model's domain as a whole, over each region you choose on the page, and at each station. A rolling mean of the annual means (1 year is none) can be taken, and the series shown as the annual means, or as their change from the first year, absolute or in per cent.",
     seasonal: "The mean of each month from Start to End, and so the mean seasonal cycle, over the model's domain as a whole, over each region you choose on the page, and at each station.",
   };
   // the pop-outs whose rows choose layers: the surface, the bottom, the water column
@@ -3170,10 +3181,111 @@
   });
 
   // a year box, empty until a year is typed: the year of the output it could be is only its hint
-  function yearBox(value, hint, label) {
-    return el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric", value: value || "",
-      placeholder: hint ? String(hint) : "", "aria-label": label, spellcheck: "false", autocomplete: "off" });
+  function yearBox(value, hint, label, name) {
+    return withYears(el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric", value: value || "",
+      placeholder: hint ? String(hint) : "", "aria-label": label, spellcheck: "false", autocomplete: "off" }), name);
   }
+
+  // every year of a variable's output, offered by the arrow in a year box (the dates check has no year missing between the first and last)
+  function withYears(input, name) {
+    const years = placedRow(name).years;
+    if (!years) return input;
+    input.yearChoices = Array.from({ length: years[1] - years[0] + 1 }, (_, number) => years[0] + number);
+    input.classList.add("has-years");
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-haspopup", "listbox");
+    input.setAttribute("aria-expanded", "false");
+    return input;
+  }
+
+  // one list, shared by the year boxes, placed under (or over) the box it was opened from
+  const yearList = el("ul", { class: "combo__list year-list", role: "listbox", hidden: true });
+  document.body.append(yearList);
+  let yearOwner = null;
+  let yearActive = -1;
+
+  function closeYears() {
+    if (yearOwner) yearOwner.setAttribute("aria-expanded", "false");
+    yearOwner = null;
+    yearActive = -1;
+    yearList.hidden = true;
+  }
+
+  function markYear(index) {
+    const options = [...yearList.children];
+    yearActive = (index + options.length) % options.length;
+    options.forEach((option, number) => {
+      option.classList.toggle("is-active", number === yearActive);
+      option.setAttribute("aria-selected", String(number === yearActive));
+    });
+    options[yearActive].scrollIntoView({ block: "nearest" });
+  }
+
+  function pickYear(year) {
+    const input = yearOwner;
+    closeYears();
+    input.value = String(year);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+  }
+
+  function openYears(input) {
+    if (!input.yearChoices || input.disabled) return;
+    yearOwner = input;
+    input.setAttribute("aria-expanded", "true");
+    yearList.replaceChildren(...input.yearChoices.map((year) => el("li", {
+      class: "combo__option", role: "option", "aria-selected": "false", text: String(year),
+      // mousedown, so the box keeps its focus
+      onmousedown: (event) => { event.preventDefault(); pickYear(year); },
+    })));
+    const box = input.getBoundingClientRect();
+    const below = window.innerHeight - box.bottom;
+    yearList.style.minWidth = `${box.width}px`;
+    yearList.style.left = `${box.left}px`;
+    yearList.style.top = below >= 200 || below >= box.top ? `${box.bottom + 4}px` : "auto";
+    yearList.style.bottom = below >= 200 || below >= box.top ? "auto" : `${window.innerHeight - box.top + 4}px`;
+    yearList.hidden = false;
+    const at = input.yearChoices.indexOf(Number(input.value.trim()));
+    if (at >= 0) markYear(at);
+  }
+
+  // the arrow is the right-hand end of the box: a click there opens the list, one anywhere else in the box only closes it
+  document.addEventListener("click", (event) => {
+    const input = event.target;
+    if (!input.yearChoices) return;
+    const open = !yearList.hidden && yearOwner === input;
+    if (event.clientX > input.getBoundingClientRect().right - 24) {
+      if (open) closeYears();
+      else { closeYears(); openYears(input); }
+      input.focus();
+    } else if (open) closeYears();
+  });
+  document.addEventListener("mousedown", (event) => {
+    if (!yearList.hidden && event.target !== yearOwner && !yearList.contains(event.target)) closeYears();
+  });
+  document.addEventListener("keydown", (event) => {
+    const input = event.target;
+    if (!input.yearChoices) return;
+    if (yearList.hidden || yearOwner !== input) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        closeYears();
+        openYears(input);
+      }
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      markYear(yearActive + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Enter" && yearActive >= 0) {
+      event.preventDefault();
+      pickYear(input.yearChoices[yearActive]);
+    } else if (event.key === "Tab") {
+      closeYears();
+    }
+  });
+  document.addEventListener("input", (event) => { if (!yearList.hidden && event.target === yearOwner) closeYears(); });
+  // a list left behind when the box moves
+  document.addEventListener("scroll", (event) => { if (!yearList.hidden && event.target !== yearList) closeYears(); }, true);
+  window.addEventListener("resize", closeYears);
 
   // the years of a variable's output, under its name
   function outputYears(name) {
@@ -3195,8 +3307,8 @@
     $("clim-body").replaceChildren(...state.analyze.placed.map((row) => {
       const box = form.rows[row.name] || {};
       const [startYear, endYear] = defaultYears(row.name);
-      const start = yearBox(box.start, startYear, `Start of the ${noun} of ${row.name}`);
-      const end = yearBox(box.end, endYear, `End of the ${noun} of ${row.name}`);
+      const start = yearBox(box.start, startYear, `Start of the ${noun} of ${row.name}`, row.name);
+      const end = yearBox(box.end, endYear, `End of the ${noun} of ${row.name}`, row.name);
       const surface = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the surface` });
       surface.checked = Boolean(box.use) && Boolean(box.surface);
       const column = row.levels > 1;
@@ -3210,6 +3322,13 @@
         el("option", { value: "", text: "Choose…" }),
         el("option", { value: "mean", text: "Vertical mean" }), el("option", { value: "integral", text: "Depth integral" }));
       how.value = box.how === "integral" || box.how === "mean" ? box.how : "";
+      // the long-term series also have a rolling mean of the annual means, 1 (none) to start with, and a way to show them
+      const series = kind === "long_term";
+      const rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric", value: box.window || "1", placeholder: "1",
+        "aria-label": `Years of the rolling mean of the annual means of ${row.name} (1 is none)`, spellcheck: "false", autocomplete: "off" });
+      const show = el("select", { class: "s-select is-show", "aria-label": `How to show the long-term series of ${row.name}` },
+        ...Object.entries(SERIES_SHOWS).map(([value, text]) => el("option", { value, text })));
+      show.value = box.show in SERIES_SHOWS ? box.show : "absolute";
       const msg = el("p", { class: "analyze-msg" });
       const tr = el("tr", {},
         el("td", {}, el("strong", { text: row.name }), el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name), msg),
@@ -3220,7 +3339,8 @@
           : el("small", { text: "No depth levels" })),
         el("td", {}, column
           ? el("div", {}, el("label", { class: "tick-label" }, water, "Water column"), how)
-          : el("small", { text: "No depth levels" })));
+          : el("small", { text: "No depth levels" })),
+        ...(series ? [el("td", {}, rolling), el("td", {}, show)] : []));
       const refresh = () => {
         how.disabled = !water.checked;
         tr.classList.toggle("is-off", !surface.checked && !bottom.checked && !water.checked);
@@ -3232,7 +3352,7 @@
       surface.addEventListener("change", refresh);
       bottom.addEventListener("change", refresh);
       water.addEventListener("change", refresh);
-      analyzeDialog.rows[row.name] = { start, end, surface, bottom, water, how, msg, refresh };
+      analyzeDialog.rows[row.name] = { start, end, surface, bottom, water, how, rolling, show, msg, refresh };
       refresh();
       return tr;
     }));
@@ -3250,8 +3370,8 @@
       for (const [key, label] of periods) {
         const hints = key === "historical" ? [startYear, endYear] : [null, null];
         years[key] = [
-          yearBox(box[`${key}_start`], hints[0], `First year of the ${label} of ${row.name}`),
-          yearBox(box[`${key}_end`], hints[1], `Last year of the ${label} of ${row.name}`),
+          yearBox(box[`${key}_start`], hints[0], `First year of the ${label} of ${row.name}`, row.name),
+          yearBox(box[`${key}_end`], hints[1], `Last year of the ${label} of ${row.name}`, row.name),
         ];
       }
       for (const boxes of [years.future2]) for (const input of boxes) input.classList.add("is-optional");
@@ -3419,8 +3539,8 @@
       const use = el("input", { type: "checkbox", class: "tick", "aria-label": `The phenology of ${row.name}` });
       use.checked = daily && Boolean(box.use);
       use.disabled = !daily;
-      const start = yearBox(box.start, startYear, `Start of the phenology of ${row.name}`);
-      const end = yearBox(box.end, endYear, `End of the phenology of ${row.name}`);
+      const start = yearBox(box.start, startYear, `Start of the phenology of ${row.name}`, row.name);
+      const end = yearBox(box.end, endYear, `End of the phenology of ${row.name}`, row.name);
       const msg = el("p", { class: "analyze-msg" });
       const tr = el("tr", {},
         el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
@@ -3454,10 +3574,10 @@
   ];
 
   // the years of one option of a transect: Start and End, which are only open once the option is chosen
-  function optionYears(values, option, name, hint) {
-    const box = (part, label) => el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric",
+  function optionYears(values, option, name, hint, variable) {
+    const box = (part, label) => withYears(el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric",
       value: values[`${option}_${part}`] || "", placeholder: hint[part === "start" ? 0 : 1] ? String(hint[part === "start" ? 0 : 1]) : "",
-      "aria-label": `${label} of the ${name}`, spellcheck: "false", autocomplete: "off" });
+      "aria-label": `${label} of the ${name}`, spellcheck: "false", autocomplete: "off" }), variable);
     return { start: box("start", "Start"), end: box("end", "End") };
   }
 
@@ -3502,8 +3622,8 @@
       selects[part.changes] = select;
       rollings[part.changes] = rolling;
       rollingRows[part.changes] = rollingRow;
-      years[part.climatology] = optionYears(values, part.climatology, `${lower} climatology`, hint);
-      years[part.changes] = optionYears(values, part.changes, `${lower} changes`, hint);
+      years[part.climatology] = optionYears(values, part.climatology, `${lower} climatology`, hint, variable.name);
+      years[part.changes] = optionYears(values, part.changes, `${lower} changes`, hint, variable.name);
       body.push(
         el("tr", { class: "transect-part" }, el("th", { scope: "colgroup", colspan: "4", text: part.name })),
         el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, tick, "Climatology")),
@@ -3646,6 +3766,7 @@
       $("clim-intro").replaceChildren(
         `${KIND_INTROS[kind]} Tick the surface, the bottom (the deepest value that is not missing), the water column, or more than one, for each variable to work it out for, and give the years: the water column is its vertical mean or its depth integral.`);
       climatologyRows(form, kind);
+      document.querySelectorAll("#clim-dialog .is-series").forEach((cell) => { cell.hidden = kind !== "long_term"; });
       fillThickness(form, kind);
       refreshThickness();
       $("clim-stations").hidden = !SERIES.includes(kind);
@@ -3704,6 +3825,7 @@
       if (LAYERED.includes(kind)) {
         rows[name] = { use: row.surface.checked || row.bottom.checked || row.water.checked, start: row.start.value, end: row.end.value,
           surface: row.surface.checked, bottom: row.bottom.checked, water_column: row.water.checked, how: row.how.value };
+        if (kind === "long_term") Object.assign(rows[name], { window: row.rolling.value, show: row.show.value });
       } else {
         rows[name] = { use: row.use.checked, start: row.start.value, end: row.end.value };
       }
@@ -3778,6 +3900,8 @@
       // a pop-out of variables inside it closes first
       if (event.target.closest && event.target.closest("details.vars[open]")) return;
       event.preventDefault();
+      // a list of years closes first
+      if (!yearList.hidden) { closeYears(); return; }
       closeAnalyzeDialog();
     });
   }

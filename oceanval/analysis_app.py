@@ -435,7 +435,8 @@ class AnalyzeSteps:
         if kind in LAYERED_KINDS:
             available = (self.analyze_found or {}).get("picker", {}).get("available", [])
             chosen, thickness, errors = analysis_forms.check_climatology(
-                form, placed, self._known_years(found), set(available), self.cwd, LABELS[kind]
+                form, placed, self._known_years(found), set(available), self.cwd, LABELS[kind],
+                series=kind == "long_term",
             )
             if errors:
                 return None, errors

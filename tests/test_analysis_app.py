@@ -201,6 +201,7 @@ class TestOptions:
         for kind in ("climatology", "long_term", "seasonal"):
             assert state["forms"][kind]["rows"]["Temperature"] == {
                 "use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+                "window": "1", "show": "absolute",
             }
         assert state["forms"]["phenology"]["rows"]["Chlorophyll"] == {"use": False, "start": "", "end": ""}
         assert state["forms"]["climatology"]["thickness"] == ""
@@ -228,6 +229,34 @@ class TestOptions:
         app._read_simulation()
         wait_for(lambda: app.analyze_found["status"] != "reading")
         assert app.analyze_missing == {"from": "", "to": ""}
+
+    def test_the_long_term_series_have_a_rolling_mean_and_a_way_to_show_it(self, app, sim):
+        to_options(app)
+        rows = {"Chlorophyll": {"use": True, "start": "2013", "end": "2014", "surface": True}}
+        # one year and no change is as it was: neither is given to analyze()
+        form = {"rows": rows, "thickness": ""}
+        assert post(app, "/api/analyze_option", {"kind": "long_term", "form": form}) == (200, {"ok": True})
+        assert app.analyze_chosen["long_term"]["rows"]["Chlorophyll"] == {
+            "start": 2013, "end": 2014, "surface": True, "bottom": False, "water_column": None,
+        }
+        rows["Chlorophyll"].update(window="1", show="absolute_change")
+        assert post(app, "/api/analyze_option", {"kind": "long_term", "form": form}) == (200, {"ok": True})
+        chosen = app.analyze_chosen["long_term"]["rows"]["Chlorophyll"]
+        assert chosen["show"] == "absolute_change" and "window" not in chosen
+        assert app.analyze_forms["long_term"]["rows"]["Chlorophyll"]["show"] == "absolute_change"
+        rows["Chlorophyll"].update(window="2", show="absolute")
+        assert post(app, "/api/analyze_option", {"kind": "long_term", "form": form}) == (200, {"ok": True})
+        chosen = app.analyze_chosen["long_term"]["rows"]["Chlorophyll"]
+        assert chosen["window"] == 2 and "show" not in chosen
+        # they are the long-term series' alone
+        assert post(app, "/api/analyze_option", {"kind": "seasonal", "form": form}) == (200, {"ok": True})
+        assert "window" not in app.analyze_chosen["seasonal"]["rows"]["Chlorophyll"]
+        # what cannot be used is said by the variable
+        for window, show, box in [("0", "absolute", "window"), ("x", "absolute", "window"), ("3", "absolute", "window"),
+                                  ("2", "percentage_change", "show")]:
+            rows["Chlorophyll"].update(window=window, show=show)
+            status, reply = post(app, "/api/analyze_option", {"kind": "long_term", "form": form})
+            assert status == 400 and set(reply["errors"]["Chlorophyll"]) == {box}, (window, show)
 
     def test_the_time_series_hold_the_regions_and_area(self, app, sim):
         to_options(app)
@@ -820,9 +849,9 @@ def test_map_changes_in_a_browser(browser, tmp_path):
         app.close()
 
 
-def open_transects_in_browser(browser, tmp_path, years):
-    """The transects pop-out of a simulation of years, with Temperature's
-    transect card: (the page, the app, the card's locator, the errors)."""
+def open_analyze_option(browser, tmp_path, years, option, dialog):
+    """The pop-out of an Analyze option (its button `ao-<option>`, its
+    dialog id) of a simulation of years: (the page, the app, the errors)."""
     write_analysis_simulation(str(tmp_path / "sim"), years=years)
     app = App(cwd=str(tmp_path))
     url = app.start()
@@ -845,9 +874,123 @@ def open_transects_in_browser(browser, tmp_path, years):
     page.wait_for_function("() => !document.querySelector('#af-continue').disabled", timeout=60000)
     page.click("#af-continue")
     page.wait_for_selector("#view-analyze-options:not([hidden])")
-    page.click("#ao-transects")
-    page.wait_for_selector("#trans-dialog:not([hidden])")
+    page.click(f"#ao-{option}")
+    page.wait_for_selector(f"#{dialog}:not([hidden])")
+    return page, app, errors
+
+
+def open_transects_in_browser(browser, tmp_path, years):
+    """The transects pop-out of a simulation of years, with Temperature's
+    transect card: (the page, the app, the card's locator, the errors)."""
+    page, app, errors = open_analyze_option(browser, tmp_path, years, "transects", "trans-dialog")
     return page, app, page.locator("#trans-body .transect-card").first, errors
+
+
+def test_the_year_boxes_list_the_years_of_the_output(browser, tmp_path):
+    """Each start/end year box has an arrow listing every year of the output;
+    a year picked fills the box, and Escape closes the list before the
+    pop-out."""
+    page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012, 2013, 2014), "climatology", "clim-dialog")
+    try:
+        start = page.locator("#clim-body input.is-year").nth(0)
+        end = page.locator("#clim-body input.is-year").nth(1)
+        assert page.is_hidden("body > .year-list")
+        # the arrow is the right-hand end of the box
+        box = start.bounding_box()
+        page.mouse.click(box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+        assert page.locator("body > .year-list .combo__option").all_inner_texts() == ["2011", "2012", "2013", "2014"]
+        # a year picked by the mouse
+        page.locator("body > .year-list .combo__option", has_text="2012").click()
+        assert start.input_value() == "2012" and page.is_hidden("body > .year-list")
+        # the keyboard: the arrow down opens, down moves, Enter picks
+        end.focus()
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Enter")
+        assert end.input_value() == "2012"
+        end.focus()
+        # it opens on the year in the box, 2012
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Enter")
+        assert end.input_value() == "2013"
+        # Escape closes the list, not the pop-out; the next one the pop-out
+        page.keyboard.press("ArrowDown")
+        assert page.is_visible("body > .year-list")
+        page.keyboard.press("Escape")
+        assert page.is_hidden("body > .year-list") and page.is_visible("#clim-dialog")
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#clim-dialog", state="hidden")
+        # typing still works, and closes the list
+        page.click("#ao-climatology")
+        end = page.locator("#clim-body input.is-year").nth(1)
+        end.focus()
+        page.keyboard.press("ArrowDown")
+        page.keyboard.type("2")
+        assert page.is_hidden("body > .year-list")
+        assert errors == []
+    finally:
+        app.close()
+
+
+def test_the_long_term_series_have_a_rolling_mean_and_a_way_to_show_them(browser, tmp_path):
+    """After Water column, the long-term pop-out has Rolling mean (years),
+    1 to start with, and Show as; the climatology's has neither."""
+    page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012, 2013, 2014), "long_term", "clim-dialog")
+    try:
+        heads = page.locator("#clim-dialog thead tr").nth(1).locator("th:visible").all_inner_texts()
+        assert [h.lower().replace("required", "").strip() for h in heads] == [
+            "variable", "start", "end", "surface", "bottom", "water column", "rolling mean (years)", "show as"]
+        row = page.locator("#clim-body > tr").first
+        window = row.locator("input.is-window")
+        show = row.locator("select.is-show")
+        assert window.input_value() == "1"
+        assert show.locator("option").all_inner_texts() == ["Absolute value", "Absolute change", "Percentage change"]
+        assert show.input_value() == "absolute"
+        row.locator("input[type=checkbox]").first.check()
+        page.locator("#clim-body input.is-year").nth(0).fill("2011")
+        page.locator("#clim-body input.is-year").nth(1).fill("2013")
+        show.select_option("absolute_change")
+        window.fill("4")
+        page.click("#clim-confirm")
+        # four years do not fit in three, which is said by the variable
+        page.wait_for_function("() => document.querySelector('#clim-body .analyze-msg').textContent !== ''")
+        assert "more than the 3 years" in row.locator(".analyze-msg").inner_text()
+        window.fill("2")
+        page.click("#clim-confirm")
+        page.wait_for_selector("#clim-dialog", state="hidden")
+        chosen = app.analyze_chosen["long_term"]["rows"]["Temperature"]
+        assert chosen["window"] == 2 and chosen["show"] == "absolute_change"
+        # what was chosen is there when it is opened again, and the climatology has neither column
+        page.click("#ao-long_term")
+        assert page.locator("#clim-body input.is-window").input_value() == "2"
+        page.click("#clim-cancel")
+        page.click("#ao-climatology")
+        assert page.locator("#clim-body input.is-window").count() == 0
+        assert page.locator("#clim-dialog th.is-series:visible").count() == 0
+        assert errors == []
+    finally:
+        app.close()
+
+
+@needs_to_transect
+def test_a_disabled_year_box_has_no_list(browser, tmp_path):
+    """The transect options' year boxes are shut until the option is chosen,
+    and then list the output's years: one year here."""
+    page, app, card, errors = open_transects_in_browser(browser, tmp_path, (2013,))
+    try:
+        years = card.locator("table.transect-options input.is-year")
+        box = years.nth(0).bounding_box()
+        page.mouse.click(box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+        assert page.is_hidden("body > .year-list")
+        card.locator("input[type=checkbox]").first.check()
+        years.nth(0).focus()
+        page.keyboard.press("ArrowDown")
+        assert page.locator("body > .year-list .combo__option").all_inner_texts() == ["2013"]
+        assert errors == []
+    finally:
+        app.close()
 
 
 @needs_to_transect

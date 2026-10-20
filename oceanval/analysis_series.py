@@ -28,6 +28,8 @@ import xarray as xr
 
 from oceanval.analysis import (
     BOTTOM,
+    SHOW_ABSOLUTE,
+    SHOW_PERCENTAGE_CHANGE,
     LAYER_TITLES,
     SURFACE,
     WATER_COLUMN,
@@ -498,6 +500,40 @@ def annual_series(frame, start, end, months_per_year):
     return result
 
 
+def smooth_and_change(annual, window, show):
+    """annual (see annual_series) with the rolling mean of window years taken
+    of the annual means (each year is the mean of its window, that year and the
+    window - 1 before it, so the first years have no value, nor has one whose
+    window has a year with none) and then shown as show (see
+    analysis.SHOWS): the change from the first year with a value, in the units
+    or in per cent of it. A year of the window that is the mean of fewer months
+    makes the year one too. Returns (the frame, the names of the series that
+    have no percentage change, as their first value is 0)."""
+    zero = []
+    pieces = []
+    for (kind, name), part in annual.groupby(["kind", "name"], sort=False):
+        part = part.sort_values("year").copy()
+        value = part["value"]
+        if window > 1:
+            value = value.rolling(window, min_periods=window).mean()
+            part["months"] = part["months"].rolling(window, min_periods=window).min().fillna(0).astype(int)
+            part["complete"] = part["complete"].astype(int).rolling(window, min_periods=window).min().fillna(0).astype(bool)
+        if show != SHOW_ABSOLUTE:
+            valid = value.dropna()
+            first = valid.iloc[0] if len(valid) else np.nan
+            if show == SHOW_PERCENTAGE_CHANGE:
+                if first == 0:
+                    zero.append(name)
+                    value = value * np.nan
+                else:
+                    value = 100 * (value - first) / abs(first)
+            else:
+                value = value - first
+        part["value"] = value
+        pieces.append(part)
+    return pd.concat(pieces, ignore_index=True), zero
+
+
 def months_per_year(times):
     """12 if the output has more than one month in any year, else 1 (annual
     output). times are the (year, month) of the output."""
@@ -529,6 +565,9 @@ def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks
                 "dates": row[kind]["dates"],
             }
         )
+        if kind == "long_term":
+            entries[kind].update({"window": row[kind]["window"], "show": row[kind]["show"]}
+        )
     for layer in layers:
         what = ", ".join(sorted({kind.replace("_", "-") for kind in kinds}))
         _say(f"Working out the {what} series of {row['name']}: {LAYER_TITLES[layer].lower()}")
@@ -553,20 +592,30 @@ def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks
         for kind in kinds:
             if layer not in row[kind]["layers"]:
                 continue
+            extra = []
             if kind == "seasonal":
                 out = monthly_series(frame, row[kind]["start"], row[kind]["end"])
             else:
                 out = annual_series(frame, row[kind]["start"], row[kind]["end"], months_per_year(present))
+                # which years have no output, or fewer months, is of the annual means as they are
+                domain = out[out.kind == "domain"]
+                incomplete = sorted(int(year) for year in domain[~domain.complete & (domain.months > 0)].year)
+                missing = sorted(int(year) for year in domain[domain.months == 0].year)
+                out, zero = smooth_and_change(out, row[kind]["window"], row[kind]["show"])
+                if zero:
+                    extra = ["There is no percentage change of " + ", ".join(zero) + ", as its first value is 0."]
             csv = f"{row['key']}_{layer}_{kind}.csv"
             out.to_csv(os.path.join(results_dir, csv), index=False)
             saved = {"title": LAYER_TITLES[layer], "units": units, "csv": csv, "stations": found}
             if kind == "long_term":
-                saved["incomplete"] = sorted(
-                    int(year) for year in out[(out.kind == "domain") & ~out.complete & (out.months > 0)].year
-                )
-                saved["missing"] = sorted(int(year) for year in out[(out.kind == "domain") & (out.months == 0)].year)
+                saved["incomplete"] = incomplete
+                saved["missing"] = missing
+                # what the csv's values are: the annual means, or their change from the first year
+                saved["show"] = row[kind]["show"]
+                if row[kind]["show"] == SHOW_PERCENTAGE_CHANGE:
+                    saved["units"] = "%"
             entries[kind]["layers"][layer] = saved
             entries[kind]["regions"] = names
             entries[kind]["stations"].update(found)
-            entries[kind]["notes"] = sorted(set(entries[kind]["notes"]) | set(notes))
+            entries[kind]["notes"] = sorted(set(entries[kind]["notes"]) | set(notes) | set(extra))
     return {kind: entries.get(kind) for kind in ("long_term", "seasonal")}

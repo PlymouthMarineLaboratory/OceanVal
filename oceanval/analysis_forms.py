@@ -12,6 +12,7 @@ transects.
 
 import datetime
 import os
+import re
 
 import pandas as pd
 
@@ -220,7 +221,10 @@ def default_climatology(placed, years_of):
     variable's output are only shown beside it (see output_years)."""
     return {
         "rows": {
-            row["name"]: {"use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": ""}
+            row["name"]: {"use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+                # the long-term series' rolling mean, none to start with, and how it is shown
+                "window": "1", "show": analysis.SHOW_ABSOLUTE,
+            }
             for row in placed
         },
         "thickness": "",
@@ -249,6 +253,8 @@ def clean_climatology(form, placed):
             "bottom": bool(box.get("bottom")),
             "water_column": bool(box.get("water_column")),
             "how": how if how in analysis.WATER_COLUMN else "",
+            "window": str(box.get("window") or "1").strip() or "1",
+            "show": box.get("show") if box.get("show") in analysis.SHOWS else analysis.SHOW_ABSOLUTE,
         }
     return {"rows": rows, "thickness": str(form.get("thickness") or "").strip()}
 
@@ -301,8 +307,31 @@ def _check_layers(box, row, found):
         found["water_column"] = "Choose the vertical mean or the depth integral."
 
 
-def check_climatology(form, placed, known_years, available, cwd, label="climatology"):
-    """Check the climatology pop-out's boxes (see clean_climatology).
+def _check_series_options(box, start, end, found):
+    """Add to found (the errors of a variable's row) what is wrong with the
+    rolling mean and the way of showing a long-term series, and return
+    (window, show)."""
+    window = 1
+    if not re.fullmatch(r"\d+", box["window"]) or int(box["window"]) < 1:
+        found["window"] = "The rolling mean is a whole number of years, 1 or more: 1 is none."
+        return window, box["show"]
+    window = int(box["window"])
+    years = end - start + 1
+    if window > years:
+        found["window"] = f"The rolling mean of {window} years is more than the {years} years from {start} to {end}."
+    elif box["show"] != analysis.SHOW_ABSOLUTE and years - window + 1 < analysis.MIN_CHANGE_YEARS:
+        found["show"] = (
+            f"A change needs at least {analysis.MIN_CHANGE_YEARS + window - 1} years"
+            + (f" with a rolling mean of {window}" if window > 1 else "")
+            + f", not the {years} from {start} to {end}."
+        )
+    return window, box["show"]
+
+
+def check_climatology(form, placed, known_years, available, cwd, label="climatology", series=False):
+    """Check the climatology pop-out's boxes (see clean_climatology). series is
+    True for the long-term series' pop-out, which also has a rolling mean and a
+    way of showing the series.
     known_years(name) is the first and last years of a variable's output,
     or None; available the model's variable names, which a thickness can be
     one of. Returns (climatology, thickness, errors): climatology as
@@ -318,6 +347,9 @@ def check_climatology(form, placed, known_years, available, cwd, label="climatol
         found = {}
         start, end = _years(box, found, known_years(row["name"]))
         _check_layers(box, row, found)
+        window, show = 1, analysis.SHOW_ABSOLUTE
+        if series and not found:
+            window, show = _check_series_options(box, start, end, found)
         if found:
             errors[row["name"]] = found
             continue
@@ -328,6 +360,11 @@ def check_climatology(form, placed, known_years, available, cwd, label="climatol
             "bottom": box["bottom"],
             "water_column": box["how"] if box["water_column"] else None,
         }
+        # only what is not the same as leaving it out is given
+        if series and window > 1:
+            chosen[row["name"]]["window"] = window
+        if series and show != analysis.SHOW_ABSOLUTE:
+            chosen[row["name"]]["show"] = show
         column = column or box["water_column"]
     thickness = None
     if column:

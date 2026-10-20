@@ -63,6 +63,15 @@ def legend(name, units):
     return f"{name} ({units})" if units else name
 
 
+def series_legend(variable, saved):
+    """The axis label of a long-term series: the variable's name, with
+    "change" when the series is the change from its first year, and its units."""
+    name = variable["name"]
+    if saved.get("show") in ("absolute_change", "percentage_change"):
+        name = f"{name} change"
+    return legend(name, saved["units"])
+
+
 # ---- the code of a figure ----
 
 
@@ -811,7 +820,7 @@ def long_term_plot(results_dir, key, layer):
     saved = variable["long_term"]["layers"][layer]
     path = _path(results_dir, saved["csv"])
     code = _series_code(
-        path, NOT_STATIONS, "frame", "part.year.values", legend(variable["name"], saved["units"]), YEAR_TICKS, hollow=True
+        path, NOT_STATIONS, "frame", "part.year.values", series_legend(variable, saved), YEAR_TICKS, hollow=True
     )
     done = _run(code, "long_term_plot")
     return Drawn(code, False, {"regions": _regions_in(done["frame"])}, _about(info))
@@ -899,7 +908,7 @@ def station_plot(results_dir, key, kind, layer):
         "for name, colour in stations:",
         "\n".join(draw),
         YEAR_TICKS,
-        f"ax.set_ylabel({_py(legend(variable['name'], saved['units']))})",
+        f"ax.set_ylabel({_py(series_legend(variable, saved) if kind == 'long_term' else legend(variable['name'], saved['units']))})",
         "ax.legend(frameon=False, fontsize=8)",
         LINE_STYLE,
         "fig.tight_layout()",

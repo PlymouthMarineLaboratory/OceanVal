@@ -470,7 +470,11 @@ oceanval.analyze(
   and `[lon, lat]` (the nearest model cell with values, within two grid cells).
   `lon_lim` and `lat_lim` cut a box out of the domain for the domain and region
   means. Years with output missing are the mean of the months there are, and
-  are marked as such in the report.
+  are marked as such in the report. Each variable can also have a `"window"`,
+  the years of a rolling mean of the annual means (1, the default, is none;
+  each year is the mean of it and the years before it), and a `"show"`:
+  `"absolute"` (the default), `"absolute_change"` or `"percentage_change"`, each
+  year's change from the first year with a value.
 - **Seasonal time series** (`seasonal`): the same, month by month, and the mean
   seasonal cycle of each. It needs monthly output, or output more often.
 - **Map temporal changes** (`map_changes`): maps of how a variable changes
