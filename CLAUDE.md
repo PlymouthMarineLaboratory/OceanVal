@@ -48,7 +48,7 @@ python -m pytest tests/test_create_recipes.py -k some_test  # single test
 Coverage config (`.coveragerc`) excludes `tests/` and `oceanval/fvcom.py` (undocumented).
 
 CI (`.github/workflows/python-app.yml`) builds a micromamba env with nctoolkit, cartopy, R/tidyverse,
-jupyter-book, pandoc, texlive, then `pip install .` and `pytest tests/test*.py`.
+jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jobs side by side (matrix `group`: five named sets of test files balanced by run time, and a sixth that runs every file not named, so a new test file is still run); each job has its own checkout, which the cwd-relative `oceanval_matchups` folders need, and prints its 30 slowest tests (`--durations`). A new slow test file should be added to a group in the workflow.
 
 ## Architecture
 

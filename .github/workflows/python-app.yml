@@ -21,12 +21,12 @@ jobs:
     # before GitHub's own six hour limit
     timeout-minutes: 45
 
-    # The suite is split over two jobs that run side by side. Each job has its own
+    # The suite is split over six jobs that run side by side. Each job has its own
     # checkout, which matters: the matchup tests share cwd-relative output folders.
     strategy:
       fail-fast: false
       matrix:
-        group: [1, 2]
+        group: [1, 2, 3, 4, 5, 6]
 
     steps:
       - uses: actions/checkout@v7
@@ -60,19 +60,26 @@ jobs:
         run: |
           python -c "from importlib.metadata import version; v = version('jupyter-book'); print('jupyter-book', v); assert int(v.split('.')[0]) >= 2, f'jupyter-book {v} is installed, the tests need 2'"
 
-      - name: Test with pytest (group ${{ matrix.group }} of 2)
+      - name: Test with pytest (group ${{ matrix.group }} of 6)
         shell: bash -l {0}
         run: |
-          # Group 1 is the slow matchup tests; group 2 is every other test file, so a
-          # new test file is always picked up by one of the two groups.
+          # Groups 1-5 are named sets of test files, balanced by run time; group 6
+          # is every other test file, so a new test file is always picked up.
           GROUP1="tests/test_gridded_matchups.py tests/test_point_matchups.py tests/test_matchup_formula.py tests/test_transect_report.py"
+          GROUP2="tests/test_matchups.py tests/test_gridded_failures.py tests/test_matchup_order.py tests/test_calendars.py tests/test_short_simulations.py"
+          GROUP3="tests/test_data_store.py tests/test_live_validation.py tests/test_fvcom.py tests/test_own_data.py tests/test_user_recipes.py tests/test_model_check.py tests/test_transects.py"
+          GROUP4="tests/test_analysis_plots.py tests/test_analysis_changes.py tests/test_analysis_transects.py"
+          GROUP5="tests/test_analysis.py tests/test_analysis_series.py tests/test_analysis_app.py"
           # -v names each test as it starts, and a test still running after
           # 15 minutes ends the run with every thread's stack, so a stall shows
-          # which test it is and where it is stuck
-          OPTIONS="-v --timeout=900 --timeout-method=thread"
-          if [ "${{ matrix.group }}" = "1" ]; then
-            python -m pytest $OPTIONS $GROUP1
-          else
-            python -m pytest $OPTIONS tests $(for f in $GROUP1; do echo --ignore=$f; done)
-          fi
-      
+          # which test it is and where it is stuck; --durations lists the slowest
+          # tests at the end, to see where the time goes
+          OPTIONS="-v --timeout=900 --timeout-method=thread --durations=30"
+          case "${{ matrix.group }}" in
+            1) python -m pytest $OPTIONS $GROUP1 ;;
+            2) python -m pytest $OPTIONS $GROUP2 ;;
+            3) python -m pytest $OPTIONS $GROUP3 ;;
+            4) python -m pytest $OPTIONS $GROUP4 ;;
+            5) python -m pytest $OPTIONS $GROUP5 ;;
+            6) python -m pytest $OPTIONS tests $(for f in $GROUP1 $GROUP2 $GROUP3 $GROUP4 $GROUP5; do echo --ignore=$f; done) ;;
+          esac

@@ -211,15 +211,23 @@ class TestTheSums:
 
 
 def test_the_report(monthly, tmp_path):
-    """The variable's page has a heading, and a figure of the periods and one of the changes for each layer, with
-    code to copy for each, and the overview says what was done."""
+    """One report (building one costs half a minute) for a variable with two layers, two future periods and a
+    percentage change, with code to copy for each figure, and one each for what `plot` asks to be drawn. The
+    variable's page has a heading, a figure of the periods and one of the changes for each layer, and the overview
+    says what was done."""
     landing = oceanval.analyze(
-        monthly, {"Temperature": "thetao"}, thickness="e3t", n_dirs_down=1, out_dir=str(tmp_path / "out"), cores=1,
-        view=False, figure_code=True,
-        map_changes={"Temperature": entry(future=FUTURE + [{"start": 2012, "end": 2013}], bottom=True, change="percentage")},
+        monthly, {"Temperature": "thetao", "Absolute": "thetao", "Changes": "thetao", "Both": "thetao"},
+        thickness="e3t", n_dirs_down=1, out_dir=str(tmp_path / "out"), cores=1, view=False, figure_code=True,
+        map_changes={
+            "Temperature": entry(future=FUTURE + [{"start": 2012, "end": 2013}], bottom=True, change="percentage"),
+            "Absolute": entry(plot="absolute"),
+            "Changes": entry(plot="changes"),
+            "Both": entry(plot="absolute_changes"),
+        },
     )
     overview = open(landing).read()
-    page = open(os.path.join(os.path.dirname(landing), "001_temperature.html")).read()
+    folder = os.path.dirname(landing)
+    page = open(os.path.join(folder, "001_temperature.html")).read()
     assert "Traceback" not in overview + page
     assert "Map temporal changes" in page
     assert "the historical period is 2010-2011" in page and "the future 2 period is 2012-2013" in page
@@ -229,18 +237,11 @@ def test_the_report(monthly, tmp_path):
     assert page.count("Copy code to reproduce figure") >= 2
     assert "in 2010-2011, 2014-2015 and 2012-2013, and the percentage change (%) from 2010-2011 to 2014-2015 and to 2012-2013" in page
     assert "Map changes" in overview and "Map temporal changes." in overview
-
-
-@pytest.mark.parametrize("plot", ["absolute", "changes", "absolute_changes"])
-def test_the_report_draws_what_was_asked_for(monthly, tmp_path, plot):
-    landing = oceanval.analyze(
-        monthly, {"Temperature": "thetao"}, n_dirs_down=1, out_dir=str(tmp_path / "out"), cores=1, view=False,
-        map_changes={"Temperature": entry(plot=plot)},
-    )
-    page = open(os.path.join(os.path.dirname(landing), "001_temperature.html")).read()
-    assert "Traceback" not in page
-    # one figure, and one caption, whatever is drawn
-    assert sorted(set(re.findall(r"Figure (\d+)</strong>", page))) == ["1"]
-    assert page.count("Figure 1</strong>") == 1
-    assert ("which red is an increase" in page) is (plot != "absolute")
-    assert ("the change (degC) from 2010-2011 to 2014-2015" in page.replace("°C", "degC")) is (plot != "absolute")
+    # what was asked for is what is drawn: one figure, and one caption, whatever it is
+    for page_name, plot in (("002_absolute", "absolute"), ("003_changes", "changes"), ("004_both", "absolute_changes")):
+        page = open(os.path.join(folder, f"{page_name}.html")).read()
+        assert "Traceback" not in page
+        assert sorted(set(re.findall(r"Figure (\d+)</strong>", page))) == ["1"]
+        assert page.count("Figure 1</strong>") == 1
+        assert ("which red is an increase" in page) is (plot != "absolute")
+        assert ("the change (degC) from 2010-2011 to 2014-2015" in page.replace("°C", "degC")) is (plot != "absolute")
