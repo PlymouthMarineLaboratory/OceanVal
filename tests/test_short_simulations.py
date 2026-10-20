@@ -10,6 +10,7 @@ class TestMatchup:
     
     def test_a_short_one(self):
         """Test that a simulation with less than 1 Year of data works"""
+        oceanval.reset()
         oceanval.add_gridded_comparison(
             name = "temperature",
             obs_path = "data/evaldata/gridded/nws/temperature/model_2000.nc",
