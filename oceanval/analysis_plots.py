@@ -702,19 +702,25 @@ def series_frame(results_dir, saved):
     return pd.read_csv(os.path.join(results_dir, saved["csv"]))
 
 
-def _layout(frame, panels_over=MANY_REGIONS):
+def _layout(frame, panels_over=MANY_REGIONS, domain_panel=False):
     """How the domain's and regions' series in frame are drawn: on one axes
     or, if there are more than panels_over regions, on a panel for each
-    region, with the domain's in each. Returns (the regions with a panel of
-    their own, or None for one axes, and the lines, in the order they are
-    drawn: (name, colour, width) for one axes, and (name, colour, width, the
-    panels it is in) for panels)."""
+    region, with the domain's in each (in grey) or, if domain_panel, in a
+    panel of its own, first. Returns (the panels, or None for one axes, and
+    the lines, in the order they are drawn: (name, colour, width) for one
+    axes, and (name, colour, width, the panels it is in) for panels)."""
     names = list(dict.fromkeys(frame.name))
     domain = [name for name in names if frame[frame.name == name].kind.iloc[0] == "domain"]
     others = [name for name in names if name not in domain]
     palette = plt.get_cmap("tab10" if len(others) <= 10 else "tab20")
     colours = {name: DOMAIN_COLOUR for name in domain}
     colours.update({name: to_hex(palette(i % palette.N)) for i, name in enumerate(others)})
+    if len(others) > panels_over and domain_panel:
+        lines = [
+            (name, colours[name], 2.2 if name in domain else 1.4, [name])
+            for name in names
+        ]
+        return domain + others, lines
     if len(others) > panels_over:
         lines = [
             (name, PANEL_DOMAIN_COLOUR, 1.0, _Code("regions")) if name in domain else (name, colours[name], 1.4, [name])
@@ -724,16 +730,17 @@ def _layout(frame, panels_over=MANY_REGIONS):
     return None, [(name, colours[name], 2.2 if name in domain else 1.4) for name in names]
 
 
-def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False):
+def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False, domain_panel=False):
     """The code of a figure of series from the CSV file at path: prepare is
     the code that makes table, the series to draw, from frame, as read; x
     the code of the x of each line's part of table; axis_lines the code
     that sets each axes' x axis; and hollow, whether years that are the mean
-    of fewer than 12 months are drawn as open circles."""
+    of fewer than 12 months are drawn as open circles; domain_panel, whether
+    the full domain has a panel of its own, rather than being in each region's."""
     # the series as the code makes them, to work out how they are drawn
     made = {"frame": pd.read_csv(path)}
     exec(prepare, made)
-    panels, lines = _layout(made[table])
+    panels, lines = _layout(made[table], domain_panel=domain_panel)
     imports = "import matplotlib.pyplot as plt\nimport pandas as pd\n"
     if "calendar." in axis_lines:
         imports = "import calendar\n\n" + imports
@@ -771,7 +778,10 @@ def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False):
     else:
         nrow = int(np.ceil(len(panels) / 3))
         blocks = [
-            _listing("regions", panels, "the regions, each in a panel of its own"),
+            _listing(
+                "regions", panels,
+                "the panels: the full domain and each region" if domain_panel else "the regions, each in a panel of its own",
+            ),
             f"nrow = {nrow}",
             _call(
                 "fig, grid = plt.subplots",
@@ -787,8 +797,8 @@ def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False):
             f"    ax.set_ylabel({_py(ylabel)})",
             _listing(
                 "lines", lines,
-                "each line: its name in the data, its colour, its width and the panels it is drawn in "
-                "(the domain's is in each, in grey)",
+                "each line: its name in the data, its colour, its width and the panels it is drawn in"
+                + ("" if domain_panel else " (the domain's is in each, in grey)"),
             ),
             "for name, colour, width, where in lines:",
             "\n".join(draw),
@@ -836,7 +846,7 @@ def seasonal_series_plot(results_dir, key, layer):
     path = _path(results_dir, saved["csv"])
     code = _series_code(
         path, NOT_STATIONS, "frame", "part.year.values + (part.month.values - 0.5) / 12",
-        legend(variable["name"], saved["units"]), YEAR_TICKS,
+        legend(variable["name"], saved["units"]), YEAR_TICKS, domain_panel=True,
     )
     done = _run(code, "seasonal_series_plot")
     return Drawn(code, False, {"regions": _regions_in(done["frame"])}, _about(info))
@@ -862,7 +872,8 @@ def seasonal_cycle_regions(results_dir, key, layer):
         ]
     )
     code = _series_code(
-        path, prepare, "cycle", "part.month.values", legend(variable["name"], saved["units"]), axis_lines
+        path, prepare, "cycle", "part.month.values", legend(variable["name"], saved["units"]), axis_lines,
+        domain_panel=True,
     )
     cycle = _run(code, "seasonal_cycle_regions")["cycle"]
     domain = cycle[cycle.kind == "domain"]

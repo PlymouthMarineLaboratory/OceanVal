@@ -42,7 +42,7 @@ from oceanval.analysis import (
 )
 
 # the model's domain as a series is called this, whatever the regions are
-DOMAIN = "Model domain"
+DOMAIN = "Full Domain"
 # what each series is of
 SERIES_KINDS = ("domain", "region", "station")
 # the columns of what is saved, and the files it is saved in
@@ -439,6 +439,10 @@ def region_values(ds, key, times, region_file, lon_lim, lat_lim, masks_for):
     ds_on_regions.regrid(region_file, method="bil")
     ds_on_regions.run()
     for variable, name in names.items():
+        # the whole model is the Full Domain series: a region of the file of
+        # that name would only be the part of the model inside the file
+        if name.replace(" ", "").lower() == DOMAIN.replace(" ", "").lower():
+            continue
         ds_region = ds_regions.copy()
         ds_region.subset(variables=variable)
         ds_region.run()

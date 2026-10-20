@@ -186,6 +186,7 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   `<nwes|global>_subdomains.nc` or the user's file, already lon-lat grids, so `region_values` regrids the raw model
   (bil) to the file's grid once, and each region (`as_missing(0)` mask, `multiply`) is a `spatial_mean` there (the mask is
   never regridded to the model, and no `to_latlon` fallback of its own; the domain mean keeps `robust_spatial_mean`);
+  the domain series is `analysis_series.DOMAIN` = "Full Domain" (the whole model grid; a file region of that name is skipped in `region_values`), and the seasonal figures (`analysis_plots.seasonal_series_plot`/`seasonal_cycle_regions`, `_layout(domain_panel=True)`) give it a panel of its own beyond `MANY_REGIONS` regions, where the long-term figure keeps it as a grey line in each panel;
   stations are the nearest cell with values (haversine, refused beyond 2 cells), not cut by
   `lon_lim`/`lat_lim`. The chunks are `chunk_longterm`/`chunk_seasonalseries` (letters only:
   `chunkers.is_chunk` matches `chunk_.[a-z]*`).

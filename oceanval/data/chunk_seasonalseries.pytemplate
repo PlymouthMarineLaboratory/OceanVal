@@ -20,7 +20,7 @@ for layer, saved in sea["layers"].items():
     ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
     display(md(
         f"**Figure {i_figure}**: Monthly mean {where} {name} ({layer_units}), {years}"
-        + (" over the model's domain and each of its regions." if sea["regions"] else " over the model's domain.")
+        + (" over the full domain and each of its regions." if sea["regions"] else " over the full domain.")
         + " Months with no output are gaps in the lines."
     ))
     i_figure += 1
@@ -28,7 +28,7 @@ for layer, saved in sea["layers"].items():
     ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
     display(md(
         f"**Figure {i_figure}**: The mean seasonal cycle of {where} {name} ({layer_units}): the mean of each month of the year over {years}"
-        + (", over the model's domain and each of its regions." if sea["regions"] else ", over the model's domain.")
+        + (", over the full domain and each of its regions." if sea["regions"] else ", over the full domain.")
     ))
     i_figure += 1
     drawn = ap.station_plot(results_dir, variable, "seasonal", layer)

@@ -243,6 +243,12 @@ def test_each_figure_is_drawn_by_the_code_it_copies(analyses, case, tmp_path):
         assert ("to_latlon" in figure.code) is figure.regridded
         # more regions than fit on one axes have a panel each
         assert ("panels = dict(zip(regions, grid.flat))" in figure.code) is (case == "many")
+        # the seasonal figures give the full domain a panel of its own, the long-term one draws it in each, in grey
+        if case == "many" and name in ("seasonal_series_plot", "seasonal_cycle_regions"):
+            assert ap.PANEL_DOMAIN_COLOUR not in figure.code
+            assert re.search(r'^regions = \[\n    "Full Domain",\n', figure.code, flags=re.M)
+        if case == "many" and name == "long_term_plot":
+            assert ap.PANEL_DOMAIN_COLOUR in figure.code
 
 
 def test_the_maps_of_changes_are_titled_by_their_years(analyses):

@@ -222,7 +222,7 @@ class TestSeries:
         annual = series(out, "temperature_surface_long_term.csv")
         assert list(annual.columns) == ["kind", "name", "year", "value", "months", "complete"]
         for year in YEARS:
-            for name, offset in (("Model domain", 0), ("West", -1.5), ("East", 1.5)):
+            for name, offset in (("Full Domain", 0), ("West", -1.5), ("East", 1.5)):
                 row = annual[(annual.name == name) & (annual.year == year)].iloc[0]
                 assert row.value == pytest.approx(base(year, 6.5) + offset * EAST_WEST, abs=1e-4)
                 assert row.months == 12 and row.complete
@@ -234,6 +234,25 @@ class TestSeries:
         info = no_report[0]
         assert info["subregions"] == regions and info["variables"][0]["long_term"]["regions"] == ["West", "East"]
         assert info["variables"][0]["seasonal"]["layers"]["surface"]["csv"] == "temperature_surface_seasonal.csv"
+
+    def test_a_full_domain_region_of_the_file_is_not_a_second_one(self, sim, tmp_path, no_report):
+        # the file's full domain is a part of the model, so the series of that name is the model's own
+        path = str(tmp_path / "full.nc")
+        write_analysis_regions(path)
+        with xr.open_dataset(path) as ds:
+            ds = ds.load()
+        ds["fulldomain"] = ds["west"].copy()
+        ds["fulldomain"].attrs["long_name"] = "Full Domain"
+        ds.to_netcdf(path.replace("full.nc", "full2.nc"))
+        out = str(tmp_path / "out")
+        os.makedirs(out)
+        run(sim, out, subregions=path.replace("full.nc", "full2.nc"))
+        annual = series(out, "temperature_surface_long_term.csv")
+        assert set(annual.name) == {"Full Domain", "West", "East"}
+        assert set(annual[annual.name == "Full Domain"].kind) == {"domain"}
+        row = annual[(annual.name == "Full Domain") & (annual.year == 2012)].iloc[0]
+        assert row.value == pytest.approx(base(2012, 6.5), abs=1e-4)
+        assert no_report[0]["variables"][0]["long_term"]["regions"] == ["West", "East"]
 
     def test_the_water_column(self, sim, tmp_path, no_report):
         out = str(tmp_path)
@@ -276,9 +295,9 @@ class TestSeries:
         # the west two columns and the middle one
         run(sim, out, subregions=regions, lon_lim=[-4.5, -1.5], lat_lim=[49.0, 54.0])
         annual = series(out, "temperature_surface_long_term.csv")
-        domain = annual[(annual.name == "Model domain") & (annual.year == 2012)].value.iloc[0]
+        domain = annual[(annual.name == "Full Domain") & (annual.year == 2012)].value.iloc[0]
         assert domain == pytest.approx(base(2012, 6.5) + EAST_WEST * (-2 - 1 + 0) / 3, abs=1e-4)
-        assert set(annual.name) == {"Model domain", "West"}
+        assert set(annual.name) == {"Full Domain", "West"}
         assert no_report[0]["variables"][0]["long_term"]["notes"] == [
             "East has no cells in the model's domain and box, so it is left out."
         ]
@@ -576,7 +595,7 @@ class TestSpatialMeans:
             n_dirs_down=1, out_dir=out, view=False, cores=1,
         )
         monthly = series(out, "sst_surface_seasonal.csv")
-        assert set(monthly.name) == {"Model domain", "Inner", "Outer"}
+        assert set(monthly.name) == {"Full Domain", "Inner", "Outer"}
         # the sst is the same everywhere, so the mean of any region is that
         for name in ("Inner", "Outer"):
             assert monthly[monthly.name == name].value.tolist() == pytest.approx(list(10 + np.arange(1, 13)), abs=1e-3)
