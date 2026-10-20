@@ -665,6 +665,8 @@
   .analyze-area { max-width: 980px; margin: 28px 0 0; }
   .analyze-area .s-select { width: auto; min-width: 280px; }
   .analyze-area .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
+  .analyze-area .group__line.is-found { color: var(--amber); font-weight: 600; }
+  .analyze-area .s-input.is-found { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
   .analyze-area .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
   .analyze-code { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; }
   .analyze-code__help { margin: 10px 0 0; }
@@ -704,6 +706,9 @@
   .transect-card .s-select { width: auto; min-width: 190px; margin-top: 0; }
   .analyze-dialog .transect-card .s-input.is-need, .analyze-dialog .transect-card .s-select.is-need { border-color: var(--red-field-line); }
   .picker__card.is-wide { max-width: 1000px; }
+  /* the Analyze pop-outs are 30% larger than the other dialogs: 1000 -> 1300px wide, 740 -> 962px high */
+  .analyze-dialog .picker__card.is-wide { max-width: 1300px; max-height: min(962px, calc(100vh - 48px)); }
+  @media (max-width: 760px) { .analyze-dialog .picker__card.is-wide { max-height: calc(100vh - 20px); } }
   .analyze-dialog__body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px 6px; overscroll-behavior: contain; }
   .analyze-dialog__intro { margin: 0 0 14px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
   .analyze-dialog__intro b { color: var(--amber); }
@@ -720,6 +725,15 @@
     background-repeat: no-repeat; background-position: right 6px center; background-size: 9px 5px;
   }
   .s-input.is-year.has-years:disabled { background-image: none; }
+  /* the same arrow on the "Your name" box, which lists the preset variable names */
+  .analyze-table .s-input.has-years {
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237c94a0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; background-size: 9px 5px;
+  }
+  .year-list.is-names { text-align: left; max-height: 260px; }
+  .year-list.is-names .combo__option { font-family: var(--font-body); font-size: 14px; }
+  .year-list .combo__hint { margin-left: 10px; color: var(--muted); font-size: 12px; }
   .year-list { position: fixed; right: auto; z-index: 40; width: max-content; max-height: 200px; text-align: center; }
   .analyze-dialog .s-input.is-assumed { color: var(--amber); font-weight: 600; }
   .analyze-dialog .s-select { width: auto; margin-top: 6px; }
@@ -1405,6 +1419,7 @@
         </div>
       </div>
       <p class="group__msg" id="ao-missing-msg"></p>
+      <p class="group__line is-found" id="ao-missing-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data before you continue.</p>
       <p class="group__line is-ersem" id="ao-missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
     </fieldset>
     <fieldset class="group analyze-area" id="ao-code-group">
@@ -2677,7 +2692,9 @@
 
   function variableRow(row) {
     const item = {
-      name: row.name || "", model_variable: row.model_variable || "", filled: Boolean(row.filled), server: {},
+      name: row.name || "", model_variable: row.model_variable || "", filled: Boolean(row.filled), server: {}, hint: "",
+      // the model name was put there by the drop-down of names, so choosing another name replaces it; typing in the model box makes it the user's
+      auto: false,
     };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Chlorophyll",
       spellcheck: "false", autocomplete: "off", "aria-label": "Your name for the variable" });
@@ -2687,6 +2704,7 @@
     if (item.filled) [name, model].forEach((box) => box.classList.add("is-oceanval"));
     const yours = () => {
       item.server = {};
+      item.hint = "";
       if (!item.filled) return;
       item.filled = false;
       [name, model].forEach((box) => box.classList.remove("is-oceanval"));
@@ -2697,15 +2715,45 @@
       get: () => item.model_variable,
       set: (value) => {
         item.model_variable = model.value = value;
+        item.auto = false;
         yours();
         if (item.sync) item.sync();
         refreshAnalyzeVariables();
       },
     });
     item.sync = picker ? picker.sync : null;
+    // the arrow of the name box lists the preset names; one that is chosen fills in the model variable the matchups would use for it
+    const presets = state.analyze.presets || [];
+    if (presets.length) {
+      name.yearChoices = presets.map((preset) => preset.name);
+      name.choiceHints = Object.fromEntries(presets.filter((preset) => !preset.model_variable).map((preset) => [preset.name, "not found in this model"]));
+      name.classList.add("has-years");
+      name.setAttribute("role", "combobox");
+      name.setAttribute("aria-haspopup", "listbox");
+      name.setAttribute("aria-expanded", "false");
+      name.onPick = (value) => {
+        const preset = presets.find((one) => one.name === value);
+        if (!preset) return;
+        // what the user typed in the model box is theirs: only an empty box, or one the drop-down filled, is filled in
+        if (item.model_variable.trim() && !item.auto && !item.filled) return;
+        if (preset.model_variable) {
+          item.model_variable = model.value = preset.model_variable;
+          item.auto = item.filled = true;
+          [name, model].forEach((box) => box.classList.add("is-oceanval"));
+        } else {
+          // the model name the last choice filled in is not this one's
+          if (item.auto) item.model_variable = model.value = "";
+          item.auto = false;
+          item.hint = `OceanVal could not tell which model variable holds ${value}: choose it below.`;
+        }
+        if (item.sync) item.sync();
+        refreshAnalyzeVariables();
+      };
+    }
     name.addEventListener("input", () => { item.name = name.value; yours(); refreshAnalyzeVariables(); });
     model.addEventListener("input", () => {
       item.model_variable = model.value;
+      item.auto = false;
       yours();
       if (item.sync) item.sync();
       refreshAnalyzeVariables();
@@ -2771,7 +2819,7 @@
     analyzeVariables.rows.forEach((item, index) => {
       const [nameError, modelError] = problems[index];
       item.nameMsg.textContent = nameError;
-      item.modelMsg.textContent = modelError;
+      item.modelMsg.textContent = modelError || item.hint || "";
       item.nameBox.classList.toggle("is-invalid", Boolean(nameError));
       item.modelBox.classList.toggle("is-invalid", Boolean(modelError));
       if (item.name.trim() && item.model_variable.trim() && !nameError && !modelError) complete += 1;
@@ -3148,10 +3196,17 @@
 
   // typing over what OceanVal assumed makes it the user's
   function fillMissingClasses() {
-    const assumed = Boolean(state.analyze.nemo_ersem) && $("ao-missing_from").value === "0" && $("ao-missing_to").value === "0";
+    const missing = state.analyze.missing || {};
+    const from = $("ao-missing_from").value, to = $("ao-missing_to").value;
+    // found in the model's data (oceanval.missing_probe): amber, to be checked
+    const found = Boolean(state.analyze.missing_probed) && from === missing.from && to === missing.to;
+    const assumed = !found && Boolean(state.analyze.nemo_ersem) && from === "0" && to === "0";
     $("ao-missing_from").classList.toggle("is-ersem", assumed);
     $("ao-missing_to").classList.toggle("is-ersem", assumed);
+    $("ao-missing_from").classList.toggle("is-found", found);
+    $("ao-missing_to").classList.toggle("is-found", found);
     $("ao-missing-ersem").hidden = !assumed;
+    $("ao-missing-found").hidden = !found;
   }
 
   // ---- the regions and area of the time series ----
@@ -3226,6 +3281,7 @@
     closeYears();
     input.value = String(year);
     input.dispatchEvent(new Event("input", { bubbles: true }));
+    if (input.onPick) input.onPick(input.value);
     input.focus();
   }
 
@@ -3233,11 +3289,13 @@
     if (!input.yearChoices || input.disabled) return;
     yearOwner = input;
     input.setAttribute("aria-expanded", "true");
+    // the list is also the preset names of a variable's name (input.onPick), which are not years
+    yearList.classList.toggle("is-names", Boolean(input.onPick));
     yearList.replaceChildren(...input.yearChoices.map((year) => el("li", {
       class: "combo__option", role: "option", "aria-selected": "false", text: String(year),
       // mousedown, so the box keeps its focus
       onmousedown: (event) => { event.preventDefault(); pickYear(year); },
-    })));
+    }, (input.choiceHints || {})[year] ? el("span", { class: "combo__hint", text: input.choiceHints[year] }) : null)));
     const box = input.getBoundingClientRect();
     const below = window.innerHeight - box.bottom;
     yearList.style.minWidth = `${box.width}px`;
@@ -3245,7 +3303,7 @@
     yearList.style.top = below >= 200 || below >= box.top ? `${box.bottom + 4}px` : "auto";
     yearList.style.bottom = below >= 200 || below >= box.top ? "auto" : `${window.innerHeight - box.top + 4}px`;
     yearList.hidden = false;
-    const at = input.yearChoices.indexOf(Number(input.value.trim()));
+    const at = input.yearChoices.indexOf(input.onPick ? input.value.trim() : Number(input.value.trim()));
     if (at >= 0) markYear(at);
   }
 

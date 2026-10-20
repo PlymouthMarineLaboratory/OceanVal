@@ -550,6 +550,40 @@ class TestSpatialMeans:
         monthly = series(out, "sst_surface_seasonal.csv")
         assert monthly.value.tolist() == pytest.approx(list(10 + np.arange(1, 13)), abs=1e-3)
 
+    def test_regions_are_taken_from_the_raw_model_regridded_to_their_own_lon_lat_grid(
+        self, curvilinear, tmp_path, no_report, monkeypatch
+    ):
+        from oceanval import analysis_series
+
+        # regions on a regular grid that is not the model's: one inside its domain, and one around it
+        lat, lon = np.arange(40.0, 56.0, 0.5), np.arange(-14.0, 4.0, 0.5)
+        inner = np.where(((lon >= -8) & (lon <= -3))[None, :] & ((lat >= 46) & (lat <= 49))[:, None], 1.0, np.nan)
+        regions = str(tmp_path / "regions.nc")
+        xr.Dataset(
+            {"inner": (("lat", "lon"), inner, {"long_name": "Inner"}),
+             "outer": (("lat", "lon"), np.ones((len(lat), len(lon))), {"long_name": "Outer"})},
+            coords={"lat": ("lat", lat, {"units": "degrees_north", "standard_name": "latitude"}),
+                    "lon": ("lon", lon, {"units": "degrees_east", "standard_name": "longitude"})},
+        ).to_netcdf(regions)
+
+        calls = []
+        real = analysis_series._mean_once
+        monkeypatch.setattr(analysis_series, "_mean_once", lambda *a: calls.append(None) or real(*a))
+        out = str(tmp_path / "out")
+        oceanval.analyze(
+            curvilinear, {"SST": "sst"}, subregions=regions,
+            seasonal={"SST": {"start": 2013, "end": 2013, "surface": True}},
+            n_dirs_down=1, out_dir=out, view=False, cores=1,
+        )
+        monthly = series(out, "sst_surface_seasonal.csv")
+        assert set(monthly.name) == {"Model domain", "Inner", "Outer"}
+        # the sst is the same everywhere, so the mean of any region is that
+        for name in ("Inner", "Outer"):
+            assert monthly[monthly.name == name].value.tolist() == pytest.approx(list(10 + np.arange(1, 13)), abs=1e-3)
+        # the domain's mean is as it was (as it is, and by nn and bil, as the grid has no cell bounds); each
+        # region's is worked out once, on the lon-lat grid of the regions, which needs no regridding of its own
+        assert len(calls) == 3 + 2
+
     def test_a_grid_without_cell_bounds_does_not_taint_the_means_after_it(self, curvilinear, sim, tmp_path, no_report):
         """nctoolkit gives a warning again after every run once it has found it, so the
         means of one grid must not be judged by the warnings of another."""

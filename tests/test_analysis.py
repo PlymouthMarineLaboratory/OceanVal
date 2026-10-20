@@ -521,6 +521,16 @@ class TestForms:
         assert {"name": "Temperature", "model_variable": "thetao", "filled": True} in rows
         assert all(row["filled"] for row in rows)
 
+    def test_the_names_the_drop_down_offers(self, daily):
+        presets = analysis_forms.presets(analysis.streams(daily, 1))
+        by_name = {preset["name"]: preset["model_variable"] for preset in presets}
+        # every variable the recipes know, found as the matchups find it, or None
+        assert by_name["Temperature"] == "thetao"
+        assert by_name["Chlorophyll"] == "P1_Chl+P2_Chl"
+        assert by_name["Salinity"] is None
+        assert [preset["name"] for preset in presets] == sorted(by_name, key=str.lower)
+        assert {"pH", "Nitrate", "Oxygen"} <= set(by_name)
+
     def test_what_the_page_lists(self, daily):
         picker = analysis_forms.picker_state(analysis.streams(daily, 1))
         assert picker["available"] == ["P1_Chl", "P2_Chl", "e3t", "thetao"]

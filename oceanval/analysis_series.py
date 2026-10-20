@@ -397,15 +397,14 @@ def _box(ds, lon_lim, lat_lim):
         return out
 
 
-def region_masks(region_file, ds):
+def region_masks(region_file):
     """The regions in region_file as one dataset, with 1 where a region is and
-    missing elsewhere, on the grid of ds, and their names: (ds_regions,
-    {variable: name}). As validate's regional summaries."""
+    missing elsewhere, on the lon-lat grid of the file itself, and their names:
+    (ds_regions, {variable: name}). As validate's regional summaries, but the
+    regions stay as they are: it is the model that is regridded to them."""
     ds_regions = nc.open_data(region_file, checks=False)
     ds_regions.as_missing(0)
     ds_regions.set_fill(-9999)
-    ds_regions.run()
-    ds_regions.regrid(ds, method="nn")
     ds_regions.run()
     contents = ds_regions.contents
     # regions without a long_name are named by their variable
@@ -416,11 +415,13 @@ def region_masks(region_file, ds):
     return ds_regions, names
 
 
-def region_values(ds, key, times, region_file, lon_lim, lat_lim, masks_for, grid_key):
+def region_values(ds, key, times, region_file, lon_lim, lat_lim, masks_for):
     """The mean of key over the domain, and over each region in region_file
     (if any), at each of times, in the lon/lat box if there is one: (rows,
     notes). rows are (kind, name, year, month, value), notes what was left out.
-    masks_for keeps the regions on the grid of each grid_key."""
+    The domain mean is of ds as it is. The regions are lon-lat grids already, so
+    the raw ds is regridded (bilinear) to them once, and each region's mean is
+    of that. masks_for keeps the regions of each region_file."""
     notes = []
     if lon_lim is not None:
         ds = _box(ds, lon_lim, lat_lim)
@@ -431,14 +432,17 @@ def region_values(ds, key, times, region_file, lon_lim, lat_lim, masks_for, grid
         notes.append(grid_note)
     if region_file is None:
         return rows, notes
-    if grid_key not in masks_for:
-        masks_for[grid_key] = region_masks(region_file, ds)
-    ds_regions, names = masks_for[grid_key]
+    if region_file not in masks_for:
+        masks_for[region_file] = region_masks(region_file)
+    ds_regions, names = masks_for[region_file]
+    ds_on_regions = ds.copy()
+    ds_on_regions.regrid(region_file, method="bil")
+    ds_on_regions.run()
     for variable, name in names.items():
         ds_region = ds_regions.copy()
         ds_region.subset(variables=variable)
         ds_region.run()
-        ds_masked = ds.copy()
+        ds_masked = ds_on_regions.copy()
         with warnings.catch_warnings(record=True):
             ds_masked.multiply(ds_region)
             ds_masked.run()
@@ -585,7 +589,7 @@ def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks
         if area["stations"]:
             rows, found = station_values(ds[0], row["key"], area["stations"], times)
         region_rows, notes = region_values(
-            ds, row["key"], times, area["region_file"], area["lon_lim"], area["lat_lim"], masks_for, row["pattern"]
+            ds, row["key"], times, area["region_file"], area["lon_lim"], area["lat_lim"], masks_for
         )
         frame = _frame(region_rows + rows)
         names = list(dict.fromkeys(name for kind, name, *_ in region_rows if kind == "region"))

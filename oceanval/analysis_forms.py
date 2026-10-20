@@ -63,12 +63,11 @@ def picker_state(found):
     return {"available": sorted(long_names), "long_names": long_names, "levels": levels}
 
 
-def prefill(found, cwd=None):
-    """The variables step's rows as OceanVal fills them in: each variable
-    the validation recipes know that the simulation holds (see
-    create_recipes.voted_mapping), named as the recipes window names it."""
+def _model_variables_for_recipes(found, cwd=None):
+    """The model variable the streams hold for each variable the validation
+    recipes know, {variable: model variable} (see create_recipes.voted_mapping),
+    those it holds none for left out. These are matched as the matchups are."""
     from oceanval.create_recipes import contents_mapping, voted_mapping
-    from oceanval.recipes_gui import _title
 
     mappings = []
     for stream in found:
@@ -83,9 +82,35 @@ def prefill(found, cwd=None):
             mappings.append(contents_mapping(contents, cwd))
         except Exception:
             continue
+    return voted_mapping(mappings, cwd)
+
+
+def prefill(found, cwd=None):
+    """The variables step's rows as OceanVal could fill them in: each variable
+    the validation recipes know that the simulation holds, named as the recipes
+    window names it. The window does not use it: nothing is chosen for the
+    user (see presets)."""
+    from oceanval.recipes_gui import _title
+
     rows = [
         {"name": _title(variable, cwd), "model_variable": model_variable, "filled": True}
-        for variable, model_variable in voted_mapping(mappings, cwd).items()
+        for variable, model_variable in _model_variables_for_recipes(found, cwd).items()
+    ]
+    return sorted(rows, key=lambda row: row["name"].lower())
+
+
+def presets(found, cwd=None):
+    """The names the variables step's "Your name" box offers in its drop-down:
+    every variable the validation recipes know, named as the recipes window
+    names it, with the model variable the simulation holds for it, found as
+    the matchups find it, or None if it holds none (or cannot tell which)."""
+    from oceanval.create_recipes import recipe_variables
+    from oceanval.recipes_gui import _title
+
+    mapped = _model_variables_for_recipes(found, cwd)
+    rows = [
+        {"name": _title(variable, cwd), "model_variable": mapped.get(variable)}
+        for variable in recipe_variables(cwd)
     ]
     return sorted(rows, key=lambda row: row["name"].lower())
 

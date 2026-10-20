@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from oceanval import analysis, model_check, transects
+from oceanval import analysis, analysis_forms, model_check, transects
 from oceanval.app import App
 from simulations import write_analysis_simulation
 from test_app import get, get_json, leftover_dir, post, wait_for  # noqa: F401 (leftover_dir is autouse)
@@ -112,6 +112,10 @@ class TestSimulation:
         # nothing is chosen for the user: the rows start empty
         assert state["rows"] == []
         assert state["picker"]["available"] == ["P1_Chl", "P2_Chl", "e3t", "thetao"]
+        # the names the drop-down of "Your name" offers, with the model variable of each
+        presets = {preset["name"]: preset["model_variable"] for preset in state["presets"]}
+        assert presets["Temperature"] == "thetao" and presets["Chlorophyll"] == "P1_Chl+P2_Chl"
+        assert presets["Salinity"] is None
 
     def test_the_setup_page_is_its_own(self, app, sim):
         assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
@@ -229,6 +233,44 @@ class TestOptions:
         app._read_simulation()
         wait_for(lambda: app.analyze_found["status"] != "reading")
         assert app.analyze_missing == {"from": "", "to": ""}
+
+    def test_the_missing_value_found_in_the_data_is_filled_in_to_be_checked(self, app, sim, monkeypatch):
+        from oceanval import missing_probe
+
+        looked = []
+        monkeypatch.setattr(missing_probe, "probe", lambda files, name: looked.append((files, name)) or "1e+20")
+        to_options(app)
+        wait_for(lambda: app.analyze_missing_probed)
+        state = get_json(app, "/api/state")[1]["analyze"]
+        assert state["missing"] == {"from": "1e+20", "to": "1e+20"} and state["missing_probed"] is True
+        # the first variable chosen, its first part
+        assert len(looked) == 1 and looked[0][1] == "P1_Chl" and len(looked[0][0]) == 2
+        # what it found is checked as anything typed would be, and typing over it makes it the user's
+        assert analysis_forms.check_missing("1e+20", "1e+20")[1] == {}
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
+        state = get_json(app, "/api/state")[1]["analyze"]
+        assert state["missing"] == {"from": "0", "to": "0"} and state["missing_probed"] is False
+
+    def test_a_value_typed_before_the_data_is_looked_at_is_not_overwritten(self, app, sim, monkeypatch):
+        import threading
+        import time
+
+        from oceanval import missing_probe
+
+        release = threading.Event()
+        monkeypatch.setattr(missing_probe, "probe", lambda files, name: release.wait(10) and "1e+20")
+        to_options(app)
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "-9", "to": "-9"}})[0] == 200
+        release.set()
+        time.sleep(0.5)
+        assert app.analyze_missing == {"from": "-9", "to": "-9"} and app.analyze_missing_probed is False
+
+    def test_no_value_found_leaves_the_boxes_as_they_were(self, app, sim, monkeypatch):
+        from oceanval import missing_probe
+
+        monkeypatch.setattr(missing_probe, "probe", lambda files, name: None)
+        state = to_options(app)
+        assert state["missing"] == {"from": "", "to": ""} and state["missing_probed"] is False
 
     def test_the_long_term_series_have_a_rolling_mean_and_a_way_to_show_it(self, app, sim):
         to_options(app)
@@ -1166,6 +1208,87 @@ def test_transects_in_a_browser(browser, tmp_path):
         page.click("#trans-remove")
         page.wait_for_selector("#trans-dialog", state="hidden")
         wait_for(lambda: app.analyze_chosen["transects"] is None)
+        assert errors == []
+    finally:
+        app.close()
+
+
+def test_the_names_drop_down_the_larger_pop_outs_and_the_missing_value_in_a_browser(browser, tmp_path, monkeypatch):
+    """The arrow of "Your name" lists the preset names, and choosing one fills
+    in the Model name in red and bold; the pop-outs are 1300px wide; and the
+    missing value found in the data is amber, until it is typed over."""
+    from oceanval import missing_probe
+
+    monkeypatch.setattr(missing_probe, "probe", lambda files, name: "1e+20")
+    write_analysis_simulation(str(tmp_path / "sim"))
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page(viewport={"width": 1500, "height": 1100})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-analyze")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "1")
+        page.wait_for_function("() => !document.querySelector('#continue').disabled")
+        page.click("#continue")
+        page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+        row = page.locator("#av-rows > tr").first
+        name = row.locator("td").first.locator("input")
+        model = row.locator("td").nth(1).locator("input").first
+        # the arrow is the right-hand end of the box
+        box = name.bounding_box()
+        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
+        page.wait_for_selector(".year-list:not([hidden])")
+        options = page.locator(".year-list li").all_inner_texts()
+        assert any(text.startswith("Temperature") for text in options) and any(text.startswith("Salinity") for text in options)
+        # a name the model has no variable for says so
+        assert "not found in this model" in [t for t in options if t.startswith("Salinity")][0]
+        page.locator(".year-list li", has_text="Temperature").click()
+        assert name.input_value() == "Temperature" and model.input_value() == "thetao"
+        assert "is-oceanval" in name.get_attribute("class") and "is-oceanval" in model.get_attribute("class")
+        # choosing another name replaces what the drop-down filled in, and one with no model variable empties it
+        box = name.bounding_box()
+        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
+        page.locator(".year-list li", has_text="Chlorophyll").click()
+        assert name.input_value() == "Chlorophyll" and model.input_value() == "P1_Chl+P2_Chl"
+        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
+        page.locator(".year-list li", has_text="Salinity").click()
+        assert name.input_value() == "Salinity" and model.input_value() == ""
+        assert "is-oceanval" not in model.get_attribute("class")
+        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
+        page.locator(".year-list li", has_text="Temperature").click()
+        assert name.input_value() == "Temperature" and model.input_value() == "thetao"
+        # typing over it makes it the user's
+        model.fill("e3t")
+        assert "is-oceanval" not in model.get_attribute("class")
+        # a model box the user typed in is not overwritten
+        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
+        page.locator(".year-list li", has_text="Chlorophyll").click()
+        assert name.input_value() == "Chlorophyll" and model.input_value() == "e3t"
+        model.fill("thetao")
+        name.fill("Temperature")
+        page.click("#av-continue")
+        page.wait_for_selector("#view-analyze-files:not([hidden])")
+        page.wait_for_function("() => !document.querySelector('#af-continue').disabled", timeout=60000)
+        page.click("#af-continue")
+        page.wait_for_selector("#view-analyze-options:not([hidden])")
+        # the missing value found in the data is amber, with a note
+        page.wait_for_function("() => document.querySelector('#ao-missing_from').value === '1e+20'")
+        assert "is-found" in page.get_attribute("#ao-missing_from", "class")
+        assert page.is_visible("#ao-missing-found") and page.is_hidden("#ao-missing-ersem")
+        page.fill("#ao-missing_from", "0")
+        assert "is-found" not in page.get_attribute("#ao-missing_from", "class")
+        assert page.is_hidden("#ao-missing-found")
+        # the pop-outs are 30% larger than the 1000px they were
+        for option, dialog in (("climatology", "clim-dialog"), ("transects", "trans-dialog")):
+            page.click(f"#ao-{option}")
+            page.wait_for_selector(f"#{dialog}:not([hidden])")
+            assert page.locator(f"#{dialog} .picker__card").bounding_box()["width"] == pytest.approx(1300, abs=1)
+            page.click(f"#{dialog} .picker__foot button:has-text('Cancel')")
         assert errors == []
     finally:
         app.close()

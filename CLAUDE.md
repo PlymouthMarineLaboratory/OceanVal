@@ -182,8 +182,10 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   monthly means per layer (`analysis.monthly_means_of`, which `climatology_of` also uses), then
   domain/region/station means saved as small CSVs (year/month integers, so 360-day calendars
   work); annual = mean of a year's monthly means, a year with months missing is flagged, not
-  dropped. **All spatial means are nctoolkit `spatial_mean`** (`analysis_series.robust_spatial_mean`: on a copy, warnings caught; if nctoolkit warns the grid has no cell bounds it is redone after `to_latlon` by `nn` and by `bil`, grid resolution/extent estimated by `estimate_grid`, bil used, the report notes it), regions masked as validate does
-  (`<nwes|global>_subdomains.nc` or the user's file, `as_missing(0)`, `regrid(nn)`, `multiply`);
+  dropped. **All spatial means are nctoolkit `spatial_mean`** (`analysis_series.robust_spatial_mean`: on a copy, warnings caught; if nctoolkit warns the grid has no cell bounds it is redone after `to_latlon` by `nn` and by `bil`, grid resolution/extent estimated by `estimate_grid`, bil used, the report notes it), regions are the
+  `<nwes|global>_subdomains.nc` or the user's file, already lon-lat grids, so `region_values` regrids the raw model
+  (bil) to the file's grid once, and each region (`as_missing(0)` mask, `multiply`) is a `spatial_mean` there (the mask is
+  never regridded to the model, and no `to_latlon` fallback of its own; the domain mean keeps `robust_spatial_mean`);
   stations are the nearest cell with values (haversine, refused beyond 2 cells), not cut by
   `lon_lim`/`lat_lim`. The chunks are `chunk_longterm`/`chunk_seasonalseries` (letters only:
   `chunkers.is_chunk` matches `chunk_.[a-z]*`).
@@ -191,10 +193,16 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   enforces), the years of every analysis must lie inside the output's (`analysis_forms._years` in the window,
   `analyze()` against `row["times"]`: a start before its first year or an end after its last is refused), and `as_missing` is applied in `_model_data` and to the thickness, as matchup
   does. **Nothing is pre-selected in the window**: the forms start empty (rows, ticks, years,
-  thickness, `how`); the years of the output are only placeholders/hints. The one assumption
-  is validate's: a NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) fills the
-  missing-value boxes with 0–0 in the `is-ersem` style, until the user edits them.
-  `analysis_forms.prefill` (what OceanVal could fill the variables with) is unused for that reason.
+  thickness, `how`); the years of the output are only placeholders/hints. The assumptions are
+  the missing-value boxes', until the user edits them: the value `oceanval/missing_probe.py`
+  finds (xarray, the surface at the first time step of up to 10 files of the first placed variable,
+  the value many cells share in every file; started in a thread when the options step opens by
+  `AnalyzeSteps._probe_missing`, `state.analyze.missing_probed`, shown in amber `is-found`), else for a
+  NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) 0–0 in the `is-ersem` style.
+  `analysis_forms.prefill` (what OceanVal could fill the variables with) is unused for that reason;
+  the "Your name" box instead has an arrow listing `analysis_forms.presets` (every recipe variable
+  with the model variable `create_recipes.voted_mapping` finds, `state.analyze.presets`), through the
+  `yearList` machinery (`input.onPick`); choosing one fills Model name in red/bold unless the user typed it.
 - The long-term series also take `window` (rolling mean of the annual means, trailing, 1 = none) and `show` (`absolute` | `absolute_change` | `percentage_change`, from the first year with a value), `analysis.SHOWS`/`_series_options`, applied in `analysis_series.smooth_and_change` after `annual_series` (the missing/incomplete years are worked out before, from the means as they are); the csv holds the values as shown and `saved["show"]`/units `%` say what they are. In the window they are two columns after Water column in the long-term pop-out only (`is-series` cells), `analysis_forms._check_series_options`.
 - Map temporal changes are `oceanval/analysis_changes.py` (`map_changes={name: {"historical":
   {start, end}, "future": [1-2 of those], "plot": "absolute"|"absolute_changes"|"changes",

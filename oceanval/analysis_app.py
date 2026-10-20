@@ -31,7 +31,7 @@ import threading
 
 import pandas as pd
 
-from oceanval import analysis, analysis_forms, model_check, recipes_gui, time_stamps
+from oceanval import analysis, analysis_forms, missing_probe, model_check, recipes_gui, time_stamps
 from oceanval import time_res as time_resolution
 
 # the id the check of the dates of an analysis's files is made for (see
@@ -103,6 +103,10 @@ class AnalyzeSteps:
         # them in for an ERSEM simulation until the user has set them
         self.analyze_missing = {"from": "", "to": ""}
         self._analyze_missing_set = False
+        # whether the boxes hold a value found in the model's data (see
+        # oceanval.missing_probe), which the user must check
+        self.analyze_missing_probed = False
+        self._analyze_probe_number = 0
         # whether the report has code to reproduce its figures, "yes" or
         # "no": it must be answered, and nothing is chosen for the user
         self.analyze_figure_code = ""
@@ -160,7 +164,7 @@ class AnalyzeSteps:
                     self._notify()
 
         error = None
-        found = picker = prefilled = None
+        found = picker = prefilled = preset_names = None
         ersem = False
         try:
             found = analysis.streams(
@@ -180,6 +184,9 @@ class AnalyzeSteps:
                 # nothing is chosen for the user: the rows start empty (see
                 # analysis_forms.prefill, which finds what OceanVal could fill in)
                 prefilled = []
+                # offered in "Your name"'s drop-down, with the model variable
+                # the matchups would find for each
+                preset_names = analysis_forms.presets(found, self.cwd)
         except Exception as problem:
             error = f"The simulation could not be read: {problem}"
         with self._lock:
@@ -189,11 +196,17 @@ class AnalyzeSteps:
                 self.analyze_found = dict(self.analyze_found, status="failed", error=error)
             else:
                 self.analyze_found = dict(
-                    self.analyze_found, status="done", streams=found, picker=picker, ersem=ersem
+                    self.analyze_found,
+                    status="done",
+                    streams=found,
+                    picker=picker,
+                    presets=preset_names,
+                    ersem=ersem,
                 )
                 if not self._analyze_missing_set:
                     # as in validate, ERSEM output has zeros where there is no water
                     self.analyze_missing = {"from": "0", "to": "0"} if ersem else {"from": "", "to": ""}
+                    self.analyze_missing_probed = False
                 self._fill_rows(prefilled)
             self._notify()
 
@@ -204,6 +217,12 @@ class AnalyzeSteps:
         held."""
         if self.analyze_rows is None:
             self.analyze_rows = list(prefilled)
+            self.analyze_refilled = False
+            return
+        if not prefilled:
+            # OceanVal fills nothing in: a row marked as filled in was set from
+            # the drop-down of names, and is the user's own to correct
+            self.analyze_rows = [row for row in self.analyze_rows if row["name"] or row["model_variable"]]
             self.analyze_refilled = False
             return
         kept = [row for row in self.analyze_rows if not row.get("filled") and (row["name"] or row["model_variable"])]
@@ -402,8 +421,36 @@ class AnalyzeSteps:
                 }
                 self._recheck(kind)
             self.view = "analyze_options"
+            self._probe_missing()
             self._notify()
         return 200, {"ok": True}
+
+    def _probe_missing(self):
+        """Look for the model's missing value in a thread, unless the user
+        has set the boxes. Called with the lock held."""
+        if self._analyze_missing_set or not self.analyze_placed:
+            return
+        self._analyze_probe_number += 1
+        row = self.analyze_placed[0]
+        threading.Thread(
+            target=self._probe_missing_thread,
+            args=(self._analyze_probe_number, list(row["files"]), row["parts"][0]),
+            name="oceanval-analyze-missing",
+            daemon=True,
+        ).start()
+
+    def _probe_missing_thread(self, number, files, name):
+        value = missing_probe.probe(files, name)
+        with self._lock:
+            if number != self._analyze_probe_number or self._analyze_missing_set:
+                return
+            if value is not None:
+                self.analyze_missing = {"from": value, "to": value}
+            else:
+                ersem = bool((self.analyze_found or {}).get("ersem"))
+                self.analyze_missing = {"from": "0", "to": "0"} if ersem else {"from": "", "to": ""}
+            self.analyze_missing_probed = value is not None
+            self._notify()
 
     def _default_form(self, kind, placed, found):
         if kind == "map_changes":
@@ -477,6 +524,7 @@ class AnalyzeSteps:
                     "to": str(given.get("to") or "").strip(),
                 }
                 self._analyze_missing_set = True
+                self.analyze_missing_probed = False
                 _, errors = analysis_forms.check_missing(self.analyze_missing["from"], self.analyze_missing["to"])
                 self._notify()
                 if errors:
@@ -655,6 +703,10 @@ class AnalyzeSteps:
                 if self.view in ("analyze_variables", "analyze_options")
                 else None
             ),
+            # the names "Your name" offers, with the model variable of each
+            "presets": (
+                (found or {}).get("presets") or [] if self.view == "analyze_variables" else []
+            ),
             "rows": self.analyze_rows,
             "refilled": self.analyze_refilled,
             "placed": [
@@ -682,6 +734,7 @@ class AnalyzeSteps:
             "area": self.analyze_area,
             "cores": self.analyze_cores,
             "missing": self.analyze_missing,
+            "missing_probed": self.analyze_missing_probed,
             "figure_code": self.analyze_figure_code,
             "nemo_ersem": bool((found or {}).get("ersem")),
             "daily": time_resolution.DAILY,
