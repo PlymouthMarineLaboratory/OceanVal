@@ -629,11 +629,12 @@ def clean_matchups():
 
 class TestMatchup:
     def test_the_matchup_is_the_same_from_the_store(self, server, tmp_path, clean_matchups, capsys):
+        # with a store set, data_store=False leaves it alone
+        user_settings.save({"data_store": str(tmp_path), "data_store_use": "always"})
         without = _matchup(data_store=False)
         assert len(server.opened) > 0
-        assert not (tmp_path / "oceanval_datastore").exists()
+        assert only_the_marker(tmp_path / "oceanval_datastore")
 
-        user_settings.save({"data_store": str(tmp_path), "data_store_use": "always"})
         first = _matchup()
         assert len(entries(data_store.root(tmp_path))) == 12
         xr.testing.assert_equal(without, first)
@@ -689,11 +690,6 @@ class TestMatchup:
         kept = entries(data_store.root(tmp_path))
         assert sorted(x["year"] for x in kept) == [2000, 2001]
         assert {x["url"] for x in kept} == {COBE2_URL}
-
-    def test_data_store_false_leaves_the_store_alone(self, server, tmp_path, clean_matchups):
-        user_settings.save({"data_store": str(tmp_path)})
-        _matchup(data_store=False)
-        assert only_the_marker(tmp_path / "oceanval_datastore")
 
     def test_data_store_must_be_none_or_false(self, clean_matchups):
         with pytest.raises(ValueError, match="data_store must be None"):
