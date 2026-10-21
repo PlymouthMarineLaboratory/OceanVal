@@ -82,6 +82,7 @@
       <li class="docs-toc-sub"><a href="#live">Results while the matchups run</a></li>
       <li><a href="#compare">Comparing simulations</a></li>
       <li><a href="#analyze">Analyzing a simulation</a></li>
+      <li><a href="#compare-simulations">Comparing simulations side by side</a></li>
     </ul>
   </aside>
 
@@ -501,6 +502,29 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(lo
       <li><code>figure_code=True</code> gives each figure in the report a <strong>Copy code to reproduce figure</strong> button at its top right. It copies the Python code that draws the figure from the analysis&rsquo;s saved results, with its colour scale, labels and colours written out, so you can change the figure and run the code in the conda environment OceanVal ran in. Default <code>False</code>.</li>
     </ul>
     <p>Everything is saved in <code>oceanval_analysis/</code> in <code>out_dir</code>, replacing any analysis already there: the fields as netCDF in <code>results/</code>, with <code>analysis.json</code> saying what is in them, the report in <code>report/</code>, and <code>report.html</code>, a link to its first page. In <a href="app.html#analyze">the OceanVal app</a>, <strong>Analyze</strong> on the first page does the same with no Python. The years given must be ones the output has: <code>analyze()</code> refuses a start before the output&rsquo;s first year or an end after its last, and the app says so beside the box.</p>
+    <h2 id="compare-simulations">Comparing simulations side by side</h2>
+    <p><a href="api.html#compare_simulations"><code>oceanval.compare_simulations</code></a> does everything <code>analyze</code> does for two to five simulations, and builds one HTML report with them side by side: the maps are a panel for each simulation on one colour scale, and the time series have a colour for each simulation:</p>
+    <div class="code-block">
+      <div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div>
+      <pre>oceanval.<a href="api.html#compare_simulations"><span class="tok-fn">compare_simulations</span></a>(
+    simulations=[
+        {<span class="tok-str">"name"</span>: <span class="tok-str">"Control"</span>, <span class="tok-str">"sim_dir"</span>: <span class="tok-str">"/path/to/control"</span>, <span class="tok-str">"n_dirs_down"</span>: 2},
+        {<span class="tok-str">"name"</span>: <span class="tok-str">"New mixing"</span>, <span class="tok-str">"sim_dir"</span>: <span class="tok-str">"/path/to/new_mixing"</span>, <span class="tok-str">"n_dirs_down"</span>: 1},
+    ],
+    <span class="tok-cm"># the model variable holding each variable in each simulation</span>
+    variables={<span class="tok-str">"Temperature"</span>: {<span class="tok-str">"Control"</span>: <span class="tok-str">"votemper"</span>, <span class="tok-str">"New mixing"</span>: <span class="tok-str">"thetao"</span>}},
+    climatology={<span class="tok-str">"Temperature"</span>: {<span class="tok-str">"start"</span>: 2000, <span class="tok-str">"end"</span>: 2009, <span class="tok-str">"surface"</span>: <span class="tok-kw">True</span>}},
+    long_term={<span class="tok-str">"Temperature"</span>: {<span class="tok-str">"start"</span>: 2000, <span class="tok-str">"end"</span>: 2009, <span class="tok-str">"surface"</span>: <span class="tok-kw">True</span>}},
+    unify={<span class="tok-str">"baseline"</span>: <span class="tok-str">"Control"</span>},
+    cores=4,
+)</pre>
+    </div>
+    <ul>
+      <li><code>simulations</code> are two to five dicts, each with a <code>name</code>, a <code>sim_dir</code> and <code>n_dirs_down</code>, and, if they differ between simulations, <code>exclude</code>, <code>require</code>, <code>time_shift</code>, <code>thickness</code> and <code>as_missing</code>. <code>variables</code> gives the model variable holding each variable in each simulation; a variable must be in the same units in all of them.</li>
+      <li><code>climatology</code>, <code>phenology</code>, <code>long_term</code>, <code>seasonal</code>, <code>map_changes</code>, <code>transects</code>, <code>stations</code>, <code>subregions</code>, <code>lon_lim</code>, <code>lat_lim</code>, <code>thickness</code>, <code>as_missing</code>, <code>time_shift</code>, <code>figure_code</code> and <code>cores</code> are as in <code>analyze</code>, and the same for every simulation. The years must be years every simulation has.</li>
+      <li><code>unify</code> says what to do if the simulations are on different grids. <code>None</code> leaves each on its own. <code>{"lon": [-20, 10], "lat": [40, 65], "res": 0.1}</code> puts all of them on a lon-lat grid of that box and resolution, with nctoolkit&rsquo;s <code>to_latlon</code>. <code>{"baseline": "Control"}</code> regrids the others to the grid of that simulation, with nctoolkit&rsquo;s <code>regrid</code>. Either way, <strong>a cell with no value in any one simulation, judged from its first time step, is made missing in all of them</strong>, so every simulation is compared over exactly the same cells.</li>
+    </ul>
+    <p>Everything is saved in <code>oceanval_simulation_comparison/</code> in <code>out_dir</code>: <code>results/</code> has a folder for each simulation, laid out as an analysis is, and <code>comparison.json</code>, which says what is in them; <code>report/</code> is the report&rsquo;s book, and <code>report.html</code> a link to its first page. The <a href="app.html#compare-simulations">app</a>&rsquo;s <strong>Compare simulations</strong> box does the same, with no Python.</p>
     <div class="callout">
       <div class="callout-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Can I access and use OceanVal's validation code?</div>
       <p>Yes. OceanVal uses Jupyter notebooks to run validation calculations and generate plots. They live in the <code>oceanval_report/notebooks</code> directory of the report output — copy and edit them for a more customised validation. They're designed for internal use, so not especially user-friendly, but should be clear enough.</p>

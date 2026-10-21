@@ -22,6 +22,7 @@ Analysis
    :toctree: generated/
 
    analyze
+   compare_simulations
 
 Reports and maintenance
 -----------------------

@@ -9,7 +9,8 @@ against observational datasets (point and gridded), computes skill metrics, and 
 Jupyter Book–based HTML validation report (with optional PDF/Word export). Core public API lives
 in `oceanval/__init__.py`: `matchup()` (model↔obs matching), `validate()` (build the report),
 `rebuild()`, `compare()` (multi-simulation comparison report), `analyze()` (a model-only
-climatology/phenology/time-series report, no observations), `create_recipes()` (scaffold a
+climatology/phenology/time-series report, no observations), `compare_simulations()` (the same for 2–5
+simulations side by side), `create_recipes()` (scaffold a
 matchup script from model output), `add_gridded_comparison()`/`add_point_comparison()` (register
 custom obs datasets), `deep_clean()`, `fix_toc()`.
 
@@ -178,6 +179,28 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   directly in a chunk or helper the script can't see), show it with `ap.show`, and add it to
   `tests/test_analysis_plots.py`, which runs every copied script in a fresh process and checks
   it draws the same image. With `figure_code` off, the report must stay as `plt.show()` made it.
+- **The order of the CDO chain matters on big files** (`analysis._model_data`): nctoolkit applies the last operator asked for last, so
+  what cuts the data down is asked for first: `selname` (the variables; before the first time step and before a `time_shift`), then
+  the surface (`topvalue` of each part of a sum, which are then added; before `as_missing`, as `matchup` takes it), then `as_missing`,
+  then the bottom (`bottomvalue`, which needs the missing value set), and the rename/`expr` last. The surface is not nctoolkit's `top()` (`-sellevidx,1`): CDO's `selname`/`seltimestep`/`sellevidx`/`topvalue` read every record
+  and drop the rest, and `top()` keeps a vertical dimension of one level. **`oceanval/surface.py`** (shared by Analyze, Compare and matchup)
+  reads the surface by one `-select,name=..,levidx=1[,timestep=..]` (CDO's `select` filters records before reading them) followed by
+  `-setzaxis` (a surface axis, as `topvalue` leaves it, so no vertical dimension of one level), with `CDI_CHUNK_CACHE` at 1 MB while it
+  runs (`surface.chunk_cache`): the default 64 MB cache holds a whole chunk (a time step of all 51 levels, 22.7 MB, in the user's
+  `ptrc_T`), so HDF5 would read it all to give one level. It does so only when `surface.first_level_is_surface` finds, from the first
+  file, a vertical axis `positive: down`, no compression, a CDO that takes `CDI_CHUNK_CACHE`, and the first level missing exactly where
+  `topvalue` is on the first step. **Never set a small cache for compressed files**: HDF5 would decompress the whole chunk again for
+  every level. Anything else keeps `topvalue`. Analyze/Compare keep the answer in `row["surface_fast"]` (`locate_rows`); matchup
+  decides once per variable (`matchall._surface_is_first_level` in `point_match`, passed to `mm_match` as `surface_fast`; `gridded.model_dataset`
+  for the gridded model read, which also selects the variables, surface and shift in that order). `mm_match` chooses the days with
+  `select,timestep=` for every layer (`seltimestep` reads every time step of the month), measured on the user's files at 8 s -> 1.6 s
+  for six days of one variable, 0.35 s with the surface read from the first level.
+  `tests/test_analysis.py::TestOrderOfTheChain` checks the chain's order (`ds.history`) without running it.
+- **Model output is only ever processed by nctoolkit/CDO, which streams it.** Model files can be many GB: xarray is for
+  coordinates (lon/lat) and the small reduced files OceanVal writes itself, **never `.load()` or a whole `.values` of a
+  model file** (`sim_compare._same_grid` reads only the coordinates, `analysis.peak` reads a band of rows at a time,
+  `analysis_series.station_values` a year of times at a time; `tests/test_sim_compare.py::TestSameGridIsLookedAtLightly`
+  fails if a data variable is read).
 - Long-term (annual) and seasonal (monthly) time series are `oceanval/analysis_series.py`: the
   monthly means per layer (`analysis.monthly_means_of`, which `climatology_of` also uses), then
   domain/region/station means saved as small CSVs (year/month integers, so 360-day calendars
@@ -258,6 +281,47 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   (a row with no `time_res` has its files' own worked out) and asks the time_shift
   question first when `time_stamps.check_rows` finds end-stamped times. The run writes
   `analysis.py` and runs it as `app_child analyze <path>`.
+
+### Compare simulations (`oceanval/sim_compare.py`)
+
+- `compare_simulations(simulations, variables, ...)` does everything `analyze()` does for 2–5 simulations
+  and builds one report, simulations side by side. `variables={name: {simulation: model variable}}`; every other
+  analysis argument is `analyze()`'s, **the same for every simulation, with one set of years that every simulation
+  has** (each simulation is checked by `analysis.locate_rows`, which `analyze()` uses too). Units must agree. It is
+  not the validate-side `compare()` (`oceanval_comparison`, the window's "Compare existing validations"): every name of
+  this feature is `simcompare`/`sim_compare`/`sc-`, its folder is `oceanval_simulation_comparison` (in
+  `data_store.CLEARED_FOLDERS`).
+- Each simulation is worked out by `analysis._work_out` into `results/<sim key>/`, with the existing file names and
+  CSV schemas, and an `analysis.json` of its own, so `analysis_plots` can still draw one simulation at a time
+  (`monthly_maps(limits=)` and `change_maps(also=)` take the scale all the simulations share). `comparison.json` says
+  what is where, and each simulation's colour (`sim_compare.COLOURS`, Okabe-Ito, in the order of the simulations).
+- Combined figures are `oceanval/sim_plots.py`, with the same contract as Analyze's: each is drawn by its own script
+  (colours and files as literals), `tests/test_sim_plots.py` redraws each in a fresh process and compares pixels. Maps are
+  a panel for each simulation on **one colour scale**; series are lines coloured by simulation, **a panel for each
+  series** (domain, each region, each station); transects are lines coloured by simulation, or a panel each. The report
+  is `analysis.build_report` with its overview/template/chunks passed in (`sim_report.py`, `simcompare_*.ipynb`,
+  `chunk_sim*.pytemplate`: chunk names are letters only).
+- **Grid unification** (`oceanval/sim_unify.py`): `unify={"lon","lat","res"}` (nctoolkit `to_latlon`) or `{"baseline": name}`
+  (`regrid`, the baseline itself untouched; a simulation already on the baseline's grid is not regridded, as bilinear
+  remapping spreads missing cells). It is applied through `row["unify"]` in `analysis.monthly_means_of`,
+  `daily_climatology_of` and the transects' thickness: **after the vertical reduction** (surface/bottom/column mean) of each
+  layer, so all analyses see the same cells. A cell missing in any simulation is missing in all: the mask is made in
+  `make_common_grid` (before any analysis) from the **first time step** of each simulation's field of that layer, on the common grid,
+  **in xarray, written with an explicit `_FillValue`** — CDO arithmetic on NaN-fill-valued files does not propagate missing,
+  so `x*0` / `ds_mask > 0` tricks (as the validate-side `compare()` notebooks use) wrongly give 0 where a value is missing and
+  turn a real 0 into missing. Vertical transects need the same number of levels in every simulation.
+- The window: the landing page's third tile, views `simcompare_sims` / `_variables` / `_files` / `_grids` (mixin
+  `oceanval/sim_compare_app.py`, boxes in `sim_compare_forms.py`, JS block "Compare simulations" in `oceanval_app.html`), then
+  **Analyze's own options step** (`analyze_options`, `state.analyze`) with the variables as they are in all the simulations:
+  `analyze_placed` is `sim_compare_forms.combined` (the fewest levels), the dates check is `_sc_check_rows` (the years every
+  simulation has, the coarsest time resolution), the thickness name must be in every simulation's output (or a file, or
+  `z_level`), and `analyze_run` hands over to `simcompare_run` (script → `app_child simcompare`). `App._analyze_owner` says whose the
+  `analyze_*` state is; choosing the other tile starts it afresh. One time-shift question covers the simulations whose times look like ends.
+  **The files' times are read once**: the dates check (`model_check.check`) reads every file and saves the unshifted times (`times.pkl`);
+  `simcompare_run` copies each to a temporary folder of its own (`_sc_keep_times`, removed when the simulations change or at exit) before the checks' folders are
+  removed, and the script gives each simulation a `times_index`, which `locate_rows` loads (`model_check.load_times_index`: only files whose size and
+  modification time are unchanged) so `index_times` reads the rest. `locate_rows` also asks a stream for its time resolution only to
+  choose between streams, and reads a calendar once per pattern.
 
 ### The `oceanval` command and its browser windows
 

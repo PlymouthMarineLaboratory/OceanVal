@@ -22,7 +22,8 @@ work in, run `oceanval` (or `OceanVal`). A page opens in your web browser
 that takes you through these steps:
 
 1. **Choose** between **Analyze** (see [Analyzing a simulation in the
-   window](#analyzing-a-simulation-in-the-window)) and **Validate**, which
+   window](#analyzing-a-simulation-in-the-window)), **Compare simulations** (see
+   [Comparing simulations in the window](#comparing-simulations-in-the-window)) and **Validate**, which
    opens the choices to match up new data and validate it, to match up only,
    or to validate matchups made earlier.
    **Add your own validation data for future use** saves observations of your own as
@@ -405,6 +406,38 @@ observations, through these steps:
    (`analysis.py` unless you choose another name), runs it, and links to the
    report when it is built.
 
+### Comparing simulations in the window
+
+**Compare simulations**, on the first page, does everything Analyze does for
+two to five simulations at once, and shows them side by side in one report. It
+is Analyze's steps, with a step for the simulations and one for their grids:
+
+1. **Simulations**: for each, a **Name** (how the report calls it), the
+   **Directory** its output is in and **how many directories down** its files
+   are, as for Analyze, with the same live check of the files. Add up to five.
+   The comparison is saved in `oceanval_simulation_comparison`, in the
+   directory you choose.
+2. **Variables**: a row for each variable, with **Your name** for it and, in a
+   column for each simulation, the model variable holding it there (they can
+   be called different things). A variable must be in the same units in every
+   simulation.
+3. **Files**: the files and dates of each simulation. If the times of some look
+   like the end of each mean's period, the page first asks whether to shift
+   them back a day.
+4. **Grids**: "Do you need to unify the model grids?", which you must answer.
+   With **Yes**, put the simulations on one grid by either a **lon/lat box
+   and a resolution** (nctoolkit's `to_latlon`), or the grid of a **baseline**
+   simulation, to which the others are regridded (nctoolkit's `regrid`). Either
+   way, **a cell with no value in any one simulation is made missing in all of
+   them** (judged from each simulation's first time step), so every simulation
+   is compared over exactly the same cells, and the page says so.
+5. **Analyses**: the same six boxes as Analyze, for every simulation. The years
+   must be ones every simulation has, and the cell thickness (a variable that
+   is in all the simulations, a file, or `z_level`) is the same for all.
+6. **Run**: the window writes the `oceanval.compare_simulations()` call into a
+   script (`simulation_comparison.py` unless you choose another name), runs it,
+   and links to the report when it is built.
+
 ## Analyzing a simulation
 
 `oceanval.analyze()` works out climatologies and phenology from a
@@ -526,6 +559,52 @@ report's book in `report/`, and `report.html`, a link to its first page.
 `time_shift=-1` shifts times dated at the end of each mean, as for matchup.
 The years you give must be ones the output has: `analyze()` refuses a start before
 the output's first year or an end after its last, and the app says so beside the box.
+
+## Comparing simulations
+
+`oceanval.compare_simulations()` does everything `analyze()` does for two to
+five simulations, and builds one HTML report with them side by side: the maps
+are a panel for each simulation on one colour scale, and the time series have
+a colour for each simulation.
+
+```python
+import oceanval
+
+oceanval.compare_simulations(
+    simulations=[
+        {"name": "Control", "sim_dir": "/path/to/control", "n_dirs_down": 2},
+        {"name": "New mixing", "sim_dir": "/path/to/new_mixing", "n_dirs_down": 1},
+    ],
+    # the model variable holding each variable in each simulation
+    variables={"Temperature": {"Control": "votemper", "New mixing": "thetao"}},
+    climatology={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+    long_term={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+    # put the simulations on one grid: a lon-lat box, or the grid of one of them
+    unify={"baseline": "Control"},
+    cores=4,
+)
+```
+
+- `climatology`, `phenology`, `long_term`, `seasonal`, `map_changes`,
+  `transects`, `stations`, `subregions`, `lon_lim`, `lat_lim`, `thickness`,
+  `as_missing`, `time_shift`, `figure_code` and `cores` are as in `analyze()`,
+  and are the same for every simulation. The years must be ones every
+  simulation has.
+- Each simulation may also have its own `exclude`, `require`, `time_shift`,
+  `thickness` and `as_missing`. A model variable given on its own, rather than
+  for each simulation, is the same in all of them.
+- `unify` says what to do if the simulations are on different grids. `None`
+  leaves each on its own. `{"lon": [-20, 10], "lat": [40, 65], "res": 0.1}`
+  puts all of them on a lon-lat grid of that box and resolution, with
+  nctoolkit's `to_latlon`. `{"baseline": "Control"}` regrids the others to the
+  grid of that simulation, with nctoolkit's `regrid`. Either way, **a cell with
+  no value in any one simulation (judged from its first time step) is made
+  missing in all of them**, so every simulation is compared over exactly the same
+  cells.
+- Everything is saved in `oceanval_simulation_comparison/`, in `out_dir`:
+  `results/` has a folder for each simulation, laid out as an analysis is, and
+  `comparison.json`, which says what is in them; `report/` is the report's book,
+  and `report.html` a link to its first page.
 
 ## Comparing multiple validation outputs
 

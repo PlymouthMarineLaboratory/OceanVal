@@ -422,6 +422,33 @@ Analyzing a simulation on its own
 Everything is saved in `oceanval_analysis` in `out_dir`: the fields as netCDF, with `analysis.json` saying what is in them, in `results`, the report in `report`, and `report.html`, a link to its first page. Any analysis already there is replaced. In the OceanVal app, the **Analyze** box on the first page does the same, with no Python. Nothing is chosen for you there: you tick what to work out, give the years, say how many cores to use, and answer whether the report should contain code to reproduce its figures; the app looks at the first variable's surface at the first time step of up to ten files and fills in, in amber, a value that is the same in a good many cells of every file (the missing value, such as land) for you to check; failing that, for a simulation that looks like NEMO-ERSEM, it assumes zeros are missing values, as it does for validation. The **Your name** box has a drop-down of the names validation knows, which fills in the model variable the matchups would use for it. The years given must be ones the output has: `analyze()` refuses a start before the output's first year or an end after its last, and the app says so beside the box.
 
 
+Comparing simulations side by side
+----------------------------------
+
+`oceanval.compare_simulations` does everything `analyze` does for two to five simulations, and builds one HTML report with them side by side: the maps are a panel for each simulation on one colour scale, and the time series have a colour for each simulation.
+
+.. code:: ipython3
+
+    oceanval.compare_simulations(
+        simulations=[
+            {"name": "Control", "sim_dir": "/path/to/control", "n_dirs_down": 2},
+            {"name": "New mixing", "sim_dir": "/path/to/new_mixing", "n_dirs_down": 1},
+        ],
+        # the model variable holding each variable in each simulation
+        variables={"Temperature": {"Control": "votemper", "New mixing": "thetao"}},
+        climatology={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+        long_term={"Temperature": {"start": 2000, "end": 2009, "surface": True}},
+        unify={"baseline": "Control"},
+        cores=4,
+    )
+
+- `simulations`: two to five dicts, each with a `name`, a `sim_dir` and `n_dirs_down`, and, if they differ between simulations, `exclude`, `require`, `time_shift`, `thickness` and `as_missing`.
+- `variables`: the name to give each variable, and the model variable holding it in each simulation (several summed as `"a+b"`). A model variable on its own is the same in every simulation. A variable must be in the same units in every simulation.
+- `climatology`, `phenology`, `long_term`, `seasonal`, `map_changes`, `transects`, `stations`, `subregions`, `lon_lim`, `lat_lim`, `thickness`, `as_missing`, `time_shift`, `figure_code` and `cores`: as in `analyze`, and the same for every simulation. The years must be years every simulation has.
+- `unify`: what to do if the simulations are on different grids. `None` leaves each on its own. `{"lon": [-20, 10], "lat": [40, 65], "res": 0.1}` puts all of them on a lon-lat grid of that box and resolution, with nctoolkit's `to_latlon`. `{"baseline": "Control"}` regrids the others to the grid of that simulation, with nctoolkit's `regrid`. Either way, **a cell with no value in any one simulation, judged from its first time step, is made missing in all of them**, so every simulation is compared over exactly the same cells.
+
+Everything is saved in `oceanval_simulation_comparison` in `out_dir`: `results` has a folder for each simulation, laid out as an analysis is, and `comparison.json`, which says what is in them; `report` is the report's book, and `report.html` a link to its first page. In the OceanVal app, the **Compare simulations** box on the first page does the same, with no Python: a step for the simulations (a name, a directory and how many directories down for each), one for the variable holding each variable in each simulation, one for their files, and one that asks whether the model grids need unifying and how, before the same choices Analyze has.
+
 .. admonition:: Can I access and use OceanVal's validation code?
 
     Yes. OceanVal uses juypyter notebooks to carry out the validation calculations and generate plots.
