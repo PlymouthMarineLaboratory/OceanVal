@@ -363,6 +363,10 @@ def gridded_matchup(
         mapping = dict()
 
         for vv, vv_source in vars:
+            # nc.open_thredds, which opens the observations of the previous
+            # variable, sets nctoolkit's cores to 1 for the rest of the
+            # session, and the model files of this one are read with them
+            nc.options(cores=start_cores)
             # only a variable whose observations come over the network can
             # fail in a way a later retry might fix - anything else still
             # raises, so a genuine data or settings problem is not buried

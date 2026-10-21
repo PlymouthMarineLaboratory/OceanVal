@@ -449,3 +449,52 @@ class TestSurfaceOfMultiLevelObservations:
         assert os.path.exists("oceanval_matchups/gridded/temperature/foo_temperature_surface.nc")
         shutil.rmtree("oceanval_matchups", ignore_errors=True)
         oceanval.reset()
+
+
+class TestCoresAfterThredds:
+    """nctoolkit's open_thredds sets its cores to 1 for the rest of the
+    session, so each variable's model files must be read with the cores asked
+    for, not those the previous variable's observations left."""
+
+    def test_every_variable_reads_the_model_with_the_cores(self, tmp_path, monkeypatch):
+        shutil.rmtree("oceanval_matchups", ignore_errors=True)
+        oceanval.reset()
+        files = TestSurfaceOfMultiLevelObservations.monthly_obs(str(tmp_path / "obs"))
+
+        for source in ["foo", "bar"]:
+            oceanval.add_gridded_comparison(
+                name = "temperature",
+                obs_path = files,
+                source = source,
+                model_variable = "votemper",
+                obs_variable = "votemper",
+                climatology = True,
+                start = 2000,
+                end = 2000,
+                thredds = True,
+                file_check = False,
+            )
+
+        def open_thredds(path, **kwargs):
+            nc.options(cores = 1)
+            return nc.open_data(path, checks = False)
+
+        read_with = []
+        model_dataset = oceanval.gridded.model_dataset
+
+        def spy_model_dataset(*args, **kwargs):
+            read_with.append(nc.session_info["cores"])
+            return model_dataset(*args, **kwargs)
+
+        monkeypatch.setattr(nc, "open_thredds", open_thredds)
+        monkeypatch.setattr(oceanval.gridded, "model_dataset", spy_model_dataset)
+        oceanval.matchup(
+            sim_dir = "data/example",
+            start = 2000,
+            end = 2000,
+            ask = False,
+            cores = 2)
+
+        assert read_with == [2, 2]
+        shutil.rmtree("oceanval_matchups", ignore_errors=True)
+        oceanval.reset()
