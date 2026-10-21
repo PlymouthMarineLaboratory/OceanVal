@@ -26,7 +26,7 @@ Development version
 
 To use the latest development version, clone the repository and follow the
 instructions in the
-`README <https://github.com/pmlmodelling/oceanval#installation>`_.
+`README <https://github.com/PlymouthMarineLaboratory/oceanval#installation>`_.
 
 
 A two-minute example
@@ -35,7 +35,7 @@ A two-minute example
 The example below downloads one year of CMIP6 sea surface temperature output
 and validates it against the COBE2 observational dataset. It takes a couple
 of minutes to run and produces `a report like this one
-<https://pmlmodelling.github.io/oceanval_example/index.html>`_.
+<https://plymouthmarinelaboratory.github.io/oceanval_example/index.html>`_.
 
 Run it from an empty directory, in a Python script or Jupyter notebook:
 

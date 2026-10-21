@@ -103,7 +103,7 @@ with the data, matchups and report in it: remove it when you have finished.
 The script it runs is written first, to ``matchup.py``, so you can read it
 and run it again later. Every step is described on the website, in
 `Validating from your browser
-<https://pmlmodelling.github.io/OceanVal/browser.html>`_, including how to
+<https://plymouthmarinelaboratory.github.io/OceanVal/browser.html>`_, including how to
 use it on a remote machine.
 
 The sections below do the same in Python.

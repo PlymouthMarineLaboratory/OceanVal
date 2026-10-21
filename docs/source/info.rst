@@ -7,7 +7,7 @@ Bugs and issues
 ---------------
 
 If you identify bugs or issues with the package, please raise an issue on the
-`OceanVal GitHub page <https://github.com/pmlmodelling/oceanval/issues>`__ or
+`OceanVal GitHub page <https://github.com/PlymouthMarineLaboratory/oceanval/issues>`__ or
 contact the package's creator at rwi@pml.ac.uk.
 
 Contributions welcome

@@ -124,8 +124,8 @@ Point data recipes
 .. warning::
 
    Point recipes are on the ``main`` branch but not yet in a tagged
-   release (see the `version history <https://pmlmodelling.github.io/OceanVal/version-history.html>`_).
-   Install from GitHub to use them: ``pip install git+https://github.com/pmlmodelling/oceanval.git``.
+   release (see the `version history <https://plymouthmarinelaboratory.github.io/OceanVal/version-history.html>`_).
+   Install from GitHub to use them: ``pip install git+https://github.com/PlymouthMarineLaboratory/oceanval.git``.
 
 Point recipes are used with :func:`oceanval.add_point_comparison` in place of
 ``obs_path``. Instead of reading csv files from disk, OceanVal downloads the
@@ -239,7 +239,7 @@ Your own recipes
 .. warning::
 
    Recipes of your own are on the ``main`` branch but not yet in a tagged
-   release (see the `version history <https://pmlmodelling.github.io/OceanVal/version-history.html>`_).
+   release (see the `version history <https://plymouthmarinelaboratory.github.io/OceanVal/version-history.html>`_).
 
 A recipe describes a set of observations once, so that you can use it by name
 in any matchup, like OceanVal's own. Your recipes are kept in ``.oceanvalrc``

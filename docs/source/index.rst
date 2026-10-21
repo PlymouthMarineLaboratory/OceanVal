@@ -4,7 +4,7 @@ OceanVal: automated ocean model validation
 .. important::
 
    **This documentation is archived.** OceanVal's documentation has moved to
-   `pmlmodelling.github.io/OceanVal <https://pmlmodelling.github.io/OceanVal/>`_ —
+   `plymouthmarinelaboratory.github.io/OceanVal <https://plymouthmarinelaboratory.github.io/OceanVal/>`_ —
    please update your bookmarks. This Read the Docs site is no longer updated.
 
 **Point OceanVal at your model output. Get back a complete validation report.**
@@ -30,7 +30,7 @@ shareable HTML report, all with a few lines of code.
    oceanval.matchup(sim_dir="/path/to/model/output", start=2005, end=2014)
    oceanval.validate()
 
-See a `real example report <https://pmlmodelling.github.io/oceanval_example/intro.html>`_
+See a `real example report <https://plymouthmarinelaboratory.github.io/oceanval_example/index.html>`_
 built by OceanVal.
 
 Why OceanVal?
@@ -117,5 +117,5 @@ About
 
 OceanVal is developed by the Marine Systems Modelling group at
 `Plymouth Marine Laboratory <https://www.pml.ac.uk/>`_. It is open source and
-`developed on GitHub <https://github.com/pmlmodelling/oceanVal>`_, where bug
+`developed on GitHub <https://github.com/PlymouthMarineLaboratory/oceanVal>`_, where bug
 reports and feature requests are welcome.

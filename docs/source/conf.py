@@ -103,7 +103,7 @@ html_js_files = ['recipe-details.js']
 html_title = 'OceanVal documentation'
 html_logo = '_static/pml_logo.jpg'
 html_theme_options = {
-    'repository_url': 'https://github.com/pmlmodelling/oceanVal',
+    'repository_url': 'https://github.com/PlymouthMarineLaboratory/oceanVal',
     'repository_branch': 'main',
     'path_to_docs': 'docs',
     'use_repository_button': True,
@@ -116,7 +116,7 @@ html_theme_options = {
     'toc_title': 'On this page',
     'extra_footer': (
         '<div class="oceanval-footer-links">'
-        '<a href="https://github.com/pmlmodelling/oceanVal">GitHub</a>'
+        '<a href="https://github.com/PlymouthMarineLaboratory/oceanVal">GitHub</a>'
         ' · '
         '<a href="https://oceanval.readthedocs.io/">Read the Docs</a>'
         '</div>'

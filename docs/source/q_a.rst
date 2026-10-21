@@ -164,7 +164,7 @@ I would like a new feature in OceanVal. How can I request this?
 ---------------------------------------------------------------
 
 Please open an issue on the OceanVal GitHub page:
-https://github.com/pmlmodelling/oceanVal/issues.
+https://github.com/PlymouthMarineLaboratory/oceanVal/issues.
 
 
 
