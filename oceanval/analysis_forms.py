@@ -897,19 +897,25 @@ def arguments(
     return out
 
 
-def script_text(arguments):
+def script_text(arguments, function="analyze", what="An OceanVal analysis"):
     """The script that runs the analysis, which the window writes and runs,
-    and which can be run again from a terminal."""
+    and which can be run again from a terminal. function is the oceanval
+    function it calls, and what says what the script is."""
     lines = [
-        f"# An OceanVal analysis, written by the oceanval window on "
+        f"# {what}, written by the oceanval window on "
         f"{datetime.date.today().isoformat()}.",
         "# Run it again with: python <this file>",
         "import oceanval",
         "",
-        "oceanval.analyze(",
+        f"oceanval.{function}(",
     ]
     for name, value in arguments.items():
-        if name == "transects" and value:
+        if isinstance(value, list) and value and all(isinstance(entry, dict) for entry in value):
+            # a line for each simulation
+            lines.append(f"    {name}=[")
+            lines.extend(f"        {entry!r}," for entry in value)
+            lines.append("    ],")
+        elif name == "transects" and value:
             # a line for each transect
             lines.append("    transects={")
             for variable, entries in value.items():

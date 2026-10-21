@@ -62,7 +62,9 @@ import urllib.parse
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
-from oceanval.analysis_app import AnalyzeSteps
+from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
+from oceanval.sim_compare_app import SimCompareSteps
+from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import data_store
 from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
@@ -1358,7 +1360,7 @@ class Run:
                 self.process.wait(timeout=timeout)
 
 
-class App(AnalyzeSteps):
+class App(AnalyzeSteps, SimCompareSteps):
     """What the oceanval window shows, and the server showing it.
 
     view is the step the page is on: "home", the landing page, whose Analyze
@@ -1504,6 +1506,9 @@ class App(AnalyzeSteps):
         self.settings = user_settings.load()
         self._server = None
         self._init_analyze()
+        self._init_simcompare()
+        # whose steps the state Analyze's options step keeps is
+        self._analyze_owner = ANALYZE
 
     # ---- state ----
 
@@ -1595,6 +1600,9 @@ class App(AnalyzeSteps):
             elif self.action == ANALYZE and self.results_dir:
                 report = os.path.join(self.results_dir, analysis.FOLDER, analysis.REPORT_LINK)
                 which = "analysis"
+            elif self.action == SIMCOMPARE and self.results_dir:
+                report = os.path.join(self.results_dir, sim_compare.FOLDER, sim_compare.REPORT_LINK)
+                which = "simcompare"
             report_exists = bool(report and os.path.exists(report))
             return {
                 "version": self.version,
@@ -1635,6 +1643,7 @@ class App(AnalyzeSteps):
                 "time_shift": self._time_shift_state(),
                 "model_check": self._model_check_state(),
                 "analyze": self._analyze_state(),
+                "simcompare": self._simcompare_state(),
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -1730,7 +1739,8 @@ class App(AnalyzeSteps):
         """The directory of the HTML pages served at /<which>/<token>/:
         which is "interim", for the interim report a matchup and validate
         run builds as it goes, "report", for the full report, "analysis",
-        for an analysis's report (see oceanval.analysis), or "comparison",
+        for an analysis's report (see oceanval.analysis), "simcompare", for
+        a comparison of simulations (see oceanval.sim_compare), or "comparison",
         for a comparison and the validation reports it links to (see
         report_folders)."""
         if which == "comparison":
@@ -1746,6 +1756,8 @@ class App(AnalyzeSteps):
             return os.path.join(self.results_dir, "oceanval_report", "_build", "html")
         if which == "analysis":
             return os.path.join(self.results_dir, analysis.FOLDER, analysis.REPORT, "_build", "html")
+        if which == "simcompare":
+            return os.path.join(self.results_dir, sim_compare.FOLDER, sim_compare.REPORT, "_build", "html")
         return None
 
     def report_folders(self, which):
@@ -1839,9 +1851,30 @@ class App(AnalyzeSteps):
                 self._forget_steps()
                 self.question = None
                 self.interim = None
+                if self._analyze_owner != ANALYZE:
+                    # the options step's state was a comparison's
+                    self._init_analyze()
+                    self._analyze_owner = ANALYZE
                 self.action = action
                 self.setup_error = None
                 self.view = "setup"
+                self._notify()
+                return True
+            if action == SIMCOMPARE:
+                if self.view not in ("home", "finished"):
+                    return False
+                self._end_demo()
+                self._forget_steps()
+                self.question = None
+                self.interim = None
+                if self._analyze_owner != SIMCOMPARE:
+                    # the options step's state was an analysis's: it starts afresh
+                    self._init_analyze()
+                    self._init_simcompare()
+                    self._analyze_owner = SIMCOMPARE
+                self.action = action
+                self.setup_error = None
+                self.view = "simcompare_sims"
                 self._notify()
                 return True
             if action not in ACTIONS + ("demo",) or self.view not in ("start", "finished"):
@@ -1938,6 +1971,10 @@ class App(AnalyzeSteps):
                 self._notify()
                 return True
             went = self._analyze_back(sent)
+            if went is not None:
+                return went
+        if self.action == SIMCOMPARE:
+            went = self._simcompare_back(sent)
             if went is not None:
                 return went
         earlier = {
@@ -3686,6 +3723,7 @@ class App(AnalyzeSteps):
             os.path.join(results, "oceanval_matchups")
         )
         found["out_dir_has_analysis"] = os.path.isdir(os.path.join(results, analysis.FOLDER))
+        found["out_dir_has_comparison"] = os.path.isdir(os.path.join(results, sim_compare.FOLDER))
         if not simdir.strip():
             return found
         path = _path(simdir.strip(), self.cwd)
@@ -4185,7 +4223,7 @@ class _Handler(recipes_gui._Handler):
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
-        if url.path.startswith(("/interim/", "/report/", "/analysis/", "/comparison/")):
+        if url.path.startswith(("/interim/", "/report/", "/analysis/", "/simcompare/", "/comparison/")):
             self._report_file(url.path)
             return
         query = {
@@ -4203,6 +4241,7 @@ class _Handler(recipes_gui._Handler):
             "/api/question_files",
             "/api/model_check_files",
             "/api/analyze_check_files",
+            "/api/simcompare_check_files",
         ):
             self._reply(404, "Not found", "text/plain; charset=utf-8")
         elif not self.app.authorised(query.get("token", "")):
@@ -4270,6 +4309,12 @@ class _Handler(recipes_gui._Handler):
                 self._reply_json(409, {"ok": False, "error": "The files are not known yet."})
             else:
                 self._reply_json(200, {"ok": True, "files": files})
+        elif url.path == "/api/simcompare_check_files":
+            files = self.app.simcompare_check_files(query.get("simulation", ""), query.get("variable", ""))
+            if files is None:
+                self._reply_json(409, {"ok": False, "error": "The files are not known yet."})
+            else:
+                self._reply_json(200, {"ok": True, "files": files})
         elif url.path == "/api/model_check_files":
             files = self.app.model_check_files(query.get("variable", ""), _number(query.get("group")))
             if files is None:
@@ -4328,6 +4373,18 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/analyze_files":
             self._reply_json(*app.analyze_files())
+            return
+        if path == "/api/simcompare_sims":
+            self._reply_json(*app.simcompare_sims(payload.get("form")))
+            return
+        if path == "/api/simcompare_variables":
+            self._reply_json(*app.simcompare_variables(payload.get("rows")))
+            return
+        if path == "/api/simcompare_files":
+            self._reply_json(*app.simcompare_files())
+            return
+        if path == "/api/simcompare_grids":
+            self._reply_json(*app.simcompare_grids(payload.get("form")))
             return
         if path == "/api/analyze_option":
             self._reply_json(*app.analyze_option(payload.get("kind"), payload.get("form")))
@@ -4403,6 +4460,7 @@ class _Handler(recipes_gui._Handler):
             "/api/register_kind": lambda: app.register_kind(payload.get("kind")),
             "/api/register_done": app.register_done,
             "/api/analyze_time_shift": lambda: app.analyze_time_shift(payload.get("choice")),
+            "/api/simcompare_time_shift": lambda: app.simcompare_time_shift(payload.get("choice")),
             # with what the step's boxes hold
             "/api/back": lambda: app.back(payload),
             "/api/restart": app.restart,

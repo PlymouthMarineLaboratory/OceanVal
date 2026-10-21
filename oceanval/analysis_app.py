@@ -37,6 +37,9 @@ from oceanval import time_res as time_resolution
 # the id the check of the dates of an analysis's files is made for (see
 # model_check.ModelCheck), which a matchup's question never has
 CHECK_ID = "analyze"
+# the action of the Compare simulations steps (see oceanval.sim_compare_app), which
+# end in this module's options step
+SIMCOMPARE = "simcompare"
 
 KINDS = ("climatology", "phenology", "long_term", "seasonal", "map_changes", "transects")
 # the pop-outs that choose the surface and/or the water column, with the same boxes
@@ -373,6 +376,8 @@ class AnalyzeSteps:
     def _check_rows(self):
         """What the check found of each variable, by name. Called with the
         lock held."""
+        if self.action == SIMCOMPARE:
+            return self._sc_check_rows()
         check = self.analyze_check
         if check is None:
             return {}
@@ -406,24 +411,29 @@ class AnalyzeSteps:
             check = self.analyze_check
             if check is not None and check.status == "running":
                 return 409, {"ok": False, "error": "The dates of the files are still being read."}
-            found = self._check_rows()
-            placed = self.analyze_placed
-            for kind in KINDS:
-                form = self.analyze_forms[kind]
-                if form is None:
-                    continue
-                # variables added since start as they do the first time,
-                # and those removed are left out
-                defaults = self._default_form(kind, placed, found)
-                form["rows"] = {
-                    row["name"]: form["rows"].get(row["name"], defaults["rows"][row["name"]])
-                    for row in placed
-                }
-                self._recheck(kind)
-            self.view = "analyze_options"
-            self._probe_missing()
+            self._enter_analyze_options()
             self._notify()
         return 200, {"ok": True}
+
+    def _enter_analyze_options(self):
+        """Go to the options step, with the pop-outs' boxes made again for the
+        variables, which may have changed. Called with the lock held."""
+        found = self._check_rows()
+        placed = self.analyze_placed
+        for kind in KINDS:
+            form = self.analyze_forms[kind]
+            if form is None:
+                continue
+            # variables added since start as they do the first time,
+            # and those removed are left out
+            defaults = self._default_form(kind, placed, found)
+            form["rows"] = {
+                row["name"]: form["rows"].get(row["name"], defaults["rows"][row["name"]])
+                for row in placed
+            }
+            self._recheck(kind)
+        self.view = "analyze_options"
+        self._probe_missing()
 
     def _probe_missing(self):
         """Look for the model's missing value in a thread, unless the user
@@ -626,36 +636,44 @@ class AnalyzeSteps:
                         "errors": {"area": errors},
                         "error": "The regions and area need putting right first.",
                     }
-            arguments = analysis_forms.arguments(
-                self.analyze_setup,
-                self.analyze_placed,
-                chosen["climatology"]["rows"] if chosen["climatology"] else None,
-                chosen["phenology"]["rows"] if chosen["phenology"] else None,
-                next(iter(thicknesses), None),
-                self._shift_days(),
-                chosen["long_term"]["rows"] if chosen["long_term"] else None,
-                chosen["seasonal"]["rows"] if chosen["seasonal"] else None,
-                area,
-                cores,
-                as_missing,
-                figure_code,
-                chosen["transects"],
-                chosen["map_changes"]["rows"] if chosen["map_changes"] else None,
-            )
-            script = _path(self.analyze_setup["out"], self.cwd)
-            try:
-                os.makedirs(os.path.dirname(script) or ".", exist_ok=True)
-                with open(script, "w") as file:
-                    file.write(analysis_forms.script_text(arguments))
-            except OSError as error:
-                return 400, {"ok": False, "error": f"The script could not be written: {error}"}
-            self.view = "running"
-            self.status = "starting"
-            self.results_dir = self.analyze_setup["out_dir"]
-            self._drop_analyze_check()
-            self.console.clear()
-        self.start_run(["analyze", script], f"python {_shown(script, self.cwd)}")
-        return 200, {"ok": True}
+            if self.action == SIMCOMPARE:
+                reply, run = self.simcompare_run(chosen, thicknesses, cores, figure_code, as_missing, area)
+                if run is None:
+                    return reply
+                label_run = run
+            else:
+                arguments = analysis_forms.arguments(
+                    self.analyze_setup,
+                    self.analyze_placed,
+                    chosen["climatology"]["rows"] if chosen["climatology"] else None,
+                    chosen["phenology"]["rows"] if chosen["phenology"] else None,
+                    next(iter(thicknesses), None),
+                    self._shift_days(),
+                    chosen["long_term"]["rows"] if chosen["long_term"] else None,
+                    chosen["seasonal"]["rows"] if chosen["seasonal"] else None,
+                    area,
+                    cores,
+                    as_missing,
+                    figure_code,
+                    chosen["transects"],
+                    chosen["map_changes"]["rows"] if chosen["map_changes"] else None,
+                )
+                script = _path(self.analyze_setup["out"], self.cwd)
+                try:
+                    os.makedirs(os.path.dirname(script) or ".", exist_ok=True)
+                    with open(script, "w") as file:
+                        file.write(analysis_forms.script_text(arguments))
+                except OSError as error:
+                    return 400, {"ok": False, "error": f"The script could not be written: {error}"}
+                self.view = "running"
+                self.status = "starting"
+                self.results_dir = self.analyze_setup["out_dir"]
+                self._drop_analyze_check()
+                self.console.clear()
+                label_run = (["analyze", script], f"python {_shown(script, self.cwd)}")
+                reply = (200, {"ok": True})
+        self.start_run(*label_run)
+        return reply
 
     # ---- Back ----
 
@@ -719,6 +737,8 @@ class AnalyzeSteps:
                     "units": row["units"],
                     "levels": row["levels"],
                     "time_res": self._time_res_of(rows)(row["name"]),
+                    # a comparison: the resolution of each simulation's output
+                    "time_res_by_sim": (rows.get(row["name"]) or {}).get("time_res_by_sim"),
                     "years": analysis_forms.output_years(rows.get(row["name"])),
                     # what the pop-outs start with, in amber until changed
                     "default_years": analysis_forms.output_years(rows.get(row["name"])),

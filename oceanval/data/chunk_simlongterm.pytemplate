@@ -1,0 +1,41 @@
+# %% tags=["remove-input"]
+lt = first["long_term"]
+md("## Long-term time series")
+
+# %% tags=["remove-input"]
+years = years_text(lt)
+md(
+    f"The long-term time series of {name} is its mean in each year of {years}, each the mean of the year's monthly means "
+    f"(a month of daily output counts as much as a month of monthly output), {sr.files_text(entry, 'long_term')}. "
+    + sr.series_shown_text(lt)
+    + sr.series_area_text(info, lt, entry, "long_term")
+    + " "
+    + sr.dates_text(entry, "long_term")
+)
+
+# %% tags=["remove-input"]
+for layer, saved in lt["layers"].items():
+    display(md(f"### {saved['title']}"))
+    where = sr.WHERE[layer]
+    layer_units = ap.unit_html(saved["units"])
+    drawn = sp.long_term_plot(results_dir, variable, layer)
+    sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    display(md(
+        f"**Figure {i_figure}**: {sr.series_what(lt, saved)} {where} {name} ({layer_units}), {years}"
+        + (", over the model's domain and each of its regions" if lt["regions"] else ", over the model's domain")
+        + ", a line for each simulation."
+        + sr.incomplete_text(entry, "long_term", layer)
+    ))
+    i_figure += 1
+    drawn = sp.station_plot(results_dir, variable, "long_term", layer)
+    if drawn:
+        sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+        display(md(
+            f"**Figure {i_figure}**: {sr.series_what(lt, saved)} {where} {name} ({layer_units}), {years}, in the model cell nearest each station, a line for each simulation."
+        ))
+        i_figure += 1
+        display(pd.DataFrame(sr.station_rows(info, entry, "long_term", layer)).style.hide(axis="index"))
+        display(md(
+            f"**Table {i_table}:** The stations, and the cell of each simulation's grid with values that is nearest each."
+        ))
+        i_table += 1

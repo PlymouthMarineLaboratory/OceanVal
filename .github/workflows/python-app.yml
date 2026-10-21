@@ -68,8 +68,8 @@ jobs:
           GROUP1="tests/test_gridded_matchups.py tests/test_point_matchups.py tests/test_matchup_formula.py tests/test_transect_report.py"
           GROUP2="tests/test_matchups.py tests/test_gridded_failures.py tests/test_matchup_order.py tests/test_calendars.py tests/test_short_simulations.py"
           GROUP3="tests/test_data_store.py tests/test_live_validation.py tests/test_fvcom.py tests/test_own_data.py tests/test_user_recipes.py tests/test_model_check.py tests/test_transects.py"
-          GROUP4="tests/test_analysis_plots.py tests/test_analysis_changes.py tests/test_analysis_transects.py"
-          GROUP5="tests/test_analysis.py tests/test_analysis_series.py tests/test_analysis_app.py"
+          GROUP4="tests/test_analysis_plots.py tests/test_analysis_changes.py tests/test_analysis_transects.py tests/test_sim_plots.py"
+          GROUP5="tests/test_analysis.py tests/test_analysis_series.py tests/test_analysis_app.py tests/test_sim_unify.py tests/test_sim_compare.py tests/test_sim_compare_app.py"
           # -v names each test as it starts, and a test still running after
           # 15 minutes ends the run with every thread's stack, so a stall shows
           # which test it is and where it is stuck; --durations lists the slowest

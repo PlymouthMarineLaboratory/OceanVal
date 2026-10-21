@@ -66,13 +66,14 @@ def _validate_later(*args, **kwargs):
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 2 or argv[0] not in ("script", "matchup", "validate", "compare", "analyze"):
+    if len(argv) != 2 or argv[0] not in ("script", "matchup", "validate", "compare", "analyze", "simcompare"):
         sys.exit(
             "usage: python -m oceanval.app_child script <path>\n"
             "       python -m oceanval.app_child matchup <path>\n"
             "       python -m oceanval.app_child validate <arguments as JSON>\n"
             "       python -m oceanval.app_child compare <arguments as JSON>\n"
-            "       python -m oceanval.app_child analyze <path>"
+            "       python -m oceanval.app_child analyze <path>\n"
+            "       python -m oceanval.app_child simcompare <path>"
         )
     kind, argument = argv
 
@@ -87,7 +88,7 @@ def main(argv=None):
         webbrowser.open = _say_where
 
     with prompts.answered_by(_ask_the_window):
-        if kind == "analyze":
+        if kind in ("analyze", "simcompare"):
             sys.argv = [argument]
             runpy.run_path(argument, run_name="__main__")
         elif kind in ("script", "matchup"):

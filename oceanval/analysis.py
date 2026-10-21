@@ -40,6 +40,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from oceanval import sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
 from oceanval.matchall import _restores_nctoolkit_options
@@ -549,23 +550,47 @@ def integral_units(units):
     return f"{units} m" if units else "m"
 
 
-def _model_data(files, row, years, time_shift):
+def _model_data(files, row, years, time_shift, layer=None, levels=1):
     """The model's output of row's variable in years, from files, as a
-    dataset with one variable, named row["key"]."""
-    ds = nc.open_data(files, checks=False)
-    selected = ",".join(str(year) for year in range(years[0], years[1] + 1))
-    if time_shift:
+    dataset with one variable, named row["key"]. With years None, it is the
+    first time of the first file, which is enough to see what is missing. If
+    layer is the surface or the bottom (see _pick_level), only that level is
+    kept, of each part of a sum.
+
+    nctoolkit chains these into one CDO call per file, the last asked for
+    applied last, and the files can be many GB with a great many variables:
+    so what cuts the data down is asked for first, the variables before
+    anything else (the times, the shift), then the surface, as matchup takes
+    it (see _pick_level), then the missing value, then the bottom (which needs
+    it), and the renaming and the sum, which are cheap, last. If row has
+    "surface_fast" (see _first_level_is_surface), the surface is chosen with
+    the variables, by CDO's select, which does not read the other levels."""
+    fast = layer == SURFACE and levels > 1 and bool(row.get("surface_fast"))
+    if years is None:
+        ds = nc.open_data(files if isinstance(files, str) else files[0], checks=False)
+        _choose(ds, row, fast, first_step=True)
+    elif time_shift:
+        ds = nc.open_data(files, checks=False)
+        _choose(ds, row, fast)
+    else:
+        ds = nc.open_data(files, checks=False)
+        ds.subset(years=list(range(years[0], years[1] + 1)))
+        _choose(ds, row, fast)
+    if layer == SURFACE and not fast:
+        # as matchup takes it, before the missing value is set
+        _pick_level(ds, layer, levels)
+    if row.get("as_missing") is not None:
+        # as matchup does: before the variables are summed, so that a cell with a missing part is missing
+        ds.as_missing(row["as_missing"])
+    if layer is not None and layer != SURFACE:
+        # the deepest value that is not missing: what is missing has to be set first
+        _pick_level(ds, layer, levels)
+    if years is not None and time_shift:
         # shifted before the years are chosen, as matchup does (see
         # oceanval.gridded): subset(years=) would leave out the files whose
         # years on disk are not the years they are shifted into
         ds.shift(days=time_shift)
-        ds.cdo_command(f"-selyear,{selected}")
-    else:
-        ds.subset(years=list(range(years[0], years[1] + 1)))
-    ds.subset(variables=row["parts"])
-    if row.get("as_missing") is not None:
-        # as matchup does: before the variables are summed, so that a cell with a missing part is missing
-        ds.as_missing(row["as_missing"])
+        ds.cdo_command("-selyear," + ",".join(str(year) for year in range(years[0], years[1] + 1)))
     if len(row["parts"]) > 1:
         ds.cdo_command(f"-expr,{row['key']}={'+'.join(row['parts'])}")
     else:
@@ -610,30 +635,74 @@ def thickness_data(thickness, files, as_missing=None):
     return ds
 
 
+# see oceanval.surface: the surface is read from the first level, with a small chunk cache, where it can be
+CHUNK_CACHE = surface.CHUNK_CACHE
+
+
+def _choose(ds, row, fast, first_step=False):
+    """Choose the variables of row in ds, and with first_step its first time
+    step; if fast, only the surface of them too (see oceanval.surface)."""
+    surface.choose(ds, row["parts"], fast, [0] if first_step else None)
+
+
+def _chunk_cache(row, layer):
+    """A small HDF5 chunk cache for CDO while row's variable is read in layer, if
+    its surface is read from the first level (see oceanval.surface)."""
+    return surface.chunk_cache(layer == SURFACE and bool(row.get("surface_fast")))
+
+
+def _pick_level(ds, layer, levels):
+    """Take the surface or the bottom of ds, if layer is one."""
+    if layer == SURFACE and levels > 1:
+        # the first value from the top that is not missing, as matchup takes the surface. Not nctoolkit's
+        # top() (-sellevidx,1), which keeps a vertical dimension of one level that every later step would
+        # have to cope with, and which was no faster on a month of daily output of 71 variables
+        ds.cdo_command("topvalue")
+    elif layer == BOTTOM:
+        # the deepest value that is not missing, whatever level that is in each cell
+        ds.bottom(choice="value")
+
+
+def _reduce_column(ds, layer, thickness):
+    """Take the vertical mean or integral of ds, if layer is one."""
+    if layer in WATER_COLUMN:
+        how = ds.vertical_mean if layer == "mean" else ds.vertical_integration
+        # not thickness == Z_LEVEL: a dataset's == compares its values
+        if isinstance(thickness, str) and thickness == Z_LEVEL:
+            how(fixed=True)
+        else:
+            how(thickness=thickness)
+
+
+def first_step_of(files, row, layer, levels, thickness=None):
+    """The field row's variable has in one layer at the first time step of
+    files, on the model's own grid: what monthly_means_of gives, for one time."""
+    with _chunk_cache(row, layer):
+        ds = _model_data(files, row, None, None, layer, levels)
+        with warnings.catch_warnings(record=True):
+            ds.run()
+            _reduce_column(ds, layer, thickness)
+            ds.run()
+    return ds
+
+
 def monthly_means_of(files, row, layer, years, time_shift, levels, thickness=None):
     """The mean of each month of each year of row's variable in one layer
-    (see LAYER_TITLES) over years, as a dataset with a time for each."""
-    ds = _model_data(files, row, years, time_shift)
-    with warnings.catch_warnings(record=True):
-        if layer == SURFACE and levels > 1:
-            # the first value from the top that is not missing, as matchup takes the surface
-            ds.cdo_command("topvalue")
-        elif layer == BOTTOM:
-            # the deepest value that is not missing, whatever level that is in each cell
-            ds.bottom(choice="value")
-        ds.merge("time")
-        # each month of each year first, so a month of daily output counts
-        # as much as a month of monthly output
-        ds.tmean(["year", "month"], align="left")
-        ds.run()
-        if layer in WATER_COLUMN:
-            how = ds.vertical_mean if layer == "mean" else ds.vertical_integration
-            # not thickness == Z_LEVEL: a dataset's == compares its values
-            if isinstance(thickness, str) and thickness == Z_LEVEL:
-                how(fixed=True)
-            else:
-                how(thickness=thickness)
-        ds.run()
+    (see LAYER_TITLES) over years, as a dataset with a time for each. If row
+    has "unify" (see oceanval.sim_unify), it is on the common grid of a
+    comparison's simulations."""
+    with _chunk_cache(row, layer):
+        ds = _model_data(files, row, years, time_shift, layer, levels)
+        with warnings.catch_warnings(record=True):
+            ds.merge("time")
+            # each month of each year first, so a month of daily output counts
+            # as much as a month of monthly output
+            ds.tmean(["year", "month"], align="left")
+            ds.run()
+            _reduce_column(ds, layer, thickness)
+            ds.run()
+    if row.get("unify"):
+        sim_unify.apply(ds, row["unify"], row["key"], layer)
     return ds
 
 
@@ -650,13 +719,14 @@ def climatology_of(files, row, layer, years, time_shift, levels, thickness=None)
 def daily_climatology_of(files, row, years, time_shift, levels):
     """The daily climatology of row's variable at the surface over years:
     its mean on each day of the year."""
-    ds = _model_data(files, row, years, time_shift)
-    with warnings.catch_warnings(record=True):
-        if levels > 1:
-            ds.cdo_command("topvalue")
-        ds.merge("time")
-        ds.tmean("day")
-        ds.run()
+    with _chunk_cache(row, SURFACE):
+        ds = _model_data(files, row, years, time_shift, SURFACE, levels)
+        with warnings.catch_warnings(record=True):
+            ds.merge("time")
+            ds.tmean("day")
+            ds.run()
+    if row.get("unify"):
+        sim_unify.apply(ds, row["unify"], row["key"], SURFACE)
     return ds
 
 
@@ -803,12 +873,39 @@ def _toc(book_dir, pages):
                 file.write(f"  - file: notebooks/{page}.ipynb\n")
 
 
-def build_report(folder, info):
+# the chunk of a variable's page for each kind of analysis
+CHUNKS = {
+    "climatology": "chunk_climatology",
+    "phenology": "chunk_phenology",
+    "long_term": "chunk_longterm",
+    "seasonal": "chunk_seasonalseries",
+    "map_changes": "chunk_mapchanges",
+    "transects": "chunk_transects",
+}
+INTRO = (
+    "# An ocean model analysis using **oceanval**\n\n"
+    "The simulation was analysed using the Python package **oceanval**.\n"
+)
+
+
+def build_report(
+    folder, info, overview="analysis_overview.ipynb", template="analysis_template.ipynb", chunks=CHUNKS, kinds_of=None,
+    intro=INTRO,
+):
     """Build the analysis report in folder (the analysis's FOLDER) from what
     analyze() saved there (info, as in INFO_FILE), the way validate() builds
-    its one. Returns the path of its first page."""
+    its one. Returns the path of its first page. The simulation comparison
+    (see oceanval.sim_compare) builds its report the same way, from its own
+    overview and template notebooks, the chunks of each kind of analysis,
+    kinds_of(variable), the kinds of analysis a variable has, and the
+    book's introduction."""
     import oceanval
     from oceanval.chunkers import add_chunks
+
+    if kinds_of is None:
+
+        def kinds_of(entry):
+            return [kind for kind in KINDS if entry.get(kind)]
 
     book_dir = os.path.join(folder, REPORT)
     notebooks_dir = os.path.join(book_dir, "notebooks")
@@ -818,25 +915,14 @@ def build_report(folder, info):
         shutil.rmtree(book_dir)
     os.makedirs(notebooks_dir)
 
-    _fill_notebook(_data("analysis_overview.ipynb"), os.path.join(notebooks_dir, f"{LANDING}.ipynb"), {})
+    _fill_notebook(_data(overview), os.path.join(notebooks_dir, f"{LANDING}.ipynb"), {})
     pages = []
     for number, entry in enumerate(info["variables"], start=1):
         page = f"{number:03d}_{entry['key']}"
-        drop = []
-        if not entry.get("climatology"):
-            drop.append("chunk_climatology")
-        if not entry.get("phenology"):
-            drop.append("chunk_phenology")
-        if not entry.get("long_term"):
-            drop.append("chunk_longterm")
-        if not entry.get("seasonal"):
-            drop.append("chunk_seasonalseries")
-        if not entry.get("map_changes"):
-            drop.append("chunk_mapchanges")
-        if not entry.get("transects"):
-            drop.append("chunk_transects")
+        has = kinds_of(entry)
+        drop = [chunk for kind, chunk in chunks.items() if kind not in has]
         _fill_notebook(
-            _data("analysis_template.ipynb"),
+            _data(template),
             os.path.join(notebooks_dir, f"{page}.ipynb"),
             {
                 "template_key": entry["key"],
@@ -866,10 +952,7 @@ def build_report(folder, info):
         )
     _toc(book_dir, pages)
     with open(os.path.join(book_dir, "intro.md"), "w") as file:
-        file.write(
-            "# An ocean model analysis using **oceanval**\n\n"
-            "The simulation was analysed using the Python package **oceanval**.\n"
-        )
+        file.write(intro)
     os.makedirs(os.path.join(book_dir, "_static"), exist_ok=True)
     shutil.copyfile(_data("_static/custom.css"), os.path.join(book_dir, "_static", "custom.css"))
     for name in ("pml_logo.jpg", "oceanval_wordmark.svg"):
@@ -1044,6 +1127,197 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
     return entry
 
 
+def _first_level_is_surface(row, stream):
+    """Whether row's surface can be read from the first vertical level alone,
+    and a reason if not (see oceanval.surface.first_level_is_surface), of the
+    first file of its stream."""
+    names = model_variable_names(row["model_variable"])
+    return surface.first_level_is_surface(
+        stream["files"][0], names, {name: stream["variables"][name]["levels"] for name in names}
+    )
+
+
+def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_index=None):
+    """Find the output of each of rows (check_arguments's, with "as_missing")
+    in the simulation in sim_dir, and say what it is: the stream, files, units,
+    time resolution and the files and dates of each analysis. Checks that the
+    output has what the rows ask of it. times_index is the path of the times of
+    the files already read (see model_check.save_times_index), which are not
+    read again if their files are unchanged. Raises ValueError saying everything
+    that is wrong."""
+    from oceanval import time_stamps
+    from oceanval.matchall import index_times
+    from oceanval.model_check import files_in_years, load_times_index
+
+    _say(f"Finding the files of the simulation in {sim_dir}")
+    found = streams(sim_dir, n_dirs_down, exclude, require)
+    if not found:
+        filtered = " that pass the exclude and require filters" if exclude or require else ""
+        raise ValueError(
+            f"No netCDF files were found {n_dirs_down} directories below {sim_dir}{filtered}."
+        )
+    if _looks_like_fvcom(found[0]["files"][0]):
+        raise ValueError("analyze does not work with FVCOM output yet.")
+
+    # the time resolution of a stream is read from some of its files: once for each
+    labels = {}
+
+    def time_res_of(files):
+        if tuple(files) not in labels:
+            labels[tuple(files)] = stream_time_res(files)
+        return labels[tuple(files)]
+
+    problems = []
+    for row in rows:
+        try:
+            holding = place(row["model_variable"], found)
+            # with one stream there is nothing to choose between, and the resolution is
+            # worked out from all the files' times below
+            stream, res = (holding[0], None) if len(holding) == 1 else choose_stream(holding, time_res_of)
+        except ValueError as error:
+            problems.append(f"{row['name']} ({row['model_variable']}): {error}")
+            continue
+        row.update(describe_variable(row["model_variable"], stream))
+        if row["levels"] > 1:
+            row["surface_fast"], why = _first_level_is_surface(row, stream)
+            _say(
+                f"{row['name']}: the surface is read from the first level" if row["surface_fast"]
+                else f"{row['name']}: all levels are read to find the surface, as {why}"
+            )
+        else:
+            row["surface_fast"] = False
+        row["pattern"] = stream["pattern"]
+        row["files"] = stream["files"]
+        row["time_res"] = res
+        if row["levels"] < 2:
+            layered = LAYERED + ("map_changes",)
+            column = [
+                layer for kind in layered if row[kind] for layer in row[kind]["layers"] if layer in WATER_COLUMN
+            ]
+            has_bottom = any(BOTTOM in row[kind]["layers"] for kind in layered if row[kind])
+            if has_bottom:
+                problems.append(
+                    f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
+                    "it has no bottom to take: leave out its bottom."
+                )
+            if column:
+                problems.append(
+                    f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
+                    "it has no water column to take: leave out its water_column."
+                )
+            if row["transects"] and any(
+                line["vertical"] or line["vertical_trends"] for line in row["transects"]["lines"]
+            ):
+                problems.append(
+                    f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
+                    "it has no section through the water column to take along a transect: leave out "
+                    "the vertical climatology and vertical changes of its transects."
+                )
+    if problems:
+        raise ValueError("\n".join(problems))
+
+    paths = sorted({path for row in rows for path in row["files"]})
+    # the times the window's check of the dates has read, unshifted as these are, are not read again
+    times = load_times_index(times_index, paths) if times_index else {}
+    unread = len([path for path in paths if path not in times])
+    _say(
+        f"Reading the times of {unread} file{'s' if unread != 1 else ''}"
+        + (f" (those of {len(paths) - unread} were read before)" if unread != len(paths) else "")
+    )
+    times = index_times(paths, times=times)
+    if time_shift:
+        calendars = {}
+        by_first_file = {}
+        for row in rows:
+            first = row["files"][0]
+            if first not in by_first_file:
+                by_first_file[first] = time_stamps.calendar(first)
+            calendars.update({path: by_first_file[first] for path in row["files"]})
+        times = time_stamps.shift_index(dict(times), time_shift, lambda path: calendars.get(path, "standard"))
+
+    for row in rows:
+        own = {path: times[path] for path in row["files"] if path in times}
+        if own:
+            row["time_res"] = time_resolution.label(pd.concat(own.values(), ignore_index=True))
+        elif row["time_res"] is None:
+            row["time_res"] = time_res_of(row["files"])
+        row["times"] = own
+        for kind in KINDS:
+            entry = row[kind]
+            if entry is None or kind == "map_changes":
+                continue
+            entry["files"] = files_in_years(own, entry["start"], entry["end"])
+            if not entry["files"]:
+                problems.append(
+                    f"{row['name']} has no output in {entry['start']}-{entry['end']}, the years "
+                    f"of its {kind}."
+                )
+            else:
+                output = [int(year) for df in own.values() for year in df.year]
+                if output and (entry["start"] < min(output) or entry["end"] > max(output)):
+                    problems.append(
+                        f"{row['name']}'s output is from {min(output)} to {max(output)}, so the years "
+                        f"of its {kind}, {entry['start']}-{entry['end']}, are not all in it."
+                    )
+            entry["dates"] = _dates(own, entry["start"], entry["end"], row["time_res"])
+        for period in row["map_changes"]["periods"] if row["map_changes"] else []:
+            # each period has its own files and dates, not those of the years between them
+            period["files"] = files_in_years(own, period["start"], period["end"])
+            label = f"the {period['title'].lower()} period of its map_changes"
+            if not period["files"]:
+                problems.append(f"{row['name']} has no output in {period['start']}-{period['end']}, the years of {label}.")
+            else:
+                output = [int(year) for df in own.values() for year in df.year]
+                if output and (period["start"] < min(output) or period["end"] > max(output)):
+                    problems.append(
+                        f"{row['name']}'s output is from {min(output)} to {max(output)}, so the years "
+                        f"of {label}, {period['start']}-{period['end']}, are not all in it."
+                    )
+            period["dates"] = _dates(own, period["start"], period["end"], row["time_res"])
+        if row["long_term"] or row["seasonal"]:
+            first = min(row[kind]["start"] for kind in ("long_term", "seasonal") if row[kind])
+            last = max(row[kind]["end"] for kind in ("long_term", "seasonal") if row[kind])
+            row["series_files"] = files_in_years(own, first, last)
+        if row["seasonal"]:
+            from oceanval.analysis_series import months_per_year
+
+            months = {(int(y), int(m)) for df in own.values() for y, m in zip(df.year, df.month)
+                      if row["seasonal"]["start"] <= int(y) <= row["seasonal"]["end"]}
+            if months and months_per_year(months) == 1:
+                problems.append(
+                    f"{row['name']}'s seasonal series needs monthly output, or more often, and its output "
+                    f"({row['pattern']}) is {_resolution_text(row['time_res'])}."
+                )
+        for number, line in enumerate(row["transects"]["lines"] if row["transects"] else [], start=1):
+            from oceanval import analysis_transects
+
+            for option in analysis_transects.TREND_OPTIONS:
+                trends = line[option]
+                if not trends:
+                    continue
+                output = {
+                    int(y) for df in row["times"].values() for y in df.year if trends["start"] <= int(y) <= trends["end"]
+                }
+                needed = (
+                    analysis_transects.MIN_TREND_YEARS
+                    if trends["how"] == analysis_transects.ABSOLUTE
+                    else analysis_transects.MIN_CHANGE_YEARS
+                ) + trends.get("window", 1) - 1
+                if len(output) < needed:
+                    problems.append(
+                        f"The {analysis_transects.HOWS[trends['how']].lower()} {option} of transect {number} of "
+                        f"{row['name']} need output in at least {needed} years of {trends['start']}-{trends['end']}, "
+                        f"and it has {len(output)}."
+                    )
+        if row["phenology"] and row["time_res"] != time_resolution.DAILY:
+            problems.append(
+                f"{row['name']}'s phenology needs daily output, and its output "
+                f"({row['pattern']}) is {_resolution_text(row['time_res'])}."
+            )
+    if problems:
+        raise ValueError("\n".join(problems))
+
+
 @_restores_nctoolkit_options
 def analyze(
     sim_dir=None,
@@ -1206,9 +1480,7 @@ def analyze(
     str
         The path of the report's first page.
     """
-    from oceanval import time_stamps, user_cache
-    from oceanval.matchall import index_times
-    from oceanval.model_check import files_in_years
+    from oceanval import user_cache
 
     if isinstance(cores, bool) or not isinstance(cores, (int, np.integer)) or cores < 1:
         raise ValueError("Give cores, the number of cores OceanVal may use, a whole number of 1 or more.")
@@ -1238,143 +1510,7 @@ def analyze(
     if os.path.isfile(out_dir):
         raise ValueError(f"out_dir, {out_dir}, is a file, not a directory.")
 
-    _say(f"Finding the files of the simulation in {sim_dir}")
-    found = streams(sim_dir, n_dirs_down, exclude, require)
-    if not found:
-        filtered = " that pass the exclude and require filters" if exclude or require else ""
-        raise ValueError(
-            f"No netCDF files were found {n_dirs_down} directories below {sim_dir}{filtered}."
-        )
-    if _looks_like_fvcom(found[0]["files"][0]):
-        raise ValueError("analyze does not work with FVCOM output yet.")
-
-    problems = []
-    for row in rows:
-        try:
-            stream, res = choose_stream(place(row["model_variable"], found))
-        except ValueError as error:
-            problems.append(f"{row['name']} ({row['model_variable']}): {error}")
-            continue
-        row.update(describe_variable(row["model_variable"], stream))
-        row["pattern"] = stream["pattern"]
-        row["files"] = stream["files"]
-        row["time_res"] = res
-        if row["levels"] < 2:
-            layered = LAYERED + ("map_changes",)
-            column = [
-                layer for kind in layered if row[kind] for layer in row[kind]["layers"] if layer in WATER_COLUMN
-            ]
-            has_bottom = any(BOTTOM in row[kind]["layers"] for kind in layered if row[kind])
-            if has_bottom:
-                problems.append(
-                    f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
-                    "it has no bottom to take: leave out its bottom."
-                )
-            if column:
-                problems.append(
-                    f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
-                    "it has no water column to take: leave out its water_column."
-                )
-            if row["transects"] and any(
-                line["vertical"] or line["vertical_trends"] for line in row["transects"]["lines"]
-            ):
-                problems.append(
-                    f"{row['name']} ({row['model_variable']}) has only one vertical level, so "
-                    "it has no section through the water column to take along a transect: leave out "
-                    "the vertical climatology and vertical changes of its transects."
-                )
-    if problems:
-        raise ValueError("\n".join(problems))
-
-    paths = sorted({path for row in rows for path in row["files"]})
-    _say(f"Reading the times of {len(paths)} file{'s' if len(paths) != 1 else ''}")
-    times = index_times(paths)
-    if time_shift:
-        calendars = {}
-        for row in rows:
-            calendar_of = time_stamps.calendar(row["files"][0])
-            calendars.update({path: calendar_of for path in row["files"]})
-        times = time_stamps.shift_index(dict(times), time_shift, lambda path: calendars.get(path, "standard"))
-
-    for row in rows:
-        own = {path: times[path] for path in row["files"] if path in times}
-        if own:
-            row["time_res"] = time_resolution.label(pd.concat(own.values(), ignore_index=True))
-        row["times"] = own
-        for kind in KINDS:
-            entry = row[kind]
-            if entry is None or kind == "map_changes":
-                continue
-            entry["files"] = files_in_years(own, entry["start"], entry["end"])
-            if not entry["files"]:
-                problems.append(
-                    f"{row['name']} has no output in {entry['start']}-{entry['end']}, the years "
-                    f"of its {kind}."
-                )
-            else:
-                output = [int(year) for df in own.values() for year in df.year]
-                if output and (entry["start"] < min(output) or entry["end"] > max(output)):
-                    problems.append(
-                        f"{row['name']}'s output is from {min(output)} to {max(output)}, so the years "
-                        f"of its {kind}, {entry['start']}-{entry['end']}, are not all in it."
-                    )
-            entry["dates"] = _dates(own, entry["start"], entry["end"], row["time_res"])
-        for period in row["map_changes"]["periods"] if row["map_changes"] else []:
-            # each period has its own files and dates, not those of the years between them
-            period["files"] = files_in_years(own, period["start"], period["end"])
-            label = f"the {period['title'].lower()} period of its map_changes"
-            if not period["files"]:
-                problems.append(f"{row['name']} has no output in {period['start']}-{period['end']}, the years of {label}.")
-            else:
-                output = [int(year) for df in own.values() for year in df.year]
-                if output and (period["start"] < min(output) or period["end"] > max(output)):
-                    problems.append(
-                        f"{row['name']}'s output is from {min(output)} to {max(output)}, so the years "
-                        f"of {label}, {period['start']}-{period['end']}, are not all in it."
-                    )
-            period["dates"] = _dates(own, period["start"], period["end"], row["time_res"])
-        if row["long_term"] or row["seasonal"]:
-            first = min(row[kind]["start"] for kind in ("long_term", "seasonal") if row[kind])
-            last = max(row[kind]["end"] for kind in ("long_term", "seasonal") if row[kind])
-            row["series_files"] = files_in_years(own, first, last)
-        if row["seasonal"]:
-            from oceanval.analysis_series import months_per_year
-
-            months = {(int(y), int(m)) for df in own.values() for y, m in zip(df.year, df.month)
-                      if row["seasonal"]["start"] <= int(y) <= row["seasonal"]["end"]}
-            if months and months_per_year(months) == 1:
-                problems.append(
-                    f"{row['name']}'s seasonal series needs monthly output, or more often, and its output "
-                    f"({row['pattern']}) is {_resolution_text(row['time_res'])}."
-                )
-        for number, line in enumerate(row["transects"]["lines"] if row["transects"] else [], start=1):
-            from oceanval import analysis_transects
-
-            for option in analysis_transects.TREND_OPTIONS:
-                trends = line[option]
-                if not trends:
-                    continue
-                output = {
-                    int(y) for df in row["times"].values() for y in df.year if trends["start"] <= int(y) <= trends["end"]
-                }
-                needed = (
-                    analysis_transects.MIN_TREND_YEARS
-                    if trends["how"] == analysis_transects.ABSOLUTE
-                    else analysis_transects.MIN_CHANGE_YEARS
-                ) + trends.get("window", 1) - 1
-                if len(output) < needed:
-                    problems.append(
-                        f"The {analysis_transects.HOWS[trends['how']].lower()} {option} of transect {number} of "
-                        f"{row['name']} need output in at least {needed} years of {trends['start']}-{trends['end']}, "
-                        f"and it has {len(output)}."
-                    )
-        if row["phenology"] and row["time_res"] != time_resolution.DAILY:
-            problems.append(
-                f"{row['name']}'s phenology needs daily output, and its output "
-                f"({row['pattern']}) is {_resolution_text(row['time_res'])}."
-            )
-    if problems:
-        raise ValueError("\n".join(problems))
+    locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift)
 
     # any analysis there before is replaced, as validate() replaces its report
     folder = os.path.join(out_dir, FOLDER)

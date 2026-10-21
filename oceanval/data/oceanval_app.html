@@ -636,6 +636,34 @@
   #view-home .choice__title { font-size: 26px; }
   #view-home .choice__text { font-size: 16px; }
 
+
+  /* ---- the landing page has three tiles ---- */
+  #view-home .choices.is-three { width: 100%; max-width: 1180px; gap: 24px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 900px) { #view-home .choices.is-three { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---- Compare simulations (see oceanval.sim_compare_app) ---- */
+  .sc-sim { padding: 18px 0 8px; border-top: 1px solid var(--line); }
+  .sc-sim:first-of-type { border-top: 0; padding-top: 6px; }
+  .sc-sim__title { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 15px; }
+  .sc-sim__title .sc-remove { margin-left: auto; }
+  .sc-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; flex: none; }
+  .sc-sim .form__row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px; }
+  .sc-sim details { margin: 10px 0 0; }
+  .sc-sim summary { color: var(--muted); font-size: 13px; cursor: pointer; }
+  .sc-sim .group__msg { margin-top: 8px; }
+  .sc-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  .sc-head { display: flex; align-items: center; gap: 8px; }
+  .sc-section { margin: 0 0 22px; }
+  .sc-section__title { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 16px; }
+  .sc-choice { display: grid; gap: 12px; padding: 16px 20px; }
+  .sc-grid-card { margin: 14px 0 0; padding: 18px 22px 20px; }
+  .sc-grid-card__title { margin: 0 0 6px; font-size: 15px; }
+  .sc-grid-card .form__row { max-width: 780px; }
+  .sc-grid-note { max-width: 980px; margin: 18px 0 0; padding: 14px 18px; border: 1px solid var(--amber-line, var(--line)); border-left: 4px solid var(--amber); border-radius: var(--radius-sm); background: var(--amber-bg); color: var(--ink); font-size: 14.5px; line-height: 1.5; }
+  .sc-grid-note strong { color: var(--amber); }
+  .sc-analyze-note { max-width: 980px; margin: 0 0 18px; color: var(--ink-soft); font-size: 14.5px; }
+  .analyze-table .sc-model-cell + .sc-model-cell { border-left: 0; }
+
   /* ---- Analyze (see oceanval.analysis_app) ---- */
   .analyze-reading { margin: 0 0 18px; }
   .analyze-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 14px; color: var(--muted); font-size: 13px; }
@@ -874,11 +902,16 @@
 
 <main class="wrap">
   <section id="view-home" hidden>
-    <div class="choices is-two">
+    <div class="choices is-three">
       <button type="button" class="choice" data-action="analyze" id="home-analyze">
         <span class="choice__icon" data-icon="analyze"></span>
         <span class="choice__title">Analyze</span>
         <span class="choice__text">Look at a simulation on its own: the climatology and the phenology of its variables, in an HTML report.</span>
+      </button>
+      <button type="button" class="choice" data-action="simcompare" id="home-simcompare">
+        <span class="choice__icon" data-icon="simcompare"></span>
+        <span class="choice__title">Compare simulations</span>
+        <span class="choice__text">Look at up to five simulations side by side: the same analyses of each, with the time series in a colour for each simulation.</span>
       </button>
       <button type="button" class="choice" data-action="validate_menu" id="home-validate">
         <span class="choice__icon" data-icon="report"></span>
@@ -1364,6 +1397,7 @@
 
   <section id="view-analyze-options" hidden>
     <p class="lede analyze-options__intro">Choose what to work out. Each opens a window to choose the variables, and the years, for it.</p>
+    <p class="sc-analyze-note" id="ao-compare-note" hidden>Everything you choose is worked out for <strong>every</strong> simulation, over the same years, which must be years all of them have, and the cell thickness (a variable in each simulation's output, or a file) is the same in all of them.</p>
     <p class="own-legend" id="ao-need"><span class="own-swatch" aria-hidden="true"></span><span><b>Required:</b> choose at least one of these.</span></p>
     <div class="choices is-two analyze-options">
       <button type="button" class="choice" id="ao-climatology" aria-haspopup="dialog">
@@ -1434,6 +1468,207 @@
       <p class="group__intro analyze-code__help">With Yes, each figure in the report has a <strong>Copy code to reproduce figure</strong> button at its top right. It copies the Python code that draws the figure from the analysis's saved results, which you can change and run in the conda environment OceanVal ran in.</p>
       <p class="group__msg" id="ao-code-msg"></p>
     </fieldset>
+  </section>
+
+  <section id="view-simcompare-sims" hidden>
+    <div class="banner" id="sc-sims-error" role="alert" hidden></div>
+    <form class="setup-form" id="sc-sims-form" novalidate autocomplete="off">
+      <fieldset class="group card setup-box">
+        <legend>Tell OceanVal about the simulations to compare</legend>
+        <p class="group__intro">Give two to five simulations. For each, a name (which is how the report calls it), the directory its output is in, and how many subdirectories below that directory its files are.</p>
+        <div class="sc-sim" id="sc-row-1">
+          <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-1"></span>Simulation 1<button type="button" class="analyze-remove sc-remove" id="sc-remove-1" title="Remove this simulation" aria-label="Remove simulation 1" hidden>×</button></h3>
+          <div class="form__row">
+            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_1" placeholder="e.g. Control" spellcheck="false" autocomplete="off"></label>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" list="sc-dir_1-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div><datalist id="sc-dir_1-folders"></datalist></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_1" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <details><summary>Only use some of the files</summary>
+            <div class="form__row is-pair" style="margin-top:10px">
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_1" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_1" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+            </div>
+          </details>
+          <p class="group__msg" id="sc-m-1"></p>
+        </div>
+        <div class="sc-sim" id="sc-row-2">
+          <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-2"></span>Simulation 2<button type="button" class="analyze-remove sc-remove" id="sc-remove-2" title="Remove this simulation" aria-label="Remove simulation 2" hidden>×</button></h3>
+          <div class="form__row">
+            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_2" placeholder="e.g. New mixing" spellcheck="false" autocomplete="off"></label>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" list="sc-dir_2-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div><datalist id="sc-dir_2-folders"></datalist></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_2" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <details><summary>Only use some of the files</summary>
+            <div class="form__row is-pair" style="margin-top:10px">
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_2" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_2" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+            </div>
+          </details>
+          <p class="group__msg" id="sc-m-2"></p>
+        </div>
+        <div class="sc-sim" id="sc-row-3" hidden>
+          <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-3"></span>Simulation 3<button type="button" class="analyze-remove sc-remove" id="sc-remove-3" title="Remove this simulation" aria-label="Remove simulation 3">×</button></h3>
+          <div class="form__row">
+            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_3" placeholder="" spellcheck="false" autocomplete="off"></label>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" list="sc-dir_3-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div><datalist id="sc-dir_3-folders"></datalist></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_3" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <details><summary>Only use some of the files</summary>
+            <div class="form__row is-pair" style="margin-top:10px">
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_3" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_3" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+            </div>
+          </details>
+          <p class="group__msg" id="sc-m-3"></p>
+        </div>
+        <div class="sc-sim" id="sc-row-4" hidden>
+          <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-4"></span>Simulation 4<button type="button" class="analyze-remove sc-remove" id="sc-remove-4" title="Remove this simulation" aria-label="Remove simulation 4">×</button></h3>
+          <div class="form__row">
+            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_4" placeholder="" spellcheck="false" autocomplete="off"></label>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" list="sc-dir_4-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div><datalist id="sc-dir_4-folders"></datalist></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_4" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <details><summary>Only use some of the files</summary>
+            <div class="form__row is-pair" style="margin-top:10px">
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_4" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_4" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+            </div>
+          </details>
+          <p class="group__msg" id="sc-m-4"></p>
+        </div>
+        <div class="sc-sim" id="sc-row-5" hidden>
+          <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-5"></span>Simulation 5<button type="button" class="analyze-remove sc-remove" id="sc-remove-5" title="Remove this simulation" aria-label="Remove simulation 5">×</button></h3>
+          <div class="form__row">
+            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_5" placeholder="" spellcheck="false" autocomplete="off"></label>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" list="sc-dir_5-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div><datalist id="sc-dir_5-folders"></datalist></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_5" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <details><summary>Only use some of the files</summary>
+            <div class="form__row is-pair" style="margin-top:10px">
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_5" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_5" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+            </div>
+          </details>
+          <p class="group__msg" id="sc-m-5"></p>
+        </div>
+        <div class="analyze-foot">
+          <button type="button" class="btn btn--ghost" id="sc-add">Add a simulation</button>
+          <p class="group__msg is-error" id="sc-sims-msg" role="status" aria-live="polite"></p>
+        </div>
+      </fieldset>
+      <fieldset class="group card setup-box">
+        <legend>Tell OceanVal where you want output to be saved</legend>
+        <div class="g-row"><label class="g-label" for="sc-out_dir">Where do you want the comparison to be saved?</label><div class="path-field"><input class="s-input is-mono" id="sc-out_dir" list="sc-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="sc-out_dir">Browse…</button></div><datalist id="sc-out_dir-folders"></datalist></div>
+        <p class="group__msg" id="sc-m-out_dir"></p>
+        <label class="g-row setup-box__script"><span class="g-label">What do you want the comparison script to be called</span><input class="s-input is-mono" id="sc-out" spellcheck="false" autocapitalize="off"></label>
+        <p class="group__intro">This is created to produce a fully reproducible version of this comparison that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
+        <p class="group__msg" id="sc-m-out"></p>
+      </fieldset>
+      <button type="submit" hidden></button>
+    </form>
+  </section>
+
+  <section id="view-simcompare-variables" hidden>
+    <div class="progress card analyze-reading" id="scv-reading" role="status" aria-live="polite" hidden>
+      <span class="identify__spinner" aria-hidden="true"></span>
+      <div class="progress__body">
+        <h2 class="identify__title">Reading the simulations' files</h2>
+        <p class="identify__text" id="scv-reading-text">OceanVal is finding the simulations' output files, and the variables in them.</p>
+      </div>
+    </div>
+    <div class="banner" id="scv-error" role="alert" hidden></div>
+    <div id="scv-main" hidden>
+      <p class="lede">Give each variable a name of your own, and the model variable holding it in <strong>each</strong> simulation: they can be called different things in each. Several model variables can be summed, as <code>a+b</code>. Pick them from the simulation's variables, or type them. The variable must be in the same units in every simulation.</p>
+      <div class="card analyze-table"><table id="scv-table">
+        <thead id="scv-head"></thead>
+        <tbody id="scv-rows"></tbody>
+      </table></div>
+      <div class="analyze-foot">
+        <button type="button" class="btn btn--ghost" id="scv-add">Add a variable</button>
+        <p class="group__msg is-error" id="scv-msg" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-simcompare-files" hidden>
+    <section class="time-shift" id="scf-shift" aria-label="Whether to shift the simulations' times" hidden>
+      <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, a January mean would count as February's, and the year's last mean would fall in the next year.</p>
+      <p class="lede" id="scf-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting the times of the simulations below <span id="scf-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers. The other simulations are not shifted. The dates of the files are read once you have chosen.</p>
+      <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the simulations' times">
+        <div class="ptr-modes">
+          <label class="ptr-mode"><input type="radio" name="scf-mode" value="shift" id="scf-mode-shift"><span class="oceanval-change" id="scf-shift-label">Shift their times back one day</span></label>
+          <label class="ptr-mode"><input type="radio" name="scf-mode" value="keep" id="scf-mode-keep">Keep the times as they are</label>
+        </div>
+      </div>
+      <div class="card units ptr"><table>
+        <colgroup><col style="width:20%"><col style="width:20%"><col style="width:18%"><col style="width:18%"><col style="width:24%"></colgroup>
+        <thead><tr>
+        <th scope="col">Simulation and variable</th><th scope="col">Files</th><th scope="col">Times now</th>
+        <th scope="col">Shifted</th><th scope="col">Why they look like ends</th>
+        </tr></thead>
+        <tbody id="scf-shift-body"></tbody>
+      </table></div>
+    </section>
+    <div class="progress card analyze-reading" id="scf-stamps" role="status" aria-live="polite" hidden>
+      <span class="identify__spinner" aria-hidden="true"></span>
+      <div class="progress__body">
+        <h2 class="identify__title">Looking at the files' times</h2>
+        <p class="identify__text">OceanVal is checking whether the times of the files are the start or the end of the period each mean covers.</p>
+      </div>
+    </div>
+    <div id="scf-review" hidden>
+      <p class="lede" id="scf-lede">OceanVal reads the dates of each variable's files in each simulation, to find any gaps in them. The simulations are compared over the years they all have.</p>
+      <p class="review__dates-note" id="scf-note" role="status" hidden></p>
+      <div id="scf-sims"></div>
+    </div>
+  </section>
+
+  <section id="view-simcompare-grids" hidden>
+    <div class="grids-reading" id="scg-reading" hidden></div>
+    <p class="lede" id="scg-lede">The simulations can be on different model grids. To compare them cell by cell, and to take means over exactly the same area, they need to be put on one grid.</p>
+    <p class="group__msg" id="scg-same" role="status"></p>
+    <fieldset class="group card sc-choice" id="scg-need-group">
+      <legend>Do you need to unify the model grids? <span class="own-req">Required</span></legend>
+      <div role="radiogroup" aria-label="Whether to put the simulations on one grid" class="analyze-code">
+        <label class="ptr-mode"><input type="radio" name="scg-need" value="yes" id="scg-need-yes">Yes</label>
+        <label class="ptr-mode"><input type="radio" name="scg-need" value="no" id="scg-need-no">No</label>
+      </div>
+      <p class="group__msg" id="scg-need-msg"></p>
+    </fieldset>
+    <div id="scg-how" hidden>
+      <p class="sc-grid-note" id="scg-note"><strong>Cells with no value in any one simulation are made missing in all of them.</strong> Once the simulations are on one grid, a cell that is missing in one simulation (land, say, or a place it has no water) is set to missing in every simulation, so that all of them are compared over exactly the same cells. This is judged from the first time step of each simulation's output, for each variable and each layer.</p>
+      <fieldset class="group card sc-choice" style="margin-top:18px">
+        <legend>How should they be put on one grid? <span class="own-req">Required</span></legend>
+        <div role="radiogroup" aria-label="How to put the simulations on one grid" class="ptr-modes" style="padding:0">
+          <label class="ptr-mode"><input type="radio" name="scg-method" value="box" id="scg-method-box">A lon/lat box and a resolution I give</label>
+          <label class="ptr-mode"><input type="radio" name="scg-method" value="baseline" id="scg-method-baseline">The grid of one of the simulations, a baseline</label>
+        </div>
+        <p class="group__msg" id="scg-method-msg"></p>
+      </fieldset>
+      <div class="card sc-grid-card" id="scg-box" hidden>
+        <h3 class="sc-grid-card__title">A lon/lat box and resolution</h3>
+        <p class="group__intro">Every simulation is put on a regular lon-lat grid of this box and resolution, with nctoolkit's <code>to_latlon</code>.<span id="scg-extents"></span></p>
+        <div class="form__row is-pair">
+          <label class="g-row"><span class="g-label is-required">Longitude, from <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_min" placeholder="e.g. -20" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+          <label class="g-row"><span class="g-label is-required">Longitude, to <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_max" placeholder="e.g. 10" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+        </div>
+        <div class="form__row is-pair">
+          <label class="g-row"><span class="g-label is-required">Latitude, from <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lat_min" placeholder="e.g. 40" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+          <label class="g-row"><span class="g-label is-required">Latitude, to <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lat_max" placeholder="e.g. 65" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+        </div>
+        <div class="form__row is-pair">
+          <label class="g-row"><span class="g-label is-required">Resolution, in degrees <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-res" placeholder="e.g. 0.1" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+        </div>
+        <p class="group__msg" id="scg-box-msg"></p>
+      </div>
+      <div class="card sc-grid-card" id="scg-baseline" hidden>
+        <h3 class="sc-grid-card__title">The grid of a baseline simulation</h3>
+        <p class="group__intro">The baseline's grid is the one the comparisons are made on. Each of the other simulations is regridded to it, with nctoolkit's <code>regrid</code>. The baseline itself is not regridded.</p>
+        <div class="g-row"><label class="g-label is-required" for="scg-baseline-select">Which simulation is the baseline? <span class="own-req">Required</span></label><select class="s-select" id="scg-baseline-select"></select></div>
+        <p class="group__msg" id="scg-baseline-msg"></p>
+      </div>
+    </div>
+    <p class="group__msg" id="scg-no" hidden></p>
   </section>
 
   <section id="view-run" hidden>
@@ -1820,6 +2055,7 @@
     longterm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7 16 3-2.5 3 1 4-5 2-1.5"/><path d="M17 8h3v3"/></svg>',
     seasonal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c1.5-6 3.5-6 6 0s4.5 6 6 0c1-3 2-4.2 3-4.5"/><path d="M3 20h18"/><path d="M8 20v-1.5M12 20v-1.5M16 20v-1.5"/></svg>',
     changes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="7.5" height="14" rx="1.5"/><rect x="14" y="5" width="7.5" height="14" rx="1.5" stroke-dasharray="2.5 2"/><path d="M10.5 12h3m0 0-1.5-1.5M13.5 12l-1.5 1.5"/><path d="M5 15c1-3 2-3 3-5" opacity=".6"/></svg>',
+    simcompare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9m5 11V4m5 16v-8m5 8V7"/><path d="M3 20h18" opacity=".45"/></svg>',
     transect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6 17.6 6.4"/><path d="M3 3v6M3 3h6" opacity=".45"/></svg>',
     warn: ICONS.warn,
     check: ICONS.check,
@@ -1832,6 +2068,7 @@
     validate: "Building the report",
     compare: "Comparing the validations",
     analyze: "Analysing the simulation",
+    simcompare: "Comparing the simulations",
   };
 
   function depthText(depth) {
@@ -1888,7 +2125,13 @@
       case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
         && !state.analyze.time_shift.choice ? "Are the model's times at the end of each mean?"
         : "Check the files of each variable";
-      case "analyze_options": return "What do you want to work out?";
+      case "analyze_options": return state.action === "simcompare" ? "What do you want to compare?" : "What do you want to work out?";
+      case "simcompare_sims": return "Which simulations do you want to compare?";
+      case "simcompare_variables": return "What variables do you want to compare?";
+      case "simcompare_files": return scState().shift && scState().shift.status === "asked"
+        && !scState().shift.choice ? "Are the models' times at the end of each mean?"
+        : "Check the files of each simulation";
+      case "simcompare_grids": return "Do the simulations need to be on one grid?";
       case "own_data": return "";  // asked on the page itself
       case "register_kind": return "Which kind of data is your recipe for?";
       case "register_point": return "Register a point data recipe";
@@ -1945,11 +2188,14 @@
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
       state.demo && state.demo.status, demoKey(), Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
-      state.register.saved.length, analyzeFilesReady()].join("|");
+      state.register.saved.length, analyzeFilesReady(), scFilesReady()].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
       if (view === "analyze_variables") refreshAnalyzeVariables();
       if (view === "analyze_options") renderAnalyzeOptions();
+      if (view === "simcompare_sims") refreshScSims();
+      if (view === "simcompare_variables") refreshScVariables();
+      if (view === "simcompare_grids") refreshScGrids();
       return;
     }
     barShown = key;
@@ -1983,7 +2229,22 @@
         }, { id: "af-continue", disabled: !analyzeFilesReady() }));
     } else if (view === "analyze_options") {
       actions.push(button("Back", "ghost", () => post("api/back")),
-        button("Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }));
+        button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }));
+    } else if (view === "simcompare_sims") {
+      actions.push(button("Back", "ghost", () => post("api/back", { form: scReadSims() })),
+        button("Continue", "primary", submitScSims, { id: "sc-continue", disabled: true }));
+    } else if (view === "simcompare_variables") {
+      actions.push(button("Back", "ghost", () => post("api/back", { rows: readScRows() })),
+        button("Continue", "primary", submitScVariables, { id: "scv-continue", disabled: true }));
+    } else if (view === "simcompare_files") {
+      actions.push(button("Back", "ghost", () => post("api/back")),
+        button("Continue", "primary", async () => {
+          const reply = await post("api/simcompare_files");
+          if (!reply.ok) toast(reply.error || "That cannot be done now.");
+        }, { id: "scf-continue", disabled: !scFilesReady() }));
+    } else if (view === "simcompare_grids") {
+      actions.push(button("Back", "ghost", () => post("api/back", { form: scReadGrids() })),
+        button("Continue", "primary", submitScGrids, { id: "scg-continue", disabled: true }));
     } else if (view === "register_kind") {
       actions.push(button("Back", "ghost", () => post("api/back")));
       if (state.register.saved.length) actions.push(button("Finish", "primary", () => post("api/register_done")));
@@ -2086,6 +2347,9 @@
     if (view === "setup") refreshSetup();
     if (view === "analyze_variables") refreshAnalyzeVariables();
     if (view === "analyze_options") renderAnalyzeOptions();
+    if (view === "simcompare_sims") refreshScSims();
+    if (view === "simcompare_variables") refreshScVariables();
+    if (view === "simcompare_grids") refreshScGrids();
     // the new button is held back as the transect says
     if (view === "validate" || view === "report_options") refreshValidate();
     if (view === "compare") refreshCompare();
@@ -2095,7 +2359,8 @@
 
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
-    analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
+    analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
+    simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
     own_future: "view-own-future",
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
@@ -2129,6 +2394,18 @@
       analyzeFiles.shift = null;
     } else if (view === "analyze_options") {
       $("ao-climatology").focus();
+    } else if (view === "simcompare_sims") {
+      fillScSims();
+      $("sc-name_1").focus();
+    } else if (view === "simcompare_variables") {
+      scVars.built = false;
+      scVars.busy = false;
+      $("scv-rows").replaceChildren();
+    } else if (view === "simcompare_files") {
+      scFiles.key = null;
+      scFiles.shift = null;
+    } else if (view === "simcompare_grids") {
+      fillScGrids();
     } else if (view === "demo") {
       $("demo-choose").scrollIntoView({ block: "start" });
     } else if (view === "units_table") {
@@ -2199,6 +2476,9 @@
     if (state.view === "analyze_variables") renderAnalyzeVariables();
     if (state.view === "analyze_files") renderAnalyzeFiles();
     if (state.view === "analyze_options") renderAnalyzeOptions();
+    if (state.view === "simcompare_variables") renderScVariables();
+    if (state.view === "simcompare_files") renderScFiles();
+    if (state.view === "simcompare_grids") renderScGrids();
     if (VIEWS[state.view] === "view-run") renderRun();
     if (state.view === "script_saved") renderSavedScript();
     if (!state.demo) {
@@ -3028,7 +3308,11 @@
     $("files-close").focus();
     let found = null;
     try {
-      const response = await fetch(`api/analyze_check_files?${query({ variable: row.name })}`, { cache: "no-store" });
+      // the files step of Compare simulations lists those of one simulation
+      const url = shown.simulation
+        ? `api/simcompare_check_files?${query({ simulation: shown.simulation, variable: row.name })}`
+        : `api/analyze_check_files?${query({ variable: row.name })}`;
+      const response = await fetch(url, { cache: "no-store" });
       const reply = await response.json();
       if (reply.ok) found = reply.files;
     } catch (error) {
@@ -3040,7 +3324,7 @@
       return;
     }
     $("files-intro").replaceChildren(el("span", {}, `${plural(found.length, "file")} in `,
-      el("code", { text: state.analyze.sim_dir || "" }), ` ${found.length === 1 ? "matches" : "match"} `,
+      el("code", { text: shown.simdir || state.analyze.sim_dir || "" }), ` ${found.length === 1 ? "matches" : "match"} `,
       el("code", { text: row.pattern }), "."));
     $("files-list").replaceChildren(...found.map((name) => el("p", { class: "picker__file", text: name })));
     $("files-list").scrollTop = 0;
@@ -3103,6 +3387,7 @@
   }
 
   function renderAnalyzeOptions() {
+    $("ao-compare-note").hidden = state.action !== "simcompare";
     for (const kind of ANALYSES) {
       const tile = $(`ao-${kind}`);
       const chosen = Boolean(state.analyze.chosen[kind]);
@@ -3588,6 +3873,13 @@
     tr.querySelector("input").focus();
   });
 
+  // why a variable cannot have its phenology: in a comparison, the simulations whose output is not daily
+  function needsDaily(row) {
+    const sims = Object.entries(row.time_res_by_sim || {}).filter(([, res]) => res !== state.analyze.daily);
+    if (!sims.length) return `Needs daily output (this is ${resolutionText(row.time_res)})`;
+    return `Needs daily output in every simulation (${sims.map(([name, res]) => `${name}: ${resolutionText(res)}`).join(", ")})`;
+  }
+
   function phenologyRows(form) {
     analyzeDialog.rows = {};
     $("phen-body").replaceChildren(...state.analyze.placed.map((row) => {
@@ -3603,7 +3895,7 @@
       const tr = el("tr", {},
         el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
           el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name),
-          daily ? null : el("small", { text: `Needs daily output (this is ${resolutionText(row.time_res)})` }), msg),
+          daily ? null : el("small", { text: needsDaily(row) }), msg),
         el("td", {}, start), el("td", {}, end));
       const refresh = () => {
         tr.classList.toggle("is-off", !use.checked);
@@ -5828,6 +6120,17 @@
         : ["No oceanval_results here: choose the directory validate() built its report in.", "warn"],
     };
   }
+  // the Compare simulations step's directories
+  for (let row = 1; row <= 5; row++) {
+    DESCRIBE[`sc-dir_${row}`] = {
+      title: `Choose the directory with the output of simulation ${row}`,
+      describe: DESCRIBE["f-simdir"].describe,
+    };
+  }
+  DESCRIBE["sc-out_dir"] = {
+    title: "Choose where to save the comparison",
+    describe: () => ["The comparison is saved in oceanval_simulation_comparison, inside it.", ""],
+  };
   // the directories of recipes of your own
   DESCRIBE["r-point-obs_path"] = {
     title: "Choose the directory of csv files",
@@ -6220,6 +6523,11 @@
       return { title: "Identifying files that meet criteria. Please wait!",
         text: "OceanVal is finding the simulation output files that hold each variable. It then shows you what it found, to check before anything is matched up." };
     }
+    if (state.action === "simcompare") {
+      const said = lastSaid();
+      return { title: "Comparing the simulations",
+        text: said ? `${said}…` : "OceanVal is starting the comparison. It works out what you chose for each variable in each simulation, and then builds the report." };
+    }
     if (state.action === "analyze") {
       const said = lastSaid();
       return { title: "Analysing the simulation",
@@ -6286,6 +6594,10 @@
       heading = "The matchups are ready";
       text = "Build the report from them now, with Validate these matchups, or later.";
       path = run.matchups;
+    } else if (run.status === "finished" && state.action === "simcompare") {
+      heading = run.report_exists ? "The comparison report is ready" : "The run has finished";
+      text = run.report_exists ? "It is saved here:" : "The output below says what was made.";
+      path = run.report_exists ? run.report : null;
     } else if (run.status === "finished" && state.action === "analyze") {
       heading = run.report_exists ? "The analysis report is ready" : "The run has finished";
       text = run.report_exists ? "It is saved here:" : "The output below says what was made.";
@@ -6318,6 +6630,7 @@
     const link = run.status === "finished" && run.report_href
       ? el("div", { class: "result__link" }, openLink(run.report_href,
         state.action === "compare" ? "Open the comparison report"
+          : state.action === "simcompare" ? "Open the simulation comparison report"
           : state.action === "analyze" ? "Open the analysis report" : "Open the validation report"))
       : null;
     const reminder = state.demo
@@ -7031,6 +7344,746 @@
     // the first page shows or hides the demo
     onSaved: render,
   });
+
+  // ---- Compare simulations: the simulations, their variables, files and grids (see oceanval.sim_compare_app) ----
+  // the analyses are chosen on Analyze's options step, which takes the variables as they are in all the simulations
+  const SC_MOST = 5;
+  const scState = () => state.simcompare;
+  const scColour = (index) => scState().colours[index % scState().colours.length];
+  const scSwatch = (colour) => el("span", { class: "sc-swatch", style: `background:${colour}` });
+  const scNamed = (name, colour) => el("span", { class: "sc-name" }, scSwatch(colour), name);
+
+  // a drop-down of the directories used before, for one of the directory boxes
+  function makeRecent(boxId) {
+    const box = $(boxId), toggle = $(`${boxId}-recent-toggle`), list = $(`${boxId}-recent`), combo = $(`${boxId}-combo`);
+    let active = -1;
+    const options = () => [...list.querySelectorAll(".combo__option")];
+    const show = (open) => {
+      list.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+      active = -1;
+      options().forEach((option) => option.classList.remove("is-active"));
+    };
+    const mark = (index) => {
+      const all = options();
+      active = (index + all.length) % all.length;
+      all.forEach((option, number) => {
+        option.classList.toggle("is-active", number === active);
+        option.setAttribute("aria-selected", String(number === active));
+      });
+      all[active].scrollIntoView({ block: "nearest" });
+    };
+    const pick = (dir) => {
+      show(false);
+      box.value = dir;
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+      box.focus();
+    };
+    toggle.addEventListener("mousedown", (event) => event.preventDefault());
+    toggle.addEventListener("click", () => { show(list.hidden); box.focus(); });
+    box.addEventListener("keydown", (event) => {
+      if (toggle.hidden) return;
+      if (list.hidden) {
+        if (event.key === "ArrowDown" && event.altKey) { event.preventDefault(); show(true); }
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        mark(active + (event.key === "ArrowDown" ? 1 : -1));
+      } else if (event.key === "Enter" && active >= 0) {
+        event.preventDefault();
+        pick(options()[active].textContent);
+      } else if (event.key === "Escape" || event.key === "Tab") {
+        if (event.key === "Escape") event.preventDefault();
+        show(false);
+      }
+    });
+    box.addEventListener("input", () => { if (!list.hidden) show(false); });
+    document.addEventListener("mousedown", (event) => { if (!list.hidden && !combo.contains(event.target)) show(false); });
+    return () => {
+      const recent = state.setup.recent || [];
+      toggle.hidden = !recent.length;
+      combo.classList.toggle("has-recent", recent.length > 0);
+      list.replaceChildren(
+        el("li", { class: "combo__head", role: "presentation", text: "Used before" }),
+        ...recent.map((dir) => el("li", {
+          class: "combo__option", role: "option", "aria-selected": "false", title: dir, text: dir,
+          onmousedown: (event) => { event.preventDefault(); pick(dir); },
+        })));
+      show(false);
+    };
+  }
+
+  // ---- the simulations ----
+  const scSims = { shown: 2, errors: {}, probes: {}, timers: {}, numbers: {}, fillRecent: [], busy: false };
+  const SC_BOXES = { name: "name", simdir: "dir", ndown: "ndown", exclude: "exclude", require: "require" };
+
+  function scReadSims() {
+    const rows = [];
+    for (let n = 1; n <= scSims.shown; n++) {
+      const row = {};
+      for (const [field, id] of Object.entries(SC_BOXES)) row[field] = $(`sc-${id}_${n}`).value;
+      rows.push(row);
+    }
+    return { rows, out_dir: $("sc-out_dir").value, out: $("sc-out").value };
+  }
+
+  function scShowRows() {
+    for (let n = 1; n <= SC_MOST; n++) {
+      $(`sc-row-${n}`).hidden = n > scSims.shown;
+      $(`sc-remove-${n}`).hidden = n <= 2;
+    }
+    $("sc-add").hidden = scSims.shown >= SC_MOST;
+  }
+
+  function scWriteSims(form) {
+    for (let n = 1; n <= SC_MOST; n++) {
+      const row = form.rows[n - 1] || {};
+      for (const [field, id] of Object.entries(SC_BOXES)) $(`sc-${id}_${n}`).value = row[field] || "";
+      $(`sc-swatch-${n}`).style.background = scColour(n - 1);
+    }
+  }
+
+  function fillScSims() {
+    const form = scState().form;
+    // the rows that have something in them are shown, and at least two
+    let shown = 2;
+    form.rows.forEach((row, index) => { if (Object.values(row).some((box) => String(box).trim())) shown = Math.max(shown, index + 1); });
+    scSims.shown = Math.min(SC_MOST, Math.max(shown, form.rows.length > 2 ? form.rows.length : 2));
+    scWriteSims(form);
+    $("sc-out_dir").value = form.out_dir;
+    $("sc-out").value = form.out;
+    $("sc-out_dir").placeholder = state.cwd;
+    scSims.errors = {};
+    scSims.probes = {};
+    $("sc-sims-error").hidden = true;
+    scShowRows();
+    scSims.fillRecent.forEach((fill) => fill());
+    for (let n = 1; n <= scSims.shown; n++) scAskProbe(n, 0);
+    scAskOutProbe(0);
+    refreshScSims();
+  }
+
+  function scRowEmpty(n) {
+    return Object.values(SC_BOXES).every((id) => !$(`sc-${id}_${n}`).value.trim());
+  }
+
+  function scAskProbe(n, delay) {
+    clearTimeout(scSims.timers[n]);
+    scSims.timers[n] = setTimeout(async () => {
+      const number = (scSims.numbers[n] = (scSims.numbers[n] || 0) + 1);
+      let found;
+      try {
+        const response = await fetch(`api/probe?${query({
+          simdir: $(`sc-dir_${n}`).value, ndown: $(`sc-ndown_${n}`).value, out: $("sc-out").value || "comparison.py",
+          exclude: $(`sc-exclude_${n}`).value, require: $(`sc-require_${n}`).value, out_dir: $("sc-out_dir").value,
+        })}`, { cache: "no-store" });
+        found = await response.json();
+      } catch (error) {
+        return;
+      }
+      if (number !== scSims.numbers[n]) return;
+      scSims.probes[n] = found;
+      refreshScSims();
+    }, delay);
+  }
+
+  let scOutTimer = null;
+  function scAskOutProbe(delay) {
+    clearTimeout(scOutTimer);
+    scOutTimer = setTimeout(async () => {
+      try {
+        const response = await fetch(`api/probe?${query({
+          simdir: "", ndown: "", out: $("sc-out").value, exclude: "", require: "", out_dir: $("sc-out_dir").value })}`, { cache: "no-store" });
+        scSims.outProbe = await response.json();
+      } catch (error) {
+        return;
+      }
+      refreshScSims();
+    }, delay);
+  }
+
+  // what is wrong with the rows of the simulations step, as far as the page can tell
+  function scSimsProblems() {
+    const problems = { rows: {}, complete: 0, count: 0 };
+    const keys = {};
+    for (let n = 1; n <= scSims.shown; n++) {
+      if (scRowEmpty(n)) continue;
+      problems.count += 1;
+      const here = {};
+      const given = scSims.errors[String(n - 1)] || {};
+      const name = $(`sc-name_${n}`).value.trim(), dir = $(`sc-dir_${n}`).value.trim(), ndown = $(`sc-ndown_${n}`).value.trim();
+      if (!name) here.name = given.name || "Give this simulation a name.";
+      else if (!variableKey(name)) here.name = "The name needs a letter or a digit in it.";
+      else if (keys[variableKey(name)]) here.name = `This is the same name as ${keys[variableKey(name)]}: give it another.`;
+      else keys[variableKey(name)] = name;
+      if (given.name && !here.name) here.name = given.name;
+      const probe = scSims.probes[n];
+      if (!dir) here.simdir = given.simdir || "Enter the directory the simulation output is in.";
+      else if (probe && probe.directory === "missing") here.simdir = "There is no directory at this path.";
+      else if (given.simdir) here.simdir = given.simdir;
+      if (!isInteger(ndown) || +ndown < 0) here.ndown = given.ndown || (ndown ? "This must be a whole number, 0 or more." : "Say how many directories down the files are.");
+      problems.rows[n] = here;
+      if (!Object.keys(here).length) problems.complete += 1;
+    }
+    return problems;
+  }
+
+  function refreshScSims() {
+    if (state.view !== "simcompare_sims") return;
+    const problems = scSimsProblems();
+    for (let n = 1; n <= scSims.shown; n++) {
+      const here = problems.rows[n] || {};
+      const shownErrors = scSims.touched && scSims.touched[n] ? here : {};
+      for (const [field, id] of Object.entries(SC_BOXES)) {
+        const invalid = Boolean(shownErrors[field]);
+        $(`sc-${id}_${n}`).classList.toggle("is-invalid", invalid);
+      }
+      const lines = [];
+      const probe = scSims.probes[n];
+      for (const field of ["name", "simdir", "ndown"]) {
+        if (shownErrors[field] && field !== "name") lines.push(line(shownErrors[field], "error"));
+      }
+      if (shownErrors.name) lines.push(line(shownErrors.name, "error"));
+      if (!here.simdir && !here.ndown && probe && probe.directory === "found") {
+        const depth = probe.ndown;
+        const filtered = probe.all_files !== null && probe.all_files !== probe.files;
+        if (probe.files > 0) {
+          let found = filtered
+            ? `${probe.files} of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters`
+            : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} ${depthText(depth)}`;
+          if (probe.years) found += probe.years[0] === probe.years[1] ? `, named for ${probe.years[0]}` : `, named for ${probe.years[0]}–${probe.years[1]}`;
+          lines.push(line(found + ".", "ok"));
+        } else if (depth !== null && probe.all_files > 0) {
+          lines.push(line(`None of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters.`, "nofiles"));
+        } else if (depth !== null && probe.suggestion) {
+          const other = probe.suggestion;
+          lines.push(line(`No netCDF files ${depthText(depth)}, but there are ${other.files} ${depthText(other.ndown)}. `, "nofiles",
+            el("button", { type: "button", class: "link", text: `Use ${other.ndown}`, onclick: () => {
+              $(`sc-ndown_${n}`).value = String(other.ndown);
+              scAskProbe(n, 0);
+              refreshScSims();
+            } })));
+        } else if (depth !== null) {
+          lines.push(line(`No netCDF files ${depthText(depth)}, nor at any depth down to 3 directories.`, "nofiles"));
+        }
+      }
+      message(`sc-m-${n}`, lines, false);
+    }
+    const out = scSims.outProbe || {};
+    const outErrors = { ...(scSims.errors.out_dir ? { out_dir: scSims.errors.out_dir } : {}), ...(scSims.errors.out ? { out: scSims.errors.out } : {}) };
+    if (out.out_dir === "file") outErrors.out_dir = "This is a file, not a directory.";
+    if (!$("sc-out").value.trim()) outErrors.out = outErrors.out || "";
+    const saved = "The comparison will be saved in oceanval_simulation_comparison, inside this directory.";
+    const outLines = outErrors.out_dir ? [line(outErrors.out_dir, "error")] : [line($("sc-out_dir").value.trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
+    if (!outErrors.out_dir && out.out_dir === "missing") outLines.push(line("It does not exist yet, so OceanVal will create it."));
+    if (!outErrors.out_dir && out.out_dir_has_comparison) outLines.push(line("There is a comparison here already, from an earlier run. It will be replaced: choose another directory to keep it.", "warn"));
+    message("sc-m-out_dir", outLines, Boolean(outErrors.out_dir));
+    $("sc-out_dir").classList.toggle("is-invalid", Boolean(outErrors.out_dir));
+    $("sc-out").classList.toggle("is-invalid", Boolean(outErrors.out));
+    if (outErrors.out) message("sc-m-out", [line(outErrors.out, "error")], true);
+    else if (out.out_exists) message("sc-m-out", [line("This file already exists, and will be replaced. Unless you plan to run this comparison file yourself, there is no need to worry about the name.", "warn")]);
+    else message("sc-m-out", []);
+    const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);
+    let note = scSims.errors.simulations || "";
+    if (!note && problems.complete < 2 && !rowsWrong) note = "Give at least two simulations to compare.";
+    $("sc-sims-msg").textContent = note;
+    $("sc-add").disabled = scSims.shown >= SC_MOST;
+    const next = $("sc-continue");
+    if (next) {
+      next.disabled = scSims.busy || rowsWrong || problems.complete < 2 || Boolean(outErrors.out_dir) || !$("sc-out").value.trim();
+    }
+  }
+
+  for (let n = 1; n <= SC_MOST; n++) {
+    scSims.fillRecent.push(makeRecent(`sc-dir_${n}`));
+    for (const id of Object.values(SC_BOXES)) {
+      const box = $(`sc-${id}_${n}`);
+      box.addEventListener("input", () => {
+        scSims.touched = scSims.touched || {};
+        scSims.touched[n] = true;
+        delete scSims.errors[String(n - 1)];
+        if (id === "dir" || id === "ndown" || id === "exclude" || id === "require") scAskProbe(n, 400);
+        refreshScSims();
+      });
+      box.addEventListener("blur", () => { scSims.touched = scSims.touched || {}; if (!scRowEmpty(n)) scSims.touched[n] = true; refreshScSims(); });
+    }
+    $(`sc-remove-${n}`).addEventListener("click", () => {
+      const form = scReadSims();
+      form.rows.splice(n - 1, 1);
+      while (form.rows.length < SC_MOST) form.rows.push({ name: "", simdir: "", ndown: "", exclude: "", require: "" });
+      scWriteSims(form);
+      scSims.shown = Math.max(2, scSims.shown - 1);
+      scSims.errors = {};
+      scSims.probes = {};
+      scShowRows();
+      for (let m = 1; m <= scSims.shown; m++) scAskProbe(m, 0);
+      refreshScSims();
+    });
+  }
+  $("sc-add").addEventListener("click", () => {
+    if (scSims.shown >= SC_MOST) return;
+    scSims.shown += 1;
+    scShowRows();
+    $(`sc-name_${scSims.shown}`).focus();
+    refreshScSims();
+  });
+  for (const id of ["sc-out_dir", "sc-out"]) {
+    $(id).addEventListener("input", () => {
+      delete scSims.errors[id === "sc-out" ? "out" : "out_dir"];
+      scAskOutProbe(400);
+      if (id === "sc-out_dir") for (let n = 1; n <= scSims.shown; n++) scAskProbe(n, 400);
+      refreshScSims();
+    });
+  }
+  $("sc-sims-form").addEventListener("submit", (event) => { event.preventDefault(); submitScSims(); });
+
+  async function submitScSims() {
+    const problems = scSimsProblems();
+    if (Object.values(problems.rows).some((here) => Object.keys(here).length) || problems.complete < 2) {
+      scSims.touched = Object.fromEntries(Array.from({ length: SC_MOST }, (_, i) => [i + 1, true]));
+      refreshScSims();
+      return;
+    }
+    scSims.busy = true;
+    refreshScSims();
+    const reply = await post("api/simcompare_sims", { form: scReadSims() });
+    scSims.busy = false;
+    if (!reply.ok) {
+      const errors = reply.errors || {};
+      scSims.errors = { ...(errors.rows || {}), out_dir: errors.out_dir, out: errors.out, simulations: errors.simulations };
+      scSims.touched = Object.fromEntries(Array.from({ length: SC_MOST }, (_, i) => [i + 1, true]));
+      if (reply.error) toast(reply.error);
+    }
+    refreshScSims();
+  }
+
+  // ---- the variables, and the model variable holding each in each simulation ----
+  const scVars = { rows: [], built: false, busy: false };
+  const scPicked = (sim) => sim.picker || { available: [], long_names: {}, levels: {} };
+
+  function scVariableRow(row) {
+    const sims = scState().sims;
+    const item = { name: row.name || "", models: { ...(row.models || {}) }, filled: Boolean(row.filled), server: {}, hint: "", auto: {}, boxes: {}, msgs: {}, syncs: {} };
+    const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Temperature",
+      spellcheck: "false", autocomplete: "off", "aria-label": "Your name for the variable" });
+    if (item.filled) name.classList.add("is-oceanval");
+    item.nameBox = name;
+    item.nameMsg = el("p", { class: "analyze-msg" });
+    const yours = () => { item.server = {}; item.hint = ""; };
+    const cells = sims.map((sim) => {
+      const box = el("input", { class: "s-input is-mono", type: "text", value: item.models[sim.name] || "", placeholder: "e.g. thetao",
+        spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": `The model variable holding it in ${sim.name}` });
+      if (item.filled && item.models[sim.name]) box.classList.add("is-oceanval");
+      const picked = scPicked(sim);
+      const picker = OceanValGUI.variablesPicker({
+        available: picked.available, longNames: picked.long_names, multi: true,
+        get: () => item.models[sim.name] || "",
+        set: (value) => {
+          item.models[sim.name] = box.value = value;
+          item.auto[sim.name] = false;
+          box.classList.remove("is-oceanval");
+          yours();
+          if (picker && picker.sync) picker.sync();
+          refreshScVariables();
+        },
+      });
+      item.boxes[sim.name] = box;
+      item.syncs[sim.name] = picker ? picker.sync : null;
+      item.msgs[sim.name] = el("p", { class: "analyze-msg" });
+      box.addEventListener("input", () => {
+        item.models[sim.name] = box.value;
+        item.auto[sim.name] = false;
+        box.classList.remove("is-oceanval");
+        yours();
+        if (item.syncs[sim.name]) item.syncs[sim.name]();
+        refreshScVariables();
+      });
+      return el("td", { class: "sc-model-cell", "data-label": sim.name }, box, item.msgs[sim.name], picker ? picker.details : null);
+    });
+    // the arrow of the name box lists the names recipes know; choosing one fills in each simulation's model variable, where it is empty
+    const first = sims[0];
+    const names = first ? (first.presets || []).map((preset) => preset.name) : [];
+    if (names.length) {
+      name.yearChoices = names;
+      name.classList.add("has-years");
+      name.setAttribute("role", "combobox");
+      name.setAttribute("aria-haspopup", "listbox");
+      name.setAttribute("aria-expanded", "false");
+      name.onPick = (value) => {
+        const missing = [];
+        sims.forEach((sim) => {
+          const preset = (sim.presets || []).find((one) => one.name === value);
+          const mine = (item.models[sim.name] || "").trim();
+          if (mine && !item.auto[sim.name]) return;
+          if (preset && preset.model_variable) {
+            item.models[sim.name] = item.boxes[sim.name].value = preset.model_variable;
+            item.auto[sim.name] = true;
+            item.boxes[sim.name].classList.add("is-oceanval");
+          } else {
+            if (item.auto[sim.name]) item.models[sim.name] = item.boxes[sim.name].value = "";
+            item.auto[sim.name] = false;
+            missing.push(sim.name);
+          }
+          if (item.syncs[sim.name]) item.syncs[sim.name]();
+        });
+        item.hint = missing.length ? `OceanVal could not tell which model variable holds ${value} in ${missing.join(", ")}: choose it there.` : "";
+        refreshScVariables();
+      };
+    }
+    name.addEventListener("input", () => { item.name = name.value; yours(); refreshScVariables(); });
+    const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: "Remove this variable", "aria-label": "Remove this variable" });
+    remove.addEventListener("click", () => {
+      scVars.rows.splice(scVars.rows.indexOf(item), 1);
+      item.tr.remove();
+      refreshScVariables();
+    });
+    item.tr = el("tr", {}, el("td", { "data-label": "Your name" }, name, item.nameMsg), ...cells, el("td", {}, remove));
+    return item;
+  }
+
+  function buildScVariables() {
+    const sims = scState().sims;
+    const width = Math.floor(72 / Math.max(sims.length, 1));
+    $("scv-table").replaceChildren(
+      el("colgroup", {}, el("col", { style: "width:22%" }), ...sims.map(() => el("col", { style: `width:${width}%` })), el("col", { style: "width:56px" })),
+      el("thead", {}, el("tr", {},
+        el("th", { scope: "col" }, "Your name ", el("span", { class: "own-req", text: "Required" })),
+        ...sims.map((sim, index) => el("th", { scope: "col" }, scNamed(sim.name, scColour(index)))),
+        el("th", { scope: "col", "aria-label": "Remove" }))),
+      el("tbody", { id: "scv-rows" }));
+    const rows = scState().rows && scState().rows.length ? scState().rows : [{}];
+    scVars.rows = rows.map(scVariableRow);
+    $("scv-rows").replaceChildren(...scVars.rows.map((item) => item.tr));
+    scVars.built = true;
+    refreshScVariables();
+  }
+
+  function readScRows() {
+    return scVars.rows.map((item) => ({ name: item.name, models: { ...item.models }, filled: item.filled }));
+  }
+
+  function scRowProblems() {
+    const sims = scState().sims;
+    const keys = {};
+    return scVars.rows.map((item) => {
+      const name = item.name.trim();
+      const filled = sims.some((sim) => modelNames(item.models[sim.name] || "").length);
+      const result = { name: item.server.name || "", models: {} };
+      if (!name && !filled) return result;
+      if (!result.name) {
+        const key = variableKey(name);
+        if (!name) result.name = "Give this variable a name.";
+        else if (!key) result.name = "The name needs a letter or a digit in it.";
+        else if (keys[key]) result.name = `This is the same name as ${keys[key]}: give it another.`;
+        else keys[key] = name;
+      }
+      for (const sim of sims) {
+        let reason = ((item.server.models || {})[sim.name]) || "";
+        if (!reason) {
+          const available = new Set(scPicked(sim).available);
+          const names = modelNames(item.models[sim.name] || "");
+          const missing = names.filter((part) => !available.has(part));
+          if (!names.length) reason = "Give the model variable holding it.";
+          else if (missing.length) reason = `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not in the simulation's output.`;
+        }
+        if (reason) result.models[sim.name] = reason;
+      }
+      return result;
+    });
+  }
+
+  function refreshScVariables() {
+    if (state.view !== "simcompare_variables" || !scVars.built) return;
+    const sims = scState().sims;
+    const problems = scRowProblems();
+    let complete = 0, wrong = false;
+    scVars.rows.forEach((item, index) => {
+      const here = problems[index];
+      item.nameMsg.textContent = here.name;
+      item.nameBox.classList.toggle("is-invalid", Boolean(here.name));
+      let rowWrong = Boolean(here.name);
+      for (const sim of sims) {
+        const reason = here.models[sim.name] || "";
+        item.msgs[sim.name].textContent = reason || (index === scVars.rows.indexOf(item) ? item.hint && sim === sims[0] ? item.hint : "" : "");
+        item.boxes[sim.name].classList.toggle("is-invalid", Boolean(reason));
+        if (reason) rowWrong = true;
+      }
+      if (here.name === "" && !rowWrong && item.name.trim()) complete += 1;
+      if (rowWrong) wrong = true;
+    });
+    $("scv-msg").textContent = !complete && !wrong ? "Add a variable to compare." : "";
+    const next = $("scv-continue");
+    if (next) {
+      next.disabled = scVars.busy || wrong || !complete;
+      next.textContent = scVars.busy ? "Checking…" : "Continue";
+    }
+  }
+
+  function renderScVariables() {
+    const sims = scState().sims;
+    const failed = sims.filter((sim) => sim.status === "failed");
+    const reading = !sims.length || sims.some((sim) => !sim.status || sim.status === "reading");
+    $("scv-reading").hidden = !(reading && !failed.length);
+    if (reading) {
+      const total = sims.reduce((sum, sim) => sum + ((sim.progress || {}).total || 0), 0);
+      const done = sims.reduce((sum, sim) => sum + ((sim.progress || {}).done || 0), 0);
+      $("scv-reading-text").textContent = total
+        ? `OceanVal is reading the variables of the simulations' output files: ${done} of ${plural(total, "kind")} of file read.`
+        : "OceanVal is finding the simulations' output files, and the variables in them.";
+    }
+    $("scv-error").hidden = !failed.length;
+    if (failed.length) {
+      $("scv-error").replaceChildren(icon("error"), el("span", {
+        text: `${failed.map((sim) => `${sim.name}: ${sim.error}`).join(" ")} Go back to check the simulations.` }));
+    }
+    const ready = sims.length > 0 && sims.every((sim) => sim.status === "done");
+    $("scv-main").hidden = !ready;
+    if (ready && !scVars.built) buildScVariables();
+    else if (scVars.built) refreshScVariables();
+  }
+
+  $("scv-add").addEventListener("click", () => {
+    const item = scVariableRow({});
+    scVars.rows.push(item);
+    $("scv-rows").append(item.tr);
+    refreshScVariables();
+    item.nameBox.focus();
+  });
+
+  async function submitScVariables() {
+    scVars.busy = true;
+    refreshScVariables();
+    const sent = scVars.rows.slice();
+    const reply = await post("api/simcompare_variables", { rows: readScRows() });
+    scVars.busy = false;
+    if (!reply.ok) {
+      const errors = reply.errors || {};
+      sent.forEach((item, index) => { item.server = errors[String(index)] || {}; });
+      if (errors.rows) $("scv-msg").textContent = errors.rows;
+      if (reply.error) toast(reply.error);
+    }
+    refreshScVariables();
+  }
+
+  // ---- the files of each simulation, and the gaps in their dates ----
+  const scFiles = { key: null, rows: {}, shift: null };
+
+  function fillScShift(shift) {
+    const key = JSON.stringify([shift.rows, shift.choice]);
+    if (scFiles.shift === key) return;
+    scFiles.shift = key;
+    const suggested = scState().suggested_shift;
+    $("scf-suggested").textContent = suggested;
+    $("scf-shift-label").textContent = `Shift their times ${suggested}`;
+    $("scf-bounds").hidden = shift.rows.length > 0 && shift.rows.every((row) => row.has_bounds);
+    $("scf-mode-shift").checked = shift.choice === "shift";
+    $("scf-mode-keep").checked = shift.choice === "keep";
+    const colours = Object.fromEntries(scState().sims.map((sim, index) => [sim.name, scColour(index)]));
+    $("scf-shift-body").replaceChildren(...shift.rows.map((row) => el("tr", {},
+      el("td", {}, scNamed(row.simulation, colours[row.simulation]), el("br"), el("strong", { text: row.title }), el("br"), el("span", { class: "is-mono", text: row.model_variable })),
+      el("td", {}, el("span", { class: "is-mono", text: row.pattern })),
+      el("td", {}, ...dates(row.first, row.last)),
+      el("td", {}, el("span", { class: "ts-shifted" }, ...dates(row.first_shifted, row.last_shifted))),
+      el("td", {}, el("span", { text: row.reason }), el("br"),
+        el("span", { class: "ts-why", text: `cell_methods "${row.cell_methods}", ${row.has_bounds ? "time bounds" : "no time bounds"}` })))));
+  }
+
+  document.querySelectorAll("input[name=scf-mode]").forEach((radio) =>
+    radio.addEventListener("change", () => post("api/simcompare_time_shift", { choice: radio.value })));
+
+  function buildScFiles() {
+    const sims = scState().sims;
+    const placed = scState().placed;
+    scFiles.key = JSON.stringify([sims.map((sim) => sim.name), placed.map((row) => [row.name, row.per_sim])]);
+    scFiles.rows = {};
+    let number = 0;
+    $("scf-sims").replaceChildren(...sims.map((sim, index) => {
+      const body = el("tbody", {});
+      body.replaceChildren(...placed.flatMap((row) => {
+        const here = row.per_sim[sim.name];
+        const files = el("div", { class: "review__found" });
+        const resolution = el("td", { class: "is-centered" });
+        const datesCell = el("td", { class: "review__dates" });
+        const fold = el("tr", { class: "review__fold-row", id: `scf-fold-${number++}`, hidden: true },
+          el("td", { class: "review__fold", colspan: "5" }));
+        const main = el("tr", { "data-variable": row.name },
+          el("td", {}, el("strong", { text: row.name })),
+          el("td", {}, el("span", { class: "is-mono", text: here.model_variable })),
+          el("td", {}, el("span", { class: "is-mono", text: here.pattern }), files),
+          resolution, datesCell);
+        scFiles.rows[`${sim.name}\u0000${row.name}`] = {
+          row: { name: row.name, files: here.files, time_res: here.time_res }, simulation: sim.name, simdir: sim.simdir,
+          main, fold, files, resolution, dates: datesCell, toggle: null, open: false, drawn: null,
+        };
+        return [main, fold];
+      }));
+      return el("section", { class: "review card analyze-files sc-section" },
+        el("div", { class: "review__head" },
+          el("h2", { class: "review__title sc-head" }, scSwatch(scColour(index)), sim.name),
+          el("p", { class: "review__lede" }, "Output found in ", el("code", { text: sim.simdir }), ".")),
+        el("div", { class: "review__table" }, el("table", {},
+          el("colgroup", {}, ...[18, 17, 30, 112, 30].map((width, i) => el("col", { style: i === 3 ? "width:112px" : `width:${width}%` }))),
+          el("thead", {}, el("tr", {},
+            el("th", { scope: "col" }, "Variable"), el("th", { scope: "col" }, "Model variable"), el("th", { scope: "col" }, "Files"),
+            el("th", { scope: "col", class: "is-centered" }, "Time resolution"), el("th", { scope: "col" }, "Dates"))),
+          body)));
+    }));
+  }
+
+  function renderScFiles() {
+    const shift = scState().shift || { status: "checking", rows: [], choice: null };
+    $("scf-stamps").hidden = shift.status !== "checking";
+    const asked = shift.status === "asked";
+    $("scf-shift").hidden = !asked;
+    if (asked) fillScShift(shift);
+    const shown = shift.status === "none" || (asked && Boolean(shift.choice));
+    $("scf-review").hidden = !shown;
+    if (!shown) return;
+    const sims = scState().sims;
+    const placed = scState().placed;
+    const key = JSON.stringify([sims.map((sim) => sim.name), placed.map((row) => [row.name, row.per_sim])]);
+    if (scFiles.key !== key) buildScFiles();
+    const failed = sims.filter((sim) => sim.check && sim.check.status === "failed");
+    $("scf-note").hidden = !failed.length;
+    if (failed.length) {
+      $("scf-note").replaceChildren(icon("error"), el("span", {
+        text: `The dates of the files could not be read for ${failed.map((sim) => sim.name).join(", ")}. OceanVal reads them again as it compares the simulations.` }));
+    }
+    for (const sim of sims) {
+      const check = sim.check;
+      const found = {};
+      for (const row of (check && check.rows) || []) found[row.variable] = row;
+      for (const row of placed) {
+        const shownRow = scFiles.rows[`${sim.name}\u0000${row.name}`];
+        if (!shownRow) continue;
+        const status = check ? check.status : null;
+        const drawn = JSON.stringify([found[row.name] || null, status]);
+        if (shownRow.drawn === drawn) continue;
+        shownRow.drawn = drawn;
+        drawAnalyzeRow(shownRow, found[row.name], status);
+      }
+    }
+  }
+
+  function scFilesReady() {
+    const shift = scState().shift || {};
+    if (shift.status === "checking" || !shift.status) return false;
+    if (shift.status === "asked" && !shift.choice) return false;
+    const sims = scState().sims;
+    return sims.length > 0 && sims.every((sim) => sim.check && sim.check.status !== "running");
+  }
+
+  // ---- the grids: whether to put the simulations on one, and how ----
+  const scGrids = { form: null, errors: {}, busy: false };
+  const SC_GRID_BOXES = ["lon_min", "lon_max", "lat_min", "lat_max", "res"];
+
+  function scReadGrids() {
+    const checked = (name) => { const radio = document.querySelector(`input[name="${name}"]:checked`); return radio ? radio.value : ""; };
+    const form = { need: checked("scg-need"), method: checked("scg-method"), baseline: $("scg-baseline-select").value };
+    for (const box of SC_GRID_BOXES) form[box] = $(`scg-${box}`).value;
+    return form;
+  }
+
+  function fillScGrids() {
+    const form = scState().unify_form;
+    scGrids.errors = {};
+    $("scg-need-yes").checked = form.need === "yes";
+    $("scg-need-no").checked = form.need === "no";
+    $("scg-method-box").checked = form.method === "box";
+    $("scg-method-baseline").checked = form.method === "baseline";
+    const sims = scState().sims;
+    $("scg-baseline-select").replaceChildren(el("option", { value: "", text: "Choose a simulation…" }),
+      ...sims.map((sim) => el("option", { value: sim.name, text: sim.name })));
+    $("scg-baseline-select").value = form.baseline || "";
+    for (const box of SC_GRID_BOXES) $(`scg-${box}`).value = form[box] || "";
+    refreshScGrids();
+  }
+
+  function renderScGrids() {
+    const grids = scState().grids;
+    const same = $("scg-same");
+    if (!grids || grids.status === "reading") {
+      same.className = "group__msg";
+      same.replaceChildren(line("OceanVal is looking at the simulations' grids…"));
+    } else if (grids.same === true) {
+      same.className = "group__msg";
+      same.replaceChildren(line("The simulations appear to be on the same grid.", "ok"));
+    } else if (grids.same === false) {
+      same.className = "group__msg";
+      same.replaceChildren(line("The simulations are on different grids.", "warn"));
+    } else {
+      same.className = "group__msg";
+      same.replaceChildren(line("OceanVal could not tell whether the simulations are on the same grid."));
+    }
+    const extents = (grids && grids.extents) || {};
+    const parts = Object.entries(extents).map(([name, extent]) =>
+      `${name}: longitudes ${extent.lon[0].toFixed(2)} to ${extent.lon[1].toFixed(2)}, latitudes ${extent.lat[0].toFixed(2)} to ${extent.lat[1].toFixed(2)}`);
+    $("scg-extents").textContent = parts.length ? ` The simulations cover ${parts.join("; ")}.` : "";
+    refreshScGrids();
+  }
+
+  function scGridsProblems() {
+    const form = scReadGrids();
+    const errors = {};
+    if (!form.need) errors.need = "";
+    else if (form.need === "yes") {
+      if (!form.method) errors.method = "";
+      else if (form.method === "baseline" && !form.baseline) errors.baseline = "";
+      else if (form.method === "box") {
+        for (const box of SC_GRID_BOXES) {
+          const text = form[box].trim();
+          if (!text) errors[box] = "";
+          else if (!Number.isFinite(Number(text))) errors[box] = "This must be a number.";
+        }
+      }
+    }
+    return { form, errors: { ...errors, ...Object.fromEntries(Object.entries(scGrids.errors).filter(([box]) => !(box in errors) || scGrids.errors[box])) } };
+  }
+
+  function refreshScGrids() {
+    if (state.view !== "simcompare_grids") return;
+    const { form, errors } = scGridsProblems();
+    $("scg-how").hidden = form.need !== "yes";
+    $("scg-box").hidden = !(form.need === "yes" && form.method === "box");
+    $("scg-baseline").hidden = !(form.need === "yes" && form.method === "baseline");
+    const grids = scState().grids || {};
+    const no = $("scg-no");
+    no.hidden = form.need !== "no";
+    if (form.need === "no") {
+      no.className = "group__msg" + (grids.same === false ? " is-warn" : "");
+      no.replaceChildren(grids.same === false
+        ? line("The simulations are on different grids, and they will not be put on one: the maps are of each simulation's own grid, and the means over the domain, the regions and the transects are over the cells each simulation has, so they are not over exactly the same area.", "warn")
+        : line("The simulations will be used on the grids they have."));
+    }
+    for (const box of SC_GRID_BOXES) {
+      $(`scg-${box}`).classList.toggle("is-invalid", Boolean(errors[box]));
+      $(`scg-${box}`).setAttribute("aria-invalid", String(Boolean(errors[box])));
+    }
+    $("scg-need-msg").textContent = scGrids.errors.need || "";
+    $("scg-method-msg").textContent = scGrids.errors.method || "";
+    $("scg-box-msg").textContent = SC_GRID_BOXES.map((box) => scGrids.errors[box]).find(Boolean) || "";
+    $("scg-baseline-msg").textContent = scGrids.errors.baseline || "";
+    const next = $("scg-continue");
+    if (next) next.disabled = scGrids.busy || Object.keys(errors).length > 0;
+  }
+
+  document.querySelectorAll("input[name=scg-need], input[name=scg-method]").forEach((radio) =>
+    radio.addEventListener("change", () => { scGrids.errors = {}; refreshScGrids(); }));
+  $("scg-baseline-select").addEventListener("change", () => { scGrids.errors = {}; refreshScGrids(); });
+  for (const box of SC_GRID_BOXES) $(`scg-${box}`).addEventListener("input", () => { delete scGrids.errors[box]; refreshScGrids(); });
+
+  async function submitScGrids() {
+    scGrids.busy = true;
+    refreshScGrids();
+    const reply = await post("api/simcompare_grids", { form: scReadGrids() });
+    scGrids.busy = false;
+    if (!reply.ok) {
+      scGrids.errors = reply.errors || {};
+      if (reply.error) toast(reply.error);
+    }
+    refreshScGrids();
+  }
 
   // ---- keeping up with oceanval ----
   let version = null;

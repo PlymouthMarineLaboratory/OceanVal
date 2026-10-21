@@ -125,7 +125,8 @@ KEEP_FOR = 24 * 60 * 60
 # never be in: validate's oceanval_report and oceanval_results, the interim
 # report's oceanval_interim_report (oceanval.live.FOLDER), compare's
 # oceanval_comparison, the matchups' oceanval_matchups, and analyze()'s
-# oceanval_analysis (oceanval.analysis.FOLDER)
+# oceanval_analysis (oceanval.analysis.FOLDER), and compare_simulations()'s
+# oceanval_simulation_comparison (oceanval.sim_compare.FOLDER)
 CLEARED_FOLDERS = (
     "oceanval_report",
     "oceanval_results",
@@ -133,6 +134,7 @@ CLEARED_FOLDERS = (
     "oceanval_comparison",
     "oceanval_matchups",
     "oceanval_analysis",
+    "oceanval_simulation_comparison",
 )
 
 # the ids of the pieces saved during this run, which are not downloaded again

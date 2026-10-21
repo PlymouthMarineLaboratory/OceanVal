@@ -175,30 +175,33 @@ def station_values(path, key, stations, times):
         extra = [dim for dim in variable.dims if dim != time_dim and variable.sizes[dim] == 1]
         variable = variable.squeeze(extra)
         variable = variable.transpose(time_dim, *[dim for dim in variable.dims if dim != time_dim])
-        values = np.asarray(variable.values, dtype="float64")
         lon, lat = _grid(ds_xr, variable)
-    if values.ndim != 3 or lon.shape != values.shape[1:]:
-        raise ValueError(f"The grid of {key} cannot be read, to find the stations on it.")
-    has_values = np.isfinite(values).any(axis=0)
-    spacing = _spacing(lon, lat)
-    for name, (station_lon, station_lat) in stations.items():
-        distance = _distance(station_lon, station_lat, lon, lat)
-        distance = np.where(has_values, distance, np.inf)
-        if not np.isfinite(distance).any():
-            problems.append(f"{name} has no cell with values near it.")
-            continue
-        index = np.unravel_index(np.argmin(distance), distance.shape)
-        km = float(distance[index])
-        if np.isfinite(spacing) and km > STATION_CELLS * spacing:
-            problems.append(
-                f"{name} is {km:.0f} km from the nearest cell with values, more than "
-                f"{STATION_CELLS} grid cells ({STATION_CELLS * spacing:.0f} km): it is on land, or outside the model."
-            )
-            continue
-        found[name] = {"lon": float(lon[index]), "lat": float(lat[index]), "distance": round(km, 2)}
-        series = values[(slice(None),) + index]
-        for (year, month), value in zip(times, series):
-            rows.append(("station", name, year, month, float(value) if np.isfinite(value) else np.nan))
+        if variable.ndim != 3 or lon.shape != variable.shape[1:]:
+            raise ValueError(f"The grid of {key} cannot be read, to find the stations on it.")
+        # which cells have values at any time, a year of times at a time: the series can be too big to hold
+        has_values = np.zeros(lon.shape, dtype=bool)
+        for first in range(0, variable.shape[0], 12):
+            has_values |= np.isfinite(variable.isel({time_dim: slice(first, first + 12)}).values).any(axis=0)
+        spacing = _spacing(lon, lat)
+        for name, (station_lon, station_lat) in stations.items():
+            distance = _distance(station_lon, station_lat, lon, lat)
+            distance = np.where(has_values, distance, np.inf)
+            if not np.isfinite(distance).any():
+                problems.append(f"{name} has no cell with values near it.")
+                continue
+            index = np.unravel_index(np.argmin(distance), distance.shape)
+            km = float(distance[index])
+            if np.isfinite(spacing) and km > STATION_CELLS * spacing:
+                problems.append(
+                    f"{name} is {km:.0f} km from the nearest cell with values, more than "
+                    f"{STATION_CELLS} grid cells ({STATION_CELLS * spacing:.0f} km): it is on land, or outside the model."
+                )
+                continue
+            found[name] = {"lon": float(lon[index]), "lat": float(lat[index]), "distance": round(km, 2)}
+            # the one cell's series only
+            series = np.asarray(variable.isel({variable.dims[1]: int(index[0]), variable.dims[2]: int(index[1])}).values, dtype="float64")
+            for (year, month), value in zip(times, series):
+                rows.append(("station", name, year, month, float(value) if np.isfinite(value) else np.nan))
     if problems:
         raise ValueError("; ".join(problems))
     return rows, found

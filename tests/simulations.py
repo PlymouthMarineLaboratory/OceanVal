@@ -47,7 +47,9 @@ def analysis_peak_day(row):
     return 60 + 30 * row
 
 
-def write_analysis_simulation(root, years=(2013, 2014), daily=True, calendar="standard", trend=0.0, east_west=0.0):
+def write_analysis_simulation(
+    root, years=(2013, 2014), daily=True, calendar="standard", trend=0.0, east_west=0.0, lats=None, lons=None
+):
     """A small simulation on a regular lon-lat grid with known answers,
     filed as root/<year>/<file>, a file a year for each of two streams:
 
@@ -64,8 +66,13 @@ def write_analysis_simulation(root, years=(2013, 2014), daily=True, calendar="st
     east_west adds east_west degrees for each column east of the third (so
     the west two columns, which ANALYSIS_REGIONS calls "West", are
     -2 and -1 times it, and the east two, "East", 1 and 2 times it).
+
+    lats and lons are the grid's, ANALYSIS_LATS and ANALYSIS_LONS if None.
     """
     import cftime
+
+    lats = ANALYSIS_LATS if lats is None else list(lats)
+    lons = ANALYSIS_LONS if lons is None else list(lons)
 
     n_days = {"360_day": 360, "noleap": 365}.get(calendar, 365)
     for year in years:
@@ -87,11 +94,11 @@ def write_analysis_simulation(root, years=(2013, 2014), daily=True, calendar="st
         coords = {
             "time": ("time", offsets, {"units": units, "calendar": calendar, "standard_name": "time"}),
             "deptht": ("deptht", ANALYSIS_LEVELS, {"units": "m", "positive": "down", "axis": "Z"}),
-            "lat": ("lat", ANALYSIS_LATS, {"units": "degrees_north", "standard_name": "latitude"}),
-            "lon": ("lon", ANALYSIS_LONS, {"units": "degrees_east", "standard_name": "longitude"}),
+            "lat": ("lat", lats, {"units": "degrees_north", "standard_name": "latitude"}),
+            "lon": ("lon", lons, {"units": "degrees_east", "standard_name": "longitude"}),
         }
-        shape = (len(dates), len(ANALYSIS_LEVELS), len(ANALYSIS_LATS), len(ANALYSIS_LONS))
-        columns = np.arange(len(ANALYSIS_LONS)) - len(ANALYSIS_LONS) // 2
+        shape = (len(dates), len(ANALYSIS_LEVELS), len(lats), len(lons))
+        columns = np.arange(len(lons)) - len(lons) // 2
         thetao = (
             np.array(ANALYSIS_LEVEL_VALUES)[None, :, None, None]
             + months[:, None, None, None]
@@ -108,9 +115,9 @@ def write_analysis_simulation(root, years=(2013, 2014), daily=True, calendar="st
             },
             coords=coords,
         ).to_netcdf(os.path.join(folder, f"sim_{'1d' if daily else '1m'}_{year}0101_{year}1231_grid_T.nc"))
-        peaks = np.array([analysis_peak_day(row) for row in range(len(ANALYSIS_LATS))])
+        peaks = np.array([analysis_peak_day(row) for row in range(len(lats))])
         chl = 2 + np.cos(2 * np.pi * (day_of_year[:, None] - peaks[None, :]) / n_days)
-        chl = chl[:, :, None] * np.ones((1, 1, len(ANALYSIS_LONS)))
+        chl = chl[:, :, None] * np.ones((1, 1, len(lons)))
         surface = {name: coords[name] for name in ("time", "lat", "lon")}
         xr.Dataset(
             {

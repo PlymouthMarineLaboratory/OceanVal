@@ -348,14 +348,15 @@ def _panel_draw(key, label, font, colours=None, with_calendar=False):
     return imports, font, draw
 
 
-def monthly_maps(results_dir, key, layer):
+def monthly_maps(results_dir, key, layer, limits=None):
     """The maps of each month's mean of a variable's climatology in one
-    layer, on one colour scale (the 2nd to 98th percentile of all of them)."""
+    layer, on one colour scale (the 2nd to 98th percentile of all of them, or
+    limits, [low, high], if they are given, as when simulations share one)."""
     info = load(results_dir)
     variable = entry(info, key)
     saved = variable["climatology"]["layers"][layer]
     path = _path(results_dir, saved["monthly"])
-    limits = _limits(path, key)
+    limits = _limits(path, key) if limits is None else limits
     label = legend(variable["name"], saved["units"])
     if limits is None:
         scale = "# the colour scale all the months share: None leaves it to nctoolkit\nlimits = None"
@@ -417,13 +418,15 @@ CHANGE_COLUMNS = 3
 CHANGE_FONT = 12
 
 
-def change_maps(results_dir, key, layer):
+def change_maps(results_dir, key, layer, also=None):
     """The maps of a variable's map changes in one layer, in one figure: the
     map of the historical period, then those of the future periods and the
     changes from the historical period to each of them, as its plot says,
     each titled with the years it is of. The maps of periods share one colour
     scale (the 2nd to 98th percentile of all of them) and one colour bar, below
-    them; the changes share another, symmetric about zero, with a colour bar of its own."""
+    them; the changes share another, symmetric about zero, with a colour bar of its own.
+    also is the maps of other simulations that are drawn on the same scales, as
+    {"periods": [files], "changes": [files]}, whose values the scales take in too."""
     info = load(results_dir)
     variable = entry(info, key)
     asked = variable["map_changes"]
@@ -438,15 +441,20 @@ def change_maps(results_dir, key, layer):
         changes = [(f"{name} {how} {names[0]}", file) for name, file in zip(names[1:], saved["changes"])]
     maps = [(title, _path(results_dir, file)) for title, file in periods + changes]
     paths = [path for _, path in maps]
-    values = _all_values(paths[: len(periods)], key)
-    limits, extend = _scale(values) if len(periods) > 1 else (_limits(paths[0], key) or [None, None], "neither")
+    also = also or {"periods": [], "changes": []}
+    values = _all_values(paths[: len(periods)] + list(also["periods"]), key)
+    limits, extend = (
+        _scale(values) if len(periods) > 1 or also["periods"] else (_limits(paths[0], key) or [None, None], "neither")
+    )
     # the colour scale of each map, and then the colour bars: the first and last map each of them is
     # below, its label and which of its ends have arrows
     scales = [limits] * len(periods)
     colours = ["auto"] * len(periods)
     bars = [(0, len(periods), legend(variable["name"], saved["units"]), extend)]
     if changes:
-        change_limits, change_extend = _scale(_all_values(paths[len(periods):], key), diverging=True)
+        change_limits, change_extend = _scale(
+            _all_values(paths[len(periods):] + list(also["changes"]), key), diverging=True
+        )
         scales += [change_limits] * len(changes)
         colours += ["RdBu_r"] * len(changes)
         bars.append((len(periods), len(maps), legend(f"{variable['name']}, change", saved["change_units"]), change_extend))

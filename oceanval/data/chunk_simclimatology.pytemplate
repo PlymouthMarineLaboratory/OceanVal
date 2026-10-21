@@ -1,0 +1,34 @@
+# %% tags=["remove-input"]
+clim = first["climatology"]
+md("## Climatology")
+
+# %% tags=["remove-input"]
+years = years_text(clim)
+md(
+    f"The climatology of {name} is its mean in each month of the year over {years}, worked out for each simulation, "
+    f"{sr.files_text(entry, 'climatology')}, and the annual mean is the mean of the monthly means. "
+    + sr.dates_text(entry, "climatology")
+)
+
+# %% tags=["remove-input"]
+for layer, saved in clim["layers"].items():
+    display(md(f"### {saved['title']}"))
+    where = sr.WHERE[layer]
+    layer_units = ap.unit_html(saved["units"])
+    drawn = sp.annual_maps(results_dir, variable, layer)
+    sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    display(md(
+        f"**Figure {i_figure}**: Annual mean {where} {name} ({layer_units}), {years}, in each simulation. "
+        "The simulations share one colour scale, from the 2nd to the 98th percentile of all of them."
+        + regridded_text(drawn.regridded)
+    ))
+    i_figure += 1
+    for sim in sims:
+        drawn = sp.monthly_maps(results_dir, variable, layer, sim)
+        sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+        display(md(
+            f"**Figure {i_figure}**: Mean {where} {name} ({layer_units}) in each month of the year in **{sim}**, {years}. "
+            "All months of all the simulations share one colour scale, from the 2nd to the 98th percentile of all of them."
+            + regridded_text(drawn.regridded)
+        ))
+        i_figure += 1

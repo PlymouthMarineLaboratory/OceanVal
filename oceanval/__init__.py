@@ -14,6 +14,7 @@ import copy
 from oceanval.matchall import matchup
 from oceanval.create_recipes import create_recipes
 from oceanval.analysis import analyze
+from oceanval.sim_compare import compare_simulations
 import dill
 
 from oceanval import depths

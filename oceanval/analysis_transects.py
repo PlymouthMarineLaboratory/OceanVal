@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import transects
+from oceanval import sim_unify, transects
 from oceanval.analysis import SURFACE, Z_LEVEL, _say, _time_dim, _year, monthly_means_of, thickness_data
 from oceanval.analysis_series import EARTH_KM, _grid, _spacing, months_per_year
 
@@ -191,6 +191,31 @@ def steps_for(path, key, line):
         return STEPS_UNKNOWN
     if not np.isfinite(spacing) or spacing <= 0:
         return STEPS_UNKNOWN
+    return int(min(max(round(length / spacing) + 1, 2), MOST_STEPS))
+
+
+def unified_steps(row, line):
+    """How many points to sample a transect at when the simulations of a comparison
+    are on one grid (see oceanval.sim_unify), so that every simulation has the same
+    points: about one for each cell of that grid the line crosses, or None if that
+    cannot be told."""
+    unify = row["unify"]
+    start, end = transects.line_ends(line)
+    north_south = transects.direction(line) == "north-south"
+    if unify["method"] == "baseline":
+        for layer in (SURFACE, "levels"):
+            path = sim_unify.grid_path(unify["folder"], row["key"], layer)
+            if os.path.exists(path):
+                return steps_for(path, row["key"], line)
+        return None
+    if north_south:
+        length = abs(end[1] - start[1]) * np.pi / 180 * EARTH_KM
+        spacing = unify["res"][1] * np.pi / 180 * EARTH_KM
+    else:
+        factor = np.pi / 180 * EARTH_KM * np.cos(np.radians(start[1]))
+        length, spacing = abs(end[0] - start[0]) * factor, unify["res"][0] * factor
+    if not np.isfinite(spacing) or spacing <= 0:
+        return None
     return int(min(max(round(length / spacing) + 1, 2), MOST_STEPS))
 
 
@@ -357,6 +382,9 @@ def _depths_along(row, line, steps, ends, thickness, thickness_for):
     if row["pattern"] not in thickness_for:
         thickness_for[row["pattern"]] = thickness_data(thickness, row["files"], row.get("as_missing"))
     ds = thickness_for[row["pattern"]].copy()
+    if row.get("unify"):
+        # the thickness goes where the values do: onto the comparison's common grid
+        sim_unify.apply(ds, row["unify"], row["key"], LEVELS)
     name = ds.variables[0]
     ds.to_transect(start=ends[0], end=ends[1], nsteps=steps)
     ds.run()
@@ -541,7 +569,9 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
         monthly[vertical] = (ds, [(time.year, time.month) for time in ds.times])
     saved = []
     for number, line in enumerate(asked["lines"], start=1):
-        steps = steps_for(row["files"][0], row["parts"][0], line)
+        steps = unified_steps(row, line) if row.get("unify") else None
+        if steps is None:
+            steps = steps_for(row["files"][0], row["parts"][0], line)
         ends = transects.line_ends(line)
         along = {}
         for vertical, (ds, times) in monthly.items():

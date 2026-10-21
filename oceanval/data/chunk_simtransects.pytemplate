@@ -1,0 +1,49 @@
+# %% tags=["remove-input"]
+tr = first["transects"]
+md("## Transects")
+
+# %% tags=["remove-input"]
+count = len(tr["lines"])
+md(
+    f"The model's {name} was extracted along {count} transect{'s' if count != 1 else ''}, straight lines that run north-south or east-west, "
+    f"from its monthly means in each simulation, {sr.files_text(entry, 'transects')}. "
+    "Each month of each year is averaged first, so a month of daily output counts as much as a month of monthly output. "
+    "The model's values were bilinearly interpolated onto evenly spaced points along each transect, using nctoolkit's to_transect. "
+    + sr.dates_text(entry, "transects")
+)
+
+# %% tags=["remove-input"]
+for line in tr["lines"]:
+    number = line["index"]
+    display(md(f"### Transect {number}: {line['description']}"))
+    display(md(sr.sampled_text(entry, number)))
+    nothing = sr.empty_in(entry, number)
+    if len(nothing) == len(sims):
+        display(md("No simulation has values along this transect: it is on land, or outside the model's domain."))
+        continue
+    if nothing:
+        display(md("There are no values along this transect in " + sr.join_words(f"**{sim}**" for sim in nothing) + ": it is on land, or outside the model's domain."))
+    drawn = sp.transect_map(results_dir, variable, number)
+    sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    display(md(f"**Figure {i_figure}**: Transect {number}, which runs {line['description']}."))
+    i_figure += 1
+    for option, saved in line["options"].items():
+        text = sp.transect_text(results_dir, variable, number, option)
+        display(md(f"#### Transect {number}: {text['title']}"))
+        display(md(text["method"]))
+        notes = sr.notes_of(entry, number, option)
+        if notes:
+            display(md(notes))
+        drawn = sp.transect_figure(results_dir, variable, number, option)
+        if drawn is None:
+            display(md("The models have no values for this along the transect."))
+            continue
+        sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+        extra = " Grey shows land, or where there are no values." if drawn.found["kind"] in ("months", "section") else ""
+        share = {
+            "line": " A line for each simulation.",
+            "months": " A panel for each simulation, on one colour scale.",
+            "section": " A panel for each simulation, on one colour scale.",
+        }[drawn.found["kind"]]
+        display(md(f"**Figure {i_figure}**: {text['caption']}{share}{extra}"))
+        i_figure += 1

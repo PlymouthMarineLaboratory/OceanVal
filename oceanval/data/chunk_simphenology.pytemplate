@@ -1,0 +1,43 @@
+# %% tags=["remove-input"]
+phen = first["phenology"]
+md("## Phenology")
+
+# %% tags=["remove-input"]
+years = years_text(phen)
+md(
+    f"The phenology of {name} is the time of its seasonal peak at the surface. In each grid cell of each simulation, "
+    f"it is the day of the year with the highest value in {name}'s daily climatology: its mean on each "
+    f"day of the year over {years}, {sr.files_text(entry, 'phenology')}. "
+    f"The climatology has {phen['days']} days. "
+    + sr.dates_text(entry, "phenology")
+)
+
+# %% tags=["remove-input"]
+drawn = sp.peak_day_maps(results_dir, variable)
+sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+md(
+    f"**Figure {i_figure}**: Day of the year of the seasonal peak of surface {name} in each simulation, from its daily climatology over {years}. "
+    "The colours are cyclic, so days at the end of the year are close in colour to those at its start."
+    + regridded_text(drawn.regridded)
+)
+i_figure += 1
+
+# %% tags=["remove-input"]
+drawn = sp.peak_value_maps(results_dir, variable)
+sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+md(
+    f"**Figure {i_figure}**: The seasonal peak of surface {name} ({units}) in each simulation: the highest value of its daily climatology over {years}. "
+    "The simulations share one colour scale, from the 2nd to the 98th percentile of all of them."
+    + regridded_text(drawn.regridded)
+)
+i_figure += 1
+
+# %% tags=["remove-input"]
+drawn = sp.daily_cycle(results_dir, variable)
+sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+grid_notes = " ".join(f"**{sim}**: {note}" for sim, note in drawn.found["notes"].items() if note)
+md(
+    f"**Figure {i_figure}**: The mean of surface {name} over the model's domain on each day of the year, over {years}, in each simulation. "
+    "The dashed lines mark the peaks." + sr.peak_text(drawn.found, info) + (f" {grid_notes}" if grid_notes else "")
+)
+i_figure += 1

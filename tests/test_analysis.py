@@ -73,6 +73,234 @@ def values(path, variable):
     return data.reshape(data.shape[0], -1) if data.ndim > 2 else data.reshape(1, -1)
 
 
+class TestOrderOfTheChain:
+    """nctoolkit chains what is asked for into one CDO call per file, the last asked for applied last. Model
+    files can be many GB with a great many variables, so what cuts them down comes first: the variables, then the
+    surface (as matchup takes it, before the missing value is set), the missing value, the bottom (which needs it),
+    and the renaming last."""
+
+    @staticmethod
+    def chain(monkeypatch, files, parts, years, layer, shift=None, missing=None):
+        import nctoolkit as nc
+
+        monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
+        row = {"key": "chl", "name": "chl", "parts": parts, "as_missing": missing}
+        ds = analysis._model_data(files, row, years, shift, layer, 3)
+        return ds.history[-1]
+
+    @staticmethod
+    def first_applied(command, *operators):
+        """Whether the operators are applied in the order given: CDO applies the rightmost first."""
+        places = [command.index(operator) for operator in operators]
+        return places == sorted(places, reverse=True)
+
+    @pytest.mark.parametrize(
+        "layer, order",
+        [
+            ("surface", ("-selname", "-topvalue", "-setrtomiss", "-chname")),
+            ("bottom", ("-selname", "-setrtomiss", "-bottomvalue", "-chname")),
+        ],
+    )
+    def test_the_variable_is_chosen_then_the_level_then_the_name(self, daily, monkeypatch, layer, order):
+        files = sorted(glob.glob(os.path.join(daily, "*", "*grid_T.nc")))
+        command = self.chain(monkeypatch, files, ["thetao"], (2013, 2014), layer, missing=[0, 0])
+        assert self.first_applied(command, *order), command
+
+    def test_a_sum_is_made_of_the_levels_chosen(self, daily, monkeypatch):
+        files = sorted(glob.glob(os.path.join(daily, "*", "*ptrc_T.nc")))
+        command = self.chain(monkeypatch, files, ["P1_Chl", "P2_Chl"], (2013, 2014), "surface", missing=[0, 0])
+        assert self.first_applied(command, "-selname", "-topvalue", "-setrtomiss", "-expr"), command
+
+    def test_the_variable_and_the_first_time_step_are_chosen_together_first(self, daily, monkeypatch):
+        files = sorted(glob.glob(os.path.join(daily, "*", "*grid_T.nc")))
+        command = self.chain(monkeypatch, files, ["thetao"], None, "surface")
+        assert self.first_applied(command, "-select,name=thetao,timestep=1", "-topvalue", "-chname"), command
+        assert "selname" not in command and "seltimestep" not in command
+
+    def test_the_variable_is_chosen_before_the_times_are_shifted(self, daily, monkeypatch):
+        files = sorted(glob.glob(os.path.join(daily, "*", "*grid_T.nc")))
+        command = self.chain(monkeypatch, files, ["thetao"], (2013, 2014), "surface", shift=1.0)
+        assert self.first_applied(command, "-selname", "-topvalue", "-shifttime", "-selyear", "-chname"), command
+
+    def test_the_sum_of_the_parts_surface_values(self, tmp_path):
+        """Each part's surface is the first value from the top that is not missing, and the parts are then added."""
+        path = str(tmp_path / "sum.nc")
+        a = np.full((1, 3, 2, 2), 1.0, dtype="f4")
+        b = np.full((1, 3, 2, 2), 10.0, dtype="f4")
+        a[0, 0, 0, 0] = np.nan
+        a[0, 1, 0, 0] = 2.0
+        xr.Dataset(
+            {"a": (("time", "deptht", "y", "x"), a), "b": (("time", "deptht", "y", "x"), b)},
+            coords={
+                "time": ("time", [0.0], {"units": "days since 2013-01-01"}),
+                "deptht": ("deptht", [5.0, 10.0, 20.0], {"units": "m", "positive": "down", "axis": "Z"}),
+            },
+        ).to_netcdf(path, encoding={"a": {"_FillValue": np.float32(-9999)}, "b": {"_FillValue": np.float32(-9999)}})
+        for layer, expected in (("surface", 12.0), ("bottom", 11.0)):
+            ds = analysis._model_data(path, {"key": "chl", "name": "chl", "parts": ["a", "b"], "as_missing": None}, None, None, layer, 3)
+            ds.run()
+            with xr.open_dataset(ds[0]) as out:
+                assert float(out["chl"].values[0, 0, 0]) == expected
+                assert float(out["chl"].values[0, 1, 1]) == 11.0
+
+    def test_the_surface_is_taken_before_the_missing_value_is_set(self, tmp_path):
+        """As matchup does: a surface of 0 that is the missing value is missing, not the value below it."""
+        path = str(tmp_path / "zero.nc")
+        a = np.full((1, 3, 1, 2), 5.0, dtype="f4")
+        a[0, 0, 0, 0] = 0.0
+        xr.Dataset(
+            {"a": (("time", "deptht", "y", "x"), a)},
+            coords={
+                "time": ("time", [0.0], {"units": "days since 2013-01-01"}),
+                "deptht": ("deptht", [5.0, 10.0, 20.0], {"units": "m", "positive": "down", "axis": "Z"}),
+            },
+        ).to_netcdf(path)
+        row = {"key": "chl", "name": "chl", "parts": ["a"], "as_missing": [0, 0]}
+        for layer, first in (("surface", np.nan), ("bottom", 5.0)):
+            ds = analysis._model_data(path, row, None, None, layer, 3)
+            ds.run()
+            with xr.open_dataset(ds[0]) as out:
+                assert np.isnan(first) == np.isnan(float(out["chl"].values[0, 0, 0]))
+                assert float(out["chl"].values[0, 0, 1]) == 5.0
+                if layer == "bottom":
+                    assert float(out["chl"].values[0, 0, 0]) == 5.0
+
+
+class TestTheSurfaceFromTheFirstLevel:
+    """CDO's select reads only the first level; selname, seltimestep and topvalue read them all. It is used only
+    when the first level is the surface, and gives what topvalue gives."""
+
+    @staticmethod
+    def write(path, positive="down", compress=False, hole=False, days=(0.0,)):
+        values = np.arange(1, 25, dtype="f4").reshape(1, 3, 2, 4) * np.arange(1, len(days) + 1, dtype="f4").reshape(-1, 1, 1, 1)
+        if hole:
+            values[0, 0, 0, 0] = np.nan
+        attrs = {"units": "m", "axis": "Z"}
+        if positive:
+            attrs["positive"] = positive
+        xr.Dataset(
+            {
+                "a": (("time", "deptht", "y", "x"), values),
+                "w": (("time", "y", "x"), values[:, 0] * 10),
+            },
+            coords={
+                "time": ("time", list(days), {"units": "days since 2013-01-01"}),
+                "deptht": ("deptht", [5.0, 10.0, 20.0], attrs),
+            },
+        ).to_netcdf(
+            path,
+            encoding={
+                "a": {"_FillValue": np.float32(-9999), "zlib": compress, "chunksizes": (1, 3, 2, 4)},
+                "w": {"_FillValue": np.float32(-9999), "zlib": compress, "chunksizes": (1, 2, 4)},
+            },
+        )
+        return path
+
+    @staticmethod
+    def stream(path):
+        return {"files": [path], "variables": {"a": {"levels": 3}, "w": {"levels": 1}}}
+
+    def test_it_is_used_for_an_uncompressed_axis_positive_down_with_the_surface_at_the_first_level(self, tmp_path):
+        row = {"model_variable": "a+w"}
+        assert analysis._first_level_is_surface(row, self.stream(self.write(str(tmp_path / "f.nc")))) == (True, "")
+
+    def test_it_is_not_used_if_cdo_does_not_take_a_chunk_cache(self, tmp_path, monkeypatch):
+        from oceanval import surface
+
+        monkeypatch.setattr(surface, "cdo_takes_a_chunk_cache", lambda path: False)
+        found, reason = analysis._first_level_is_surface(
+            {"model_variable": "a"}, self.stream(self.write(str(tmp_path / "f.nc")))
+        )
+        assert found is False and "chunk cache" in reason
+
+    @pytest.mark.parametrize(
+        "options, why",
+        [
+            ({"positive": "up"}, "not at the surface"),
+            ({"positive": None}, "cannot be told"),
+            ({"compress": True}, "compressed"),
+            ({"hole": True}, "missing at the first level"),
+        ],
+    )
+    def test_it_is_not_used_otherwise(self, tmp_path, options, why):
+        row = {"model_variable": "a"}
+        found, reason = analysis._first_level_is_surface(row, self.stream(self.write(str(tmp_path / "f.nc"), **options)))
+        assert found is False
+        assert why in reason
+
+    @pytest.mark.parametrize("first_step", [False, True])
+    @pytest.mark.parametrize("parts", [["a"], ["a", "w"]])
+    def test_it_gives_what_topvalue_gives(self, tmp_path, parts, first_step):
+        path = self.write(str(tmp_path / "f.nc"))
+        found = []
+        for fast in (False, True):
+            row = {"key": "chl", "name": "chl", "parts": parts, "as_missing": [0, 0], "surface_fast": fast}
+            years = None if first_step else (2013, 2013)
+            ds = analysis._model_data(path, row, years, None, "surface", 3)
+            ds.run()
+            with xr.open_dataset(ds[0]) as out:
+                found.append((out["chl"].dims, np.asarray(out["chl"].values), out["chl"].attrs.get("units")))
+        assert found[0][0] == found[1][0]
+        assert np.array_equal(found[0][1], found[1][1], equal_nan=True)
+
+    @pytest.mark.parametrize("shift", [None, 1.0])
+    def test_it_gives_what_topvalue_gives_for_a_file_that_runs_over_the_years_asked(self, tmp_path, shift):
+        """Two of the file's four days are in the second year: the years are chosen (and the times shifted) as before."""
+        path = self.write(str(tmp_path / "f.nc"), days=(10.0, 20.0, 400.0, 410.0))
+        found = []
+        for fast in (False, True):
+            row = {"key": "chl", "name": "chl", "parts": ["a", "w"], "as_missing": [0, 0], "surface_fast": fast}
+            ds = analysis.monthly_means_of([path], row, "surface", (2013, 2013), shift, 3)
+            with xr.open_dataset(ds[0]) as out:
+                found.append((out["chl"].dims, np.asarray(out["chl"].values)))
+        assert found[0][1].shape[0] == 1
+        assert found[0][0] == found[1][0]
+        assert np.array_equal(found[0][1], found[1][1], equal_nan=True)
+
+    def test_the_chain_selects_the_variables_and_the_level_in_one_step_first(self, tmp_path, monkeypatch):
+        import nctoolkit as nc
+
+        monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
+        row = {"key": "chl", "name": "chl", "parts": ["a", "w"], "as_missing": [0, 0], "surface_fast": True}
+        command = analysis._model_data(self.write(str(tmp_path / "f.nc")), row, (2013, 2013), None, "surface", 3).history[-1]
+        assert "selname" not in command and "topvalue" not in command and "sellevidx" not in command
+        assert TestOrderOfTheChain.first_applied(
+            command, "-select,name=a,w,levidx=1", "-setzaxis", "-setrtomiss", "-expr"
+        ), command
+
+    def test_the_bottom_does_not_use_it(self, tmp_path, monkeypatch):
+        import nctoolkit as nc
+
+        monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
+        row = {"key": "chl", "name": "chl", "parts": ["a"], "as_missing": None, "surface_fast": True}
+        command = analysis._model_data(self.write(str(tmp_path / "f.nc")), row, (2013, 2013), None, "bottom", 3).history[-1]
+        assert "-selname" in command and "-bottomvalue" in command and "-select," not in command
+
+    def test_the_chunk_cache_is_small_while_it_is_read_and_restored_after(self, monkeypatch):
+        monkeypatch.setenv("CDI_CHUNK_CACHE", "7")
+        with analysis._chunk_cache({"surface_fast": True}, "surface"):
+            assert os.environ["CDI_CHUNK_CACHE"] == str(analysis.CHUNK_CACHE)
+        assert os.environ["CDI_CHUNK_CACHE"] == "7"
+        monkeypatch.delenv("CDI_CHUNK_CACHE")
+        with analysis._chunk_cache({"surface_fast": True}, "surface"):
+            assert "CDI_CHUNK_CACHE" in os.environ
+        assert "CDI_CHUNK_CACHE" not in os.environ
+        for row, layer in (({"surface_fast": False}, "surface"), ({"surface_fast": True}, "bottom")):
+            with analysis._chunk_cache(row, layer):
+                assert "CDI_CHUNK_CACHE" not in os.environ
+
+    def test_it_is_set_while_cdo_runs(self, tmp_path):
+        """CDO itself gets the small cache: it says so when asked (CDI_CHUNK_CACHE_INFO)."""
+        import subprocess
+
+        path = self.write(str(tmp_path / "f.nc"))
+        row = {"key": "chl", "name": "chl", "parts": ["a"], "as_missing": None, "surface_fast": True}
+        with analysis._chunk_cache(row, "surface"):
+            environment = dict(os.environ, CDI_CHUNK_CACHE_INFO="1")
+            out = subprocess.run(["cdo", "-s", "info", path], env=environment, capture_output=True, text=True)
+        assert f"chunkCacheSize={analysis.CHUNK_CACHE}" in out.stderr + out.stdout
+
+
 class TestArguments:
     @pytest.mark.parametrize(
         "name, key",
