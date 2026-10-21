@@ -349,19 +349,27 @@ class TestCores:
     def test_nctoolkit_uses_the_cores_given(self, sims, no_report, monkeypatch, tmp_path):
         import nctoolkit as nc
 
+        class Stop(BaseException):
+            """Ends the run once the cores are seen: with several cores nctoolkit runs NCO in pools it
+            never closes, which hang when they are collected (nctoolkit 1.3.6 and before), so the
+            analysis itself is not run."""
+
         seen = []
         for name in ("_work_out", "make_common_grid"):
             original = getattr(sim_compare, name)
 
-            def wrapped(*args, _original=original, **kwargs):
+            def wrapped(*args, _original=original, _name=name, **kwargs):
                 seen.append(nc.session_info["cores"])
+                if _name == "_work_out":
+                    raise Stop
                 return _original(*args, **kwargs)
 
             monkeypatch.setattr(sim_compare, name, wrapped)
         before = nc.session_info["cores"]
         arguments = given(sims, cores=3, out_dir=str(tmp_path), unify={"baseline": "Base run"})
-        compare_quietly(arguments)
-        assert seen and set(seen) == {3}
+        with pytest.raises(Stop):
+            compare_quietly(arguments)
+        assert len(seen) == 2 and set(seen) == {3}
         assert nc.session_info["cores"] == before
 
     def test_the_cores_are_put_back_when_it_fails(self, sims, monkeypatch, tmp_path):

@@ -484,6 +484,9 @@ class TestCoresAfterThredds:
 
         def spy_model_dataset(*args, **kwargs):
             read_with.append(nc.session_info["cores"])
+            # with several cores the model files are read in pools, which hang when
+            # collected with nctoolkit 1.3.6 and before: only the cores are looked at
+            nc.options(cores = 1)
             return model_dataset(*args, **kwargs)
 
         monkeypatch.setattr(nc, "open_thredds", open_thredds)
