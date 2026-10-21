@@ -1,0 +1,2 @@
+zaxistype = surface
+size = 1

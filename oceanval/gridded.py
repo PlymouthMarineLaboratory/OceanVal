@@ -14,6 +14,7 @@ import xarray as xr
 
 from oceanval import data_store
 from oceanval import prompts
+from oceanval import surface
 from oceanval.fixers import tidy_warnings
 from oceanval.fvcom import fvcom_matchup_files
 from oceanval.utils import extension_of_directory, loud_warning
@@ -217,6 +218,64 @@ def _regrid_onto_common_grid(ds_model, ds_obs):
         ds_obs.to_latlon(lon=[lon_min, lon_max], lat=[lat_min, lat_max], res=0.5)
     else:
         ds_model.regrid(ds_obs, method="bil")
+
+
+def _levels_of(path, names):
+    """{variable: its number of vertical levels} in the file path, from its
+    metadata, or None if that cannot be read."""
+    try:
+        with warnings.catch_warnings(record=True):
+            contents = nc.open_data(path, checks=False).contents
+        return {name: int(contents.query("variable == @name").nlevels.iloc[0]) for name in names}
+    except Exception:
+        return None
+
+
+def model_dataset(paths, selection, sim_years, time_shift, as_missing, surface_only, fvcom=False):
+    """The model's output in paths of the variables selection in sim_years, as
+    a dataset whose chain has been asked for but not run, and whether the
+    surface is read from the first level only (see oceanval.surface). With
+    surface_only, a variable with levels is taken at the surface, as a
+    matchup does, before the missing value is set.
+
+    The chain is the cutting down first, as the files can be many GB: the
+    years, the variables and the surface, and only then the shift (which the
+    files of the years need) and the missing value."""
+    ds_model = nc.open_data(paths, checks=False)
+    levels = _levels_of(paths[0], selection) if surface_only else None
+    if surface_only and levels is None:
+        # as it was worked out before: from the variables of the first file, selected
+        ds_zz = nc.open_data(paths[0], checks=False)
+        ds_zz.subset(variables=selection)
+        ds_zz.run()
+        levels = {selection[0]: int(ds_zz.contents.nlevels.values[0])}
+    more_than_one_level = surface_only and levels.get(selection[0], 1) > 1
+    fast = False
+    if more_than_one_level and not fvcom:
+        fast, why = surface.first_level_is_surface(paths[0], selection, levels)
+        print(
+            f"{'+'.join(selection)}: the surface is read from the first level"
+            if fast
+            else f"{'+'.join(selection)}: all levels are read to find the surface, as {why}"
+        )
+    # times that mark the end of the period each mean covers
+    # (see oceanval.time_stamps) are shifted before the years
+    # are selected, so the year's last mean is in its year
+    if not time_shift:
+        ds_model.subset(years=sim_years)
+    surface.choose(ds_model, selection, fast)
+    if more_than_one_level and not fast:
+        ds_model.cdo_command("topvalue")
+    if time_shift:
+        ds_model.shift(days=time_shift)
+        # not subset(years=...), which leaves out the files
+        # without those years on disk, before they are
+        # shifted: the file of the year's last mean, dated in
+        # the next. The files were chosen by their shifted times
+        ds_model.cdo_command(f"-selyear,{','.join(str(x) for x in sim_years)}")
+    if as_missing is not None:
+        ds_model.as_missing(as_missing)
+    return ds_model, fast
 
 
 def gridded_matchup(
@@ -462,29 +521,18 @@ def gridded_matchup(
 
                     new_paths = copy.deepcopy(paths)
 
-                    ds_model = nc.open_data(paths, checks=False)
-                    # times that mark the end of the period each mean covers
-                    # (see oceanval.time_stamps) are shifted before the years
-                    # are selected, so the year's last mean is in its year
-                    if session_info.get("time_shift"):
-                        ds_model.shift(days=session_info["time_shift"])
-                        # not subset(years=...), which leaves out the files
-                        # without those years on disk, before they are
-                        # shifted: the file of the year's last mean, dated in
-                        # the next. The files were chosen by their shifted times
-                        ds_model.cdo_command(f"-selyear,{','.join(str(x) for x in sim_years)}")
-                    else:
-                        ds_model.subset(years=sim_years)
-                    ds_model.subset(variables=selection)
-                    if vertical_gridded is False:
-                        ds_zz = nc.open_data(ds_model[0], checks = False)
-                        ds_zz.subset(variables=selection)
-                        ds_zz.run()
-                        if ds_zz.contents.nlevels.values[0] > 1:
-                            ds_model.cdo_command("topvalue")
-                    if session_info["as_missing"] is not None:
-                        ds_model.as_missing(session_info["as_missing"])
-                    ds_model.merge("time")
+                    ds_model, surface_fast = model_dataset(
+                        paths,
+                        selection,
+                        sim_years,
+                        session_info.get("time_shift"),
+                        session_info["as_missing"],
+                        surface_only=vertical_gridded is False,
+                        fvcom=bool(session_info.get("fvcom", False)),
+                    )
+                    # the first run of the chain: the model files are read here
+                    with surface.chunk_cache(surface_fast):
+                        ds_model.merge("time")
                     ds_model.tmean(
                         ["year", "month"], align="left"
                     )

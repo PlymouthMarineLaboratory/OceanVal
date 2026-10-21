@@ -39,6 +39,7 @@ from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
 from oceanval import data_store as obs_store
 from oceanval import ices
 from oceanval import live
+from oceanval import surface
 from oceanval import model_check
 from oceanval import prompts
 from oceanval import selection
@@ -332,7 +333,29 @@ def _match_above_top_cell(df, top):
     )
 
 
-def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, layer=None):
+def _surface_is_first_level(path, model_variable):
+    """Whether the surface of model_variable can be read from the first vertical
+    level of the files like path (see oceanval.surface), as it is for a variable
+    with levels whose first is the surface. Says which it is."""
+    names = model_variable.split("+")
+    try:
+        with warnings.catch_warnings(record=True):
+            contents = nc.open_data(path, checks=False).contents
+        nlevels = {name: int(contents.query("variable == @name").nlevels.iloc[0]) for name in names}
+    except Exception:
+        return False
+    if nlevels[names[0]] < 2:
+        return False
+    found, why = surface.first_level_is_surface(path, names, nlevels)
+    print(
+        f"{model_variable}: the surface is read from the first level"
+        if found
+        else f"{model_variable}: all levels are read to find the surface, as {why}"
+    )
+    return found
+
+
+def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, layer=None, surface_fast=False):
     """
     Parameters
     -------------
@@ -396,19 +419,6 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
             else:
                 df_locs = df.loc[:, valid_locs]
 
-            ds.subset(variables=var_match)
-            #
-            ds1 = nc.open_data(ds[0], checks=False)
-            ds_contents = ds1.contents
-            the_var = model_variable.split("+")[0]
-
-            if list(ds_contents.query("variable == @the_var").nlevels)[0] > 1:
-                if layer == "surface":
-                    ds.cdo_command("topvalue")
-                else:
-                    if session_info["invert"]:
-                        ds.invert_levels()
-
             # df_times only has the times in the years asked for
             ff_times = df_times.query("path == @ff")
             if valid_times:
@@ -417,7 +427,25 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
 
             if len(ff_indices) == 0:
                 return None
-            ds.subset(time=ff_indices)
+
+            ds1 = nc.open_data(ds[0], checks=False)
+            ds_contents = ds1.contents
+            the_var = model_variable.split("+")[0]
+            more_than_one_level = list(ds_contents.query("variable == @the_var").nlevels)[0] > 1
+            fast = bool(surface_fast) and layer == "surface" and more_than_one_level
+
+            # one select of the variables and the time steps wanted (and, for the surface, its
+            # first level), so that CDO reads only those: selname and seltimestep read every
+            # time step of every level and drop what is not wanted (see oceanval.surface)
+            surface.choose(ds, var_match, fast, ff_indices)
+
+            if more_than_one_level:
+                if layer == "surface":
+                    if not fast:
+                        ds.cdo_command("topvalue")
+                else:
+                    if session_info["invert"]:
+                        ds.invert_levels()
             # times that mark the end of the period each mean covers (see
             # oceanval.time_stamps), shifted as the times index was, so that
             # match_points finds the dates the index gives
@@ -425,7 +453,8 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
                 ds.shift(days=session_info["time_shift"])
             if session_info["as_missing"] is not None:
                 ds.as_missing(session_info["as_missing"])
-            ds.run()
+            with surface.chunk_cache(fast):
+                ds.run()
 
 
             if len(var_match) > 1:
@@ -2215,6 +2244,13 @@ def matchup(
 
                         df_all = manager.list()
 
+                        # whether the surface can be read from the first level alone (once for the variable,
+                        # from the first file; not FVCOM's, which are on another vertical axis)
+                        surface_fast = (
+                            layer == "surface" and not fvcom and len(paths) > 0
+                            and _surface_is_first_level(paths[0], model_variable)
+                        )
+
                         grid_setup = False
 
                         pbar = tqdm(total=len(paths), position=0, leave=True)
@@ -2237,6 +2273,7 @@ def matchup(
                                             point_variable,
                                             df_all,
                                             layer,
+                                            surface_fast,
                                         ],
                                     )
 
@@ -2264,6 +2301,7 @@ def matchup(
                                     point_variable,
                                     df_all,
                                     layer,
+                                    surface_fast,
                                 )
                                 pbar.update(1)
 

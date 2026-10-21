@@ -1,0 +1,174 @@
+"""Reading the surface of a model's output quickly (analyze, compare_simulations and matchup).
+
+Model files can be many GB with a great many variables, written one time step
+of every level at a time in a chunk (22.7 MB for 51 levels of a 375 by 297
+grid). CDO's selname, seltimestep, sellevidx and topvalue read every record and
+drop what is not wanted; its select filters the records before reading them.
+And with HDF5's default chunk cache, which is larger than such a chunk, reading
+one level reads the whole chunk. So the surface, which is what every analysis
+and most matchups want, is read by
+
+- one select of the variables, the first level and the time steps wanted,
+- a setzaxis to a surface axis, which is what topvalue leaves (no vertical
+  dimension of one level), and
+- CDI_CHUNK_CACHE, CDO's own variable, set to less than a chunk while it runs.
+
+That is the same as topvalue only if the first level is the surface wherever
+there is a value, which first_level_is_surface checks of the first file: its
+vertical axis is positive down, it is not compressed (a compressed chunk has to
+be read whole, so a small cache would make each level decompress it again), the
+CDO takes CDI_CHUNK_CACHE (those before about 2.1 do not), and on the first
+time step the first level is missing exactly where topvalue's is. Anything else
+keeps topvalue.
+"""
+
+import contextlib
+import importlib.resources
+import os
+import shutil
+import subprocess
+import tempfile
+import warnings
+
+import nctoolkit as nc
+import numpy as np
+import xarray as xr
+
+# the bytes of HDF5 chunk cache for each variable while a surface is read from the
+# first level only: smaller than the chunk of a model's output
+CHUNK_CACHE = 1000000
+# the most time steps one select is given
+MOST_TIMESTEPS = 10000
+# a description of a surface vertical axis, which is what topvalue gives
+SURFACE_AXIS = "surface_zaxis.txt"
+
+# what first_level_is_surface found, by file, its modification time and the variables
+_found = {}
+
+
+def axis_file():
+    """The path of the description of a surface vertical axis. nctoolkit runs
+    its commands in a shell and rewrites "cdo " in them, so a path with a space
+    in it (or "cdo") is copied to one without."""
+    path = str(importlib.resources.files("oceanval").joinpath(f"data/{SURFACE_AXIS}"))
+    if " " not in path and "cdo" not in path:
+        return path
+    safe = os.path.join(tempfile.gettempdir(), f"oceanval_{os.getuid()}_{SURFACE_AXIS}")
+    shutil.copyfile(path, safe)
+    return safe
+
+
+def choose(ds, names, fast, timesteps=None):
+    """Choose in ds the variables names and, if timesteps (0-based indices) is
+    given, those time steps only. If fast, only the first level too, as the
+    surface (see the module). The one select reads only what it chooses;
+    selname and seltimestep would read everything and then drop it."""
+    choice = f"-select,name={','.join(names)}"
+    if fast:
+        choice += ",levidx=1"
+    # the command is one argument of a shell, which Linux limits to 128 KB: more than this many
+    # steps are chosen after the select, as before
+    too_many = timesteps is not None and len(timesteps) > MOST_TIMESTEPS
+    if timesteps is not None and not too_many:
+        choice += ",timestep=" + ",".join(str(int(step) + 1) for step in timesteps)
+    if not fast and timesteps is None:
+        ds.subset(variables=list(names))
+        return
+    ds.cdo_command(choice)
+    if fast:
+        ds.cdo_command(f"-setzaxis,{axis_file()}")
+    if too_many:
+        ds.subset(time=[int(step) for step in timesteps])
+
+
+@contextlib.contextmanager
+def chunk_cache(active=True):
+    """Give CDO a small HDF5 chunk cache while it runs, if active, and restore
+    the environment after. nctoolkit's CDO processes, in its pool too, are
+    started with the environment as it is when they are."""
+    if not active:
+        yield
+        return
+    before = os.environ.get("CDI_CHUNK_CACHE")
+    os.environ["CDI_CHUNK_CACHE"] = str(CHUNK_CACHE)
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop("CDI_CHUNK_CACHE", None)
+        else:
+            os.environ["CDI_CHUNK_CACHE"] = before
+
+
+def cdo_takes_a_chunk_cache(path):
+    """Whether the CDO that nctoolkit runs takes CDI_CHUNK_CACHE, which it says
+    when asked, for a file with chunks. A file with none (contiguous, or
+    netCDF3) has no chunk to read whole, so there is nothing for the cache to do."""
+    import netCDF4 as nc4
+
+    environment = dict(os.environ, CDI_CHUNK_CACHE=str(CHUNK_CACHE), CDI_CHUNK_CACHE_INFO="1")
+    try:
+        out = subprocess.run(
+            ["cdo", "-s", "showname", path], env=environment, capture_output=True, text=True, timeout=300
+        )
+        if f"chunkCacheSize={CHUNK_CACHE}" in out.stdout + out.stderr:
+            return True
+        with nc4.Dataset(path) as data:
+            return not any(variable.chunking() not in ("contiguous", None) for variable in data.variables.values())
+    except Exception:
+        return False
+
+
+def first_level_is_surface(path, names, nlevels):
+    """Whether the surface of the variables names can be read from the first
+    vertical level of the files like path, and a reason if not: (True, "") or
+    (False, why). nlevels is {variable: its number of levels}; a variable
+    with one is not looked at. Only path's attributes and its first time step
+    are read. The answer is kept for the file as it is."""
+    names = list(names)
+    try:
+        key = (os.path.abspath(path), os.stat(path).st_mtime_ns, tuple(names))
+    except OSError:
+        key = None
+    if key is not None and key in _found:
+        return _found[key]
+    answer = _first_level_is_surface(path, names, nlevels)
+    if key is not None:
+        _found[key] = answer
+    return answer
+
+
+def _first_level_is_surface(path, names, nlevels):
+    import netCDF4 as nc4
+
+    if not cdo_takes_a_chunk_cache(path):
+        return False, "this CDO does not take a smaller chunk cache (CDI_CHUNK_CACHE), so it would read every level anyway"
+    try:
+        with nc4.Dataset(path) as data:
+            for name in names:
+                if nlevels.get(name, 1) < 2:
+                    continue
+                variable = data.variables[name]
+                filters = {key: value for key, value in (variable.filters() or {}).items() if value}
+                if filters:
+                    return False, f"{name} is compressed ({', '.join(filters)})"
+                z = [dim for dim in variable.dimensions if dim in data.variables and hasattr(data.variables[dim], "positive")]
+                if len(z) != 1:
+                    return False, f"the vertical axis of {name} cannot be told"
+                if data.variables[z[0]].positive != "down":
+                    return False, f"the first level of {name} is not at the surface ({z[0]} is positive {data.variables[z[0]].positive})"
+        one = nc.open_data(path, checks=False)
+        choose(one, names, True, [0])
+        top = nc.open_data(path, checks=False)
+        top.cdo_command(f"-select,name={','.join(names)},timestep=1")
+        top.cdo_command("topvalue")
+        with chunk_cache(True), warnings.catch_warnings(record=True):
+            one.run()
+            top.run()
+        with xr.open_dataset(one[0]) as first, xr.open_dataset(top[0]) as value:
+            for name in names:
+                if not np.array_equal(np.isnan(first[name].values), np.isnan(value[name].values)):
+                    return False, f"{name} is missing at the first level where there is a value below it"
+    except Exception as error:
+        return False, f"it could not be told ({type(error).__name__})"
+    return True, ""
