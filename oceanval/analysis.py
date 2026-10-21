@@ -32,6 +32,7 @@ import json
 import os
 import re
 import shutil
+import threading
 import warnings
 import webbrowser
 
@@ -373,10 +374,22 @@ def check_area(rows, subregions=None, lon_lim=None, lat_lim=None, stations=None)
     }
 
 
+# netCDF4/HDF5 is not thread-safe, and the window reads the streams of each
+# simulation it compares in a thread of its own, so the files' variables are
+# read one thread at a time (two at once give errors, or one file's attributes
+# for another's)
+_FILE_READ_LOCK = threading.Lock()
+
+
 def _variables_of(path):
     """The variables of one file, {name: {"long_name", "units", "levels"}},
     as CDO reads them (so not coordinates or bounds), or as xarray reads its
     data variables if CDO cannot read it. None if neither can."""
+    with _FILE_READ_LOCK:
+        return _read_variables_of(path)
+
+
+def _read_variables_of(path):
     found = None
     try:
         with warnings.catch_warnings(record=True):

@@ -156,6 +156,44 @@ class TestSimulations:
         # nothing is filled in for the user
         assert shown["rows"] == []
 
+    def test_the_files_are_read_one_thread_at_a_time(self, tmp_path, sims, monkeypatch):
+        # netCDF4/HDF5 is not thread-safe, and each simulation is read in a thread of its own
+        import threading
+        import time
+
+        from oceanval import analysis
+
+        reading = []
+        overlapped = []
+        real = analysis._read_variables_of
+
+        def watched(path):
+            reading.append(path)
+            if len(reading) > 1:
+                overlapped.append(list(reading))
+            time.sleep(0.05)
+            try:
+                return real(path)
+            finally:
+                reading.remove(path)
+
+        monkeypatch.setattr(analysis, "_read_variables_of", watched)
+        found = {}
+
+        def read(name):
+            found[name] = analysis.streams(str(tmp_path / name), 1)
+
+        threads = [threading.Thread(target=read, args=(name,)) for name in sims]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        assert overlapped == []
+        for name in sims:
+            assert len(found[name]) == 2
+            variables = {key: value["units"] for stream in found[name] for key, value in stream["variables"].items()}
+            assert variables["P1_Chl"] == "mg Chl m-3" and variables["thetao"] == "degC"
+
     def test_a_simulation_that_cannot_be_read(self, app, tmp_path, sims):
         os.makedirs(tmp_path / "empty" / "2013")
         to_sims(app)
