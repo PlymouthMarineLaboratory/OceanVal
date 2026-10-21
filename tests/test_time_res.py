@@ -33,6 +33,33 @@ def test_label(dates, expected):
     assert time_res.label(times(dates)) == expected
 
 
+@pytest.mark.parametrize(
+    "files, expected",
+    [
+        # daily output, a file a month
+        ([[(2000, m, d) for d in range(1, 29)] for m in range(1, 13)], True),
+        # monthly output, a file a month, and annual output, a file a year
+        ([[(2000, m, 15)] for m in range(1, 13)], True),
+        ([[(2000 + y, 7, 1)] for y in range(3)], True),
+        # a year of months in one file
+        ([[(2000, m, 15) for m in range(1, 13)]], False),
+        # a file crossing two months
+        ([[(2000, 1, 31), (2000, 2, 1)], [(2000, 3, 1)]], False),
+        # a month in two files
+        ([[(2000, 1, d) for d in range(1, 16)], [(2000, 1, d) for d in range(16, 32)]], False),
+        # a file with no times, and no files at all
+        ([[(2000, 1, 1)], []], False),
+        ([], False),
+    ],
+)
+def test_one_month_per_file(files, expected):
+    found = {
+        f"file_{n}.nc": times(dates) if dates else pd.DataFrame(columns=["year", "month", "day"])
+        for n, dates in enumerate(files)
+    }
+    assert time_res.one_month_per_file(found) is expected
+
+
 def test_finest_first():
     labels = ["monthly", "5d", "1d", "10d", None]
     assert sorted(labels, key=time_res.sort_key) == ["1d", "5d", "10d", "monthly", None]

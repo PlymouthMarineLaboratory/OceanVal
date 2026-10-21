@@ -12,15 +12,20 @@ and most matchups want, is read by
 - a setzaxis to a surface axis, which is what topvalue leaves (no vertical
   dimension of one level), and
 - CDO's own cache size, set to less than a chunk while it runs: CDI_CHUNK_CACHE
-  before CDO 2.6, CDI_CACHESIZE_IN from 2.6 on (each ignores the other's name).
+  before CDO 2.6, CDI_CACHESIZE_IN from 2.6 on (each ignores the other's name),
+  if small_cache_helps.
 
 That is the same as topvalue only if the first level is the surface wherever
 there is a value, which first_level_is_surface checks of the first file: its
-vertical axis is positive down, it is not compressed (a compressed chunk has to
-be read whole, so a small cache would make each level decompress it again), the
-CDO says it takes the cache size (2.4.1 and before cannot say so), and on the
-first time step the first level is missing exactly where topvalue's is.
-Anything else keeps topvalue.
+vertical axis is positive down, and on the first time step the first level is
+missing exactly where topvalue's is. Anything else keeps topvalue.
+
+The small cache is only for chunks that are not compressed, with a CDO that
+says it takes the cache size (2.4.1 and before cannot say so). A compressed
+chunk has to be read whole, so a small cache would make each level decompress
+it again; with HDF5's own cache the select still decompresses each chunk once,
+as topvalue does, and spares CDO the other levels (a quarter of the time of a
+month of daily NEMO-ERSEM output, compressed, with its 51 levels in a chunk).
 """
 
 import contextlib
@@ -128,6 +133,20 @@ def cdo_takes_a_chunk_cache(path):
         return False
 
 
+def _kept(kind, path, names, work_out):
+    """work_out()'s answer for path and names, kept for the file as it is."""
+    try:
+        key = (kind, os.path.abspath(path), os.stat(path).st_mtime_ns, tuple(names))
+    except OSError:
+        key = None
+    if key is not None and key in _found:
+        return _found[key]
+    answer = work_out()
+    if key is not None:
+        _found[key] = answer
+    return answer
+
+
 def first_level_is_surface(path, names, nlevels):
     """Whether the surface of the variables names can be read from the first
     vertical level of the files like path, and a reason if not: (True, "") or
@@ -135,32 +154,58 @@ def first_level_is_surface(path, names, nlevels):
     with one is not looked at. Only path's attributes and its first time step
     are read. The answer is kept for the file as it is."""
     names = list(names)
-    try:
-        key = (os.path.abspath(path), os.stat(path).st_mtime_ns, tuple(names))
-    except OSError:
-        key = None
-    if key is not None and key in _found:
-        return _found[key]
-    answer = _first_level_is_surface(path, names, nlevels)
-    if key is not None:
-        _found[key] = answer
-    return answer
+    return _kept("first level", path, names, lambda: _first_level_is_surface(path, names, nlevels))
+
+
+def compressed(path, names, nlevels):
+    """The first of the variables names with levels that is compressed in path,
+    and how, as "name (zlib)"; None if none is."""
+    import netCDF4 as nc4
+
+    with nc4.Dataset(path) as data:
+        for name in names:
+            if nlevels.get(name, 1) < 2:
+                continue
+            filters = {key: value for key, value in (data.variables[name].filters() or {}).items() if value}
+            if filters:
+                return f"{name} ({', '.join(filters)})"
+    return None
+
+
+def small_cache_helps(path, names, nlevels):
+    """Whether CDO should be given a small chunk cache (see chunk_cache) while the
+    surface of the variables names is read from the first level of the files
+    like path: only if none of them is compressed and the CDO takes the size.
+    The answer is kept for the file as it is."""
+    names = list(names)
+
+    def work_out():
+        try:
+            return compressed(path, names, nlevels) is None and cdo_takes_a_chunk_cache(path)
+        except Exception:
+            return False
+
+    return _kept("small cache", path, names, work_out)
+
+
+def how_read(fast, why, small_cache):
+    """What is said of how a variable's surface is read."""
+    if not fast:
+        return f"all levels are read to find the surface, as {why}"
+    if small_cache:
+        return "the surface is read from the first level"
+    return "the surface is read from the first level, with HDF5's own chunk cache"
 
 
 def _first_level_is_surface(path, names, nlevels):
     import netCDF4 as nc4
 
-    if not cdo_takes_a_chunk_cache(path):
-        return False, "this CDO does not take a smaller chunk cache (CDI_CHUNK_CACHE or CDI_CACHESIZE_IN), so it would read every level anyway"
     try:
         with nc4.Dataset(path) as data:
             for name in names:
                 if nlevels.get(name, 1) < 2:
                     continue
                 variable = data.variables[name]
-                filters = {key: value for key, value in (variable.filters() or {}).items() if value}
-                if filters:
-                    return False, f"{name} is compressed ({', '.join(filters)})"
                 z = [dim for dim in variable.dimensions if dim in data.variables and hasattr(data.variables[dim], "positive")]
                 if len(z) != 1:
                     return False, f"the vertical axis of {name} cannot be told"
@@ -171,7 +216,7 @@ def _first_level_is_surface(path, names, nlevels):
         top = nc.open_data(path, checks=False)
         top.cdo_command(f"-select,name={','.join(names)},timestep=1")
         top.cdo_command("topvalue")
-        with chunk_cache(True), warnings.catch_warnings(record=True):
+        with chunk_cache(small_cache_helps(path, names, nlevels)), warnings.catch_warnings(record=True):
             one.run()
             top.run()
         with xr.open_dataset(one[0]) as first, xr.open_dataset(top[0]) as value:

@@ -647,8 +647,11 @@ def _choose(ds, row, fast, first_step=False):
 
 def _chunk_cache(row, layer):
     """A small HDF5 chunk cache for CDO while row's variable is read in layer, if
-    its surface is read from the first level (see oceanval.surface)."""
-    return surface.chunk_cache(layer == SURFACE and bool(row.get("surface_fast")))
+    its surface is read from the first level and its chunks are not compressed
+    (see oceanval.surface)."""
+    return surface.chunk_cache(
+        layer == SURFACE and bool(row.get("surface_fast")) and bool(row.get("surface_small_cache"))
+    )
 
 
 def _pick_level(ds, layer, levels):
@@ -690,14 +693,20 @@ def monthly_means_of(files, row, layer, years, time_shift, levels, thickness=Non
     """The mean of each month of each year of row's variable in one layer
     (see LAYER_TITLES) over years, as a dataset with a time for each. If row
     has "unify" (see oceanval.sim_unify), it is on the common grid of a
-    comparison's simulations."""
+    comparison's simulations. If row has "month_per_file" (see
+    time_res.one_month_per_file), each file's mean is its month's, taken as
+    it is read, so merging the files writes one time of each."""
+    month_per_file = bool(row.get("month_per_file"))
     with _chunk_cache(row, layer):
         ds = _model_data(files, row, years, time_shift, layer, levels)
         with warnings.catch_warnings(record=True):
+            if month_per_file:
+                ds.tmean(align="left")
             ds.merge("time")
-            # each month of each year first, so a month of daily output counts
-            # as much as a month of monthly output
-            ds.tmean(["year", "month"], align="left")
+            if not month_per_file:
+                # each month of each year first, so a month of daily output counts
+                # as much as a month of monthly output
+                ds.tmean(["year", "month"], align="left")
             ds.run()
             _reduce_column(ds, layer, thickness)
             ds.run()
@@ -1129,12 +1138,13 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
 
 def _first_level_is_surface(row, stream):
     """Whether row's surface can be read from the first vertical level alone,
-    and a reason if not (see oceanval.surface.first_level_is_surface), of the
-    first file of its stream."""
+    a reason if not (see oceanval.surface.first_level_is_surface), and whether
+    CDO is given a small chunk cache while it is (surface.small_cache_helps),
+    of the first file of its stream."""
     names = model_variable_names(row["model_variable"])
-    return surface.first_level_is_surface(
-        stream["files"][0], names, {name: stream["variables"][name]["levels"] for name in names}
-    )
+    nlevels = {name: stream["variables"][name]["levels"] for name in names}
+    fast, why = surface.first_level_is_surface(stream["files"][0], names, nlevels)
+    return fast, why, fast and surface.small_cache_helps(stream["files"][0], names, nlevels)
 
 
 def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_index=None):
@@ -1179,13 +1189,10 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
             continue
         row.update(describe_variable(row["model_variable"], stream))
         if row["levels"] > 1:
-            row["surface_fast"], why = _first_level_is_surface(row, stream)
-            _say(
-                f"{row['name']}: the surface is read from the first level" if row["surface_fast"]
-                else f"{row['name']}: all levels are read to find the surface, as {why}"
-            )
+            row["surface_fast"], why, row["surface_small_cache"] = _first_level_is_surface(row, stream)
+            _say(f"{row['name']}: {surface.how_read(row['surface_fast'], why, row['surface_small_cache'])}")
         else:
-            row["surface_fast"] = False
+            row["surface_fast"] = row["surface_small_cache"] = False
         row["pattern"] = stream["pattern"]
         row["files"] = stream["files"]
         row["time_res"] = res
@@ -1242,6 +1249,10 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
         elif row["time_res"] is None:
             row["time_res"] = time_res_of(row["files"])
         row["times"] = own
+        # the files of every analysis are some of these, so what holds for all holds for them
+        row["month_per_file"] = time_resolution.one_month_per_file(own)
+        if row["month_per_file"]:
+            _say(f"{row['name']}: each file is one month, so its monthly means are taken as the files are read")
         for kind in KINDS:
             entry = row[kind]
             if entry is None or kind == "map_changes":

@@ -15,6 +15,7 @@ import xarray as xr
 from oceanval import data_store
 from oceanval import prompts
 from oceanval import surface
+from oceanval import time_res
 from oceanval.fixers import tidy_warnings
 from oceanval.fvcom import fvcom_matchup_files
 from oceanval.utils import extension_of_directory, loud_warning
@@ -231,12 +232,17 @@ def _levels_of(path, names):
         return None
 
 
-def model_dataset(paths, selection, sim_years, time_shift, as_missing, surface_only, fvcom=False):
+def model_dataset(
+    paths, selection, sim_years, time_shift, as_missing, surface_only, fvcom=False, month_per_file=False
+):
     """The model's output in paths of the variables selection in sim_years, as
-    a dataset whose chain has been asked for but not run, and whether the
-    surface is read from the first level only (see oceanval.surface). With
+    a dataset whose chain has been asked for but not run, whether the surface
+    is read from the first level only, and whether CDO is given a small chunk
+    cache while it is (see oceanval.surface). With
     surface_only, a variable with levels is taken at the surface, as a
-    matchup does, before the missing value is set.
+    matchup does, before the missing value is set. With month_per_file (see
+    time_res.one_month_per_file), each file's mean, which is its month's, is
+    taken last.
 
     The chain is the cutting down first, as the files can be many GB: the
     years, the variables and the surface, and only then the shift (which the
@@ -250,14 +256,11 @@ def model_dataset(paths, selection, sim_years, time_shift, as_missing, surface_o
         ds_zz.run()
         levels = {selection[0]: int(ds_zz.contents.nlevels.values[0])}
     more_than_one_level = surface_only and levels.get(selection[0], 1) > 1
-    fast = False
+    fast = small_cache = False
     if more_than_one_level and not fvcom:
         fast, why = surface.first_level_is_surface(paths[0], selection, levels)
-        print(
-            f"{'+'.join(selection)}: the surface is read from the first level"
-            if fast
-            else f"{'+'.join(selection)}: all levels are read to find the surface, as {why}"
-        )
+        small_cache = fast and surface.small_cache_helps(paths[0], selection, levels)
+        print(f"{'+'.join(selection)}: {surface.how_read(fast, why, small_cache)}")
     # times that mark the end of the period each mean covers
     # (see oceanval.time_stamps) are shifted before the years
     # are selected, so the year's last mean is in its year
@@ -275,7 +278,10 @@ def model_dataset(paths, selection, sim_years, time_shift, as_missing, surface_o
         ds_model.cdo_command(f"-selyear,{','.join(str(x) for x in sim_years)}")
     if as_missing is not None:
         ds_model.as_missing(as_missing)
-    return ds_model, fast
+    if month_per_file:
+        # the month's mean, dated at its first time as the mean of each month is
+        ds_model.tmean(align="left")
+    return ds_model, fast, small_cache
 
 
 def gridded_matchup(
@@ -483,6 +489,12 @@ def gridded_matchup(
                 paths = list(set(new_paths))
                 paths.sort()
 
+                # the times are those of the files on disk (shifted, if they are),
+                # which FVCOM's regridded files below keep, one for each
+                month_per_file = time_res.one_month_per_file({ff: times_dict[ff] for ff in paths})
+                if month_per_file:
+                    print(f"{'+'.join(selection)}: each file is one month, so its monthly means are taken as the files are read")
+
                 obs_download = None
                 if session_info.get("fvcom", False):
                     # regrid FVCOM output at twice the resolution of the observations
@@ -521,7 +533,7 @@ def gridded_matchup(
 
                     new_paths = copy.deepcopy(paths)
 
-                    ds_model, surface_fast = model_dataset(
+                    ds_model, _, small_cache = model_dataset(
                         paths,
                         selection,
                         sim_years,
@@ -529,13 +541,15 @@ def gridded_matchup(
                         session_info["as_missing"],
                         surface_only=vertical_gridded is False,
                         fvcom=bool(session_info.get("fvcom", False)),
+                        month_per_file=month_per_file,
                     )
                     # the first run of the chain: the model files are read here
-                    with surface.chunk_cache(surface_fast):
+                    with surface.chunk_cache(small_cache):
                         ds_model.merge("time")
-                    ds_model.tmean(
-                        ["year", "month"], align="left"
-                    )
+                    if not month_per_file:
+                        ds_model.tmean(
+                            ["year", "month"], align="left"
+                        )
 
                     # the code below needs to be simplifed
                     # essentially anything with a + in the mapping should be split out

@@ -130,6 +130,43 @@ def write_analysis_simulation(
         ).to_netcdf(os.path.join(folder, f"sim_{'1d' if daily else '1m'}_{year}0101_{year}1231_ptrc_T.nc"))
 
 
+def write_month_files(path, whole, split, end_stamped=False):
+    """The daily output of path (a standard calendar's) written again as a file
+    of the whole of it in the folder whole, and as a file a month, as daily
+    output often is, in split/<year>/, with the same names but the month's
+    dates. Each variable is given a part that changes from day to day, so
+    the mean of a month is not any of its days. With end_stamped, each day is
+    dated on disk at its end, the next day (a day later than path's), and
+    its file is that of the month it is the end of. Returns (the whole file,
+    the files of the months)."""
+    with xr.open_dataset(path) as ds:
+        ds = ds.load()
+    days = np.arange(ds.sizes["time"], dtype="f4") % 7
+    for name, variable in ds.data_vars.items():
+        if "time" in variable.dims:
+            change = days.reshape((-1,) + (1,) * (variable.ndim - 1))
+            ds[name] = variable + change.astype(variable.dtype)
+            ds[name].attrs = variable.attrs
+    months = ds["time"].dt
+    years, month_of = months.year.values, months.month.values
+    if end_stamped:
+        ds["time"] = ds["time"] + np.timedelta64(1, "D")
+    encoding = {"time": {"units": f"days since {int(years[0])}-01-01", "calendar": "standard"}}
+    base = os.path.basename(path).split("_")
+    stream = "_".join(base[4:])
+    os.makedirs(whole, exist_ok=True)
+    whole_path = os.path.join(whole, os.path.basename(path))
+    ds.to_netcdf(whole_path, encoding=encoding)
+    written = []
+    for year, month in sorted(set(zip(years, month_of))):
+        folder = os.path.join(split, str(year))
+        os.makedirs(folder, exist_ok=True)
+        out = os.path.join(folder, f"{base[0]}_{base[1]}_{year}{month:02d}01_{year}{month:02d}28_{stream}")
+        ds.isel(time=np.flatnonzero((years == year) & (month_of == month))).to_netcdf(out, encoding=encoding)
+        written.append(out)
+    return whole_path, written
+
+
 def write_curvilinear_simulation(root, years=(2013,)):
     """A monthly simulation of one surface variable, sst, on a curvilinear
     grid, with its longitudes and latitudes in 2D and no cell bounds, so that

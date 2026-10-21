@@ -61,6 +61,23 @@ def sort_key(resolution):
     return 10**6
 
 
+def one_month_per_file(times):
+    """Whether each of the files of times ({path: DataFrame of year, month
+    and day}) holds the times of a single month of a single year, and no
+    month is in more than one of them: then the mean of each month is the
+    mean of each file, which can be taken as the file is read."""
+    seen = set()
+    for df_times in times.values():
+        months = set(zip(df_times.year, df_times.month))
+        if len(months) != 1:
+            return False
+        month = months.pop()
+        if month in seen:
+            return False
+        seen.add(month)
+    return len(seen) > 0
+
+
 def needs_check(resolution, point_time_res):
     """Whether observations matched by point_time_res may mostly go
     unmatched against output of this resolution: they are matched by day,

@@ -188,15 +188,24 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   `-setzaxis` (a surface axis, as `topvalue` leaves it, so no vertical dimension of one level), with `CDI_CHUNK_CACHE` (CDO < 2.6) and
   `CDI_CACHESIZE_IN` (CDO 2.6+, which ignores the old name; `surface.CACHE_VARIABLES`) at 1 MB while it
   runs (`surface.chunk_cache`): the default 64 MB cache holds a whole chunk (a time step of all 51 levels, 22.7 MB, in the user's
-  `ptrc_T`), so HDF5 would read it all to give one level. It does so only when `surface.first_level_is_surface` finds, from the first
-  file, a vertical axis `positive: down`, no compression, a CDO that says it takes the cache size (`CDI_CHUNK_CACHE_INFO`/`CDI_CACHE_INFO`; 2.4.1 and before cannot), and the first level missing exactly where
-  `topvalue` is on the first step. **Never set a small cache for compressed files**: HDF5 would decompress the whole chunk again for
-  every level. Anything else keeps `topvalue`. Analyze/Compare keep the answer in `row["surface_fast"]` (`locate_rows`); matchup
-  decides once per variable (`matchall._surface_is_first_level` in `point_match`, passed to `mm_match` as `surface_fast`; `gridded.model_dataset`
+  `ptrc_T`), so HDF5 would read it all to give one level. It reads the first level when `surface.first_level_is_surface` finds, from the first
+  file, a vertical axis `positive: down` and the first level missing exactly where `topvalue` is on the first step; anything else keeps
+  `topvalue`. The small cache is a separate answer, `surface.small_cache_helps`: only with no compression and a CDO that says it takes
+  the cache size (`CDI_CHUNK_CACHE_INFO`/`CDI_CACHE_INFO`; 2.4.1 and before cannot). **Never set a small cache for compressed files**:
+  HDF5 would decompress the whole chunk again for every level. A compressed file's first level is read with HDF5's own cache, which
+  still decompresses each chunk once, as `topvalue` does, but spares CDO the other levels (measured on a month of deflate-9 daily
+  `ptrc_T`, 51 levels a chunk, CDO 2.6.5: 3.0 s -> 2.3 s from the page cache, 6.1 s -> 5.5 s from NFS). Analyze/Compare keep the answers
+  in `row["surface_fast"]`/`row["surface_small_cache"]` (`locate_rows`); matchup decides once per variable (`matchall._surface_is_first_level`
+  in `point_match`, passed to `mm_match` as `surface_fast`/`small_cache`; `gridded.model_dataset`, which returns both,
   for the gridded model read, which also selects the variables, surface and shift in that order). `mm_match` chooses the days with
   `select,timestep=` for every layer (`seltimestep` reads every time step of the month), measured on the user's files at 8 s -> 1.6 s
   for six days of one variable, 0.35 s with the surface read from the first level.
   `tests/test_analysis.py::TestOrderOfTheChain` checks the chain's order (`ds.history`) without running it.
+  **A file a month**: when each file holds the times of one month of one year and no month is in two files
+  (`time_res.one_month_per_file`, on the shifted times; `row["month_per_file"]` set in `locate_rows`, `month_per_file` in
+  `gridded_matchup` from its final `paths`), `monthly_means_of`/`gridded.model_dataset` end the chain with `tmean(align="left")`,
+  so `merge("time")` (which runs the chain on each file first) writes one time per file, and the `tmean(["year", "month"])`
+  after the merge is left out. Point matchups and the daily fields (phenology, `first_step_of`) do not use it.
 - **Model output is only ever processed by nctoolkit/CDO, which streams it.** Model files can be many GB: xarray is for
   coordinates (lon/lat) and the small reduced files OceanVal writes itself, **never `.load()` or a whole `.values` of a
   model file** (`sim_compare._same_grid` reads only the coordinates, `analysis.peak` reads a band of rows at a time,

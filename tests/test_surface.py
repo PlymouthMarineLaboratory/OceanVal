@@ -11,7 +11,7 @@ import xarray as xr
 
 from oceanval import gridded, matchall, surface
 from oceanval.session import session_info
-from simulations import ANALYSIS_LATS, ANALYSIS_LONS, write_analysis_simulation
+from simulations import ANALYSIS_LATS, ANALYSIS_LONS, write_analysis_simulation, write_month_files
 
 DAYS = [(2013, 1, 5), (2013, 3, 20), (2013, 7, 11)]
 
@@ -116,7 +116,6 @@ class TestFirstLevelIsSurface:
         [
             ({"positive": "up"}, "not at the surface"),
             ({"positive": None}, "cannot be told"),
-            ({"compress": True}, "compressed"),
             ({"hole": True}, "missing at the first level"),
         ],
     )
@@ -124,10 +123,30 @@ class TestFirstLevelIsSurface:
         found, reason = surface.first_level_is_surface(write_pair(str(tmp_path / "f.nc"), **options), ["a"], self.NLEVELS)
         assert found is False and why in reason
 
-    def test_a_cdo_without_a_chunk_cache_does_not_use_it(self, tmp_path, monkeypatch):
+    def test_the_small_cache_is_given_for_an_uncompressed_file(self, tmp_path):
+        assert surface.small_cache_helps(write_pair(str(tmp_path / "f.nc")), ["a", "b"], self.NLEVELS) is True
+
+    def test_a_compressed_file_is_read_from_its_first_level_with_hdf5s_own_cache(self, tmp_path):
+        """A compressed chunk is read whole: a small cache would decompress it again for every level."""
+        path = write_pair(str(tmp_path / "f.nc"), compress=True)
+        assert surface.first_level_is_surface(path, ["a"], self.NLEVELS) == (True, "")
+        assert surface.small_cache_helps(path, ["a"], self.NLEVELS) is False
+        assert surface.compressed(path, ["a"], self.NLEVELS).startswith("a (zlib")
+
+    def test_a_variable_with_one_level_is_not_looked_at_for_compression(self, tmp_path):
+        path = write_pair(str(tmp_path / "f.nc"), compress=True)
+        assert surface.compressed(path, ["a"], {"a": 1}) is None
+
+    def test_a_cdo_without_a_chunk_cache_reads_the_first_level_with_hdf5s_own_cache(self, tmp_path, monkeypatch):
         monkeypatch.setattr(surface, "cdo_takes_a_chunk_cache", lambda path: False)
-        found, reason = surface.first_level_is_surface(write_pair(str(tmp_path / "f.nc")), ["a"], self.NLEVELS)
-        assert found is False and "chunk cache" in reason
+        path = write_pair(str(tmp_path / "f.nc"))
+        assert surface.first_level_is_surface(path, ["a"], self.NLEVELS) == (True, "")
+        assert surface.small_cache_helps(path, ["a"], self.NLEVELS) is False
+
+    def test_what_is_said(self):
+        assert surface.how_read(True, "", True) == "the surface is read from the first level"
+        assert "HDF5's own chunk cache" in surface.how_read(True, "", False)
+        assert surface.how_read(False, "it is positive up", False).endswith("as it is positive up")
 
     def test_it_is_worked_out_once_for_a_file(self, tmp_path, monkeypatch):
         path = write_pair(str(tmp_path / "f.nc"))
@@ -187,10 +206,11 @@ def same(left, right):
 
 class TestPointMatchups:
     @staticmethod
-    def match(path, variable="thetao", layer="surface", fast=False):
+    def match(path, variable="thetao", layer="surface", fast=False, small_cache=None):
         df, df_times = observations(path)
         out = []
-        matchall.mm_match(path, variable, df, df_times, None, "temperature", out, layer, fast)
+        small_cache = fast if small_cache is None else small_cache
+        matchall.mm_match(path, variable, df, df_times, None, "temperature", out, layer, fast, small_cache)
         return out[0] if out else None
 
     def test_the_surface_is_the_same_read_from_the_first_level(self, daily_simulation, point_session):
@@ -231,7 +251,24 @@ class TestPointMatchups:
         seen.clear()
         self.match(daily_simulation, fast=False)
         assert str(surface.CHUNK_CACHE) not in seen
+        # a compressed file's: read from the first level with HDF5's own cache
+        self.match(daily_simulation, fast=True, small_cache=False)
+        assert str(surface.CHUNK_CACHE) not in seen
         assert not any(name in os.environ for name in surface.CACHE_VARIABLES)
+
+    def test_a_compressed_file_is_the_same_read_from_the_first_level(self, tmp_path, point_session, monkeypatch):
+        path = write_pair(str(tmp_path / "pair.nc"), days=365, compress=True)
+        fast, small_cache = matchall._surface_is_first_level(path, "a")
+        assert (fast, small_cache) == (True, False)
+        df, df_times = observations(path)
+        df = df.assign(lon=[-3.0, -2.0, -1.0], lat=[50.0, 51.0, 50.0])
+        found = []
+        for fast in (False, True):
+            out = []
+            matchall.mm_match(path, "a", df, df_times, None, "x", out, "surface", fast, small_cache)
+            found.append(out[0])
+        same(found[0], found[1])
+        assert list(found[0].iloc[:, -1]) == [1.0, 1.0, 1.0]
 
     def test_the_profile_layer_reads_only_the_days_asked_for_and_all_its_levels(self, daily_simulation, point_session, monkeypatch):
         asked = []
@@ -277,18 +314,18 @@ class TestPointMatchups:
             same(found[0], found[1])
 
     def test_it_is_decided_for_the_variable_from_its_first_file(self, daily_simulation, capsys):
-        assert matchall._surface_is_first_level(daily_simulation, "thetao") is True
+        assert matchall._surface_is_first_level(daily_simulation, "thetao") == (True, True)
         assert "read from the first level" in capsys.readouterr().out
         # a variable with one level has no surface to find
         other = os.path.join(os.path.dirname(daily_simulation), os.path.basename(daily_simulation).replace("grid_T", "ptrc_T"))
-        assert matchall._surface_is_first_level(other, "P1_Chl+P2_Chl") is False
+        assert matchall._surface_is_first_level(other, "P1_Chl+P2_Chl") == (False, False)
 
 
 class TestGriddedMatchups:
     @staticmethod
     def read(path, selection, years, shift=None, surface_only=True, as_missing=None):
-        ds, fast = gridded.model_dataset([path], selection, years, shift, as_missing, surface_only)
-        with surface.chunk_cache(fast):
+        ds, fast, small_cache = gridded.model_dataset([path], selection, years, shift, as_missing, surface_only)
+        with surface.chunk_cache(small_cache):
             ds.merge("time")
         ds.tmean(["year", "month"], align="left")
         ds.run()
@@ -330,11 +367,20 @@ class TestGriddedMatchups:
         for name in ("a", "b"):
             np.testing.assert_array_equal(new[name].values, old[name].values)
 
-    def test_a_compressed_file_keeps_topvalue(self, tmp_path, capsys):
+    def test_a_compressed_file_is_read_from_its_first_level_with_hdf5s_own_cache(self, tmp_path, capsys, monkeypatch):
         path = write_pair(str(tmp_path / "pair.nc"), days=365, compress=True)
+        seen = []
+        original = nc.DataSet.run
+
+        def spy(self, *a, **k):
+            seen.extend(os.environ.get(name) for name in surface.CACHE_VARIABLES)
+            return original(self, *a, **k)
+
+        monkeypatch.setattr(nc.DataSet, "run", spy)
         fast, new = self.read(path, ["a"], [2013])
-        assert fast is False
-        assert "compressed" in capsys.readouterr().out
+        assert fast is True
+        assert "HDF5's own chunk cache" in capsys.readouterr().out
+        assert str(surface.CHUNK_CACHE) not in seen
         np.testing.assert_array_equal(new["a"].values, self.old(path, ["a"], [2013])["a"].values)
 
     def test_all_the_levels_are_kept_for_a_vertical_comparison(self, tmp_path):
@@ -342,10 +388,29 @@ class TestGriddedMatchups:
         fast, new = self.read(path, ["a"], [2013], surface_only=False)
         assert fast is False and new["a"].sizes["deptht"] == 3
 
+    @pytest.mark.parametrize("shift", [None, -1])
+    def test_a_file_a_month_has_its_mean_taken_as_it_is_read(self, daily_simulation, tmp_path, shift):
+        """With month_per_file, the chain ends with each file's mean, and the mean of each month is not taken
+        again after the merge. It gives what that gives."""
+        whole, split = write_month_files(
+            daily_simulation, str(tmp_path / "whole"), str(tmp_path / "sim"), end_stamped=shift is not None
+        )
+        ds, fast, small_cache = gridded.model_dataset(split, ["thetao"], [2013], shift, [0, 0], True, month_per_file=True)
+        assert "-timmean" in ds.history[-1]
+        with surface.chunk_cache(small_cache):
+            ds.merge("time")
+        ds.run()
+        with xr.open_dataset(ds[0]) as out:
+            new = out.load()
+        _, old = self.read(whole, ["thetao"], [2013], shift, as_missing=[0, 0])
+        assert new.sizes["time"] == 12
+        np.testing.assert_allclose(new["thetao"].values, old["thetao"].values, rtol=1e-6)
+        np.testing.assert_array_equal(new["time"].values, old["time"].values)
+
     def test_the_variables_and_the_surface_are_chosen_before_the_shift(self, tmp_path, monkeypatch):
         monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
         path = write_pair(str(tmp_path / "pair.nc"), days=365)
-        ds, fast = gridded.model_dataset([path], ["a"], [2013], 1, [0, 0], True)
+        ds, fast, _ = gridded.model_dataset([path], ["a"], [2013], 1, [0, 0], True)
         command = ds.history[-1]
         assert fast is True
         places = [command.index(x) for x in ("-select,name=a,levidx=1", "-shifttime", "-selyear", "-setrtomiss")]

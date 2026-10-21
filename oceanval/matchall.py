@@ -336,26 +336,26 @@ def _match_above_top_cell(df, top):
 def _surface_is_first_level(path, model_variable):
     """Whether the surface of model_variable can be read from the first vertical
     level of the files like path (see oceanval.surface), as it is for a variable
-    with levels whose first is the surface. Says which it is."""
+    with levels whose first is the surface, and whether CDO is given a small
+    chunk cache while it is (surface.small_cache_helps). Says which it is."""
     names = model_variable.split("+")
     try:
         with warnings.catch_warnings(record=True):
             contents = nc.open_data(path, checks=False).contents
         nlevels = {name: int(contents.query("variable == @name").nlevels.iloc[0]) for name in names}
     except Exception:
-        return False
+        return False, False
     if nlevels[names[0]] < 2:
-        return False
+        return False, False
     found, why = surface.first_level_is_surface(path, names, nlevels)
-    print(
-        f"{model_variable}: the surface is read from the first level"
-        if found
-        else f"{model_variable}: all levels are read to find the surface, as {why}"
-    )
-    return found
+    small_cache = found and surface.small_cache_helps(path, names, nlevels)
+    print(f"{model_variable}: {surface.how_read(found, why, small_cache)}")
+    return found, small_cache
 
 
-def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, layer=None, surface_fast=False):
+def mm_match(
+    ff, model_variable, df, df_times, ds_depths, variable, df_all, layer=None, surface_fast=False, small_cache=False
+):
     """
     Parameters
     -------------
@@ -453,7 +453,7 @@ def mm_match(ff, model_variable, df, df_times, ds_depths, variable, df_all, laye
                 ds.shift(days=session_info["time_shift"])
             if session_info["as_missing"] is not None:
                 ds.as_missing(session_info["as_missing"])
-            with surface.chunk_cache(fast):
+            with surface.chunk_cache(fast and bool(small_cache)):
                 ds.run()
 
 
@@ -2245,10 +2245,12 @@ def matchup(
                         df_all = manager.list()
 
                         # whether the surface can be read from the first level alone (once for the variable,
-                        # from the first file; not FVCOM's, which are on another vertical axis)
-                        surface_fast = (
-                            layer == "surface" and not fvcom and len(paths) > 0
-                            and _surface_is_first_level(paths[0], model_variable)
+                        # from the first file; not FVCOM's, which are on another vertical axis), and with
+                        # a small chunk cache
+                        surface_fast, small_cache = (
+                            _surface_is_first_level(paths[0], model_variable)
+                            if layer == "surface" and not fvcom and len(paths) > 0
+                            else (False, False)
                         )
 
                         grid_setup = False
@@ -2274,6 +2276,7 @@ def matchup(
                                             df_all,
                                             layer,
                                             surface_fast,
+                                            small_cache,
                                         ],
                                     )
 
@@ -2302,6 +2305,7 @@ def matchup(
                                     df_all,
                                     layer,
                                     surface_fast,
+                                    small_cache,
                                 )
                                 pbar.update(1)
 

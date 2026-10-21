@@ -21,6 +21,7 @@ from simulations import (
     ANALYSIS_THICKNESS,
     analysis_peak_day,
     write_analysis_simulation,
+    write_month_files,
 )
 
 LEVELS = np.array(ANALYSIS_LEVEL_VALUES)
@@ -202,36 +203,42 @@ class TestTheSurfaceFromTheFirstLevel:
 
     def test_it_is_used_for_an_uncompressed_axis_positive_down_with_the_surface_at_the_first_level(self, tmp_path):
         row = {"model_variable": "a+w"}
-        assert analysis._first_level_is_surface(row, self.stream(self.write(str(tmp_path / "f.nc")))) == (True, "")
+        assert analysis._first_level_is_surface(row, self.stream(self.write(str(tmp_path / "f.nc")))) == (True, "", True)
 
-    def test_it_is_not_used_if_cdo_does_not_take_a_chunk_cache(self, tmp_path, monkeypatch):
+    def test_it_is_used_without_the_small_cache_if_cdo_does_not_take_one(self, tmp_path, monkeypatch):
         from oceanval import surface
 
         monkeypatch.setattr(surface, "cdo_takes_a_chunk_cache", lambda path: False)
-        found, reason = analysis._first_level_is_surface(
-            {"model_variable": "a"}, self.stream(self.write(str(tmp_path / "f.nc")))
-        )
-        assert found is False and "chunk cache" in reason
+        found = analysis._first_level_is_surface({"model_variable": "a"}, self.stream(self.write(str(tmp_path / "f.nc"))))
+        assert found == (True, "", False)
+
+    def test_it_is_used_without_the_small_cache_for_a_compressed_file(self, tmp_path):
+        """A compressed chunk is read whole: a small cache would decompress it again for every level."""
+        row = {"model_variable": "a+w"}
+        found = analysis._first_level_is_surface(row, self.stream(self.write(str(tmp_path / "f.nc"), compress=True)))
+        assert found == (True, "", False)
 
     @pytest.mark.parametrize(
         "options, why",
         [
             ({"positive": "up"}, "not at the surface"),
             ({"positive": None}, "cannot be told"),
-            ({"compress": True}, "compressed"),
             ({"hole": True}, "missing at the first level"),
         ],
     )
     def test_it_is_not_used_otherwise(self, tmp_path, options, why):
         row = {"model_variable": "a"}
-        found, reason = analysis._first_level_is_surface(row, self.stream(self.write(str(tmp_path / "f.nc"), **options)))
-        assert found is False
+        found, reason, small_cache = analysis._first_level_is_surface(
+            row, self.stream(self.write(str(tmp_path / "f.nc"), **options))
+        )
+        assert found is False and small_cache is False
         assert why in reason
 
+    @pytest.mark.parametrize("compress", [False, True])
     @pytest.mark.parametrize("first_step", [False, True])
     @pytest.mark.parametrize("parts", [["a"], ["a", "w"]])
-    def test_it_gives_what_topvalue_gives(self, tmp_path, parts, first_step):
-        path = self.write(str(tmp_path / "f.nc"))
+    def test_it_gives_what_topvalue_gives(self, tmp_path, parts, first_step, compress):
+        path = self.write(str(tmp_path / "f.nc"), compress=compress)
         found = []
         for fast in (False, True):
             row = {"key": "chl", "name": "chl", "parts": parts, "as_missing": [0, 0], "surface_fast": fast}
@@ -280,15 +287,21 @@ class TestTheSurfaceFromTheFirstLevel:
         names = surface.CACHE_VARIABLES
         monkeypatch.setenv("CDI_CHUNK_CACHE", "7")
         monkeypatch.setenv("CDI_CACHESIZE_IN", "8")
-        with analysis._chunk_cache({"surface_fast": True}, "surface"):
+        small = {"surface_fast": True, "surface_small_cache": True}
+        with analysis._chunk_cache(small, "surface"):
             assert all(os.environ[name] == str(analysis.CHUNK_CACHE) for name in names)
         assert os.environ["CDI_CHUNK_CACHE"] == "7" and os.environ["CDI_CACHESIZE_IN"] == "8"
         for name in names:
             monkeypatch.delenv(name)
-        with analysis._chunk_cache({"surface_fast": True}, "surface"):
+        with analysis._chunk_cache(small, "surface"):
             assert all(name in os.environ for name in names)
         assert not any(name in os.environ for name in names)
-        for row, layer in (({"surface_fast": False}, "surface"), ({"surface_fast": True}, "bottom")):
+        for row, layer in (
+            ({"surface_fast": False, "surface_small_cache": False}, "surface"),
+            (small, "bottom"),
+            # a compressed file's first level, read with HDF5's own cache
+            ({"surface_fast": True, "surface_small_cache": False}, "surface"),
+        ):
             with analysis._chunk_cache(row, layer):
                 assert not any(name in os.environ for name in names)
 
@@ -297,11 +310,91 @@ class TestTheSurfaceFromTheFirstLevel:
         import subprocess
 
         path = self.write(str(tmp_path / "f.nc"))
-        row = {"key": "chl", "name": "chl", "parts": ["a"], "as_missing": None, "surface_fast": True}
+        row = {"key": "chl", "name": "chl", "parts": ["a"], "as_missing": None, "surface_fast": True, "surface_small_cache": True}
         with analysis._chunk_cache(row, "surface"):
             environment = dict(os.environ, **{name: "1" for name in surface.CACHE_INFO})
             out = subprocess.run(["cdo", "-s", "info", path], env=environment, capture_output=True, text=True)
         assert f"chunkCacheSize={analysis.CHUNK_CACHE}" in out.stderr + out.stdout
+
+
+class TestAMonthAFile:
+    """When each file is a month of output, and no month is in two of them (time_res.one_month_per_file), the
+    mean of each month is taken as its file is read, so what is merged is a time a file, not all its days. It is
+    what the mean of each month of the merged files is."""
+
+    @pytest.fixture(scope="class")
+    def months(self, daily, tmp_path_factory):
+        """The daily simulation's 2013, as a whole year in a file, and as a simulation of a file a month."""
+        root = tmp_path_factory.mktemp("months")
+        written = {}
+        for path in sorted(glob.glob(os.path.join(daily, "2013", "*.nc"))):
+            stream = "grid_T" if "grid_T" in path else "ptrc_T"
+            written[stream] = write_month_files(path, str(root / "whole"), str(root / "sim"))
+        return str(root / "sim"), written
+
+    @staticmethod
+    def means(files, layer, fast=False, month_per_file=False, time_shift=None, levels=len(LEVELS)):
+        row = {
+            "key": "t", "name": "t", "parts": ["thetao"], "as_missing": None,
+            "surface_fast": fast, "month_per_file": month_per_file,
+        }
+        thickness = analysis.Z_LEVEL if layer in analysis.WATER_COLUMN else None
+        ds = analysis.monthly_means_of(files, row, layer, (2013, 2013), time_shift, levels, thickness)
+        with xr.open_dataset(ds[0]) as out:
+            return out.load()
+
+    @staticmethod
+    def same(new, old):
+        np.testing.assert_allclose(new["t"].values, old["t"].values, rtol=1e-6)
+        np.testing.assert_array_equal(new["time"].values, old["time"].values)
+        assert new["t"].dims == old["t"].dims
+        bounds = [name for name in old.variables if "bnds" in name or "bounds" in name]
+        for name in bounds:
+            np.testing.assert_array_equal(new[name].values, old[name].values)
+
+    def test_it_is_found_when_the_files_are_located(self, daily, months):
+        found = {}
+        for name, sim in (("months", months[0]), ("years", daily)):
+            rows = analysis.check_arguments(
+                {"Temperature": "thetao"}, {"Temperature": {"start": 2013, "end": 2013, "surface": True}},
+                None, None, None, None, None, None, None,
+            )
+            rows[0]["as_missing"] = None
+            analysis.locate_rows(rows, sim, 1, [], [], None)
+            found[name] = rows[0]["month_per_file"]
+        assert found == {"months": True, "years": False}
+
+    @pytest.mark.parametrize(
+        "layer, fast", [("surface", False), ("surface", True), ("bottom", False), ("mean", False)]
+    )
+    def test_the_means_of_the_months_are_the_same(self, months, layer, fast):
+        whole, split = months[1]["grid_T"]
+        new = self.means(split, layer, fast, month_per_file=True)
+        old = self.means([whole], layer, fast)
+        assert new.sizes["time"] == 12
+        self.same(new, old)
+
+    def test_with_the_times_shifted(self, daily, tmp_path):
+        """Output dated at the end of each day: on disk its files are not a month each, shifted they are."""
+        path = sorted(glob.glob(os.path.join(daily, "2013", "*grid_T.nc")))[0]
+        whole, split = write_month_files(path, str(tmp_path / "whole"), str(tmp_path / "sim"), end_stamped=True)
+        new = self.means(split, "surface", month_per_file=True, time_shift=-1)
+        old = self.means([whole], "surface", time_shift=-1)
+        assert new.sizes["time"] == 12
+        self.same(new, old)
+
+    def test_the_mean_of_each_file_is_taken_before_they_are_merged(self, months, monkeypatch):
+        import nctoolkit as nc
+
+        monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
+        whole, split = months[1]["grid_T"]
+        row = {"key": "t", "name": "t", "parts": ["thetao"], "as_missing": None, "month_per_file": True}
+        command = " ".join(analysis.monthly_means_of(split, row, "surface", (2013, 2013), None, 3).history)
+        assert TestOrderOfTheChain.first_applied(command, "-topvalue", "-chname", "-timmean", "-mergetime"), command
+        assert "-monmean" not in command
+        row["month_per_file"] = False
+        command = " ".join(analysis.monthly_means_of(split, row, "surface", (2013, 2013), None, 3).history)
+        assert "-monmean" in command and "-timmean" not in command
 
 
 class TestArguments:
