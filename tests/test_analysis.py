@@ -15,7 +15,7 @@ import pytest
 import xarray as xr
 
 import oceanval
-from oceanval import analysis, analysis_forms
+from oceanval import analysis, analysis_forms, surface
 from simulations import (
     ANALYSIS_LEVEL_VALUES,
     ANALYSIS_THICKNESS,
@@ -277,26 +277,29 @@ class TestTheSurfaceFromTheFirstLevel:
         assert "-selname" in command and "-bottomvalue" in command and "-select," not in command
 
     def test_the_chunk_cache_is_small_while_it_is_read_and_restored_after(self, monkeypatch):
+        names = surface.CACHE_VARIABLES
         monkeypatch.setenv("CDI_CHUNK_CACHE", "7")
+        monkeypatch.setenv("CDI_CACHESIZE_IN", "8")
         with analysis._chunk_cache({"surface_fast": True}, "surface"):
-            assert os.environ["CDI_CHUNK_CACHE"] == str(analysis.CHUNK_CACHE)
-        assert os.environ["CDI_CHUNK_CACHE"] == "7"
-        monkeypatch.delenv("CDI_CHUNK_CACHE")
+            assert all(os.environ[name] == str(analysis.CHUNK_CACHE) for name in names)
+        assert os.environ["CDI_CHUNK_CACHE"] == "7" and os.environ["CDI_CACHESIZE_IN"] == "8"
+        for name in names:
+            monkeypatch.delenv(name)
         with analysis._chunk_cache({"surface_fast": True}, "surface"):
-            assert "CDI_CHUNK_CACHE" in os.environ
-        assert "CDI_CHUNK_CACHE" not in os.environ
+            assert all(name in os.environ for name in names)
+        assert not any(name in os.environ for name in names)
         for row, layer in (({"surface_fast": False}, "surface"), ({"surface_fast": True}, "bottom")):
             with analysis._chunk_cache(row, layer):
-                assert "CDI_CHUNK_CACHE" not in os.environ
+                assert not any(name in os.environ for name in names)
 
     def test_it_is_set_while_cdo_runs(self, tmp_path):
-        """CDO itself gets the small cache: it says so when asked (CDI_CHUNK_CACHE_INFO)."""
+        """CDO itself gets the small cache: it says so when asked (CDI_CHUNK_CACHE_INFO, CDI_CACHE_INFO from 2.6 on)."""
         import subprocess
 
         path = self.write(str(tmp_path / "f.nc"))
         row = {"key": "chl", "name": "chl", "parts": ["a"], "as_missing": None, "surface_fast": True}
         with analysis._chunk_cache(row, "surface"):
-            environment = dict(os.environ, CDI_CHUNK_CACHE_INFO="1")
+            environment = dict(os.environ, **{name: "1" for name in surface.CACHE_INFO})
             out = subprocess.run(["cdo", "-s", "info", path], env=environment, capture_output=True, text=True)
         assert f"chunkCacheSize={analysis.CHUNK_CACHE}" in out.stderr + out.stdout
 

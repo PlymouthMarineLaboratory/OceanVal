@@ -185,10 +185,11 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   then the bottom (`bottomvalue`, which needs the missing value set), and the rename/`expr` last. The surface is not nctoolkit's `top()` (`-sellevidx,1`): CDO's `selname`/`seltimestep`/`sellevidx`/`topvalue` read every record
   and drop the rest, and `top()` keeps a vertical dimension of one level. **`oceanval/surface.py`** (shared by Analyze, Compare and matchup)
   reads the surface by one `-select,name=..,levidx=1[,timestep=..]` (CDO's `select` filters records before reading them) followed by
-  `-setzaxis` (a surface axis, as `topvalue` leaves it, so no vertical dimension of one level), with `CDI_CHUNK_CACHE` at 1 MB while it
+  `-setzaxis` (a surface axis, as `topvalue` leaves it, so no vertical dimension of one level), with `CDI_CHUNK_CACHE` (CDO < 2.6) and
+  `CDI_CACHESIZE_IN` (CDO 2.6+, which ignores the old name; `surface.CACHE_VARIABLES`) at 1 MB while it
   runs (`surface.chunk_cache`): the default 64 MB cache holds a whole chunk (a time step of all 51 levels, 22.7 MB, in the user's
   `ptrc_T`), so HDF5 would read it all to give one level. It does so only when `surface.first_level_is_surface` finds, from the first
-  file, a vertical axis `positive: down`, no compression, a CDO that takes `CDI_CHUNK_CACHE`, and the first level missing exactly where
+  file, a vertical axis `positive: down`, no compression, a CDO that says it takes the cache size (`CDI_CHUNK_CACHE_INFO`/`CDI_CACHE_INFO`; 2.4.1 and before cannot), and the first level missing exactly where
   `topvalue` is on the first step. **Never set a small cache for compressed files**: HDF5 would decompress the whole chunk again for
   every level. Anything else keeps `topvalue`. Analyze/Compare keep the answer in `row["surface_fast"]` (`locate_rows`); matchup
   decides once per variable (`matchall._surface_is_first_level` in `point_match`, passed to `mm_match` as `surface_fast`; `gridded.model_dataset`

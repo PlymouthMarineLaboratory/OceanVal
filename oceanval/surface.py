@@ -11,15 +11,16 @@ and most matchups want, is read by
 - one select of the variables, the first level and the time steps wanted,
 - a setzaxis to a surface axis, which is what topvalue leaves (no vertical
   dimension of one level), and
-- CDI_CHUNK_CACHE, CDO's own variable, set to less than a chunk while it runs.
+- CDO's own cache size, set to less than a chunk while it runs: CDI_CHUNK_CACHE
+  before CDO 2.6, CDI_CACHESIZE_IN from 2.6 on (each ignores the other's name).
 
 That is the same as topvalue only if the first level is the surface wherever
 there is a value, which first_level_is_surface checks of the first file: its
 vertical axis is positive down, it is not compressed (a compressed chunk has to
 be read whole, so a small cache would make each level decompress it again), the
-CDO takes CDI_CHUNK_CACHE (those before about 2.1 do not), and on the first
-time step the first level is missing exactly where topvalue's is. Anything else
-keeps topvalue.
+CDO says it takes the cache size (2.4.1 and before cannot say so), and on the
+first time step the first level is missing exactly where topvalue's is.
+Anything else keeps topvalue.
 """
 
 import contextlib
@@ -37,6 +38,10 @@ import xarray as xr
 # the bytes of HDF5 chunk cache for each variable while a surface is read from the
 # first level only: smaller than the chunk of a model's output
 CHUNK_CACHE = 1000000
+# the variables CDO takes it from (before 2.6, and from 2.6 on), and those that
+# make it say what it was given
+CACHE_VARIABLES = ("CDI_CHUNK_CACHE", "CDI_CACHESIZE_IN")
+CACHE_INFO = ("CDI_CHUNK_CACHE_INFO", "CDI_CACHE_INFO")
 # the most time steps one select is given
 MOST_TIMESTEPS = 10000
 # a description of a surface vertical axis, which is what topvalue gives
@@ -89,24 +94,28 @@ def chunk_cache(active=True):
     if not active:
         yield
         return
-    before = os.environ.get("CDI_CHUNK_CACHE")
-    os.environ["CDI_CHUNK_CACHE"] = str(CHUNK_CACHE)
+    before = {name: os.environ.get(name) for name in CACHE_VARIABLES}
+    os.environ.update({name: str(CHUNK_CACHE) for name in CACHE_VARIABLES})
     try:
         yield
     finally:
-        if before is None:
-            os.environ.pop("CDI_CHUNK_CACHE", None)
-        else:
-            os.environ["CDI_CHUNK_CACHE"] = before
+        for name, value in before.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def cdo_takes_a_chunk_cache(path):
-    """Whether the CDO that nctoolkit runs takes CDI_CHUNK_CACHE, which it says
-    when asked, for a file with chunks. A file with none (contiguous, or
-    netCDF3) has no chunk to read whole, so there is nothing for the cache to do."""
+    """Whether the CDO that nctoolkit runs takes the cache size (CDI_CHUNK_CACHE,
+    or CDI_CACHESIZE_IN from 2.6 on), which it says when asked, for a file with
+    chunks. A file with none (contiguous, or netCDF3) has no chunk to read whole,
+    so there is nothing for the cache to do."""
     import netCDF4 as nc4
 
-    environment = dict(os.environ, CDI_CHUNK_CACHE=str(CHUNK_CACHE), CDI_CHUNK_CACHE_INFO="1")
+    environment = dict(os.environ)
+    environment.update({name: str(CHUNK_CACHE) for name in CACHE_VARIABLES})
+    environment.update({name: "1" for name in CACHE_INFO})
     try:
         out = subprocess.run(
             ["cdo", "-s", "showname", path], env=environment, capture_output=True, text=True, timeout=300
@@ -142,7 +151,7 @@ def _first_level_is_surface(path, names, nlevels):
     import netCDF4 as nc4
 
     if not cdo_takes_a_chunk_cache(path):
-        return False, "this CDO does not take a smaller chunk cache (CDI_CHUNK_CACHE), so it would read every level anyway"
+        return False, "this CDO does not take a smaller chunk cache (CDI_CHUNK_CACHE or CDI_CACHESIZE_IN), so it would read every level anyway"
     try:
         with nc4.Dataset(path) as data:
             for name in names:

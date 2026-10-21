@@ -71,17 +71,37 @@ class TestChoose:
         command = self.history(monkeypatch, write_pair(str(tmp_path / "f.nc")), ["a"], True, steps)
         assert "timestep=" not in command.split("-seltimestep")[-1] and "-seltimestep" in command and "levidx=1" in command
 
-    def test_the_chunk_cache_is_set_and_restored(self, monkeypatch):
-        monkeypatch.setenv("CDI_CHUNK_CACHE", "7")
+    @pytest.mark.parametrize("name", surface.CACHE_VARIABLES)
+    def test_the_chunk_cache_is_set_and_restored(self, monkeypatch, name):
+        """Under both names: CDI_CHUNK_CACHE before CDO 2.6, CDI_CACHESIZE_IN from 2.6 on."""
+        other = [each for each in surface.CACHE_VARIABLES if each != name]
+        for each in other:
+            monkeypatch.delenv(each, raising=False)
+        monkeypatch.setenv(name, "7")
         with surface.chunk_cache(True):
-            assert os.environ["CDI_CHUNK_CACHE"] == str(surface.CHUNK_CACHE)
-        assert os.environ["CDI_CHUNK_CACHE"] == "7"
+            assert all(os.environ[each] == str(surface.CHUNK_CACHE) for each in surface.CACHE_VARIABLES)
+        assert os.environ[name] == "7" and not any(each in os.environ for each in other)
         with surface.chunk_cache(False):
-            assert os.environ["CDI_CHUNK_CACHE"] == "7"
-        monkeypatch.delenv("CDI_CHUNK_CACHE")
+            assert os.environ[name] == "7" and not any(each in os.environ for each in other)
+        monkeypatch.delenv(name)
         with surface.chunk_cache(True):
-            assert "CDI_CHUNK_CACHE" in os.environ
-        assert "CDI_CHUNK_CACHE" not in os.environ
+            assert all(each in os.environ for each in surface.CACHE_VARIABLES)
+        assert not any(each in os.environ for each in surface.CACHE_VARIABLES)
+
+    def test_cdo_is_asked_about_the_cache_under_both_names(self, tmp_path, monkeypatch):
+        """CDO 2.6 renamed CDI_CHUNK_CACHE(_INFO) to CDI_CACHESIZE_IN and CDI_CACHE_INFO: the check gives both."""
+        import subprocess
+
+        given = {}
+
+        def run(command, env, **kwargs):
+            given.update(env)
+            return subprocess.CompletedProcess(command, 0, "", f"cdi  cdf_set_var_chunk_cache: a: chunkCacheSize={env['CDI_CACHESIZE_IN']}")
+
+        monkeypatch.setattr(surface.subprocess, "run", run)
+        assert surface.cdo_takes_a_chunk_cache(write_pair(str(tmp_path / "f.nc")))
+        assert all(given[name] == str(surface.CHUNK_CACHE) for name in surface.CACHE_VARIABLES)
+        assert all(given[name] == "1" for name in surface.CACHE_INFO)
 
 
 class TestFirstLevelIsSurface:
@@ -202,7 +222,7 @@ class TestPointMatchups:
         original = nc.DataSet.run
 
         def spy(self, *a, **k):
-            seen.append(os.environ.get("CDI_CHUNK_CACHE"))
+            seen.extend(os.environ.get(name) for name in surface.CACHE_VARIABLES)
             return original(self, *a, **k)
 
         monkeypatch.setattr(nc.DataSet, "run", spy)
@@ -211,7 +231,7 @@ class TestPointMatchups:
         seen.clear()
         self.match(daily_simulation, fast=False)
         assert str(surface.CHUNK_CACHE) not in seen
-        assert "CDI_CHUNK_CACHE" not in os.environ
+        assert not any(name in os.environ for name in surface.CACHE_VARIABLES)
 
     def test_the_profile_layer_reads_only_the_days_asked_for_and_all_its_levels(self, daily_simulation, point_session, monkeypatch):
         asked = []
