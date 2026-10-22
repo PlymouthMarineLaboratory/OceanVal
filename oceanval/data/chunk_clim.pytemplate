@@ -132,46 +132,24 @@ for vv in the_contents.variable:
         long_name = long_name.replace("Observed", "").strip().replace("surface", "Surface")
     ds_both.set_longnames({vv: new_name})
 
-if use_panel_plot:
-    # one call draws both maps on the same colour scale, with one colour bar
-    def plot_clim():
-        nc.panel_plot(
-            {"Model": ds_both, "Observation": ds_both},
-            var = ["model", "observation"],
-            limits = [z_min, z_max],
-            norm = transformation,
-            grid_labels = False,
-        )
-    try:
-        plot_clim()
-    except:
-        plt.close("all")
-        lon_res = (lon_max - lon_min) / 100
-        lat_res = (lat_max - lat_min) / 100
-        ds_both.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
-        md("The model grid was regridded to a regular lon-lat grid for plotting purposes.")
-        plot_clim()
-else:
-    plt.subplots_adjust(wspace=20, hspace=20)
-
-    fig = plt.figure(figsize=(14, 14))
-
-    # Create 1x2 Grid
-
-    gs = fig.add_gridspec(nrows=1, ncols=2, wspace = 0.35, hspace = 0)
-
-    try:
-        ds_both.pub_plot(variable  = "model", limits = [z_min, z_max], title = "Model", fig = fig, gs = gs[0,0], trans = transformation)
-    except:
-        lon_res = (lon_max - lon_min) / 100
-        lat_res = (lat_max - lat_min) / 100
-        ds_both.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
-        md("The model grid was regridded to a regular lon-lat grid for plotting purposes.")
-        ds_both.pub_plot(variable  = "model", limits = [z_min, z_max], title = "Model", fig = fig, gs = gs[0,0], trans = transformation)
-
-
-
-    ds_both.pub_plot(variable  = "observation", limits = [z_min, z_max], title = "Observation", fig = fig, gs = gs[0,1], trans = transformation)
+# one call draws both maps on the same colour scale, with one colour bar
+def plot_clim():
+    nc.panel_plot(
+        {"Model": ds_both, "Observation": ds_both},
+        var = ["model", "observation"],
+        limits = [z_min, z_max],
+        norm = transformation,
+        grid_labels = False,
+    )
+try:
+    plot_clim()
+except:
+    plt.close("all")
+    lon_res = (lon_max - lon_min) / 100
+    lat_res = (lat_max - lat_min) / 100
+    ds_both.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
+    md("The model grid was regridded to a regular lon-lat grid for plotting purposes.")
+    plot_clim()
 
 # %% tags=["remove-input"]
 md(f"**Figure {i_figure}**: Annual average {layer} {vv_name} from the model {clim_range} and observations. Data is limited to the 2nd and 98th percentile of the combined model and observational data. Arrows indicate that values can exceed the colorbar limits.") 

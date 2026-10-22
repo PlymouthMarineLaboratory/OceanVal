@@ -60,9 +60,6 @@ test_status = the_test_status
 
 i_figure = 1
 i_table = 1
-# nctoolkit 1.3.2 added panel_plot, which draws multi-panel maps with one shared colour bar
-from packaging.version import Version
-use_panel_plot = Version(nc.__version__) >= Version("1.3.2")
 stamp = nc.session_info["stamp"]
 out = ".trackers/" + stamp
 fast_plot = fast_plot_value

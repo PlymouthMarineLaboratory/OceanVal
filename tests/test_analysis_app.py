@@ -172,6 +172,33 @@ class TestVariables:
         assert [row["name"] for row in state["rows"]] == ["Chlorophyll", "Mine"]
         assert state["refilled"] is False
 
+    def test_a_change_of_simulation_checks_the_new_files_and_dates(self, app, sim, tmp_path):
+        state = to_files(app)
+        assert [row["years"] for row in state["placed"]] == [[2013, 2014], [2013, 2014]]
+        first_check = app.analyze_check
+        assert post(app, "/api/back", {})[0] == 200
+        assert app.view == "analyze_variables"
+        assert post(app, "/api/back", {"rows": ROWS})[0] == 200
+        assert app.view == "setup"
+        # the same simulation again keeps its check
+        assert post(app, "/api/setup", {"form": setup_form(app, "sim")})[0] == 200
+        assert post(app, "/api/analyze_variables", {"rows": ROWS})[0] == 200
+        assert app.analyze_check is first_check
+        assert post(app, "/api/back", {})[0] == 200
+        assert post(app, "/api/back", {"rows": ROWS})[0] == 200
+        # another, with the same variables and patterns
+        write_analysis_simulation(str(tmp_path / "other"), years=(2015,))
+        assert post(app, "/api/setup", {"form": setup_form(app, "other")})[0] == 200
+        wait_for(lambda: app.analyze_found["status"] != "reading")
+        assert post(app, "/api/analyze_variables", {"rows": ROWS})[0] == 200
+        wait_for(lambda: app.analyze_check is not None and app.analyze_check.status != "running")
+        state = get_json(app, "/api/state")[1]["analyze"]
+        assert app.analyze_check is not first_check
+        assert [row["years"] for row in state["placed"]] == [[2015, 2015], [2015, 2015]]
+        assert state["check"]["rows"][0]["groups"][0]["dates"]["first"] == "2015-01-01"
+        status, reply = get_json(app, "/api/analyze_check_files", variable="Chlorophyll")
+        assert reply["files"] == ["2015/sim_1d_20150101_20151231_ptrc_T.nc"]
+
 
 class TestTimeShift:
     def test_times_at_the_end_of_each_mean_are_asked_about_first(self, app, tmp_path):
@@ -387,6 +414,11 @@ class TestOptions:
         status, reply = post(app, "/api/analyze_run")
         assert status == 400 and reply["errors"] == {"cores": "Say how many cores OceanVal may use."}
         assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "0"}})[0] == 400
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}}) == (200, {"ok": True})
+        # and no more than the machine has
+        too_many = str(os.cpu_count() + 1)
+        status, reply = post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": too_many}})
+        assert status == 400 and f"This machine has {os.cpu_count()} cores" in reply["errors"]["cores"]
         assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}}) == (200, {"ok": True})
         assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "x", "to": ""}})[0] == 400
         assert post(app, "/api/analyze_run")[0] == 400
@@ -729,7 +761,9 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#view-analyze-options:not([hidden])")
         assert page.is_disabled("#ao-run")
         # nothing is chosen, not even the number of cores, or whether the report has figure code
-        assert page.input_value("#ao-cores") == "" and page.input_value("#ao-missing_from") == ""
+        assert page.input_value("#ao-cores") == "" and page.locator("#ao-cores option").all_text_contents() == [
+            "Choose…", *[str(n) for n in range(1, os.cpu_count() + 1)]]
+        assert page.input_value("#ao-missing_from") == "" and page.input_value("#ao-missing_from") == ""
         assert not page.is_checked("#ao-code-yes") and not page.is_checked("#ao-code-no")
         # the regional subdomains are in the time series' pop-outs, not on this page
         assert page.locator("#area-subregions").count() == 1 and page.is_hidden("#area-subregions")
@@ -774,7 +808,7 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#ao-climatology.is-chosen")
         # the analysis cannot be run until the cores are given, and the figure code question answered
         assert page.is_disabled("#ao-run")
-        page.fill("#ao-cores", "2")
+        page.select_option("#ao-cores", "2")
         assert page.is_disabled("#ao-run")
         page.check("#ao-code-yes")
         assert page.is_enabled("#ao-run")

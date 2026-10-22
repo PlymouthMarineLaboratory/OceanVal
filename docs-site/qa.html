@@ -195,14 +195,6 @@ oceanval.<a href="api.html#deep_clean"><span class="tok-fn">deep_clean</span></a
     </div>
 
     <div class="faq-item">
-      <button class="faq-question">Why does each map in my report have its own colour bar?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
-      <div class="faq-answer"><div>
-        <p>Maps shown side by side, such as the model and observation climatologies, share a single colour bar when nctoolkit 1.3.2 or later is installed. OceanVal then draws them with nctoolkit's <code>panel_plot</code>, without longitude and latitude labels. With older versions of nctoolkit, each map gets its own colour bar. The colour scale is the same either way. To get the shared colour bar, upgrade nctoolkit and run <code>validate</code> or <code>compare</code> again:</p>
-        <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">bash</span></div><pre>conda install -c conda-forge <span class="tok-str">"nctoolkit&gt;=1.3.2"</span></pre></div>
-      </div></div>
-    </div>
-
-    <div class="faq-item">
       <button class="faq-question">How do I make sure OceanVal uses the correct simulation files?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
       <div class="faq-answer"><div>
         <p>OceanVal identifies the file path pattern for a variable automatically and reports the pattern plus an example file. By default it's strict about naming, so files must match the example's character length exactly:</p>

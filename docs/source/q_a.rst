@@ -243,18 +243,6 @@ Once you have modified them you can then rebuild the report using:
 
 This will overwrite your original report with the results of the modified analysis.
 
-Why does each map in my report have its own colour bar?
---------------------------------------------------------
-Maps shown side by side, such as the model and observation climatologies, share a single colour bar
-when nctoolkit 1.3.2 or later is installed. OceanVal then draws them with nctoolkit's ``panel_plot``,
-without longitude and latitude labels. With older versions of nctoolkit, each map gets its own colour bar.
-The colour scale is the same either way. To get the shared colour bar, upgrade nctoolkit and run
-``oceanval.validate`` or ``oceanval.compare`` again:
-
-.. code:: bash
-
-    conda install -c conda-forge "nctoolkit>=1.3.2"
-
 How do I make sure OceanVal uses the correct simulation files?
 --------------------------------------------------------------
 

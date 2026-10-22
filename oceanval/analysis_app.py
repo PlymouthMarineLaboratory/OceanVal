@@ -133,9 +133,21 @@ class AnalyzeSteps:
             self.analyze_setup = arguments
             self.view = "analyze_variables"
             if not same:
+                self._forget_after_simulation()
                 self._read_simulation()
             self._notify()
         return 200, {"ok": True}
+
+    def _forget_after_simulation(self):
+        """What was worked out from the files of the simulation before, once
+        another is chosen: the variables' files, the answer about the times and
+        the check of the dates, which the variables step would otherwise keep
+        as the rows are the same. Called with the lock held."""
+        self.analyze_placed = None
+        self.analyze_shift = None
+        self._analyze_shift_number += 1
+        self._analyze_probe_number += 1
+        self._drop_analyze_check()
 
     def _analyze_form(self, form):
         from oceanval.app import _form
@@ -753,6 +765,7 @@ class AnalyzeSteps:
             "chosen": dict(self.analyze_chosen),
             "area": self.analyze_area,
             "cores": self.analyze_cores,
+            "cpu_count": os.cpu_count(),
             "missing": self.analyze_missing,
             "missing_probed": self.analyze_missing_probed,
             "figure_code": self.analyze_figure_code,

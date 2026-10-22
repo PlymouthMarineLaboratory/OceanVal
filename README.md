@@ -21,9 +21,9 @@ The quickest way needs no Python at all. In a terminal, in the directory to
 work in, run `oceanval` (or `OceanVal`). A page opens in your web browser
 that takes you through these steps:
 
-1. **Choose** between **Analyze** (see [Analyzing a simulation in the
+1. **Choose** between **Analyze simulations** (see [Analyzing a simulation in the
    window](#analyzing-a-simulation-in-the-window)), **Compare simulations** (see
-   [Comparing simulations in the window](#comparing-simulations-in-the-window)) and **Validate**, which
+   [Comparing simulations in the window](#comparing-simulations-in-the-window)) and **Validate simulations**, which
    opens the choices to match up new data and validate it, to match up only,
    or to validate matchups made earlier.
    **Add your own validation data for future use** saves observations of your own as
@@ -349,7 +349,7 @@ and are passed on to the script's `matchup()` call.
 
 ### Analyzing a simulation in the window
 
-**Analyze**, on the first page, looks at a simulation on its own, with no
+**Analyze simulations**, on the first page, looks at a simulation on its own, with no
 observations, through these steps:
 
 1. **Simulation**: as for a validation, but with no domain, and the analysis

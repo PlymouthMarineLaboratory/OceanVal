@@ -2098,6 +2098,27 @@ class TestServer:
         expected = str(tmp_path / chosen) if chosen else app.cwd
         assert app.validate_form["data_dir"] == expected
 
+    def test_a_data_directory_entered_is_kept_on_going_back_and_in_again(self, app, tmp_path):
+        assert post(app, "/api/choose", {"action": "validate"})[0] == 200
+        form = dict(app.validate_form, data_dir=str(tmp_path / "mine"))
+        assert post(app, "/api/back", {"form": form})[0] == 200
+        assert app.view == "start"
+        app.out_dir = str(tmp_path / "other")
+        assert post(app, "/api/choose", {"action": "validate"})[0] == 200
+        assert app.validate_form["data_dir"] == str(tmp_path / "mine")
+        # the matchups just made are what is validated, whatever was entered
+        app.view = "finished"
+        assert post(app, "/api/choose", {"action": "validate", "data_dir": str(tmp_path / "run")})[0] == 200
+        assert app.validate_form["data_dir"] == str(tmp_path / "run")
+
+    def test_a_data_directory_left_as_filled_in_follows_the_output_directory(self, app, tmp_path):
+        app.out_dir = str(tmp_path / "first")
+        assert post(app, "/api/choose", {"action": "validate"})[0] == 200
+        assert post(app, "/api/back", {"form": dict(app.validate_form)})[0] == 200
+        app.out_dir = str(tmp_path / "second")
+        assert post(app, "/api/choose", {"action": "validate"})[0] == 200
+        assert app.validate_form["data_dir"] == str(tmp_path / "second")
+
     def test_a_run_from_start_to_finish(self, app, tmp_path):
         script = tmp_path / "run.py"
         script.write_text(
@@ -4042,6 +4063,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         )
     )
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     start_run = app.start_run
     monkeypatch.setattr(
         app,
@@ -4293,6 +4315,7 @@ def test_a_saved_matchup_script_opens_run_instructions(browser, tmp_path):
         )
     )
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     app.action = "matchup_validate"
     app.start_run(["script", str(script)], f"python {script}")
     url = app.start()
@@ -4313,7 +4336,7 @@ def test_a_saved_matchup_script_opens_run_instructions(browser, tmp_path):
         assert page.text_content("#script-saved-path") == str(script)
         assert "matching up" not in page.text_content("#console-text")
         page.click('#actions button:has-text("Start again")')
-        page.wait_for_selector("#view-start:not([hidden])")
+        page.wait_for_selector("#view-home:not([hidden])")
     finally:
         app.close()
 
@@ -4752,6 +4775,7 @@ def test_the_matchups_to_validate_in_a_browser(browser, tmp_path, monkeypatch):
     write_mixed_matchups(tmp_path / "mixed")
     (tmp_path / "empty").mkdir()
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     validated = []
     monkeypatch.setattr(app, "start_run", lambda args, label: validated.append(args))
     app.choose("validate", data_dir=str(tmp_path / "empty"))
@@ -5077,6 +5101,7 @@ def test_the_demo_in_a_browser(browser, tmp_path, fetched):
     makes oceanval_demo, says what it is not, and fills in the simulation
     step in red and bold."""
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     app.leftovers_asked = True
     url = app.start()
     try:
@@ -5160,6 +5185,7 @@ def test_comparing_validations_in_a_browser(browser, tmp_path, monkeypatch):
     compare runs with them."""
     validations(tmp_path, "control", "mixing")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     app.leftovers_asked = True
     compared = []
     monkeypatch.setattr(app, "start_run", lambda args, label: compared.append((args, label)))
@@ -5329,6 +5355,7 @@ def test_the_interim_report_in_a_browser(browser, tmp_path):
 def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -5353,6 +5380,7 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
 def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc, tmp_path):
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -5393,6 +5421,7 @@ def test_overwrite_choice_only_appears_for_existing_matchups(browser, tmp_path):
     write_simulation(tmp_path / "sim")
     (tmp_path / "old" / "oceanval_matchups").mkdir(parents=True)
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -5426,6 +5455,7 @@ def test_closing_the_browser_quits_the_app(browser, tmp_path):
     """The window stays open for as long as the page is, through a reload,
     and closing the page quits."""
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     app.page_timeout = 3
     try:
@@ -5452,6 +5482,7 @@ def test_the_recipes_window_keeps_the_app_open(browser, tmp_path, monkeypatch):
     heartbeats, and closing it quits the app."""
     write_simulation(tmp_path / "sim", tracers=True)
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     beats = []
     heartbeat = app.heartbeat
     monkeypatch.setattr(
@@ -5485,6 +5516,7 @@ def test_the_demo_grid_in_a_browser(browser, tmp_path, fetched):
     what is ticked is downloaded, and the model's name fills the box that
     picks its files out."""
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -5554,6 +5586,7 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
     stand_in = tmp_path / "stand_in.py"
     stand_in.write_text("print('running')\n")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     start_run = app.start_run
     monkeypatch.setattr(
         app,
@@ -5679,6 +5712,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         )
     )
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     start_run = app.start_run
     validated = []
     monkeypatch.setattr(
@@ -5801,6 +5835,7 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
     # temperature only
     write_simulation(tmp_path / "other")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     red_bold = ["rgb(192, 57, 43)", "700"]
     try:
@@ -5845,6 +5880,7 @@ def test_clearing_every_selection_in_a_browser(browser, tmp_path):
     one is ticked again."""
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -5882,6 +5918,7 @@ def test_adding_your_own_data_in_a_browser(browser, tmp_path):
     (tmp_path / "points").mkdir()
     (tmp_path / "points" / "obs.csv").write_text("lon,lat,observation\n1,2,3\n")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -5954,6 +5991,7 @@ def test_choosing_directories_in_a_browser(browser, tmp_path):
     (tmp_path / "sim_old").mkdir()
     write_matchups(tmp_path / "run")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -6010,6 +6048,7 @@ def test_viewing_files_in_a_random_directory_in_a_browser(browser, tmp_path):
         for name in ("a_grid_T.nc", "a_ptrc_T.nc"):
             (tmp_path / "sim" / year / name).write_text("")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -6048,6 +6087,7 @@ def test_how_files_are_identified_pop_up_in_a_browser(browser, tmp_path):
     """The pop-up on the simulation step that explains how OceanVal finds the
     simulation files, and why the skip and only boxes are there."""
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -6207,6 +6247,7 @@ class TestLeftovers:
         first = _leftover(leftover_dir)
         second = _leftover(leftover_dir, "nctoolkit_me_wxyznctoolkit_oceanval_output_p999999_tmp2.nc")
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()
@@ -6249,6 +6290,7 @@ class TestLeftovers:
     def test_keeping_in_a_browser(self, browser, leftover_dir, tmp_path):
         path = _leftover(leftover_dir)
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()
@@ -6264,6 +6306,7 @@ class TestLeftovers:
 
     def test_no_question_without_files_in_a_browser(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()
@@ -6282,6 +6325,7 @@ def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path)
 
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -6364,6 +6408,7 @@ class TestSettings:
 
     def test_the_settings_panel_in_a_browser(self, browser, oceanvalrc, tmp_path):
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()
@@ -6454,6 +6499,7 @@ class TestSettings:
         folder = tmp_path / "store"
         folder.mkdir()
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()
@@ -6520,6 +6566,7 @@ class TestSettings:
         folder = tmp_path / "store"
         folder.mkdir()
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()
@@ -6589,6 +6636,7 @@ class TestSettings:
 
     def test_a_settings_problem_is_shown_in_the_panel(self, browser, oceanvalrc, tmp_path):
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()
@@ -6654,6 +6702,7 @@ class TestInfo:
 
     def test_the_info_panel_in_a_browser(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
         url = app.start()
         try:
             page = browser.new_page()

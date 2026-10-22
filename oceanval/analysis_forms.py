@@ -808,13 +808,16 @@ def check_missing(low, high):
 
 
 def check_cores(text):
-    """The number of cores in its box: (cores, error). There is no default,
-    so an empty box is an error."""
+    """The number of cores chosen: (cores, error). There is no default,
+    so nothing chosen is an error, as is more than this machine has."""
     text = str(text if text is not None else "").strip()
     if not text:
         return None, "Say how many cores OceanVal may use."
     if not text.isdigit() or int(text) < 1:
         return None, "This must be a whole number, 1 or more."
+    cpu_count = os.cpu_count()
+    if cpu_count and int(text) > cpu_count:
+        return None, f"This machine has {cpu_count} cores. Choose {cpu_count} or fewer."
     return int(text), None
 
 

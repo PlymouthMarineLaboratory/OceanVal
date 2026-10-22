@@ -905,7 +905,7 @@
     <div class="choices is-three">
       <button type="button" class="choice" data-action="analyze" id="home-analyze">
         <span class="choice__icon" data-icon="analyze"></span>
-        <span class="choice__title">Analyze</span>
+        <span class="choice__title">Analyze simulations</span>
         <span class="choice__text">Look at a simulation on its own: the climatology and the phenology of its variables, in an HTML report.</span>
       </button>
       <button type="button" class="choice" data-action="simcompare" id="home-simcompare">
@@ -915,7 +915,7 @@
       </button>
       <button type="button" class="choice" data-action="validate_menu" id="home-validate">
         <span class="choice__icon" data-icon="report"></span>
-        <span class="choice__title">Validate</span>
+        <span class="choice__title">Validate simulations</span>
         <span class="choice__text">Compare a simulation with observations: match it up, validate it, and compare validations.</span>
       </button>
     </div>
@@ -1439,7 +1439,7 @@
     </div>
     <fieldset class="group analyze-area" id="ao-cores-group">
       <legend>Cores <span class="own-req">Required</span></legend>
-      <label class="g-row"><span class="g-label is-required">How many cores should OceanVal use?</span><input class="s-input is-num" id="ao-cores" placeholder="e.g. 4" inputmode="numeric" spellcheck="false" autocomplete="off"></label>
+      <label class="g-row"><span class="g-label is-required">How many cores should OceanVal use?</span><select class="s-select" id="ao-cores"><option value="">Choose…</option></select></label>
       <p class="group__msg" id="ao-cores-msg"></p>
     </fieldset>
     <fieldset class="group analyze-area" id="ao-missing-group">
@@ -2266,7 +2266,7 @@
       actions.push(button("Back", "ghost", () => post("api/back", { boxes: readFuture() })),
         button("Add this data for use now and in future", "primary", submitFuture, { id: "future-save", disabled: true }));
     } else if (view === "validate") {
-      actions.push(button("Back", "ghost", () => post("api/back")),
+      actions.push(button("Back", "ghost", () => post("api/back", { form: validateForm })),
         button("Build the report", "primary", submitValidate, { id: "build" }));
     } else if (view === "report_options") {
       // matchup waits on whether the matchups are right until these are chosen,
@@ -3401,8 +3401,8 @@
     updateRun();
   }
 
-  // ---- cores: there is no default, so the analysis cannot be run until they are given ----
-  const coresGiven = () => /^[1-9][0-9]*$/.test($("ao-cores").value.trim());
+  // ---- cores: there is no default, so the analysis cannot be run until they are chosen ----
+  const coresGiven = () => $("ao-cores").value !== "";
 
   function updateRun() {
     const run = $("ao-run");
@@ -3410,21 +3410,24 @@
     if (run) run.disabled = !(ANALYSES.some((kind) => state.analyze.chosen[kind]) && coresGiven() && figureCodeGiven());
   }
 
-  // a box being typed in, or whose text has not been sent yet, is not filled in from the state
-  let coresTimer = null;
+  // one to the machine's cores, made once; a value the state holds that is not among them is still shown
   function fillCores() {
-    if (document.activeElement !== $("ao-cores") && coresTimer === null) $("ao-cores").value = state.analyze.cores || "";
+    const box = $("ao-cores");
+    const wanted = Array.from({ length: state.analyze.cpu_count || 0 }, (_, number) => String(number + 1));
+    const given = String(state.analyze.cores || "");
+    if (given && !wanted.includes(given)) wanted.push(given);
+    const have = Array.from(box.options).slice(1).map((option) => option.value);
+    if (wanted.join() !== have.join()) {
+      box.replaceChildren(box.options[0], ...wanted.map((number) => el("option", { value: number, text: number })));
+    }
+    box.value = given;
   }
 
-  $("ao-cores").addEventListener("input", () => {
+  $("ao-cores").addEventListener("change", async () => {
     updateRun();
-    clearTimeout(coresTimer);
-    coresTimer = setTimeout(async () => {
-      coresTimer = null;
-      const reply = await post("api/analyze_option", { kind: "cores", form: { cores: $("ao-cores").value } });
-      // an empty box is not an error yet: it is what it starts as
-      $("ao-cores-msg").textContent = !reply.ok && $("ao-cores").value.trim() ? ((reply.errors || {}).cores || "") : "";
-    }, 350);
+    const reply = await post("api/analyze_option", { kind: "cores", form: { cores: $("ao-cores").value } });
+    // nothing chosen is not an error yet: it is what it starts as
+    $("ao-cores-msg").textContent = !reply.ok && $("ao-cores").value ? ((reply.errors || {}).cores || "") : "";
   });
 
   // ---- whether the report has code to reproduce its figures: nothing is chosen, and it must be answered ----

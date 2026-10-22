@@ -1436,6 +1436,8 @@ class App(AnalyzeSteps, SimCompareSteps):
         self._register_check = None
         self._register_jobs = 0
         self.validate_form = default_validate_form()
+        # the data directory choose() filled in, so that one the user entered is told from it
+        self._validate_data_dir_default = None
         self.compare_form = default_compare_form()
         # the compare() arguments of the comparison being made, whose report,
         # and the validation reports it links to, the window serves
@@ -1911,8 +1913,12 @@ class App(AnalyzeSteps, SimCompareSteps):
                 return True
             self.action = action
             if action == "validate":
-                # the full path, never "." for the directory worked in
-                self.validate_form["data_dir"] = _path(data_dir or self.out_dir, self.cwd)
+                # the full path, never "." for the directory worked in; one the
+                # user entered is kept, unless the matchups just made are given
+                shown = self.validate_form["data_dir"]
+                if data_dir or shown in ("", self._validate_data_dir_default):
+                    self._validate_data_dir_default = _path(data_dir or self.out_dir, self.cwd)
+                    self.validate_form["data_dir"] = self._validate_data_dir_default
                 self.view = "validate"
             elif action == "compare":
                 self.view = "compare"
@@ -1999,6 +2005,8 @@ class App(AnalyzeSteps, SimCompareSteps):
             earlier["report_options"] = "point_time_res" if held.time_res_rows else "running"
             if isinstance(sent.get("form"), dict):
                 self.validate_form = _form(sent["form"], default_validate_form())
+        if self.view == "validate" and isinstance(sent.get("form"), dict):
+            self.validate_form = _form(sent["form"], default_validate_form())
         if self.view == "point_time_res" and held:
             earlier["point_time_res"] = "running"
             if isinstance(sent.get("form"), dict):

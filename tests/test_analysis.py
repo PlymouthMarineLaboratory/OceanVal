@@ -997,6 +997,8 @@ class TestForms:
         assert analysis_forms.check_cores("") == (None, "Say how many cores OceanVal may use.")
         assert analysis_forms.check_cores("0")[1] and analysis_forms.check_cores("two")[1]
         assert analysis_forms.check_cores(" 4 ") == (4, None)
+        too_many = os.cpu_count() + 1
+        assert f"This machine has {os.cpu_count()} cores" in analysis_forms.check_cores(str(too_many))[1]
         assert analysis_forms.check_missing("", "") == (None, {})
         assert analysis_forms.check_missing("0", "") == (0.0, {})
         assert analysis_forms.check_missing("0", "0") == ([0.0, 0.0], {})

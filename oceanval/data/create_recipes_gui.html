@@ -250,7 +250,7 @@
             <p class="group__msg" id="g-years"></p>
           </fieldset>
           <fieldset class="group">
-            <label class="g-row cores-row"><span class="g-label">How many cores do you want to use?</span><input class="s-input is-num" id="s-cores" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <label class="g-row cores-row"><span class="g-label">How many cores do you want to use?</span><select class="s-select" id="s-cores"></select></label>
             <p class="group__msg" id="g-matchup"></p>
           </fieldset>
         </div>
@@ -557,6 +557,10 @@
 
   field("point_time_res").append(...state.time_res_options.map((option) =>
     el("option", { value: option.value, text: option.label })));
+  // 1 to the machine's cores; a kept value beyond them is still shown, with its error
+  const coreChoices = Array.from({ length: state.cpu_count || 0 }, (_, number) => String(number + 1));
+  if (!coreChoices.includes(String(form.cores))) coreChoices.push(String(form.cores));
+  field("cores").append(...coreChoices.map((number) => el("option", { value: number, text: number })));
   $("thickness-options").append(
     el("option", { value: "z_level" }), ...state.available.map((name) => el("option", { value: name })));
   if (context.fvcom) {

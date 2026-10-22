@@ -1458,13 +1458,13 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     page.fill("#s-lat_min", "40")
     page.fill("#s-lat_max", "65")
     cpu_count = page.evaluate("JSON.parse(document.getElementById('state').textContent).cpu_count")
+    # a drop-down of 1 to the machine's cores, with the default chosen
+    assert page.locator("#s-cores").evaluate("node => node.tagName") == "SELECT"
+    assert page.locator("#s-cores option").all_text_contents() == [str(n) for n in range(1, cpu_count + 1)]
+    assert page.input_value("#s-cores") == str(min(6, cpu_count))
     # valid on any machine, and not the default, so it is written
     valid_cores = 1
-    if cpu_count:
-        page.fill("#s-cores", str(cpu_count + 1))
-        assert page.is_disabled("#write")
-        assert f"This machine has {cpu_count} cores" in page.text_content("#g-matchup")
-    page.fill("#s-cores", str(valid_cores))
+    page.select_option("#s-cores", str(valid_cores))
     assert page.locator(".cores-row .g-label").text_content() == "How many cores do you want to use?"
     assert page.text_content("#group-report legend") == "Which additional validation report formats do you want?"
     assert page.locator("#s-pdf").bounding_box()["y"] == page.locator("#s-word").bounding_box()["y"]

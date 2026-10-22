@@ -82,7 +82,7 @@
   </aside>
 
   <div class="docs-content">
-    <p>The OceanVal app lets you validate a simulation without writing any Python. Run <code>oceanval</code> in a terminal and a page opens in your web browser that takes you from a folder of model output to a validation report: you choose what to do, point it at your simulation, choose the observations to validate against, check the units, and watch the run. The first page offers <strong>Analyze</strong> and <strong>Validate</strong>: Validate leads to the validation choices, and Analyze looks at a simulation on its own (see <a href="#analyze">below</a>).</p>
+    <p>The OceanVal app lets you validate a simulation without writing any Python. Run <code>oceanval</code> in a terminal and a page opens in your web browser that takes you from a folder of model output to a validation report: you choose what to do, point it at your simulation, choose the observations to validate against, check the units, and watch the run. The first page offers <strong>Analyze simulations</strong>, <strong>Compare simulations</strong> and <strong>Validate simulations</strong>: Validate simulations leads to the validation choices, and Analyze looks at a simulation on its own (see <a href="#analyze">below</a>).</p>
 
     <h2 id="start">Start it</h2>
     <p><code>oceanval</code> only runs from a conda environment that has OceanVal installed (see <a href="installing.html">Installing</a>), as it needs the R packages, <code>cdo</code> and <code>nco</code> that conda provides. In a terminal, activate that environment, then run <code>oceanval</code> in the directory to work in:</p>
@@ -110,7 +110,7 @@ oceanval</pre>
     </figure>
 
     <h2 id="analyze">Analyzing a simulation</h2>
-    <p><strong>Analyze</strong> works out the climatology, the phenology, time series and transects of a simulation&rsquo;s variables, with no observations, and builds an HTML report of them, laid out like a validation report. It takes you through these pages, each with <strong>Back</strong>, which keeps what you entered:</p>
+    <p><strong>Analyze simulations</strong> works out the climatology, the phenology, time series and transects of a simulation&rsquo;s variables, with no observations, and builds an HTML report of them, laid out like a validation report. It takes you through these pages, each with <strong>Back</strong>, which keeps what you entered:</p>
     <ol>
       <li><strong>Simulation</strong>: where the model output is, as for a validation, but with no domain to choose. The analysis is saved in a folder called <code>oceanval_analysis</code> in the directory you choose, replacing any analysis there.</li>
       <li><strong>What variables do you want to analyse?</strong> A row for each variable, with <strong>Your name</strong> for it and the <strong>Model name</strong> holding it, typed or ticked in the pop-out of the model&rsquo;s variables under the box; ticking several sums them. The arrow at the right-hand end of <strong>Your name</strong> lists the names OceanVal knows from validation (Temperature, Salinity, Chlorophyll and so on): choosing one fills in the <strong>Model name</strong> as the matchups would find it (shown in red and bold until you change it), if your model has a variable for it. Nothing else is filled in for you: the rows start empty.</li>
