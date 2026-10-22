@@ -32,7 +32,6 @@ import json
 import os
 import re
 import shutil
-import threading
 import warnings
 import webbrowser
 
@@ -41,7 +40,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import sim_unify, surface
+from oceanval import netcdf_lock, sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
 from oceanval.matchall import _restores_nctoolkit_options
@@ -377,8 +376,21 @@ def check_area(rows, subregions=None, lon_lim=None, lat_lim=None, stations=None)
 # netCDF4/HDF5 is not thread-safe, and the window reads the streams of each
 # simulation it compares in a thread of its own, so the files' variables are
 # read one thread at a time (two at once give errors, or one file's attributes
-# for another's)
-_FILE_READ_LOCK = threading.Lock()
+# for another's), and not while another thread reads any file (see
+# oceanval.netcdf_lock)
+_FILE_READ_LOCK = netcdf_lock.LOCK
+
+
+def looks_like_fvcom(path):
+    """create_recipes._looks_like_fvcom, which opens the file with xarray, so
+    like _variables_of it is read one thread at a time."""
+    with _FILE_READ_LOCK:
+        try:
+            return _looks_like_fvcom(path)
+        finally:
+            # a dataset closed by the garbage collector, in whichever thread it
+            # runs, would close its file while another thread has files open
+            gc.collect()
 
 
 def _variables_of(path):

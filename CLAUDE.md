@@ -208,9 +208,14 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   after the merge is left out. Point matchups and the daily fields (phenology, `first_step_of`) do not use it.
 - **Model output is only ever processed by nctoolkit/CDO, which streams it.** Model files can be many GB: xarray is for
   coordinates (lon/lat) and the small reduced files OceanVal writes itself, **never `.load()` or a whole `.values` of a
-  model file** (`sim_compare._same_grid` reads only the coordinates, `analysis.peak` reads a band of rows at a time,
+  model file** (`sim_compare.grid_of`, which the grid checks of `compare_simulations` and of the window's grids step use,
+  has CDO write one level of one time step of one variable first and opens only that, `analysis.peak` reads a band of rows at a time,
   `analysis_series.station_values` a year of times at a time; `tests/test_sim_compare.py::TestSameGridIsLookedAtLightly`
   fails if a data variable is read).
+- **Every netCDF read in the window's own process holds `oceanval.netcdf_lock.LOCK`** (`analysis._FILE_READ_LOCK` is it):
+  netCDF-C/HDF5 are not thread-safe and xarray gives each file a lock of its own, so two of the window's threads opening
+  files at once (the grids and the missing-value probe did) crash it with a segmentation fault. A new read in a thread of
+  the window (xarray, netCDF4, nctoolkit's `contents`) must take it; CDO runs in its own process and needs none.
 - Long-term (annual) and seasonal (monthly) time series are `oceanval/analysis_series.py`: the
   monthly means per layer (`analysis.monthly_means_of`, which `climatology_of` also uses), then
   domain/region/station means saved as small CSVs (year/month integers, so 360-day calendars
@@ -343,6 +348,9 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
 - create_recipes runs in a thread of the app; `recipes_gui.hosted_by(app)` makes its window
   one of the app's pages (`/recipes/`) instead of a server of its own. Matchup/validate run in a
   separate process (`oceanval/app_child.py`) whose stdout is the console.
+- A multiprocessing Manager is made with `matchall._manager()`, when it is needed, never at import: its server is a
+  process of its own that only its parent stops, so one made by a window that crashed ran for ever (`_manager`'s server
+  exits once its parent is gone). `matchall.session_warnings` is made by `_session_warnings()` before a pool is forked.
 - Every question OceanVal asks goes through `oceanval/prompts.py` (`ask`, `interactive`,
   `answered_by`) — never call `input()`/`isatty()` directly, or the window can't answer it. In
   the child process a question is a `QUESTION_MARKER` line on stdout, answered on stdin.

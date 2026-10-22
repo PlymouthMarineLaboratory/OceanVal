@@ -407,3 +407,66 @@ class TestPointStartEnd:
             assert matchup_dict["start"] == 2001
             assert matchup_dict["end"] == 2001
         oceanval.reset()
+
+
+def _run_python(tmp_path, code):
+    """Run code in a fresh python, with its output in a file: the Manager servers
+    a killed process leaves behind would keep a pipe open."""
+    import subprocess
+    import sys
+
+    out = tmp_path / "out.txt"
+    with open(out, "w") as f:
+        process = subprocess.Popen([sys.executable, "-c", code], stdout=f, stderr=subprocess.STDOUT)
+        process.wait(timeout=120)
+    return out.read_text().split()
+
+
+def _gone(pid):
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            return "\nState:\tZ" in f.read()
+    except FileNotFoundError:
+        return True
+
+
+class TestManagers:
+    """A Manager's server is a process of its own, which only the process that started it
+    stops: one started by a process that crashed ran for ever."""
+
+    def test_none_is_started_by_importing_oceanval(self, tmp_path):
+        found = _run_python(tmp_path, (
+            "import multiprocessing as mp\n"
+            "import nctoolkit\n"
+            "before = {p.pid for p in mp.active_children()}\n"
+            "import oceanval\n"
+            "from oceanval import matchall\n"
+            "print(len({p.pid for p in mp.active_children()} - before), matchall.session_warnings)\n"
+        ))
+        assert found[-2:] == ["0", "None"]
+
+    @pytest.mark.skipif(not os.path.isdir("/proc"), reason="looks for processes in /proc")
+    def test_one_ends_when_the_process_that_started_it_is_killed(self, tmp_path):
+        import signal
+        import time
+
+        found = _run_python(tmp_path, (
+            "import multiprocessing as mp, os, signal\n"
+            "from oceanval import matchall\n"
+            "others = [p.pid for p in mp.active_children()]\n"
+            "manager = matchall._manager()\n"
+            "print('others', *others, 'server', manager._process.pid, flush=True)\n"
+            "os.kill(os.getpid(), signal.SIGKILL)\n"
+        ))
+        server = int(found[found.index("server") + 1])
+        others = [int(pid) for pid in found[found.index("others") + 1:found.index("server")]]
+        try:
+            deadline = time.time() + 10
+            while not _gone(server) and time.time() < deadline:
+                time.sleep(0.2)
+            assert _gone(server)
+        finally:
+            # nctoolkit's own servers, which have no such check in nctoolkit 1.3.9
+            for pid in others + [server]:
+                if not _gone(pid):
+                    os.kill(pid, signal.SIGKILL)

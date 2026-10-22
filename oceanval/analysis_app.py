@@ -179,7 +179,7 @@ class AnalyzeSteps:
             )
             if not found:
                 error = "No netCDF files OceanVal could read were found."
-            elif analysis._looks_like_fvcom(found[0]["files"][0]):
+            elif analysis.looks_like_fvcom(found[0]["files"][0]):
                 error = "Analyze does not work with FVCOM output yet."
             else:
                 picker = analysis_forms.picker_state(found)

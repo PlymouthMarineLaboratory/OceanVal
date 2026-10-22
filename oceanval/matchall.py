@@ -15,10 +15,10 @@ import subprocess
 import platform
 if platform.system() == "Linux":
     import multiprocessing as mp
-    from multiprocessing import Manager
+    from multiprocessing.managers import SyncManager
 else:
     import multiprocess as mp
-    from multiprocess import Manager
+    from multiprocess.managers import SyncManager
 import pathlib
 import os
 import pandas as pd
@@ -263,10 +263,40 @@ def _remove_fvcom_dir(fvcom_dir):
     )
 
 
-# a list of valid variables for validation
-# add some additionals
+def _exit_with(parent):
+    """Run in a Manager's server process: exit once parent, the process that
+    started it, is gone. A crash or SIGKILL of the parent runs no atexit, so
+    nothing else would stop the server, which would run for ever."""
 
-session_warnings = Manager().list()
+    def watch():
+        while os.getppid() == parent:
+            time.sleep(1)
+        os._exit(0)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
+def _manager():
+    """A started multiprocessing Manager whose server exits with this process
+    (see _exit_with). Every Manager is made with this, when it is needed,
+    never at import."""
+    manager = SyncManager()
+    manager.start(initializer=_exit_with, initargs=(os.getpid(),))
+    return manager
+
+
+# the warnings of a matchup and its workers (see _session_warnings)
+session_warnings = None
+
+
+def _session_warnings():
+    """The list the warnings of a matchup and its workers are kept in, a
+    Manager's, made the first time it is asked for, which is before a pool is
+    forked, so the workers share it."""
+    global session_warnings
+    if session_warnings is None:
+        session_warnings = _manager().list()
+    return session_warnings
 
 nc.options(progress=False)
 
@@ -530,8 +560,8 @@ def mm_match(
                 return None
         if df_ff is not None:
             for ww in w:
-                if str(ww.message) not in session_warnings:
-                    session_warnings.append(str(ww.message))
+                if str(ww.message) not in _session_warnings():
+                    _session_warnings().append(str(ww.message))
 
     except Exception as e:
         print(e)
@@ -1643,8 +1673,8 @@ def matchup(
             ds_depths.run()
 
         for ww in w:
-            if str(ww.message) not in session_warnings:
-                session_warnings.append(str(ww.message))
+            if str(ww.message) not in _session_warnings():
+                _session_warnings().append(str(ww.message))
         if ds_depths is False:
             raise ValueError(
                 "You have asked for variables that require the specification of thickness"
@@ -2183,7 +2213,7 @@ def matchup(
                         if len(paths) == 0:
                             print(f"No matching times for {variable}")
 
-                        manager = Manager()
+                        manager = _manager()
 
                         df_times_new = copy.deepcopy(df_times)
 
@@ -2260,6 +2290,8 @@ def matchup(
 
                         if cores > 1:
                             nc.options(parallel = True)
+                            # made before the workers are forked, so they share it
+                            _session_warnings()
                             pool = mp.Pool(cores)
                             try:
                                 for ff in paths:
@@ -2310,6 +2342,7 @@ def matchup(
                                 pbar.update(1)
 
                         df_all = list(df_all)
+                        manager.shutdown()
                         df_all = [x for x in df_all if x is not None]
                         # do nothing when there is no data
                         if len(df_all) == 0:
@@ -2494,7 +2527,7 @@ def matchup(
                 #     pass
 
                 output_warnings = []
-                for ww in session_warnings:
+                for ww in _session_warnings():
                     if ww is not None:
                         if ww in output_warnings:
                             continue
@@ -2513,7 +2546,7 @@ def matchup(
 
             if builder is not None and os.path.exists(csv):
                 builder.matched("point", vv, source, layer)
-        while len(session_warnings) > 0:
+        while session_warnings is not None and len(session_warnings) > 0:
             session_warnings.pop()
 
     gridded_args = dict(

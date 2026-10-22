@@ -35,6 +35,7 @@ import shutil
 import tempfile
 import threading
 
+import numpy as np
 import pandas as pd
 
 from oceanval import analysis, analysis_forms, model_check, sim_compare, sim_compare_forms, sim_unify, time_stamps
@@ -176,7 +177,7 @@ class SimCompareSteps:
             found = analysis.streams(sim["simdir"], sim["ndown"], sim.get("exclude"), sim.get("require"), progress=progress)
             if not found:
                 error = "No netCDF files OceanVal could read were found."
-            elif analysis._looks_like_fvcom(found[0]["files"][0]):
+            elif analysis.looks_like_fvcom(found[0]["files"][0]):
                 error = "Compare simulations does not work with FVCOM output yet."
             else:
                 picker = analysis_forms.picker_state(found)
@@ -474,32 +475,30 @@ class SimCompareSteps:
         self._sc_grids_number += 1
         number = self._sc_grids_number
         self.sc_grids = {"status": "reading", "same": None, "extents": {}}
-        files = {sim["name"]: list(self.sc_placed[sim["name"]][0]["files"]) for sim in self.sc_sims}
-        keys = {sim["name"]: self.sc_placed[sim["name"]][0]["key"] for sim in self.sc_sims}
+        parts = sim_compare.first_parts(self.sc_placed, self.sc_sims)
         threading.Thread(
-            target=self._sc_grids_found, args=(number, files, keys), name="oceanval-simcompare-grids", daemon=True
+            target=self._sc_grids_found, args=(number, parts), name="oceanval-simcompare-grids", daemon=True
         ).start()
 
-    def _sc_grids_found(self, number, files, keys):
-        import xarray as xr
-
+    def _sc_grids_found(self, number, parts):
         extents = {}
         same = True
         first = None
         try:
-            for name, paths in files.items():
-                with xr.open_dataset(paths[0], decode_times=False) as data:
-                    data = data.load()
-                lonlat = sim_unify._lonlat(data)
-                if lonlat is not None:
-                    lon, lat = lonlat
-                    extents[name] = {
-                        "lon": [float(lon.min()), float(lon.max())],
-                        "lat": [float(lat.min()), float(lat.max())],
-                    }
+            for name, (path, variable) in parts.items():
+                # a model file can be many GB: only one level of one time step is read
+                lonlat = sim_compare.grid_of(path, variable)
+                if lonlat is None:
+                    same = None
+                    continue
+                lon, lat = lonlat
+                extents[name] = {
+                    "lon": [float(np.nanmin(lon)), float(np.nanmax(lon))],
+                    "lat": [float(np.nanmin(lat)), float(np.nanmax(lat))],
+                }
                 if first is None:
-                    first = data
-                elif not sim_unify.same_grid(first, data):
+                    first = lonlat
+                elif same is not None and not sim_unify.same_lonlat(first, lonlat):
                     same = False
         except Exception:
             same = None

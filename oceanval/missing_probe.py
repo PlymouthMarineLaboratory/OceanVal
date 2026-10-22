@@ -9,6 +9,8 @@ most common such value is offered to the user, who must check it.
 import numpy as np
 import xarray as xr
 
+from oceanval import netcdf_lock
+
 # the most files looked at
 MOST_FILES = 10
 # the share of the cells that must hold the same value in every file for it to
@@ -58,7 +60,8 @@ def _slices(files, name, steps):
     at `steps` of the first, if it is the only one) as a list of arrays."""
     out = []
     for path in files:
-        with xr.open_dataset(path, decode_times=False) as ds:
+        # the window probes in a thread of its own, beside others that read files
+        with netcdf_lock.LOCK, xr.open_dataset(path, decode_times=False) as ds:
             if name not in ds.variables:
                 continue
             variable = ds[name]

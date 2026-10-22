@@ -194,6 +194,20 @@ class TestSimulations:
             variables = {key: value["units"] for stream in found[name] for key, value in stream["variables"].items()}
             assert variables["P1_Chl"] == "mg Chl m-3" and variables["thetao"] == "degC"
 
+    def test_the_fvcom_check_is_made_with_the_files_read_lock_held(self, app, tmp_path, sims, monkeypatch):
+        # it opens a file with xarray, which must not overlap another thread's read
+        from oceanval import analysis
+
+        held = []
+
+        def looks(path):
+            held.append(analysis._FILE_READ_LOCK.locked())
+            return False
+
+        monkeypatch.setattr(analysis, "_looks_like_fvcom", looks)
+        to_variables(app)
+        assert len(held) == 2 and all(held)
+
     def test_a_simulation_that_cannot_be_read(self, app, tmp_path, sims):
         os.makedirs(tmp_path / "empty" / "2013")
         to_sims(app)
@@ -313,14 +327,81 @@ class TestFiles:
         assert post(app, "/api/simcompare_files") == (200, {"ok": True})
 
 
+def opened(monkeypatch):
+    """The files xarray opens from now on, with whether the netCDF lock was held."""
+    import xarray as xr
+
+    from oceanval import netcdf_lock
+
+    seen = []
+    real = xr.open_dataset
+
+    def watched(path, *args, **kwargs):
+        seen.append((str(path), netcdf_lock.LOCK.locked()))
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(xr, "open_dataset", watched)
+    return seen
+
+
 class TestGrids:
     def test_the_simulations_grids_are_looked_at(self, app, sims):
         shown = to_grids(app)
         assert app.view == "simcompare_grids"
         assert shown["grids"]["same"] is False
         assert set(shown["grids"]["extents"]) == {"Base run", "Fine run"}
+        assert shown["grids"]["extents"]["Fine run"]["lat"] == [49.5, 53.5]
         # nothing is chosen for the user
         assert shown["unify_form"]["need"] == "" and shown["unify_form"]["method"] == ""
+
+    def test_one_simulation_twice_is_on_the_same_grid(self, app, sims):
+        to_sims(app)
+        form = sims_form()
+        form["rows"][1]["simdir"] = "base"
+        assert post(app, "/api/simcompare_sims", {"form": form}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_all_read())
+        assert post(app, "/api/simcompare_variables", {"rows": ROWS}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_checks_done())
+        assert post(app, "/api/simcompare_files") == (200, {"ok": True})
+        wait_for(lambda: (app.sc_grids or {}).get("status") == "done")
+        grids = state(app)["simcompare"]["grids"]
+        assert grids["same"] is True
+        assert grids["extents"]["Base run"] == grids["extents"]["Fine run"]
+
+    def test_the_model_file_is_cut_by_cdo_before_xarray_opens_it(self, tmp_path, sims, monkeypatch):
+        # a model file can be many GB: the window loaded all of one, and was killed
+        import glob
+
+        import xarray as xr
+
+        from oceanval import sim_unify
+
+        path = sorted(glob.glob(str(tmp_path / "fine" / "**" / "*_grid_T.nc"), recursive=True))[0]
+        with xr.open_dataset(path, decode_times=False) as data:
+            lon, lat = sim_unify._lonlat(data)
+        seen = opened(monkeypatch)
+        found = sim_compare.grid_of(path, "thetao")
+        assert np.allclose(found[0], lon) and np.allclose(found[1], lat)
+        # with no variable named, every variable's first level and step
+        assert np.allclose(sim_compare.grid_of(path)[1], lat)
+        assert seen and all(not opened_path.startswith(str(tmp_path)) for opened_path, _ in seen), seen
+        assert sim_compare.grid_of(str(tmp_path / "nothing.nc"), "thetao") is None
+
+    def test_the_window_reads_files_with_the_netcdf_lock_held(self, app, tmp_path, sims, monkeypatch):
+        # netCDF-C/HDF5 is not thread-safe: two of the window's threads opening files at once
+        # (the grids and the missing value's probe) crashed it with a segmentation fault
+        from oceanval import analysis_app
+
+        seen = opened(monkeypatch)
+        probed = []
+        real = analysis_app.missing_probe.probe
+        monkeypatch.setattr(
+            analysis_app.missing_probe, "probe", lambda *args, **kwargs: probed.append(real(*args, **kwargs))
+        )
+        to_options(app)
+        wait_for(lambda: probed)
+        assert any(opened_path.startswith(str(tmp_path)) for opened_path, _ in seen)
+        assert all(held for _, held in seen), [opened_path for opened_path, held in seen if not held]
 
     @pytest.mark.parametrize(
         "form, boxes",

@@ -21,6 +21,8 @@ import warnings
 import cftime
 import xarray as xr
 
+from oceanval import netcdf_lock
+
 # what matchup suggests for times that look like ends
 SUGGESTED = -1
 
@@ -65,7 +67,7 @@ def calendar(path):
     """The calendar of the times in a model output file: "standard" unless
     the file says otherwise, or cannot be read."""
     try:
-        with xr.open_dataset(path, decode_times=False) as ds:
+        with netcdf_lock.LOCK, xr.open_dataset(path, decode_times=False) as ds:
             for name in ds.dims:
                 if "time" in name.lower() and name in ds.variables:
                     return _calendar_name(ds[name].attrs.get("calendar"))
@@ -80,7 +82,8 @@ def _read(path, variable):
     variable or its times are not in the file."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        with xr.open_dataset(path, decode_times=False) as ds:
+        # the window reads the times of each simulation it compares in a thread of its own
+        with netcdf_lock.LOCK, xr.open_dataset(path, decode_times=False) as ds:
             if variable not in ds.variables:
                 return None
             time_name = _time_name(ds, variable)

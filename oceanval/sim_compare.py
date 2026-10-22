@@ -33,7 +33,7 @@ import nctoolkit as nc
 import numpy as np
 import xarray as xr
 
-from oceanval import sim_unify
+from oceanval import netcdf_lock, sim_unify
 from oceanval.analysis import (
     BOTTOM,
     KINDS,
@@ -246,17 +246,48 @@ def make_common_grid(unify, folder, sims, rows_by_sim, thickness_for):
     return cells
 
 
+def grid_of(path, name=None):
+    """The longitudes and latitudes of model file path, as sim_unify._lonlat
+    gives them, or None if they can not be told. A model file can be many GB,
+    so CDO first writes one level of one time step of variable name (of every
+    variable, if None) to a small file, and only that is opened: select reads
+    only what it chooses."""
+    chosen = f"name={name}," if name else ""
+    # a variable with no times has no first time step to choose
+    for choice in (f"-select,{chosen}levidx=1,timestep=1", f"-select,{chosen}levidx=1"):
+        try:
+            with warnings.catch_warnings(record=True):
+                ds = nc.open_data(path, checks=False)
+                ds.cdo_command(choice)
+                ds.run()
+            # the window looks at the grids in a thread of its own
+            with netcdf_lock.LOCK, xr.open_dataset(ds.current[0], decode_times=False) as data:
+                return sim_unify._lonlat(data)
+        except Exception:
+            continue
+    return None
+
+
+def first_parts(rows_by_sim, sims):
+    """The first file of the first variable of each simulation, and the model
+    variable read from it (None if not known), by simulation name."""
+    out = {}
+    for sim in sims:
+        row = rows_by_sim[sim["name"]][0]
+        out[sim["name"]] = (row["files"][0], (row.get("parts") or [None])[0])
+    return out
+
+
 def _same_grid(rows_by_sim, sims):
     """Whether the simulations are on the same horizontal grid, as the first
     file of the first variable of each says: True, False, or None if it can not
     be told."""
     first = None
     try:
-        for sim in sims:
-            path = rows_by_sim[sim["name"]][0]["files"][0]
-            # only the longitudes and latitudes are read: a model file can be many GB, and none of it is wanted
-            with xr.open_dataset(path, decode_times=False) as data:
-                lonlat = sim_unify._lonlat(data)
+        for path, name in first_parts(rows_by_sim, sims).values():
+            lonlat = grid_of(path, name)
+            if lonlat is None:
+                return None
             if first is None:
                 first = lonlat
             elif not sim_unify.same_lonlat(first, lonlat):
