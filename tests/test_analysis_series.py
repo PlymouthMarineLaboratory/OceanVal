@@ -361,11 +361,11 @@ def test_the_report(sim, regions, tmp_path):
     )
     pages = os.path.dirname(landing)
     page = open(os.path.join(pages, "001_temperature.html")).read()
-    assert "Long-term time series" in page and "Seasonal time series" in page
+    assert "Long-term time series" in page and "Seasonal cycles" in page
     assert "Water column: vertical mean" in page
     assert "Near" in page and "Model cell" in page
     # figures and tables are numbered from 1 on the page
-    assert "Figure 7" in page and "Table 3" in page and "Figure 8" not in page
+    assert "Figure 6" in page and "Table 3" in page and "Figure 7" not in page
     overview = open(landing).read()
     assert "Long-term series" in overview and "Regions." in overview and "Stations." in overview
     assert "Traceback" not in page + overview

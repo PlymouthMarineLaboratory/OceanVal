@@ -120,7 +120,6 @@ def figures(info):
                     if kind == "long_term":
                         yield sp.long_term_plot, (key, layer)
                     else:
-                        yield sp.seasonal_series_plot, (key, layer)
                         yield sp.seasonal_cycle_regions, (key, layer)
                     yield sp.station_plot, (key, kind, layer)
 
@@ -186,7 +185,7 @@ def test_each_figure_is_drawn_by_the_code_it_copies(comparisons, case, tmp_path)
         else:
             assert figure.about.startswith("the OceanVal comparison of Base run, ")
         # the figures of every simulation put each in its colour
-        if name in ("long_term_plot", "seasonal_series_plot", "seasonal_cycle_regions", "station_plot", "daily_cycle"):
+        if name in ("long_term_plot", "seasonal_cycle_regions", "station_plot", "daily_cycle"):
             for sim, colour in info["colours"].items():
                 if sim in figure.code:
                     assert colour in figure.code
@@ -208,7 +207,10 @@ def test_a_panel_for_the_domain_and_each_region(comparisons):
     plt.close("all")
     assert figure.found == {"regions": 2}
     assert 'panels = ["Full Domain", ' in figure.code
-    assert sp.station_plot(results, "temperature", "seasonal", "surface").found == {"names": ["Near", "Far"]}
+    stations = sp.station_plot(results, "temperature", "seasonal", "surface")
+    assert stations.found == {"names": ["Near", "Far"]}
+    assert not hasattr(sp, "seasonal_series_plot")
+    assert 'cycle = frame.groupby(["simulation", "kind", "name", "month"]' in stations.code
     plt.close("all")
     cycle = sp.seasonal_cycle_regions(results, "temperature", "bottom")
     plt.close("all")

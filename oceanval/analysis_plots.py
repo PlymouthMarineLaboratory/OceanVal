@@ -699,8 +699,6 @@ def day_text(month_day):
 # ---- the time series ----
 
 DOMAIN_COLOUR = "#222222"
-# the domain's line in each panel, when each region has a panel of its own
-PANEL_DOMAIN_COLOUR = "#999999"
 MANY_REGIONS = 6
 
 
@@ -710,11 +708,10 @@ def series_frame(results_dir, saved):
     return pd.read_csv(os.path.join(results_dir, saved["csv"]))
 
 
-def _layout(frame, panels_over=MANY_REGIONS, domain_panel=False):
+def _layout(frame, panels_over=MANY_REGIONS):
     """How the domain's and regions' series in frame are drawn: on one axes
     or, if there are more than panels_over regions, on a panel for each
-    region, with the domain's in each (in grey) or, if domain_panel, in a
-    panel of its own, first. Returns (the panels, or None for one axes, and
+    region and one of its own for the domain, first. Returns (the panels, or None for one axes, and
     the lines, in the order they are drawn: (name, colour, width) for one
     axes, and (name, colour, width, the panels it is in) for panels)."""
     names = list(dict.fromkeys(frame.name))
@@ -723,32 +720,25 @@ def _layout(frame, panels_over=MANY_REGIONS, domain_panel=False):
     palette = plt.get_cmap("tab10" if len(others) <= 10 else "tab20")
     colours = {name: DOMAIN_COLOUR for name in domain}
     colours.update({name: to_hex(palette(i % palette.N)) for i, name in enumerate(others)})
-    if len(others) > panels_over and domain_panel:
+    if len(others) > panels_over:
         lines = [
             (name, colours[name], 2.2 if name in domain else 1.4, [name])
             for name in names
         ]
         return domain + others, lines
-    if len(others) > panels_over:
-        lines = [
-            (name, PANEL_DOMAIN_COLOUR, 1.0, _Code("regions")) if name in domain else (name, colours[name], 1.4, [name])
-            for name in names
-        ]
-        return others, lines
     return None, [(name, colours[name], 2.2 if name in domain else 1.4) for name in names]
 
 
-def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False, domain_panel=False):
+def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False):
     """The code of a figure of series from the CSV file at path: prepare is
     the code that makes table, the series to draw, from frame, as read; x
     the code of the x of each line's part of table; axis_lines the code
     that sets each axes' x axis; and hollow, whether years that are the mean
-    of fewer than 12 months are drawn as open circles; domain_panel, whether
-    the full domain has a panel of its own, rather than being in each region's."""
+    of fewer than 12 months are drawn as open circles."""
     # the series as the code makes them, to work out how they are drawn
     made = {"frame": pd.read_csv(path)}
     exec(prepare, made)
-    panels, lines = _layout(made[table], domain_panel=domain_panel)
+    panels, lines = _layout(made[table])
     imports = "import matplotlib.pyplot as plt\nimport pandas as pd\n"
     if "calendar." in axis_lines:
         imports = "import calendar\n\n" + imports
@@ -786,10 +776,7 @@ def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False, doma
     else:
         nrow = int(np.ceil(len(panels) / 3))
         blocks = [
-            _listing(
-                "regions", panels,
-                "the panels: the full domain and each region" if domain_panel else "the regions, each in a panel of its own",
-            ),
+            _listing("regions", panels, "the panels: the full domain and each region"),
             f"nrow = {nrow}",
             _call(
                 "fig, grid = plt.subplots",
@@ -803,11 +790,7 @@ def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False, doma
             "    ax.set_visible(False)",
             "for ax in grid[:, 0]:",
             f"    ax.set_ylabel({_py(ylabel)})",
-            _listing(
-                "lines", lines,
-                "each line: its name in the data, its colour, its width and the panels it is drawn in"
-                + ("" if domain_panel else " (the domain's is in each, in grey)"),
-            ),
+            _listing("lines", lines, "each line: its name in the data, its colour, its width and the panels it is drawn in"),
             "for name, colour, width, where in lines:",
             "\n".join(draw),
             "    for ax in [panels[region] for region in where]:",
@@ -822,6 +805,27 @@ def _series_code(path, prepare, table, x, ylabel, axis_lines, hollow=False, doma
 
 YEAR_TICKS = "ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))"
 NOT_STATIONS = '# the domain and the regions: the stations have a figure of their own\nframe = frame[frame.kind != "station"]\n'
+
+
+# the mean of each month of the year, over the years of the series, and the x axis it is drawn on
+def cycle_code(by=("kind", "name")):
+    """The code that makes cycle from frame: the mean of each month of the year over
+    its years, of each series, which by are the columns that tell apart."""
+    columns = ", ".join(_py(column) for column in (*by, "month"))
+    return (
+        "# the mean of each month of the year, over the years of the series\n"
+        f"cycle = frame.groupby([{columns}], sort=False).value.mean().reset_index()\n"
+    )
+
+
+CYCLE = cycle_code()
+CYCLE_AXIS = "\n".join(
+    [
+        "ax.set_xticks(range(1, 13))",
+        "ax.set_xticklabels([calendar.month_abbr[month] for month in range(1, 13)], fontsize=8)",
+        "ax.set_xlim(0.5, 12.5)",
+    ]
+)
 
 
 def _regions_in(frame):
@@ -844,22 +848,6 @@ def long_term_plot(results_dir, key, layer):
     return Drawn(code, False, {"regions": _regions_in(done["frame"])}, _about(info))
 
 
-def seasonal_series_plot(results_dir, key, layer):
-    """The seasonal series: the monthly mean over the domain and over each
-    region, month by month. Drawn.found holds "regions", the number of
-    regions drawn."""
-    info = load(results_dir)
-    variable = entry(info, key)
-    saved = variable["seasonal"]["layers"][layer]
-    path = _path(results_dir, saved["csv"])
-    code = _series_code(
-        path, NOT_STATIONS, "frame", "part.year.values + (part.month.values - 0.5) / 12",
-        legend(variable["name"], saved["units"]), YEAR_TICKS, domain_panel=True,
-    )
-    done = _run(code, "seasonal_series_plot")
-    return Drawn(code, False, {"regions": _regions_in(done["frame"])}, _about(info))
-
-
 def seasonal_cycle_regions(results_dir, key, layer):
     """The mean seasonal cycle: the mean of each month of the year, over the
     years of the series, over the domain and over each region. Drawn.found
@@ -868,20 +856,8 @@ def seasonal_cycle_regions(results_dir, key, layer):
     variable = entry(info, key)
     saved = variable["seasonal"]["layers"][layer]
     path = _path(results_dir, saved["csv"])
-    prepare = NOT_STATIONS + (
-        "# the mean of each month of the year, over the years of the series\n"
-        'cycle = frame.groupby(["kind", "name", "month"], sort=False).value.mean().reset_index()\n'
-    )
-    axis_lines = "\n".join(
-        [
-            "ax.set_xticks(range(1, 13))",
-            "ax.set_xticklabels([calendar.month_abbr[month] for month in range(1, 13)], fontsize=8)",
-            "ax.set_xlim(0.5, 12.5)",
-        ]
-    )
     code = _series_code(
-        path, prepare, "cycle", "part.month.values", legend(variable["name"], saved["units"]), axis_lines,
-        domain_panel=True,
+        path, NOT_STATIONS + CYCLE, "cycle", "part.month.values", legend(variable["name"], saved["units"]), CYCLE_AXIS
     )
     cycle = _run(code, "seasonal_cycle_regions")["cycle"]
     domain = cycle[cycle.kind == "domain"]
@@ -889,8 +865,8 @@ def seasonal_cycle_regions(results_dir, key, layer):
 
 
 def station_plot(results_dir, key, kind, layer):
-    """The series at each station, by year (the long-term series) or by
-    month (the seasonal series), or None if there are no stations.
+    """The series at each station, by year (the long-term series) or the mean
+    of each month of the year (the seasonal series), or None if there are no stations.
     Drawn.found holds "names", the stations'."""
     info = load(results_dir)
     variable = entry(info, key)
@@ -903,14 +879,15 @@ def station_plot(results_dir, key, kind, layer):
     palette = plt.get_cmap("tab10")
     names = list(dict.fromkeys(frame.name))
     lines = [(name, to_hex(palette(i % 10))) for i, name in enumerate(names)]
-    x = "part.year.values" if kind == "long_term" else "part.year.values + (part.month.values - 0.5) / 12"
+    long_term = kind == "long_term"
+    table = "frame" if long_term else "cycle"
     draw = [
-        "    part = frame[frame.name == name]",
-        f"    x = {x}",
+        f"    part = {table}[{table}.name == name]",
+        f"    x = {'part.year.values' if long_term else 'part.month.values'}",
         "    y = part.value.values",
         "    ax.plot(x, y, color=colour, label=name, linewidth=1.4)",
     ]
-    if kind == "long_term":
+    if long_term:
         draw += [
             "    # years that are the mean of fewer than 12 months, as open circles",
             "    hollow = ~part.complete.values.astype(bool) & (part.months.values > 0)",
@@ -918,16 +895,17 @@ def station_plot(results_dir, key, kind, layer):
             '        ax.plot(x[hollow], y[hollow], "o", markerfacecolor="white", markeredgecolor=colour, markersize=5, linestyle="none")',
         ]
     code = _code(
-        "import matplotlib.pyplot as plt\nimport pandas as pd\n",
+        "import matplotlib.pyplot as plt\nimport pandas as pd\n" if long_term else "import calendar\n\nimport matplotlib.pyplot as plt\nimport pandas as pd\n",
         f"frame = pd.read_csv({_py(path)})",
         "# the series in the model cell nearest each station",
         'frame = frame[frame.kind == "station"]',
+        *([] if long_term else [CYCLE.rstrip("\n")]),
         _call("fig, ax = plt.subplots", {"figsize": (8, 3.8)}),
         _listing("stations", lines, "each station's name in the data, and its line's colour"),
         "for name, colour in stations:",
         "\n".join(draw),
-        YEAR_TICKS,
-        f"ax.set_ylabel({_py(series_legend(variable, saved) if kind == 'long_term' else legend(variable['name'], saved['units']))})",
+        YEAR_TICKS if long_term else CYCLE_AXIS,
+        f"ax.set_ylabel({_py(series_legend(variable, saved) if long_term else legend(variable['name'], saved['units']))})",
         "ax.legend(frameon=False, fontsize=8)",
         LINE_STYLE,
         "fig.tight_layout()",

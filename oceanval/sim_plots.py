@@ -21,6 +21,7 @@ import pandas as pd
 from oceanval import analysis_plots as ap
 from oceanval.analysis import PEAK_DAY, PEAK_VALUE
 from oceanval.analysis_plots import (
+    CYCLE_AXIS,
     LINE_STYLE,
     NOT_STATIONS,
     YEAR_TICKS,
@@ -34,6 +35,7 @@ from oceanval.analysis_plots import (
     _py,
     _run,
     _scale,
+    cycle_code,
     legend,
     series_legend,
     show,
@@ -423,20 +425,8 @@ def long_term_plot(results_dir, key, layer):
     return Drawn(code, False, {"regions": max(len(panels) - 1, 0)}, _about(info))
 
 
-def seasonal_series_plot(results_dir, key, layer):
-    """The seasonal series: the monthly mean over the domain and over each region,
-    month by month, a line for each simulation in a panel for each series. Drawn.found
-    holds "regions", the number of regions drawn."""
-    info = load(results_dir)
-    variable = entry(info, key)
-    sims, saved, files = _series_files(results_dir, info, variable, "seasonal", layer)
-    panels = _series_names(files, ("domain", "region"))
-    code = _series_code(
-        info, sims, files, NOT_STATIONS, "frame", "part.year.values + (part.month.values - 0.5) / 12",
-        legend(variable["name"], saved[0]["units"]), YEAR_TICKS, panels,
-    )
-    _run(code, "sim_seasonal_series_plot")
-    return Drawn(code, False, {"regions": max(len(panels) - 1, 0)}, _about(info))
+# the columns that tell the series of a cycle apart
+CYCLE_BY = ("simulation", "kind", "name")
 
 
 def seasonal_cycle_regions(results_dir, key, layer):
@@ -447,20 +437,9 @@ def seasonal_cycle_regions(results_dir, key, layer):
     variable = entry(info, key)
     sims, saved, files = _series_files(results_dir, info, variable, "seasonal", layer)
     panels = _series_names(files, ("domain", "region"))
-    prepare = NOT_STATIONS + (
-        "# the mean of each month of the year, over the years of the series\n"
-        'cycle = frame.groupby(["simulation", "kind", "name", "month"], sort=False).value.mean().reset_index()\n'
-    )
-    axis_lines = "\n".join(
-        [
-            "ax.set_xticks(range(1, 13))",
-            "ax.set_xticklabels([calendar.month_abbr[month] for month in range(1, 13)], fontsize=8)",
-            "ax.set_xlim(0.5, 12.5)",
-        ]
-    )
     code = _series_code(
-        info, sims, files, prepare, "cycle", "part.month.values",
-        legend(variable["name"], saved[0]["units"]), axis_lines, panels,
+        info, sims, files, NOT_STATIONS + cycle_code(CYCLE_BY), "cycle", "part.month.values",
+        legend(variable["name"], saved[0]["units"]), CYCLE_AXIS, panels,
     )
     cycle = _run(code, "sim_seasonal_cycle_regions")["cycle"]
     domain = cycle[cycle.kind == "domain"]
@@ -469,8 +448,8 @@ def seasonal_cycle_regions(results_dir, key, layer):
 
 
 def station_plot(results_dir, key, kind, layer):
-    """The series at each station, by year (the long-term series) or by month (the
-    seasonal series), a line for each simulation in a panel for each station, or None
+    """The series at each station, by year (the long-term series) or the mean of each
+    month of the year (the seasonal series), a line for each simulation in a panel for each station, or None
     if there are no stations. Drawn.found holds "names", the stations'."""
     info = load(results_dir)
     variable = entry(info, key)
@@ -480,14 +459,15 @@ def station_plot(results_dir, key, kind, layer):
         return None
     prepare = "# the series in the model cell nearest each station\n" 'frame = frame[frame.kind == "station"]\n'
     if kind == "long_term":
-        x, ylabel, hollow = "part.year.values", series_legend(_own(variable, sims[0]), saved[0]), True
-    else:
-        x, ylabel, hollow = (
-            "part.year.values + (part.month.values - 0.5) / 12",
-            legend(variable["name"], saved[0]["units"]),
-            False,
+        code = _series_code(
+            info, sims, files, prepare, "frame", "part.year.values", series_legend(_own(variable, sims[0]), saved[0]),
+            YEAR_TICKS, panels, hollow=True,
         )
-    code = _series_code(info, sims, files, prepare, "frame", x, ylabel, YEAR_TICKS, panels, hollow=hollow)
+    else:
+        code = _series_code(
+            info, sims, files, prepare + cycle_code(CYCLE_BY), "cycle", "part.month.values",
+            legend(variable["name"], saved[0]["units"]), CYCLE_AXIS, panels,
+        )
     _run(code, "sim_station_plot")
     return Drawn(code, False, {"names": panels}, _about(info))
 

@@ -172,7 +172,6 @@ def figures(info):
                     if kind == "long_term":
                         yield ap.long_term_plot, (key, layer)
                     else:
-                        yield ap.seasonal_series_plot, (key, layer)
                         yield ap.seasonal_cycle_regions, (key, layer)
                     yield ap.station_plot, (key, kind, layer)
 
@@ -244,12 +243,10 @@ def test_each_figure_is_drawn_by_the_code_it_copies(analyses, case, tmp_path):
         assert ("to_latlon" in figure.code) is figure.regridded
         # more regions than fit on one axes have a panel each
         assert ("panels = dict(zip(regions, grid.flat))" in figure.code) is (case == "many")
-        # the seasonal figures give the full domain a panel of its own, the long-term one draws it in each, in grey
-        if case == "many" and name in ("seasonal_series_plot", "seasonal_cycle_regions"):
-            assert ap.PANEL_DOMAIN_COLOUR not in figure.code
+        # the time series figures give the full domain a panel of its own, first
+        if case == "many" and name in ("long_term_plot", "seasonal_cycle_regions"):
+            assert "#999999" not in figure.code
             assert re.search(r'^regions = \[\n    "Full Domain",\n', figure.code, flags=re.M)
-        if case == "many" and name == "long_term_plot":
-            assert ap.PANEL_DOMAIN_COLOUR in figure.code
 
 
 def test_the_maps_of_changes_are_titled_by_their_years(analyses):
@@ -296,8 +293,12 @@ def test_what_the_figures_find(analyses):
     plt.close("all")
     assert sorted(cycle.found["means"]) == list(range(1, 13))
     assert ap.long_term_plot(series, "temperature", "surface").found == {"regions": 2}
-    assert ap.station_plot(series, "temperature", "seasonal", "surface").found == {"names": ["Near", "Far"]}
+    stations = ap.station_plot(series, "temperature", "seasonal", "surface")
     plt.close("all")
+    assert stations.found == {"names": ["Near", "Far"]}
+    # only the climatological cycle is drawn, never each year's months
+    assert not hasattr(ap, "seasonal_series_plot")
+    assert 'cycle = frame.groupby(["kind", "name", "month"]' in stations.code and "calendar.month_abbr" in stations.code
 
 
 def test_the_script_says_what_it_is(analyses):

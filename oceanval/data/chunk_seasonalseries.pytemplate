@@ -1,11 +1,11 @@
 # %% tags=["remove-input"]
 sea = entry["seasonal"]
-md("## Seasonal time series")
+md("## Seasonal cycles")
 
 # %% tags=["remove-input"]
 years = years_text(sea)
 md(
-    f"The seasonal time series of {name} is its mean in each month from {years}, read from {sea['files']} file{'s' if sea['files'] != 1 else ''}. "
+    f"The seasonal cycle of {name} is the mean of each month of the year over {years}, read from {sea['files']} file{'s' if sea['files'] != 1 else ''}. "
     + series_area_text(info, sea)
     + " "
     + dates_text(sea)
@@ -16,14 +16,6 @@ for layer, saved in sea["layers"].items():
     display(md(f"### {saved['title']}"))
     where = {"surface": "surface", "bottom": "bottom", "mean": "depth-averaged", "integral": "depth-integrated"}[layer]
     layer_units = ap.unit_html(saved["units"])
-    drawn = ap.seasonal_series_plot(results_dir, variable, layer)
-    ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
-    display(md(
-        f"**Figure {i_figure}**: Monthly mean {where} {name} ({layer_units}), {years}"
-        + (" over the full domain and each of its regions." if sea["regions"] else " over the full domain.")
-        + " Months with no output are gaps in the lines."
-    ))
-    i_figure += 1
     drawn = ap.seasonal_cycle_regions(results_dir, variable, layer)
     ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
     display(md(
@@ -35,7 +27,7 @@ for layer, saved in sea["layers"].items():
     if drawn:
         ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
         display(md(
-            f"**Figure {i_figure}**: Monthly mean {where} {name} ({layer_units}), {years}, in the model cell nearest each station."
+            f"**Figure {i_figure}**: The mean seasonal cycle of {where} {name} ({layer_units}): the mean of each month of the year over {years}, in the model cell nearest each station."
         ))
         i_figure += 1
         display(pd.DataFrame(station_rows(saved, info)).style.hide(axis="index"))

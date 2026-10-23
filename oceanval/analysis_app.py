@@ -51,7 +51,7 @@ LABELS = {
     "climatology": "climatology",
     "phenology": "phenology",
     "long_term": "long-term time series",
-    "seasonal": "seasonal time series",
+    "seasonal": "seasonal cycles",
     "map_changes": "map changes",
     "transects": "transects",
 }

@@ -1325,7 +1325,7 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
                       if row["seasonal"]["start"] <= int(y) <= row["seasonal"]["end"]}
             if months and months_per_year(months) == 1:
                 problems.append(
-                    f"{row['name']}'s seasonal series needs monthly output, or more often, and its output "
+                    f"{row['name']}'s seasonal cycles need monthly output, or more often, and its output "
                     f"({row['pattern']}) is {_resolution_text(row['time_res'])}."
                 )
         for number, line in enumerate(row["transects"]["lines"] if row["transects"] else [], start=1):
@@ -1447,10 +1447,10 @@ def analyze(
         default), "absolute_change" (each year minus the first year with a
         value) or "percentage_change" (that, in per cent of the first).
     seasonal : dict
-        The variables to work out seasonal time series of, in the same form
-        as long_term: the mean of every month from start to end, for the
-        model's domain, each region and each station, and so the mean seasonal
-        cycle of each. Needs monthly output, or output more often than that.
+        The variables to work out seasonal cycles of, in the same form
+        as long_term: the mean seasonal cycle, the mean of each month of the
+        year from start to end, for the model's domain, each region and each
+        station. Needs monthly output, or output more often than that.
     stations : dict
         Places to work out the long_term and seasonal series of, as the name
         of each and its [lon, lat], e.g. {"L4": [-4.217, 50.25]}. The nearest

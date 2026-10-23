@@ -1,11 +1,11 @@
 # %% tags=["remove-input"]
 sea = first["seasonal"]
-md("## Seasonal time series")
+md("## Seasonal cycles")
 
 # %% tags=["remove-input"]
 years = years_text(sea)
 md(
-    f"The seasonal time series of {name} is its mean in each month from {years}, {sr.files_text(entry, 'seasonal')}. "
+    f"The seasonal cycle of {name} is the mean of each month of the year over {years}, {sr.files_text(entry, 'seasonal')}. "
     + sr.series_area_text(info, sea, entry, "seasonal")
     + " "
     + sr.dates_text(entry, "seasonal")
@@ -16,14 +16,6 @@ for layer, saved in sea["layers"].items():
     display(md(f"### {saved['title']}"))
     where = sr.WHERE[layer]
     layer_units = ap.unit_html(saved["units"])
-    drawn = sp.seasonal_series_plot(results_dir, variable, layer)
-    sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
-    display(md(
-        f"**Figure {i_figure}**: Monthly mean {where} {name} ({layer_units}), {years}"
-        + (", over the full domain and each of its regions" if sea["regions"] else ", over the full domain")
-        + ", a line for each simulation. Months with no output are gaps in the lines."
-    ))
-    i_figure += 1
     drawn = sp.seasonal_cycle_regions(results_dir, variable, layer)
     sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
     display(md(
@@ -36,7 +28,7 @@ for layer, saved in sea["layers"].items():
     if drawn:
         sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
         display(md(
-            f"**Figure {i_figure}**: Monthly mean {where} {name} ({layer_units}), {years}, in the model cell nearest each station, a line for each simulation."
+            f"**Figure {i_figure}**: The mean seasonal cycle of {where} {name} ({layer_units}): the mean of each month of the year over {years}, in the model cell nearest each station, a line for each simulation."
         ))
         i_figure += 1
         display(pd.DataFrame(sr.station_rows(info, entry, "seasonal", layer)).style.hide(axis="index"))

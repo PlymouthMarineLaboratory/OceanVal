@@ -256,8 +256,7 @@ def methods(info):
         )
     if has("seasonal"):
         methods_.append(
-            "**Seasonal time series.** The mean of each month of each year, over the domain, over each region and at each station: a month with no output is a gap. "
-            "The mean seasonal cycle is the mean of each month of the year over the years of the series."
+            "**Seasonal cycles.** The mean seasonal cycle: the mean of each month of the year over the years of the series, over the domain, over each region and at each station."
         )
     if has("map_changes"):
         methods_.append(
