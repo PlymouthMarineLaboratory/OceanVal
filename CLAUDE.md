@@ -400,7 +400,13 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   never the console): `matchall._matchups_news` lists them first, then `matchall._Told` says each is `matching`/`made`/`not_made`
   (gridded through `gridded_matchup(on_matching=, on_failed=)`), keyed by `live.matchup_key`, then `matchups_finished`.
   The interim report's `status.json` gives each page by the same key (`included`, `building_key`, `added`, `failed`).
-  `state()["run"]["progress"]` is kept through the report run after it. The run's output (`#run`) is shown **only when a
+  `state()["run"]["progress"]` is kept through the report run after it. **The grid is timed**: a Time column beside Matchup (counting
+  up while it is `matching`, its time as it ended after, blank for one told `made` without being started) and a "Time elapsed" row
+  under it (the matchup run plus the report run, not the wait between them). The times are taken by `App._matchup_news` as the news
+  arrives (`started`/`took`/`banked`/`since` on `matchup_progress`; `_run_finished` stops the clock, `start_run` of the validate run
+  resumes it), never in the child; `App._clock` is the one clock (tests patch it, never `time.monotonic`). The page is sent seconds as of
+  each state (`item["seconds"]`, `progress["elapsed"]`/`["running"]`) and counts on from there itself (`setClock`/`tickClocks`,
+  `performance.now()`), as a state is only sent when something changes. The run's output (`#run`) is shown **only when a
   run fails** (the user's rule); the interim report's card (`#interim`) is above the grid. In the app's recipes window cores has no default
   (`show_recipes` sets `form["cores"] = ""`): "Choose the number of cores" must be picked.
 - A multiprocessing Manager is made with `matchall._manager()`, when it is needed, never at import: its server is a

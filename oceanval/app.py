@@ -1853,12 +1853,14 @@ class App(AnalyzeSteps, SimCompareSteps):
     def _matchup_news(self, run, news):
         """What matchup tells of the matchups as it makes them (see
         matchall._Told): the matchups to make, then each as it is started,
-        made or not, then that they are finished."""
+        made or not, then that they are finished. The times the grid shows
+        are taken here, as the news arrives."""
         with self._lock:
             if run is not self.run:
                 return
             kind = news.get("kind")
             progress = self.matchup_progress
+            now = self._clock()
             if kind == "matchups":
                 items = news.get("items")
                 self.matchup_progress = {
@@ -1869,29 +1871,71 @@ class App(AnalyzeSteps, SimCompareSteps):
                     ],
                     "states": {},
                     "finished": False,
+                    # when each matchup was started and how long it then took
+                    "started": {},
+                    "took": {},
+                    # the seconds of the runs that are over, and when the run
+                    # that is going began (None between runs)
+                    "banked": 0.0,
+                    "since": now,
                 }
             elif progress is None:
                 return
             elif kind == "matchup" and news.get("state") in ("matching", "made", "not_made"):
-                progress["states"][str(news.get("key"))] = news["state"]
+                key = str(news.get("key"))
+                progress["states"][key] = news["state"]
+                if news["state"] == "matching":
+                    # started again, if it is tried again: the last try's time is shown
+                    progress["started"][key] = now
+                    progress["took"].pop(key, None)
+                elif key in progress["started"]:
+                    # one already made is told as made without being started: no time
+                    progress["took"][key] = now - progress["started"].pop(key)
             elif kind == "matchups_finished":
                 progress["finished"] = True
             else:
                 return
             self._notify()
 
+    def _clock(self):
+        """The time the grid of the matchups is timed by, in seconds."""
+        return time.monotonic()
+
+    def _matchups_clock_stop(self):
+        """Stop the clock of the grid of the matchups, which a run's end
+        does, keeping the seconds it has run. Called with the lock held."""
+        progress = self.matchup_progress
+        if progress is not None and progress["since"] is not None:
+            progress["banked"] += self._clock() - progress["since"]
+            progress["since"] = None
+
+    def _matchups_clock_resume(self):
+        """Start the clock of the grid of the matchups again, for the run
+        that builds the report, which keeps the grid. Called with the lock
+        held."""
+        progress = self.matchup_progress
+        if progress is not None and progress["since"] is None:
+            progress["since"] = self._clock()
+
     def _matchup_progress_state(self):
         """The grid of the matchups: each with its state, "waiting",
-        "matching", "made" or "not_made"."""
+        "matching", "made" or "not_made", and the seconds it has taken, or
+        has taken so far while it is matching (None if not started, or made
+        without being started). "elapsed" is the seconds the runs have gone
+        on, "running" whether one is going now."""
         progress = self.matchup_progress
         if progress is None:
             return None
+        now = self._clock()
         rows = []
         for item in progress["items"]:
             state = progress["states"].get(item["key"], "waiting")
             if progress["finished"] and state != "made":
                 # left out without a word, or stopped half way
                 state = "not_made"
+            seconds = progress["took"].get(item["key"])
+            if seconds is None and state == "matching" and item["key"] in progress["started"]:
+                seconds = now - progress["started"][item["key"]]
             rows.append({
                 "key": item["key"],
                 "title": str(item.get("title") or item.get("variable") or ""),
@@ -1899,8 +1943,15 @@ class App(AnalyzeSteps, SimCompareSteps):
                 "source": str(item.get("source") or ""),
                 "report": bool(item.get("report")),
                 "state": state,
+                "seconds": seconds,
             })
-        return {"items": rows, "finished": progress["finished"]}
+        since = progress["since"]
+        return {
+            "items": rows,
+            "finished": progress["finished"],
+            "elapsed": progress["banked"] + (0.0 if since is None else now - since),
+            "running": since is not None,
+        }
 
     def _analysis_interim(self, kind):
         """The report an Analyze (kind "analyze") or Compare simulations
@@ -4119,6 +4170,9 @@ class App(AnalyzeSteps, SimCompareSteps):
             if args[:1] != ["validate"]:
                 # the report run after a matchup keeps its grid of the matchups
                 self.matchup_progress = None
+            else:
+                # and its clock goes on
+                self._matchups_clock_resume()
             self.identifying = script
             self.matchups_rejected = False
             self.matchup_script_saved = False
@@ -4169,6 +4223,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             if run is not self.run:
                 return
+            self._matchups_clock_stop()
             if run.stopped:
                 status = "stopped"
             else:

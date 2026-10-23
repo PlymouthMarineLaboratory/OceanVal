@@ -2263,23 +2263,36 @@ class TestServer:
                 """
             )
         )
+        # the times of the grid, which the test moves on itself
+        clock = [100.0]
+        monkeypatch.setattr(app, "_clock", lambda: clock[0])
         app.action = "matchup_validate"
         app.start_run(["script", str(script)], "python run.py")
         wait_for(lambda: app.matchup_progress and app.matchup_progress["states"])
+        clock[0] = 103.0
         progress = get_json(app, "/api/state")[1]["run"]["progress"]
         assert progress == {
             "items": [
-                {**items[0], "state": "matching"},
-                {**items[1], "state": "waiting"},
+                {**items[0], "state": "matching", "seconds": 3.0},
+                {**items[1], "state": "waiting", "seconds": None},
             ],
             "finished": False,
+            "elapsed": 3.0,
+            "running": True,
         }
+        clock[0] = 107.0
         go.write_text("")
         wait_for(lambda: app.view == "finished")
         _, state = get_json(app, "/api/state")
         # one not made by the end is not made
         assert [item["state"] for item in state["run"]["progress"]["items"]] == ["made", "not_made"]
         assert state["run"]["progress"]["finished"]
+        # the first took as long as it was going, the other was left half way: no time
+        assert [item["seconds"] for item in state["run"]["progress"]["items"]] == [7.0, None]
+        # the clock stops with the run
+        clock[0] = 150.0
+        assert get_json(app, "/api/state")[1]["run"]["progress"]["elapsed"] == 7.0
+        assert not get_json(app, "/api/state")[1]["run"]["progress"]["running"]
         # none of it is in the output
         assert "matching up" in state["console"]["text"]
         assert "oceanval-progress" not in state["console"]["text"]
@@ -2287,8 +2300,60 @@ class TestServer:
         monkeypatch.setattr(app_module.Run, "start", lambda run: None)
         app.start_run(["validate", "{}"], "validate()")
         assert app.matchup_progress is not None
+        # its clock goes on from where it was, without the time between the runs
+        clock[0] = 155.0
+        progress = get_json(app, "/api/state")[1]["run"]["progress"]
+        assert progress["elapsed"] == 12.0
+        assert progress["running"]
         app.start_run(["script", str(script)], "python run.py")
         assert app.matchup_progress is None
+
+    def test_each_matchup_is_timed_from_when_it_is_started(self, app, monkeypatch):
+        clock = [10.0]
+        monkeypatch.setattr(app, "_clock", lambda: clock[0])
+        run = object()
+        app.run = run
+
+        def tell(key=None, state=None):
+            if key is None:
+                items = [{"key": key, "variable": key} for key in "abc"]
+                app._matchup_news(run, {"kind": "matchups", "items": items})
+            else:
+                app._matchup_news(run, {"kind": "matchup", "key": key, "state": state})
+
+        def seconds():
+            progress = app._matchup_progress_state()
+            return {item["key"]: item["seconds"] for item in progress["items"]}
+
+        try:
+            tell()
+            assert seconds() == {"a": None, "b": None, "c": None}
+            tell("a", "matching")
+            clock[0] = 14.5
+            assert seconds()["a"] == 4.5
+            tell("a", "made")
+            clock[0] = 20.0
+            # it took what it took, however long ago
+            assert seconds()["a"] == 4.5
+            # one made already is told as made without being started: no time
+            tell("b", "made")
+            assert seconds()["b"] is None
+            # one that fails and is tried again is timed from its last try
+            tell("c", "matching")
+            clock[0] = 23.0
+            tell("c", "not_made")
+            assert seconds()["c"] == 3.0
+            clock[0] = 30.0
+            tell("c", "matching")
+            assert seconds()["c"] == 0.0
+            clock[0] = 31.0
+            assert seconds()["c"] == 1.0
+            tell("c", "made")
+            assert seconds()["c"] == 1.0
+            # all the while the run has been going from the first news
+            assert app._matchup_progress_state()["elapsed"] == 21.0
+        finally:
+            app.run = None
 
     def matchups_script(self, tmp_path):
         """A stand-in for matchup, asking whether the matchups are right with
@@ -5545,12 +5610,27 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
     def cell(row, column):
         return page.locator(f'#progress-grid tbody tr:nth-child({row}) [data-column="{column}"]')
 
+    total = '#progress-grid tfoot [data-column="total"]'
+    stopwatch = re.compile(r"\d+:\d\d")
+
+    def counts_on(selector):
+        """Wait for a clock to change: the page counts on from the last state it was sent."""
+        before = page.text_content(selector)
+        page.wait_for_function(
+            "([selector, text]) => document.querySelector(selector).textContent !== text",
+            arg=[selector, before],
+            timeout=5000,
+        )
+
+    def time_selector(row):
+        return f'#progress-grid tbody tr:nth-child({row}) [data-column="time"]'
+
     try:
         page = browser.new_page()
         page.goto(url)
         page.wait_for_selector("#progress-grid:not([hidden])", timeout=60000)
         assert page.locator("#progress-grid th").all_text_contents() == [
-            "Variable", "Data source", "Matchup", "Interim report",
+            "Variable", "Data source", "Matchup", "Time", "Interim report", "Time elapsed",
         ]
         assert page.locator("#progress-grid tbody td:nth-child(-n+2)").all_text_contents() == [
             "Temperature", "NSBC", "Nitrate", "ICES point data (surface)", "Chlorophyll", "OCCCI",
@@ -5566,6 +5646,10 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         assert page.is_hidden("#progress-text")
         assert page.is_hidden("#progress-label")
         assert page.is_hidden("#run")
+        # no matchup has a time before it starts, and the time elapsed is already going
+        assert [cell(row, "time").text_content() for row in (1, 2, 3)] == ["", "", ""]
+        assert stopwatch.fullmatch(page.text_content(total))
+        counts_on(total)
 
         (tmp_path / "go1").write_text("")
         page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-state="working"] .identify__spinner')
@@ -5573,6 +5657,10 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         assert page.locator("#progress-grid tbody tr.is-active").count() == 1
         spinner = cell(1, "matchup").locator(".identify__spinner")
         assert spinner.evaluate("node => getComputedStyle(node).animationName") == "spin"
+        # beside the circle, its time counts up
+        assert stopwatch.fullmatch(cell(1, "time").text_content())
+        counts_on(time_selector(1))
+        assert cell(2, "time").text_content() == ""
 
         (tmp_path / "go2").write_text("")
         status.write_text(json.dumps({
@@ -5586,6 +5674,13 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         assert page.text_content("#progress-title") == "Matching up: 1 of 3 matchups made"
         # the circle keeps turning: it is not drawn again as the state is
         cell(2, "matchup").locator(".identify__spinner").evaluate("node => { node.dataset.kept = 'yes'; }")
+        # the first matchup's time stops at how long it took, the second's counts up
+        took = cell(1, "time").text_content()
+        assert stopwatch.fullmatch(took)
+        assert cell(1, "time").get_attribute("data-live") == ""
+        assert cell(2, "time").get_attribute("data-live") == "yes"
+        counts_on(time_selector(2))
+        assert cell(1, "time").text_content() == took
 
         status.write_text(json.dumps({
             "state": "building", "pages": 1, "expected": 2, "building_key": None,
@@ -5606,6 +5701,13 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="matchup"][data-state="working"]')
         assert cell(2, "matchup").get_attribute("data-state") == "failed"
         assert cell(2, "matchup").locator("[role=img]").get_attribute("aria-label") == "Not made"
+        # one not made keeps how long it was tried for, and the next one counts up
+        assert stopwatch.fullmatch(cell(2, "time").text_content())
+        assert cell(2, "time").get_attribute("data-live") == ""
+        counts_on(time_selector(3))
+        # the time elapsed is below the last row and goes on through it all
+        assert page.locator(total).bounding_box()["y"] > cell(3, "time").bounding_box()["y"]
+        assert page.locator(total).get_attribute("data-live") == "yes"
         # the interim report's card is at the top, above the grid
         assert page.is_visible("#interim a")
         assert page.locator("#interim").bounding_box()["y"] < page.locator("#progress").bounding_box()["y"]

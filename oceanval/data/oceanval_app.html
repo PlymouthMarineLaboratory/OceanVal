@@ -480,6 +480,9 @@
   .matchup-grid tbody tr:last-child td { border-bottom: 0; }
   .matchup-grid th { background: var(--bg-alt); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
   .matchup-grid th.is-state, .matchup-grid td.is-state { width: 140px; text-align: center; }
+  /* how long a matchup is taking or took, and the whole run's in the last row */
+  .matchup-grid th.is-time, .matchup-grid td.is-time { width: 96px; text-align: center; font-variant-numeric: tabular-nums; }
+  .matchup-grid tfoot th, .matchup-grid tfoot td { border-top: 1px solid var(--line); border-bottom: 0; background: var(--bg-alt); color: var(--ink); font-size: inherit; font-weight: 600; letter-spacing: normal; text-transform: none; }
   .matchup-grid tr.is-active td { background: var(--teal-50); }
   .matchup-grid__title { font-weight: 600; color: var(--ink); }
   .matchup-grid__mark { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; vertical-align: middle; }
@@ -494,10 +497,11 @@
     .progress { padding: 20px 16px; }
     /* the ticks stay in sight: the table fits, its names wrap */
     .matchup-grid table { min-width: 0; font-size: 13px; }
-    .matchup-grid th, .matchup-grid td { padding: 10px 8px; }
+    .matchup-grid th, .matchup-grid td { padding: 10px 6px; }
     .matchup-grid th:first-child, .matchup-grid td:first-child { padding-left: 12px; }
-    .matchup-grid th { font-size: 11px; letter-spacing: 0.02em; }
-    .matchup-grid th.is-state, .matchup-grid td.is-state { width: 72px; }
+    .matchup-grid th { font-size: 10px; letter-spacing: 0.01em; }
+    .matchup-grid th.is-state, .matchup-grid td.is-state { width: 60px; padding-left: 4px; padding-right: 4px; }
+    .matchup-grid th.is-time, .matchup-grid td.is-time { width: 48px; padding-left: 4px; padding-right: 4px; }
   }
   .progress__body { flex: 1; min-width: 0; }
   .progress__bar { height: 8px; margin: 14px 0 0; overflow: hidden; border-radius: 999px; background: var(--teal-200); }
@@ -6640,26 +6644,60 @@
       : shown);
   }
 
+  // a time as a stopwatch shows it: 0:07, 12:04, 1:02:03
+  function clockText(seconds) {
+    const whole = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(whole / 3600);
+    const minutes = Math.floor((whole % 3600) / 60);
+    const secs = String(whole % 60).padStart(2, "0");
+    return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${secs}` : `${minutes}:${secs}`;
+  }
+
+  // a cell's time, in seconds as of this state (null: blank). A live one is counted on
+  // from there by tickClocks, as the page is only sent a state when something changes
+  function setClock(cell, seconds, live) {
+    cell.dataset.seconds = seconds === null || seconds === undefined ? "" : String(seconds);
+    cell.dataset.at = String(performance.now());
+    cell.dataset.live = live && cell.dataset.seconds !== "" ? "yes" : "";
+    cell.textContent = cell.dataset.seconds === "" ? "" : clockText(seconds);
+  }
+
+  function tickClocks() {
+    const now = performance.now();
+    for (const cell of document.querySelectorAll('#progress-grid [data-live="yes"]')) {
+      cell.textContent = clockText(Number(cell.dataset.seconds) + (now - Number(cell.dataset.at)) / 1000);
+    }
+  }
+  setInterval(tickClocks, 250);
+
   // returns whether it is shown
   function renderMatchupGrid() {
     const box = $("progress-grid");
     const shown = matchupGridShown();
     box.hidden = !shown;
     if (!shown) return false;
-    const items = state.run.progress.items;
+    const progress = state.run.progress;
+    const items = progress.items;
     const withReport = state.action === "matchup_validate";
     const rows = JSON.stringify([withReport, items.map((item) => [item.key, item.title, item.source])]);
     if (box.dataset.rows !== rows) {
       box.dataset.rows = rows;
-      const head = ["Variable", "Data source", "Matchup", ...(withReport ? ["Interim report"] : [])];
+      const head = ["Variable", "Data source", "Matchup", "Time", ...(withReport ? ["Interim report"] : [])];
+      const headClass = (index) => index === 3 ? "is-time" : index > 1 ? "is-state" : null;
       box.replaceChildren(el("table", {},
-        el("thead", {}, el("tr", {}, ...head.map((text, index) => el("th", { scope: "col", class: index > 1 ? "is-state" : null, text })))),
+        el("thead", {}, el("tr", {}, ...head.map((text, index) => el("th", { scope: "col", class: headClass(index), text })))),
         el("tbody", {}, ...items.map((item) => el("tr", { "data-key": item.key },
           el("td", { class: "matchup-grid__title", text: item.title }),
           el("td", { text: item.source }),
           el("td", { class: "is-state", "data-column": "matchup" }),
-          withReport ? el("td", { class: "is-state", "data-column": "report" }) : null)))));
+          el("td", { class: "is-time", "data-column": "time" }),
+          withReport ? el("td", { class: "is-state", "data-column": "report" }) : null))),
+        el("tfoot", {}, el("tr", {},
+          el("th", { scope: "row", colspan: "3", text: "Time elapsed" }),
+          el("td", { class: "is-time", "data-column": "total" }),
+          withReport ? el("td", { class: "is-state" }) : null))));
     }
+    setClock(box.querySelector('[data-column="total"]'), progress.elapsed, progress.running);
     const interim = state.interim || {};
     const added = interim.added || {};
     const failed = interim.failed || [];
@@ -6668,6 +6706,7 @@
       row.classList.toggle("is-active", item.state === "matching");
       gridMark(row.querySelector('[data-column="matchup"]'),
         { matching: "working", made: "done", not_made: "failed" }[item.state] || "waiting");
+      setClock(row.querySelector('[data-column="time"]'), item.seconds, item.state === "matching");
       const report = row.querySelector('[data-column="report"]');
       if (!report) return;
       if (!item.report) gridMark(report, "none");
