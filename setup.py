@@ -52,14 +52,16 @@ setup(name='oceanval',
       author_email='rwi@pml.ac.uk',
       include_package_data=True,
       package_data={
-      'oceanval': ['data/*', 'data/_static/*'] },
+      'oceanval': ['data/*'] },
 
       packages = ["oceanval"],
       # both spellings open the OceanVal window (oceanval/app.py)
       entry_points = {
           "console_scripts": [
               "oceanval = oceanval.app:main",
-              "OceanVal = oceanval.app:main",
+              # macOS and Windows ignore the case of file names, so there the two
+              # are one file, which pip would fail to replace on an upgrade
+              *([] if sys.platform in ("darwin", "win32") else ["OceanVal = oceanval.app:main"]),
           ],
       },
       install_requires = REQUIREMENTS,

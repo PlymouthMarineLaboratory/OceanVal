@@ -60,13 +60,6 @@ EXPORTS = ("pdf", "word", "zip")
 current = None
 
 
-def available():
-    """Whether an interim report can be built, which needs jupyter-book 2 or
-    later: it is built page by page as validate() builds the full report
-    with jupyter-book 2."""
-    return oceanval._jupyter_book_major_version() >= 2
-
-
 def check_options(live_validation, out_dir):
     """The interim report's options, from matchup's live_validation.
 
@@ -77,12 +70,6 @@ def check_options(live_validation, out_dir):
     """
     if live_validation is None or live_validation is False:
         return None
-    if not available():
-        raise ValueError(
-            "live_validation needs jupyter-book 2 or later, and an earlier version "
-            "is installed. Upgrade it, or leave live_validation out and build the "
-            "report with validate() once the matchups are made"
-        )
     if live_validation is True:
         live_validation = {}
     if not isinstance(live_validation, dict):
@@ -335,12 +322,18 @@ def _banner(made, expected, complete):
             "matchup is added as it is made: reload the page to see the latest. "
             "The full validation report is built once they all have been."
         )
+    return banner_html("Interim validation report", text)
+
+
+def banner_html(title, text):
+    """The note at the top of every page of an interim report: title, then
+    text. The analysis's (see oceanval.analysis_report) has it too."""
     return (
         '<div class="oceanval-interim-banner" role="note" style="margin:20px 0 18px;'
         "padding:12px 16px;border:1px solid #f0c36d;border-left:6px solid #d9952b;"
         "border-radius:6px;background:#fff8e7;color:#203047;"
         'font-family:Arial,sans-serif;font-size:14px;line-height:1.5">'
-        f"<strong>Interim validation report</strong>, {html.escape(text)}</div>"
+        f"<strong>{html.escape(title)}</strong>, {html.escape(text)}</div>"
     )
 
 

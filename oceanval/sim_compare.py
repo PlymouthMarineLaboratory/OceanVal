@@ -49,6 +49,7 @@ from oceanval.analysis import (
     check_as_missing,
     first_step_of,
     locate_rows,
+    save_info,
     thickness_data,
     variable_key,
 )
@@ -297,14 +298,6 @@ def _same_grid(rows_by_sim, sims):
         return None
 
 
-def build_report(folder, info):
-    """Build the report in folder (the comparison's FOLDER) from info (see
-    INFO_FILE). Returns the path of its first page."""
-    from oceanval import sim_report
-
-    return sim_report.build_report(folder, info)
-
-
 @_restores_nctoolkit_options
 def compare_simulations(
     simulations=None,
@@ -475,66 +468,38 @@ def compare_simulations(
                 row["unify"] = sim_unify.row_unify(unify, unify_dir, sim["name"])
     same_grid = True if unify is not None else _same_grid(rows_by_sim, sims)
 
-    entries = {}
-    masks_for = {}
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=r".* missing in the dataset")
-        for sim in sims:
-            _say(f"Working out the simulation {sim['name']}")
-            sim_results = os.path.join(results_dir, sim["key"])
-            os.makedirs(sim_results)
-            entries[sim["name"]] = [
-                _work_out(row, sim_results, sim["thickness"], thickness_for[sim["name"]], sim["time_shift"], area, masks_for)
-                for row in rows_by_sim[sim["name"]]
-            ]
+    from oceanval import __version__, analysis_report, sim_report
 
-    from oceanval import __version__
-
+    created = datetime.datetime.now().isoformat(timespec="seconds")
     # each simulation's results are laid out as analyze()'s are, so that the figures of analysis_plots can draw them
-    for sim in sims:
-        with open(os.path.join(results_dir, sim["key"], INFO_FILE_OF_ANALYSIS), "w") as file:
-            json.dump(
-                {
-                    "version": 1,
-                    "oceanval": __version__,
-                    "created": datetime.datetime.now().isoformat(timespec="seconds"),
-                    "sim_dir": sim["sim_dir"],
-                    "n_dirs_down": sim["n_dirs_down"],
-                    "exclude": sim["exclude"],
-                    "require": sim["require"],
-                    "thickness": sim["thickness"],
-                    "time_shift": sim["time_shift"] or 0,
-                    "as_missing": sim["as_missing"],
-                    "subregions": area["subregions"],
-                    "lon_lim": area["lon_lim"],
-                    "lat_lim": area["lat_lim"],
-                    "stations": {name: {"lon": lon, "lat": lat} for name, (lon, lat) in area["stations"].items()},
-                    "figure_code": bool(figure_code),
-                    "variables": entries[sim["name"]],
-                },
-                file,
-                indent=2,
-            )
-
+    sim_infos = {
+        sim["name"]: {
+            "version": 1,
+            "oceanval": __version__,
+            "created": created,
+            "sim_dir": sim["sim_dir"],
+            "n_dirs_down": sim["n_dirs_down"],
+            "exclude": sim["exclude"],
+            "require": sim["require"],
+            "thickness": sim["thickness"],
+            "time_shift": sim["time_shift"] or 0,
+            "as_missing": sim["as_missing"],
+            "subregions": area["subregions"],
+            "lon_lim": area["lon_lim"],
+            "lat_lim": area["lat_lim"],
+            "stations": {name: {"lon": lon, "lat": lat} for name, (lon, lat) in area["stations"].items()},
+            "figure_code": bool(figure_code),
+            # each variable's, as it is worked out
+            "variables": [],
+        }
+        for sim in sims
+    }
     colours = {name: COLOURS[number] for number, name in enumerate(names)}
     variables_info = []
-    for number, row in enumerate(rows_by_sim[names[0]]):
-        first = entries[names[0]][number]
-        variables_info.append(
-            {
-                "name": row["name"],
-                "key": row["key"],
-                "long_name": first["long_name"],
-                "units": first["units"],
-                "kinds": [kind for kind in KINDS if first.get(kind)],
-                "model_variables": {name: rows_by_sim[name][number]["model_variable"] for name in names},
-                "sims": {name: entries[name][number] for name in names},
-            }
-        )
     info = {
         "version": 1,
         "oceanval": __version__,
-        "created": datetime.datetime.now().isoformat(timespec="seconds"),
+        "created": created,
         "simulations": [{k: v for k, v in sim.items()} for sim in sims],
         "colours": colours,
         "unify": unify,
@@ -548,11 +513,57 @@ def compare_simulations(
         "figure_code": bool(figure_code),
         "variables": variables_info,
     }
-    with open(os.path.join(results_dir, INFO_FILE), "w") as file:
-        json.dump(info, file, indent=2)
 
-    _say("Building the report")
-    landing = build_report(folder, info)
+    # each variable's page is built as soon as every simulation's is worked
+    # out, while the next is (see oceanval.analysis_report)
+    rows = rows_by_sim[names[0]]
+    book = analysis_report.InterimBook(folder, len(rows), sim_report.templates(), what="comparison")
+    book.start()
+    for sim in sims:
+        os.makedirs(os.path.join(results_dir, sim["key"]))
+    masks_for = {}
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=r".* missing in the dataset")
+            # a variable at a time, in each simulation, so that its page can be built
+            for number, row in enumerate(rows):
+                entries = {}
+                for sim in sims:
+                    _say(f"Working out {row['name']} in the simulation {sim['name']}")
+                    entries[sim["name"]] = _work_out(
+                        rows_by_sim[sim["name"]][number],
+                        os.path.join(results_dir, sim["key"]),
+                        sim["thickness"],
+                        thickness_for[sim["name"]],
+                        sim["time_shift"],
+                        area,
+                        masks_for,
+                    )
+                first = entries[names[0]]
+                variables_info.append(
+                    {
+                        "name": row["name"],
+                        "key": row["key"],
+                        "long_name": first["long_name"],
+                        "units": first["units"],
+                        "kinds": [kind for kind in KINDS if first.get(kind)],
+                        "model_variables": {name: rows_by_sim[name][number]["model_variable"] for name in names},
+                        "sims": entries,
+                    }
+                )
+                # what the variable's page, and the overview, read
+                for sim in sims:
+                    sim_infos[sim["name"]]["variables"].append(entries[sim["name"]])
+                    save_info(os.path.join(results_dir, sim["key"]), INFO_FILE_OF_ANALYSIS, sim_infos[sim["name"]])
+                save_info(results_dir, INFO_FILE, info)
+                book.add(number + 1, variables_info[-1])
+    except BaseException as error:
+        # the pages of the variables worked out are kept
+        book.stop(now=not isinstance(error, Exception))
+        raise
+
+    _say("Finishing the report")
+    landing = book.finish()
     for sim in sims:
         user_cache.record_sim_dir(sim["sim_dir"])
     _say(f"The comparison is in {folder}: open {os.path.join(folder, REPORT_LINK)} to see the report")

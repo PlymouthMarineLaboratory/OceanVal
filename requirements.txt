@@ -11,7 +11,7 @@ jupytext
 nctoolkit>=1.3.6
 geopandas
 holoviews
-jupyter-book
+jupyter-book>=2
 fiona
 multiprocess
 weasyprint

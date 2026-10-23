@@ -19,7 +19,8 @@ import pytest  # noqa: E402
 
 import oceanval  # noqa: E402
 from oceanval import analysis_plots as ap  # noqa: E402
-from oceanval import sim_compare  # noqa: E402
+from oceanval import analysis_report, sim_compare  # noqa: E402
+from conftest import no_book  # noqa: E402
 from oceanval import sim_plots as sp  # noqa: E402
 from simulations import write_analysis_regions, write_analysis_simulation  # noqa: E402
 
@@ -81,7 +82,7 @@ def comparisons(tmp_path_factory):
     }
     found = {}
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(sim_compare, "build_report", lambda folder, info: os.path.join(folder, "report.html"))
+        patch.setattr(analysis_report, "InterimBook", no_book([]))
         for case, arguments in runs.items():
             out = str(root / case)
             oceanval.compare_simulations(out_dir=out, cores=1, view=False, **arguments)

@@ -6526,15 +6526,21 @@
       return { title: "Identifying files that meet criteria. Please wait!",
         text: "OceanVal is finding the simulation output files that hold each variable. It then shows you what it found, to check before anything is matched up." };
     }
-    if (state.action === "simcompare") {
+    if (state.action === "simcompare" || state.action === "analyze") {
       const said = lastSaid();
-      return { title: "Comparing the simulations",
-        text: said ? `${said}…` : "OceanVal is starting the comparison. It works out what you chose for each variable in each simulation, and then builds the report." };
-    }
-    if (state.action === "analyze") {
-      const said = lastSaid();
-      return { title: "Analysing the simulation",
-        text: said ? `${said}…` : "OceanVal is starting the analysis. It works out what you chose for each variable, and then builds the report." };
+      const comparing = state.action === "simcompare";
+      const stage = comparing
+        ? { title: "Comparing the simulations",
+          text: said ? `${said}…` : "OceanVal is starting the comparison. It works out what you chose for each variable in each simulation, and then builds the report." }
+        : { title: "Analysing the simulation",
+          text: said ? `${said}…` : "OceanVal is starting the analysis. It works out what you chose for each variable, and then builds the report." };
+      // the report is built a variable at a time, as they are worked out
+      if (interim && interim.expected && interim.state !== "complete") {
+        stage.title = `${comparing ? "Comparing" : "Analysing"}: ${interim.pages} of ${plural(interim.expected, "variable")} in the report`;
+        stage.done = interim.pages;
+        stage.of = interim.expected;
+      }
+      return stage;
     }
     if (!run.status || run.status === "starting") {
       return { title: "Starting the run", text: "OceanVal is starting the matchup process." };
@@ -6658,6 +6664,13 @@
     const run = state.run;
     const made = interim.pages;
     const expected = interim.expected;
+    if (interim.what !== "validation") {
+      // the report of an analysis or a comparison: its pages are the report's
+      if (state.view === "finished" && interim.state !== "complete") {
+        return `The run did not finish, so it has only the ${plural(made, "variable")} worked out before it stopped.`;
+      }
+      return `${made} of ${plural(expected, "variable")} ${made === 1 ? "is" : "are"} in it so far. Each is added as it is worked out: reload the report to see the latest.`;
+    }
     if (interim.state === "complete") {
       const all = made === expected
         ? (made === 1 ? "The matchup is in it." : `All ${made} matchups are in it.`)
@@ -6682,7 +6695,11 @@
     const interim = state.interim;
     const box = $("interim");
     let key = null;
-    if (interim && interim.href) {
+    // an analysis's report, once complete, is the one the result links to
+    const done = interim && interim.what !== "validation" && interim.state === "complete";
+    if (done) {
+      key = null;
+    } else if (interim && interim.href) {
       key = ["ready", interim.href, interimText(interim)].join("|");
     } else if (interim && interim.state === "complete") {
       key = "empty";
@@ -6697,9 +6714,9 @@
     box.className = "interim card";
     box.replaceChildren(
       el("div", { class: "interim__body" },
-        el("h2", { class: "interim__title", text: "Interim validation report" }),
+        el("h2", { class: "interim__title", text: `Interim ${interim.what} report` }),
         el("p", { class: "interim__text", text: key === "empty" ? "No matchups were made, so it is empty." : interimText(interim) })),
-      key === "empty" ? null : openLink(interim.href, "Open the interim validation report"));
+      key === "empty" ? null : openLink(interim.href, `Open the interim ${interim.what} report`));
     box.hidden = false;
   }
 

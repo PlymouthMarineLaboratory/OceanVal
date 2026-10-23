@@ -3,6 +3,7 @@ import shutil
 import glob
 import subprocess
 import sys
+import threading
 import warnings
 import nctoolkit as nc
 
@@ -54,51 +55,59 @@ add_point_comparison = definitions.add_point_comparison
 add_gridded_comparison = definitions.add_gridded_comparison
 
 
-def _jupyter_book_major_version():
-    try:
-        return int(_version("jupyter-book").split(".", 1)[0])
-    except Exception:
-        return 1
-
-
 # Recent ipykernel versions log a benign-but-alarming warning whenever a kernel starts on the
-# default TCP transport ("Kernel is running over TCP without encryption..."), and jupyter-book's
-# notebook execution never propagates any config down to the KernelManager it creates, so there's
-# no _config.yml/env-var knob that reaches it to switch transport. Every build here is local-only,
+# default TCP transport ("Kernel is running over TCP without encryption..."), and nbconvert's
+# notebook execution has no simple knob that reaches the KernelManager it creates to switch
+# transport. Every build here is local-only,
 # so there's nothing to actually secure - drop just that line from the kernel-launching build
 # subprocess's output rather than changing how it runs.
 _KERNEL_WARNING_SNIPPETS = ("Kernel is running over TCP without encryption",)
+# seconds _run_filtered waits for the rest of a process's output once it has ended
+_OUTPUT_GRACE = 5
 
 
-def _run_filtered(cmd, check=False, **kwargs):
+def _run_filtered(cmd, check=False, out=None, **kwargs):
     """Like subprocess.run, but drops output lines matching _KERNEL_WARNING_SNIPPETS.
     Streams output live (stdout/stderr merged, since that's the only way to filter
-    lines while still showing build/notebook-execution progress as it happens)."""
+    lines while still showing build/notebook-execution progress as it happens), to
+    out, a file, or stdout."""
+    out = sys.stdout if out is None else out
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
         **kwargs,
     )
     output_lines = []
-    for line in proc.stdout:
-        output_lines.append(line)
-        if not any(snippet in line for snippet in _KERNEL_WARNING_SNIPPETS):
-            sys.stdout.write(line)
-            sys.stdout.flush()
+
+    def read_output():
+        for line in proc.stdout:
+            output_lines.append(line)
+            if not any(snippet in line for snippet in _KERNEL_WARNING_SNIPPETS):
+                out.write(line)
+                out.flush()
+
+    # The output is read on a thread and the process waited for, not the end
+    # of its output: the pipe only ends once every process holding it has
+    # closed it, and nctoolkit's Manager servers in a kernel that died keep it
+    # open for ever, which hung the interim report's builder.
+    reader = threading.Thread(target=read_output, daemon=True)
+    reader.start()
     proc.wait()
+    reader.join(timeout=_OUTPUT_GRACE)
     if check and proc.returncode != 0:
         raise subprocess.CalledProcessError(
-            proc.returncode, cmd, output="".join(output_lines)
+            proc.returncode, cmd, output="".join(list(output_lines))
         )
     return proc
 
 
 def _run_jupytext(args, notebook_glob):
-    """Run jupytext over the notebooks matched by notebook_glob, quietly.
+    """Run jupytext over the notebooks matched by notebook_glob, or in it if
+    it is a list of paths, quietly.
 
     jupytext prints a "Reading .../Writing ..." line per notebook, which is noise
     users don't need to see; only surface output if the command actually fails.
     """
-    notebooks = glob.glob(notebook_glob)
+    notebooks = glob.glob(notebook_glob) if isinstance(notebook_glob, str) else list(notebook_glob)
     if not notebooks:
         return
     proc = subprocess.run(
@@ -109,9 +118,10 @@ def _run_jupytext(args, notebook_glob):
         sys.stderr.write(proc.stderr)
 
 
-def _execute_notebooks(notebooks):
+def _execute_notebooks(notebooks, log=None):
     """Run the notebooks, keeping what they show in them, without the
-    warnings and other diagnostics."""
+    warnings and other diagnostics. What nbconvert prints goes to log, a
+    file, if given."""
     _run_filtered(
         [
             "jupyter",
@@ -125,12 +135,14 @@ def _execute_notebooks(notebooks):
             *notebooks,
         ],
         check=True,
+        out=log,
     )
     _remove_diagnostic_outputs(notebooks)
 
 
-def _notebooks_to_html(notebooks, html_dir):
-    """Write each run notebook as an HTML page in html_dir, without its code."""
+def _notebooks_to_html(notebooks, html_dir, log=None):
+    """Write each run notebook as an HTML page in html_dir, without its code.
+    What nbconvert prints goes to log, a file, if given."""
     os.makedirs(html_dir, exist_ok=True)
     subprocess.run(
         [
@@ -144,6 +156,7 @@ def _notebooks_to_html(notebooks, html_dir):
             *notebooks,
         ],
         check=True,
+        **({} if log is None else {"stdout": log, "stderr": subprocess.STDOUT}),
     )
 
 
@@ -157,29 +170,29 @@ def _build_book(book_dir, validation_links=None, pdf=False, word=False):
 
 
 def _build_book_pages(book_dir, validation_links=None, pdf=False, word=False):
-    if _jupyter_book_major_version() >= 2:
-        notebooks = glob.glob(os.path.join(book_dir, "notebooks", "*.ipynb"))
-        notebooks.sort(
-            key=lambda notebook: ("summary" in os.path.basename(notebook), notebook)
-        )
-        output_dir = os.path.join(book_dir, "_build", "html")
-        if notebooks:
-            _execute_notebooks(notebooks)
-            _notebooks_to_html(notebooks, os.path.join(output_dir, "notebooks"))
-        os.makedirs(output_dir, exist_ok=True)
-        # keep the wordmark alongside the notebook pages (not one level up)
-        # so the notebooks/ directory is self-contained and can be copied
-        # elsewhere on its own
-        os.makedirs(os.path.join(output_dir, "notebooks"), exist_ok=True)
-        shutil.copyfile(
-            os.path.join(book_dir, "oceanval_wordmark.svg"),
-            os.path.join(output_dir, "notebooks", "oceanval_wordmark.svg"),
-        )
-        _write_offline_report_pages(
-            output_dir, notebooks, validation_links=validation_links, pdf=pdf, word=word
-        )
-    else:
-        _run_filtered(["jupyter-book", "build", book_dir], check=True)
+    """Run the book's notebooks with nbconvert and write each as an HTML page,
+    with the navigation to them all (OceanVal needs jupyter-book 2 or later,
+    and never runs jupyter-book itself)."""
+    notebooks = glob.glob(os.path.join(book_dir, "notebooks", "*.ipynb"))
+    notebooks.sort(
+        key=lambda notebook: ("summary" in os.path.basename(notebook), notebook)
+    )
+    output_dir = os.path.join(book_dir, "_build", "html")
+    if notebooks:
+        _execute_notebooks(notebooks)
+        _notebooks_to_html(notebooks, os.path.join(output_dir, "notebooks"))
+    os.makedirs(output_dir, exist_ok=True)
+    # keep the wordmark alongside the notebook pages (not one level up)
+    # so the notebooks/ directory is self-contained and can be copied
+    # elsewhere on its own
+    os.makedirs(os.path.join(output_dir, "notebooks"), exist_ok=True)
+    shutil.copyfile(
+        os.path.join(book_dir, "oceanval_wordmark.svg"),
+        os.path.join(output_dir, "notebooks", "oceanval_wordmark.svg"),
+    )
+    _write_offline_report_pages(
+        output_dir, notebooks, validation_links=validation_links, pdf=pdf, word=word
+    )
 
 
 def _remove_diagnostic_outputs(notebooks):
@@ -1542,11 +1555,7 @@ def validate(
             copyfile(data_path, f"{book_dir}/notebooks/001_methods.ipynb")
         # open this file and replace model_name with model
 
-        data_path = importlib.resources.files(__name__).joinpath("data/_toc.yml")
-
-        out = f"{book_dir}/" + os.path.basename(data_path)
-        copyfile(data_path, out)
-
+        # the book's introduction, which fix_toc's myst.yml starts with
         data_path = importlib.resources.files(__name__).joinpath("data/intro.md")
         out = f"{book_dir}/" + os.path.basename(data_path)
         copyfile(data_path, out)
@@ -1556,31 +1565,6 @@ def validate(
         )
         out = f"{book_dir}/" + os.path.basename(data_path)
         copyfile(data_path, out)
-
-        data_path = importlib.resources.files(__name__).joinpath("data/intro.md")
-        out = f"{book_dir}/" + os.path.basename(data_path)
-        copyfile(data_path, out)
-
-        # copy config
-
-        data_path = importlib.resources.files(__name__).joinpath("data/_config.yml")
-        out = f"{book_dir}/" + os.path.basename(data_path)
-
-        with open(data_path, "r") as file:
-            filedata = file.read()
-
-        # Write the file out again
-        with open(out, "w") as file:
-            file.write(filedata)
-
-        # copyfile(data_path, out)
-
-        # copy the custom stylesheet used to theme the built report
-        static_src = importlib.resources.files(__name__).joinpath("data/_static")
-        static_out = f"{book_dir}/_static"
-        if not os.path.exists(static_out):
-            os.makedirs(static_out)
-        copyfile(f"{static_src}/custom.css", f"{static_out}/custom.css")
 
         path_df = []
 
@@ -1917,10 +1901,6 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
     os.makedirs(notebooks_dir, exist_ok=True)
 
     shutil.copyfile(
-        os.path.join(os.path.dirname(__file__), "data", "pml_logo.jpg"),
-        os.path.join(book_dir, "pml_logo.jpg"),
-    )
-    shutil.copyfile(
         os.path.join(os.path.dirname(__file__), "data", "oceanval_wordmark.svg"),
         os.path.join(book_dir, "oceanval_wordmark.svg"),
     )
@@ -1935,36 +1915,6 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
         data_path = importlib.resources.files(__name__).joinpath(f"data/{notebook_name}")
         dest_path = os.path.join(notebooks_dir, notebook_name)
         shutil.copyfile(data_path, dest_path)
-
-    # book scaffold: needed for the classic jupyter-book<2 build, harmless for >=2
-    with open(os.path.join(book_dir, "_config.yml"), "w") as file:
-        file.write(
-            "title:\n"
-            "author:   \"Robert Wilson | Plymouth Marine Laboratory\"\n"
-            "logo: \"pml_logo.jpg\"\n"
-            "copyright:  Plymouth Marine Laboratory\n"
-            "execute:\n"
-            "  execute_notebooks: force\n"
-            "  timeout: 500\n"
-            "  allow_errors: true\n"
-            "sphinx:\n"
-            "  config:\n"
-            "    html_static_path: ['_static']\n"
-            "    html_css_files: ['custom.css']\n"
-        )
-    with open(os.path.join(book_dir, "_toc.yml"), "w") as file:
-        file.write("format: jb-book\nroot: intro\nchapters:\n- glob: notebooks/*\n")
-    with open(os.path.join(book_dir, "intro.md"), "w") as file:
-        file.write(
-            "# Comparison of ocean model simulations\n\n"
-            "This report compares the validation results of multiple simulations using **oceanval**.\n"
-        )
-
-    static_src = importlib.resources.files(__name__).joinpath("data/_static")
-    static_out = os.path.join(book_dir, "_static")
-    if not os.path.exists(static_out):
-        os.makedirs(static_out)
-    shutil.copyfile(f"{static_src}/custom.css", f"{static_out}/custom.css")
 
     model_dict_str = str(model_dict)
     for notebook_name in comparison_notebooks:

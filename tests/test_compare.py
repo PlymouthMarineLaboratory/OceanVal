@@ -54,9 +54,8 @@ def test_the_comparison_is_built_in_out_dir(tmp_path, monkeypatch, built):
     assert built == [(str(book), [])]
     # nothing in the directory it was run from
     assert os.listdir(elsewhere) == []
-    for name in ("_config.yml", "_toc.yml", "intro.md", "pml_logo.jpg", "oceanval_wordmark.svg",
-                 "_static/custom.css"):
-        assert (book / name).exists(), name
+    # the wordmark the pages show beside them
+    assert (book / "oceanval_wordmark.svg").exists()
     notebooks = sorted(os.path.basename(x) for x in glob.glob(str(book / "notebooks" / "*.ipynb")))
     assert notebooks == [
         "comparison_bias.ipynb", "comparison_regional.ipynb",

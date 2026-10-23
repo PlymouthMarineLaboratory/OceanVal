@@ -26,7 +26,6 @@ runs it, as it does a matchup script.
 
 import datetime
 import gc
-import glob
 import importlib.resources
 import json
 import os
@@ -916,85 +915,77 @@ CHUNKS = {
     "map_changes": "chunk_mapchanges",
     "transects": "chunk_transects",
 }
-INTRO = (
-    "# An ocean model analysis using **oceanval**\n\n"
-    "The simulation was analysed using the Python package **oceanval**.\n"
-)
 
 
-def build_report(
-    folder, info, overview="analysis_overview.ipynb", template="analysis_template.ipynb", chunks=CHUNKS, kinds_of=None,
-    intro=INTRO,
-):
-    """Build the analysis report in folder (the analysis's FOLDER) from what
-    analyze() saved there (info, as in INFO_FILE), the way validate() builds
-    its one. Returns the path of its first page. The simulation comparison
-    (see oceanval.sim_compare) builds its report the same way, from its own
-    overview and template notebooks, the chunks of each kind of analysis,
-    kinds_of(variable), the kinds of analysis a variable has, and the
-    book's introduction."""
+class Templates:
+    """The notebooks a report is built from: the overview and the template of
+    each variable's page, the chunks of each kind of analysis, and
+    kinds_of(variable), the kinds of analysis a variable has. The simulation
+    comparison (see oceanval.sim_report) has its own."""
+
+    def __init__(
+        self, overview="analysis_overview.ipynb", template="analysis_template.ipynb", chunks=CHUNKS, kinds_of=None,
+    ):
+        self.overview = overview
+        self.template = template
+        self.chunks = chunks
+        self.kinds_of = kinds_of or (lambda entry: [kind for kind in KINDS if entry.get(kind)])
+
+
+def page_name(number, entry):
+    """The name of the page of the variable entry, the number-th."""
+    return f"{number:03d}_{entry['key']}"
+
+
+def prepare_book(folder, templates):
+    """Start the report's book in folder (the analysis's FOLDER), replacing
+    any there before, with its overview's notebook and no variable's page
+    yet. Returns the book's directory."""
     import oceanval
-    from oceanval.chunkers import add_chunks
-
-    if kinds_of is None:
-
-        def kinds_of(entry):
-            return [kind for kind in KINDS if entry.get(kind)]
 
     book_dir = os.path.join(folder, REPORT)
-    notebooks_dir = os.path.join(book_dir, "notebooks")
     if os.path.exists(book_dir):
         oceanval._remove_notebook_temp_files(book_dir)
         gc.collect()
         shutil.rmtree(book_dir)
-    os.makedirs(notebooks_dir)
+    os.makedirs(os.path.join(book_dir, "notebooks"))
+    _toc(book_dir, [])
+    shutil.copyfile(_data("oceanval_wordmark.svg"), os.path.join(book_dir, "oceanval_wordmark.svg"))
+    overview = os.path.join(book_dir, "notebooks", f"{LANDING}.ipynb")
+    _fill_notebook(_data(templates.overview), overview, {})
+    _finish_notebooks([overview])
+    return book_dir
 
-    _fill_notebook(_data(overview), os.path.join(notebooks_dir, f"{LANDING}.ipynb"), {})
-    pages = []
-    for number, entry in enumerate(info["variables"], start=1):
-        page = f"{number:03d}_{entry['key']}"
-        has = kinds_of(entry)
-        drop = [chunk for kind, chunk in chunks.items() if kind not in has]
-        _fill_notebook(
-            _data(template),
-            os.path.join(notebooks_dir, f"{page}.ipynb"),
-            {
-                "template_key": entry["key"],
-                "template_title": entry["name"],
-                # where the figures' code reads the results from
-                "template_results_dir": os.path.join(os.path.abspath(folder), RESULTS),
-            },
-            drop,
-        )
-        pages.append(page)
 
-    with open(os.path.join(book_dir, "_config.yml"), "w") as file:
-        # the scaffold the classic jupyter-book (<2) build needs, as compare() writes it
-        file.write(
-            "title:\n"
-            "author:   \"Robert Wilson | Plymouth Marine Laboratory\"\n"
-            "logo: \"pml_logo.jpg\"\n"
-            "copyright:  Plymouth Marine Laboratory\n"
-            "execute:\n"
-            "  execute_notebooks: force\n"
-            "  timeout: 500\n"
-            "  allow_errors: true\n"
-            "sphinx:\n"
-            "  config:\n"
-            "    html_static_path: ['_static']\n"
-            "    html_css_files: ['custom.css']\n"
-        )
-    _toc(book_dir, pages)
-    with open(os.path.join(book_dir, "intro.md"), "w") as file:
-        file.write(intro)
-    os.makedirs(os.path.join(book_dir, "_static"), exist_ok=True)
-    shutil.copyfile(_data("_static/custom.css"), os.path.join(book_dir, "_static", "custom.css"))
-    for name in ("pml_logo.jpg", "oceanval_wordmark.svg"):
-        shutil.copyfile(_data(name), os.path.join(book_dir, name))
+def write_page(folder, number, entry, templates):
+    """Write the notebook of the page of the variable entry, the number-th,
+    in the book prepare_book started in folder. Returns its path."""
+    has = templates.kinds_of(entry)
+    drop = [chunk for kind, chunk in templates.chunks.items() if kind not in has]
+    path = os.path.join(folder, REPORT, "notebooks", f"{page_name(number, entry)}.ipynb")
+    _fill_notebook(
+        _data(templates.template),
+        path,
+        {
+            "template_key": entry["key"],
+            "template_title": entry["name"],
+            # where the figures' code reads the results from
+            "template_results_dir": os.path.join(os.path.abspath(folder), RESULTS),
+        },
+        drop,
+    )
+    _finish_notebooks([path])
+    return path
 
-    pattern = f"{glob.escape(notebooks_dir)}/*.ipynb"
-    oceanval._run_jupytext(["--set-formats", "ipynb,py:percent"], pattern)
-    scripts = glob.glob(f"{glob.escape(notebooks_dir)}/*.py")
+
+def _finish_notebooks(paths):
+    """Put the chunks in the notebooks just written from their templates."""
+    import oceanval
+    from oceanval.chunkers import add_chunks
+
+    oceanval._run_jupytext(["--set-formats", "ipynb,py:percent"], paths)
+    scripts = [path[: -len(".ipynb")] + ".py" for path in paths]
+    scripts = [script for script in scripts if os.path.exists(script)]
     add_chunks(paths=scripts)
     for script in scripts:
         with open(script) as file:
@@ -1010,20 +1001,33 @@ def build_report(
             text = text.replace(placeholder, value)
         with open(script, "w") as file:
             file.write(text)
-    oceanval._run_jupytext(["--sync"], pattern)
+    oceanval._run_jupytext(["--sync"], paths)
     for script in scripts:
         os.remove(script)
 
-    oceanval._build_book(book_dir)
-    landing = os.path.join(book_dir, "_build", "html", "notebooks", f"{LANDING}.html")
+
+def landing_page(folder):
+    """The report's first page, the overview."""
+    return os.path.join(folder, REPORT, "_build", "html", "notebooks", f"{LANDING}.html")
+
+
+def link_report(folder):
+    """Link REPORT_LINK, in folder, to the report's first page."""
     link = os.path.join(folder, REPORT_LINK)
     if os.path.lexists(link):
         os.remove(link)
-    os.symlink(os.path.relpath(landing, folder), link)
-    return landing
+    os.symlink(os.path.relpath(landing_page(folder), folder), link)
 
 
 # ---- analyze() ----
+
+
+def save_info(results_dir, name, info):
+    """Save info as the file name in results_dir, which the report's pages
+    may be reading as it is (see oceanval.analysis_report)."""
+    import oceanval
+
+    oceanval._write_atomically(os.path.join(results_dir, name), json.dumps(info, indent=2))
 
 
 def _remove(folder):
@@ -1555,18 +1559,9 @@ def analyze(
     os.makedirs(results_dir)
     nc.options(cores=int(cores))
 
-    thickness_for = {}
-    masks_for = {}
+    from oceanval import __version__, analysis_report
+
     info_rows = []
-    with warnings.catch_warnings():
-        # each file is said to be missing the years the others have, which
-        # says nothing about the output as a whole
-        warnings.filterwarnings("ignore", message=r".* missing in the dataset")
-        for row in rows:
-            info_rows.append(_work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks_for))
-
-    from oceanval import __version__
-
     info = {
         "version": 1,
         "oceanval": __version__,
@@ -1583,13 +1578,33 @@ def analyze(
         "lat_lim": area["lat_lim"],
         "stations": {name: {"lon": lon, "lat": lat} for name, (lon, lat) in area["stations"].items()},
         "figure_code": bool(figure_code),
+        # each variable's, as it is worked out
         "variables": info_rows,
     }
-    with open(os.path.join(results_dir, INFO_FILE), "w") as file:
-        json.dump(info, file, indent=2)
 
-    _say("Building the report")
-    landing = build_report(folder, info)
+    # each variable's page is built as soon as it is worked out, while the
+    # next is (see oceanval.analysis_report)
+    book = analysis_report.InterimBook(folder, len(rows), Templates())
+    book.start()
+    thickness_for = {}
+    masks_for = {}
+    try:
+        with warnings.catch_warnings():
+            # each file is said to be missing the years the others have, which
+            # says nothing about the output as a whole
+            warnings.filterwarnings("ignore", message=r".* missing in the dataset")
+            for number, row in enumerate(rows, start=1):
+                info_rows.append(_work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks_for))
+                # what the variable's page, and the overview, read
+                save_info(results_dir, INFO_FILE, info)
+                book.add(number, info_rows[-1])
+    except BaseException as error:
+        # the pages of the variables worked out are kept
+        book.stop(now=not isinstance(error, Exception))
+        raise
+
+    _say("Finishing the report")
+    landing = book.finish()
     user_cache.record_sim_dir(sim_dir)
     _say(f"The analysis is in {folder}: open {os.path.join(folder, REPORT_LINK)} to see the report")
     if view:

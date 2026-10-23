@@ -32,11 +32,6 @@ def monthly(tmp_path_factory):
     return str(root)
 
 
-@pytest.fixture
-def no_report(monkeypatch):
-    monkeypatch.setattr(analysis, "build_report", lambda folder, info: os.path.join(folder, "landing.html"))
-
-
 def results(out_dir):
     return os.path.join(out_dir, analysis.FOLDER, analysis.RESULTS)
 

@@ -66,6 +66,7 @@ from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
 from oceanval import sim_compare
 from oceanval import analysis
+from oceanval import analysis_report
 from oceanval import data_store
 from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
@@ -1794,11 +1795,32 @@ class App(AnalyzeSteps, SimCompareSteps):
         if self.interim is None:
             return None
         status = self.interim["status"] or {}
+        which = self.interim.get("which", "interim")
         return {
             "state": status.get("state", "waiting"),
             "pages": status.get("pages", 0),
             "expected": status.get("expected"),
-            "href": self._report_href("interim", status.get("landing")),
+            # a validation's, or the report of an analysis or a comparison of simulations
+            "what": {"analysis": "analysis", "simcompare": "comparison"}.get(which, "validation"),
+            "href": self._report_href(which, status.get("landing")),
+        }
+
+    def _analysis_interim(self, kind):
+        """The report an Analyze (kind "analyze") or Compare simulations
+        ("simcompare") run builds a variable at a time (see
+        oceanval.analysis_report), to follow as validate's interim report
+        is. Called with the lock held."""
+        if not self.results_dir:
+            return None
+        folder = analysis.FOLDER if kind == "analyze" else sim_compare.FOLDER
+        status_path = os.path.join(self.results_dir, folder, analysis_report.STATUS)
+        # an earlier run's, which would be shown until the run clears it
+        with contextlib.suppress(OSError):
+            os.remove(status_path)
+        return {
+            "status_path": status_path,
+            "status": None,
+            "which": "analysis" if kind == "analyze" else "simcompare",
         }
 
     def _follow_interim(self, interim):
@@ -3644,7 +3666,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                 self.console.write(
                     f"The script could not be written again with the report options: {error}\n"
                 )
-        if question is not None and live.available():
+        if question is not None:
             # matchup builds an interim report with the report's options as
             # it goes, which the page links to (see oceanval.live)
             status_path = os.path.join(directory, live.FOLDER, "status.json")
@@ -3668,11 +3690,6 @@ class App(AnalyzeSteps, SimCompareSteps):
             # the report's options along with it
             self.console.write("y\n")
             question.respond(self._yes({"live_validation": options}, question))
-        elif question is not None:
-            # with jupyter-book 1 there is no interim report: the report is
-            # built once the matchups are made
-            self.console.write("y\n")
-            question.respond(self._yes({}, question))
         else:
             # matchup has run already, without asking about the matchups
             self.start_run(
@@ -3921,12 +3938,24 @@ class App(AnalyzeSteps, SimCompareSteps):
             if args[:1] == ["matchup"]:
                 # chosen once the matchups are checked
                 self.report_arguments = None
+            interim = None
+            if args[:1] in (["analyze"], ["simcompare"]):
+                # its report is built a variable at a time, which the page
+                # links to as it goes (see oceanval.analysis_report)
+                self.interim = interim = self._analysis_interim(args[0])
             if script:
                 self.point_time_res_choice = None
                 self.point_time_res_form = None
                 self._drop_model_check()
             self.view = "running"
             self._notify()
+        if interim is not None:
+            threading.Thread(
+                target=self._follow_interim,
+                args=(interim,),
+                name="oceanval-interim",
+                daemon=True,
+            ).start()
         # set apart from what create_recipes printed before it
         separator = "" if self.console.empty() else "\n"
         self.console.write(f"{separator}$ {label}\n")

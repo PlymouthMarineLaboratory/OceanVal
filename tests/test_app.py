@@ -1040,7 +1040,6 @@ class TestChoosingMatchups:
     ):
         """Unticked, they are still matched up, but left out of the interim
         report and the report."""
-        monkeypatch.setattr(live, "available", lambda: True)
         validated = []
         start_run = app.start_run
         monkeypatch.setattr(
@@ -1499,8 +1498,6 @@ class TestServer:
     def test_the_report_options_are_written_into_the_script(
         self, app, tmp_path, runs, monkeypatch
     ):
-        # as with jupyter-book 2, which the interim report needs
-        monkeypatch.setattr(live, "available", lambda: True)
         write_simulation(tmp_path / "sim")
         app.choose("matchup_validate")
         post(app, "/api/setup", {"form": SETUP_FORM})
@@ -1605,7 +1602,6 @@ class TestServer:
     def test_depth_bins_are_written_into_the_script(
         self, app, tmp_path, runs, monkeypatch
     ):
-        monkeypatch.setattr(live, "available", lambda: True)
         self.vertical_report_step(app, tmp_path, runs)
         assert get_json(app, "/api/state")[1]["report"]["vertical"] is True
 
@@ -2324,8 +2320,6 @@ class TestServer:
         """matchup builds the interim report with them as it goes (see
         oceanval.live), so they are sent with yes, without the full
         report's other forms."""
-        # as with jupyter-book 2, which the interim report needs
-        monkeypatch.setattr(live, "available", lambda: True)
         validated = self.validate_runs(app, monkeypatch)
         script = tmp_path / "run.py"
         script.write_text(
@@ -2353,7 +2347,7 @@ class TestServer:
         assert post(app, "/api/report", {"form": form})[0] == 200
         # until matchup's builder says how far it has got, the page says it is coming
         assert get_json(app, "/api/state")[1]["interim"] == {
-            "state": "waiting", "pages": 0, "expected": None, "href": None,
+            "state": "waiting", "pages": 0, "expected": None, "what": "validation", "href": None,
         }
         # what an earlier run left is not taken for this run's
         assert not stale.exists()
@@ -2367,33 +2361,6 @@ class TestServer:
         ) in text
         # the full report still has them all
         assert json.loads(validated[0][0][1])["pdf"] is True
-
-    def test_without_jupyter_book_2_there_is_no_interim_report(
-        self, app, tmp_path, monkeypatch
-    ):
-        monkeypatch.setattr(live, "available", lambda: False)
-        validated = self.validate_runs(app, monkeypatch)
-        script = tmp_path / "run.py"
-        script.write_text(
-            textwrap.dedent(
-                f"""
-                from oceanval import prompts
-                question = "Are you happy with these matchups? (y/n) "
-                answer = prompts.ask(question, ("y", "n"), details={MATCHUPS!r})
-                print("settings:", getattr(answer, "settings", None))
-                """
-            )
-        )
-        app.action = "matchup_validate"
-        app.start_run(["matchup", str(script)], "python run.py")
-        wait_for(lambda: app.question is not None)
-        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        assert post(app, "/api/report", {"form": {"concise": False}})[0] == 200
-
-        # the report is built once the matchups are made, as before
-        assert get_json(app, "/api/state")[1]["interim"] is None
-        wait_for(lambda: validated)
-        assert "(y/n) y\nsettings: None\n" in app.console.since(0, None)["text"]
 
     def test_the_interim_reports_progress_is_followed(self, app, tmp_path):
         app.results_dir = str(tmp_path)
@@ -2423,6 +2390,7 @@ class TestServer:
             "state": "building",
             "pages": 1,
             "expected": 3,
+            "what": "validation",
             "href": f"interim/{app.token}/notebooks/summary.html",
         }
         # the link opens the report from the window
@@ -2693,7 +2661,9 @@ def point_time_res_script(tmp_path, details=CHECKED_MATCHUPS):
             question = "Are you happy with these matchups? (y/n) "
             answer = prompts.ask(question, ("y", "n"), details={details!r})
             print("answer:", answer)
-            print("settings:", json.dumps(getattr(answer, "settings", {{}}), sort_keys=True))
+            # the interim report's options, which every answer has, are not what is looked at
+            settings = {{k: v for k, v in (getattr(answer, "settings", None) or {{}}).items() if k != "live_validation"}}
+            print("settings:", json.dumps(settings, sort_keys=True))
             """
         )
     )
@@ -2708,7 +2678,6 @@ class TestPointTimeResStep:
         return point_time_res_script(tmp_path)
 
     def test_it_comes_between_the_matchups_and_the_report_options(self, app, tmp_path, monkeypatch):
-        monkeypatch.setattr(live, "available", lambda: False)
         validated = []
         start_run = app.start_run
         monkeypatch.setattr(
@@ -3003,11 +2972,6 @@ class TestDatesOfTheFiles:
     """The check of the dates of the files the matchups page lists, made
     while the matchups are asked about (see oceanval.model_check)."""
 
-    @pytest.fixture(autouse=True)
-    def no_interim(self, monkeypatch):
-        # without jupyter-book 2 there is no interim report to wait for
-        monkeypatch.setattr(live, "available", lambda: False)
-
     def script(self, tmp_path):
         """A stand-in for matchup, saying what it was answered with."""
         script = tmp_path / "run.py"
@@ -3018,7 +2982,9 @@ class TestDatesOfTheFiles:
                 from oceanval import prompts
                 question = "Are you happy with these matchups? (y/n) "
                 answer = prompts.ask(question, ("y", "n"), details={MATCHUPS!r})
-                print("settings:", json.dumps(getattr(answer, "settings", None)))
+                # the interim report's options, which every answer has, are not what is looked at
+                settings = {{k: v for k, v in (getattr(answer, "settings", None) or {{}}).items() if k != "live_validation"}}
+                print("settings:", json.dumps(settings))
                 """
             )
         )
@@ -4568,11 +4534,12 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
             from oceanval import prompts
             question = "Are you happy with these matchups? (y/n) "
             answer = prompts.ask(question, ("y", "n"), details={details!r})
-            print("settings:", json.dumps(getattr(answer, "settings", None)))
+            # the interim report's options, which every answer has, are not what is looked at
+            settings = {{k: v for k, v in (getattr(answer, "settings", None) or {{}}).items() if k != "live_validation"}}
+            print("settings:", json.dumps(settings))
             """
         )
     )
-    monkeypatch.setattr(live, "available", lambda: False)
     app = App(cwd=str(tmp_path))
     app.action = "matchup_validate"
     validated = []

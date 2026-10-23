@@ -59,24 +59,31 @@ def test_run_filtered_raises_on_nonzero_exit():
     assert error.value.output == "boom\n"
 
 
-def test_build_book_uses_legacy_command_for_jupyter_book_1():
-    with patch.object(oceanval, "_version", return_value="1.0.4"), patch(
-        "oceanval.subprocess.Popen"
-    ) as popen:
-        _mock_popen(popen)
-        oceanval._build_book("report")
+def test_run_filtered_does_not_wait_for_a_process_left_holding_its_pipe():
+    """A process that outlives the one run (as nctoolkit's servers in a dead
+    kernel do) keeps its output pipe open: _run_filtered must return when the
+    process it ran ends, not when the pipe does."""
+    import signal
+    import time
 
-    popen.assert_called_once_with(
-        ["jupyter-book", "build", "report"],
-        stdout=oceanval.subprocess.PIPE,
-        stderr=oceanval.subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
+    started = time.monotonic()
+    with patch.object(oceanval, "_OUTPUT_GRACE", 1):
+        with pytest.raises(oceanval.subprocess.CalledProcessError) as error:
+            oceanval._run_filtered(["sh", "-c", "echo before; sleep 60 & echo stray $!; exit 3"], check=True)
+    elapsed = time.monotonic() - started
+    stray = re.search(r"stray (\d+)", error.value.output)
+    if stray:
+        try:
+            os.kill(int(stray.group(1)), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    assert error.value.returncode == 3
+    assert "before" in error.value.output
+    assert elapsed < 20
 
 
-def test_build_book_uses_offline_html_for_jupyter_book_2():
-    with patch.object(oceanval, "_version", return_value="2.1.6"), patch(
+def test_build_book_runs_the_notebooks_with_nbconvert():
+    with patch(
         "oceanval.glob.glob",
         return_value=[
             "report/notebooks/summary.ipynb",

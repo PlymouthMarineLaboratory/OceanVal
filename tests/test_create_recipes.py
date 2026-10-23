@@ -6,7 +6,6 @@ import pytest
 import xarray as xr
 
 import oceanval
-from oceanval import live
 from oceanval.create_recipes import (
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
@@ -1155,7 +1154,6 @@ class TestSettings:
     def test_the_interim_report_has_the_report_options_chosen_later(self, monkeypatch):
         # matchup builds it as the matchups are made (see oceanval.live), and
         # it is HTML only, so it takes no pdf, word or zip
-        monkeypatch.setattr(live, "available", lambda: True)
         script = self.build(
             settings=settings(out_dir="/run"),
             report={"lon_lim": [-20.0, 10.0], "pdf": True, "zip": True, "concise": False},
@@ -1174,15 +1172,9 @@ class TestSettings:
         )
         # without the window's report options, there is none
         assert "live_validation" not in self.build(settings=settings(pdf=True))
-        # nor without jupyter-book 2, which it needs
-        monkeypatch.setattr(live, "available", lambda: False)
-        script = self.build(settings=settings(), report={"concise": False})
-        assert "live_validation" not in script
-        assert "oceanval.validate(\n    concise=False,\n)" in script
 
     def test_a_transect_is_written_into_validate_and_the_interim_report(self, monkeypatch):
         # chosen in the oceanval window, with the report options
-        monkeypatch.setattr(live, "available", lambda: True)
         report = {
             "transect": {"start": [-30.0, 0.0], "end": [-30.0, 65.0]},
             "pdf": True,
@@ -1383,3 +1375,50 @@ class TestSettings:
         # and the WOA23 decade covering them, not the one covering 2011-2012
         assert "start=1995, end=2004," in script
         assert "start=2005, end=2014," not in script
+
+
+def test_matchups_leave_matchups_defaults_as_they_were(tmp_path, monkeypatch):
+    """Finding the files once appended "restart" to the exclude list it was
+    given, which was matchup()'s own default, so each matchup in a session
+    excluded it once more, and the window, which reads the defaults, gave the
+    run file filters of "restart restart"."""
+    import contextlib
+
+    from oceanval import matchall
+    from oceanval.session import session_info
+    from simulations import write_analysis_simulation
+
+    root = tmp_path / "sim"
+    write_analysis_simulation(str(root))
+    monkeypatch.setitem(session_info, "levels_down", 1)
+    monkeypatch.setitem(session_info, "require", None)
+    given = ["grid_U"]
+    for _ in range(2):
+        # what it goes on to find does not matter here
+        with contextlib.suppress(Exception):
+            matchall.extract_variable_mapping(str(root), exclude=given, n_check=1)
+    assert given == ["grid_U"]
+    # matchup() passes its own default on, the very list the window reads
+    with contextlib.suppress(Exception):
+        matchall.extract_variable_mapping(str(root), exclude=matchup_defaults()["exclude"], n_check=1)
+    assert matchup_defaults()["exclude"] == []
+
+
+def test_a_matchup_looks_only_at_its_own_simulations_files(tmp_path, monkeypatch):
+    """The files found were kept from one matchup to the next in a session, and
+    the cell thickness was looked for in all of them, so a matchup could take
+    its thickness from another simulation's files."""
+    import contextlib
+
+    from oceanval import matchall
+    from oceanval.session import session_info
+    from simulations import write_analysis_simulation
+
+    monkeypatch.setitem(session_info, "levels_down", 1)
+    monkeypatch.setitem(session_info, "require", None)
+    for name in ("first", "second"):
+        write_analysis_simulation(str(tmp_path / name))
+        with contextlib.suppress(Exception):
+            matchall.extract_variable_mapping(str(tmp_path / name), n_check=1)
+    assert matchall.raw_options
+    assert all(path.startswith(str(tmp_path / "second")) for path in matchall.raw_options + matchall.random_files)

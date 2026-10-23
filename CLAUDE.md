@@ -49,7 +49,16 @@ python -m pytest tests/test_create_recipes.py -k some_test  # single test
 Coverage config (`.coveragerc`) excludes `tests/` and `oceanval/fvcom.py` (undocumented).
 
 CI (`.github/workflows/python-app.yml`) builds a micromamba env with nctoolkit, cartopy, R/tidyverse,
-jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jobs side by side (matrix `group`: five named sets of test files balanced by run time, and a sixth that runs every file not named, so a new test file is still run); each job has its own checkout, which the cwd-relative `oceanval_matchups` folders need, and prints its 30 slowest tests (`--durations`). A new slow test file should be added to a group in the workflow.
+jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jobs side by side (matrix `group`: five named sets of test files balanced by run time, and a sixth that runs every file not named, so a new test file is still run); each job has its own checkout, which the cwd-relative `oceanval_matchups` folders need, and prints its 30 slowest tests (`--durations`). A new slow test file should be added to a group in the workflow. `.github/workflows/macos-app.yml`
+runs the same groups on `macos-latest` (Apple silicon, 90 minute limit per job): keep the two
+workflows' group lists the same.
+
+On macOS (see the fixes from a Mac, 2026-10-22): there is no `timeout` command (use pytest's
+`--timeout`), no `os.sched_getaffinity` (`matchall._index_workers` falls back to `os.cpu_count()`;
+tests patch it with `raising=False`), and the report notebooks' kernels import the *installed*
+oceanval, so reinstall (`pip install --no-deps .`) before running report tests against changed code.
+`_run_filtered` waits for the process, not the end of its pipe (`_OUTPUT_GRACE`): nctoolkit's Manager
+servers in a kernel that died keep the pipe open, which hung the interim report's builder.
 
 ## Architecture
 
@@ -62,8 +71,11 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
 2. `oceanval/chunkers.py` (`add_chunks`) and code in `__init__.py` assemble per-variable notebooks
    by string-substituting `chunk_*` placeholders (e.g. `chunk_point_surface`, `chunk_seasonal`)
    depending on what data/options are present, then use `jupytext` to sync `.py:percent` ⇄ `.ipynb`.
-3. `_build_book()` in `__init__.py` shells out to `jupyter-book build` (behavior branches on
-   jupyter-book major version) to produce the HTML report; `_render_offline_report_pdfs`/
+3. `_build_book()` in `__init__.py` runs the notebooks with `nbconvert` and writes each as an HTML
+   page with the navigation (`_write_offline_report_pages`, which reads the book's `_toc.yml` captions)
+   to produce the HTML report. OceanVal needs jupyter-book >= 2 (pinned in `requirements.txt`) but never
+   runs `jupyter-book` itself; there is no jupyter-book 1 (Sphinx) path or `_config.yml` any more, so
+   don't add version checks. `_render_offline_report_pdfs`/
    `_render_offline_report_word` (pandoc-based, with custom python-docx post-processing in
    `_polish_word_report`) produce the optional PDF/Word exports.
 4. **The HTML report is the baseline** — it's what users read day to day, and each HTML page is a
@@ -169,6 +181,18 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   `analysis_template.ipynb`, `chunk_climatology`/`chunk_phenology` (blanked when not
   chosen); figures come from `oceanval/analysis_plots.py` (nctoolkit `pub_plot`/
   `panel_plot`, regridded to lon-lat when a grid cannot be drawn).
+- **The report is built a variable at a time**: `oceanval/analysis_report.py`'s `InterimBook`, a
+  thread of the run, gets each variable once `_work_out` is done and `analysis.json` is rewritten
+  (`analysis.save_info`, atomically, the variables so far), runs its page and the overview with nbconvert
+  into `report/_build/raw`, and writes the navigation with `_write_offline_report_pages(raw_dir=, banner=)`
+  (`live.banner_html`) while the next variable is worked out. `finish()` takes the banner off and makes
+  `report.html`: the pages are the final report, nothing is built again. `<folder>/status.json` is followed by the window as
+  validate's interim report is (`App._analysis_interim`, `interim["which"]` = `analysis`/`simcompare`).
+  `compare_simulations` does the same, its loop variable-first. **The thread must take no lock a forked
+  nctoolkit worker could need**: nbconvert's output goes to `report/build.log`, its own lines by `os.write`.
+  The pieces Analyze and Compare share: `analysis.Templates`, `prepare_book`, `write_page`, `link_report`.
+  Tests that do not need the report use the `no_report` fixture (`tests/conftest.py`'s `no_book`, a
+  stand-in for `InterimBook` that keeps the saved info).
 - **Every Analyze figure is drawn by running its own code**, the script the report's
   "Copy code to reproduce figure" button copies (`analyze(figure_code=True)`, the window's
   required Yes/No): each `analysis_plots` function builds a standalone script (nctoolkit/
@@ -314,7 +338,7 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
   (colours and files as literals), `tests/test_sim_plots.py` redraws each in a fresh process and compares pixels. Maps are
   a panel for each simulation on **one colour scale**; series are lines coloured by simulation, **a panel for each
   series** (domain, each region, each station); transects are lines coloured by simulation, or a panel each. The report
-  is `analysis.build_report` with its overview/template/chunks passed in (`sim_report.py`, `simcompare_*.ipynb`,
+  is Analyze's `InterimBook` with its own `analysis.Templates` (`sim_report.templates()`, `simcompare_*.ipynb`,
   `chunk_sim*.pytemplate`: chunk names are letters only).
 - **Grid unification** (`oceanval/sim_unify.py`): `unify={"lon","lat","res"}` (nctoolkit `to_latlon`) or `{"baseline": name}`
   (`regrid`, the baseline itself untouched; a simulation already on the baseline's grid is not regridded, as bilinear
@@ -340,7 +364,9 @@ jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as six jo
 
 ### The `oceanval` command and its browser windows
 
-- `oceanval/app.py` is the `oceanval`/`OceanVal` console script (also `python -m oceanval`): a
+- `oceanval/app.py` is the `oceanval`/`OceanVal` console script (also `python -m oceanval`; `setup.py` defines
+  `OceanVal` only where file names are case sensitive, as on macOS/Windows the two are one file and pip
+  failed to upgrade over them): a
   127.0.0.1 server with a token, whose page (`data/oceanval_app.html`) opens on a landing
   page (view `home`) of Analyze (see above) and Validate, which leads to the validation page
   (view `start`) for choosing matchup+validate / matchup only / validate, the simulation (live-checked via `/api/probe`),

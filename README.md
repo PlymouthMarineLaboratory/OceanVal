@@ -3,6 +3,7 @@
   <a href="https://oceanval.readthedocs.io/en/latest/?badge=latest"><img src="https://readthedocs.org/projects/oceanval/badge/?version=latest" alt="Documentation Status" /></a>
   <a href="https://anaconda.org/channels/conda-forge/packages/oceanval/overview"><img src="https://anaconda.org/conda-forge/oceanval/badges/version.svg" alt="Conda Badge" /></a>
   <img src="https://github.com/pmlmodelling/oceanVal/actions/workflows/python-app.yml/badge.svg" alt="GitHub Testing" />
+  <img src="https://github.com/pmlmodelling/oceanVal/actions/workflows/macos-app.yml/badge.svg" alt="GitHub Testing on macOS" />
 </p>
 <br clear="left" />
 
@@ -118,9 +119,8 @@ that takes you through these steps:
 8. **Run**: matchup, then, to validate as well, `validate()` with the
    report's options. The page says what the run is doing, and shows the output
    (which appears as it comes in the terminal) as the matchups are made and if the run fails; anything else OceanVal asks, such as whether to try again
-   for observations a server could not supply, is asked in the page. With
-   jupyter-book 2 or later, the matchup builds an interim validation report
-   as it goes: the page links to it once the first matchup's page is in it. Each matchup's page is added as soon as the matchup is made, and the
+   for observations a server could not supply, is asked in the page. The
+   matchup builds an interim validation report as it goes: the page links to it once the first matchup's page is in it. Each matchup's page is added as soon as the matchup is made, and the
    full report (with PDF and Word, if asked for) is built once they all are.
    The finished page links to the full report.
 
@@ -404,7 +404,10 @@ observations, through these steps:
    like NEMO-ERSEM (zeros).
 5. **Run**: the window writes the `oceanval.analyze()` call into a script
    (`analysis.py` unless you choose another name), runs it, and links to the
-   report when it is built.
+   report when it is built. Each variable's page is built as soon as the
+   variable is worked out, and the window links to this
+   **interim analysis report** from the first variable on, with how many of the
+   variables are in it; the same is true of a comparison of simulations.
 
 ### Comparing simulations in the window
 
@@ -556,6 +559,14 @@ oceanval.analyze(
 Everything is saved in `oceanval_analysis/`, in `out_dir`: the fields as
 netCDF (and `analysis.json`, which says what is in them) in `results/`, the
 report's book in `report/`, and `report.html`, a link to its first page.
+The report is built a variable at a time: each variable's page is built, and the overview run again, as soon as the variable
+is worked out, while the next is, so the report can be read (from
+`report/_build/html/notebooks/000_overview.html`) long before the analysis
+ends. Until then each page has a note saying how many of the variables are in
+it, and `status.json` says how far it has got. Once the last variable is in,
+the note is taken off and `report.html` made: there is nothing left to build.
+If the analysis stops with an error, the pages of the variables worked out are
+kept.
 `time_shift=-1` shifts times dated at the end of each mean, as for matchup.
 The years you give must be ones the output has: `analyze()` refuses a start before
 the output's first year or an end after its last, and the app says so beside the box.
@@ -604,7 +615,9 @@ oceanval.compare_simulations(
 - Everything is saved in `oceanval_simulation_comparison/`, in `out_dir`:
   `results/` has a folder for each simulation, laid out as an analysis is, and
   `comparison.json`, which says what is in them; `report/` is the report's book,
-  and `report.html` a link to its first page.
+  and `report.html` a link to its first page. As for `analyze()`, the report
+  is built a variable at a time: each variable is
+  worked out in every simulation, then its page is built while the next is.
 
 ## Comparing multiple validation outputs
 
@@ -686,6 +699,8 @@ Now, install the package.
 pip install .
 
 ```
+OceanVal needs jupyter-book 2 or later, which `pip install .` installs.
+
 Alternatively, install the conda environment and package using the following commands:
 
 ```sh

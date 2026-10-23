@@ -11,39 +11,13 @@ import oceanval
 from oceanval import live, prompts
 from oceanval.live import InterimReport, LiveValidation, check_options
 
-# as it is, before jupyter_book_2 stands in for it
-_available = live.available
-
 needs_to_transect = pytest.mark.skipif(
     not oceanval.transects.available(), reason="needs nctoolkit 1.3.6 or later"
 )
 
 
-@pytest.fixture(autouse=True)
-def jupyter_book_2(monkeypatch):
-    """The interim report needs jupyter-book 2, which CI has, and which the
-    machine the tests run on may not: it never runs jupyter-book itself,
-    only nbconvert, as validate() does with jupyter-book 2."""
-    monkeypatch.setattr(live, "available", lambda: True)
-
-
 class TestOptions:
     def test_none_and_false_are_no_interim_report(self):
-        assert check_options(None, "/run") is None
-        assert check_options(False, "/run") is None
-
-    def test_only_with_jupyter_book_2(self, monkeypatch):
-        monkeypatch.setattr(live, "available", _available)
-        monkeypatch.setattr(oceanval, "_version", lambda name: "2.1.6")
-        assert live.available()
-        monkeypatch.setattr(oceanval, "_version", lambda name: "1.0.4")
-        assert not live.available()
-
-        with pytest.raises(ValueError, match="live_validation needs jupyter-book 2 or later"):
-            check_options(True, "/run")
-        with pytest.raises(ValueError, match="needs jupyter-book 2"):
-            check_options({"concise": False}, "/run")
-        # without an interim report, nothing changes
         assert check_options(None, "/run") is None
         assert check_options(False, "/run") is None
 

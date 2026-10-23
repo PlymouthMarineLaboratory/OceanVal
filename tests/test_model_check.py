@@ -205,7 +205,8 @@ class TestIndexTimesInWorkers:
         assert shared_out["shared"] == []
 
     def test_by_default_there_are_as_many_workers_as_cores(self, monkeypatch):
-        monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0, 1, 2, 3, 4})
+        # raising=False: macOS has no sched_getaffinity
+        monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0, 1, 2, 3, 4}, raising=False)
         assert matchall._index_workers() == 5
         assert matchall._index_workers(2) == 2
         assert matchall._index_workers(0) == 0

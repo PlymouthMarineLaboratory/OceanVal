@@ -49,20 +49,6 @@ def monthly(tmp_path_factory):
     return str(root)
 
 
-@pytest.fixture
-def no_report(monkeypatch):
-    """analyze() without building the report, which takes a minute: what
-    it would have been built from."""
-    built = []
-
-    def build(folder, info):
-        built.append(info)
-        return os.path.join(folder, "report", "landing.html")
-
-    monkeypatch.setattr(analysis, "build_report", build)
-    return built
-
-
 def results(out_dir):
     return os.path.join(out_dir, analysis.FOLDER, analysis.RESULTS)
 

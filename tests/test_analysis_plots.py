@@ -24,7 +24,8 @@ import pytest  # noqa: E402
 import xarray as xr  # noqa: E402
 
 import oceanval  # noqa: E402
-from oceanval import analysis  # noqa: E402
+from oceanval import analysis, analysis_report  # noqa: E402
+from conftest import no_book  # noqa: E402
 from oceanval import analysis_plots as ap  # noqa: E402
 from simulations import (  # noqa: E402
     ANALYSIS_LATS,
@@ -137,7 +138,7 @@ def analyses(tmp_path_factory):
     )
     found = {}
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(analysis, "build_report", lambda folder, info: os.path.join(folder, "report.html"))
+        patch.setattr(analysis_report, "InterimBook", no_book([]))
         for case, arguments in runs.items():
             out = str(root / case)
             oceanval.analyze(n_dirs_down=1, out_dir=out, cores=1, view=False, **arguments)

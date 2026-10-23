@@ -1214,7 +1214,6 @@ def _footer(
     if report is not None:
         # the report options chosen in the oceanval window, after the recipes
         validate_changed = list(report.items())
-    if report is not None and interim_report.available():
         # which the interim report matchup builds as it goes has too, other
         # than the full report's other forms
         interim = {

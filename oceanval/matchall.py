@@ -926,8 +926,15 @@ def extract_variable_mapping(folder, exclude=[], n_check=None):
         A DataFrame containing the paths to the netCDF files
     """
 
-    # add restart to exclude
-    exclude.append("restart")
+    # add restart to exclude, in a list of its own: appending to the one given
+    # changed matchup()'s default, so each matchup in a session excluded
+    # "restart" once more, and the window (which reads the defaults) saw it
+    exclude = [*(exclude or []), "restart"]
+    # the files of this simulation only: kept from an earlier matchup in the
+    # session, its files were searched for the cell thickness too, and one of
+    # another simulation holding it could be used
+    raw_options.clear()
+    random_files.clear()
 
     n = 0
     while True:

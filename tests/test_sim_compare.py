@@ -12,7 +12,8 @@ import pytest
 import xarray as xr
 
 import oceanval
-from oceanval import sim_compare
+from oceanval import analysis_report, sim_compare
+from conftest import no_book
 from simulations import write_analysis_simulation
 
 YEARS = (2012, 2013, 2014)
@@ -47,18 +48,6 @@ def given(sims, **changes):
     )
     arguments.update(changes)
     return arguments
-
-
-@pytest.fixture
-def no_report(monkeypatch):
-    built = []
-
-    def build(folder, info):
-        built.append(info)
-        return os.path.join(folder, "report", "landing.html")
-
-    monkeypatch.setattr(sim_compare, "build_report", build)
-    return built
 
 
 def results(out):
@@ -385,12 +374,9 @@ class TestCores:
 def compare_quietly(arguments):
     """compare_simulations(**arguments) with no report built: its info."""
     built = []
-    original = sim_compare.build_report
-    sim_compare.build_report = lambda folder, info: built.append(info) or os.path.join(folder, "x.html")
-    try:
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(analysis_report, "InterimBook", no_book(built))
         oceanval.compare_simulations(**arguments)
-    finally:
-        sim_compare.build_report = original
     return built[0]
 
 

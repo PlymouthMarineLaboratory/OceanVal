@@ -1,5 +1,5 @@
 """The HTML report of compare_simulations() (see oceanval.sim_compare), built the
-way the analysis report is (see oceanval.analysis.build_report) from its own
+way the analysis report is (see oceanval.analysis_report) from its own
 notebook templates, and the words its notebooks use."""
 
 from oceanval import analysis
@@ -13,23 +13,16 @@ CHUNKS = {
     "map_changes": "chunk_simmapchanges",
     "transects": "chunk_simtransects",
 }
-INTRO = (
-    "# A comparison of ocean model simulations using **oceanval**\n\n"
-    "The simulations were compared using the Python package **oceanval**.\n"
-)
 
 
-def build_report(folder, info):
-    """Build the comparison report in folder (the comparison's FOLDER) from what
-    compare_simulations() saved there (info). Returns the path of its first page."""
-    return analysis.build_report(
-        folder,
-        info,
+def templates():
+    """The notebooks the comparison report is built from (see
+    analysis.Templates)."""
+    return analysis.Templates(
         overview="simcompare_overview.ipynb",
         template="simcompare_template.ipynb",
         chunks=CHUNKS,
         kinds_of=lambda variable: variable["kinds"],
-        intro=INTRO,
     )
 
 

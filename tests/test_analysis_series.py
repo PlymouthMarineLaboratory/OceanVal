@@ -71,18 +71,6 @@ def shallow(tmp_path_factory):
     return str(root)
 
 
-@pytest.fixture
-def no_report(monkeypatch):
-    built = []
-
-    def build(folder, info):
-        built.append(info)
-        return os.path.join(folder, "report", "landing.html")
-
-    monkeypatch.setattr(analysis, "build_report", build)
-    return built
-
-
 def series(out, name):
     return pd.read_csv(os.path.join(out, analysis.FOLDER, analysis.RESULTS, name))
 

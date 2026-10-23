@@ -37,11 +37,6 @@ def monthly(tmp_path_factory):
     return str(root)
 
 
-@pytest.fixture
-def no_report(monkeypatch):
-    monkeypatch.setattr(analysis, "build_report", lambda folder, info: os.path.join(folder, "landing.html"))
-
-
 def run(sim, tmp_path, variables=None, **arguments):
     out = str(tmp_path / "out")
     analysis_arguments = dict(thickness="e3t", n_dirs_down=1, out_dir=out, cores=1, view=False)

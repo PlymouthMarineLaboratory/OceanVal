@@ -1,6 +1,50 @@
 """What the test modules share."""
 
+import json
+import os
+
 import pytest
+
+
+def no_book(built):
+    """A stand-in for oceanval.analysis_report.InterimBook, which builds the
+    report of analyze() and compare_simulations() and takes a minute: no
+    page is built, and built is given the info the run saved (analysis.json,
+    or comparison.json) once it finishes."""
+    from oceanval import analysis, sim_compare
+
+    class NoBook:
+        def __init__(self, folder, expected, templates, what="analysis"):
+            self.folder = folder
+            self.what = what
+
+        def start(self):
+            pass
+
+        def add(self, number, entry):
+            pass
+
+        def stop(self, now=False):
+            pass
+
+        def finish(self):
+            name = analysis.INFO_FILE if self.what == "analysis" else sim_compare.INFO_FILE
+            with open(os.path.join(self.folder, analysis.RESULTS, name)) as file:
+                built.append(json.load(file))
+            return os.path.join(self.folder, analysis.REPORT, "landing.html")
+
+    return NoBook
+
+
+@pytest.fixture
+def no_report(monkeypatch):
+    """analyze() and compare_simulations() without their report: the info
+    each run saved, in the order they ran."""
+    from oceanval import analysis_report
+
+    built = []
+    monkeypatch.setattr(analysis_report, "InterimBook", no_book(built))
+    return built
 
 
 @pytest.fixture(autouse=True)

@@ -707,6 +707,61 @@ def test_the_analysis_report_is_served(app, tmp_path):
     assert get(app, f"/analysis/wrong/notebooks/000_overview.html")[0] == 403
 
 
+class FakeRun:
+    """A run that is started and runs until the test is over."""
+
+    def __init__(self, args, *_):
+        self.args = args
+        self.returncode = None
+
+    def start(self):
+        pass
+
+    def running(self):
+        return True
+
+    def stop(self):
+        pass
+
+    def join(self, timeout=None):
+        pass
+
+
+@pytest.mark.parametrize("kind, folder, which, what", [
+    ("analyze", analysis.FOLDER, "analysis", "analysis"),
+    ("simcompare", "oceanval_simulation_comparison", "simcompare", "comparison"),
+])
+def test_the_report_built_a_variable_at_a_time_is_linked_as_it_goes(app, tmp_path, monkeypatch, kind, folder, which, what):
+    """The page follows the report the run builds a variable at a time (see
+    oceanval.analysis_report), as it does validate's interim report."""
+    from oceanval import analysis_report, app as app_module
+
+    monkeypatch.setattr(app_module, "Run", FakeRun)
+    status = tmp_path / folder / analysis_report.STATUS
+    pages = tmp_path / folder / analysis.REPORT / "_build" / "html" / "notebooks"
+    pages.mkdir(parents=True)
+    # an earlier run's
+    status.write_text('{"state": "complete", "pages": 3, "expected": 3}')
+    app.action = kind
+    app.results_dir = str(tmp_path)
+    app.start_run([kind, "script.py"], "python script.py")
+    assert not status.exists()
+    assert get_json(app, "/api/state")[1]["interim"] == {
+        "state": "waiting", "pages": 0, "expected": None, "what": what, "href": None,
+    }
+    (pages / "000_overview.html").write_text("<p>overview</p>")
+    status.write_text(
+        '{"state": "building", "pages": 1, "expected": 2, "landing": "%s"}' % (pages / "000_overview.html")
+    )
+    wait_for(lambda: get_json(app, "/api/state")[1]["interim"]["pages"] == 1, timeout=10)
+    interim = get_json(app, "/api/state")[1]["interim"]
+    assert interim == {
+        "state": "building", "pages": 1, "expected": 2, "what": what,
+        "href": f"{which}/{app.token}/notebooks/000_overview.html",
+    }
+    assert get(app, "/" + interim["href"], token=None) == (200, "<p>overview</p>")
+
+
 def test_the_dates_check_works_out_the_resolution(tmp_path):
     write_analysis_simulation(str(tmp_path / "sim"), daily=False)
     files = sorted(str(path) for path in (tmp_path / "sim").glob("*/*ptrc_T.nc"))
