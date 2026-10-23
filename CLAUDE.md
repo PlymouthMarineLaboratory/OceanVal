@@ -59,6 +59,9 @@ tests patch it with `raising=False`), and the report notebooks' kernels import t
 oceanval, so reinstall (`pip install --no-deps .`) before running report tests against changed code.
 `_run_filtered` waits for the process, not the end of its pipe (`_OUTPUT_GRACE`): nctoolkit's Manager
 servers in a kernel that died keep the pipe open, which hung the interim report's builder.
+Never put conda's `lib` on `DYLD_LIBRARY_PATH` (`utils.restrict_r_to_conda` sets `LD_LIBRARY_PATH` on Linux only):
+dyld swaps libraries by file name, so ImageIO's own `libPng.dylib` became conda's libpng (the file system ignores
+case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS in `QuartzBitmap_Close`).
 
 ## Architecture
 

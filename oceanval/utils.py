@@ -55,8 +55,11 @@ def restrict_r_to_conda():
         return
     os.environ["R_HOME"] = r_home
     _prepend_path("PATH", os.path.join(conda_prefix, "bin"))
-    lib_var = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
-    _prepend_path(lib_var, os.path.join(conda_prefix, "lib"))
+    # not DYLD_LIBRARY_PATH on macOS: dyld swaps libraries by file name, system ones too, so
+    # ImageIO's own libPng.dylib became conda's libpng (the file system ignores case) and R's
+    # quartz png device crashed the kernel; conda's macOS libraries find each other by @rpath
+    if sys.platform != "darwin":
+        _prepend_path("LD_LIBRARY_PATH", os.path.join(conda_prefix, "lib"))
 
     # R still falls back to a personal package library (e.g. ~/R/...) unless
     # told otherwise, which can hold packages built against a different R ABI
