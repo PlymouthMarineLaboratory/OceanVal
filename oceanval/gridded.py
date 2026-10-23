@@ -1,6 +1,7 @@
 import glob
 import copy
 import datetime
+import math
 import os
 import re
 import traceback
@@ -21,7 +22,12 @@ from oceanval.fvcom import fvcom_matchup_files
 from oceanval.utils import extension_of_directory, loud_warning
 from oceanval.session import session_info
 from oceanval.time_stamps import stored_time_shift
+from oceanval.transects import wraps_round
 from oceanval.parsers import Validator, definitions
+
+# the grid, in degrees, that a model and observations spanning more than 90
+# degrees are both put on
+COMMON_RES = 0.5
 
 
 def _failure_log():
@@ -211,14 +217,46 @@ def _regrid_onto_common_grid(ds_model, ds_obs):
     for validation purposes.
     """
     model_lon_min, model_lon_max, model_lat_min, model_lat_max = _lonlat_bounds(ds_model)
+    ds_xr = ds_model.to_xarray()
+    if wraps_round(ds_xr[[x for x in ds_xr.coords if "lon" in x][0]].values):
+        # a global model's outermost centres would cut the obs' edge columns
+        model_lon_min, model_lon_max = -180, 180
     ds_obs.crop(lon=[model_lon_min, model_lon_max], lat=[model_lat_min, model_lat_max])
 
     lon_min, lon_max, lat_min, lat_max = _lonlat_bounds(ds_obs)
     if (lon_max - lon_min) > 90 or (lat_max - lat_min) > 90:
-        ds_model.to_latlon(lon=[lon_min, lon_max], lat=[lat_min, lat_max], res=0.5)
-        ds_obs.to_latlon(lon=[lon_min, lon_max], lat=[lat_min, lat_max], res=0.5)
+        lons = [lon_min, lon_max]
+        ds_xr = ds_obs.to_xarray()
+        lon_name = [x for x in ds_xr.coords if "lon" in x][0]
+        if wraps_round(ds_xr[lon_name].values):
+            # all the way round the globe, or there is a gap at the date line
+            # that nothing can be interpolated across (a 1 degree product's
+            # centres, -179.5 to 179.5, gave 719 cells and a transect at 180
+            # found nothing): 720 cells, on the same lattice as before
+            west = lon_min - COMMON_RES * math.floor((lon_min + 180) / COMMON_RES + 1e-9)
+            lons = [west, west + 360 - COMMON_RES]
+        ds_model.to_latlon(lon=lons, lat=[lat_min, lat_max], res=COMMON_RES)
+        ds_obs.to_latlon(lon=lons, lat=[lat_min, lat_max], res=COMMON_RES)
     else:
         ds_model.regrid(ds_obs, method="bil")
+
+
+def _crop_to_model_data(ds):
+    """Crop ds to the lon/lat extent that actually has non-missing model
+    values - the model grid's own coordinates can span a wider box than the
+    area it has data for. A grid all the way round the globe keeps all its
+    longitudes, as dropping an empty column would leave a gap at the date line."""
+    df_test = ds.to_dataframe().reset_index()
+    lon_name = [x for x in df_test.columns if "lon" in x][0]
+    lat_name = [x for x in df_test.columns if "lat" in x][0]
+    wraps = wraps_round(df_test[lon_name].values)
+    df_test = df_test[df_test["model"].notna()]
+    lons = ((df_test[lon_name].values + 180) % 360) - 180
+    lon_min, lon_max = lons.min(), lons.max()
+    if wraps:
+        lon_min, lon_max = -180, 180
+    lat_min, lat_max = df_test[lat_name].min(), df_test[lat_name].max()
+    ds.subset(lon=[lon_min, lon_max], lat=[lat_min, lat_max])
 
 
 def _levels_of(path, names):
@@ -908,17 +946,7 @@ def gridded_matchup(
                         else:
                             add_to_obs = 0
 
-                    # crop to the lon/lat extent that actually has non-missing
-                    # model values - the model grid's own coordinates can span
-                    # a wider box than the area it has data for
-                    df_test = ds_model_surface.to_dataframe().reset_index()
-                    df_test = df_test[df_test["model"].notna()]
-                    lon_name = [x for x in df_test.columns if "lon" in x][0]
-                    lat_name = [x for x in df_test.columns if "lat" in x][0]
-                    lons = ((df_test[lon_name].values + 180) % 360) - 180
-                    lon_min, lon_max = lons.min(), lons.max()
-                    lat_min, lat_max = df_test[lat_name].min(), df_test[lat_name].max()
-                    ds_model_surface.subset(lon=[lon_min, lon_max], lat=[lat_min, lat_max])
+                    _crop_to_model_data(ds_model_surface)
 
                     ds_model_surface.to_nc(out_file, zip=True, overwrite=True)
                     out_file = out_file.replace(".nc", "_definitions.pkl")
@@ -1009,18 +1037,7 @@ def gridded_matchup(
                             else:
                                 add_to_obs = 0
 
-                        # crop to the lon/lat extent that actually has
-                        # non-missing model values - the model grid's own
-                        # coordinates can span a wider box than the area it
-                        # has data for
-                        df_test = ds_model.to_dataframe().reset_index()
-                        df_test = df_test[df_test["model"].notna()]
-                        lon_name = [x for x in df_test.columns if "lon" in x][0]
-                        lat_name = [x for x in df_test.columns if "lat" in x][0]
-                        lons = ((df_test[lon_name].values + 180) % 360) - 180
-                        lon_min, lon_max = lons.min(), lons.max()
-                        lat_min, lat_max = df_test[lat_name].min(), df_test[lat_name].max()
-                        ds_model.subset(lon=[lon_min, lon_max], lat=[lat_min, lat_max])
+                        _crop_to_model_data(ds_model)
 
                         ds_model.to_nc(out_file_vertical, zip=True, overwrite=True)
                     out_file = out_file.replace(".nc", "_definitions.pkl")

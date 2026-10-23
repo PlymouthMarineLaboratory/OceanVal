@@ -194,6 +194,69 @@ def transect_steps(path, transect):
     return int(min(max(steps, 2), MAX_STEPS))
 
 
+def _lon_gaps(lons):
+    """Longitudes in -180 to 180, sorted and unique, and the gap east of each
+    to the next, round the globe."""
+    lons = np.asarray(lons, dtype=float).ravel()
+    lons = np.unique(_wrap(lons[np.isfinite(lons)]))
+    if len(lons) == 0:
+        return lons, lons
+    return lons, np.append(np.diff(lons), 360 - (lons[-1] - lons[0]))
+
+
+def wraps_round(lons):
+    """Whether longitudes (cell centres, 1D or curvilinear) go all the way
+    round the globe: no gap between them, round the globe, is much wider
+    than a cell, as the one beyond the edges of a grid that does not is (two
+    cells for a half degree grid stopping at 179.5°W and 179.5°E)."""
+    values = np.asarray(lons, dtype=float)
+    lons, gaps = _lon_gaps(values)
+    if len(lons) < 2:
+        return False
+    if values.ndim > 1:
+        # a cell is the step along a row of the grid
+        steps = np.abs(_wrap(np.diff(values, axis=-1))).ravel()
+    else:
+        steps = np.diff(lons)
+    steps = steps[np.isfinite(steps) & (steps > 0)]
+    return len(steps) > 0 and gaps.max() <= 1.5 * float(np.median(steps))
+
+
+def check_on_grid(path, transect):
+    """Raise a ValueError if the transect runs along a longitude (north-south)
+    or latitude (east-west) outside the matchup in path, where to_transect can
+    only give missing values: such as 180° in a matchup made on a grid that
+    stops at 179.5°W and 179.5°E."""
+    import xarray as xr
+
+    axis = "lon" if direction(transect) == "north-south" else "lat"
+    with xr.open_dataset(path, decode_times=False) as data:
+        name = _coordinate(list(data.coords) + list(data.variables), axis)
+        values = np.asarray(data[name].values, dtype=float).ravel()
+    values = values[np.isfinite(values)]
+    start, _ = line_ends(transect)
+    if axis == "lat":
+        lat = start[1]
+        if len(values) and not values.min() <= lat <= values.max():
+            raise ValueError(
+                f"the transect runs along {format_lat(lat)}, outside the matchup's "
+                f"latitudes, {format_lat(values.min())} to {format_lat(values.max())}"
+            )
+        return
+    lons, gaps = _lon_gaps(values)
+    if len(lons) < 2 or wraps_round(values):
+        return
+    # the widest gap between the longitudes, round the globe, is outside the grid
+    widest = int(gaps.argmax())
+    west, east = lons[(widest + 1) % len(lons)], lons[widest]
+    beyond = (start[0] - east) % 360
+    if 1e-6 < beyond < gaps[widest] - 1e-6:
+        raise ValueError(
+            f"the transect runs along {format_lon(start[0])}, outside the matchup's "
+            f"longitudes, {format_lon(west)} to {format_lon(east)}"
+        )
+
+
 def _is_time(data, name):
     if "time" in name.lower():
         return True
@@ -279,6 +342,7 @@ def surface_frame(path, transect, steps):
     model, observation and bias."""
     import nctoolkit as nc
 
+    check_on_grid(path, transect)
     start, end = line_ends(transect)
     ds = nc.open_data(path, checks=False)
     ds.subset(variables=["model", "observation"])
@@ -343,6 +407,7 @@ def section_frame(path, transect, steps):
     would pair every depth of one with every depth of the other if they
     were not extracted separately, so they are, onto the same depths.
     """
+    check_on_grid(path, transect)
     observation, depths = _section_of(path, "observation", transect, steps)
     if observation is None:
         return None

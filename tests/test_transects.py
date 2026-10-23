@@ -246,6 +246,59 @@ class TestMapExtent:
         assert east - west >= 20 and north - south >= 12
 
 
+class TestOnTheGrid:
+    # a 1 degree product's centres put on a half degree grid stopped at 179.5°W
+    # and 179.5°E: there was nothing at 180° for to_transect to interpolate across
+    SHORT = np.arange(-179.5, 179.51, 0.5)
+    DATELINE = {"start": [180, -10], "end": [180, 10]}
+
+    def test_longitudes_all_the_way_round(self):
+        assert transects.wraps_round(np.arange(-179.5, 180, 1.0))
+        assert transects.wraps_round(np.arange(0.5, 360, 1.0))
+        assert transects.wraps_round(np.arange(-180, 180, 0.5))
+        # curvilinear, as a model's are: each row's centres shifted unevenly
+        rows = np.random.default_rng(1).uniform(0, 1, (50, 1))
+        assert transects.wraps_round(np.arange(-180, 180, 1.0)[None, :] + rows)
+        assert not transects.wraps_round(np.arange(-20, 10, 1.0)[None, :] + rows)
+
+    def test_longitudes_with_a_gap(self):
+        assert not transects.wraps_round(self.SHORT)
+        assert not transects.wraps_round(np.arange(-20, 10, 0.1))
+        # across the date line, the gap is in the middle
+        assert not transects.wraps_round(np.arange(170, 190.01, 0.5))
+        assert not transects.wraps_round([5.0])
+
+    def test_a_line_off_the_grid_says_so(self, tmp_path):
+        path = write_matchup(tmp_path / "short.nc", lon=self.SHORT, lat=np.arange(-20, 20.1, 0.5))
+
+        with pytest.raises(ValueError, match="along 180°, outside the matchup's longitudes, 179.5°W to 179.5°E"):
+            transects.check_on_grid(path, self.DATELINE)
+        with pytest.raises(ValueError, match="along 179.75°E"):
+            transects.check_on_grid(path, {"start": [179.75, -10], "end": [179.75, 10]})
+        # the edge columns themselves are on it
+        transects.check_on_grid(path, {"start": [179.5, -10], "end": [179.5, 10]})
+        transects.check_on_grid(path, {"start": [-179.5, -10], "end": [-179.5, 10]})
+
+    def test_a_grid_all_the_way_round_has_180(self, tmp_path):
+        path = write_matchup(tmp_path / "round.nc", lon=np.arange(-180, 179.51, 0.5), lat=np.arange(-20, 20.1, 0.5))
+
+        transects.check_on_grid(path, self.DATELINE)
+
+    def test_a_grid_across_the_date_line(self, tmp_path):
+        path = write_matchup(tmp_path / "pacific.nc", lon=np.arange(170, 190.01, 0.5))
+
+        transects.check_on_grid(path, {"start": [185, 45], "end": [185, 65]})
+        transects.check_on_grid(path, {"start": [-175, 45], "end": [-175, 65]})
+        with pytest.raises(ValueError, match="along 160°E, outside the matchup's longitudes, 170°E to 170°W"):
+            transects.check_on_grid(path, {"start": [160, 45], "end": [160, 65]})
+
+    def test_an_east_west_line_off_the_grid_says_so(self, matchups):
+        with pytest.raises(ValueError, match="along 75°N, outside the matchup's latitudes, 40°N to 70°N"):
+            transects.check_on_grid(matchups["surface"], {"start": [-15, 75], "end": [5, 75]})
+        transects.check_on_grid(matchups["surface"], EAST_WEST)
+        transects.check_on_grid(matchups["surface"], NORTH_SOUTH)
+
+
 class TestDepthName:
     def dataset(self, name, **attrs):
         return xr.Dataset(
@@ -351,6 +404,19 @@ class TestExtraction:
 
         assert len(frame) == 0
         assert list(frame.columns) == ["position", "month", "model", "observation", "bias"]
+
+    def test_a_line_along_180_is_found_on_a_grid_all_the_way_round(self, tmp_path):
+        path = write_matchup(tmp_path / "round.nc", lon=np.arange(-180, 179.51, 0.5), lat=np.arange(-20, 20.1, 0.5))
+        frame = transects.surface_frame(path, TestOnTheGrid.DATELINE, 41)
+
+        assert len(frame) == 41 * 12
+        assert frame.model.notna().all() and frame.observation.notna().all()
+
+    def test_a_line_off_the_grid_is_not_extracted(self, tmp_path):
+        path = write_matchup(tmp_path / "short.nc", lon=TestOnTheGrid.SHORT, lat=np.arange(-20, 20.1, 0.5))
+
+        with pytest.raises(ValueError, match="outside the matchup's longitudes"):
+            transects.surface_frame(path, TestOnTheGrid.DATELINE, 41)
 
     def test_a_single_month_has_one_month(self, matchups):
         frame = transects.surface_frame(matchups["one_month"], NORTH_SOUTH, 21)
