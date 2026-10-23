@@ -130,7 +130,9 @@ servers in a kernel that died keep the pipe open, which hung the interim report'
 - `oceanval/user_cache.py` keeps a JSON `~/.oceanvalcache` (or `$OCEANVALCACHE`, which the
   autouse `oceanvalcache` fixture in `tests/conftest.py` points at a temp file) of the simulation
   directories matched up before. `matchup()` records its `sim_dir` as soon as the user confirms the matchups ("Are you happy…" → y); the window's
-  setup page lists them (`state()["setup"]["recent"]`, those that still exist) in a list opened by an arrow inside the `#f-simdir` box.
+  setup page lists them (`state()["setup"]["recent"]`, those that still exist) in a list opened by an arrow inside the `#f-simdir` box (Validate and Analyze share it; Compare simulations' `#sc-dir_N` boxes have `makeRecent`).
+  Each entry has an x (`recentEntry`/`forgetRecent` in `oceanval_app.html`, empty button with the × drawn by CSS so an entry's text stays its path)
+  that posts `/api/forget_sim_dir` → `App.forget_sim_dir` → `user_cache.forget_sim_dir`; Delete does the same for the marked entry.
 - The package never ships or creates the file ahead of use, and writes are read-merge-write: other
   keys and entries survive, and an unreadable or newer-version file is left untouched. It must
   never raise, as a cache must not stop a run.

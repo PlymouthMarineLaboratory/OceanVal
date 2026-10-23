@@ -83,3 +83,66 @@ def test_a_place_that_cannot_be_written_does_not_raise(monkeypatch, tmp_path):
     monkeypatch.setenv("OCEANVALCACHE", str(blocker / "sub" / ".oceanvalcache"))
     assert not user_cache.record_sim_dir(str(tmp_path / "a"))
     assert user_cache.recent_sim_dirs() == []
+
+
+def test_one_simulation_can_be_forgotten(oceanvalcache, tmp_path):
+    for name in ("a", "b", "c"):
+        user_cache.record_sim_dir(str(tmp_path / name))
+    assert user_cache.forget_sim_dir(str(tmp_path / "b"))
+    assert user_cache.recent_sim_dirs() == [str(tmp_path / "c"), str(tmp_path / "a")]
+    assert os.listdir(oceanvalcache.parent) == [".oceanvalcache"]
+
+
+def test_forgetting_keeps_what_else_is_in_the_file(oceanvalcache):
+    oceanvalcache.write_text(json.dumps({
+        "version": 1,
+        "sim_dirs": [
+            {"path": "/old/sim", "last_used": "2020-01-01T00:00:00", "note": "mine"},
+            "/plain/sim",
+            {"path": "/other/sim"},
+        ],
+        "something_else": {"kept": True},
+    }))
+    assert user_cache.forget_sim_dir("/plain/sim")
+    data = json.loads(oceanvalcache.read_text())
+    assert data["something_else"] == {"kept": True}
+    assert data["sim_dirs"] == [
+        {"path": "/old/sim", "last_used": "2020-01-01T00:00:00", "note": "mine"},
+        {"path": "/other/sim"},
+    ]
+
+
+def test_forgetting_a_relative_path(oceanvalcache, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    user_cache.record_sim_dir("sim")
+    assert user_cache.forget_sim_dir("sim")
+    assert user_cache.recent_sim_dirs() == []
+
+
+def test_forgetting_what_is_not_there_writes_nothing(oceanvalcache, tmp_path):
+    assert user_cache.forget_sim_dir(str(tmp_path / "a"))
+    assert not oceanvalcache.exists()
+    user_cache.record_sim_dir(str(tmp_path / "a"))
+    before = oceanvalcache.stat().st_mtime_ns
+    assert user_cache.forget_sim_dir(str(tmp_path / "b"))
+    assert oceanvalcache.stat().st_mtime_ns == before
+
+
+def test_a_file_that_cannot_be_used_is_not_written_over_by_forgetting(oceanvalcache):
+    oceanvalcache.write_text("{ not json")
+    assert not user_cache.forget_sim_dir("/x")
+    assert oceanvalcache.read_text() == "{ not json"
+    text = json.dumps({"version": 99, "sim_dirs": [{"path": "/x"}]})
+    oceanvalcache.write_text(text)
+    assert not user_cache.forget_sim_dir("/x")
+    assert oceanvalcache.read_text() == text
+
+
+def test_a_place_that_cannot_be_written_does_not_raise_when_forgetting(oceanvalcache, monkeypatch):
+    user_cache.record_sim_dir("/x")
+
+    def refuse(where, data):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(user_cache, "_write", refuse)
+    assert not user_cache.forget_sim_dir("/x")

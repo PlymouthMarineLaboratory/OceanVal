@@ -8,7 +8,7 @@ environment variable names, if it is set). OceanVal never ships it and does not
 create it until there is something to remember, so installing or upgrading
 OceanVal leaves an existing file as it is. When something is added the whole
 file is read and written again, so what is already in it is kept; a file that
-cannot be read is left alone, and nothing is added to it.
+cannot be read is left alone, and nothing is added to it or removed from it.
 
 A cache must never stop a run, so nothing here raises.
 """
@@ -123,6 +123,35 @@ def record_sim_dir(sim_dir):
             if (entry.get("path") if isinstance(entry, dict) else entry) != sim_dir
         ]
         data["sim_dirs"] = ([{"path": sim_dir, "last_used": now}] + entries)[:MAX_SIM_DIRS]
+        _write(where, data)
+        return True
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False
+
+
+def forget_sim_dir(sim_dir):
+    """Take a simulation directory out of the file, leaving all else in it.
+    Returns whether it is now not in it (also when it never was)."""
+    try:
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was removed from it: {problem}")
+            return False
+        gone = {sim_dir, os.path.abspath(os.path.expanduser(sim_dir))}
+        entries = [
+            entry for entry in data["sim_dirs"]
+            if (entry.get("path") if isinstance(entry, dict) else entry) not in gone
+        ]
+        if len(entries) == len(data["sim_dirs"]):
+            return True
+        data["sim_dirs"] = entries
         _write(where, data)
         return True
     except Exception as error:

@@ -292,6 +292,15 @@
     font: 400 13px/18px var(--font-mono); color: var(--ink); overflow-wrap: anywhere;
   }
   .combo__option:hover, .combo__option.is-active { background: var(--teal-50); }
+  /* the x of an entry of the directories used before */
+  .combo__option--removable { display: flex; align-items: flex-start; gap: 6px; justify-content: space-between; }
+  .combo__remove {
+    flex: none; width: 20px; height: 18px; padding: 0; border: 0; border-radius: var(--radius-sm);
+    background: none; color: var(--muted); cursor: pointer;
+  }
+  .combo__remove::before { content: "×"; font: 600 16px/18px var(--font-body); }
+  .combo__remove:hover { background: var(--line); color: var(--ink); }
+  .combo__remove:focus-visible { outline: none; box-shadow: var(--focus); }
 
   /* ---- the folder browser ---- */
   .picker__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 20px 22px 10px; }
@@ -2098,6 +2107,28 @@
     }
   }
 
+  // an entry of a list of directories used before: the entry picks it, the x takes it out of the history
+  async function forgetRecent(dir, refill) {
+    const reply = await post("api/forget_sim_dir", { path: dir });
+    if (!reply.ok) {
+      toast(reply.error || "Could not remove it.");
+      return;
+    }
+    state.setup.recent = (state.setup.recent || []).filter((other) => other !== dir);
+    refill();
+  }
+
+  function recentEntry(dir, pick, forget) {
+    return el("li", {
+      class: "combo__option combo__option--removable", role: "option", "aria-selected": "false", title: dir, text: dir,
+      // mousedown, so the box keeps its focus
+      onmousedown: (event) => { event.preventDefault(); pick(dir); },
+    }, el("button", {
+      type: "button", class: "combo__remove", tabindex: "-1", title: "Remove from the list", "aria-label": `Remove ${dir} from the list`,
+      onmousedown: (event) => { event.preventDefault(); event.stopPropagation(); forget(dir); },
+    }));
+  }
+
   function showDone(kind) {
     document.querySelectorAll("input, button, select").forEach((control) => { control.disabled = true; });
     const closed = kind === "closed";
@@ -2705,13 +2736,17 @@
     $("f-simdir-combo").classList.toggle("has-recent", recent.length > 0);
     recentList.replaceChildren(
       el("li", { class: "combo__head", role: "presentation", text: state.action === "analyze" ? "Used before" : "Validated before" }),
-      ...recent.map((dir) => el("li", {
-        class: "combo__option", role: "option", "aria-selected": "false", title: dir, text: dir,
-        // mousedown, so the box keeps its focus
-        onmousedown: (event) => { event.preventDefault(); pickRecent(dir); },
-      })),
+      ...recent.map((dir) => recentEntry(dir, pickRecent, forgetFromRecent)),
     );
     showRecent(false);
+  }
+
+  // the list stays open for the next one
+  function forgetFromRecent(dir) {
+    return forgetRecent(dir, () => {
+      fillRecent();
+      if ((state.setup.recent || []).length) showRecent(true);
+    });
   }
 
   recentToggle.addEventListener("mousedown", (event) => event.preventDefault());
@@ -2735,6 +2770,12 @@
     } else if (event.key === "Enter" && recentActive >= 0) {
       event.preventDefault();
       pickRecent(recentOptions()[recentActive].textContent);
+    } else if (event.key === "Delete" && recentActive >= 0) {
+      event.preventDefault();
+      const at = recentActive;
+      forgetFromRecent(recentOptions()[at].textContent).then(() => {
+        if (recentOptions().length) markRecent(Math.min(at, recentOptions().length - 1));
+      });
     } else if (event.key === "Escape" || event.key === "Tab") {
       if (event.key === "Escape") event.preventDefault();
       showRecent(false);
@@ -7413,6 +7454,12 @@
       } else if (event.key === "Enter" && active >= 0) {
         event.preventDefault();
         pick(options()[active].textContent);
+      } else if (event.key === "Delete" && active >= 0) {
+        event.preventDefault();
+        const at = active;
+        forget(options()[at].textContent).then(() => {
+          if (options().length) mark(Math.min(at, options().length - 1));
+        });
       } else if (event.key === "Escape" || event.key === "Tab") {
         if (event.key === "Escape") event.preventDefault();
         show(false);
@@ -7420,18 +7467,21 @@
     });
     box.addEventListener("input", () => { if (!list.hidden) show(false); });
     document.addEventListener("mousedown", (event) => { if (!list.hidden && !combo.contains(event.target)) show(false); });
-    return () => {
+    const fill = () => {
       const recent = state.setup.recent || [];
       toggle.hidden = !recent.length;
       combo.classList.toggle("has-recent", recent.length > 0);
       list.replaceChildren(
         el("li", { class: "combo__head", role: "presentation", text: "Used before" }),
-        ...recent.map((dir) => el("li", {
-          class: "combo__option", role: "option", "aria-selected": "false", title: dir, text: dir,
-          onmousedown: (event) => { event.preventDefault(); pick(dir); },
-        })));
+        ...recent.map((dir) => recentEntry(dir, pick, forget)));
       show(false);
     };
+    // every box offers the same directories, and the list stays open for the next one
+    const forget = (dir) => forgetRecent(dir, () => {
+      scSims.fillRecent.forEach((again) => again());
+      if ((state.setup.recent || []).length) show(true);
+    });
+    return fill;
   }
 
   // ---- the simulations ----

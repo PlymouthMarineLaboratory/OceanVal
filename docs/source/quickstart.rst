@@ -53,7 +53,8 @@ Simulations you have validated before (remembered as soon as you confirm the
 matchups) are listed by the arrow at the right of the simulation directory
 box, so you can pick one instead of typing it. They are remembered in a ``.oceanvalcache`` JSON file in your home directory (the
 ``OCEANVALCACHE`` environment variable names another file to use in its
-place). OceanVal only adds to it, and a new version keeps it.
+place). A new version keeps it. The **x** at the right of a simulation in the list
+takes it out of the history (the Delete key does the same for the one marked).
 
 Closing the browser window quits ``oceanval`` in the terminal, within about
 15 seconds, stopping anything it is running, whichever browser you use. So

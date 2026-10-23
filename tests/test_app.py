@@ -1315,6 +1315,7 @@ class TestServer:
         assert get(app, "/api/state", token="wrong")[0] == 403
         assert get(app, "/api/browse", token="wrong", path="/")[0] == 403
         assert post(app, "/api/quit", token="wrong")[0] == 403
+        assert post(app, "/api/forget_sim_dir", {"path": "/x"}, token="wrong")[0] == 403
         assert not app.closed.is_set()
 
     def test_the_page(self, app):
@@ -1335,6 +1336,22 @@ class TestServer:
         user_cache.record_sim_dir(str(tmp_path / "here"))
         state = page_state(get(app, "/")[1])["state"]
         assert state["setup"]["recent"] == [str(tmp_path / "here")]
+
+    def test_a_simulation_matched_up_before_can_be_forgotten(self, app, tmp_path):
+        from oceanval import user_cache
+
+        for name in ("one", "two"):
+            (tmp_path / name).mkdir()
+            user_cache.record_sim_dir(str(tmp_path / name))
+        version = app.version
+        assert post(app, "/api/forget_sim_dir", {"path": str(tmp_path / "two")})[0] == 200
+        assert app.version > version
+        assert app.state()["setup"]["recent"] == [str(tmp_path / "one")]
+        # what is not there is already forgotten, but something must be named
+        assert post(app, "/api/forget_sim_dir", {"path": str(tmp_path / "two")})[0] == 200
+        assert post(app, "/api/forget_sim_dir", {})[0] == 409
+        assert post(app, "/api/forget_sim_dir", {"path": 3})[0] == 409
+        assert app.state()["setup"]["recent"] == [str(tmp_path / "one")]
 
     def test_choosing(self, app):
         assert post(app, "/api/choose", {"action": "everything"})[0] == 409
@@ -6330,6 +6347,127 @@ def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path)
         page.keyboard.press("Enter")
         assert page.input_value("#f-simdir") == str(tmp_path / "sim")
         assert page.is_hidden("#f-simdir-recent")
+    finally:
+        app.close()
+
+
+def _recent_dirs(tmp_path, names):
+    """Simulation directories that exist and have been matched up, the first
+    named the earliest."""
+    from oceanval import user_cache
+
+    for name in names:
+        (tmp_path / name).mkdir()
+        user_cache.record_sim_dir(str(tmp_path / name))
+    return [str(tmp_path / name) for name in reversed(names)]
+
+
+def _forget_in_a_list(page, list_id, toggle_id, tmp_path):
+    """Take the entries of a list of directories used before out with the x,
+    then with the Delete key: the list stays open for the next."""
+    from oceanval import user_cache
+
+    page.click(toggle_id)
+    options = page.locator(f"{list_id} .combo__option")
+    # the x is not part of an entry's text
+    assert options.all_text_contents() == [str(tmp_path / name) for name in ("c", "b", "a")]
+    options.nth(1).locator(".combo__remove").click()
+    page.wait_for_function(f"document.querySelectorAll('{list_id} .combo__option').length === 2")
+    assert page.is_visible(list_id)
+    assert options.all_text_contents() == [str(tmp_path / name) for name in ("c", "a")]
+    assert user_cache.recent_sim_dirs() == [str(tmp_path / name) for name in ("c", "a")]
+
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Delete")
+    page.wait_for_function(f"document.querySelectorAll('{list_id} .combo__option').length === 1")
+    assert user_cache.recent_sim_dirs() == [str(tmp_path / "c")]
+    # the next entry is marked
+    page.wait_for_selector(f"{list_id} .combo__option.is-active")
+    assert page.locator(f"{list_id} .combo__option.is-active").all_text_contents() == [str(tmp_path / "c")]
+
+    options.first.locator(".combo__remove").click()
+    page.wait_for_function(f"document.querySelectorAll('{list_id} .combo__option').length === 0")
+    assert user_cache.recent_sim_dirs() == []
+    assert page.is_hidden(toggle_id)
+    assert page.is_hidden(list_id)
+
+
+def test_taking_a_simulation_out_of_the_validate_list_in_a_browser(browser, tmp_path):
+    """The x beside a simulation validated before takes it out of the history,
+    and does not choose it."""
+    _recent_dirs(tmp_path, ["a", "b", "c"])
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.click('button.choice[data-action="matchup"]')
+        page.wait_for_selector("#view-setup:not([hidden])")
+        _forget_in_a_list(page, "#f-simdir-recent", "#f-simdir-recent-toggle", tmp_path)
+        # none of it chose a directory
+        assert page.input_value("#f-simdir") == ""
+        assert errors == []
+    finally:
+        app.close()
+
+
+def test_taking_a_simulation_out_of_the_analyze_list_in_a_browser(browser, tmp_path):
+    _recent_dirs(tmp_path, ["a", "b", "c"])
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.click("#home-analyze")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        _forget_in_a_list(page, "#f-simdir-recent", "#f-simdir-recent-toggle", tmp_path)
+        assert page.input_value("#f-simdir") == ""
+        assert errors == []
+    finally:
+        app.close()
+
+
+def test_taking_a_simulation_out_of_the_compare_simulations_lists_in_a_browser(browser, tmp_path):
+    _recent_dirs(tmp_path, ["a", "b", "c"])
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.click("#home-simcompare")
+        page.wait_for_selector("#view-simcompare-sims:not([hidden])")
+        _forget_in_a_list(page, "#sc-dir_1-recent", "#sc-dir_1-recent-toggle", tmp_path)
+        assert page.input_value("#sc-dir_1") == ""
+        # and so are the other boxes' lists
+        assert page.is_hidden("#sc-dir_2-recent-toggle")
+        assert errors == []
+    finally:
+        app.close()
+
+
+def test_a_simulation_taken_out_in_one_compare_simulations_box_goes_from_the_others(browser, tmp_path):
+    _recent_dirs(tmp_path, ["a", "b"])
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click("#home-simcompare")
+        page.wait_for_selector("#view-simcompare-sims:not([hidden])")
+        page.click("#sc-dir_1-recent-toggle")
+        page.locator("#sc-dir_1-recent .combo__option").first.locator(".combo__remove").click()
+        page.wait_for_function(
+            "document.querySelectorAll('#sc-dir_2-recent .combo__option').length === 1"
+        )
+        assert page.locator("#sc-dir_2-recent .combo__option").all_text_contents() == [str(tmp_path / "a")]
     finally:
         app.close()
 

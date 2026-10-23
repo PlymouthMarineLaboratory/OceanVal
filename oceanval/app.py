@@ -2607,6 +2607,16 @@ class App(AnalyzeSteps, SimCompareSteps):
             self._notify()
             return True
 
+    def forget_sim_dir(self, sim_dir):
+        """Take one simulation directory out of the list of those used before."""
+        if not isinstance(sim_dir, str) or not sim_dir:
+            return False
+        with self._lock:
+            if not user_cache.forget_sim_dir(sim_dir):
+                return False
+            self._notify()
+            return True
+
     def next_own_data(self):
         """Move on from the point data step, to the gridded data step, and
         from that to the recipes."""
@@ -4490,6 +4500,7 @@ class _Handler(recipes_gui._Handler):
             "/api/own_remove": lambda: app.remove_own_data(
                 payload.get("kind"), payload.get("index")
             ),
+            "/api/forget_sim_dir": lambda: app.forget_sim_dir(payload.get("path")),
             "/api/demo_detail": lambda: app.demo_detail(payload.get("concise")),
             "/api/demo_continue": app.demo_continue,
             "/api/own_next": app.next_own_data,
