@@ -320,6 +320,45 @@ class TestBinding:
         assert status["built"] == ["Temperature (WOA23)", "Oxygen (ICES point data)"]
         assert status["landing"] == report.landing
 
+    def test_each_matchups_page_is_in_the_status(self, report, monkeypatch):
+        """For the oceanval window's grid of the matchups: the page being
+        made, the pages that can be opened, and those that could not be made."""
+        temperature = live.matchup_key("gridded", "temperature", "woa23")
+        oxygen = live.matchup_key("point", "oxygen", "ices", "all")
+
+        def make_page(matchup):
+            if matchup["variable"] == "oxygen":
+                raise RuntimeError("no page")
+            return os.path.join(report.notebooks_dir, "woa23_temperature.ipynb"), "woa23_temperature"
+
+        keys = []
+        write_status = report.write_status
+
+        def written(state, building=None, building_key=None):
+            keys.append(building_key)
+            write_status(state, building, building_key)
+
+        monkeypatch.setattr(report, "make_page", make_page)
+        monkeypatch.setattr(report, "run_notebook", lambda path: None)
+        monkeypatch.setattr(report, "write_status", written)
+        report.summary = os.path.join(report.notebooks_dir, "summary.ipynb")
+        report.add([
+            {"kind": "gridded", "variable": "temperature", "source": "woa23", "layer": None},
+            {"kind": "point", "variable": "oxygen", "source": "ices", "layer": "all"},
+        ])
+
+        # each is said to be made as it is, and none once they are
+        assert keys == [temperature, oxygen, None]
+        status = json.load(open(report.status_path))
+        assert status["included"] == [temperature, oxygen, live.matchup_key("gridded", "nitrate", "woa23")]
+        # only once it is bound, so that it can be opened
+        assert status["added"] == {
+            temperature: os.path.join(report.html_dir, "notebooks", "woa23_temperature.html")
+        }
+        assert os.path.exists(status["added"][temperature])
+        assert status["failed"] == [oxygen]
+        assert status["building_key"] is None
+
     def test_labels(self, report):
         assert report.label({"kind": "gridded", "variable": "nitrate", "source": "woa23"}) == "Nitrate (WOA23)"
         assert (

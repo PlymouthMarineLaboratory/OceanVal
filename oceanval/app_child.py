@@ -18,6 +18,8 @@ written there as one line, QUESTION_MARKER followed by the question as JSON,
 and the answer given in the window is read back from stdin: a line as
 typed, or ANSWER_MARKER followed by {"answer": ..., "settings": {...}} as
 JSON, for an answer that comes with settings (see oceanval.prompts.Answer).
+How the run is going, told through oceanval.prompts.tell, is a line of its
+own too, PROGRESS_MARKER followed by the news as JSON, which needs no answer.
 """
 
 import json
@@ -27,6 +29,7 @@ import webbrowser
 
 QUESTION_MARKER = "\x1eoceanval-question "
 ANSWER_MARKER = "\x1eoceanval-answer "
+PROGRESS_MARKER = "\x1eoceanval-progress "
 
 
 def _ask_the_window(question, choices, details=None):
@@ -50,6 +53,16 @@ def _ask_the_window(question, choices, details=None):
         given = json.loads(answer[len(ANSWER_MARKER) :])
         return Answer(given["answer"], given.get("settings"))
     return answer
+
+
+def _tell_the_window(news):
+    # in its place among what was printed
+    sys.stdout.flush()
+    sys.stderr.flush()
+    out = sys.__stdout__
+    out.write(PROGRESS_MARKER + json.dumps(news))
+    out.write("\n")
+    out.flush()
 
 
 def _say_where(url, *args, **kwargs):
@@ -87,7 +100,7 @@ def main(argv=None):
         # for keys that never come
         webbrowser.open = _say_where
 
-    with prompts.answered_by(_ask_the_window):
+    with prompts.answered_by(_ask_the_window), prompts.told_by(_tell_the_window):
         if kind in ("analyze", "simcompare"):
             sys.argv = [argument]
             runpy.run_path(argument, run_name="__main__")

@@ -710,7 +710,7 @@ def test_the_analysis_report_is_served(app, tmp_path):
 class FakeRun:
     """A run that is started and runs until the test is over."""
 
-    def __init__(self, args, *_):
+    def __init__(self, args, *_, **__):
         self.args = args
         self.returncode = None
 
@@ -748,6 +748,8 @@ def test_the_report_built_a_variable_at_a_time_is_linked_as_it_goes(app, tmp_pat
     assert not status.exists()
     assert get_json(app, "/api/state")[1]["interim"] == {
         "state": "waiting", "pages": 0, "expected": None, "what": what, "href": None,
+        # only a validation's matchups are in its grid
+        "included": None, "building_key": None, "added": {}, "failed": [],
     }
     (pages / "000_overview.html").write_text("<p>overview</p>")
     status.write_text(
@@ -758,6 +760,7 @@ def test_the_report_built_a_variable_at_a_time_is_linked_as_it_goes(app, tmp_pat
     assert interim == {
         "state": "building", "pages": 1, "expected": 2, "what": what,
         "href": f"{which}/{app.token}/notebooks/000_overview.html",
+        "included": None, "building_key": None, "added": {}, "failed": [],
     }
     assert get(app, "/" + interim["href"], token=None) == (200, "<p>overview</p>")
 

@@ -61,14 +61,14 @@ import urllib.parse
 
 import oceanval
 from oceanval import leftovers, live, prompts, recipes_gui
-from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
+from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
 from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store
-from oceanval import depths, model_check, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import depths, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
     POINT_RECIPE_CATALOGUE,
@@ -148,6 +148,11 @@ COMPARISON_LANDING = ("notebooks", "comparison_seasonal.html")
 # the depths the simulation step looks for output files at, when there are
 # none where it was told to look
 _SEARCH_DEPTHS = range(4)
+
+# how long the recipes window waits for the years of the output to be read
+# from its files' times (a few seconds, usually done before it opens), before
+# its years are boxes to type in instead of lists of them
+OUTPUT_YEARS_WAIT = 120
 
 # the folder browser lists at most this many folders, and counts the rest
 _MOST_FOLDERS = 2000
@@ -885,6 +890,11 @@ def _simulation(where):
     )
 
 
+def _output_key(key):
+    """A simulation's files (see _simulation) as the page compares them."""
+    return json.dumps(list(key))
+
+
 def _dataset_options(sent):
     """One ticked dataset's options, as the recipes window sent them."""
     sent = sent if isinstance(sent, dict) else {}
@@ -1081,9 +1091,11 @@ def _served_file(root, path, allowed=None):
 
 
 def _partial_marker(text):
-    """How much of the end of text could be the start of a question."""
-    for size in range(min(len(text), len(QUESTION_MARKER) - 1), 0, -1):
-        if QUESTION_MARKER.startswith(text[-size:]):
+    """How much of the end of text could be the start of a question, or of
+    news of how the run is going."""
+    longest = max(len(QUESTION_MARKER), len(PROGRESS_MARKER))
+    for size in range(min(len(text), longest - 1), 0, -1):
+        if QUESTION_MARKER.startswith(text[-size:]) or PROGRESS_MARKER.startswith(text[-size:]):
             return size
     return 0
 
@@ -1237,15 +1249,17 @@ class Run:
     """matchup or validate, running in a process of its own.
 
     args are oceanval.app_child's. Its output goes to console, each question
-    it asks to ask(question, choices, respond, details), and finished(run) is
-    called once it has stopped.
+    it asks to ask(question, choices, respond, details), what it tells of how
+    it is going (see oceanval.prompts.tell) to told(news), and finished(run)
+    is called once it has stopped.
     """
 
-    def __init__(self, args, cwd, console, ask, finished):
+    def __init__(self, args, cwd, console, ask, finished, told=None):
         self.args = list(args)
         self.cwd = cwd
         self.console = console
         self._ask = ask
+        self._told = told
         self._finished = finished
         self.process = None
         self.returncode = None
@@ -1292,26 +1306,39 @@ class Run:
         self.console.write(pending + decoder.decode(b"", final=True))
 
     def _take(self, text):
-        """Pass text on to the console, and questions to ask. Returns what
-        is left over: an unfinished question, or what might start one."""
+        """Pass text on to the console, questions to ask, and news of how
+        the run is going to told. Returns what is left over: an unfinished
+        question or piece of news, or what might start one."""
         while True:
-            start = text.find(QUESTION_MARKER)
-            if start < 0:
+            found = [
+                (start, marker)
+                for marker in (QUESTION_MARKER, PROGRESS_MARKER)
+                for start in [text.find(marker)]
+                if start >= 0
+            ]
+            if not found:
                 keep = _partial_marker(text)
                 self.console.write(text[: len(text) - keep])
                 return text[len(text) - keep :]
+            start, marker = min(found)
             self.console.write(text[:start])
             end = text.find("\n", start)
             if end < 0:
                 return text[start:]
             try:
-                question = json.loads(text[start + len(QUESTION_MARKER) : end])
-                self._ask(
-                    question["question"],
-                    question.get("choices"),
-                    self.answer,
-                    question.get("details"),
-                )
+                message = json.loads(text[start + len(marker) : end])
+                if marker == PROGRESS_MARKER:
+                    if not isinstance(message, dict):
+                        raise TypeError("news is a dict")
+                    if self._told is not None:
+                        self._told(message)
+                else:
+                    self._ask(
+                        message["question"],
+                        message.get("choices"),
+                        self.answer,
+                        message.get("details"),
+                    )
             except (ValueError, KeyError, TypeError):
                 # printed by something else, then
                 self.console.write(text[start : end + 1])
@@ -1483,6 +1510,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         self._units_read = None
         self._own_given = None
         self._fvcom = None
+        # the years the output of the simulation in the simulation step covers,
+        # read from its files' times as it is typed in (see _read_output_years)
+        self._output_years = None
         self.run = None
         self.run_label = None
         self.status = None
@@ -1496,6 +1526,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         # the interim report a matchup and validate run builds as it goes:
         # its status.json, as last read (see _follow_interim), or None
         self.interim = None
+        # the matchups a matchup run is making, as it tells of them (see
+        # _matchup_news), for the page's grid of them, or None
+        self.matchup_progress = None
         # the temporary files earlier sessions left behind, which the page
         # offers to remove once, and whether the user has answered
         self.leftovers = leftovers.find_leftovers()
@@ -1617,6 +1650,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                     "form": self.analyze_setup_form if self.action == ANALYZE else self.setup_form,
                     "error": self.setup_error,
                     "recent": [d for d in user_cache.recent_sim_dirs() if os.path.isdir(d)],
+                    "output_years": self._output_years_state(),
                 },
                 "validate": {
                     "form": self.validate_form,
@@ -1698,6 +1732,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                         else None
                     ),
                     "identifying": self.identifying,
+                    "progress": self._matchup_progress_state(),
                     # whether Back can leave it for the units step
                     "back": self._run_back(),
                     # the file filters the script was written with, which
@@ -1796,6 +1831,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             return None
         status = self.interim["status"] or {}
         which = self.interim.get("which", "interim")
+        added = status.get("added")
         return {
             "state": status.get("state", "waiting"),
             "pages": status.get("pages", 0),
@@ -1803,7 +1839,68 @@ class App(AnalyzeSteps, SimCompareSteps):
             # a validation's, or the report of an analysis or a comparison of simulations
             "what": {"analysis": "analysis", "simcompare": "comparison"}.get(which, "validation"),
             "href": self._report_href(which, status.get("landing")),
+            # each matchup's, by live.matchup_key, for the grid of the matchups
+            "included": status.get("included"),
+            "building_key": status.get("building_key"),
+            "added": (
+                {key: self._report_href(which, path) for key, path in added.items()}
+                if isinstance(added, dict)
+                else {}
+            ),
+            "failed": status.get("failed") or [],
         }
+
+    def _matchup_news(self, run, news):
+        """What matchup tells of the matchups as it makes them (see
+        matchall._Told): the matchups to make, then each as it is started,
+        made or not, then that they are finished."""
+        with self._lock:
+            if run is not self.run:
+                return
+            kind = news.get("kind")
+            progress = self.matchup_progress
+            if kind == "matchups":
+                items = news.get("items")
+                self.matchup_progress = {
+                    "items": [
+                        item
+                        for item in (items if isinstance(items, list) else [])
+                        if isinstance(item, dict) and isinstance(item.get("key"), str)
+                    ],
+                    "states": {},
+                    "finished": False,
+                }
+            elif progress is None:
+                return
+            elif kind == "matchup" and news.get("state") in ("matching", "made", "not_made"):
+                progress["states"][str(news.get("key"))] = news["state"]
+            elif kind == "matchups_finished":
+                progress["finished"] = True
+            else:
+                return
+            self._notify()
+
+    def _matchup_progress_state(self):
+        """The grid of the matchups: each with its state, "waiting",
+        "matching", "made" or "not_made"."""
+        progress = self.matchup_progress
+        if progress is None:
+            return None
+        rows = []
+        for item in progress["items"]:
+            state = progress["states"].get(item["key"], "waiting")
+            if progress["finished"] and state != "made":
+                # left out without a word, or stopped half way
+                state = "not_made"
+            rows.append({
+                "key": item["key"],
+                "title": str(item.get("title") or item.get("variable") or ""),
+                "variable": str(item.get("variable") or ""),
+                "source": str(item.get("source") or ""),
+                "report": bool(item.get("report")),
+                "state": state,
+            })
+        return {"items": rows, "finished": progress["finished"]}
 
     def _analysis_interim(self, kind):
         """The report an Analyze (kind "analyze") or Compare simulations
@@ -2940,6 +3037,10 @@ class App(AnalyzeSteps, SimCompareSteps):
         page.form["overwrite"] = self.overwrite
         page.form["start"] = ""
         page.form["end"] = ""
+        # chosen by the user every time: the right number depends on the machine and the run
+        page.form["cores"] = ""
+        # the years to choose from, read from the output's times
+        page.context["output_years"] = self.output_years_of(_simulation(page.context))
         if self.demo is not None:
             page.form.update(DEMO_RECIPE_SETTINGS)
             # marked as OceanVal's in the window
@@ -3018,6 +3119,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             self.status = "starting"
             # the script, once written, starts by finding the files
             self.identifying = True
+            self.matchup_progress = None
             self._notify()
         out = page.context["out"]
         # to validate as well, the report is built once the script has run,
@@ -3310,6 +3412,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         self.question = None
         self.status = None
         self.identifying = False
+        self.matchup_progress = None
         self._script_writer = None
         self._drop_model_check()
         if self._own_given is not None:
@@ -3782,6 +3885,11 @@ class App(AnalyzeSteps, SimCompareSteps):
             if paths:
                 years = simulation_years(path, paths)
                 found["years"] = list(years) if years else None
+                if self.view == "setup" and self.action != ANALYZE:
+                    # the years the recipes window offers, read from the files' times
+                    key = _simulation({"simdir": path, "ndown": depth, **filters})
+                    found["output_key"] = _output_key(key)
+                    self._read_output_years(key, paths)
                 return found
             if found["all_files"]:
                 # the depth is right, and the filters leave out every file
@@ -3799,6 +3907,70 @@ class App(AnalyzeSteps, SimCompareSteps):
                 }
                 break
         return found
+
+    # ---- the years of the simulation's output ----
+
+    def _read_output_years(self, key, paths=None):
+        """Start reading the years the output of the simulation key (see
+        _simulation) covers from its files' times (see oceanval.output_years),
+        unless that is being done or done already. What was read for another
+        simulation is stopped and forgotten. paths are its files, found here
+        if not given. Returns the reading, as {"key", "reading", "result",
+        "done"}: result is None until done is set."""
+        with self._lock:
+            current = self._output_years
+            if current is not None and current["key"] == key:
+                return current
+        if paths is None:
+            paths = simulation_paths(
+                key[0], key[1], exclude=list(key[2]) or None, require=list(key[3]) or None
+            )
+        entry = {"key": key, "result": None, "done": threading.Event()}
+
+        def done(result):
+            with self._lock:
+                if self._output_years is entry:
+                    entry["result"] = result
+                    self._notify()
+            entry["done"].set()
+
+        entry["reading"] = output_years.Reading(key, paths, done)
+        with self._lock:
+            current = self._output_years
+            if current is not None and current["key"] == key:
+                # started by another request meanwhile
+                return current
+            self._output_years = entry
+        if current is not None:
+            current["reading"].cancel()
+            # nothing waits on it any more
+            current["done"].set()
+        entry["reading"].start()
+        return entry
+
+    def _output_years_state(self):
+        """What the page is told of the reading of the output's years: the
+        simulation it is for, as the probe's output_key, whether it is done,
+        and the years, if any were found."""
+        entry = self._output_years
+        if entry is None:
+            return None
+        result = entry["result"]
+        return {
+            "key": _output_key(entry["key"]),
+            "status": "reading" if result is None else "done",
+            "years": result.get("years") if result else None,
+        }
+
+    def output_years_of(self, key, timeout=OUTPUT_YEARS_WAIT):
+        """The first and last year of the output of the simulation key (see
+        _simulation), read from its files' times, waiting up to timeout
+        seconds for them; None if they could not be found in time."""
+        entry = self._read_output_years(key)
+        entry["done"].wait(timeout)
+        result = entry["result"]
+        years = result.get("years") if result else None
+        return list(years) if years else None
 
     def sample_files(self, simdir, ndown, avoid=""):
         """The netCDF files in one directory of the simulation, chosen at
@@ -3924,7 +4096,14 @@ class App(AnalyzeSteps, SimCompareSteps):
     # ---- the run ----
 
     def start_run(self, args, label):
-        run = Run(args, self.cwd, self.console, self._put_question, self._run_finished)
+        run = Run(
+            args,
+            self.cwd,
+            self.console,
+            self._put_question,
+            self._run_finished,
+            told=lambda news: self._matchup_news(run, news),
+        )
         with self._lock:
             if self.closed.is_set():
                 return
@@ -3937,6 +4116,9 @@ class App(AnalyzeSteps, SimCompareSteps):
             if script:
                 # a report run after it keeps the interim report's link
                 self.interim = None
+            if args[:1] != ["validate"]:
+                # the report run after a matchup keeps its grid of the matchups
+                self.matchup_progress = None
             self.identifying = script
             self.matchups_rejected = False
             self.matchup_script_saved = False
@@ -4167,7 +4349,10 @@ class App(AnalyzeSteps, SimCompareSteps):
             self._cancel_register_check()
             self._drop_model_check()
             self._drop_analyze_check()
+            reading, self._output_years = self._output_years, None
             self._notify()
+        if reading is not None:
+            reading["reading"].cancel()
         if run is not None:
             run.stop()
         if page is not None:

@@ -1,7 +1,9 @@
 """What OceanVal remembers of your earlier work, kept in a ``.oceanvalcache`` file.
 
 For now that is the simulation directories you have matched up, which the
-oceanval window offers again when you set up a run.
+oceanval window offers again when you set up a run, and the years the output
+of the simulations set up covers (see oceanval.output_years), which are read
+again only when their files change.
 
 The file is in your home directory (or is the file the ``OCEANVALCACHE``
 environment variable names, if it is set). OceanVal never ships it and does not
@@ -25,6 +27,7 @@ from oceanval.utils import loud_warning
 FILE_NAME = ".oceanvalcache"
 VERSION = 1
 MAX_SIM_DIRS = 20
+MAX_OUTPUT_YEARS = 50
 
 # a file that is unreadable is said so once, not on every look
 _warned = set()
@@ -152,6 +155,58 @@ def forget_sim_dir(sim_dir):
         if len(entries) == len(data["sim_dirs"]):
             return True
         data["sim_dirs"] = entries
+        _write(where, data)
+        return True
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False
+
+
+def _key(key):
+    return json.dumps(list(key), ensure_ascii=False)
+
+
+def output_years(key, stamp):
+    """The years of a simulation's output as record_output_years kept them
+    for key (its directory, depth and file filters), if its files are as
+    they were then (stamp, see output_years.signature); otherwise None."""
+    try:
+        where = path()
+        if not os.path.exists(where):
+            return None
+        data, problem = _load(where)
+        if problem:
+            return None
+        entry = (data.get("output_years") or {}).get(_key(key))
+        if isinstance(entry, dict) and entry.get("stamp") == list(stamp):
+            found = entry.get("found")
+            return found if isinstance(found, dict) else None
+    except Exception:
+        pass
+    return None
+
+
+def record_output_years(key, stamp, found):
+    """Keep the years of a simulation's output, found, for key while its
+    files are as stamp says. Returns whether it was written."""
+    try:
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was added to it: {problem}")
+            return False
+        kept = data.get("output_years", {})
+        if not isinstance(kept, dict):
+            return False
+        kept.pop(_key(key), None)
+        kept[_key(key)] = {"stamp": list(stamp), "found": found}
+        # the latest last, and only so many
+        data["output_years"] = dict(list(kept.items())[-MAX_OUTPUT_YEARS:])
         _write(where, data)
         return True
     except Exception as error:

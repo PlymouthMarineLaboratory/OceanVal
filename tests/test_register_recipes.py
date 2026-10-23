@@ -14,6 +14,7 @@ from simulations import write_simulation
 from test_app import (  # noqa: F401 - the fixtures
     SETUP_FORM,
     app,
+    choose_domain,
     get,
     get_json,
     leftover_dir,
@@ -545,6 +546,8 @@ def test_the_pages_in_a_browser(browser, tmp_path):
 
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
+    # the Validate tile of the landing page leads to these choices
+    app.choose("validate_menu")
     url = app.start()
     try:
         page = browser.new_page()
@@ -626,6 +629,8 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
     write_simulation(tmp_path / "sim", tracers=True)
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
+    # the Validate tile of the landing page leads to these choices
+    app.choose("validate_menu")
     url = app.start()
     amber, red = "rgb(168, 106, 0)", "rgb(192, 57, 43)"
     try:
@@ -641,6 +646,7 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        choose_domain(page)
         page.click("#continue")
         page.click("#own-yes")
         page.wait_for_selector("#own-form-point")

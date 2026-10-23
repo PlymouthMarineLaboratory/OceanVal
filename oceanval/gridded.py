@@ -335,6 +335,8 @@ def gridded_matchup(
     example_files = {},
     on_matched=None,
     reset_failures=True,
+    on_matching=None,
+    on_failed=None,
 ):
     """
     Function to create gridded matchups for a given set of variables
@@ -365,6 +367,9 @@ def gridded_matchup(
     reset_failures : bool
         Whether to start a fresh list of failures. matchup makes the surface and
         vertical matchups in separate runs and keeps the failures of both.
+    on_matching, on_failed : callable or None
+        Called as on_matched is, as each matchup is started, and when one fails
+        in a way a retry might fix, for the oceanval window's grid of them
     Returns
     -------
     None
@@ -432,6 +437,8 @@ def gridded_matchup(
                             f"The {vv} ({vv_source}) matchup was made with the model's times shifted "
                             "differently, so it is made again"
                         )
+                if on_matching is not None:
+                    on_matching("gridded", vv, vv_source)
                 # figure out the data source
                 #
                 # check if this directory is empty
@@ -1062,6 +1069,8 @@ def gridded_matchup(
                 if not retryable:
                     raise
                 record_gridded_failure(vv, vv_source, exc)
+                if on_failed is not None:
+                    on_failed("gridded", vv, vv_source)
                 continue
         
         session_info["cores"] = start_cores

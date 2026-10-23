@@ -685,3 +685,26 @@ input.tick { cursor: pointer; }
 .vars__popover td:nth-child(2) { font-family: var(--font-mono, monospace); color: var(--ink); white-space: nowrap; }
 .vars__popover th:first-child, .vars__popover td:first-child { width: 1%; padding-right: 10px; }
 .vars__popover td:first-child input { margin: 1px 0; cursor: pointer; }
+
+/* ---- a box with a list of choices (OceanValGUI.withChoices), and the list ---- */
+.combo__list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  margin: 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+}
+.combo__option {
+  padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer;
+  font: 400 13px/18px var(--font-mono); color: var(--ink); overflow-wrap: anywhere;
+}
+.combo__option:hover, .combo__option.is-active { background: var(--teal-50); }
+.year-list.is-names { text-align: left; max-height: 260px; }
+.year-list.is-names .combo__option { font-family: var(--font-body); font-size: 14px; }
+.year-list .combo__hint { margin-left: 10px; color: var(--muted); font-size: 12px; }
+.year-list { position: fixed; right: auto; z-index: 40; width: max-content; max-height: 200px; text-align: center; }
+/* the arrow of a year box that has a list of the output's years */
+.s-input.is-year.has-years {
+  padding-left: 6px; padding-right: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237c94a0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 6px center; background-size: 9px 5px;
+}
+.s-input.is-year.has-years:disabled { background-image: none; }

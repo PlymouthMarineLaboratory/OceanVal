@@ -1,6 +1,7 @@
 numpy
 xarray
 netCDF4
+h5py
 pandas
 dill
 matplotlib

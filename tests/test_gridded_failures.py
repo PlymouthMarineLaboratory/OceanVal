@@ -7,6 +7,7 @@ import pytest
 
 import oceanval
 import oceanval.gridded as gridded
+from oceanval import prompts
 from oceanval.session import session_info
 
 
@@ -105,6 +106,39 @@ class TestFailedRemoteMatchup:
         # and the remote one was recorded rather than taking the run down
         failed = [(x["variable"], x["source"]) for x in session_info["failed_gridded"]]
         assert failed == [("nitrate", "WOA23")]
+
+    def test_the_window_is_told_which_were_not_made(self, monkeypatch):
+        oceanval.add_gridded_comparison(
+            name="temperature",
+            obs_path="data/evaldata/gridded/nws/temperature",
+            source="foo",
+            model_variable="votemper",
+            obs_variable="votemper",
+            climatology=True,
+            start=2000,
+            end=2010,
+            obs_adder=273.15,
+        )
+        oceanval.add_gridded_comparison(
+            name="nitrate",
+            model_variable="N3_n",
+            recipe={"nitrate": "woa23"},
+            climatology=True,
+            file_check=False,
+        )
+        monkeypatch.setattr(nc, "open_thredds", boom)
+        told = []
+
+        with prompts.told_by(told.append):
+            oceanval.matchup(sim_dir="data/example", start=2000, end=2000, ask=False, cores=1)
+
+        # for the oceanval window's grid of the matchups
+        states = {}
+        for news in told:
+            if news["kind"] == "matchup":
+                states.setdefault(news["key"].split("|")[1], []).append(news["state"])
+        assert states == {"temperature": ["matching", "made"], "nitrate": ["matching", "not_made"]}
+        assert told[-1] == {"kind": "matchups_finished"}
 
     def test_a_failed_remote_source_does_not_stop_another_source(self, monkeypatch):
         # one variable, validated against a local and a remote source

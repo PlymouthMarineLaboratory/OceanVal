@@ -285,6 +285,60 @@ def _manager():
     return manager
 
 
+class _Told:
+    """Tells the oceanval window of each matchup as it is started, made or
+    not (see oceanval.prompts.tell), for its grid of them, and the interim
+    report's builder, if there is one, of those made. At a terminal nothing
+    is told."""
+
+    def __init__(self, builder):
+        self.builder = builder
+
+    @staticmethod
+    def _tell(state, kind, variable, source, layer):
+        key = live.matchup_key(kind, variable, source, layer)
+        prompts.tell({"kind": "matchup", "key": key, "state": state})
+
+    def matching(self, kind, variable, source, layer=None):
+        self._tell("matching", kind, variable, source, layer)
+
+    def made(self, kind, variable, source, layer=None):
+        self._tell("made", kind, variable, source, layer)
+        if self.builder is not None:
+            self.builder.matched(kind, variable, source, layer)
+
+    def not_made(self, kind, variable, source, layer=None):
+        self._tell("not_made", kind, variable, source, layer)
+
+
+def _matchups_news(items, titles, builder):
+    """The matchups to make, as (kind, variable, source, layer) in the order
+    they are made, as the oceanval window's grid shows them: each with
+    whether the interim report has a page for it."""
+    included = set()
+    if builder is not None and builder.process is not None:
+        included = {
+            live.matchup_key(m["kind"], m["variable"], m["source"], m["layer"])
+            for m in builder.expected
+        }
+    rows = []
+    for kind, variable, source, layer in items:
+        key = live.matchup_key(kind, variable, source, layer)
+        name = source.upper()
+        if kind == "point":
+            name += " point data (surface)" if layer == "surface" else " point data (all depths)"
+        rows.append(
+            {
+                "key": key,
+                "variable": variable,
+                "title": titles.get(variable) or variable.title(),
+                "source": name,
+                "report": key in included,
+            }
+        )
+    return {"kind": "matchups", "items": rows}
+
+
 # the warnings of a matchup and its workers (see _session_warnings)
 session_warnings = None
 
@@ -1927,6 +1981,8 @@ def matchup(
             builder.start()
         else:
             print("Only one variable and source is matched up, so no interim report is built.")
+    told = _Told(builder)
+    prompts.tell(_matchups_news(items, session_info["short_title"], builder))
 
     out = session_info["out_dir"] + "/oceanval_matchups/mapping.csv"
     # check directory exists for out
@@ -2030,13 +2086,13 @@ def matchup(
                     os.path.join(os.path.dirname(out), "matchup_dict.pkl")
                 ) == session_info["time_shift"]:
                     # made already, and still in the report
-                    if builder is not None:
-                        builder.matched("point", vv, source, layer)
+                    told.made("point", vv, source, layer)
                     continue
                 print(
                     f"The {layer} {vv} ({source}) matchup was made with the model's times "
                     "shifted differently, so it is made again"
                 )
+            told.matching("point", vv, source, layer)
 
             all_df = df_mapping
             # not a query: it cannot see good_model_vars from in here
@@ -2551,8 +2607,10 @@ def matchup(
                         warnings.warn(message=ww)
                 # empty session warnings
 
-            if builder is not None and os.path.exists(csv):
-                builder.matched("point", vv, source, layer)
+            if os.path.exists(csv):
+                told.made("point", vv, source, layer)
+            else:
+                told.not_made("point", vv, source, layer)
         while session_warnings is not None and len(session_warnings) > 0:
             session_warnings.pop()
 
@@ -2566,7 +2624,9 @@ def matchup(
         lat_lim=lat_lim,
         times_dict=times_dict,
         example_files=example_files,
-        on_matched=None if builder is None else builder.matched,
+        on_matched=told.made,
+        on_matching=told.matching,
+        on_failed=told.not_made,
     )
 
     # the quick matchups first, so there are results to look at early: the
@@ -2577,6 +2637,8 @@ def matchup(
     match_point_layer("all")
 
     retry_failed_gridded(ask=ask, **gridded_args)
+    # anything not made by now is not made
+    prompts.tell({"kind": "matchups_finished"})
 
     if len(session_info["end_messages"]) > 0:
         print("########################################")

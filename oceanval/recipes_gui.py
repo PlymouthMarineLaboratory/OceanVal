@@ -231,7 +231,10 @@ def check_settings(form, available, fvcom=False):
         if settings["cores"] < 1:
             raise ValueError
     except ValueError:
-        errors["cores"] = "Cores must be a whole number, 1 or more."
+        errors["cores"] = (
+            "Choose the number of cores." if not text("cores")
+            else "Cores must be a whole number, 1 or more."
+        )
     cpu_count = os.cpu_count()
     if "cores" not in errors and cpu_count and settings["cores"] > cpu_count:
         errors["cores"] = f"This machine has {cpu_count} cores. Choose {cpu_count} or fewer."

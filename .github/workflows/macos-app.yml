@@ -39,7 +39,7 @@ jobs:
         with:
           micromamba-version: '1.4.5-0'
           environment-name: oceanval
-          create-args: nctoolkit cmocean cartopy pandoc python=3.13 rpy2 r-base r-tidyverse r-ggtext jupyter-book>=2 r-mapdata texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel
+          create-args: nctoolkit cmocean cartopy pandoc python=3.13 rpy2 r-base r-tidyverse r-ggtext jupyter-book>=2 r-mapdata texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel h5py
           init-shell: >-
             bash
           cache-environment: true

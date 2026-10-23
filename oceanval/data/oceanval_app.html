@@ -281,17 +281,7 @@
   }
   .combo__toggle:hover, .combo__toggle[aria-expanded="true"] { background-color: var(--bg-alt); }
   .combo__toggle:focus-visible { outline: none; box-shadow: var(--focus); }
-  .combo__list {
-    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
-    margin: 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto;
-    background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
-  }
   .combo__head { padding: 4px 8px 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
-  .combo__option {
-    padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer;
-    font: 400 13px/18px var(--font-mono); color: var(--ink); overflow-wrap: anywhere;
-  }
-  .combo__option:hover, .combo__option.is-active { background: var(--teal-50); }
   /* the x of an entry of the directories used before */
   .combo__option--removable { display: flex; align-items: flex-start; gap: 6px; justify-content: space-between; }
   .combo__remove {
@@ -413,7 +403,7 @@
     50% { opacity: 0.35; transform: scale(0.7); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .status__dot, .identify__spinner { animation: none !important; }
+    .status__dot, .identify__spinner, .prepare__spinner::after { animation: none !important; }
     .progress__bar span { transition: none; }
     .choice { transition: none; }
   }
@@ -478,13 +468,62 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .identify__title { margin: 0 0 4px; color: var(--teal-900); font: 600 26px/1.25 var(--font-head); letter-spacing: -0.3px; }
   .identify__text { margin: 0; color: var(--ink-soft); font-size: 14.5px; }
-  .progress { display: flex; gap: 20px; align-items: center; margin: 0 0 18px; padding: 26px 28px; border: 2px solid var(--teal-200); background: var(--teal-50); }
+  .progress { margin: 0 0 18px; padding: 26px 28px; border: 2px solid var(--teal-200); background: var(--teal-50); }
+  .progress__head { display: flex; gap: 20px; align-items: center; }
   .progress.is-waiting { border-color: var(--coral-line); background: var(--coral-bg); }
-  .progress.is-waiting .identify__spinner { display: none; }
+  .progress.is-waiting #progress-spinner { display: none; }
+  /* ---- the matchups a matchup run is making, and their pages in the interim report ---- */
+  .matchup-grid { overflow-x: auto; margin: 22px 0 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+  .matchup-grid[hidden] { display: none; }
+  .matchup-grid table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 14px; }
+  .matchup-grid th, .matchup-grid td { padding: 11px 16px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
+  .matchup-grid tbody tr:last-child td { border-bottom: 0; }
+  .matchup-grid th { background: var(--bg-alt); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .matchup-grid th.is-state, .matchup-grid td.is-state { width: 140px; text-align: center; }
+  .matchup-grid tr.is-active td { background: var(--teal-50); }
+  .matchup-grid__title { font-weight: 600; color: var(--ink); }
+  .matchup-grid__mark { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; vertical-align: middle; }
+  .matchup-grid__mark .identify__spinner { width: 18px; height: 18px; border-width: 3px; }
+  .matchup-grid__mark .icon { width: 22px; height: 22px; margin-top: 0; }
+  .matchup-grid td[data-state="done"] .icon { color: var(--teal-600); }
+  .matchup-grid td[data-state="failed"] .icon { color: var(--danger); }
+  .matchup-grid td[data-state="none"] { color: var(--muted); }
+  .matchup-grid__link { display: inline-flex; vertical-align: middle; border-radius: 6px; }
+  .matchup-grid__link:hover { background: var(--teal-100); }
+  @media (max-width: 640px) {
+    .progress { padding: 20px 16px; }
+    /* the ticks stay in sight: the table fits, its names wrap */
+    .matchup-grid table { min-width: 0; font-size: 13px; }
+    .matchup-grid th, .matchup-grid td { padding: 10px 8px; }
+    .matchup-grid th:first-child, .matchup-grid td:first-child { padding-left: 12px; }
+    .matchup-grid th { font-size: 11px; letter-spacing: 0.02em; }
+    .matchup-grid th.is-state, .matchup-grid td.is-state { width: 72px; }
+  }
   .progress__body { flex: 1; min-width: 0; }
   .progress__bar { height: 8px; margin: 14px 0 0; overflow: hidden; border-radius: 999px; background: var(--teal-200); }
   .progress__bar span { display: block; height: 100%; border-radius: 999px; background: var(--teal-600); transition: width 0.4s ease; }
   .progress__label { display: block; margin: 12px 0 0; overflow: hidden; color: var(--ink-soft); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+  /* ---- while the simulation is read for the recipes window, and matchup finds the files: a box in the middle of the page ---- */
+  .prepare { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 250px); padding: 24px 0; }
+  .prepare__card { width: 100%; max-width: 620px; padding: 52px 44px 44px; border: 1px solid var(--teal-200); box-shadow: var(--shadow-md); text-align: center; }
+  .prepare__spinner { position: relative; display: block; width: 76px; height: 76px; margin: 0 auto 30px; }
+  .prepare__spinner::before, .prepare__spinner::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), black calc(100% - 6px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 7px), black calc(100% - 6px));
+  }
+  .prepare__spinner::before { background: var(--teal-100); }
+  .prepare__spinner::after { background: conic-gradient(from 0deg, transparent 0 12%, var(--teal-600)); animation: spin 1s linear infinite; }
+  .prepare__title { margin: 0; color: var(--teal-900); font: 600 27px/1.25 var(--font-head); letter-spacing: -0.3px; text-wrap: balance; }
+  .prepare__years { display: inline-flex; align-items: center; gap: 8px; margin: 24px 0 0; padding: 7px 16px; border-radius: 999px; background: var(--teal-50); color: var(--teal-900); font-size: 13px; font-weight: 600; }
+  .prepare__years[hidden] { display: none; }
+  .prepare__years .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
+  .prepare__years .icon { width: 16px; height: 16px; color: var(--teal-600); }
+  @media (max-width: 640px) {
+    .prepare { min-height: 0; }
+    .prepare__card { padding: 36px 20px 30px; }
+    .prepare__title { font-size: 22px; }
+  }
   .ask.card { margin: 0 0 18px; border: 1px solid var(--coral-line); background: var(--coral-bg); }
 
   /* ---- the interim report, built as the matchups are made, and the links to the reports ---- */
@@ -755,23 +794,12 @@
   .analyze-dialog__body > table > tbody > tr > td small { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; }
   .analyze-dialog .is-mono { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
   .analyze-dialog .s-input.is-year { width: 84px; text-align: center; }
-  /* the arrow of a year box that has a list of the output's years */
-  .s-input.is-year.has-years {
-    padding-left: 6px; padding-right: 16px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237c94a0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 6px center; background-size: 9px 5px;
-  }
-  .s-input.is-year.has-years:disabled { background-image: none; }
   /* the same arrow on the "Your name" box, which lists the preset variable names */
   .analyze-table .s-input.has-years {
     padding-right: 28px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237c94a0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 10px center; background-size: 9px 5px;
   }
-  .year-list.is-names { text-align: left; max-height: 260px; }
-  .year-list.is-names .combo__option { font-family: var(--font-body); font-size: 14px; }
-  .year-list .combo__hint { margin-left: 10px; color: var(--muted); font-size: 12px; }
-  .year-list { position: fixed; right: auto; z-index: 40; width: max-content; max-height: 200px; text-align: center; }
   .analyze-dialog .s-input.is-assumed { color: var(--amber); font-weight: 600; }
   .analyze-dialog .s-select { width: auto; margin-top: 6px; }
   .analyze-dialog__body > table > tbody > tr.is-off > td { color: var(--muted); }
@@ -1411,13 +1439,13 @@
     <div class="choices is-two analyze-options">
       <button type="button" class="choice" id="ao-climatology" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="climatology"></span>
-        <span class="choice__title">Climatology</span>
+        <span class="choice__title">Map climatologies</span>
         <span class="choice__text" id="ao-climatology-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
       </button>
       <button type="button" class="choice" id="ao-phenology" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="phenology"></span>
-        <span class="choice__title">Phenology</span>
+        <span class="choice__title">Map phenologies</span>
         <span class="choice__text" id="ao-phenology-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
       </button>
@@ -1429,7 +1457,7 @@
       </button>
       <button type="button" class="choice" id="ao-seasonal" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="seasonal"></span>
-        <span class="choice__title">Seasonal time series</span>
+        <span class="choice__title">Seasonal cycles</span>
         <span class="choice__text" id="ao-seasonal-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
       </button>
@@ -1441,7 +1469,7 @@
       </button>
       <button type="button" class="choice" id="ao-transects" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="transect"></span>
-        <span class="choice__title">Transects</span>
+        <span class="choice__title">Analyse transects</span>
         <span class="choice__text" id="ao-transects-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
       </button>
@@ -1681,17 +1709,28 @@
   </section>
 
   <section id="view-run" hidden>
-    <div class="result card" id="result" hidden></div>
-    <div class="progress card" id="progress" role="status" aria-live="polite" hidden>
-      <span class="identify__spinner" id="progress-spinner" aria-hidden="true"></span>
-      <div class="progress__body">
-        <h2 class="identify__title" id="progress-title"></h2>
-        <p class="identify__text" id="progress-text"></p>
-        <div class="progress__bar" id="progress-bar" role="progressbar" aria-label="Matchups made" hidden><span id="progress-fill"></span></div>
-        <code class="progress__label" id="progress-label"></code>
+    <div class="prepare" id="prepare" role="status" aria-live="polite" hidden>
+      <div class="prepare__card card">
+        <span class="prepare__spinner" aria-hidden="true"></span>
+        <h2 class="prepare__title" id="prepare-title"></h2>
+        <p class="prepare__years" id="prepare-years" hidden></p>
       </div>
     </div>
+    <div class="result card" id="result" hidden></div>
+    <!-- at the top, so the link to the interim report is seen without scrolling past the matchups -->
     <div class="card" id="interim" role="status" aria-live="polite" hidden></div>
+    <div class="progress card" id="progress" hidden>
+      <div class="progress__head" role="status" aria-live="polite">
+        <span class="identify__spinner" id="progress-spinner" aria-hidden="true"></span>
+        <div class="progress__body">
+          <h2 class="identify__title" id="progress-title"></h2>
+          <p class="identify__text" id="progress-text"></p>
+          <div class="progress__bar" id="progress-bar" role="progressbar" aria-label="Matchups made" hidden><span id="progress-fill"></span></div>
+          <code class="progress__label" id="progress-label"></code>
+        </div>
+      </div>
+      <div class="matchup-grid" id="progress-grid" hidden></div>
+    </div>
     <section class="time-shift" id="time-shift" aria-label="Whether to shift the simulation's times" hidden>
       <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, matched up as they are, a January mean is compared with February's observations, and the year's last mean falls in the next year and is left out.</p>
       <p class="lede" id="ts-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every simulation time <span id="ts-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers.</p>
@@ -1859,7 +1898,7 @@
 <div class="picker analyze-dialog" id="clim-dialog" hidden>
   <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="clim-title">
     <div class="picker__head">
-      <h2 id="clim-title">Climatology</h2>
+      <h2 id="clim-title">Map climatologies</h2>
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro" id="clim-intro"></p>
@@ -1880,7 +1919,7 @@
       </div>
       <div class="analyze-stations" id="clim-area" hidden>
         <h3>Regional subdomains and area <span class="own-opt">Optional</span></h3>
-        <p class="analyze-dialog__intro">The time series are always worked out for the model's domain as a whole. Choose regional subdomains, as in the validation, to work them out for each region too, and cut a box out of the domain if you want only part of it. The long-term and the seasonal time series share these, and the stations are not cut by the box.</p>
+        <p class="analyze-dialog__intro">The time series are always worked out for the model's domain as a whole. Choose regional subdomains, as in the validation, to work them out for each region too, and cut a box out of the domain if you want only part of it. The long-term time series and the seasonal cycles share these, and the stations are not cut by the box.</p>
         <div class="g-row">
           <select class="s-select" id="area-subregions" aria-label="Which regional subdomains do you want?">
             <option value="">None</option>
@@ -1927,7 +1966,7 @@
 <div class="picker analyze-dialog" id="phen-dialog" hidden>
   <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="phen-title">
     <div class="picker__head">
-      <h2 id="phen-title">Phenology</h2>
+      <h2 id="phen-title">Map phenologies</h2>
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">The time of the seasonal peak at the surface: in each grid cell, the day of the year with the highest value in the variable's daily climatology over the years from Start to End. It needs daily output. Tick the variables to work it out for, and give the years.</p>
@@ -1981,7 +2020,7 @@
 <div class="picker analyze-dialog" id="trans-dialog" hidden>
   <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="trans-title">
     <div class="picker__head">
-      <h2 id="trans-title">Transects</h2>
+      <h2 id="trans-title">Analyse transects</h2>
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">The model's values along straight lines. Each variable has transects of its own: tick the variables to work transects out for, add as many transects as you like to each, and choose what to work out along each one, and the years of each.</p>
@@ -2044,7 +2083,7 @@
 (() => {
   "use strict";
 
-  const { ICONS, $, el, icon, shorten, plural, toast, pageId } = OceanValGUI;
+  const { ICONS, $, el, icon, shorten, plural, toast, pageId, withChoices, choicesOpen, closeChoices } = OceanValGUI;
   const initial = JSON.parse($("state").textContent);
   const token = initial.token;
   let state = initial.state;
@@ -2170,7 +2209,7 @@
       case "point_data": return "Your point data";
       case "gridded_data": return "Your gridded data";
       case "own_future": return `Save your ${(state.own.future || {}).kind || "own"} data for future use`;
-      case "preparing": return "Reading the simulation";
+      case "preparing": return "";  // the box in the middle of the page says it
       case "units_table": return "Do the units match up?";
       case "validate": return "Build a validation report";
       case "compare": return "Which validations do you want to compare?";
@@ -2181,11 +2220,13 @@
         if (state.question && state.question.details && state.question.details.kind === "time_shift") {
           return "Are the model's times at the end of each mean?";
         }
-        // while the files are found and then checked, which is what the page is for then
-        if (state.action === "matchup_validate" && (run.identifying || (state.question
-          && state.question.details && state.question.details.kind === "matchups"))) {
+        // while the files are checked, which is what the page is for then (while they are
+        // found, the box in the middle of the page says so)
+        if (state.action === "matchup_validate" && !run.identifying && state.question
+          && state.question.details && state.question.details.kind === "matchups") {
           return "Identify simulations files for validating variables";
         }
+        if (run.identifying && !state.question) return "";
         return ACTION_TITLES[state.action];
       case "script_saved": return "Your matchup script is saved";
       default:
@@ -2504,6 +2545,8 @@
     if (state.view === "register_gridded") renderRegister("gridded");
     // the units are read after the step is shown
     if (state.view === "units_table" && !unitsFilled && state.units.rows) fillUnits();
+    // the years of the output, once read from its files' times, for the script's start and end
+    if (state.view === "setup" && outputYearsRead()) useProbe();
     if (state.view === "analyze_variables") renderAnalyzeVariables();
     if (state.view === "analyze_files") renderAnalyzeFiles();
     if (state.view === "analyze_options") renderAnalyzeOptions();
@@ -2850,10 +2893,18 @@
     }, delay);
   }
 
+  // the reading of the years of the output from its files' times (see
+  // oceanval.output_years), if it is of the files the live check found
+  function outputYearsRead() {
+    const read = state.setup.output_years;
+    return probe && read && probe.output_key && read.key === probe.output_key ? read : null;
+  }
+
   function useProbe() {
     if (!probe) return;
     const blank = (name) => !String(setup[name]).trim();
-    const years = probe.years || (probe.suggestion && probe.suggestion.years);
+    const read = outputYearsRead();
+    const years = (read && read.years) || probe.years || (probe.suggestion && probe.suggestion.years);
     if ((blank("start") && blank("end")) || autoYears) {
       setup.start = $("f-start").value = years ? String(years[0]) : "1995";
       setup.end = $("f-end").value = years ? String(years[1]) : "2004";
@@ -2915,7 +2966,8 @@
         let found = filtered
           ? `${probe.files} of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters`
           : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} ${depthText(depth)}`;
-        if (probe.years) found += probe.years[0] === probe.years[1] ? `, named for ${probe.years[0]}` : `, named for ${probe.years[0]}–${probe.years[1]}`;
+        // a validation's years are read from the files' times, and offered in the recipes window
+        if (probe.years && state.action === "analyze") found += probe.years[0] === probe.years[1] ? `, named for ${probe.years[0]}` : `, named for ${probe.years[0]}–${probe.years[1]}`;
         simulation.push(line(found + ".", "ok"));
       } else if (depth !== null && probe.all_files > 0) {
         simulation.push(line(`None of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters.`, "nofiles"));
@@ -3046,12 +3098,8 @@
     // the arrow of the name box lists the preset names; one that is chosen fills in the model variable the matchups would use for it
     const presets = state.analyze.presets || [];
     if (presets.length) {
-      name.yearChoices = presets.map((preset) => preset.name);
+      withChoices(name, presets.map((preset) => preset.name));
       name.choiceHints = Object.fromEntries(presets.filter((preset) => !preset.model_variable).map((preset) => [preset.name, "not found in this model"]));
-      name.classList.add("has-years");
-      name.setAttribute("role", "combobox");
-      name.setAttribute("aria-haspopup", "listbox");
-      name.setAttribute("aria-expanded", "false");
       name.onPick = (value) => {
         const preset = presets.find((one) => one.name === value);
         if (!preset) return;
@@ -3380,20 +3428,20 @@
   // the ways to show the long-term series, as analysis.SHOWS has them
   const SERIES_SHOWS = { absolute: "Absolute value", absolute_change: "Absolute change", percentage_change: "Percentage change" };
   const KIND_DIALOGS = { climatology: "clim-dialog", long_term: "clim-dialog", seasonal: "clim-dialog", phenology: "phen-dialog", map_changes: "chg-dialog", transects: "trans-dialog" };
-  const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal time series", map_changes: "map changes", transects: "transects" };
-  const KIND_TITLES = { climatology: "Climatology", phenology: "Phenology", long_term: "Long-term time series", seasonal: "Seasonal time series", map_changes: "Map temporal changes", transects: "Transects" };
+  const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal cycles", map_changes: "map changes", transects: "transects" };
+  const KIND_TITLES = { climatology: "Map climatologies", phenology: "Map phenologies", long_term: "Long-term time series", seasonal: "Seasonal cycles", map_changes: "Map temporal changes", transects: "Analyse transects" };
   const KIND_NOT_CHOSEN = {
     climatology: "The annual mean, from the mean of each month of the year, at the surface, the bottom or through the water column. Not chosen yet.",
     phenology: "The time of the seasonal peak at the surface, from a daily climatology. Not chosen yet.",
     long_term: "The mean of each year, over the model's domain, its regions and at stations. Not chosen yet.",
-    seasonal: "The mean of each month of each year, and the mean seasonal cycle, over the model's domain, its regions and at stations. Not chosen yet.",
+    seasonal: "The mean of each month of the year over the years, the mean seasonal cycle, over the model's domain, its regions and at stations. Not chosen yet.",
     map_changes: "Maps of how a variable changes between a historical period and one or two future periods, as absolute values and as changes. Not chosen yet.",
     transects: "The model's values along straight north–south or east–west lines, as many as you like: their mean, their trend, or the change between the first and last years. Not chosen yet.",
   };
   const KIND_INTROS = {
     climatology: "The mean of each month of the year, and the annual mean, over the years from Start to End. Each is mapped.",
     long_term: "The mean of each year from Start to End, which is the mean of its months, over the model's domain as a whole, over each region you choose on the page, and at each station. A rolling mean of the annual means (1 year is none) can be taken, and the series shown as the annual means, or as their change from the first year, absolute or in per cent.",
-    seasonal: "The mean of each month from Start to End, and so the mean seasonal cycle, over the model's domain as a whole, over each region you choose on the page, and at each station.",
+    seasonal: "The mean of each month of the year from Start to End, the mean seasonal cycle, over the model's domain as a whole, over each region you choose on the page, and at each station.",
   };
   // the pop-outs whose rows choose layers: the surface, the bottom, the water column
   const LAYER_ROWS = [...LAYERED, "map_changes"];
@@ -3570,109 +3618,13 @@
       placeholder: hint ? String(hint) : "", "aria-label": label, spellcheck: "false", autocomplete: "off" }), name);
   }
 
-  // every year of a variable's output, offered by the arrow in a year box (the dates check has no year missing between the first and last)
+  // every year of a variable's output, offered by the arrow in a year box (the dates check has no year missing
+  // between the first and last), in the list the pages share (OceanValGUI.withChoices)
   function withYears(input, name) {
     const years = placedRow(name).years;
     if (!years) return input;
-    input.yearChoices = Array.from({ length: years[1] - years[0] + 1 }, (_, number) => years[0] + number);
-    input.classList.add("has-years");
-    input.setAttribute("role", "combobox");
-    input.setAttribute("aria-haspopup", "listbox");
-    input.setAttribute("aria-expanded", "false");
-    return input;
+    return withChoices(input, Array.from({ length: years[1] - years[0] + 1 }, (_, number) => years[0] + number));
   }
-
-  // one list, shared by the year boxes, placed under (or over) the box it was opened from
-  const yearList = el("ul", { class: "combo__list year-list", role: "listbox", hidden: true });
-  document.body.append(yearList);
-  let yearOwner = null;
-  let yearActive = -1;
-
-  function closeYears() {
-    if (yearOwner) yearOwner.setAttribute("aria-expanded", "false");
-    yearOwner = null;
-    yearActive = -1;
-    yearList.hidden = true;
-  }
-
-  function markYear(index) {
-    const options = [...yearList.children];
-    yearActive = (index + options.length) % options.length;
-    options.forEach((option, number) => {
-      option.classList.toggle("is-active", number === yearActive);
-      option.setAttribute("aria-selected", String(number === yearActive));
-    });
-    options[yearActive].scrollIntoView({ block: "nearest" });
-  }
-
-  function pickYear(year) {
-    const input = yearOwner;
-    closeYears();
-    input.value = String(year);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    if (input.onPick) input.onPick(input.value);
-    input.focus();
-  }
-
-  function openYears(input) {
-    if (!input.yearChoices || input.disabled) return;
-    yearOwner = input;
-    input.setAttribute("aria-expanded", "true");
-    // the list is also the preset names of a variable's name (input.onPick), which are not years
-    yearList.classList.toggle("is-names", Boolean(input.onPick));
-    yearList.replaceChildren(...input.yearChoices.map((year) => el("li", {
-      class: "combo__option", role: "option", "aria-selected": "false", text: String(year),
-      // mousedown, so the box keeps its focus
-      onmousedown: (event) => { event.preventDefault(); pickYear(year); },
-    }, (input.choiceHints || {})[year] ? el("span", { class: "combo__hint", text: input.choiceHints[year] }) : null)));
-    const box = input.getBoundingClientRect();
-    const below = window.innerHeight - box.bottom;
-    yearList.style.minWidth = `${box.width}px`;
-    yearList.style.left = `${box.left}px`;
-    yearList.style.top = below >= 200 || below >= box.top ? `${box.bottom + 4}px` : "auto";
-    yearList.style.bottom = below >= 200 || below >= box.top ? "auto" : `${window.innerHeight - box.top + 4}px`;
-    yearList.hidden = false;
-    const at = input.yearChoices.indexOf(input.onPick ? input.value.trim() : Number(input.value.trim()));
-    if (at >= 0) markYear(at);
-  }
-
-  // the arrow is the right-hand end of the box: a click there opens the list, one anywhere else in the box only closes it
-  document.addEventListener("click", (event) => {
-    const input = event.target;
-    if (!input.yearChoices) return;
-    const open = !yearList.hidden && yearOwner === input;
-    if (event.clientX > input.getBoundingClientRect().right - 24) {
-      if (open) closeYears();
-      else { closeYears(); openYears(input); }
-      input.focus();
-    } else if (open) closeYears();
-  });
-  document.addEventListener("mousedown", (event) => {
-    if (!yearList.hidden && event.target !== yearOwner && !yearList.contains(event.target)) closeYears();
-  });
-  document.addEventListener("keydown", (event) => {
-    const input = event.target;
-    if (!input.yearChoices) return;
-    if (yearList.hidden || yearOwner !== input) {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        closeYears();
-        openYears(input);
-      }
-    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      markYear(yearActive + (event.key === "ArrowDown" ? 1 : -1));
-    } else if (event.key === "Enter" && yearActive >= 0) {
-      event.preventDefault();
-      pickYear(input.yearChoices[yearActive]);
-    } else if (event.key === "Tab") {
-      closeYears();
-    }
-  });
-  document.addEventListener("input", (event) => { if (!yearList.hidden && event.target === yearOwner) closeYears(); });
-  // a list left behind when the box moves
-  document.addEventListener("scroll", (event) => { if (!yearList.hidden && event.target !== yearList) closeYears(); }, true);
-  window.addEventListener("resize", closeYears);
 
   // the years of a variable's output, under its name
   function outputYears(name) {
@@ -4295,7 +4247,7 @@
       if (event.target.closest && event.target.closest("details.vars[open]")) return;
       event.preventDefault();
       // a list of years closes first
-      if (!yearList.hidden) { closeYears(); return; }
+      if (choicesOpen()) { closeChoices(); return; }
       closeAnalyzeDialog();
     });
   }
@@ -6510,7 +6462,7 @@
   });
 
   const STATUS = {
-    preparing: ["Reading the simulation", "is-busy"],
+    preparing: ["Finding key information", "is-busy"],
     starting: ["Starting", "is-busy"],
     running: ["Running", "is-busy"],
     waiting: ["Waiting for your answer", "is-waiting is-busy"],
@@ -6527,14 +6479,9 @@
     $("status-text").textContent = text;
     $("run-label").textContent = state.view === "preparing" ? "create_recipes(...)" : run.label || "";
     $("run-label").title = $("run-label").textContent;
-    // the output is shown while a matchup and validate run matches up, once the
-    // matchups are checked, and for a run that failed; elsewhere the panel says
-    // what the run is doing
-    const failed = state.view === "finished" && run.status === "failed";
-    const matching = state.view === "running" && state.action === "matchup_validate"
-      && !run.identifying && !(state.question && state.question.details
-        && ["matchups", "time_shift"].includes(state.question.details.kind));
-    const showOutput = failed || matching;
+    // the output, with its errors, is only shown for a run that failed;
+    // elsewhere the panel says what the run is doing
+    const showOutput = state.view === "finished" && run.status === "failed";
     if (showOutput && $("run").hidden) {
       $("run").hidden = false;
       consoleBox.scrollTop = consoleBox.scrollHeight;
@@ -6553,19 +6500,24 @@
     const run = state.run;
     const interim = state.interim;
     const question = state.question;
-    if (state.view === "preparing") {
-      return { title: "Reading the simulation",
-        text: "OceanVal is reading the simulation output, to work out which variables it holds and which observations they can be compared with." };
-    }
     // the tables ask their own questions, so there is nothing more to say
     if (question && question.details && ["matchups", "time_shift"].includes(question.details.kind)) return null;
     if (question) {
       return { waiting: true, title: "OceanVal has a question for you",
         text: "The run is paused until you answer it. Nothing more is matched up until then." };
     }
-    if (run.identifying) {
-      return { title: "Identifying files that meet criteria. Please wait!",
-        text: "OceanVal is finding the simulation output files that hold each variable. It then shows you what it found, to check before anything is matched up." };
+    // the box in the middle of the page says it
+    if (run.identifying) return null;
+    // the grid of the matchups says what is being done
+    if (matchupGridShown()) {
+      const items = run.progress.items;
+      const made = items.filter((item) => item.state === "made").length;
+      if (run.kind === "validate") return { title: "Building the validation report" };
+      if (items.every((item) => item.state === "waiting")) return { title: "Getting ready to match up" };
+      if (run.progress.finished && items.some((item) => item.report) && !(interim && interim.state === "complete")) {
+        return { title: "Finishing the interim report" };
+      }
+      return { title: `Matching up: ${made} of ${plural(items.length, "matchup")} made`, done: made, of: items.length };
     }
     if (state.action === "simcompare" || state.action === "analyze") {
       const said = lastSaid();
@@ -6599,9 +6551,35 @@
       text: "OceanVal is matching the simulation output to each observational dataset in turn." };
   }
 
+  // while create_recipes reads the simulation, with the years of the output
+  // once they are read from its files' times, and while matchup finds the files
+  function renderPrepare() {
+    const box = $("prepare");
+    const preparing = state.view === "preparing";
+    const identifying = state.view === "running" && state.run.identifying && !state.question;
+    box.hidden = !preparing && !identifying;
+    if (box.hidden) return;
+    $("prepare-title").textContent = preparing ? "Finding key information about your simulation"
+      : "Identifying files that meet criteria. Please wait!";
+    const read = preparing ? state.setup.output_years : null;
+    const years = $("prepare-years");
+    years.hidden = !read || (read.status === "done" && !read.years);
+    if (years.hidden) return;
+    const found = read.years && (read.years[0] === read.years[1] ? `Found output for the year ${read.years[0]}`
+      : `Found output for the years ${read.years[0]} to ${read.years[1]}`);
+    const key = read.status === "reading" ? "reading" : found;
+    // redrawn only when it changes, so the small spinner keeps turning
+    if (years.dataset.key === key) return;
+    years.dataset.key = key;
+    years.replaceChildren(...(read.status === "reading"
+      ? [el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Finding the years of the output from the times in its files…"]
+      : [icon("check"), found]));
+  }
+
   function renderProgress() {
+    renderPrepare();
     const box = $("progress");
-    if (state.view !== "preparing" && state.view !== "running") {
+    if (state.view !== "running") {
       box.hidden = true;
       return;
     }
@@ -6612,7 +6590,8 @@
     }
     box.className = "progress card" + (stage.waiting ? " is-waiting" : "");
     $("progress-title").textContent = stage.title;
-    $("progress-text").textContent = stage.text;
+    $("progress-text").textContent = stage.text || "";
+    $("progress-text").hidden = !stage.text;
     const bar = $("progress-bar");
     bar.hidden = !stage.of;
     if (stage.of) {
@@ -6621,11 +6600,83 @@
       bar.setAttribute("aria-valuenow", String(stage.done));
       $("progress-fill").style.width = `${Math.min(100, 100 * stage.done / stage.of)}%`;
     }
-    const label = state.view === "preparing" ? "create_recipes(...)" : state.run.label || "";
+    const grid = renderMatchupGrid();
+    // the grid says what is running
+    const label = grid ? "" : state.run.label || "";
     $("progress-label").textContent = label;
     $("progress-label").title = label;
     $("progress-label").hidden = !label;
     box.hidden = false;
+  }
+
+  // ---- the matchups a matchup run is making, and their pages in the interim report ----
+  const GRID_SAID = {
+    waiting: "Not started", working: "In progress", done: "Done", failed: "Not made",
+    none: "Not in the interim report",
+  };
+
+  function matchupGridShown() {
+    const progress = state.run.progress;
+    return Boolean(progress && progress.items.length && ["matchup", "matchup_validate"].includes(state.action));
+  }
+
+  // a cell's mark: empty, a turning circle, a tick (a link to the page, for
+  // the interim report), a cross, or a dash for a matchup the report leaves out
+  function gridMark(cell, status, href) {
+    const key = `${status}|${href || ""}`;
+    // redrawn only when it changes, so the circles keep turning
+    if (cell.dataset.key === key) return;
+    cell.dataset.key = key;
+    cell.dataset.state = status;
+    const mark = status === "working" ? el("span", { class: "identify__spinner", "aria-hidden": "true" })
+      : status === "done" ? icon("check")
+      : status === "failed" ? icon("cross")
+      : status === "none" ? el("span", { "aria-hidden": "true", text: "—" })
+      : null;
+    const said = href ? `${GRID_SAID[status]}: open its page of the interim report` : GRID_SAID[status];
+    const shown = el("span", { class: "matchup-grid__mark", role: "img", "aria-label": said, title: said }, mark);
+    cell.replaceChildren(href
+      ? el("a", { class: "matchup-grid__link", href, target: "_blank", rel: "noopener" }, shown)
+      : shown);
+  }
+
+  // returns whether it is shown
+  function renderMatchupGrid() {
+    const box = $("progress-grid");
+    const shown = matchupGridShown();
+    box.hidden = !shown;
+    if (!shown) return false;
+    const items = state.run.progress.items;
+    const withReport = state.action === "matchup_validate";
+    const rows = JSON.stringify([withReport, items.map((item) => [item.key, item.title, item.source])]);
+    if (box.dataset.rows !== rows) {
+      box.dataset.rows = rows;
+      const head = ["Variable", "Data source", "Matchup", ...(withReport ? ["Interim report"] : [])];
+      box.replaceChildren(el("table", {},
+        el("thead", {}, el("tr", {}, ...head.map((text, index) => el("th", { scope: "col", class: index > 1 ? "is-state" : null, text })))),
+        el("tbody", {}, ...items.map((item) => el("tr", { "data-key": item.key },
+          el("td", { class: "matchup-grid__title", text: item.title }),
+          el("td", { text: item.source }),
+          el("td", { class: "is-state", "data-column": "matchup" }),
+          withReport ? el("td", { class: "is-state", "data-column": "report" }) : null)))));
+    }
+    const interim = state.interim || {};
+    const added = interim.added || {};
+    const failed = interim.failed || [];
+    items.forEach((item, index) => {
+      const row = box.querySelectorAll("tbody tr")[index];
+      row.classList.toggle("is-active", item.state === "matching");
+      gridMark(row.querySelector('[data-column="matchup"]'),
+        { matching: "working", made: "done", not_made: "failed" }[item.state] || "waiting");
+      const report = row.querySelector('[data-column="report"]');
+      if (!report) return;
+      if (!item.report) gridMark(report, "none");
+      else if (added[item.key]) gridMark(report, "done", added[item.key]);
+      else if (interim.building_key === item.key && interim.state === "building") gridMark(report, "working");
+      else if (failed.includes(item.key)) gridMark(report, "failed");
+      else gridMark(report, "waiting");
+    });
+    return true;
   }
 
   function renderResult() {
@@ -7775,11 +7826,7 @@
     const first = sims[0];
     const names = first ? (first.presets || []).map((preset) => preset.name) : [];
     if (names.length) {
-      name.yearChoices = names;
-      name.classList.add("has-years");
-      name.setAttribute("role", "combobox");
-      name.setAttribute("aria-haspopup", "listbox");
-      name.setAttribute("aria-expanded", "false");
+      withChoices(name, names);
       name.onPick = (value) => {
         const missing = [];
         sims.forEach((sim) => {

@@ -60,6 +60,12 @@ EXPORTS = ("pdf", "word", "zip")
 current = None
 
 
+def matchup_key(kind, variable, source, layer=None):
+    """The name of a matchup, as matchup tells the oceanval window of it (see
+    oceanval.prompts.tell) and status.json gives its page."""
+    return f"{kind}|{variable}|{source}|{layer or ''}"
+
+
 def check_options(live_validation, out_dir):
     """The interim report's options, from matchup's live_validation.
 
@@ -362,6 +368,11 @@ class InterimReport:
         # stem: (variable, label) for each matchup's page, in the order made
         self.pages = {}
         self.landing = None
+        # for the oceanval window's grid of the matchups (see matchup_key):
+        # the page of each matchup added, once it can be opened, and the
+        # matchups whose page could not be made
+        self.added = {}
+        self.failed = []
 
     # ---- telling matchup's user, and the oceanval window ----
 
@@ -376,7 +387,7 @@ class InterimReport:
             # nowhere to say it any more
             self.console = None
 
-    def write_status(self, state, building=None):
+    def write_status(self, state, building=None, building_key=None):
         status = {
             "state": state,
             "pages": len(self.pages),
@@ -385,11 +396,19 @@ class InterimReport:
             "building": building,
             "landing": self.landing,
             "updated": datetime.datetime.now().isoformat(timespec="seconds"),
+            # each matchup's, by matchup_key
+            "included": [self.key(matchup) for matchup in self.expected],
+            "building_key": building_key,
+            "added": self.added,
+            "failed": self.failed,
         }
         oceanval._write_atomically(self.status_path, json.dumps(status, indent=1))
 
     def title(self, variable):
         return self.short_titles.get(variable) or variable.title()
+
+    def key(self, matchup):
+        return matchup_key(matchup["kind"], matchup["variable"], matchup["source"], matchup.get("layer"))
 
     def label(self, matchup):
         """A matchup's name, as the report's updates give it."""
@@ -511,9 +530,12 @@ class InterimReport:
         """Add the pages of the matchups made, then run the summary again and
         bring every page's navigation up to date."""
         added = []
+        # their pages, which can be opened once bound
+        pages = {}
         for matchup in matchups:
             label = self.label(matchup)
-            self.write_status("building", building=label)
+            key = self.key(matchup)
+            self.write_status("building", building=label, building_key=key)
             try:
                 path, stem = self.make_page(matchup)
                 self.run_notebook(path)
@@ -523,11 +545,16 @@ class InterimReport:
                     f"Interim validation report: the page for {label} could not be "
                     f"made. See {os.path.join(self.folder, 'build.log')}."
                 )
+                if key not in self.failed:
+                    self.failed.append(key)
                 continue
             # made again, if it was already there
             self.pages.pop(stem, None)
             self.pages[stem] = (matchup["variable"], label)
             added.append(label)
+            pages[key] = os.path.join(self.html_dir, "notebooks", f"{stem}.html")
+            if key in self.failed:
+                self.failed.remove(key)
         if added:
             try:
                 self.run_notebook(self.summary)
@@ -535,6 +562,7 @@ class InterimReport:
                 traceback.print_exc()
             announced = self.landing is not None
             self.bind()
+            self.added.update(pages)
             where = "" if announced or self.landing is None else f" Open it at {self.landing}"
             self.say(
                 f"Interim validation report: added {', '.join(added)} "

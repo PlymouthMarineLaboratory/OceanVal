@@ -3,6 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - cartopy
+  - h5py
   - cdo>2.1.0
   - nco
   - notebook

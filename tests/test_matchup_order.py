@@ -7,6 +7,7 @@ import pytest
 
 import oceanval
 import oceanval.matchall as matchall
+from oceanval import live, prompts
 from oceanval.session import session_info
 
 POINT_SURFACE = "oceanval_matchups/point/surface/temperature/bar/bar_surface_temperature.csv"
@@ -118,3 +119,42 @@ def test_failures_of_the_first_gridded_run_are_kept(monkeypatch):
 
     # the non-vertical run failed too, and its failure survives the vertical run
     assert failures == ["bar", "foo"]
+
+
+def test_the_window_is_told_of_each_matchup_in_the_order_made():
+    register([("foo", True), ("bar", False)], [("foo", True), ("bar", False)])
+    told = []
+
+    with prompts.told_by(told.append):
+        oceanval.matchup(
+            sim_dir="data/example",
+            start=2000,
+            end=2000,
+            ask=False,
+            thickness="data/example/e3t.nc",
+            cores=1,
+        )
+
+    keys = [
+        live.matchup_key("gridded", "temperature", "bar"),
+        live.matchup_key("point", "temperature", "bar", "surface"),
+        live.matchup_key("gridded", "temperature", "foo"),
+        live.matchup_key("point", "temperature", "foo", "all"),
+    ]
+    # first the matchups to make, for the oceanval window's grid
+    assert told[0] == {
+        "kind": "matchups",
+        "items": [
+            {"key": key, "variable": "temperature", "title": title, "source": source, "report": False}
+            for key, source, title in zip(
+                keys,
+                ["BAR", "BAR point data (surface)", "FOO", "FOO point data (all depths)"],
+                [session_info["short_title"]["temperature"]] * 4,
+            )
+        ],
+    }
+    # then each as it is started and made, in turn
+    assert told[1:] == [
+        *[{"kind": "matchup", "key": key, "state": state} for key in keys for state in ("matching", "made")],
+        {"kind": "matchups_finished"},
+    ]

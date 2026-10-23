@@ -171,7 +171,7 @@ servers in a kernel that died keep the pipe open, which hung the interim report'
   `bottom(choice="value")` i.e. the deepest non-missing value, water column = `vertical_mean` or
   `vertical_integration` with the thickness, at its first time, or `fixed=True` for
   `"z_level"`; maps of the annual mean and of each month, but no domain-mean monthly line, which
-  the seasonal time series' mean seasonal cycle already gives) and/or phenology (peak day of the surface daily climatology, daily output
+  the seasonal cycles' mean seasonal cycle already gives) and/or phenology (peak day of the surface daily climatology, daily output
   only). Each month of each year is averaged first. Everything goes in
   `<out_dir>/oceanval_analysis/` (`results/` netCDF + `analysis.json`, `report/` book,
   `report.html` link), which it replaces whole.
@@ -250,7 +250,7 @@ servers in a kernel that died keep the pipe open, which hung the interim report'
   `<nwes|global>_subdomains.nc` or the user's file, already lon-lat grids, so `region_values` regrids the raw model
   (bil) to the file's grid once, and each region (`as_missing(0)` mask, `multiply`) is a `spatial_mean` there (the mask is
   never regridded to the model, and no `to_latlon` fallback of its own; the domain mean keeps `robust_spatial_mean`);
-  the domain series is `analysis_series.DOMAIN` = "Full Domain" (the whole model grid; a file region of that name is skipped in `region_values`), and the seasonal figures (`analysis_plots.seasonal_series_plot`/`seasonal_cycle_regions`, `_layout(domain_panel=True)`) give it a panel of its own beyond `MANY_REGIONS` regions, where the long-term figure keeps it as a grey line in each panel;
+  the domain series is `analysis_series.DOMAIN` = "Full Domain" (the whole model grid; a file region of that name is skipped in `region_values`), and the time series figures (`analysis_plots.long_term_plot`/`seasonal_cycle_regions`, `_layout`) give it a panel of its own, first, beyond `MANY_REGIONS` regions (never a line in each region's panel). **The seasonal series are only ever drawn as the climatological cycle** (the mean of each month of the year over the years, `analysis_plots.cycle_code`, for the domain, regions and stations; Compare's `sim_plots` too): each year's months are not drawn, though the monthly CSV keeps them;
   stations are the nearest cell with values (haversine, refused beyond 2 cells), not cut by
   `lon_lim`/`lat_lim`. The chunks are `chunk_longterm`/`chunk_seasonalseries` (letters only:
   `chunkers.is_chunk` matches `chunk_.[a-z]*`).
@@ -313,7 +313,7 @@ servers in a kernel that died keep the pipe open, which hung the interim report'
   transects (`analysis_forms.default_transects`/`clean_transects`/`check_transects`; the cell
   thickness box is shared with the other pop-outs, `THICKNESS_KINDS`). Needs nctoolkit 1.3.6+ (the
   `oceanval` env's 1.3.0 reports it as validate's transect does).
-- Every start/end year box of the Analyze pop-outs (`yearBox`, transects' `optionYears`) goes through `withYears` in `oceanval_app.html`: an arrow at its right end (or Down) opens one shared `year-list` (fixed, so the pop-out body can't clip it) of `first..last` of `placed[].years` (the dates check has no year missing between). A new year box must be made with `yearBox`/`withYears`.
+- Every start/end year box of the Analyze pop-outs (`yearBox`, transects' `optionYears`) goes through `withYears` in `oceanval_app.html`: an arrow at its right end (or Down) opens one shared `year-list` (fixed, so the pop-out body can't clip it) of `first..last` of `placed[].years` (the dates check has no year missing between). A new year box must be made with `yearBox`/`withYears`. The list itself is `OceanValGUI.withChoices` in `data/gui.js` (CSS in `gui.css`), shared with the recipes window's First/Last and the name boxes' presets (`choiceHints`, `onPick`).
 - The window's Analyze steps live in `oceanval/analysis_app.py` (`AnalyzeSteps`, a mixin of
   `App`; views `analyze_variables`, `analyze_files`, `analyze_options`; six pop-outs, the
   time series' two sharing one dialog with the climatology, the regions/area card, the
@@ -376,6 +376,30 @@ servers in a kernel that died keep the pipe open, which hung the interim report'
 - create_recipes runs in a thread of the app; `recipes_gui.hosted_by(app)` makes its window
   one of the app's pages (`/recipes/`) instead of a server of its own. Matchup/validate run in a
   separate process (`oceanval/app_child.py`) whose stdout is the console.
+- **The years a validation can choose** come from the files' time axes, never names (`oceanval/output_years.py`):
+  `App.probe` (validate actions, view `setup`) starts `App._read_output_years`, an `output_years.Reading` that runs
+  the module **as a script by path** (`python -I`, importing no OceanVal: the package import takes 2.6 s) and keeps the
+  answer in `.oceanvalcache` (`user_cache.output_years`, stamped with `output_years.RULE` + the files' count/size/mtime;
+  bump `RULE` when the answer for the same files changes). Only the main output counts: streams with at least
+  `max(2, largest/10)` files (all, if every stream is one file); a post-processed one-off running past the output
+  (1985–2022 beside 1981–2017 in the user's MIZER run) is left out unread. Per counted stream: first/last by natural name
+  order and by mtime, then 30 random files as a check, a full read if one is outside. h5py reads only the time variable
+  (4x faster than netCDF4, which reads every variable's metadata on open; netCDF4 for netCDF-3), shared over a spawn pool
+  of 4 only when run as the script (a worker of `oceanval.output_years` would import the package). `show_recipes`
+  waits for it (`OUTPUT_YEARS_WAIT`) and passes `context["output_years"]`: the recipes window's First/Last boxes get
+  those years as their list (`withChoices`) and placeholders; any year can still be typed (the years found can be
+  wrong), one outside them is only warned about. The setup page shows no years for validate; the `preparing` view
+  is a centred box ("Finding key information about your simulation", `renderPrepare`) with no page title, whose
+  tracker says "Found output for the years …" once read. The same box, with only "Identifying files that meet criteria. Please wait!",
+  is the `running` view while matchup finds the files (`run.identifying`, no question yet): no page title, text or code.
+- **The grid of the matchups** (`#progress-grid`, `renderMatchupGrid`): matchup tells the window of each matchup through
+  `prompts.tell` (nothing at a terminal; `app_child.PROGRESS_MARKER` lines, which `Run._take` passes to `App._matchup_news`,
+  never the console): `matchall._matchups_news` lists them first, then `matchall._Told` says each is `matching`/`made`/`not_made`
+  (gridded through `gridded_matchup(on_matching=, on_failed=)`), keyed by `live.matchup_key`, then `matchups_finished`.
+  The interim report's `status.json` gives each page by the same key (`included`, `building_key`, `added`, `failed`).
+  `state()["run"]["progress"]` is kept through the report run after it. The run's output (`#run`) is shown **only when a
+  run fails** (the user's rule); the interim report's card (`#interim`) is above the grid. In the app's recipes window cores has no default
+  (`show_recipes` sets `form["cores"] = ""`): "Choose the number of cores" must be picked.
 - A multiprocessing Manager is made with `matchall._manager()`, when it is needed, never at import: its server is a
   process of its own that only its parent stops, so one made by a window that crashed ran for ever (`_manager`'s server
   exits once its parent is gone). `matchall.session_warnings` is made by `_session_warnings()` before a pool is forked.

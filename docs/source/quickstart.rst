@@ -35,16 +35,27 @@ output to a validation report:
    Or register recipes of your own for observations you use again, which are
    saved in a ``.oceanvalrc`` file (see :doc:`recipes`).
 2. **Simulation**: where the model output is, and which files to use.
+   OceanVal reads the years the output covers from the times in its files
+   (never their names) while you carry on, in a few seconds, for the next
+   steps.
 3. **Own data**: add observations of your own, if you have any, for this
    matchup only or saved as a recipe for later ones too.
-4. **Recipes**: check the model variables found, and choose the
-   observations to validate against.
+4. **Recipes**: check the model variables found, give the first and last
+   years to validate (type them, or pick them from the list of the years the
+   output covers that the arrow in each box opens), choose how many cores to
+   use, which has no default, and choose the observations to validate against.
 5. **Units**: check and confirm the units, with conversions suggested where
    they differ.
 6. **Files** and **Report**: check the matchups (the files of each variable
    in the years it is matched up for, and any dates missing from them), then
    choose the report's options.
-7. **Run**: the matchup and the report, with what it is doing shown, and its output as the matchups are made.
+7. **Run**: the matchups and the report. A grid has a row for each variable
+   and data source: its **Matchup** column turns from empty to a turning
+   circle while that matchup is made, then to a tick (or a cross if it could
+   not be made), and its **Interim report** column does the same as the
+   matchup's page is added to the interim validation report, whose link is at
+   the top. A tick there opens that page. OceanVal's output is shown only if
+   the run fails, with its errors.
 
 **Back**, on every step after the first, keeps what you have entered, so you
 can go back to fix a mistake without starting again.
@@ -55,6 +66,16 @@ box, so you can pick one instead of typing it. They are remembered in a ``.ocean
 ``OCEANVALCACHE`` environment variable names another file to use in its
 place). A new version keeps it. The **x** at the right of a simulation in the list
 takes it out of the history (the Delete key does the same for the one marked).
+
+The years a simulation's output covers are read from the time axes of only
+some of its files: the first and last of each kind of output, by name and by
+when they were written, and some others chosen at random as a check (every file
+of a kind is read if the check finds one out of order). Only the simulation's
+main output counts: the kinds of file with at least a tenth as many files as
+the most numerous kind, and at least two, unless every kind is a single file.
+Files beside it, such as a post-processed time series or the grids an earlier
+validation saved, are left out. The years are kept in ``.oceanvalcache`` too,
+and read again only when the files change.
 
 Closing the browser window quits ``oceanval`` in the terminal, within about
 15 seconds, stopping anything it is running, whichever browser you use. So

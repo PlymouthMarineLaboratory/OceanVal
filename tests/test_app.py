@@ -33,7 +33,7 @@ from oceanval.app import (
     App, Console, Question, Run, check_compare, check_report, check_setup, check_validate,
     default_validate_form,
 )
-from oceanval.app_child import ANSWER_MARKER, QUESTION_MARKER
+from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.gridded import _ask_minutes, _ask_yes_no
 from oceanval.recipes_gui import recipe_rows
 from simulations import write_fvcom, write_simulation
@@ -102,7 +102,10 @@ def choose_domain(page, domain="global"):
     page.check(f'#f-domain input[value="{domain}"]')
 
 
-def fill_required_recipe_years(page):
+def fill_required_recipe_settings(page):
+    """Give what the recipes window has no default for in the app: the years,
+    which can be typed or chosen from the years the output's times cover, and
+    the number of cores."""
     red = "rgb(192, 57, 43)"
     for name in ("start", "end"):
         assert page.input_value(f"#s-{name}") == ""
@@ -111,9 +114,29 @@ def fill_required_recipe_years(page):
         assert label.evaluate("node => getComputedStyle(node).color") == red
         assert label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
         assert page.is_visible(f"#s-{name}-required")
+        assert page.locator(f"#s-{name}").evaluate("node => node.yearChoices") == [2011, 2012]
+    assert page.get_attribute("#s-start", "placeholder") == "2011"
+    assert page.get_attribute("#s-end", "placeholder") == "2012"
+    assert page.text_content("#g-output-years") == "The simulation's output runs from 2011 to 2012, from the times in its files."
+    cores = page.locator(".cores-row .g-label")
+    assert page.input_value("#s-cores") == ""
+    assert page.locator("#s-cores option").first.text_content() == "Choose the number of cores"
+    assert page.locator("#s-cores").evaluate("node => node.required")
+    assert cores.evaluate("node => getComputedStyle(node).color") == red
+    assert cores.text_content() == "How many cores do you want to use?Required"
     assert page.is_disabled("#write")
-    page.fill("#s-start", "2011")
+    # the first year chosen with the arrow at the right of its box
+    box = page.locator("#s-start").bounding_box()
+    page.mouse.click(box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+    page.click(".year-list .combo__option >> text=2011")
+    assert page.input_value("#s-start") == "2011"
+    # the last typed: one beyond the years found is only warned about
+    page.fill("#s-end", "2015")
+    assert "These go beyond the 2011–2012 found in the simulation's files." in page.text_content("#g-years")
     page.fill("#s-end", "2012")
+    assert "go beyond" not in page.text_content("#g-years")
+    assert page.is_disabled("#write")
+    page.select_option("#s-cores", "1")
 
 
 def recipe_settings(app, **changes):
@@ -123,6 +146,9 @@ def recipe_settings(app, **changes):
         settings["start"] = "2011"
     if not settings.get("end"):
         settings["end"] = "2012"
+    # the app's window has no default
+    if not settings.get("cores"):
+        settings["cores"] = "1"
     return settings
 
 
@@ -336,6 +362,19 @@ class TestRun:
         assert asked == [("Go? ", {"kind": "x"})]
         assert console.since(0, None)["text"] + left == "beforeafter"
 
+    def test_news_of_how_it_is_going_is_not_output(self):
+        console = Console(lambda: None)
+        told = []
+        run = Run([], ".", console, None, None, told=told.append)
+        news = PROGRESS_MARKER + json.dumps({"kind": "matchup", "key": "k", "state": "made"}) + "\n"
+        left = ""
+        # in pieces, as a question can be, and anything else is printed as it was
+        for character in "before" + news + "after" + PROGRESS_MARKER + "[1]\n":
+            left = run._take(left + character)
+
+        assert told == [{"kind": "matchup", "key": "k", "state": "made"}]
+        assert console.since(0, None)["text"] + left == "beforeafter" + PROGRESS_MARKER + "[1]\n"
+
 
 class TestChildProcess:
     def test_questions_are_written_out_and_the_answer_read_back(
@@ -354,6 +393,15 @@ class TestChildProcess:
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         with pytest.raises(EOFError):
             app_child._ask_the_window("Go? ", None)
+
+    def test_news_is_written_out_for_the_window_alone(self, capfd):
+        news = {"kind": "matchup", "key": "gridded|temperature|nsbc|", "state": "matching"}
+        # at a terminal, nothing is said
+        prompts.tell(news)
+        assert capfd.readouterr().out == ""
+        with prompts.told_by(app_child._tell_the_window):
+            prompts.tell(news)
+        assert capfd.readouterr().out == PROGRESS_MARKER + json.dumps(news) + "\n"
 
     def test_details_go_with_the_question(self, monkeypatch, capfd):
         monkeypatch.setattr("sys.stdin", io.StringIO("y\n"))
@@ -1423,6 +1471,32 @@ class TestServer:
         found = probe(require="nothing_like_this")
         assert (found["files"], found["all_files"], found["suggestion"]) == (0, 4, None)
 
+    def test_the_years_of_the_output_are_read_from_its_times(self, app, tmp_path):
+        # the names say 2011 and 2012, the times 2011 to 2013
+        write_simulation(tmp_path / "sim")
+        from netCDF4 import Dataset
+
+        with Dataset(str(next((tmp_path / "sim" / "2012").rglob("*.nc"))), "a") as handle:
+            handle["time"][:] = [400.0]
+        # only for the recipes window, from the simulation step
+        get_json(app, "/api/probe", simdir="sim", ndown="2", out="")
+        assert app.state()["setup"]["output_years"] is None
+        assert post(app, "/api/choose", {"action": "matchup"})[0] == 200
+
+        _, found = get_json(app, "/api/probe", simdir="sim", ndown="2", out="")
+        assert found["years"] == [2011, 2012]
+        wait_for(lambda: app.state()["setup"]["output_years"]["status"] == "done")
+        read = app.state()["setup"]["output_years"]
+        assert read == {"key": found["output_key"], "status": "done", "years": [2011, 2013]}
+        assert app.output_years_of(app._output_years["key"]) == [2011, 2013]
+        # another simulation's are read instead
+        write_simulation(tmp_path / "other", years=(1990,))
+        _, other = get_json(app, "/api/probe", simdir="other", ndown="2", out="")
+        assert other["output_key"] != found["output_key"]
+        assert app.state()["setup"]["output_years"]["key"] == other["output_key"]
+        wait_for(lambda: app.state()["setup"]["output_years"]["status"] == "done")
+        assert app.state()["setup"]["output_years"]["years"] == [1990, 1990]
+
     def test_browsing(self, app, tmp_path):
         (tmp_path / "sim").mkdir()
         status, found = get_json(app, "/api/browse", path="")
@@ -2025,7 +2099,8 @@ class TestServer:
         units_match(app)
         wait_for(lambda: runs)
         script = open(tmp_path / "matchup.py").read()
-        assert '    n_dirs_down=2,\n    exclude=["ptrc"],\n)' in script
+        # cores is always chosen in the window, so it is always written
+        assert '    n_dirs_down=2,\n    cores=1,\n    exclude=["ptrc"],\n)' in script
 
     def test_back_from_the_recipes_step(self, app, tmp_path, runs):
         write_simulation(tmp_path / "sim")
@@ -2162,6 +2237,58 @@ class TestServer:
         assert state["console"]["text"].endswith("Happy? (y/n) n\nanswer: n\n")
         assert post(app, "/api/restart")[0] == 200
         assert app.view == "home"
+
+    def test_the_matchups_are_followed_as_matchup_tells_of_them(self, app, tmp_path, monkeypatch):
+        items = [
+            {"key": "gridded|temperature|nsbc|", "variable": "temperature", "title": "Temperature",
+             "source": "NSBC", "report": True},
+            {"key": "point|nitrate|ices|surface", "variable": "nitrate", "title": "Nitrate",
+             "source": "ICES point data (surface)", "report": False},
+        ]
+        go = tmp_path / "go"
+        script = tmp_path / "run.py"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                import os, time
+                from oceanval import prompts
+                prompts.tell({{"kind": "matchups", "items": {items!r}}})
+                prompts.tell({{"kind": "matchup", "key": "gridded|temperature|nsbc|", "state": "matching"}})
+                print("matching up")
+                while not os.path.exists({str(go)!r}):
+                    time.sleep(0.05)
+                prompts.tell({{"kind": "matchup", "key": "gridded|temperature|nsbc|", "state": "made"}})
+                prompts.tell({{"kind": "matchup", "key": "point|nitrate|ices|surface", "state": "matching"}})
+                prompts.tell({{"kind": "matchups_finished"}})
+                """
+            )
+        )
+        app.action = "matchup_validate"
+        app.start_run(["script", str(script)], "python run.py")
+        wait_for(lambda: app.matchup_progress and app.matchup_progress["states"])
+        progress = get_json(app, "/api/state")[1]["run"]["progress"]
+        assert progress == {
+            "items": [
+                {**items[0], "state": "matching"},
+                {**items[1], "state": "waiting"},
+            ],
+            "finished": False,
+        }
+        go.write_text("")
+        wait_for(lambda: app.view == "finished")
+        _, state = get_json(app, "/api/state")
+        # one not made by the end is not made
+        assert [item["state"] for item in state["run"]["progress"]["items"]] == ["made", "not_made"]
+        assert state["run"]["progress"]["finished"]
+        # none of it is in the output
+        assert "matching up" in state["console"]["text"]
+        assert "oceanval-progress" not in state["console"]["text"]
+        # the report run after it keeps the grid, and another run does not
+        monkeypatch.setattr(app_module.Run, "start", lambda run: None)
+        app.start_run(["validate", "{}"], "validate()")
+        assert app.matchup_progress is not None
+        app.start_run(["script", str(script)], "python run.py")
+        assert app.matchup_progress is None
 
     def matchups_script(self, tmp_path):
         """A stand-in for matchup, asking whether the matchups are right with
@@ -2365,6 +2492,7 @@ class TestServer:
         # until matchup's builder says how far it has got, the page says it is coming
         assert get_json(app, "/api/state")[1]["interim"] == {
             "state": "waiting", "pages": 0, "expected": None, "what": "validation", "href": None,
+            "included": None, "building_key": None, "added": {}, "failed": [],
         }
         # what an earlier run left is not taken for this run's
         assert not stale.exists()
@@ -2398,7 +2526,12 @@ class TestServer:
         assert interim_state()["href"] is None
         status.write_text(
             json.dumps(
-                {"state": "building", "pages": 1, "expected": 3, "landing": str(pages / "summary.html")}
+                {
+                    "state": "building", "pages": 1, "expected": 3, "landing": str(pages / "summary.html"),
+                    # for the grid of the matchups, each page by the matchup's key
+                    "included": ["a", "b", "c"], "building_key": "b", "failed": ["c"],
+                    "added": {"a": str(pages / "summary.html")},
+                }
             )
         )
         wait_for(lambda: interim_state()["pages"] == 1, timeout=15)
@@ -2409,6 +2542,10 @@ class TestServer:
             "expected": 3,
             "what": "validation",
             "href": f"interim/{app.token}/notebooks/summary.html",
+            "included": ["a", "b", "c"],
+            "building_key": "b",
+            "added": {"a": f"interim/{app.token}/notebooks/summary.html"},
+            "failed": ["c"],
         }
         # the link opens the report from the window
         with urllib.request.urlopen(
@@ -4106,6 +4243,9 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_disabled("#continue")
         assert page.input_value("#f-start") == "2011"
         page.fill("#f-ndown", "2")
+        # the years are read from the files' times, for the recipes window: none are shown here
+        page.wait_for_function("document.querySelector('#m-simulation').textContent.includes('2 directories down')")
+        assert page.text_content("#m-simulation") == "2 netCDF files 2 directories down."
         # there is no default domain: it has to be chosen too
         assert page.is_disabled("#continue")
         choose_domain(page)
@@ -4133,7 +4273,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_visible("#group-subset")
         # the app always asks
         assert page.is_hidden("#s-ask")
-        fill_required_recipe_years(page)
+        fill_required_recipe_settings(page)
         # nothing is Vertical, so no thickness is asked for
         assert page.is_hidden("#row-thickness")
         # a dataset through the water column cannot go ahead without a thickness
@@ -4160,12 +4300,14 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         page.click("#units-continue")
 
         # until matchup asks, the page says it is finding the files
-        page.wait_for_selector("#progress:not([hidden])", timeout=90000)
-        assert "Identifying files that meet criteria. Please wait!" in page.text_content("#progress")
+        page.wait_for_selector("#prepare:not([hidden])", timeout=90000)
+        assert page.inner_text(".prepare__card") == "Identifying files that meet criteria. Please wait!"
+        assert page.is_hidden("#title")
         # the output is not shown while the run goes well
         assert page.is_hidden("#run")
         # and then shows what it found as a table, in place of the question below the output
         page.wait_for_selector("#review:not([hidden])", timeout=90000)
+        assert page.is_hidden("#prepare")
         assert page.is_hidden("#progress")
         assert page.is_hidden("#ask")
         assert page.locator("#review th").all_text_contents() == [
@@ -4250,9 +4392,10 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         app.close()
 
 
-def test_the_title_is_identify_while_the_files_are_found(browser, tmp_path):
-    """A matchup and validate run is titled for the matchups from the start,
-    not "Matching up and validating" until the question arrives."""
+def test_the_files_are_found_in_a_box_with_no_title(browser, tmp_path):
+    """While the files are found a matchup and validate run is a box in the
+    middle of the page, and is titled for the matchups once they are asked
+    about, not "Matching up and validating"."""
     go = tmp_path / "go"
     script = tmp_path / "matchup.py"
     script.write_text(
@@ -4273,8 +4416,14 @@ def test_the_title_is_identify_while_the_files_are_found(browser, tmp_path):
     try:
         page = browser.new_page()
         page.goto(url)
-        page.wait_for_selector("#progress:not([hidden])", timeout=60000)
-        assert page.text_content("#title") == "Identify simulations files for validating variables"
+        page.wait_for_selector("#prepare:not([hidden])", timeout=60000)
+        # the box in the middle of the page says it, with no title, text or code
+        assert page.inner_text(".prepare__card") == "Identifying files that meet criteria. Please wait!"
+        assert page.is_hidden("#title")
+        assert page.is_hidden("#progress")
+        assert page.evaluate(
+            "getComputedStyle(document.querySelector('.prepare__spinner'), '::after').animationName"
+        ) == "spin"
         # no output while the files are found, nor while they are checked
         assert page.is_hidden("#run")
         go.write_text("")
@@ -5233,7 +5382,7 @@ def test_comparing_validations_in_a_browser(browser, tmp_path, monkeypatch):
         app.close()
 
 
-def test_the_output_is_shown_while_matching_up_and_when_a_run_fails(browser, tmp_path):
+def test_the_output_is_only_shown_when_a_run_fails(browser, tmp_path):
     app = App(cwd=str(tmp_path))
     with app._lock:
         app.action, app.view, app.status = "matchup_validate", "running", "running"
@@ -5243,15 +5392,14 @@ def test_the_output_is_shown_while_matching_up_and_when_a_run_fails(browser, tmp
         page = browser.new_page()
         page.goto(url)
         page.wait_for_selector("#progress:not([hidden])")
-        # the output is shown, as the matchups are made
-        page.wait_for_selector("#run:not([hidden])")
-        assert "matching up" in page.text_content("#console-text")
+        # not while the matchups are made
+        assert page.is_hidden("#run")
         with app._lock:
             app.view, app.status, app.returncode = "finished", "failed", 1
             app._notify()
-        # the output stays, and the panel no longer says what it is doing
-        page.wait_for_selector("#progress", state="hidden")
-        assert page.is_visible("#run")
+        # then it is, with its errors, and the panel no longer says what it is doing
+        page.wait_for_selector("#run:not([hidden])")
+        assert page.is_hidden("#progress")
         assert "matching up" in page.text_content("#console-text")
     finally:
         app.close()
@@ -5280,8 +5428,8 @@ def test_the_interim_report_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#progress:not([hidden])")
         assert page.text_content("#progress-title") == "Matching the model to the observations"
         assert page.is_hidden("#interim")
-        # the output is shown, as the matchups are made
-        assert page.is_visible("#run")
+        # the output is not shown while the run goes well
+        assert page.is_hidden("#run")
 
         status.write_text(
             json.dumps(
@@ -5332,6 +5480,140 @@ def test_the_interim_report_in_a_browser(browser, tmp_path):
         report = opened.value
         report.wait_for_load_state()
         assert "The full report" in report.text_content("body")
+    finally:
+        app.close()
+
+
+def test_the_matchups_grid_in_a_browser(browser, tmp_path):
+    """While matchup and validate runs, a grid says which matchup is being
+    made, and which have a page in the interim report: a tick when done,
+    nothing before it starts, and a turning circle while it is going."""
+    temperature, nitrate, chlorophyll = (
+        "gridded|temperature|nsbc|", "point|nitrate|ices|surface", "gridded|chlorophyll|occci|",
+    )
+    items = [
+        {"key": temperature, "variable": "temperature", "title": "Temperature", "source": "NSBC",
+         "report": True},
+        {"key": nitrate, "variable": "nitrate", "title": "Nitrate",
+         "source": "ICES point data (surface)", "report": True},
+        # left out of the report by its variables
+        {"key": chlorophyll, "variable": "chlorophyll", "title": "Chlorophyll", "source": "OCCCI",
+         "report": False},
+    ]
+    script = tmp_path / "matchup.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            import os, time
+            from oceanval import prompts
+
+            def wait(name):
+                while not os.path.exists(os.path.join({str(tmp_path)!r}, name)):
+                    time.sleep(0.05)
+
+            prompts.tell({{"kind": "matchups", "items": {items!r}}})
+            wait("go1")
+            prompts.tell({{"kind": "matchup", "key": {temperature!r}, "state": "matching"}})
+            print("matching up temperature")
+            wait("go2")
+            prompts.tell({{"kind": "matchup", "key": {temperature!r}, "state": "made"}})
+            prompts.tell({{"kind": "matchup", "key": {nitrate!r}, "state": "matching"}})
+            wait("go3")
+            prompts.tell({{"kind": "matchup", "key": {nitrate!r}, "state": "not_made"}})
+            prompts.tell({{"kind": "matchup", "key": {chlorophyll!r}, "state": "matching"}})
+            wait("never")
+            """
+        )
+    )
+    folder = tmp_path / "oceanval_interim_report"
+    pages = folder / "oceanval_report" / "_build" / "html" / "notebooks"
+    pages.mkdir(parents=True)
+    (pages / "nsbc_temperature.html").write_text("<html><body><p>Temperature</p></body></html>")
+    status = folder / "status.json"
+    interim = {"status_path": str(status), "status": None}
+    app = App(cwd=str(tmp_path))
+    with app._lock:
+        app.action = "matchup_validate"
+        app.results_dir = str(tmp_path)
+    app.start_run(["script", str(script)], f"python {script}")
+    with app._lock:
+        app.identifying = False
+        app.interim = interim
+    threading.Thread(target=app._follow_interim, args=(interim,), daemon=True).start()
+    url = app.start()
+
+    def cell(row, column):
+        return page.locator(f'#progress-grid tbody tr:nth-child({row}) [data-column="{column}"]')
+
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#progress-grid:not([hidden])", timeout=60000)
+        assert page.locator("#progress-grid th").all_text_contents() == [
+            "Variable", "Data source", "Matchup", "Interim report",
+        ]
+        assert page.locator("#progress-grid tbody td:nth-child(-n+2)").all_text_contents() == [
+            "Temperature", "NSBC", "Nitrate", "ICES point data (surface)", "Chlorophyll", "OCCCI",
+        ]
+        assert page.text_content("#progress-title") == "Getting ready to match up"
+        # nothing done yet: empty
+        assert cell(1, "matchup").get_attribute("data-state") == "waiting"
+        assert cell(1, "matchup").text_content() == ""
+        assert cell(1, "matchup").locator("[role=img]").get_attribute("aria-label") == "Not started"
+        # a matchup the report leaves out has a dash in its column
+        assert cell(3, "report").text_content() == "—"
+        # no paragraph, command or output while it goes well
+        assert page.is_hidden("#progress-text")
+        assert page.is_hidden("#progress-label")
+        assert page.is_hidden("#run")
+
+        (tmp_path / "go1").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-state="working"] .identify__spinner')
+        assert page.text_content("#progress-title") == "Matching up: 0 of 3 matchups made"
+        assert page.locator("#progress-grid tbody tr.is-active").count() == 1
+        spinner = cell(1, "matchup").locator(".identify__spinner")
+        assert spinner.evaluate("node => getComputedStyle(node).animationName") == "spin"
+
+        (tmp_path / "go2").write_text("")
+        status.write_text(json.dumps({
+            "state": "building", "pages": 0, "expected": 2, "building_key": temperature,
+            "added": {}, "failed": [], "included": [temperature, nitrate],
+        }))
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="report"][data-state="working"]')
+        assert cell(1, "matchup").get_attribute("data-state") == "done"
+        assert cell(1, "matchup").locator(".icon").count() == 1
+        assert cell(2, "matchup").get_attribute("data-state") == "working"
+        assert page.text_content("#progress-title") == "Matching up: 1 of 3 matchups made"
+        # the circle keeps turning: it is not drawn again as the state is
+        cell(2, "matchup").locator(".identify__spinner").evaluate("node => { node.dataset.kept = 'yes'; }")
+
+        status.write_text(json.dumps({
+            "state": "building", "pages": 1, "expected": 2, "building_key": None,
+            "added": {temperature: str(pages / "nsbc_temperature.html")}, "failed": [],
+            "included": [temperature, nitrate],
+            "landing": str(pages / "nsbc_temperature.html"),
+        }))
+        link = cell(1, "report").locator("a")
+        link.wait_for()
+        assert cell(1, "report").get_attribute("data-state") == "done"
+        assert link.get_attribute("href").startswith("interim/")
+        assert link.get_attribute("target") == "_blank"
+        # which opens that matchup's page
+        assert "Temperature" in link.evaluate("node => fetch(node.href).then((reply) => reply.text())")
+        assert cell(2, "matchup").locator(".identify__spinner").get_attribute("data-kept") == "yes"
+
+        (tmp_path / "go3").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="matchup"][data-state="working"]')
+        assert cell(2, "matchup").get_attribute("data-state") == "failed"
+        assert cell(2, "matchup").locator("[role=img]").get_attribute("aria-label") == "Not made"
+        # the interim report's card is at the top, above the grid
+        assert page.is_visible("#interim a")
+        assert page.locator("#interim").bounding_box()["y"] < page.locator("#progress").bounding_box()["y"]
+        assert page.is_hidden("#run")
+
+        # on a phone the grid scrolls in its box, never the page
+        page.set_viewport_size({"width": 390, "height": 800})
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     finally:
         app.close()
 
@@ -5397,6 +5679,59 @@ def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc,
         assert page.locator("#info-point tbody tr").count() == 10
         page.click("#info-close")
         assert page.is_hidden("#info")
+    finally:
+        app.close()
+
+
+class _Reading:
+    """A reading of the output's years that is never started."""
+
+    def cancel(self):
+        pass
+
+
+def test_finding_key_information_in_a_browser(browser, tmp_path):
+    """While create_recipes reads the simulation, a box in the middle of the
+    page, with no title above it, says what is being found, and the years of
+    the output once they are read from its files' times."""
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    app.leftovers_asked = True
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.set_viewport_size({"width": 1280, "height": 900})
+        page.goto(url)
+        page.wait_for_selector("#view-start:not([hidden])")
+        reading = {"key": ("/data/sim", 2, (), ()), "result": None, "done": threading.Event(), "reading": _Reading()}
+        with app._lock:
+            app.action = "matchup"
+            app.setup_form["simdir"] = "/data/sim"
+            app._output_years = reading
+            app.view = "preparing"
+            app._notify()
+        page.wait_for_selector("#prepare:not([hidden])")
+        assert page.is_hidden("#title")
+        assert page.is_hidden("#progress")
+        assert page.inner_text(".prepare__card").split() == " ".join([
+            "Finding key information about your simulation",
+            "Finding the years of the output from the times in its files…",
+        ]).split()
+        assert page.text_content("#prepare-years") == "Finding the years of the output from the times in its files…"
+        assert page.locator(".prepare__spinner").evaluate("node => getComputedStyle(node, '::after').animationName") == "spin"
+        # in the middle of the page
+        box = page.locator(".prepare__card").bounding_box()
+        assert abs(box["x"] + box["width"] / 2 - 640) < 20
+        assert box["y"] > 150
+
+        with app._lock:
+            reading["result"] = {"years": [1981, 2017]}
+            app._notify()
+        page.wait_for_function("document.querySelector('#prepare-years').textContent.includes('1981')")
+        assert page.text_content("#prepare-years") == "Found output for the years 1981 to 2017"
+
+        page.set_viewport_size({"width": 390, "height": 844})
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     finally:
         app.close()
 
@@ -5589,7 +5924,7 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
-        fill_required_recipe_years(page)
+        fill_required_recipe_settings(page)
         page.click("#write")
 
         page.wait_for_selector("#units-body-gridded tr[data-units-row]")
@@ -5728,7 +6063,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
-        fill_required_recipe_years(page)
+        fill_required_recipe_settings(page)
         # carrying on from the fine-tune page, and a model variable box that is text only
         assert page.text_content("#write") == "Continue"
         assert page.locator('input[aria-label^="Simulation variable for"]').first.get_attribute("list") is None

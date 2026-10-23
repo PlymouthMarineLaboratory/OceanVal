@@ -7,6 +7,10 @@ command (see oceanval.app) puts the questions in its window instead, by
 installing an answerer: both in its own process, for create_recipes' FVCOM
 question, and in the process it runs matchup and validate in (see
 oceanval.app_child).
+
+tell() is the other way round: how a run is going, such as each matchup
+matchup() starts and makes, which the window shows as it goes. At a
+terminal it says nothing, as what the run prints says it already.
 """
 
 import contextlib
@@ -14,6 +18,8 @@ import sys
 
 # set by answered_by; None asks at the terminal
 _answerer = None
+# set by told_by; None tells no one
+_teller = None
 
 
 class Answer(str):
@@ -62,3 +68,21 @@ def answered_by(answerer):
         yield
     finally:
         _answerer = previous
+
+
+def tell(news):
+    """Tell a window how the run is going: news is a dict that can be
+    written as JSON. Nothing is said at a terminal."""
+    if _teller is not None:
+        _teller(news)
+
+
+@contextlib.contextmanager
+def told_by(teller):
+    """Pass everything told inside the block to teller(news)."""
+    global _teller
+    previous, _teller = _teller, teller
+    try:
+        yield
+    finally:
+        _teller = previous

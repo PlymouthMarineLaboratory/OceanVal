@@ -494,5 +494,123 @@ const OceanValGUI = (() => {
     return { details, sync: syncTicks };
   }
 
-  return { ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, mountChrome, variablesPicker };
+  // ---- a box with a list of choices, opened by the arrow at its right-hand end ----
+  // A box with yearChoices (years, or names: see withChoices) has a list of
+  // them to pick from, and anything can still be typed in it. One list serves
+  // every such box, placed under (or over) the box it was opened from, and
+  // fixed, so that a pop-out's body cannot clip it. A box's choiceHints are
+  // shown beside the choices they name, and its onPick(value) is called once
+  // a choice is put in it.
+  let choiceList = null;
+  let choiceOwner = null;
+  let choiceActive = -1;
+
+  function withChoices(input, choices) {
+    input.yearChoices = choices;
+    input.classList.add("has-years");
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-haspopup", "listbox");
+    input.setAttribute("aria-expanded", "false");
+    return input;
+  }
+
+  const choicesOpen = () => Boolean(choiceList) && !choiceList.hidden;
+
+  function closeChoices() {
+    if (choiceOwner) choiceOwner.setAttribute("aria-expanded", "false");
+    choiceOwner = null;
+    choiceActive = -1;
+    if (choiceList) choiceList.hidden = true;
+  }
+
+  function markChoice(index) {
+    const options = [...choiceList.children];
+    choiceActive = (index + options.length) % options.length;
+    options.forEach((option, number) => {
+      option.classList.toggle("is-active", number === choiceActive);
+      option.setAttribute("aria-selected", String(number === choiceActive));
+    });
+    options[choiceActive].scrollIntoView({ block: "nearest" });
+  }
+
+  function pickChoice(choice) {
+    const input = choiceOwner;
+    closeChoices();
+    input.value = String(choice);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    if (input.onPick) input.onPick(input.value);
+    input.focus();
+  }
+
+  function openChoices(input) {
+    if (!input.yearChoices || input.disabled) return;
+    if (!choiceList) {
+      choiceList = el("ul", { class: "combo__list year-list", role: "listbox", hidden: true });
+      document.body.append(choiceList);
+    }
+    choiceOwner = input;
+    input.setAttribute("aria-expanded", "true");
+    // the list is also the preset names of a variable's name (input.onPick), which are not years
+    choiceList.classList.toggle("is-names", Boolean(input.onPick));
+    choiceList.replaceChildren(...input.yearChoices.map((choice) => el("li", {
+      class: "combo__option", role: "option", "aria-selected": "false", text: String(choice),
+      // mousedown, so the box keeps its focus
+      onmousedown: (event) => { event.preventDefault(); pickChoice(choice); },
+    }, (input.choiceHints || {})[choice] ? el("span", { class: "combo__hint", text: input.choiceHints[choice] }) : null)));
+    const box = input.getBoundingClientRect();
+    const below = window.innerHeight - box.bottom;
+    choiceList.style.minWidth = `${box.width}px`;
+    choiceList.style.left = `${box.left}px`;
+    choiceList.style.top = below >= 200 || below >= box.top ? `${box.bottom + 4}px` : "auto";
+    choiceList.style.bottom = below >= 200 || below >= box.top ? "auto" : `${window.innerHeight - box.top + 4}px`;
+    choiceList.hidden = false;
+    const at = input.yearChoices.indexOf(input.onPick ? input.value.trim() : Number(input.value.trim()));
+    if (at >= 0) markChoice(at);
+  }
+
+  // the arrow is the right-hand end of the box: a click there opens the list, one anywhere else in the box only closes it
+  document.addEventListener("click", (event) => {
+    const input = event.target;
+    if (!input.yearChoices) return;
+    const open = choicesOpen() && choiceOwner === input;
+    if (event.clientX > input.getBoundingClientRect().right - 24) {
+      if (open) closeChoices();
+      else { closeChoices(); openChoices(input); }
+      input.focus();
+    } else if (open) closeChoices();
+  });
+  document.addEventListener("mousedown", (event) => {
+    if (choicesOpen() && event.target !== choiceOwner && !choiceList.contains(event.target)) closeChoices();
+  });
+  document.addEventListener("keydown", (event) => {
+    const input = event.target;
+    if (!input.yearChoices) return;
+    if (!choicesOpen() || choiceOwner !== input) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        closeChoices();
+        openChoices(input);
+      }
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      markChoice(choiceActive + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Enter" && choiceActive >= 0) {
+      event.preventDefault();
+      pickChoice(input.yearChoices[choiceActive]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeChoices();
+    } else if (event.key === "Tab") {
+      closeChoices();
+    }
+  });
+  document.addEventListener("input", (event) => { if (choicesOpen() && event.target === choiceOwner) closeChoices(); });
+  // a list left behind when the box moves
+  document.addEventListener("scroll", (event) => { if (choicesOpen() && event.target !== choiceList) closeChoices(); }, true);
+  window.addEventListener("resize", closeChoices);
+
+  return {
+    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, mountChrome, variablesPicker,
+    withChoices, choicesOpen, closeChoices,
+  };
 })();
