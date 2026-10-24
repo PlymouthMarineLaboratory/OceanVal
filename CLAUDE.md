@@ -107,12 +107,15 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   is True (all), False (`selection.last_run` only) or a list of earlier ones as `variables` takes them;
   `matchup(overwrite=)` also takes such a list (`selection.picks`). In the window, an out_dir with matchups
   (`app.existing_matchups`, a row per "variable/source") gets a grid on the setup page, "What do you want to do with
-  existing matchups?": per row one of Replace / Use / Ignore (radios with the tick look, Use to start with; a radio at
-  the top of each column chooses it for all rows). **Only a used matchup is kept as it is**: one replaced or ignored is
-  made again if this run matches it up, and left out of the report if not (form `overwrite`, `ignored`; `check_setup`
-  gives overwrite = all not used, previous = those used, all → True, none → False). Matchup only has no Ignore column:
-  those used are reused, and a confirmation tick (`existing_confirmed`) is required. The demo's own folder (`check_setup(demo_dir=)`, `out_dir_is_demo`), where every model tried keeps its
-  matchups, has no grid: overwrite=True, previous=False. `previous` is never passed to the interim report
+  existing matchups?": per row one of two, Use / Replace/Ignore (radios with the tick look, Use to start with; a radio
+  at the top of each column chooses it for all rows). Replacing and ignoring were one and the same, so they are one
+  column. **Only a used matchup is kept as it is**: one replaced is made again if this run matches it up, and left
+  out of the report if not (form `overwrite` only; `check_setup` gives overwrite = those replaced, previous = those
+  used, all → True, none → False). Matchup only calls the column Replace, and those used are reused. A confirmation tick under the grid (`existing_confirmed`) is required in both, as users may
+  not notice every row starts on Use; it is reset when the list shown changes. The demo's own folder (`check_setup(demo_dir=)`, `out_dir_is_demo`), where every model tried keeps its
+  matchups, has no grid: overwrite=True, previous=False. Analyze's `analysis_forms.check_setup` calls the same `check_setup`
+  but shows no grid, so it drops the answers (`_NOT_ANALYZED`: overwrite, previous, existing_confirmed); an error kept for a
+  box the page does not show disables Continue with nothing said. `previous` is never passed to the interim report
   (`live.NOT_INTERIM`), and `_checked_report` adds the earlier keys to `variables` when some of the run's are unticked.
 
 ### Recipes of the user's own (`.oceanvalrc`)
@@ -420,7 +423,28 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   resumes it), never in the child; `App._clock` is the one clock (tests patch it, never `time.monotonic`). The page is sent seconds as of
   each state (`item["seconds"]`, `progress["elapsed"]`/`["running"]`) and counts on from there itself (`setClock`/`tickClocks`,
   `performance.now()`), as a state is only sent when something changes. The run's output (`#run`) is shown **only when a
-  run fails** (the user's rule); the interim report's card (`#interim`) is above the grid. In the app's recipes window cores has no default
+  run fails** (the user's rule), and **the command that runs (`python analysis.py`) is never shown**: not as a label on the
+  progress panel or the output's header, nor echoed as `$ ...` in the console (the user's rule: it is of no interest to them;
+  `start_run`'s `label` is kept but not displayed). Only the two pages that tell the user how to run a script they chose
+  to save, not run, show one (the window's script-saved view, create_recipes' "Script written" page); the interim report's card (`#interim`) is above the grid. **Model extraction** (the column
+  before Matchup, which still covers the whole matchup) is how many of a matchup's model files have been read, news
+  `{"kind": "extraction", key, total, done, finished}` (`cdo_watch.news`; `App._matchup_news` keeps counts from going down and clears
+  them when a matchup is started again). Point matchups count in their own loop over the files (`_Told.files`, at most a count a second,
+  but always the first and last). A gridded matchup's files are all read in nctoolkit (`ds_model.merge("time")`), which says nothing,
+  so `_Told.reading` (`gridded_matchup(reading=)`) runs **`oceanval/cdo_watch.py`**, a process of its own, run as a script by path
+  and importing no OceanVal code. Every 0.5 s it lists the matchup's descendant processes (psutil) and counts the files whose CDO run
+  has been seen and has ended: never more than were read, and files read faster than that may be missed until the end. It writes its
+  counts straight to the shared stdout, one `os.write` per line. It is not a thread because nctoolkit forks its pool meanwhile. It runs
+  only in a window (`prompts.news_marker()`, which `told_by(teller, marker)` sets in `app_child`). Do not count them by patching
+  nctoolkit's tqdm, by running the files in batches, or by a callback in nctoolkit (the user ruled these out as unreliable, or as changing
+  too much). **Observation extraction** (between Model extraction and Matchup) says only whether a matchup's
+  observations are being read or downloaded, or have been, with no count (the user's choice): news `{"kind": "observations", key,
+  state: "reading" | "read"}` from `_Told.observing`/`observed`. A point matchup's span is the making of its dataframe in
+  `point_match` (the ICES download or the csv files, then the year/month/day clean-up), before its model files; a gridded
+  matchup's is `gridded_matchup(on_observing=, on_observed=)`, from "Read in the monthly observational data" (after the model's
+  `merge`) to the `ds_obs.run()` after the observations' merge, before they are cut to the surface and regridded. At ≤860px the
+  grid is made smaller so every column stays in sight. At ≤640px (`NARROW_GRID`) both extraction columns are left out, so the
+  table still fits, and the count is under the Matchup circle (`countUnder`). Note that `str.splitlines()` splits at the markers' `\x1e`. In the app's recipes window cores has no default
   (`show_recipes` sets `form["cores"] = ""`): "Choose the number of cores" must be picked.
 - A multiprocessing Manager is made with `matchall._manager()`, when it is needed, never at import: its server is a
   process of its own that only its parent stops, so one made by a window that crashed ran for ever (`_manager`'s server
@@ -431,6 +455,14 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - The window's Info panel (the **i** beside Settings) shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.
+- **A choice among boxes must be unmistakable**: the chosen one is filled with the accent colour (or tinted, with a thick
+  accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.demo-detail__option`, `.prefs__use`, `.reg-where label`) and
+  the theme cards are styled together at the end of `data/gui.css`; `.segmented` (the domain picker), `.choice.is-chosen` and the
+  existing matchups' ticks are in `oceanval_app.html`. A new pick-one control must use or extend these, with tokens only.
+- **The "directories down" boxes** (`#f-ndown`, shared by Matchup, Validate and Analyze, and `#sc-ndown_1`..`5` of Compare
+  simulations) are `depthBox`es: `withChoices` boxes whose arrow lists 0 to 5 ("0 in the directory itself", "1 directory
+  down", ...), and any whole number, 0 or more, can still be typed. A new box asking for a depth must be made with `depthBox`.
+  A list wider than its box is moved in from the window's edge, and a blank box has none of its list chosen.
 - Both windows inline `data/gui.css` and `data/gui.js` (shared look and helpers, including
   `OceanValGUI.variablesPicker`, the pop-out of the model's variables) via
   `recipes_gui.render_page`. The browser tests (`browser` fixture in `tests/conftest.py`) skip

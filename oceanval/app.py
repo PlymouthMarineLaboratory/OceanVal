@@ -258,11 +258,10 @@ def default_setup_form():
         "require": "",
         "out_dir": "",
         # asked only if out_dir has matchups already (see check_setup): the
-        # "variable/source" of those to be replaced and of those ignored (the
-        # others are used, as each is to start with), and, with no report to
-        # follow, whether the user has said what is done with them
+        # "variable/source" of those to be replaced (or ignored, which is the
+        # same; the others are used, as each is to start with), and whether the
+        # user has confirmed what is done with them
         "overwrite": [],
-        "ignored": [],
         "existing_confirmed": False,
         "out": "matchup.py",
     }
@@ -499,7 +498,7 @@ def _form(form, defaults):
 
 
 # the boxes that are lists of names, such as the matchups unticked
-KEY_LISTS = ("unticked", "overwrite", "ignored")
+KEY_LISTS = ("unticked", "overwrite")
 
 
 def _keys(names):
@@ -554,13 +553,13 @@ def check_setup(form, cwd, report=True, demo_dir=None):
     """Turn the simulation step's boxes into create_recipes arguments, and
     out_dir, the directory the matchups and the report are saved in.
 
-    If out_dir has matchups already and a report follows the matchups
-    (report), the user says of each whether it is replaced, used (as each is
-    to start with) or ignored. Only one used is kept as it is and validated:
-    one replaced or ignored is made again if this run matches it up
-    (matchup's overwrite), and left out of the report if not (validate's
-    previous). With no report, each is replaced or used (kept and used as it
-    is), and the user must tick to say so. Without matchups there, overwrite and
+    If out_dir has matchups already, the user says of each whether it is used
+    (as each is to start with) or replaced. Only one used is kept as it is,
+    and validated if a report follows the matchups (report): one replaced is
+    made again if this run matches it up (matchup's overwrite), and, which
+    the page calls ignoring it, left out of the report if not (validate's
+    previous). The user must tick to confirm it, as each starts on use.
+    Without matchups there, overwrite and
     previous are True. In demo_dir, the demo's own, where every model tried
     keeps its matchups, nothing is asked: this run's are made again and no
     others are in the report.
@@ -616,15 +615,12 @@ def check_setup(form, cwd, report=True, demo_dir=None):
             arguments["overwrite"] = arguments["previous"] = True
         elif out_dir == demo_dir:
             arguments["overwrite"], arguments["previous"] = True, not report
-        elif report:
-            # one replaced is not asked about
-            unused = set(form["overwrite"]) | set(form["ignored"])
-            accepted = [key for key in keys if key not in unused]
-            arguments["overwrite"] = _ticked_of([key for key in keys if key not in accepted], keys)
-            arguments["previous"] = _ticked_of(accepted, keys)
         else:
             arguments["overwrite"] = _ticked_of(form["overwrite"], keys)
-            arguments["previous"] = True
+            # with a report, only those used are in it as they are
+            arguments["previous"] = (
+                _ticked_of([key for key in keys if key not in form["overwrite"]], keys) if report else True
+            )
             if not form["existing_confirmed"]:
                 errors["existing_confirmed"] = ""
     if not form["out"]:
@@ -1917,8 +1913,10 @@ class App(AnalyzeSteps, SimCompareSteps):
     def _matchup_news(self, run, news):
         """What matchup tells of the matchups as it makes them (see
         matchall._Told): the matchups to make, then each as it is started,
-        made or not, then that they are finished. The times the grid shows
-        are taken here, as the news arrives."""
+        how many of its model files have been read, whether its observations
+        are being read or have been, and whether it is made or not, then that
+        they are finished. The times the grid shows are taken here, as the
+        news arrives."""
         with self._lock:
             if run is not self.run:
                 return
@@ -1934,6 +1932,11 @@ class App(AnalyzeSteps, SimCompareSteps):
                         if isinstance(item, dict) and isinstance(item.get("key"), str)
                     ],
                     "states": {},
+                    # how many of each one's model files have been read
+                    # (see oceanval.cdo_watch.news)
+                    "extraction": {},
+                    # whether each one's observations are being read, or have been
+                    "observations": {},
                     "finished": False,
                     # when each matchup was started and how long it then took
                     "started": {},
@@ -1952,9 +1955,27 @@ class App(AnalyzeSteps, SimCompareSteps):
                     # started again, if it is tried again: the last try's time is shown
                     progress["started"][key] = now
                     progress["took"].pop(key, None)
+                    progress["extraction"].pop(key, None)
+                    progress["observations"].pop(key, None)
                 elif key in progress["started"]:
                     # one already made is told as made without being started: no time
                     progress["took"][key] = now - progress["started"].pop(key)
+            elif kind == "extraction" and isinstance(news.get("total"), int):
+                key = str(news.get("key"))
+                done = news.get("done")
+                was = progress["extraction"].get(key) or {}
+                if isinstance(was.get("done"), int):
+                    # the watcher's counts and the matchup's own can come in
+                    # either order: a count never goes down
+                    done = max(done, was["done"]) if isinstance(done, int) else was["done"]
+                progress["extraction"][key] = {
+                    "total": news["total"],
+                    "done": done if isinstance(done, int) else None,
+                    "finished": bool(news.get("finished")) or bool(was.get("finished")),
+                }
+            elif kind == "observations" and news.get("state") in ("reading", "read"):
+                # the last said: a point matchup reads them again for each pattern of its files
+                progress["observations"][str(news.get("key"))] = news["state"]
             elif kind == "matchups_finished":
                 progress["finished"] = True
             else:
@@ -1983,10 +2004,13 @@ class App(AnalyzeSteps, SimCompareSteps):
 
     def _matchup_progress_state(self):
         """The grid of the matchups: each with its state, "waiting",
-        "matching", "made" or "not_made", and the seconds it has taken, or
+        "matching", "made" or "not_made", the seconds it has taken, or
         has taken so far while it is matching (None if not started, or made
-        without being started). "elapsed" is the seconds the runs have gone
-        on, "running" whether one is going now."""
+        without being started), how many of its model files have been read,
+        {"total", "done", "finished"} (None before they are read, or if none
+        were), and its observations, "reading" or "read" (None before they
+        are read, or if they were not). "elapsed" is the seconds the runs have
+        gone on, "running" whether one is going now."""
         progress = self.matchup_progress
         if progress is None:
             return None
@@ -2008,6 +2032,10 @@ class App(AnalyzeSteps, SimCompareSteps):
                 "report": bool(item.get("report")),
                 "state": state,
                 "seconds": seconds,
+                "extraction": dict(progress["extraction"][item["key"]])
+                if item["key"] in progress["extraction"]
+                else None,
+                "observations": progress["observations"].get(item["key"]),
             })
         since = progress["since"]
         return {
@@ -4301,9 +4329,10 @@ class App(AnalyzeSteps, SimCompareSteps):
                 name="oceanval-interim",
                 daemon=True,
             ).start()
-        # set apart from what create_recipes printed before it
-        separator = "" if self.console.empty() else "\n"
-        self.console.write(f"{separator}$ {label}\n")
+        # set apart from what create_recipes printed before it (the command
+        # that runs is not shown: it is of no interest to the user)
+        if not self.console.empty():
+            self.console.write("\n")
         try:
             run.start()
         except OSError as error:

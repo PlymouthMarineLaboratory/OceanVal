@@ -154,7 +154,82 @@ def test_the_window_is_told_of_each_matchup_in_the_order_made():
         ],
     }
     # then each as it is started and made, in turn
-    assert told[1:] == [
+    assert [news for news in told[1:] if news["kind"] not in ("extraction", "observations")] == [
         *[{"kind": "matchup", "key": key, "state": state} for key in keys for state in ("matching", "made")],
         {"kind": "matchups_finished"},
     ]
+    # and how many of its model files have been read, while it is made
+    for key in keys:
+        made = told.index({"kind": "matchup", "key": key, "state": "made"})
+        counts = [news for news in told[: made] if news["kind"] == "extraction" and news["key"] == key]
+        started = told.index({"kind": "matchup", "key": key, "state": "matching"})
+        assert told.index(counts[0]) > started
+        total = counts[0]["total"]
+        assert total > 0 and all(news["total"] == total for news in counts)
+        # from none, or not known for a gridded matchup, whose files nctoolkit reads,
+        # to all of them
+        assert counts[0]["done"] == (None if key.startswith("gridded") else 0)
+        assert counts[-1] == {"kind": "extraction", "key": key, "total": total, "done": total, "finished": True}
+        done = [news["done"] for news in counts if news["done"] is not None]
+        assert done == sorted(done)
+        # and that its observations are being read, then have been, while it is made
+        observations = [news for news in told if news["kind"] == "observations" and news["key"] == key]
+        assert [news["state"] for news in observations] == ["reading", "read"]
+        reading, read = (told.index(news) for news in observations)
+        assert started < reading < read < made
+        if key.startswith("gridded"):
+            # after its model files
+            assert reading > told.index(counts[-1])
+        else:
+            # before them
+            assert read < told.index(counts[0])
+
+
+def test_the_observations_read_are_told_in_a_window_only():
+    told = matchall._Told(None)
+    heard = []
+    with prompts.told_by(heard.append):
+        told.observing("point", "nitrate", "ices", "surface")
+        told.observed("gridded", "temperature", "nsbc")
+    assert heard == [
+        {"kind": "observations", "key": live.matchup_key("point", "nitrate", "ices", "surface"), "state": "reading"},
+        {"kind": "observations", "key": live.matchup_key("gridded", "temperature", "nsbc"), "state": "read"},
+    ]
+    # at a terminal, nothing
+    told.observing("point", "nitrate", "ices", "surface")
+    assert len(heard) == 2
+
+
+def test_the_files_read_are_counted_in_a_window_only(monkeypatch):
+    """At a terminal no watcher is started (see oceanval.cdo_watch)."""
+    register([("bar", False)], [])
+    started = []
+    monkeypatch.setattr(matchall.cdo_watch, "_start", lambda *args: started.append(args))
+
+    oceanval.matchup(
+        sim_dir="data/example",
+        start=2000,
+        end=2000,
+        ask=False,
+        thickness="data/example/e3t.nc",
+        cores=1,
+    )
+    assert started == []
+
+    oceanval.reset()
+    shutil.rmtree("oceanval_matchups", ignore_errors=True)
+    register([("bar", False)], [])
+    with prompts.told_by(lambda news: None, "marker "):
+        oceanval.matchup(
+            sim_dir="data/example",
+            start=2000,
+            end=2000,
+            ask=False,
+            thickness="data/example/e3t.nc",
+            cores=1,
+        )
+    # in a window, one for the gridded matchup's files
+    assert [(marker, key) for marker, key, paths in started] == [
+        ("marker ", live.matchup_key("gridded", "temperature", "bar"))
+    ]
+    assert len(started[0][2]) > 0 and all(os.path.exists(path) for path in started[0][2])

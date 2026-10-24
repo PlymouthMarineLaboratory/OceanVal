@@ -34,7 +34,9 @@ output to a validation report:
    matchups made earlier.
    Or register recipes of your own for observations you use again, which are
    saved in a ``.oceanvalrc`` file (see :doc:`recipes`).
-2. **Simulation**: where the model output is, and which files to use.
+2. **Simulation**: where the model output is, and which files to use,
+   including how many directories down they are: type a number, or pick 0 to
+   5 from the list the arrow in the box opens.
    OceanVal reads the years the output covers from the times in its files
    (never their names) while you carry on, in a few seconds, for the next
    steps.
@@ -52,10 +54,13 @@ output to a validation report:
 7. **Run**: the matchups and the report. A grid has a row for each variable
    and data source: its **Matchup** column turns from empty to a turning
    circle while that matchup is made, then to a tick (or a cross if it could
-   not be made), and its **Interim report** column does the same as the
+   not be made). Its **Interim report** column goes the same way as the
    matchup's page is added to the interim validation report, whose link is at
-   the top. A tick there opens that page. OceanVal's output is shown only if
-   the run fails, with its errors.
+   the top. A tick there opens that page. The **Model extraction** column
+   shows how many of the simulation's files the matchup has read so far, such
+   as 37/120, and then a tick. The **Observation extraction** column has a
+   turning circle while the observations are read or downloaded, and then a
+   tick. OceanVal's output is shown only if the run fails, with its errors.
 
 **Back**, on every step after the first, keeps what you have entered, so you
 can go back to fix a mistake without starting again.

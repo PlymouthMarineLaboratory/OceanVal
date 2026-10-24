@@ -20,6 +20,9 @@ import sys
 _answerer = None
 # set by told_by; None tells no one
 _teller = None
+# set by told_by: what each line of news the teller writes on stdout starts
+# with, or None if it does not tell by lines on stdout
+_marker = None
 
 
 class Answer(str):
@@ -78,11 +81,23 @@ def tell(news):
 
 
 @contextlib.contextmanager
-def told_by(teller):
-    """Pass everything told inside the block to teller(news)."""
-    global _teller
-    previous, _teller = _teller, teller
+def told_by(teller, marker=None):
+    """Pass everything told inside the block to teller(news). marker, if
+    given, is what each line teller writes on stdout starts with, followed by
+    the news as JSON: a process of OceanVal's own sharing that stdout can then
+    tell the window too (see news_marker)."""
+    global _teller, _marker
+    previous = _teller, _marker
+    _teller, _marker = teller, marker
     try:
         yield
     finally:
-        _teller = previous
+        _teller, _marker = previous
+
+
+def news_marker():
+    """What a line of news on stdout starts with, for a process of OceanVal's
+    own that shares this one's stdout to tell the window as tell() does (see
+    oceanval.cdo_watch), or None: nothing is told, as at a terminal, or not by
+    lines on stdout."""
+    return _marker if _teller is not None else None

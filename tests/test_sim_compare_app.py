@@ -654,7 +654,13 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.is_disabled("#sc-continue")
         page.fill("#sc-name_1", "Base run")
         page.fill("#sc-dir_1", "base")
-        page.fill("#sc-ndown_1", "1")
+        # the directories down can be picked from a list of 0 to 5, opened by the arrow in the box, or typed
+        edge = page.locator("#sc-ndown_1").bounding_box()
+        page.locator("#sc-ndown_1").click(position={"x": edge["width"] - 8, "y": edge["height"] / 2})
+        options = page.locator("body > .year-list .combo__option")
+        assert [text[0] for text in options.all_inner_texts()] == list("012345")
+        options.nth(1).click()
+        assert page.input_value("#sc-ndown_1") == "1"
         page.fill("#sc-name_2", "Fine run")
         page.fill("#sc-dir_2", "fine")
         page.fill("#sc-ndown_2", "1")
@@ -684,8 +690,17 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.is_disabled("#scg-continue")
         assert not page.is_checked("#scg-need-yes") and not page.is_checked("#scg-need-no")
         assert page.is_hidden("#scg-how")
+        # the question is inside its box, not across the box's top edge
+        legend_inside = """(box) => {
+            const fieldset = document.querySelector(box);
+            const legend = fieldset.querySelector('legend').getBoundingClientRect();
+            const edge = fieldset.getBoundingClientRect();
+            return legend.top >= edge.top + parseFloat(getComputedStyle(fieldset).paddingTop) - 1 && legend.bottom <= edge.bottom;
+        }"""
+        assert page.evaluate(legend_inside, "#scg-need-group")
         page.check("#scg-need-yes")
         page.wait_for_selector("#scg-how:not([hidden])")
+        assert page.evaluate(legend_inside, "#scg-how .sc-choice")
         # the missing-in-all rule is said, whichever way they are put on one grid
         assert "missing in all of them" in page.inner_text("#scg-note")
         assert page.is_disabled("#scg-continue")

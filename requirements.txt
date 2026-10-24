@@ -22,4 +22,5 @@ requests
 pint
 tqdm
 statsmodels
+psutil
 

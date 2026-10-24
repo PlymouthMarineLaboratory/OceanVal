@@ -552,6 +552,8 @@ const OceanValGUI = (() => {
     input.setAttribute("aria-expanded", "true");
     // the list is also the preset names of a variable's name (input.onPick), which are not years
     choiceList.classList.toggle("is-names", Boolean(input.onPick));
+    // with hints beside the choices, they are in columns, from the left
+    choiceList.classList.toggle("is-hinted", Boolean(input.choiceHints));
     choiceList.replaceChildren(...input.yearChoices.map((choice) => el("li", {
       class: "combo__option", role: "option", "aria-selected": "false", text: String(choice),
       // mousedown, so the box keeps its focus
@@ -564,7 +566,12 @@ const OceanValGUI = (() => {
     choiceList.style.top = below >= 200 || below >= box.top ? `${box.bottom + 4}px` : "auto";
     choiceList.style.bottom = below >= 200 || below >= box.top ? "auto" : `${window.innerHeight - box.top + 4}px`;
     choiceList.hidden = false;
-    const at = input.yearChoices.indexOf(input.onPick ? input.value.trim() : Number(input.value.trim()));
+    // a list wider than its box, beside the window's edge, is moved in
+    const wide = choiceList.getBoundingClientRect().width;
+    choiceList.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - wide - 8))}px`;
+    // a blank box has none chosen (Number("") is 0, a choice of a depth's)
+    const typed = input.value.trim();
+    const at = typed === "" ? -1 : input.yearChoices.indexOf(input.onPick ? typed : Number(typed));
     if (at >= 0) markChoice(at);
   }
 

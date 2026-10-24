@@ -28,7 +28,7 @@ import xarray as xr
 
 import oceanval
 from oceanval import app as app_module
-from oceanval import app_child, leftovers, live, model_check, prompts
+from oceanval import app_child, cdo_watch, leftovers, live, model_check, prompts
 from oceanval.app import (
     App, Console, Question, Run, check_compare, check_report, check_setup, check_validate,
     default_validate_form, existing_matchups,
@@ -48,7 +48,6 @@ SETUP_FORM = {
     "require": "",
     "out_dir": "",
     "overwrite": [],
-    "ignored": [],
     "existing_confirmed": False,
     "out": "matchup.py",
 }
@@ -405,6 +404,18 @@ class TestChildProcess:
             prompts.tell(news)
         assert capfd.readouterr().out == PROGRESS_MARKER + json.dumps(news) + "\n"
 
+    def test_another_process_can_tell_the_window_only_by_lines_on_stdout(self):
+        # at a terminal, or told otherwise, there is no line for it to write
+        assert prompts.news_marker() is None
+        with prompts.told_by(lambda news: None):
+            assert prompts.news_marker() is None
+        with prompts.told_by(app_child._tell_the_window, PROGRESS_MARKER):
+            assert prompts.news_marker() == PROGRESS_MARKER
+            with prompts.told_by(lambda news: None):
+                assert prompts.news_marker() is None
+            assert prompts.news_marker() == PROGRESS_MARKER
+        assert prompts.news_marker() is None
+
     def test_details_go_with_the_question(self, monkeypatch, capfd):
         monkeypatch.setattr("sys.stdin", io.StringIO("y\n"))
         app_child._ask_the_window("These? ", ["y", "n"], {"kind": "matchups"})
@@ -647,22 +658,25 @@ class TestSetupChecks:
         def check(report=True, **changes):
             return check_setup(dict(SETUP_FORM, out_dir="old", **changes), str(tmp_path), report=report)
 
-        # each is used in the report as it is, to start with
+        # each is used in the report as it is, to start with, which must be confirmed
         arguments, errors = check()
+        assert errors == {"existing_confirmed": ""}
+        assert (arguments["overwrite"], arguments["previous"]) == (False, True)
+        arguments, errors = check(existing_confirmed=True)
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (False, True)
-        # only one accepted is used as it is: one ignored or replaced is made again
+        # only one used is kept as it is: one replaced (or ignored) is made again
         # if this run matches it up, and left out of the report if not
-        arguments, errors = check(ignored=MIXED_KEYS)
+        arguments, errors = check(existing_confirmed=True, overwrite=MIXED_KEYS)
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
         arguments, errors = check(
-            overwrite=["temperature/COBE2", "nitrate/glodap"],
-            ignored=["temperature/WOA23", "nitrate/glodap", "oxygen/ICES"],
+            existing_confirmed=True,
+            overwrite=["temperature/COBE2", "temperature/WOA23", "nitrate/glodap", "oxygen/ICES"],
         )
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (
             ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap"], ["nitrate/ICES"],
         )
         # with no report, there is no use in it to ask about: those not replaced are
-        # kept and used as they are, which must be confirmed
+        # kept and used as they are, which must be confirmed too
         assert check(report=False, overwrite=["nitrate/ICES"])[1] == {"existing_confirmed": ""}
         arguments, errors = check(report=False, existing_confirmed=True, overwrite=["nitrate/ICES"])
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (["nitrate/ICES"], True)
@@ -2330,7 +2344,8 @@ class TestServer:
         _, state = get_json(app, "/api/state")
 
         assert state["view"] == "running"
-        assert state["console"]["text"].startswith("$ python run.py\n")
+        # the command that runs is not echoed
+        assert "python run.py" not in state["console"]["text"]
         assert state["console"]["text"].endswith("matching\nHappy? (y/n) ")
         assert (
             post(app, "/api/answer", {"id": state["question"]["id"], "answer": "n"})[0]
@@ -2379,8 +2394,8 @@ class TestServer:
         progress = get_json(app, "/api/state")[1]["run"]["progress"]
         assert progress == {
             "items": [
-                {**items[0], "state": "matching", "seconds": 3.0},
-                {**items[1], "state": "waiting", "seconds": None},
+                {**items[0], "state": "matching", "seconds": 3.0, "extraction": None, "observations": None},
+                {**items[1], "state": "waiting", "seconds": None, "extraction": None, "observations": None},
             ],
             "finished": False,
             "elapsed": 3.0,
@@ -2460,6 +2475,121 @@ class TestServer:
             assert app._matchup_progress_state()["elapsed"] == 21.0
         finally:
             app.run = None
+
+    def test_how_many_model_files_have_been_read_is_followed(self, app):
+        run = object()
+        app.run = run
+
+        def tell(news):
+            app._matchup_news(run, news)
+
+        def extraction():
+            progress = app._matchup_progress_state()
+            return {item["key"]: item["extraction"] for item in progress["items"]}
+
+        try:
+            tell({"kind": "matchups", "items": [{"key": key, "variable": key} for key in "abc"]})
+            # none before they are read
+            assert extraction() == {"a": None, "b": None, "c": None}
+            tell({"kind": "matchup", "key": "a", "state": "matching"})
+            # a gridded matchup's files are being read, and how many have been is not known yet
+            tell(cdo_watch.news("a", 12, None))
+            assert extraction()["a"] == {"total": 12, "done": None, "finished": False}
+            tell(cdo_watch.news("a", 12, 5))
+            assert extraction()["a"] == {"total": 12, "done": 5, "finished": False}
+            # the watcher's counts and the matchup's own come in either order: a count never goes down
+            tell(cdo_watch.news("a", 12, 3))
+            tell(cdo_watch.news("a", 12, None))
+            assert extraction()["a"]["done"] == 5
+            tell(cdo_watch.news("a", 12, 12, finished=True))
+            tell({"kind": "matchup", "key": "a", "state": "made"})
+            assert extraction()["a"] == {"total": 12, "done": 12, "finished": True}
+            # one tried again is counted again
+            tell({"kind": "matchup", "key": "b", "state": "matching"})
+            tell(cdo_watch.news("b", 3, 2))
+            tell({"kind": "matchup", "key": "b", "state": "not_made"})
+            assert extraction()["b"] == {"total": 3, "done": 2, "finished": False}
+            tell({"kind": "matchup", "key": "b", "state": "matching"})
+            assert extraction()["b"] is None
+            # one made before is told as made with no files read
+            tell({"kind": "matchup", "key": "c", "state": "made"})
+            assert extraction()["c"] is None
+            # news that is not a count is left out
+            tell({"kind": "extraction", "key": "c", "total": "many", "done": 1})
+            assert extraction()["c"] is None
+        finally:
+            app.run = None
+
+    def test_whether_the_observations_have_been_read_is_followed(self, app):
+        run = object()
+        app.run = run
+
+        def tell(news):
+            app._matchup_news(run, news)
+
+        def observations():
+            progress = app._matchup_progress_state()
+            return {item["key"]: item["observations"] for item in progress["items"]}
+
+        try:
+            tell({"kind": "matchups", "items": [{"key": key, "variable": key} for key in "abc"]})
+            # none before they are read
+            assert observations() == {"a": None, "b": None, "c": None}
+            tell({"kind": "matchup", "key": "a", "state": "matching"})
+            tell({"kind": "observations", "key": "a", "state": "reading"})
+            assert observations()["a"] == "reading"
+            tell({"kind": "observations", "key": "a", "state": "read"})
+            tell({"kind": "matchup", "key": "a", "state": "made"})
+            assert observations()["a"] == "read"
+            # a point matchup reads them again for each pattern of its files: the last said is shown
+            tell({"kind": "observations", "key": "a", "state": "reading"})
+            assert observations()["a"] == "reading"
+            # one tried again starts afresh
+            tell({"kind": "matchup", "key": "b", "state": "matching"})
+            tell({"kind": "observations", "key": "b", "state": "reading"})
+            tell({"kind": "matchup", "key": "b", "state": "not_made"})
+            assert observations()["b"] == "reading"
+            tell({"kind": "matchup", "key": "b", "state": "matching"})
+            assert observations()["b"] is None
+            # one made before is told as made with none read
+            tell({"kind": "matchup", "key": "c", "state": "made"})
+            assert observations()["c"] is None
+            # news that is not a state of them is left out
+            tell({"kind": "observations", "key": "c", "state": "downloaded"})
+            tell({"kind": "observations", "key": "c"})
+            assert observations()["c"] is None
+        finally:
+            app.run = None
+
+    def test_the_files_read_are_counted_by_a_process_of_its_own(self, app, tmp_path):
+        """The model files read in nctoolkit are counted by a process watching
+        CDO's (see oceanval.cdo_watch), whose news shares the run's stdout."""
+        key = "gridded|temperature|nsbc|"
+        items = [{"key": key, "variable": "temperature", "title": "Temperature", "source": "NSBC", "report": False}]
+        model = tmp_path / "model_2000.nc"
+        script = tmp_path / "run.py"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                import subprocess, sys, time
+                from oceanval import cdo_watch, prompts
+                prompts.tell({{"kind": "matchups", "items": {items!r}}})
+                prompts.tell({{"kind": "matchup", "key": {key!r}, "state": "matching"}})
+                with cdo_watch.watching([{str(model)!r}], {key!r}):
+                    # stands in for CDO reading the file
+                    subprocess.run([sys.executable, "-c", "import time; time.sleep(1.5)", {str(model)!r}])
+                    time.sleep(2)
+                print("read")
+                """
+            )
+        )
+        app.action = "matchup_validate"
+        app.start_run(["script", str(script)], "python run.py")
+        wait_for(lambda: app.view == "finished", timeout=60)
+        _, state = get_json(app, "/api/state")
+        assert state["run"]["progress"]["items"][0]["extraction"] == {"total": 1, "done": 1, "finished": False}
+        assert "read" in state["console"]["text"]
+        assert "oceanval-progress" not in state["console"]["text"]
 
     def matchups_script(self, tmp_path):
         """A stand-in for matchup, asking whether the matchups are right with
@@ -4426,7 +4556,20 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.input_value("#f-ndown") == ""
         assert page.is_disabled("#continue")
         assert page.input_value("#f-start") == "2011"
-        page.fill("#f-ndown", "2")
+        # the depth can be picked from a list of 0 to 5, opened by the arrow in the box, as well as typed
+        ndown = page.locator("#f-ndown")
+        edge = ndown.bounding_box()
+        ndown.click(position={"x": edge["width"] - 8, "y": edge["height"] / 2})
+        options = page.locator("body > .year-list .combo__option")
+        assert options.all_inner_texts() == [
+            "0in the directory itself", "1directory down", "2directories down",
+            "3directories down", "4directories down", "5directories down",
+        ]
+        # nothing is chosen in an empty box
+        assert page.locator("body > .year-list .is-active").count() == 0
+        options.nth(2).click()
+        assert page.input_value("#f-ndown") == "2"
+        assert page.is_hidden("body > .year-list")
         # the years are read from the files' times, for the recipes window: none are shown here
         page.wait_for_function("document.querySelector('#m-simulation').textContent.includes('2 directories down')")
         assert page.text_content("#m-simulation") == "2 netCDF files 2 directories down."
@@ -5695,16 +5838,41 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
                 while not os.path.exists(os.path.join({str(tmp_path)!r}, name)):
                     time.sleep(0.05)
 
+            def files(key, total, done, finished=False):
+                prompts.tell({{"kind": "extraction", "key": key, "total": total, "done": done, "finished": finished}})
+
+            def observations(key, state):
+                prompts.tell({{"kind": "observations", "key": key, "state": state}})
+
             prompts.tell({{"kind": "matchups", "items": {items!r}}})
             wait("go1")
             prompts.tell({{"kind": "matchup", "key": {temperature!r}, "state": "matching"}})
+            files({temperature!r}, 12, None)
             print("matching up temperature")
+            wait("count")
+            files({temperature!r}, 12, 5)
             wait("go2")
+            # a gridded matchup reads its observations after its model files
+            files({temperature!r}, 12, 12, True)
+            observations({temperature!r}, "reading")
+            wait("observe")
+            observations({temperature!r}, "read")
             prompts.tell({{"kind": "matchup", "key": {temperature!r}, "state": "made"}})
+            # a point matchup before them
             prompts.tell({{"kind": "matchup", "key": {nitrate!r}, "state": "matching"}})
+            observations({nitrate!r}, "reading")
+            observations({nitrate!r}, "read")
+            files({nitrate!r}, 3, 1)
             wait("go3")
             prompts.tell({{"kind": "matchup", "key": {nitrate!r}, "state": "not_made"}})
             prompts.tell({{"kind": "matchup", "key": {chlorophyll!r}, "state": "matching"}})
+            wait("go4")
+            files({chlorophyll!r}, 20, 7)
+            wait("go5")
+            files({chlorophyll!r}, 20, 20, True)
+            observations({chlorophyll!r}, "reading")
+            wait("go6")
+            prompts.tell({{"kind": "matchup", "key": {chlorophyll!r}, "state": "not_made"}})
             wait("never")
             """
         )
@@ -5729,6 +5897,11 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
     def cell(row, column):
         return page.locator(f'#progress-grid tbody tr:nth-child({row}) [data-column="{column}"]')
 
+    def fits():
+        """Whether the grid fits its box, all its columns in sight."""
+        return page.evaluate("(() => { const grid = document.getElementById('progress-grid'); "
+                             "return grid.scrollWidth <= grid.clientWidth; })()")
+
     total = '#progress-grid tfoot [data-column="total"]'
     stopwatch = re.compile(r"\d+:\d\d")
 
@@ -5749,7 +5922,8 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.wait_for_selector("#progress-grid:not([hidden])", timeout=60000)
         assert page.locator("#progress-grid th").all_text_contents() == [
-            "Variable", "Data source", "Matchup", "Time", "Interim report", "Time elapsed",
+            "Variable", "Data source", "Model extraction", "Observation extraction", "Matchup", "Time",
+            "Interim report", "Time elapsed",
         ]
         assert page.locator("#progress-grid tbody td:nth-child(-n+2)").all_text_contents() == [
             "Temperature", "NSBC", "Nitrate", "ICES point data (surface)", "Chlorophyll", "OCCCI",
@@ -5759,11 +5933,17 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         assert cell(1, "matchup").get_attribute("data-state") == "waiting"
         assert cell(1, "matchup").text_content() == ""
         assert cell(1, "matchup").locator("[role=img]").get_attribute("aria-label") == "Not started"
+        assert cell(1, "extraction").get_attribute("data-state") == "waiting"
+        assert cell(1, "extraction").text_content() == ""
+        assert cell(1, "observations").get_attribute("data-state") == "waiting"
+        assert cell(1, "observations").text_content() == ""
+        assert cell(1, "observations").locator("[role=img]").get_attribute("aria-label") == "Observations not read yet"
+        assert fits()
         # a matchup the report leaves out has a dash in its column
         assert cell(3, "report").text_content() == "—"
-        # no paragraph, command or output while it goes well
+        # no paragraph or output while it goes well, and never the command that runs
         assert page.is_hidden("#progress-text")
-        assert page.is_hidden("#progress-label")
+        assert page.locator("#progress-label").count() == 0
         assert page.is_hidden("#run")
         # no matchup has a time before it starts, and the time elapsed is already going
         assert [cell(row, "time").text_content() for row in (1, 2, 3)] == ["", "", ""]
@@ -5780,8 +5960,25 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         assert stopwatch.fullmatch(cell(1, "time").text_content())
         counts_on(time_selector(1))
         assert cell(2, "time").text_content() == ""
+        # its model files are being read, how many not known yet: a circle
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="extraction"] .identify__spinner')
+        assert cell(1, "extraction").locator("[role=img]").get_attribute("aria-label") == "Reading 12 model files"
+
+        (tmp_path / "count").write_text("")
+        # then how many have been
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="extraction"] .matchup-grid__count')
+        assert cell(1, "extraction").text_content() == "5/12"
+        assert cell(1, "extraction").locator("[role=img]").get_attribute("aria-label") == "Read 5 of 12 model files"
+        assert cell(1, "matchup").get_attribute("data-state") == "working"
 
         (tmp_path / "go2").write_text("")
+        # its model files are all read, and then its observations are
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="observations"] .identify__spinner')
+        assert cell(1, "observations").locator("[role=img]").get_attribute("aria-label") == "Reading the observations"
+        assert cell(1, "extraction").get_attribute("data-state") == "done"
+        assert cell(1, "matchup").get_attribute("data-state") == "working"
+
+        (tmp_path / "observe").write_text("")
         status.write_text(json.dumps({
             "state": "building", "pages": 0, "expected": 2, "building_key": temperature,
             "added": {}, "failed": [], "included": [temperature, nitrate],
@@ -5789,6 +5986,12 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="report"][data-state="working"]')
         assert cell(1, "matchup").get_attribute("data-state") == "done"
         assert cell(1, "matchup").locator(".icon").count() == 1
+        assert cell(1, "extraction").get_attribute("data-state") == "done"
+        assert cell(1, "extraction").locator("[role=img]").get_attribute("aria-label") == "Read all 12 model files"
+        assert cell(1, "observations").get_attribute("data-state") == "done"
+        assert cell(1, "observations").locator("[role=img]").get_attribute("aria-label") == "Observations read"
+        assert cell(2, "extraction").text_content() == "1/3"
+        assert cell(2, "observations").get_attribute("data-state") == "done"
         assert cell(2, "matchup").get_attribute("data-state") == "working"
         assert page.text_content("#progress-title") == "Matching up: 1 of 3 matchups made"
         # the circle keeps turning: it is not drawn again as the state is
@@ -5820,6 +6023,14 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="matchup"][data-state="working"]')
         assert cell(2, "matchup").get_attribute("data-state") == "failed"
         assert cell(2, "matchup").locator("[role=img]").get_attribute("aria-label") == "Not made"
+        # stopped part way through its files
+        assert cell(2, "extraction").get_attribute("data-state") == "failed"
+        assert cell(2, "extraction").locator("[role=img]").get_attribute("aria-label") == "Not all 3 model files read"
+        # its observations had been read
+        assert cell(2, "observations").get_attribute("data-state") == "done"
+        # one started that has read none yet
+        assert cell(3, "extraction").get_attribute("data-state") == "waiting"
+        assert cell(3, "observations").get_attribute("data-state") == "waiting"
         # one not made keeps how long it was tried for, and the next one counts up
         assert stopwatch.fullmatch(cell(2, "time").text_content())
         assert cell(2, "time").get_attribute("data-live") == ""
@@ -5832,9 +6043,42 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         assert page.locator("#interim").bounding_box()["y"] < page.locator("#progress").bounding_box()["y"]
         assert page.is_hidden("#run")
 
+        (tmp_path / "go4").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="extraction"] .matchup-grid__count')
+        assert cell(3, "extraction").text_content() == "7/20"
+
+        # in a narrower window it is smaller, and still fits, with all its columns
+        page.set_viewport_size({"width": 700, "height": 800})
+        page.wait_for_function("document.querySelector('#progress-grid table').getBoundingClientRect().width < 700")
+        assert page.locator("#progress-grid th").count() == 8
+        assert fits()
+
         # on a phone the grid scrolls in its box, never the page
         page.set_viewport_size({"width": 390, "height": 800})
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        # and fits it, without the extraction columns: the count is under the circle
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="matchup"] .matchup-grid__count')
+        assert page.locator("#progress-grid th").all_text_contents() == [
+            "Variable", "Data source", "Matchup", "Time", "Interim report", "Time elapsed",
+        ]
+        assert cell(3, "extraction").count() == 0
+        assert cell(3, "observations").count() == 0
+        assert cell(3, "matchup").locator(".identify__spinner").count() == 1
+        assert cell(3, "matchup").locator(".matchup-grid__count").text_content() == "7/20"
+        assert fits()
+        # and back again
+        page.set_viewport_size({"width": 1100, "height": 800})
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="extraction"] .matchup-grid__count')
+        assert cell(3, "matchup").locator(".matchup-grid__count").count() == 0
+
+        (tmp_path / "go5").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="observations"] .identify__spinner')
+        assert cell(3, "extraction").get_attribute("data-state") == "done"
+        # not made while its observations were being read
+        (tmp_path / "go6").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="observations"][data-state="failed"]')
+        assert cell(3, "observations").locator("[role=img]").get_attribute("aria-label") == "Observations not read"
+        assert cell(3, "matchup").get_attribute("data-state") == "failed"
     finally:
         app.close()
 
@@ -5860,6 +6104,41 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
             "node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight, getComputedStyle(node).fontSize]"
         )
         assert body == ["rgb(192, 57, 43)", "700", "25px"]
+    finally:
+        app.close()
+
+
+def test_the_domain_chosen_is_filled_and_bigger_than_the_other(browser, tmp_path):
+    """A choice between boxes must be unmistakable: the chosen one is filled
+    with the accent colour, bold, ticked and bigger."""
+    write_simulation(tmp_path / "sim")
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click('button.choice[data-action="matchup_validate"]')
+        page.fill("#f-simdir", "sim")
+        look = """node => {
+            const style = getComputedStyle(node);
+            return [style.backgroundColor, style.color, style.fontWeight, node.getBoundingClientRect().width,
+                    getComputedStyle(node, "::before").content];
+        }"""
+        chosen, other = "#f-domain input[value=global] + span", "#f-domain input[value=nwes] + span"
+        before = page.locator(other).evaluate(look)
+        page.check('#f-domain input[value="global"]')
+        page.wait_for_function(
+            "selector => getComputedStyle(document.querySelector(selector)).color === 'rgb(255, 255, 255)'",
+            arg=chosen)
+        page.wait_for_timeout(400)
+        picked, left = page.locator(chosen).evaluate(look), page.locator(other).evaluate(look)
+        assert left == before
+        assert picked[0] != left[0] and picked[1] == "rgb(255, 255, 255)" and picked[2] == "700"
+        assert picked[4] != left[4]
+        # the transform makes it bigger, though not its layout box
+        assert page.locator(chosen).evaluate("node => getComputedStyle(node).transform") != "none"
+        assert page.locator(other).evaluate("node => getComputedStyle(node).transform") == "none"
     finally:
         app.close()
 
@@ -5959,18 +6238,18 @@ def test_finding_key_information_in_a_browser(browser, tmp_path):
 
 @pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
 def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, action):
-    """A grid of the matchups there already, each to be replaced, used (as
-    each is to start with) or, if a report follows, ignored, with a tick at
-    the top of each column to choose it for them all; with no report, what is
-    chosen must be confirmed."""
+    """A grid of the matchups there already, each to be used (as each is to
+    start with) or replaced, which, if a report follows, is ignoring it too,
+    with a tick at the top of each column to choose it for them all; what is
+    chosen must be confirmed, as each starts on use."""
     write_simulation(tmp_path / "sim")
     write_mixed_matchups(tmp_path / "old")
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
     url = app.start()
     report = action == "matchup_validate"
-    options = ["replace", "use", "ignore"] if report else ["replace", "use"]
-    option = '#existing-body input[value="{}"][data-key="{}"]'
+    options = ["use", "replace"]
+    option ='#existing-body input[value="{}"][data-key="{}"]'
 
     def choices():
         """What each row has ticked."""
@@ -5999,13 +6278,15 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, act
         assert warning.text_content() == "There are matchups here already, from an earlier run. Choose another directory if you need to keep them apart."
         assert warning.evaluate("node => getComputedStyle(node).color") == "rgb(184, 83, 47)"
         assert page.text_content("#existing-title") == "What do you want to do with existing matchups? Required"
-        # only confirming what is chosen is required, with no report to follow
-        assert page.is_hidden("#existing-required") is report
-        assert page.is_hidden("#row-existing-confirm") is report
+        # confirming what is chosen is required, report or not
+        assert page.is_visible("#existing-required")
+        assert page.is_visible("#row-existing-confirm")
         assert [
             page.text_content(f"#existing-all-{name} >> xpath=..") for name in options
-        ] == ["Replace", "Use", "Ignore"][: len(options)]
-        assert page.is_hidden("#existing-ignore-head") is not report
+        ] == ["Use", "Replace/Ignore" if report else "Replace"]
+        assert page.get_attribute("#existing-all-replace", "aria-label") == (
+            "Replace or ignore all of them" if report else "Replace all of them"
+        )
         assert page.locator("#existing-body tr").evaluate_all(
             "rows => rows.map((row) => [...row.cells].slice(0, 3).map((cell) => cell.textContent))"
         ) == [
@@ -6020,7 +6301,7 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, act
         # each is used to start with
         assert choices() == [["use"]] * 4
         assert tops() == ["use"]
-        assert page.is_enabled("#continue") is report
+        assert page.is_disabled("#continue")
 
         # one option a row, and one at the top chooses it for them all
         page.check(option.format("replace", "temperature/COBE2"))
@@ -6031,19 +6312,18 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, act
         assert tops() == ["replace"]
         page.check("#existing-all-use")
         assert choices() == [["use"]] * 4
-        page.check(option.format("replace", "temperature/COBE2"))
+        assert tops() == ["use"]
         if report:
-            page.check("#existing-all-ignore")
-            assert choices() == [["ignore"]] * 4
-            page.check(option.format("replace", "temperature/COBE2"))
-            page.check(option.format("use", "nitrate/ICES"))
-            assert choices() == [["replace"], ["ignore"], ["ignore"], ["use"]]
-            assert page.is_enabled("#continue")
-        else:
-            assert choices() == [["replace"], ["use"], ["use"], ["use"]]
-            # with no report, what is chosen must be confirmed
-            assert page.is_disabled("#continue")
-            page.check("#f-existing_confirmed")
+            page.check(option.format("replace", "temperature/WOA23"))
+            page.check(option.format("replace", "nitrate/glodap"))
+        page.check(option.format("replace", "temperature/COBE2"))
+        assert choices() == (
+            [["replace"], ["replace"], ["replace"], ["use"]] if report else [["replace"], ["use"], ["use"], ["use"]]
+        )
+        assert tops() == []
+        # what is chosen must be confirmed
+        assert page.is_disabled("#continue")
+        page.check("#f-existing_confirmed")
         assert page.is_enabled("#continue")
 
         page.click("#continue")

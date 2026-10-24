@@ -12,7 +12,7 @@ import xarray as xr
 from oceanval import analysis, analysis_forms, model_check, transects
 from oceanval.app import App
 from simulations import write_analysis_simulation
-from test_app import get, get_json, leftover_dir, post, wait_for  # noqa: F401 (leftover_dir is autouse)
+from test_app import get, get_json, leftover_dir, post, wait_for, write_mixed_matchups  # noqa: F401 (leftover_dir is autouse)
 
 
 @pytest.fixture
@@ -127,6 +127,14 @@ class TestSimulation:
         # an analysis already there is said to be replaced
         os.makedirs(os.path.join(app.cwd, analysis.FOLDER))
         assert get_json(app, "/api/probe", simdir="sim", ndown="1", out="", out_dir="")[1]["out_dir_has_analysis"]
+
+    def test_matchups_in_the_output_directory_are_not_asked_about(self, app, sim, tmp_path):
+        # the output directory is the directory worked in, which the page does not ask
+        # about the matchups of for an analysis
+        write_mixed_matchups(tmp_path)
+        to_variables(app)
+        assert app.view == "analyze_variables"
+        assert not {"overwrite", "previous"} & set(app.analyze_setup)
 
     def test_a_simulation_that_cannot_be_analysed(self, app, tmp_path):
         os.makedirs(tmp_path / "empty" / "2013")

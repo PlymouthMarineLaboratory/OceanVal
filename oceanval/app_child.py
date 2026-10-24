@@ -100,7 +100,7 @@ def main(argv=None):
         # for keys that never come
         webbrowser.open = _say_where
 
-    with prompts.answered_by(_ask_the_window), prompts.told_by(_tell_the_window):
+    with prompts.answered_by(_ask_the_window), prompts.told_by(_tell_the_window, PROGRESS_MARKER):
         if kind in ("analyze", "simcompare"):
             sys.argv = [argument]
             runpy.run_path(argument, run_name="__main__")

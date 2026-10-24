@@ -37,6 +37,7 @@ from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
 from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
 from oceanval import data_store as obs_store
+from oceanval import cdo_watch
 from oceanval import ices
 from oceanval import live
 from oceanval import surface
@@ -287,15 +288,60 @@ def _manager():
 
 class _Told:
     """Tells the oceanval window of each matchup as it is started, made or
-    not (see oceanval.prompts.tell), for its grid of them, and the interim
-    report's builder, if there is one, of those made. At a terminal nothing
-    is told."""
+    not (see oceanval.prompts.tell), how many of its model files have been
+    read and whether its observations have been, for its grid of them, and
+    the interim report's builder, if there is one, of those made. At a
+    terminal nothing is told."""
 
     def __init__(self, builder):
         self.builder = builder
         # those made or kept, as (kind, variable, source, layer), for the
         # record of the run (see selection.save_last_run)
         self.made_keys = []
+        # when each matchup's count of files read was last told
+        self.counted = {}
+
+    def _clock(self):
+        """The time the counts of files read are spaced by, in seconds."""
+        return time.monotonic()
+
+    def files(self, kind, variable, source, total, done, layer=None, finished=False):
+        """Tell how many of the total model files of a matchup have been read,
+        done (None while it is not known), at most every cdo_watch.EVERY
+        seconds, but always the first count, of none, and the last, finished,
+        when all have been. A matchup with no files to read has no count."""
+        if total == 0:
+            return
+        key = live.matchup_key(kind, variable, source, layer)
+        now = self._clock()
+        if done and not finished and now - self.counted.get(key, float("-inf")) < cdo_watch.EVERY:
+            return
+        self.counted[key] = now
+        prompts.tell(cdo_watch.news(key, total, done, finished))
+
+    @contextlib.contextmanager
+    def reading(self, kind, variable, source, paths, layer=None):
+        """Tell how many of paths, a matchup's model files, have been read
+        while the block reads them all at once in nctoolkit, which says
+        nothing of them itself (see oceanval.cdo_watch), and that all have
+        been once it is over."""
+        self.files(kind, variable, source, len(paths), None, layer)
+        with cdo_watch.watching(paths, live.matchup_key(kind, variable, source, layer)):
+            yield
+        self.files(kind, variable, source, len(paths), len(paths), layer, finished=True)
+
+    @staticmethod
+    def _observations(state, kind, variable, source, layer):
+        key = live.matchup_key(kind, variable, source, layer)
+        prompts.tell({"kind": "observations", "key": key, "state": state})
+
+    def observing(self, kind, variable, source, layer=None):
+        """Tell that a matchup's observations are being read or downloaded."""
+        self._observations("reading", kind, variable, source, layer)
+
+    def observed(self, kind, variable, source, layer=None):
+        """Tell that a matchup's observations have been read."""
+        self._observations("read", kind, variable, source, layer)
 
     @staticmethod
     def _tell(state, kind, variable, source, layer):
@@ -2171,6 +2217,8 @@ def matchup(
 
                         out = f"{session_info['out_dir']}/oceanval_matchups/point/{layer}/{variable}/{source}/{source}_{layer}_{variable}.csv"
 
+                        # the observations, for the oceanval window's grid
+                        told.observing("point", variable, source, layer)
                         if comparison["recipe"] is not None:
                             # recipes download the observations for the
                             # years and area being matched, instead of
@@ -2244,6 +2292,7 @@ def matchup(
                                 df = df.query("depth <= 5").reset_index(drop=True)
                                 # drop depth
                                 df = df.drop(columns=["depth"])
+                        told.observed("point", variable, source, layer)
 
                         # a comparison can set its own point_time_res, in
                         # place of the one given to matchup
@@ -2362,6 +2411,8 @@ def matchup(
 
                         pbar = tqdm(total=len(paths), position=0, leave=True)
                         results = dict()
+                        # the files read, for the oceanval window's grid
+                        told.files("point", variable, source, len(paths), 0, layer)
 
                         if cores > 1:
                             nc.options(parallel = True)
@@ -2392,6 +2443,7 @@ def matchup(
                                 for k, v in results.items():
                                     value = v.get()
                                     pbar.update(1)
+                                    told.files("point", variable, source, len(paths), pbar.n, layer)
                             finally:
                                 # closed and joined, never terminated: the
                                 # workers inherit nctoolkit's SIGTERM handler,
@@ -2415,6 +2467,8 @@ def matchup(
                                     small_cache,
                                 )
                                 pbar.update(1)
+                                told.files("point", variable, source, len(paths), pbar.n, layer)
+                        told.files("point", variable, source, len(paths), len(paths), layer, finished=True)
 
                         df_all = list(df_all)
                         manager.shutdown()
@@ -2639,6 +2693,9 @@ def matchup(
         on_matched=told.made,
         on_matching=told.matching,
         on_failed=told.not_made,
+        reading=told.reading,
+        on_observing=told.observing,
+        on_observed=told.observed,
     )
 
     # the quick matchups first, so there are results to look at early: the

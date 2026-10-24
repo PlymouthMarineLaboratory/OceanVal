@@ -1,3 +1,4 @@
+import contextlib
 import glob
 import copy
 import datetime
@@ -338,6 +339,9 @@ def gridded_matchup(
     reset_failures=True,
     on_matching=None,
     on_failed=None,
+    reading=None,
+    on_observing=None,
+    on_observed=None,
 ):
     """
     Function to create gridded matchups for a given set of variables
@@ -371,6 +375,13 @@ def gridded_matchup(
     on_matching, on_failed : callable or None
         Called as on_matched is, as each matchup is started, and when one fails
         in a way a retry might fix, for the oceanval window's grid of them
+    reading : callable or None
+        reading("gridded", variable, source, paths) is the context the model
+        files of each matchup, paths, are read in, which tells the window how
+        many have been (see oceanval.cdo_watch)
+    on_observing, on_observed : callable or None
+        Called as on_matched is, as each matchup's observations start to be
+        read (or downloaded), and once they have been, for the window's grid
     Returns
     -------
     None
@@ -594,7 +605,11 @@ def gridded_matchup(
                         month_per_file=month_per_file,
                     )
                     # the first run of the chain: the model files are read here
-                    with surface.chunk_cache(small_cache):
+                    with surface.chunk_cache(small_cache), (
+                        reading("gridded", vv, vv_source, paths)
+                        if reading is not None
+                        else contextlib.nullcontext()
+                    ):
                         ds_model.merge("time")
                     if not month_per_file:
                         ds_model.tmean(
@@ -634,6 +649,8 @@ def gridded_matchup(
                     end_year = max(ds_model.years)
 
                     # Read in the monthly observational data
+                    if on_observing is not None:
+                        on_observing("gridded", vv, vv_source)
                     thredds = comparison["thredds"]
                     if thredds == False:
                         if dir_var.endswith(".nc"):
@@ -803,6 +820,9 @@ def gridded_matchup(
                         ds_obs.merge("time")
 
                     ds_obs.run()
+                    # the observations are read: what follows matches them up
+                    if on_observed is not None:
+                        on_observed("gridded", vv, vv_source)
                     ds_model.run()
 
                     if vertical_gridded is False:

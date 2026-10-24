@@ -22,8 +22,9 @@ from oceanval import time_res as time_resolution
 # the most rows the variables step takes
 MOST_ROWS = 200
 
-# the setup page's boxes that the Analyze steps have no use for
-_NOT_ANALYZED = ("domain", "start", "end", "overwrite")
+# the setup page's boxes that the Analyze steps have no use for, and what is
+# asked of the matchups in the output directory already, which it does not show
+_NOT_ANALYZED = ("domain", "start", "end", "overwrite", "previous", "existing_confirmed")
 
 
 def default_setup_form(cwd):
@@ -35,8 +36,9 @@ def default_setup_form(cwd):
 
 def check_setup(form, cwd):
     """The simulation step's boxes as analyze() arguments: (arguments,
-    errors), as oceanval.app.check_setup gives them, without the domain
-    and the years, which an analysis has no use for."""
+    errors), as oceanval.app.check_setup gives them, without the domain,
+    the years and the matchups already there, which an analysis has no use
+    for."""
     from oceanval.app import check_setup as check
 
     arguments, errors = check(dict(form, domain="global", start="0", end="0"), cwd)

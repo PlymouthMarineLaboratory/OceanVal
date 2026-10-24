@@ -700,11 +700,99 @@ input.tick { cursor: pointer; }
 .year-list.is-names { text-align: left; max-height: 260px; }
 .year-list.is-names .combo__option { font-family: var(--font-body); font-size: 14px; }
 .year-list .combo__hint { margin-left: 10px; color: var(--muted); font-size: 12px; }
+.year-list.is-hinted { text-align: left; }
 .year-list { position: fixed; right: auto; z-index: 40; width: max-content; max-height: 200px; text-align: center; }
-/* the arrow of a year box that has a list of the output's years */
-.s-input.is-year.has-years {
+/* the arrow of a year box that has a list of the output's years, and of a directory depth's, 0 to 5 */
+.s-input.is-year.has-years, .s-input.is-depth.has-years {
   padding-left: 6px; padding-right: 16px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237c94a0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 6px center; background-size: 9px 5px;
 }
-.s-input.is-year.has-years:disabled { background-image: none; }
+.s-input.is-year.has-years:disabled, .s-input.is-depth.has-years:disabled { background-image: none; }
+
+/* ---- picking one of several boxes ----
+   The chosen one must be unmistakable: a filled round radio, and the whole box
+   given the accent colour, bold and a little bigger. Colours are tokens only.
+   The segmented buttons, the big tiles and the existing matchups' ticks do the
+   same in the app's own stylesheet. */
+.ptr-mode input[type="radio"], .demo-detail__option input[type="radio"], .prefs__use input[type="radio"],
+.theme-option__name input[type="radio"], .reg-where input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: grid;
+  place-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 2px solid var(--tick-line);
+  border-radius: 50%;
+  background: var(--bg);
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s, transform 0.12s;
+}
+.ptr-mode input[type="radio"]::after, .demo-detail__option input[type="radio"]::after, .prefs__use input[type="radio"]::after,
+.theme-option__name input[type="radio"]::after, .reg-where input[type="radio"]::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  transform: scale(0);
+  transition: transform 0.12s ease-in-out;
+}
+.ptr-mode input[type="radio"]:checked, .demo-detail__option input[type="radio"]:checked, .prefs__use input[type="radio"]:checked,
+.theme-option__name input[type="radio"]:checked, .reg-where input[type="radio"]:checked {
+  border-color: var(--teal-600);
+  background: var(--teal-600);
+  transform: scale(1.1);
+}
+.ptr-mode input[type="radio"]:checked::after, .demo-detail__option input[type="radio"]:checked::after, .prefs__use input[type="radio"]:checked::after,
+.theme-option__name input[type="radio"]:checked::after, .reg-where input[type="radio"]:checked::after { transform: scale(1); }
+.ptr-mode input[type="radio"]:focus-visible, .demo-detail__option input[type="radio"]:focus-visible, .prefs__use input[type="radio"]:focus-visible,
+.theme-option__name input[type="radio"]:focus-visible, .reg-where input[type="radio"]:focus-visible { outline: none; box-shadow: var(--focus); }
+
+/* each answer is a box of its own, and the chosen one is filled, bold and bigger */
+.ptr-mode, .demo-detail__option, .prefs__use, .reg-where label {
+  padding: 11px 16px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.ptr-mode:hover, .demo-detail__option:hover, .prefs__use:hover, .reg-where label:hover { border-color: var(--teal-200); }
+.ptr-mode:has(input[type="radio"]:checked), .demo-detail__option:has(input[type="radio"]:checked),
+.prefs__use:has(input[type="radio"]:checked), .reg-where label:has(input[type="radio"]:checked) {
+  border-color: var(--teal-600);
+  background: var(--teal-50);
+  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+  transform: scale(1.02);
+  transform-origin: left center;
+}
+.prefs__use small, .reg-where small { font-weight: 500; }
+.prefs__use input[type="radio"] { margin-top: 0; }
+/* turned off, so that nothing looks picked */
+.prefs__choices.is-disabled .prefs__use:has(input[type="radio"]:checked) {
+  border-color: var(--line);
+  background: var(--bg);
+  box-shadow: none;
+  font-weight: inherit;
+  transform: none;
+}
+.prefs__choices.is-disabled .prefs__use input[type="radio"]:checked { border-color: var(--tick-line); background: var(--bg); transform: none; }
+.prefs__choices.is-disabled .prefs__use input[type="radio"]:checked::after { background: var(--tick-line); }
+
+/* the theme cards: the chosen one is ringed in the accent colour, filled and bigger */
+.theme-option.is-chosen {
+  border-color: var(--teal-600);
+  background: var(--teal-50);
+  box-shadow: 0 0 0 2px var(--teal-600), var(--shadow-md);
+  transform: scale(1.03);
+}
+.theme-option { transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s, transform 0.15s; }
+.theme-option.is-chosen .theme-option__name { font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ptr-mode, .demo-detail__option, .prefs__use, .reg-where label, .theme-option { transition: none; }
+}

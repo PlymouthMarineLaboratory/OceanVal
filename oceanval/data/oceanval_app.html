@@ -71,7 +71,6 @@
   #view-demo-instructions .demo-about p { font-size: 21.75px; line-height: 1.5; }
   #view-demo-instructions .demo-detail { display: grid; gap: 12px; margin-top: 14px; }
   #view-demo-instructions .demo-detail__option { display: flex; align-items: center; gap: 12px; color: var(--ink); font-size: 21.75px; cursor: pointer; }
-  #view-demo-instructions .demo-detail__option input { width: 20px; height: 20px; margin: 0; accent-color: var(--teal-600); cursor: pointer; }
   .demo-grid { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 14px; }
   .demo-grid th { padding: 0 10px 8px 0; color: var(--ink-soft); font-size: 12.5px; font-weight: 600; text-align: left; vertical-align: bottom; }
   .demo-grid td, .demo-grid tbody th { padding: 10px 10px 10px 0; border-top: 1px solid var(--line-soft); vertical-align: middle; }
@@ -110,7 +109,8 @@
   #view-own .choice__title { font-size: 24px; }
   #view-own .choice__text { font-size: 16px; }
   /* the answer given before, when the step is reached again */
-  .choice.is-chosen { border-color: var(--teal-400); box-shadow: 0 0 0 1px var(--teal-400), var(--shadow-md); }
+  .choice.is-chosen { position: relative; border-color: var(--teal-600); background: var(--teal-50); box-shadow: 0 0 0 2px var(--teal-600), var(--shadow-lg); transform: scale(1.03); }
+  .choice.is-chosen::after { content: "\2713"; position: absolute; top: 12px; right: 12px; display: grid; place-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--teal-600); color: #fff; font-size: 17px; font-weight: 800; }
   .choice__tag { padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .own-legend { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; color: var(--muted); font-size: 13px; }
   .own-swatch { width: 4px; height: 16px; border-radius: 2px; background: var(--red); }
@@ -156,7 +156,7 @@
   .reg-labels__note { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
   .reg-where { display: grid; gap: 12px; }
   .reg-where label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; align-items: start; cursor: pointer; font-size: 14.5px; }
-  .reg-where input { grid-row: 1 / span 2; margin: 3px 0 0; accent-color: var(--teal-600); }
+  .reg-where input { grid-row: 1 / span 2; margin: 1px 0 0; }
   .reg-where small { grid-column: 2; color: var(--muted); font: 500 12.5px/1.4 var(--font-mono); overflow-wrap: anywhere; }
   .reg-where strong { font-weight: 600; }
   .reg-check { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 10px; }
@@ -216,6 +216,11 @@
   .existing th { background: var(--bg-alt); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
   .existing th.is-centered, .existing td.is-centered { width: 1%; text-align: center; }
   .existing td.is-centered .tick { margin: 0 auto; }
+  /* the chosen column of a row is tinted and its tick bigger */
+  .existing input.tick { width: 24px; height: 24px; border-width: 2px; }
+  .existing input.tick::after { width: 13px; height: 13px; }
+  .existing input.tick:checked { transform: scale(1.12); }
+  .existing td.is-centered:has(input:checked) { background: var(--teal-100); }
   .existing tbody tr:last-child td { border-bottom: 0; }
   .existing td small { display: block; color: var(--muted); font-size: 12.5px; }
   .existing__head { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -256,14 +261,15 @@
   .segmented {
     display: inline-flex;
     flex-wrap: wrap;
-    gap: 3px;
+    gap: 6px;
     max-width: 100%;
-    padding: 3px;
+    padding: 6px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--bg-alt);
   }
   .segmented label { position: relative; }
+  .segmented label:has(input:checked) { z-index: 1; }
   .segmented input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
   .segmented span {
     display: block;
@@ -272,14 +278,17 @@
     color: var(--muted);
     font-size: 13.5px;
     font-weight: 600;
-    transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+    transition: background-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s;
   }
-  .segmented input:checked + span { background: var(--bg); color: var(--teal-700); box-shadow: var(--shadow-sm), 0 0 0 1px var(--teal-200); }
+  @media (prefers-reduced-motion: reduce) { .segmented span { transition: none; } }
+  /* the chosen one is filled with the accent colour, bold, ticked and bigger, so that it cannot be missed */
+  .segmented input:checked + span { background: var(--teal-600); color: #fff; font-weight: 700; box-shadow: 0 0 0 2px var(--teal-600), var(--shadow-md); transform: scale(1.07); }
+  .segmented input:checked + span::before { content: "\2713"; margin-right: 8px; font-weight: 800; }
   .segmented input:focus-visible + span { box-shadow: var(--focus); }
   /* the domain's options are separate buttons, as there is no default to join them under */
-  #f-domain { gap: 14px; padding: 0; border: 0; background: none; }
+  #f-domain { gap: 18px; padding: 6px 0; border: 0; background: none; }
   #f-domain span { padding: 9px 18px; border: 1px solid var(--line); background: var(--bg-alt); border-radius: 10px; }
-  #f-domain input:checked + span { border-color: var(--teal-200); }
+  #f-domain input:checked + span { border-color: var(--teal-600); background: var(--teal-600); color: #fff; }
 
   /* a directory box, with its Browse… button */
   .path-field { display: flex; gap: 8px; }
@@ -392,8 +401,7 @@
   }
 
   .run { overflow: hidden; }
-  .run__head { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 16px; border-bottom: 1px solid var(--line); }
-  .run__label { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-soft); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+  .run__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 12px 16px; border-bottom: 1px solid var(--line); }
   .btn--small { height: 32px; padding: 0 12px; font-size: 13px; }
   .status {
     display: inline-flex;
@@ -505,11 +513,18 @@
   .matchup-grid td[data-state="done"] .icon { color: var(--teal-600); }
   .matchup-grid td[data-state="failed"] .icon { color: var(--danger); }
   .matchup-grid td[data-state="none"] { color: var(--muted); }
+  /* how many of a matchup's model files have been read, while they are */
+  .matchup-grid__count { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* under the matchup's circle, where the grid is too narrow for a column of its own */
+  .matchup-grid__count.is-under { display: block; margin-top: 2px; font-size: 11px; }
   .matchup-grid__link { display: inline-flex; vertical-align: middle; border-radius: 6px; }
   .matchup-grid__link:hover { background: var(--teal-100); }
   @media (max-width: 640px) {
     .progress { padding: 20px 16px; }
-    /* the ticks stay in sight: the table fits, its names wrap */
+  }
+  /* the ticks stay in sight: the table fits, its names wrap (at 640px and below without the
+     extraction columns, NARROW_GRID) */
+  @media (max-width: 860px) {
     .matchup-grid table { min-width: 0; font-size: 13px; }
     .matchup-grid th, .matchup-grid td { padding: 10px 6px; }
     .matchup-grid th:first-child, .matchup-grid td:first-child { padding-left: 12px; }
@@ -520,7 +535,6 @@
   .progress__body { flex: 1; min-width: 0; }
   .progress__bar { height: 8px; margin: 14px 0 0; overflow: hidden; border-radius: 999px; background: var(--teal-200); }
   .progress__bar span { display: block; height: 100%; border-radius: 999px; background: var(--teal-600); transition: width 0.4s ease; }
-  .progress__label { display: block; margin: 12px 0 0; overflow: hidden; color: var(--ink-soft); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
   /* ---- while the simulation is read for the recipes window, and matchup finds the files: a box in the middle of the page ---- */
   .prepare { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 250px); padding: 24px 0; }
   .prepare__card { width: 100%; max-width: 620px; padding: 52px 44px 44px; border: 1px solid var(--teal-200); box-shadow: var(--shadow-md); text-align: center; }
@@ -613,7 +627,7 @@
     .setup-box { padding: 20px 16px 22px; }
     .form__row, .form__row.is-pair { grid-template-columns: 1fr; }
     .form__row > .g-row + .g-row { margin-top: 10px; }
-    .ndown-row { grid-template-columns: 84px; gap: 6px 10px; }
+    .ndown-row { grid-template-columns: minmax(0, 1fr); gap: 6px 10px; }
     .ndown-row > .g-label { grid-column: 1 / -1; }
     .ask { grid-template-columns: auto minmax(0, 1fr); }
     .ask__answer { grid-column: 1 / -1; justify-content: flex-start; }
@@ -648,7 +662,6 @@
   .ptr-choice { margin-bottom: 16px; }
   .ptr-modes { display: grid; gap: 12px; margin: 0; padding: 16px 20px; border: 0; }
   .ptr-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; color: var(--ink); font-size: 14.5px; cursor: pointer; }
-  .ptr-mode input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal-600); cursor: pointer; }
   .ptr-mode .s-select { width: auto; min-width: 200px; }
   .ptr .s-select { width: 100%; }
   .ptr .s-select:disabled { color: var(--muted); background: var(--bg-alt); }
@@ -722,6 +735,8 @@
   .sc-section { margin: 0 0 22px; }
   .sc-section__title { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 16px; }
   .sc-choice { display: grid; gap: 12px; padding: 16px 20px; }
+  /* a legend straddles its fieldset's top edge; floated, it is the first row of the grid, inside the padding */
+  .sc-choice > legend { float: left; width: 100%; margin-bottom: 0; }
   .sc-grid-card { margin: 14px 0 0; padding: 18px 22px 20px; }
   .sc-grid-card__title { margin: 0 0 6px; font-size: 15px; }
   .sc-grid-card .form__row { max-width: 780px; }
@@ -1108,9 +1123,8 @@
           <div class="existing__table"><table aria-labelledby="existing-title">
             <thead><tr>
               <th scope="col">Variable</th><th scope="col">Source</th><th scope="col">Type</th>
-              <th scope="col" class="is-centered"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="replace" id="existing-all-replace" aria-label="Replace all of them">Replace</label></th>
               <th scope="col" class="is-centered"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="use" id="existing-all-use" aria-label="Use all of them">Use</label></th>
-              <th scope="col" class="is-centered" id="existing-ignore-head"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="ignore" id="existing-all-ignore" aria-label="Ignore all of them">Ignore</label></th>
+              <th scope="col" class="is-centered"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="replace" id="existing-all-replace" aria-label="Replace all of them"><span id="existing-replace-name">Replace</span></label></th>
             </tr></thead>
             <tbody id="existing-body"></tbody>
           </table></div>
@@ -1757,7 +1771,6 @@
           <h2 class="identify__title" id="progress-title"></h2>
           <p class="identify__text" id="progress-text"></p>
           <div class="progress__bar" id="progress-bar" role="progressbar" aria-label="Matchups made" hidden><span id="progress-fill"></span></div>
-          <code class="progress__label" id="progress-label"></code>
         </div>
       </div>
       <div class="matchup-grid" id="progress-grid" hidden></div>
@@ -1824,7 +1837,6 @@
     <div class="run card" id="run" hidden>
       <div class="run__head">
         <span class="status" id="status"><span class="status__dot" aria-hidden="true"></span><span id="status-text"></span></span>
-        <code class="run__label" id="run-label"></code>
         <button type="button" class="btn btn--text btn--small" id="copy">Copy output</button>
       </div>
       <div class="console-wrap">
@@ -2152,6 +2164,16 @@
 
   function depthText(depth) {
     return depth === 0 ? "in the directory itself" : `${depth} director${depth === 1 ? "y" : "ies"} down`;
+  }
+
+  // a box for how many directories down a simulation's files are: 0 to 5 can be picked from the list the
+  // arrow in the box opens (OceanValGUI.withChoices), and any whole number can still be typed. The list
+  // reads "0 in the directory itself", "1 directory down", "2 directories down"
+  const DEPTHS = [0, 1, 2, 3, 4, 5];
+  function depthBox(input) {
+    input.classList.add("is-depth");
+    input.choiceHints = Object.fromEntries(DEPTHS.map((depth) => [depth, depthText(depth).replace(/^\d+ /, "")]));
+    return withChoices(input, DEPTHS);
   }
 
   // ---- talking to oceanval ----
@@ -2758,6 +2780,7 @@
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require", "out_dir", "out"]);
   const setup = {};
+  depthBox($("f-ndown"));
   let setupErrors = {};
   let probe = null;
   let probeNumber = 0;
@@ -2899,40 +2922,36 @@
   }
 
   // ---- the matchups the output directory has already (see oceanval.app.existing_matchups) ----
-  // each row is a "variable/source", to be replaced (made again if this run matches it
-  // up: matchup's overwrite), used as it is (as each is to start with), or, if a report
-  // follows, ignored (validate's previous)
+  // each row is a "variable/source", to be used as it is (as each is to start with), or
+  // replaced, which, if a report follows, is ignoring it too: made again if this run
+  // matches it up (matchup's overwrite), and left out of the report if not (validate's previous)
   const EXISTING_LAYERS = { surface: "Point (surface)", all: "Point (all depths)", bottom: "Point (near the bottom)" };
   const existingKind = (kind) => kind.kind === "gridded" ? "Gridded" : EXISTING_LAYERS[kind.layer] || "Point";
   // none is asked about in the demo's own folder, as OceanVal answers for those of models tried before
   const existingRows = () => (probe && state.action !== "analyze" && !probe.out_dir_is_demo && probe.out_dir_matchups) || [];
-  // with no report to follow, ignoring one would be replacing it
-  const existingAsksUse = () => state.action === "matchup_validate";
-  const existingOptions = () => existingAsksUse() ? ["replace", "use", "ignore"] : ["replace", "use"];
-  const EXISTING_NAMES = { replace: "Replace", use: "Use", ignore: "Ignore" };
+  // with no report to follow, there is nothing to ignore one in
+  const existingForReport = () => state.action === "matchup_validate";
+  const EXISTING_OPTIONS = ["use", "replace"];
+  const existingNames = () => existingForReport()
+    ? { use: "Use", replace: "Replace or ignore" }
+    : { use: "Use", replace: "Replace" };
   // the list shown, so that a different one is answered afresh
   let existingShown = null;
 
-  // what is done with a row: "replace", "use" or "ignore"
-  function existingChoice(key) {
-    if ((setup.overwrite || []).includes(key)) return "replace";
-    if (existingAsksUse() && (setup.ignored || []).includes(key)) return "ignore";
-    return "use";
-  }
+  // what is done with a row: "use" or "replace"
+  const existingChoice = (key) => (setup.overwrite || []).includes(key) ? "replace" : "use";
 
   function chooseExisting(keys, option) {
     const chosen = new Set(keys);
     setup.overwrite = (setup.overwrite || []).filter((key) => !chosen.has(key));
-    setup.ignored = (setup.ignored || []).filter((key) => !chosen.has(key));
     if (option === "replace") setup.overwrite.push(...keys);
-    if (option === "ignore") setup.ignored.push(...keys);
     refreshSetup();
   }
 
   function existingOption(row, option, index) {
     return el("input", {
       type: "radio", class: "tick", name: `existing-${index}`, value: option, "data-key": row.key,
-      "aria-label": `${EXISTING_NAMES[option]} the existing matchup: ${row.title} (${row.source})`,
+      "aria-label": `${existingNames()[option]} the existing matchup: ${row.title} (${row.source})`,
       onchange: () => chooseExisting([row.key], option),
     });
   }
@@ -2941,39 +2960,36 @@
     const rows = existingRows();
     $("row-existing").hidden = !rows.length;
     if (!rows.length) return;
-    const use = existingAsksUse();
-    const options = existingOptions();
-    const shown = JSON.stringify([rows, use]);
+    const report = existingForReport();
+    const shown = JSON.stringify([rows, report]);
     if (shown !== existingShown) {
       // a different list: what was confirmed was for another
       if (existingShown !== null) setup.existing_confirmed = false;
       existingShown = shown;
-      $("existing-intro").textContent = use
-        ? "Replace: the matchup is made again if this run matches it up, and left out of the report if not. Use: it is kept as it is (not made again) and validated. Ignore: it is not used, so it is made again if this run matches it up and left out of the report if not. Each is used to start with: tick an option at the top of its column to choose it for them all. Nothing is removed from this directory."
-        : "Replace: the matchup is made again if this run matches it up. Use: it is kept and used as it is. Each is used to start with: tick an option at the top of its column to choose it for them all. Nothing is removed from this directory.";
-      $("existing-ignore-head").hidden = !use;
-      // each is used to start with, so only confirming that is required, with no report to follow
-      $("row-existing-confirm").hidden = use;
-      $("existing-required").hidden = use;
+      $("existing-intro").textContent = report
+        ? "Use: the matchup is kept as it is (not made again) and validated. Replace/Ignore: it is not used, so it is made again if this run matches it up, and left out of the report if not. Each is used to start with, so check them and tick to confirm below. Tick an option at the top of its column to choose it for them all. Nothing is removed from this directory."
+        : "Use: the matchup is kept and used as it is. Replace: it is made again if this run matches it up. Each is used to start with, so check them and tick to confirm below. Tick an option at the top of its column to choose it for them all. Nothing is removed from this directory.";
+      $("existing-replace-name").textContent = report ? "Replace/Ignore" : "Replace";
+      $("existing-all-replace").setAttribute("aria-label", `${existingNames().replace} all of them`);
       $("existing-body").replaceChildren(...rows.map((row, index) => el("tr", {},
         el("td", {}, row.title, row.variable.toLowerCase() === row.title.toLowerCase()
           ? null : el("small", { class: "is-mono", text: row.variable })),
         el("td", { text: row.source }),
         el("td", {}, ...row.kinds.map((kind) => el("div", { text: existingKind(kind) }))),
-        ...options.map((option) => el("td", { class: "is-centered" }, existingOption(row, option, index))))));
+        ...EXISTING_OPTIONS.map((option) => el("td", { class: "is-centered" }, existingOption(row, option, index))))));
     }
     document.querySelectorAll("#existing-body input[data-key]").forEach((box) => {
       box.checked = existingChoice(box.dataset.key) === box.value;
     });
     // the option at the top of a column is ticked when every row has it
     const choices = new Set(rows.map((row) => existingChoice(row.key)));
-    for (const option of ["replace", "use", "ignore"]) {
+    for (const option of EXISTING_OPTIONS) {
       $(`existing-all-${option}`).checked = choices.size === 1 && choices.has(option);
     }
     $("f-existing_confirmed").checked = Boolean(setup.existing_confirmed);
   }
 
-  for (const option of ["replace", "use", "ignore"]) {
+  for (const option of EXISTING_OPTIONS) {
     $(`existing-all-${option}`).addEventListener("change", () => {
       chooseExisting(existingRows().map((row) => row.key), option);
     });
@@ -3044,8 +3060,8 @@
     if (!errors.out_dir && probe && probe.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
     if (!text("out")) errors.out = errors.out || "";
     if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
-    // with no report to follow, what is done with the matchups there already has to be confirmed
-    if (existingRows().length && !existingAsksUse() && !setup.existing_confirmed) errors.existing_confirmed = "";
+    // what is done with the matchups there already has to be confirmed, as each starts on Use
+    if (existingRows().length && !setup.existing_confirmed) errors.existing_confirmed = "";
     return errors;
   }
 
@@ -6595,8 +6611,6 @@
     const [text, classes] = STATUS[kind];
     $("status").className = `status ${classes}`;
     $("status-text").textContent = text;
-    $("run-label").textContent = state.view === "preparing" ? "create_recipes(...)" : run.label || "";
-    $("run-label").title = $("run-label").textContent;
     // the output, with its errors, is only shown for a run that failed;
     // elsewhere the panel says what the run is doing
     const showOutput = state.view === "finished" && run.status === "failed";
@@ -6718,12 +6732,7 @@
       bar.setAttribute("aria-valuenow", String(stage.done));
       $("progress-fill").style.width = `${Math.min(100, 100 * stage.done / stage.of)}%`;
     }
-    const grid = renderMatchupGrid();
-    // the grid says what is running
-    const label = grid ? "" : state.run.label || "";
-    $("progress-label").textContent = label;
-    $("progress-label").title = label;
-    $("progress-label").hidden = !label;
+    renderMatchupGrid();
     box.hidden = false;
   }
 
@@ -6740,8 +6749,9 @@
 
   // a cell's mark: empty, a turning circle, a tick (a link to the page, for
   // the interim report), a cross, or a dash for a matchup the report leaves out
-  function gridMark(cell, status, href) {
-    const key = `${status}|${href || ""}`;
+  // said, if given, in place of what GRID_SAID says of the status
+  function gridMark(cell, status, href, said) {
+    const key = `${status}|${href || ""}|${said || ""}`;
     // redrawn only when it changes, so the circles keep turning
     if (cell.dataset.key === key) return;
     cell.dataset.key = key;
@@ -6751,11 +6761,72 @@
       : status === "failed" ? icon("cross")
       : status === "none" ? el("span", { "aria-hidden": "true", text: "—" })
       : null;
-    const said = href ? `${GRID_SAID[status]}: open its page of the interim report` : GRID_SAID[status];
+    said = said || GRID_SAID[status];
+    if (href) said = `${said}: open its page of the interim report`;
     const shown = el("span", { class: "matchup-grid__mark", role: "img", "aria-label": said, title: said }, mark);
     cell.replaceChildren(href
       ? el("a", { class: "matchup-grid__link", href, target: "_blank", rel: "noopener" }, shown)
       : shown);
+  }
+
+  const filesSaid = (total) => `${total} model file${total === 1 ? "" : "s"}`;
+
+  // the count of a matchup's model files read, while they are being read and how many is known
+  function filesCount(files, under) {
+    const said = `Read ${files.done} of ${filesSaid(files.total)}`;
+    return el("span", {
+      class: under ? "matchup-grid__count is-under" : "matchup-grid__count",
+      role: "img", "aria-label": said, title: said, text: `${files.done}/${files.total}`,
+    });
+  }
+
+  // how many of a matchup's model files have been read (see oceanval.cdo_watch): a count while
+  // they are (a turning circle while it is not known), a tick once all are, and a dash for one
+  // that read none, as one made before does
+  function extractionMark(cell, item) {
+    const files = item.extraction;
+    if (!files) {
+      if (item.state === "made" || item.state === "not_made") gridMark(cell, "none", null, "No model files read");
+      else gridMark(cell, "waiting", null, "Model files not read yet");
+      return;
+    }
+    const these = filesSaid(files.total);
+    if (files.finished) gridMark(cell, "done", null, `Read all ${these}`);
+    else if (item.state === "not_made") gridMark(cell, "failed", null, `Not all ${these} read`);
+    else if (files.done === null) gridMark(cell, "working", null, `Reading ${these}`);
+    else {
+      const key = `count|${files.done}|${files.total}`;
+      if (cell.dataset.key === key) return;
+      cell.dataset.key = key;
+      cell.dataset.state = "counting";
+      cell.replaceChildren(filesCount(files, false));
+    }
+  }
+
+  // whether a matchup's observations are being read (or downloaded), or have been: a dash for
+  // one that read none, as one made before does
+  function observationMark(cell, item) {
+    const observations = item.observations;
+    if (!observations) {
+      if (item.state === "made" || item.state === "not_made") gridMark(cell, "none", null, "No observations read");
+      else gridMark(cell, "waiting", null, "Observations not read yet");
+    } else if (observations === "read") gridMark(cell, "done", null, "Observations read");
+    else if (item.state === "not_made") gridMark(cell, "failed", null, "Observations not read");
+    else gridMark(cell, "working", null, "Reading the observations");
+  }
+
+  // too narrow for the extraction columns (as on a phone), the grid leaves them out, so it
+  // still fits and its ticks stay in sight, and the count is under the matchup's circle
+  const NARROW_GRID = window.matchMedia("(max-width: 640px)");
+  NARROW_GRID.addEventListener("change", () => renderMatchupGrid());
+
+  function countUnder(cell, item) {
+    const files = item.extraction;
+    const count = cell.querySelector(".matchup-grid__count");
+    if (count) count.remove();
+    if (files && !files.finished && files.done !== null && item.state === "matching") {
+      cell.append(filesCount(files, true));
+    }
   }
 
   // a time as a stopwatch shows it: 0:07, 12:04, 1:02:03
@@ -6793,21 +6864,27 @@
     const progress = state.run.progress;
     const items = progress.items;
     const withReport = state.action === "matchup_validate";
-    const rows = JSON.stringify([withReport, items.map((item) => [item.key, item.title, item.source])]);
+    const narrow = NARROW_GRID.matches;
+    const rows = JSON.stringify([withReport, narrow, items.map((item) => [item.key, item.title, item.source])]);
     if (box.dataset.rows !== rows) {
       box.dataset.rows = rows;
-      const head = ["Variable", "Data source", "Matchup", "Time", ...(withReport ? ["Interim report"] : [])];
-      const headClass = (index) => index === 3 ? "is-time" : index > 1 ? "is-state" : null;
+      const head = [
+        "Variable", "Data source", ...(narrow ? [] : ["Model extraction", "Observation extraction"]), "Matchup", "Time",
+        ...(withReport ? ["Interim report"] : []),
+      ];
+      const headClass = (text, index) => text === "Time" ? "is-time" : index > 1 ? "is-state" : null;
       box.replaceChildren(el("table", {},
-        el("thead", {}, el("tr", {}, ...head.map((text, index) => el("th", { scope: "col", class: headClass(index), text })))),
+        el("thead", {}, el("tr", {}, ...head.map((text, index) => el("th", { scope: "col", class: headClass(text, index), text })))),
         el("tbody", {}, ...items.map((item) => el("tr", { "data-key": item.key },
           el("td", { class: "matchup-grid__title", text: item.title }),
           el("td", { text: item.source }),
+          narrow ? null : el("td", { class: "is-state", "data-column": "extraction" }),
+          narrow ? null : el("td", { class: "is-state", "data-column": "observations" }),
           el("td", { class: "is-state", "data-column": "matchup" }),
           el("td", { class: "is-time", "data-column": "time" }),
           withReport ? el("td", { class: "is-state", "data-column": "report" }) : null))),
         el("tfoot", {}, el("tr", {},
-          el("th", { scope: "row", colspan: "3", text: "Time elapsed" }),
+          el("th", { scope: "row", colspan: narrow ? "3" : "5", text: "Time elapsed" }),
           el("td", { class: "is-time", "data-column": "total" }),
           withReport ? el("td", { class: "is-state" }) : null))));
     }
@@ -6818,8 +6895,13 @@
     items.forEach((item, index) => {
       const row = box.querySelectorAll("tbody tr")[index];
       row.classList.toggle("is-active", item.state === "matching");
-      gridMark(row.querySelector('[data-column="matchup"]'),
-        { matching: "working", made: "done", not_made: "failed" }[item.state] || "waiting");
+      const matchup = row.querySelector('[data-column="matchup"]');
+      gridMark(matchup, { matching: "working", made: "done", not_made: "failed" }[item.state] || "waiting");
+      if (narrow) countUnder(matchup, item);
+      else {
+        extractionMark(row.querySelector('[data-column="extraction"]'), item);
+        observationMark(row.querySelector('[data-column="observations"]'), item);
+      }
       setClock(row.querySelector('[data-column="time"]'), item.seconds, item.state === "matching");
       const report = row.querySelector('[data-column="report"]');
       if (!report) return;
@@ -7871,6 +7953,7 @@
 
   for (let n = 1; n <= SC_MOST; n++) {
     scSims.fillRecent.push(makeRecent(`sc-dir_${n}`));
+    depthBox($(`sc-ndown_${n}`));
     for (const id of Object.values(SC_BOXES)) {
       const box = $(`sc-${id}_${n}`);
       box.addEventListener("input", () => {
