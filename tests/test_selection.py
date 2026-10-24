@@ -1,36 +1,12 @@
 """validate()'s variables option: which matchups a report validates."""
 
 import os
-import pickle
 
 import pytest
 
 import oceanval
 from oceanval import selection
-
-
-def write_matchups(directory, titles=None):
-    """The files of a finished matchup with two gridded temperatures, one of
-    them through the water column, and point nitrate at the surface and
-    through the water column, as validate() reads their names."""
-    matchups = os.path.join(directory, "oceanval_matchups")
-    files = [
-        "gridded/temperature/COBE2_temperature_surface.nc",
-        "gridded/temperature/WOA23_temperature_surface.nc",
-        "gridded/temperature/WOA23_temperature_vertical.nc",
-        "point/surface/nitrate/ICES/ICES_surface_nitrate.csv",
-        "point/all/nitrate/glodap/glodap_all_nitrate.csv",
-        # not a matchup of its own
-        "point/all/nitrate/glodap/glodap_all_nitrate_unit.csv",
-    ]
-    for name in files:
-        path = os.path.join(matchups, name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        open(path, "w").close()
-    with open(os.path.join(matchups, "short_titles.pkl"), "wb") as saved:
-        pickle.dump(titles if titles is not None else {"nitrate": "Nitrate"}, saved)
-    with open(os.path.join(matchups, "variables_matched.pkl"), "wb") as saved:
-        pickle.dump(["nitrate", "temperature"], saved)
+from simulations import write_matchups
 
 
 class TestOnDisk:
@@ -100,7 +76,82 @@ class TestCheckVariables:
             selection.check_against(["nitrate/WOA23"], found)
 
 
+class TestLastRun:
+    """The record of the matchups the last matchup() run made, which
+    validate(previous=False) validates only."""
+
+    def test_the_record_is_read_as_written(self, tmp_path):
+        matchup_dir = tmp_path / "oceanval_matchups"
+        matchup_dir.mkdir()
+        # a gridded matchup is told with no layer, which is what it is kept with whatever
+        selection.save_last_run(str(matchup_dir), [
+            ("gridded", "temperature", "COBE2", None),
+            ("point", "nitrate", "ICES", "surface"),
+        ])
+        assert selection.last_run(str(tmp_path)) == {
+            ("gridded", "temperature", "COBE2", None),
+            ("point", "nitrate", "ICES", "surface"),
+        }
+        assert not (matchup_dir / (selection.LAST_RUN + ".part")).exists()
+        selection.forget_last_run(str(matchup_dir))
+        # and again, with nothing there
+        selection.forget_last_run(str(matchup_dir))
+        with pytest.raises(ValueError, match="no record of which matchups the last matchup"):
+            selection.last_run(str(tmp_path))
+
+    def test_an_unreadable_record_is_none(self, tmp_path):
+        write_matchups(tmp_path)
+        (tmp_path / "oceanval_matchups" / selection.LAST_RUN).write_text("{not json")
+        with pytest.raises(ValueError, match="previous=True"):
+            selection.last_run(str(tmp_path))
+
+    def test_the_last_runs_matchups_are_matched_by_kind_and_layer(self, tmp_path):
+        write_matchups(tmp_path)
+        found = selection.on_disk(str(tmp_path))
+        record = {("point", "nitrate", "ICES", "surface"), ("point", "nitrate", "glodap", "surface")}
+        # glodap's matchup here is through the water column, so another run's
+        assert [m["key"] for m in selection.of_last_run(found, record)] == ["nitrate/ICES"]
+        # with the earlier matchups previous picks
+        assert [m["key"] for m in selection.of_last_run(found, record, ["temperature/COBE2"])] == [
+            "temperature/COBE2", "nitrate/ICES",
+        ]
+        assert len(selection.of_last_run(found, record, True)) == len(found)
+
+    def test_picks(self):
+        assert selection.picks(True, "temperature", "COBE2")
+        assert not selection.picks(False, "temperature", "COBE2")
+        assert selection.picks(["temperature/cobe2"], "temperature", "COBE2")
+        assert not selection.picks(["temperature/WOA23"], "temperature", "COBE2")
+        assert selection.picks(["temperature"], "temperature", "WOA23")
+
+
 class TestValidate:
+    def test_previous_is_checked_before_the_old_report_is_removed(self, tmp_path):
+        write_matchups(tmp_path)
+        os.makedirs(tmp_path / "oceanval_report")
+        (tmp_path / "oceanval_report" / "keep.txt").touch()
+
+        def validate(**kwargs):
+            oceanval.validate(data_dir=str(tmp_path), out_dir=str(tmp_path), test=True, **kwargs)
+
+        # no record of the last run
+        with pytest.raises(ValueError, match="previous=True"):
+            validate(previous=False)
+        with pytest.raises(ValueError, match="previous: there are no matchups of 'oxygen'"):
+            validate(previous=["oxygen"])
+        with pytest.raises(ValueError, match="previous must name at least one"):
+            validate(previous=[])
+        write_matchups(tmp_path, last_run=[("point", "nitrate", "ICES", "surface")])
+        # variables picks among the last run's matchups, and those previous picks
+        with pytest.raises(ValueError, match="no matchups of 'temperature'.*nitrate/ICES"):
+            validate(previous=False, variables=["temperature"])
+        with pytest.raises(ValueError, match="no matchups of 'temperature/COBE2'"):
+            validate(previous=["temperature/WOA23"], variables=["temperature/COBE2"])
+        write_matchups(tmp_path, last_run=[("point", "oxygen", "ICES", "surface")])
+        with pytest.raises(ValueError, match="made no matchups"):
+            validate(previous=False)
+        assert (tmp_path / "oceanval_report" / "keep.txt").exists()
+
     def test_variables_are_checked_before_the_old_report_is_removed(self, tmp_path):
         write_matchups(tmp_path)
         os.makedirs(tmp_path / "oceanval_report")

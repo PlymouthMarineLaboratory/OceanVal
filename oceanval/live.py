@@ -56,6 +56,10 @@ OPTIONS = (
 # validate()'s arguments for the other forms of the full report
 EXPORTS = ("pdf", "word", "zip")
 
+# validate()'s arguments the interim report has no use for: those, and
+# previous, as it only ever has the matchups of the run building it
+NOT_INTERIM = (*EXPORTS, "previous")
+
 # the interim report matchup is building, for abandon()
 current = None
 

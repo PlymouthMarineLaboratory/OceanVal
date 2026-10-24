@@ -1173,6 +1173,25 @@ class TestSettings:
         # without the window's report options, there is none
         assert "live_validation" not in self.build(settings=settings(pdf=True))
 
+    def test_the_matchups_chosen_to_overwrite_and_validate_are_written(self):
+        # chosen in the oceanval window's simulation step, of those there already
+        script = self.build(
+            settings=settings(overwrite=["temperature/COBE2"]),
+            report={"previous": ["nitrate/ICES"], "concise": False},
+        )
+        ast.parse(script)
+
+        assert '    overwrite=["temperature/COBE2"],\n' in matchup_call(script)
+        assert (
+            'oceanval.validate(\n'
+            '    previous=["nitrate/ICES"],\n'
+            '    concise=False,\n'
+            ')'
+        ) in script
+        # the interim report only ever has the run's own matchups
+        assert '    live_validation={"concise": False},\n' in matchup_call(script)
+        assert "    overwrite=False,\n" in matchup_call(self.build(settings=settings(overwrite=False)))
+
     def test_a_transect_is_written_into_validate_and_the_interim_report(self, monkeypatch):
         # chosen in the oceanval window, with the report options
         report = {

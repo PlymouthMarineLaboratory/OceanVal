@@ -101,6 +101,19 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, ...).
 - `oceanval/pyplots.py` holds the plotting functions (maps, scatter, Taylor diagrams, seasonal
   grids, etc.) used inside the generated notebooks.
+- **Earlier matchups**: `matchup()` never removes matchups from `out_dir`. It records the ones each run made or kept
+  in `oceanval_matchups/last_matchup.json` (`selection.save_last_run`, from `matchall._Told.made`; removed by
+  `forget_last_run` once the matchups are confirmed, so a run that does not finish leaves none). `validate(previous=)`
+  is True (all), False (`selection.last_run` only) or a list of earlier ones as `variables` takes them;
+  `matchup(overwrite=)` also takes such a list (`selection.picks`). In the window, an out_dir with matchups
+  (`app.existing_matchups`, a row per "variable/source") gets a grid on the setup page, "What do you want to do with
+  existing matchups?": per row one of Replace / Use / Ignore (radios with the tick look, Use to start with; a radio at
+  the top of each column chooses it for all rows). **Only a used matchup is kept as it is**: one replaced or ignored is
+  made again if this run matches it up, and left out of the report if not (form `overwrite`, `ignored`; `check_setup`
+  gives overwrite = all not used, previous = those used, all → True, none → False). Matchup only has no Ignore column:
+  those used are reused, and a confirmation tick (`existing_confirmed`) is required. The demo's own folder (`check_setup(demo_dir=)`, `out_dir_is_demo`), where every model tried keeps its
+  matchups, has no grid: overwrite=True, previous=False. `previous` is never passed to the interim report
+  (`live.NOT_INTERIM`), and `_checked_report` adds the earlier keys to `variables` when some of the run's are unticked.
 
 ### Recipes of the user's own (`.oceanvalrc`)
 

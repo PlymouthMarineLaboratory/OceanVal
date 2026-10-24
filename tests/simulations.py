@@ -2,9 +2,40 @@
 
 import datetime
 import os
+import pickle
 
 import numpy as np
 import xarray as xr
+
+
+def write_matchups(directory, titles=None, last_run=None):
+    """The files of a finished matchup with two gridded temperatures, one of
+    them through the water column, and point nitrate at the surface and
+    through the water column, as validate() reads their names. last_run, the
+    matchups as (kind, variable, source, layer), is recorded as those the
+    last matchup() run made (see oceanval.selection.save_last_run)."""
+    from oceanval import selection
+
+    matchups = os.path.join(directory, "oceanval_matchups")
+    files = [
+        "gridded/temperature/COBE2_temperature_surface.nc",
+        "gridded/temperature/WOA23_temperature_surface.nc",
+        "gridded/temperature/WOA23_temperature_vertical.nc",
+        "point/surface/nitrate/ICES/ICES_surface_nitrate.csv",
+        "point/all/nitrate/glodap/glodap_all_nitrate.csv",
+        # not a matchup of its own
+        "point/all/nitrate/glodap/glodap_all_nitrate_unit.csv",
+    ]
+    for name in files:
+        path = os.path.join(matchups, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").close()
+    with open(os.path.join(matchups, "short_titles.pkl"), "wb") as saved:
+        pickle.dump(titles if titles is not None else {"nitrate": "Nitrate"}, saved)
+    with open(os.path.join(matchups, "variables_matched.pkl"), "wb") as saved:
+        pickle.dump(["nitrate", "temperature"], saved)
+    if last_run is not None:
+        selection.save_last_run(matchups, last_run)
 
 
 def write_simulation(root, years=(2011, 2012), tracers=False):

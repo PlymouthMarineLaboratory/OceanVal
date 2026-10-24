@@ -293,6 +293,9 @@ class _Told:
 
     def __init__(self, builder):
         self.builder = builder
+        # those made or kept, as (kind, variable, source, layer), for the
+        # record of the run (see selection.save_last_run)
+        self.made_keys = []
 
     @staticmethod
     def _tell(state, kind, variable, source, layer):
@@ -303,6 +306,8 @@ class _Told:
         self._tell("matching", kind, variable, source, layer)
 
     def made(self, kind, variable, source, layer=None):
+        if (kind, variable, source, layer) not in self.made_keys:
+            self.made_keys.append((kind, variable, source, layer))
         self._tell("made", kind, variable, source, layer)
         if self.builder is not None:
             self.builder.matched(kind, variable, source, layer)
@@ -1226,8 +1231,10 @@ def matchup(
         Which of "year", "month" and "day" point observations are matched to the model by. Default is ['year', 'month', 'day'].
         Leave out "year" to compare the observations climatologically, and "day" for monthly model output.
         A point_time_res given to add_point_comparison is used for that dataset instead.
-    overwrite : bool
-        If True, existing matched data will be overwritten. Default is True.
+    overwrite : bool or list
+        If True, existing matched data will be overwritten. Default is True. False keeps any matchup this run would make that is in out_dir already, and uses it as it is.
+        A list overwrites only the existing matchups it picks, each entry a variable, for all its sources, or "variable/source", for one, as validate's variables takes them, e.g. ["temperature/COBE2"]: the others are kept.
+        Matchups of variables or sources this run does not match up are left in out_dir either way (see validate's previous).
     ask : bool
         If True, the user will be asked if they are happy with the matchups. Default is True.
     out_dir : str
@@ -1360,7 +1367,10 @@ def matchup(
     session_info["point_time_res"] = copy.deepcopy(point_time_res)
 
     if not isinstance(overwrite, bool):
-        raise TypeError("overwrite must be a boolean")
+        if not isinstance(overwrite, (list, tuple)):
+            raise TypeError('overwrite must be a boolean, or a list of variables or "variable/source"')
+        # none of them
+        overwrite = selection.check_variables(overwrite, name="overwrite") if overwrite else False
     session_info["overwrite"] = overwrite
 
     if not isinstance(ask, bool):
@@ -1981,6 +1991,8 @@ def matchup(
             builder.start()
         else:
             print("Only one variable and source is matched up, so no interim report is built.")
+    # the last run's record is this run's once it has finished
+    selection.forget_last_run(session_info["out_dir"] + "oceanval_matchups")
     told = _Told(builder)
     prompts.tell(_matchups_news(items, session_info["short_title"], builder))
 
@@ -2081,7 +2093,7 @@ def matchup(
             out = f"{session_info['out_dir']}/oceanval_matchups/point/{layer}/{variable}/{source}/{source}_{layer}_{variable}.csv"
             csv = out
 
-            if os.path.exists(out) and not overwrite:
+            if os.path.exists(out) and not selection.picks(overwrite, variable, source):
                 if time_stamps.stored_time_shift(
                     os.path.join(os.path.dirname(out), "matchup_dict.pkl")
                 ) == session_info["time_shift"]:
@@ -2572,7 +2584,7 @@ def matchup(
                 if len(out) > 0:
                     # unless it was made with the model's times shifted
                     # differently, said above
-                    if session_info["overwrite"] is False and time_stamps.stored_time_shift(
+                    if not selection.picks(session_info["overwrite"], vv, source) and time_stamps.stored_time_shift(
                         out[0].replace(os.path.basename(out[0]), "matchup_dict.pkl")
                     ) == session_info["time_shift"]:
                         continue
@@ -2678,6 +2690,9 @@ def matchup(
             variables_matched.append(vv)
     with open(ff, "wb") as f:
         pickle.dump(variables_matched, f)
+
+    # which of the matchups here this run made or kept, for validate(previous=False)
+    selection.save_last_run(session_info["out_dir"] + "oceanval_matchups", told.made_keys)
 
     if fvcom:
         _remove_fvcom_dir(session_info["fvcom_dir"])

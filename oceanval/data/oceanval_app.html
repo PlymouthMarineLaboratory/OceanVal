@@ -206,6 +206,20 @@
   .setup-form { display: grid; gap: 18px; margin: 0; }
   .setup-box { padding: 24px 26px 26px; }
   .setup-box__script { margin-top: 18px; }
+  /* the matchups the output directory has already, each with a tick to make it
+     again and one to have it in the report */
+  .existing { margin-top: 16px; }
+  .existing__title { margin: 0 0 6px; font-size: 13.5px; }
+  .existing__table { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  .existing table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 14px; }
+  .existing th, .existing td { padding: 9px 14px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
+  .existing th { background: var(--bg-alt); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+  .existing th.is-centered, .existing td.is-centered { width: 1%; text-align: center; }
+  .existing td.is-centered .tick { margin: 0 auto; }
+  .existing tbody tr:last-child td { border-bottom: 0; }
+  .existing td small { display: block; color: var(--muted); font-size: 12.5px; }
+  .existing__head { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .existing__confirm { margin-top: 12px; color: var(--ink); font-weight: 600; }
   /* a legend straddles its fieldset's top edge; floated, it sits inside the padding */
   .setup-box > legend { float: left; width: 100%; }
   .setup-box > legend + * { clear: both; }
@@ -1088,7 +1102,20 @@
         <legend>Tell OceanVal where you want output to be saved</legend>
         <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
-        <label class="tick-label" id="row-overwrite" hidden><input type="checkbox" class="tick" id="f-overwrite">Do you want to overwrite existing matchups in this directory?</label>
+        <div class="existing" id="row-existing" hidden>
+          <p class="g-label is-required existing__title" id="existing-title">What do you want to do with existing matchups? <span class="own-req" id="existing-required">Required</span></p>
+          <p class="group__intro" id="existing-intro"></p>
+          <div class="existing__table"><table aria-labelledby="existing-title">
+            <thead><tr>
+              <th scope="col">Variable</th><th scope="col">Source</th><th scope="col">Type</th>
+              <th scope="col" class="is-centered"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="replace" id="existing-all-replace" aria-label="Replace all of them">Replace</label></th>
+              <th scope="col" class="is-centered"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="use" id="existing-all-use" aria-label="Use all of them">Use</label></th>
+              <th scope="col" class="is-centered" id="existing-ignore-head"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="ignore" id="existing-all-ignore" aria-label="Ignore all of them">Ignore</label></th>
+            </tr></thead>
+            <tbody id="existing-body"></tbody>
+          </table></div>
+          <label class="tick-label existing__confirm" id="row-existing-confirm"><input type="checkbox" class="tick" id="f-existing_confirmed">Tick to confirm what is done with these matchups</label>
+        </div>
         <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off"></label>
         <p class="group__intro" id="f-out-intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
         <p class="group__msg" id="m-out"></p>
@@ -2837,7 +2864,7 @@
     fillRecent();
     Object.assign(setup, state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
-    $("f-overwrite").checked = Boolean(setup.overwrite);
+    existingShown = null;
     segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
     $("f-out_dir").placeholder = state.cwd;
     const analyzing = state.action === "analyze";
@@ -2870,8 +2897,91 @@
       refreshSetup();
     });
   }
-  $("f-overwrite").addEventListener("change", (event) => {
-    setup.overwrite = event.target.checked;
+
+  // ---- the matchups the output directory has already (see oceanval.app.existing_matchups) ----
+  // each row is a "variable/source", to be replaced (made again if this run matches it
+  // up: matchup's overwrite), used as it is (as each is to start with), or, if a report
+  // follows, ignored (validate's previous)
+  const EXISTING_LAYERS = { surface: "Point (surface)", all: "Point (all depths)", bottom: "Point (near the bottom)" };
+  const existingKind = (kind) => kind.kind === "gridded" ? "Gridded" : EXISTING_LAYERS[kind.layer] || "Point";
+  // none is asked about in the demo's own folder, as OceanVal answers for those of models tried before
+  const existingRows = () => (probe && state.action !== "analyze" && !probe.out_dir_is_demo && probe.out_dir_matchups) || [];
+  // with no report to follow, ignoring one would be replacing it
+  const existingAsksUse = () => state.action === "matchup_validate";
+  const existingOptions = () => existingAsksUse() ? ["replace", "use", "ignore"] : ["replace", "use"];
+  const EXISTING_NAMES = { replace: "Replace", use: "Use", ignore: "Ignore" };
+  // the list shown, so that a different one is answered afresh
+  let existingShown = null;
+
+  // what is done with a row: "replace", "use" or "ignore"
+  function existingChoice(key) {
+    if ((setup.overwrite || []).includes(key)) return "replace";
+    if (existingAsksUse() && (setup.ignored || []).includes(key)) return "ignore";
+    return "use";
+  }
+
+  function chooseExisting(keys, option) {
+    const chosen = new Set(keys);
+    setup.overwrite = (setup.overwrite || []).filter((key) => !chosen.has(key));
+    setup.ignored = (setup.ignored || []).filter((key) => !chosen.has(key));
+    if (option === "replace") setup.overwrite.push(...keys);
+    if (option === "ignore") setup.ignored.push(...keys);
+    refreshSetup();
+  }
+
+  function existingOption(row, option, index) {
+    return el("input", {
+      type: "radio", class: "tick", name: `existing-${index}`, value: option, "data-key": row.key,
+      "aria-label": `${EXISTING_NAMES[option]} the existing matchup: ${row.title} (${row.source})`,
+      onchange: () => chooseExisting([row.key], option),
+    });
+  }
+
+  function renderExisting() {
+    const rows = existingRows();
+    $("row-existing").hidden = !rows.length;
+    if (!rows.length) return;
+    const use = existingAsksUse();
+    const options = existingOptions();
+    const shown = JSON.stringify([rows, use]);
+    if (shown !== existingShown) {
+      // a different list: what was confirmed was for another
+      if (existingShown !== null) setup.existing_confirmed = false;
+      existingShown = shown;
+      $("existing-intro").textContent = use
+        ? "Replace: the matchup is made again if this run matches it up, and left out of the report if not. Use: it is kept as it is (not made again) and validated. Ignore: it is not used, so it is made again if this run matches it up and left out of the report if not. Each is used to start with: tick an option at the top of its column to choose it for them all. Nothing is removed from this directory."
+        : "Replace: the matchup is made again if this run matches it up. Use: it is kept and used as it is. Each is used to start with: tick an option at the top of its column to choose it for them all. Nothing is removed from this directory.";
+      $("existing-ignore-head").hidden = !use;
+      // each is used to start with, so only confirming that is required, with no report to follow
+      $("row-existing-confirm").hidden = use;
+      $("existing-required").hidden = use;
+      $("existing-body").replaceChildren(...rows.map((row, index) => el("tr", {},
+        el("td", {}, row.title, row.variable.toLowerCase() === row.title.toLowerCase()
+          ? null : el("small", { class: "is-mono", text: row.variable })),
+        el("td", { text: row.source }),
+        el("td", {}, ...row.kinds.map((kind) => el("div", { text: existingKind(kind) }))),
+        ...options.map((option) => el("td", { class: "is-centered" }, existingOption(row, option, index))))));
+    }
+    document.querySelectorAll("#existing-body input[data-key]").forEach((box) => {
+      box.checked = existingChoice(box.dataset.key) === box.value;
+    });
+    // the option at the top of a column is ticked when every row has it
+    const choices = new Set(rows.map((row) => existingChoice(row.key)));
+    for (const option of ["replace", "use", "ignore"]) {
+      $(`existing-all-${option}`).checked = choices.size === 1 && choices.has(option);
+    }
+    $("f-existing_confirmed").checked = Boolean(setup.existing_confirmed);
+  }
+
+  for (const option of ["replace", "use", "ignore"]) {
+    $(`existing-all-${option}`).addEventListener("change", () => {
+      chooseExisting(existingRows().map((row) => row.key), option);
+    });
+  }
+  $("f-existing_confirmed").addEventListener("change", (event) => {
+    setup.existing_confirmed = event.target.checked;
+    delete setupErrors.existing_confirmed;
+    refreshSetup();
   });
   $("setup-form").addEventListener("submit", (event) => { event.preventDefault(); submitSetup(); });
 
@@ -2934,6 +3044,8 @@
     if (!errors.out_dir && probe && probe.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
     if (!text("out")) errors.out = errors.out || "";
     if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
+    // with no report to follow, what is done with the matchups there already has to be confirmed
+    if (existingRows().length && !existingAsksUse() && !setup.existing_confirmed) errors.existing_confirmed = "";
     return errors;
   }
 
@@ -2950,6 +3062,7 @@
   }
 
   function refreshSetup() {
+    renderExisting();
     const errors = setupProblems();
     for (const name of SETUP_FIELDS) {
       const invalid = Boolean(errors[name]);
@@ -3008,12 +3121,13 @@
         : "The matchups will be saved in oceanval_matchups, and the validation report in oceanval_report, inside this directory.";
       const lines = [line(String(setup.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
       if (probe && probe.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
-      if (probe && probe.out_dir_has_matchups) {
+      if (probe && probe.out_dir_has_matchups && probe.out_dir_is_demo) {
+        lines.push(line("The demo's matchups of models tried before are here. This run's are made again, and the others are left out of the report."));
+      } else if (probe && probe.out_dir_has_matchups) {
         lines.push(line("There are matchups here already, from an earlier run. Choose another directory if you need to keep them apart.", "warn"));
       }
       message("m-out_dir", lines);
     }
-    $("row-overwrite").hidden = state.action === "analyze" || !(probe && probe.out_dir_has_matchups);
 
     if (errors.out) message("m-out", [line(errors.out, "error")], true);
     else if (probe && probe.out_exists) message("m-out", [line(`This file already exists, and will be replaced. Unless you plan to run this ${state.action === "analyze" ? "analysis" : "matchup"} file yourself, there is no need to worry about the name.`, "warn")]);

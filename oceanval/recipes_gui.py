@@ -191,7 +191,14 @@ def check_settings(form, available, fvcom=False):
     settings["out_dir"] = text("out_dir")
     if settings["out_dir"] and os.path.isfile(os.path.expanduser(settings["out_dir"])):
         errors["out_dir"] = "This is a file, not a directory."
-    settings["overwrite"] = bool(form.get("overwrite", True))
+    overwrite = form.get("overwrite", True)
+    # the oceanval window's setup step can choose which matchups to overwrite
+    # (see oceanval.app.check_setup), which the hidden tick leaves as they are
+    settings["overwrite"] = (
+        [entry for entry in overwrite if isinstance(entry, str)] or False
+        if isinstance(overwrite, list)
+        else bool(overwrite)
+    )
 
     thickness = text("thickness")
     # matchup regrids FVCOM output onto z-levels, so it needs no thickness

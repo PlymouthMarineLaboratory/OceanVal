@@ -639,6 +639,13 @@ class TestSettingsChecks:
         assert self.check(concise="true")[0]["concise"] is True
         assert self.check(concise="false")[0]["concise"] is False
 
+    def test_the_matchups_to_overwrite_can_be_a_list(self):
+        # as the oceanval window's simulation step chooses them, which the hidden tick leaves alone
+        assert self.check(overwrite=["temperature/COBE2"])[0]["overwrite"] == ["temperature/COBE2"]
+        assert self.check(overwrite=[])[0]["overwrite"] is False
+        assert self.check(overwrite=False)[0]["overwrite"] is False
+        assert self.check(overwrite=True)[0]["overwrite"] is True
+
     def test_the_detail_choice_must_be_known(self):
         assert self.check(concise="verbose")[1] == {"concise": "Choose concise or detailed."}
 

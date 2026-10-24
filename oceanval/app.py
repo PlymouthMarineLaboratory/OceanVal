@@ -257,7 +257,13 @@ def default_setup_form():
         "exclude": "",
         "require": "",
         "out_dir": "",
-        "overwrite": False,
+        # asked only if out_dir has matchups already (see check_setup): the
+        # "variable/source" of those to be replaced and of those ignored (the
+        # others are used, as each is to start with), and, with no report to
+        # follow, whether the user has said what is done with them
+        "overwrite": [],
+        "ignored": [],
+        "existing_confirmed": False,
         "out": "matchup.py",
     }
 
@@ -303,7 +309,9 @@ def demo_setup_form(model):
     """The simulation step's boxes, as the demo fills them in: the
     downloaded files, with the matchups, the report and the script beside
     them in DEMO_FOLDER. The files of every model tried share a directory,
-    so only the chosen model's are used: those with its name in."""
+    so only the chosen model's are used: those with its name in. Nothing is
+    asked about the matchups of a model tried before there (see
+    check_setup)."""
     return dict(
         default_setup_form(),
         simdir=os.path.join(DEMO_FOLDER, "simulation"),
@@ -313,7 +321,6 @@ def demo_setup_form(model):
         start=str(DEMO_YEAR),
         end=str(DEMO_YEAR),
         out_dir=DEMO_FOLDER,
-        overwrite=True,
         out=os.path.join(DEMO_FOLDER, "matchup.py"),
     )
 
@@ -492,7 +499,7 @@ def _form(form, defaults):
 
 
 # the boxes that are lists of names, such as the matchups unticked
-KEY_LISTS = ("unticked",)
+KEY_LISTS = ("unticked", "overwrite", "ignored")
 
 
 def _keys(names):
@@ -514,9 +521,49 @@ def _pairs(rows):
     ]
 
 
-def check_setup(form, cwd):
+def existing_matchups(out_dir):
+    """The matchups in out_dir already, as the simulation step lists them to
+    choose what is done with them: a row for each "variable/source", which
+    matchup's overwrite and validate's previous pick them by, with its title,
+    variable and source, and kinds, each matchup's kind ("gridded" or
+    "point") and layer (a point matchup's, or None)."""
+    rows = {}
+    # asked as each box is typed in, so nothing is looked for where there is no folder of them
+    there = os.path.isdir(os.path.join(out_dir, "oceanval_matchups"))
+    for matchup in selection.on_disk(out_dir) if there else []:
+        row = rows.setdefault(matchup["key"], {
+            "key": matchup["key"],
+            "title": matchup["title"],
+            "variable": matchup["variable"],
+            "source": matchup["source"],
+            "kinds": [],
+        })
+        row["kinds"].append({"kind": matchup["kind"], "layer": matchup["layer"]})
+    return list(rows.values())
+
+
+def _ticked_of(ticked, keys):
+    """The matchups ticked, of those whose "variable/source" are keys, as
+    matchup's overwrite and validate's previous take them: True for all of
+    them, False for none, or the list of those ticked."""
+    ticked = [key for key in keys if key in set(ticked)]
+    return True if len(ticked) == len(keys) else ticked or False
+
+
+def check_setup(form, cwd, report=True, demo_dir=None):
     """Turn the simulation step's boxes into create_recipes arguments, and
     out_dir, the directory the matchups and the report are saved in.
+
+    If out_dir has matchups already and a report follows the matchups
+    (report), the user says of each whether it is replaced, used (as each is
+    to start with) or ignored. Only one used is kept as it is and validated:
+    one replaced or ignored is made again if this run matches it up
+    (matchup's overwrite), and left out of the report if not (validate's
+    previous). With no report, each is replaced or used (kept and used as it
+    is), and the user must tick to say so. Without matchups there, overwrite and
+    previous are True. In demo_dir, the demo's own, where every model tried
+    keeps its matchups, nothing is asked: this run's are made again and no
+    others are in the report.
 
     Returns (arguments, errors), where errors maps each box that cannot be
     used to the reason.
@@ -563,8 +610,23 @@ def check_setup(form, cwd):
         errors["out_dir"] = "This is a file, not a directory."
     else:
         arguments["out_dir"] = out_dir
-        has_matchups = os.path.isdir(os.path.join(out_dir, "oceanval_matchups"))
-        arguments["overwrite"] = form["overwrite"] if has_matchups else True
+        # each "variable/source" the page has a row for
+        keys = [row["key"] for row in existing_matchups(out_dir)]
+        if not keys:
+            arguments["overwrite"] = arguments["previous"] = True
+        elif out_dir == demo_dir:
+            arguments["overwrite"], arguments["previous"] = True, not report
+        elif report:
+            # one replaced is not asked about
+            unused = set(form["overwrite"]) | set(form["ignored"])
+            accepted = [key for key in keys if key not in unused]
+            arguments["overwrite"] = _ticked_of([key for key in keys if key not in accepted], keys)
+            arguments["previous"] = _ticked_of(accepted, keys)
+        else:
+            arguments["overwrite"] = _ticked_of(form["overwrite"], keys)
+            arguments["previous"] = True
+            if not form["existing_confirmed"]:
+                errors["existing_confirmed"] = ""
     if not form["out"]:
         errors["out"] = "Enter the file to write the script to."
     elif os.path.isdir(_path(form["out"], cwd)):
@@ -1440,7 +1502,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         self.setup_arguments = None
         # where the matchups and the report are saved
         self.out_dir = self.cwd
+        # matchup's overwrite and validate's previous, as the simulation step chose them
         self.overwrite = True
+        self.previous = True
         # the user's own observations, as the arguments of the calls to
         # register them, and the recipes saved from them for future use too
         # (see own_future_save)
@@ -2475,13 +2539,20 @@ class App(AnalyzeSteps, SimCompareSteps):
             if self.view != "setup":
                 return 409, {"ok": False, "error": "This step is over."}
             self.setup_form = _form(form, default_setup_form())
-            arguments, errors = check_setup(self.setup_form, self.cwd)
+            # matchup alone builds no report, so has nothing to ask of it
+            arguments, errors = check_setup(
+                self.setup_form,
+                self.cwd,
+                report=self.action == "matchup_validate",
+                demo_dir=os.path.join(self.cwd, DEMO_FOLDER) if self.demo is not None else None,
+            )
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
             self.setup_error = None
             self.out_dir = arguments.pop("out_dir")
             self.overwrite = arguments.pop("overwrite")
+            self.previous = arguments.pop("previous")
             self.setup_arguments = arguments
             self.view = "own_data"
             self._notify()
@@ -3509,6 +3580,10 @@ class App(AnalyzeSteps, SimCompareSteps):
             return None
         directory = self.results_dir or self.out_dir
         found = selection.on_disk(directory) if directory else []
+        if found and self.previous is not True:
+            # those the report validates of them, as the simulation step chose
+            with contextlib.suppress(ValueError):
+                found = selection.of_last_run(found, selection.last_run(directory), self.previous)
         return found or None
 
     def _report_vertical(self):
@@ -3760,8 +3835,28 @@ class App(AnalyzeSteps, SimCompareSteps):
         report, report_errors = check_report(form, self.cwd)
         errors.update(report_errors)
         if variables is not None and not errors:
-            report["variables"] = variables
+            # the earlier matchups chosen for the report are not listed here,
+            # so stay in it whatever is unticked
+            report["variables"] = variables + self._earlier_in_report(matchups)
+        if self.previous is not True:
+            report["previous"] = self.previous
         return report, errors
+
+    def _earlier_in_report(self, listed):
+        """The "variable/source" of the matchups there already, other than
+        those listed in the report options (this run's), that the report has
+        as the simulation step chose (validate's previous). Called without
+        the lock held."""
+        if self.previous is False or not listed:
+            return []
+        directory = self.results_dir or self.out_dir
+        mine = {matchup["key"] for matchup in listed}
+        return list(dict.fromkeys(
+            matchup["key"]
+            for matchup in (selection.on_disk(directory) if directory else [])
+            if matchup["key"] not in mine
+            and selection.picks(self.previous, matchup["variable"], matchup["source"])
+        ))
 
     def save_script(self, form):
         """Stop at the report options step, before anything is matched up,
@@ -3848,7 +3943,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                 daemon=True,
             ).start()
             options = {
-                name: value for name, value in report.items() if name not in live.EXPORTS
+                name: value for name, value in report.items() if name not in live.NOT_INTERIM
             }
             # yes, the matchups are right, as answered at a terminal, with
             # the report's options along with it
@@ -3885,7 +3980,8 @@ class App(AnalyzeSteps, SimCompareSteps):
         require, as words separated by spaces) - and how many there are
         without them - the years their names cover, and, if there are none
         there at all, a depth that has some. Also whether out_dir, where the
-        matchups are saved, is a directory, and has matchups already."""
+        matchups are saved, is a directory, and the matchups it has already
+        (see existing_matchups)."""
         filters = {
             "exclude": exclude.split() or None,
             "require": require.split() or None,
@@ -3908,8 +4004,11 @@ class App(AnalyzeSteps, SimCompareSteps):
             if os.path.isfile(results)
             else "found" if os.path.isdir(results) else "missing"
         )
-        found["out_dir_has_matchups"] = os.path.isdir(
-            os.path.join(results, "oceanval_matchups")
+        found["out_dir_matchups"] = existing_matchups(results)
+        found["out_dir_has_matchups"] = bool(found["out_dir_matchups"])
+        # whose matchups, of the models tried before, nothing is asked about (see check_setup)
+        found["out_dir_is_demo"] = self.demo is not None and results == os.path.join(
+            self.cwd, DEMO_FOLDER
         )
         found["out_dir_has_analysis"] = os.path.isdir(os.path.join(results, analysis.FOLDER))
         found["out_dir_has_comparison"] = os.path.isdir(os.path.join(results, sim_compare.FOLDER))

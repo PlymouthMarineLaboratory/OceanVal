@@ -20,6 +20,7 @@ from oceanval import time_res
 from oceanval.fixers import tidy_warnings
 from oceanval.fvcom import fvcom_matchup_files
 from oceanval.utils import extension_of_directory, loud_warning
+from oceanval.selection import picks
 from oceanval.session import session_info
 from oceanval.time_stamps import stored_time_shift
 from oceanval.transects import wraps_round
@@ -426,7 +427,7 @@ def gridded_matchup(
                     out_dir + f"oceanval_matchups/gridded/{vv}/{vv_source}_{vv}_surface.nc"
                 )
                 if len(out) > 0:
-                    if session_info["overwrite"] is False:
+                    if not picks(session_info["overwrite"], vv, vv_source):
                         if stored_time_shift(
                             out[0].replace(os.path.basename(out[0]), f"{vv_source}_matchup_dict.pkl")
                         ) == session_info.get("time_shift", 0):

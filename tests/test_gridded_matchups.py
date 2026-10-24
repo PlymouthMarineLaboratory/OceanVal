@@ -304,6 +304,13 @@ class TestMultipleSources:
             ("point", "temperature/bar", "surface"),
             ("point", "temperature/foo", "all"),
         ]
+        # all of them made by this run, for validate(previous=False)
+        assert oceanval.selection.last_run(".") == {
+            ("gridded", "temperature", "bar", None),
+            ("gridded", "temperature", "foo", None),
+            ("point", "temperature", "bar", "surface"),
+            ("point", "temperature", "foo", "all"),
+        }
 
         class Built(Exception):
             pass
@@ -334,6 +341,71 @@ class TestMultipleSources:
 
         shutil.rmtree("oceanval_matchups", ignore_errors=True)
         oceanval.reset()
+
+    def test_a_later_run_into_the_same_directory(self):
+        """matchup's overwrite picks the matchups there already that are made
+        again, and validate's previous whether those of the earlier run are
+        in the report."""
+        shutil.rmtree("oceanval_matchups", ignore_errors=True)
+
+        def run(sources, overwrite):
+            oceanval.reset()
+            for source in sources:
+                oceanval.add_gridded_comparison(
+                    name = "temperature",
+                    obs_path="data/evaldata/gridded/nws/temperature",
+                    source = source,
+                    model_variable = "votemper",
+                    obs_variable = "votemper",
+                    climatology = True,
+                    start = 2000,
+                    end = 2010,
+                    obs_adder = 273.15
+                )
+            oceanval.matchup(
+                sim_dir = "data/example", start = 2000, end = 2000, ask = False, cores = 1,
+                overwrite = overwrite)
+
+        def made(source):
+            return os.path.getmtime(f"oceanval_matchups/gridded/temperature/{source}_temperature_surface.nc")
+
+        class Built(Exception):
+            pass
+
+        def stop(*args, **kwargs):
+            raise Built
+
+        def notebooks(**kwargs):
+            out_dir = tempfile.mkdtemp()
+            try:
+                with pytest.MonkeyPatch.context() as monkeypatch:
+                    # the notebooks are all written by then
+                    monkeypatch.setattr(oceanval, "_build_book", stop)
+                    with pytest.raises(Built):
+                        oceanval.validate(out_dir=out_dir, test=True, **kwargs)
+                return sorted(
+                    os.path.basename(x).split("_", 1)[1]
+                    for x in glob.glob(f"{out_dir}/oceanval_report/notebooks/*temperature.ipynb")
+                )
+            finally:
+                shutil.rmtree(out_dir, ignore_errors=True)
+
+        try:
+            run(["foo", "bar"], True)
+            before = made("bar")
+            # foo is not matched up again, so overwriting it does nothing, and bar is kept
+            run(["bar"], ["temperature/foo"])
+            assert made("bar") == before
+            assert oceanval.selection.last_run(".") == {("gridded", "temperature", "bar", None)}
+            assert notebooks() == ["bar_temperature.ipynb", "foo_temperature.ipynb"]
+            assert notebooks(previous=False) == ["bar_temperature.ipynb"]
+            assert notebooks(previous=["temperature/foo"]) == ["bar_temperature.ipynb", "foo_temperature.ipynb"]
+            # and bar is made again once it is picked
+            run(["bar"], ["temperature/bar"])
+            assert made("bar") > before
+        finally:
+            shutil.rmtree("oceanval_matchups", ignore_errors=True)
+            oceanval.reset()
 
 
 class TestSurfaceOfMultiLevelObservations:

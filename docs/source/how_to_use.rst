@@ -163,7 +163,7 @@ The following variable is required if you are carrying out vertical validation:
 The following optional parameters can also be specified:
 
 - `n_dirs_down`: The number of directory levels to search down for model output files. This defaults to 2, assuming files are stored in for example a YYYY/MM/ structure.
-- `overwrite`: A boolean indicating whether to overwrite existing matchup files. This defaults to False.
+- `overwrite`: Whether to make again any matchup this run makes that is in `out_dir` already. This defaults to True. False keeps and uses those already there, and a list overwrites only the ones it picks, each entry a variable or `"variable/source"`, e.g. `["temperature/COBE2"]`. Matchups of variables or sources a run does not match up are left in `out_dir` either way: see "Matchups from earlier runs" below.
 - `ask`: A boolean indicating whether to ask for confirmation before overwriting existing matchup files. This defaults to True.
 - `cache`: A boolean indicating whether to cache intermediate results. This defaults to False.
 - `exclude`: A list of strings that should not appear in any simulation files paths.
@@ -264,6 +264,7 @@ This must be run in the same directory where the matchup files were created.
 The following options are available:
 
 - `variables`: The matchups to validate, if not all of them: each entry a variable, for all its sources, or `"variable/source"`, for one, e.g. `["temperature", "nitrate/WOA23"]`. See below. If not specified, every matchup is validated.
+- `previous`: Whether to validate the matchups an earlier `matchup` run left in the directory, as well as those the last run made: `True` (the default), `False`, or a list of those to validate, as `variables` takes them. See below.
 - `lon_lim`: The longitude limits for the validation region (e.g. [-180, 180]).
 - `lat_lim`: The latitude limits for the validation region (e.g. [-90, 90]).
 - `region`: A string specifying the region being validated. Only "global" and "nwes" (northwest European Shelf are currently available).
@@ -302,6 +303,17 @@ By default the report validates every matchup in `oceanval_matchups`. To validat
     oceanval.validate(variables=["temperature", "nitrate/WOA23"])
 
 The names are those of the matchups (the folders and files in `oceanval_matchups`), and are not case sensitive. Each entry must match at least one matchup, or `validate` says which matchups there are. The summary covers only the matchups validated, and the others stay in `oceanval_matchups` for a later report. The `oceanval` command lists them all, ticked, for you to untick any to leave out.
+
+**Matchups from earlier runs**
+
+`matchup` never removes matchups from `out_dir`: a run that matches up other variables or sources leaves the earlier run's matchups there, and by default `validate` validates them too. `matchup` records which matchups each run made (or kept, with `overwrite=False`), so `previous=False` validates only those of the last run, and a list adds the earlier matchups it picks:
+
+.. code:: ipython3
+
+    oceanval.validate(previous=False)
+    oceanval.validate(previous=["chlorophyll/OCCCI"])
+
+`variables` then picks among the matchups validated. The interim report only ever has the matchups of the run building it. When the output directory has matchups already, the `oceanval` command lists them, by variable, source and whether they are point or gridded, and asks **What do you want to do with existing matchups?** Each has three options to tick, one of them: **Use** (as each is to start with) keeps it as it is, without making it again, and validates it; **Replace** and **Ignore** leave it unused, so it is made again if this run matches it up and left out of the report if not. Ticking an option at the top of its column chooses it for them all. Nothing is removed from the directory. With no report to build, there is no Ignore: those used are kept and used as they are, and you must tick to confirm before carrying on.
 
 **Looking at the results while the matchups run**
 

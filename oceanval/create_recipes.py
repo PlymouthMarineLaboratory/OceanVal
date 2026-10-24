@@ -1215,11 +1215,11 @@ def _footer(
         # the report options chosen in the oceanval window, after the recipes
         validate_changed = list(report.items())
         # which the interim report matchup builds as it goes has too, other
-        # than the full report's other forms
+        # than the full report's other forms and whether it has earlier matchups
         interim = {
             name: value
             for name, value in report.items()
-            if name not in interim_report.EXPORTS
+            if name not in interim_report.NOT_INTERIM
         }
         note = [
             *note,

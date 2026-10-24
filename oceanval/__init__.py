@@ -1450,6 +1450,7 @@ def validate(
     transect=None,
     depth_bins=None,
     variables=None,
+    previous=True,
 ):
     # docstring
     """
@@ -1481,6 +1482,8 @@ def validate(
         The depth ranges, in metres, that point matchups made through the water column (vertical=True) are summarised in, as a list of [min, max] pairs, e.g. [[0, 20], [20, 200], [200, None]]. A depth is in a bin if it is deeper than min and no deeper than max (the shallowest bin also takes its min). The deepest bin can have a max of None, for everything below its min. Bins can leave gaps, and observations in a gap are left out, but cannot overlap. The same bins are used for every point dataset, and in the summary. Default is None, which uses 0-10, 10-30, 30-60, 60-100, 100-150, 150-300, 300-600, 600-1000 and >1000 m.
     variables : list or None
         The matchups to validate, if not all of them. Each entry is a variable, which validates it against all its sources, or "variable/source", for one, e.g. ["temperature", "nitrate/WOA23"]. Both are as named in the matchups (oceanval_matchups), and are not case sensitive. Each entry must match at least one matchup. The summary covers only the matchups validated. Default is None, which validates every matchup.
+    previous : bool or list
+        Whether to validate the matchups in data_dir that the last matchup() run there did not make: those of earlier runs into the same directory, which matchup() leaves there when it matches up other variables or datasets. Default is True. False validates only the matchups the last run made or kept, as it recorded them. A list validates those and the earlier matchups it picks, each entry a variable or "variable/source", as for variables, e.g. ["chlorophyll/OCCCI"]. variables then picks among the matchups validated.
 
     Returns
     -------
@@ -1498,7 +1501,22 @@ def validate(
     # check before removing any previous report or results
     _check_matchups(data_dir)
     variables = selection.check_variables(variables)
-    selection.check_against(variables, selection.on_disk(data_dir))
+    matchups = selection.on_disk(data_dir)
+    # the matchups validated, if not all of those there: the last matchup()
+    # run's, and the earlier ones previous picks
+    chosen = None
+    if previous is not True:
+        if previous is not False:
+            previous = selection.check_variables(previous, name="previous")
+            selection.check_against(previous, matchups, name="previous")
+        matchups = selection.of_last_run(matchups, selection.last_run(data_dir), previous)
+        if not matchups:
+            raise ValueError(
+                f"The last matchup() run in {data_dir} made no matchups, so with "
+                "previous=False there is nothing to validate"
+            )
+        chosen = {selection.identity(m) for m in matchups}
+    selection.check_against(variables, matchups)
     # ensure proper handling of ~
     out_dir = os.path.expanduser(out_dir)
     out_dir = os.path.abspath(out_dir)
@@ -1580,6 +1598,13 @@ def validate(
                 os.path.basename(pp).split("_")[0],
             ):
                 continue
+            if chosen is not None and (
+                "point",
+                os.path.basename(pp).split("_")[2].replace(".csv", ""),
+                os.path.basename(pp).split("_")[0],
+                os.path.basename(pp).split("_")[1],
+            ) not in chosen:
+                continue
             ff_def = pp.replace(".csv", "_definitions.pkl")
             definitions = dill.load(open(ff_def, "rb"))
             vv = os.path.basename(pp).split("_")[2].replace(".csv", "")
@@ -1642,6 +1667,8 @@ def validate(
 
                     variable = vv
                     if not selection.wanted(variables, variable, source):
+                        continue
+                    if chosen is not None and ("gridded", variable, source, None) not in chosen:
                         continue
                     if not os.path.exists(
                         f"{book_dir}/notebooks/{source}_{variable}.ipynb"

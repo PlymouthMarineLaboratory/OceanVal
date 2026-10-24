@@ -296,7 +296,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
       <summary>Optional parameters</summary>
       <ul class="param-list">
         <li><code class="param-name">n_dirs_down</code><p>Directory levels to search down for output files. Defaults to 2, assuming a <code>YYYY/MM/</code> structure.</p></li>
-        <li><code class="param-name">overwrite</code> / <code class="param-name">ask</code><p>Whether to overwrite existing matchup files, and whether to confirm first. <code>ask</code> defaults to <code>True</code>.</p></li>
+        <li><code class="param-name">overwrite</code> / <code class="param-name">ask</code><p>Whether to make again any matchup this run makes that is in <code>out_dir</code> already (<code>True</code>, the default; <code>False</code> keeps and uses them; a list, such as <code>["temperature/COBE2"]</code>, overwrites only those it picks), and whether to confirm first. <code>ask</code> defaults to <code>True</code>. See <a href="#earlier-matchups">Matchups from earlier runs</a>.</p></li>
         <li><code class="param-name">cache</code><p>Whether to cache intermediate results. Defaults to <code>False</code>.</p></li>
         <li><code class="param-name">exclude</code><p>Strings that should not appear in any simulation file paths.</p></li>
         <li><code class="param-name">require</code><p>Strings that must appear in a simulation file path for it to be included — useful when multiple simulations share a directory.</p></li>
@@ -357,6 +357,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
         <li><code class="param-name">transect</code><p>A transect to validate the gridded matchups along, as a dict of its <code>start</code> and <code>end</code>, each <code>[lon, lat]</code>. See <a href="#transects">Validating along a transect</a> below.</p></li>
         <li><code class="param-name">depth_bins</code><p>The depth ranges, in metres, that point matchups made through the water column (<code>vertical=True</code>) are summarised in, as a list of <code>[min, max]</code> pairs. See <a href="#depth-bins">Choosing the depth bins</a> below.</p></li>
         <li><code class="param-name">variables</code><p>The matchups to validate, if not all of them: each entry a variable, for all its sources, or <code>"variable/source"</code>, for one. See <a href="#choosing-matchups">Validating some of the matchups</a> below.</p></li>
+        <li><code class="param-name">previous</code><p>Whether to validate the matchups an earlier <code>matchup</code> run left in the directory, as well as those the last run made: <code>True</code> (the default), <code>False</code>, or a list of those to validate, as <code>variables</code> takes them. See <a href="#earlier-matchups">Matchups from earlier runs</a> below.</p></li>
       </ul>
     </details>
     <p>This generates and opens an HTML page you can view in a web browser.</p>
@@ -390,6 +391,15 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
       <pre>oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(variables=[<span class="tok-str">"temperature"</span>, <span class="tok-str">"nitrate/WOA23"</span>])</pre>
     </div>
     <p>The names are those of the matchups (the folders and files in <code>oceanval_matchups</code>), and are not case sensitive. Each entry must match at least one matchup, or <code>validate</code> says which matchups there are. The summary covers only the matchups validated, and the others stay in <code>oceanval_matchups</code> for a later report. The <code>oceanval</code> window lists them all, ticked, for you to untick any to leave out.</p>
+
+    <h3 id="earlier-matchups">Matchups from earlier runs</h3>
+    <p><code>matchup</code> never removes matchups from <code>out_dir</code>: a run that matches up other variables or sources leaves the earlier run&rsquo;s matchups there, and by default <code>validate</code> validates them too. <code>matchup</code> records which matchups each run made (or kept, with <code>overwrite=False</code>), so <code>previous=False</code> validates only those of the last run, and a list adds the earlier matchups it picks:</p>
+    <div class="code-block">
+      <div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div>
+      <pre>oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(previous=<span class="tok-kw">False</span>)
+oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(previous=[<span class="tok-str">"chlorophyll/OCCCI"</span>])</pre>
+    </div>
+    <p><code>variables</code> then picks among the matchups validated. The interim report only ever has the matchups of the run building it. When the output directory has matchups already, the <a href="app.html">OceanVal app</a> lists them, by variable, source and whether they are point or gridded, and asks <strong>What do you want to do with existing matchups?</strong> Each has three options to tick, one of them: <strong>Use</strong> (as each is to start with) keeps it as it is, without making it again, and validates it; <strong>Replace</strong> and <strong>Ignore</strong> leave it unused, so it is made again if this run matches it up and left out of the report if not. Ticking an option at the top of its column chooses it for them all. Nothing is removed from the directory. With no report to build, there is no Ignore: those used are kept and used as they are, and you must tick to confirm before carrying on.</p>
 
     <h3 id="own-regions">Using your own regions</h3>
     <p>The report summarises model performance in each region: a map of the regions, the seasonal cycle of the spatial average, and a table of bias, RMSD and correlations. Instead of the built-in <code>"global"</code> or <code>"nwes"</code> regions, you can supply your own netCDF file:</p>

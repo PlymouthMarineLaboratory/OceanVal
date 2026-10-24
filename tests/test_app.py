@@ -31,7 +31,7 @@ from oceanval import app as app_module
 from oceanval import app_child, leftovers, live, model_check, prompts
 from oceanval.app import (
     App, Console, Question, Run, check_compare, check_report, check_setup, check_validate,
-    default_validate_form,
+    default_validate_form, existing_matchups,
 )
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.gridded import _ask_minutes, _ask_yes_no
@@ -47,7 +47,9 @@ SETUP_FORM = {
     "exclude": "",
     "require": "",
     "out_dir": "",
-    "overwrite": False,
+    "overwrite": [],
+    "ignored": [],
+    "existing_confirmed": False,
     "out": "matchup.py",
 }
 
@@ -606,6 +608,7 @@ class TestSetupChecks:
             "require": None,
             "out_dir": str(tmp_path),
             "overwrite": True,
+            "previous": True,
             "out": str(tmp_path / "run" / "m.py"),
         }
 
@@ -621,20 +624,60 @@ class TestSetupChecks:
         assert check(str(tmp_path / "elsewhere"))[0]["out_dir"] == str(tmp_path / "elsewhere")
         assert check("notes.txt")[1] == {"out_dir": "This is a file, not a directory."}
 
-    def test_overwrite_is_only_used_when_matchups_already_exist(self, tmp_path):
+    def test_the_matchups_there_already_are_listed_by_variable_and_source(self, tmp_path):
+        write_mixed_matchups(tmp_path / "old")
+        assert [
+            (row["key"], row["title"], row["kinds"]) for row in existing_matchups(str(tmp_path / "old"))
+        ] == [
+            ("temperature/COBE2", "Temperature", [{"kind": "gridded", "layer": None}]),
+            ("temperature/WOA23", "Temperature", [{"kind": "gridded", "layer": None}]),
+            ("nitrate/glodap", "Nitrate", [{"kind": "point", "layer": "all"}]),
+            ("nitrate/ICES", "Nitrate", [{"kind": "point", "layer": "surface"}]),
+        ]
+        # a matchups folder with none in it, as one that did not get far leaves, has none to ask about
+        (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
+        assert existing_matchups(str(tmp_path / "empty")) == []
+        assert existing_matchups(str(tmp_path / "nowhere")) == []
+
+    def test_what_is_done_with_the_matchups_there_already_must_be_said(self, tmp_path):
         (tmp_path / "sim").mkdir()
-        (tmp_path / "old" / "oceanval_matchups").mkdir(parents=True)
+        write_mixed_matchups(tmp_path / "old")
+        (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
 
-        keep, keep_errors = check_setup(dict(SETUP_FORM, out_dir="old", overwrite=False), str(tmp_path))
-        replace, replace_errors = check_setup(dict(SETUP_FORM, out_dir="old", overwrite=True), str(tmp_path))
-        clean, clean_errors = check_setup(dict(SETUP_FORM, out_dir="new", overwrite=False), str(tmp_path))
+        def check(report=True, **changes):
+            return check_setup(dict(SETUP_FORM, out_dir="old", **changes), str(tmp_path), report=report)
 
-        assert not keep_errors and not replace_errors and not clean_errors
-        assert (keep["overwrite"], replace["overwrite"], clean["overwrite"]) == (
-            False,
-            True,
-            True,
+        # each is used in the report as it is, to start with
+        arguments, errors = check()
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (False, True)
+        # only one accepted is used as it is: one ignored or replaced is made again
+        # if this run matches it up, and left out of the report if not
+        arguments, errors = check(ignored=MIXED_KEYS)
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
+        arguments, errors = check(
+            overwrite=["temperature/COBE2", "nitrate/glodap"],
+            ignored=["temperature/WOA23", "nitrate/glodap", "oxygen/ICES"],
         )
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (
+            ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap"], ["nitrate/ICES"],
+        )
+        # with no report, there is no use in it to ask about: those not replaced are
+        # kept and used as they are, which must be confirmed
+        assert check(report=False, overwrite=["nitrate/ICES"])[1] == {"existing_confirmed": ""}
+        arguments, errors = check(report=False, existing_confirmed=True, overwrite=["nitrate/ICES"])
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (["nitrate/ICES"], True)
+        arguments = check(report=False, existing_confirmed=True)[0]
+        assert (arguments["overwrite"], arguments["previous"]) == (False, True)
+        # nor in the demo's own folder, where every model tried keeps its matchups:
+        # this run's are made again, and no others are in the report
+        arguments, errors = check_setup(
+            dict(SETUP_FORM, out_dir="old"), str(tmp_path), demo_dir=str(tmp_path / "old")
+        )
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
+        # nothing is asked without matchups there
+        for out_dir in ("empty", "new"):
+            arguments, errors = check_setup(dict(SETUP_FORM, out_dir=out_dir), str(tmp_path))
+            assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, True)
 
     def test_the_file_filters_are_words(self, tmp_path):
         (tmp_path / "sim").mkdir()
@@ -1142,6 +1185,62 @@ class TestChoosingMatchups:
         ) in text
         assert json.loads(validated[0][1])["variables"] == ["temperature/ICES"]
 
+    @pytest.mark.parametrize(
+        "previous, variables",
+        [
+            # the earlier matchups chosen are not listed, so stay in whatever is unticked
+            (["nitrate/ICES"], ["temperature/ICES", "nitrate/ICES"]),
+            (True, ["temperature/ICES", "temperature/WOA23", "nitrate/glodap", "nitrate/ICES"]),
+            (False, ["temperature/ICES"]),
+        ],
+    )
+    def test_the_earlier_matchups_chosen_are_in_the_report_but_not_the_interim_one(
+        self, app, tmp_path, monkeypatch, previous, variables
+    ):
+        validated = []
+        start_run = app.start_run
+        monkeypatch.setattr(
+            app,
+            "start_run",
+            lambda args, label: validated.append(args) if args[0] == "validate" else start_run(args, label),
+        )
+        # an earlier run's, of which this run makes temperature/COBE2 again
+        write_mixed_matchups(tmp_path)
+        listed = [
+            {"kind": "gridded", "variable": "temperature", "source": "COBE2", "layer": None,
+             "vertical": False, "title": "Temperature", "key": "temperature/COBE2"},
+            {"kind": "point", "variable": "temperature", "source": "ICES", "layer": "surface",
+             "vertical": False, "title": "Temperature", "key": "temperature/ICES"},
+        ]
+        script = tmp_path / "run.py"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                import json
+                from oceanval import prompts
+                answer = prompts.ask("Are you happy with these matchups? (y/n) ", ("y", "n"),
+                                     details={dict(MATCHUPS, matchups=listed)!r})
+                print("settings:", json.dumps(answer.settings, sort_keys=True))
+                """
+            )
+        )
+        app.action = "matchup_validate"
+        app.previous = previous
+        app.start_run(["matchup", str(script)], "python run.py")
+        wait_for(lambda: app.question is not None)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert post(app, "/api/report", {"form": {"unticked": ["temperature/COBE2"]}})[0] == 200
+        expected = {"data_dir": str(tmp_path), "out_dir": str(tmp_path), "variables": variables}
+        if previous is not True:
+            expected["previous"] = previous
+        assert app.report_arguments == expected
+        wait_for(lambda: validated)
+        assert json.loads(validated[0][1]) == expected
+        # the interim report only ever has this run's matchups
+        text = app.console.since(0, None)["text"]
+        settings = json.loads(re.search(r"settings: (.*)", text).group(1))
+        assert settings["live_validation"] == {"variables": variables}
+
 
 # the depth bins as the page sends them, other than OceanVal's own
 DEPTH_FORM = {"depth_bins": [["0", "20"], ["20", "200"], ["200", ""]]}
@@ -1439,7 +1538,9 @@ class TestServer:
         assert found["directory"] == "missing"
 
     def test_the_live_check_of_the_output_directory(self, app, tmp_path):
-        (tmp_path / "old" / "oceanval_matchups").mkdir(parents=True)
+        write_mixed_matchups(tmp_path / "old")
+        # as a matchup that did not get far leaves it, with none in it
+        (tmp_path / "started" / "oceanval_matchups").mkdir(parents=True)
         (tmp_path / "notes.txt").write_text("")
 
         def probe(out_dir):
@@ -1451,8 +1552,13 @@ class TestServer:
         # empty is the directory worked in
         assert probe("") == ("found", False)
         assert probe("old") == ("found", True)
+        assert probe("started") == ("found", False)
         assert probe("new") == ("missing", False)
         assert probe("notes.txt") == ("file", False)
+        # each matchup there, for the page to ask what is done with it
+        found = get_json(app, "/api/probe", simdir="", ndown="", out="", out_dir="old")[1]
+        assert [row["key"] for row in found["out_dir_matchups"]] == MIXED_KEYS
+        assert found["out_dir_is_demo"] is False
 
     def test_the_live_check_counts_what_passes_the_file_filters(self, app, tmp_path):
         write_simulation(tmp_path / "sim", tracers=True)
@@ -3932,6 +4038,19 @@ class TestDemo:
         assert app.view == "setup"
         assert post(app, "/api/demo_continue")[0] == 409
 
+    def test_the_matchups_of_a_model_tried_before_are_not_asked_about(self, app, fetched):
+        # every model tried keeps its matchups in the demo's folder
+        write_mixed_matchups(os.path.join(app.cwd, "oceanval_demo"))
+        app.choose("demo")
+        post(app, "/api/demo_download", NORESM)
+        wait_for(lambda: app.view == "demo_instructions")
+        assert post(app, "/api/demo_continue")[0] == 200
+        found = get_json(app, "/api/probe", simdir="", ndown="", out="", out_dir=app.setup_form["out_dir"])[1]
+        assert (found["out_dir_has_matchups"], found["out_dir_is_demo"]) == (True, True)
+        # this run's are made again, and no others are in the report
+        assert post(app, "/api/setup", {"form": app.setup_form})[0] == 200
+        assert (app.overwrite, app.previous) == (True, False)
+
     def test_the_report_is_concise_unless_detailed_is_chosen(self, app, fetched):
         app.choose("demo")
         assert app.demo["concise"] is True
@@ -4318,7 +4437,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         # the output goes where oceanval was started, unless changed
         assert page.input_value("#f-out_dir") == str(tmp_path)
         assert page.text_content("#f-out_dir-label") == "Where do you want matchups to be saved?"
-        assert page.is_hidden("#row-overwrite")
+        assert page.is_hidden("#row-existing")
 
         page.click("#continue")
         assert page.text_content("#summary").strip() == ""
@@ -5838,36 +5957,106 @@ def test_finding_key_information_in_a_browser(browser, tmp_path):
         app.close()
 
 
-def test_overwrite_choice_only_appears_for_existing_matchups(browser, tmp_path):
+@pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
+def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, action):
+    """A grid of the matchups there already, each to be replaced, used (as
+    each is to start with) or, if a report follows, ignored, with a tick at
+    the top of each column to choose it for them all; with no report, what is
+    chosen must be confirmed."""
     write_simulation(tmp_path / "sim")
-    (tmp_path / "old" / "oceanval_matchups").mkdir(parents=True)
+    write_mixed_matchups(tmp_path / "old")
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
     url = app.start()
+    report = action == "matchup_validate"
+    options = ["replace", "use", "ignore"] if report else ["replace", "use"]
+    option = '#existing-body input[value="{}"][data-key="{}"]'
+
+    def choices():
+        """What each row has ticked."""
+        return page.locator("#existing-body tr").evaluate_all(
+            "rows => rows.map((row) => [...row.querySelectorAll('input:checked')].map((box) => box.value))"
+        )
+
+    def tops():
+        """The options ticked at the top of their columns."""
+        return [name for name in options if page.is_checked(f"#existing-all-{name}")]
+
     try:
         page = browser.new_page()
         page.goto(url)
-        page.click('button.choice[data-action="matchup"]')
+        page.click(f'button.choice[data-action="{action}"]')
         page.fill("#f-simdir", "sim")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
         choose_domain(page)
-        assert page.is_hidden("#row-overwrite")
+        assert page.is_hidden("#row-existing")
+        assert page.is_enabled("#continue")
 
         page.fill("#f-out_dir", "old")
-        page.wait_for_selector("#row-overwrite:not([hidden])")
+        page.wait_for_selector("#row-existing:not([hidden])")
         warning = page.locator("#m-out_dir .group__line.is-warn")
-        assert "There are matchups here already" in warning.text_content()
         assert warning.text_content() == "There are matchups here already, from an earlier run. Choose another directory if you need to keep them apart."
         assert warning.evaluate("node => getComputedStyle(node).color") == "rgb(184, 83, 47)"
-        assert not page.is_checked("#f-overwrite")
-        assert page.text_content("#row-overwrite").strip() == "Do you want to overwrite existing matchups in this directory?"
-        page.check("#f-overwrite")
+        assert page.text_content("#existing-title") == "What do you want to do with existing matchups? Required"
+        # only confirming what is chosen is required, with no report to follow
+        assert page.is_hidden("#existing-required") is report
+        assert page.is_hidden("#row-existing-confirm") is report
+        assert [
+            page.text_content(f"#existing-all-{name} >> xpath=..") for name in options
+        ] == ["Replace", "Use", "Ignore"][: len(options)]
+        assert page.is_hidden("#existing-ignore-head") is not report
+        assert page.locator("#existing-body tr").evaluate_all(
+            "rows => rows.map((row) => [...row.cells].slice(0, 3).map((cell) => cell.textContent))"
+        ) == [
+            ["Temperature", "COBE2", "Gridded"],
+            ["Temperature", "WOA23", "Gridded"],
+            ["Nitrate", "glodap", "Point (all depths)"],
+            ["Nitrate", "ICES", "Point (surface)"],
+        ]
+        assert page.locator("#existing-body tr").evaluate_all("rows => rows.map((row) => row.cells.length)") == (
+            [3 + len(options)] * 4
+        )
+        # each is used to start with
+        assert choices() == [["use"]] * 4
+        assert tops() == ["use"]
+        assert page.is_enabled("#continue") is report
+
+        # one option a row, and one at the top chooses it for them all
+        page.check(option.format("replace", "temperature/COBE2"))
+        assert choices() == [["replace"], ["use"], ["use"], ["use"]]
+        assert tops() == []
+        page.check("#existing-all-replace")
+        assert choices() == [["replace"]] * 4
+        assert tops() == ["replace"]
+        page.check("#existing-all-use")
+        assert choices() == [["use"]] * 4
+        page.check(option.format("replace", "temperature/COBE2"))
+        if report:
+            page.check("#existing-all-ignore")
+            assert choices() == [["ignore"]] * 4
+            page.check(option.format("replace", "temperature/COBE2"))
+            page.check(option.format("use", "nitrate/ICES"))
+            assert choices() == [["replace"], ["ignore"], ["ignore"], ["use"]]
+            assert page.is_enabled("#continue")
+        else:
+            assert choices() == [["replace"], ["use"], ["use"], ["use"]]
+            # with no report, what is chosen must be confirmed
+            assert page.is_disabled("#continue")
+            page.check("#f-existing_confirmed")
+        assert page.is_enabled("#continue")
+
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
         assert page.is_hidden("#s-overwrite")
-        assert app.recipes_page.form["overwrite"] is True
+        if report:
+            # only the one used is kept as it is
+            assert app.recipes_page.form["overwrite"] == ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap"]
+            assert app.previous == ["nitrate/ICES"]
+        else:
+            assert app.recipes_page.form["overwrite"] == ["temperature/COBE2"]
+            assert app.previous is True
     finally:
         app.close()
 
