@@ -1286,6 +1286,34 @@ def open_analyze_option(browser, tmp_path, years, option, dialog, rows=(("Temper
     return page, app, errors
 
 
+def test_add_all_variables_fills_the_rows_from_the_files(browser, tmp_path):
+    """Add all variables makes a row per variable in the output (long name,
+    variable name), and a second click adds nothing."""
+    write_analysis_simulation(str(tmp_path / "sim"), years=(2011, 2012))
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    page.goto(url)
+    page.wait_for_selector("#view-home:not([hidden])")
+    page.click("#home-analyze")
+    page.wait_for_selector("#view-setup:not([hidden])")
+    page.fill("#f-simdir", "sim")
+    page.fill("#f-ndown", "1")
+    page.wait_for_function("() => !document.querySelector('#continue').disabled")
+    page.click("#continue")
+    page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+    available = page.evaluate("() => state.analyze.picker.available")
+    page.click("#av-add-all")
+    rows = page.locator("#av-rows > tr")
+    assert rows.count() == len(available)
+    models = [rows.nth(i).locator("td").nth(1).locator("input").first.input_value() for i in range(rows.count())]
+    assert sorted(models) == sorted(available)
+    page.click("#av-add-all")
+    assert page.locator("#av-rows > tr").count() == len(available)
+    assert not page.locator("#av-continue").is_disabled()
+    page.close()
+
+
 def open_transects_in_browser(browser, tmp_path, years):
     """The transects pop-out of a simulation of years, with Temperature's
     transect card: (the page, the app, the card's locator, the errors)."""
