@@ -234,6 +234,55 @@ class TestFailedRemoteMatchup:
         assert "limiting how fast you can read" in shouted
         assert "HTTP 429" in shouted
 
+    def test_a_server_that_is_down_is_told_to_the_window_at_once(self, capsys):
+        oceanval.add_gridded_comparison(
+            name="nitrate",
+            model_variable="N3_n",
+            recipe={"nitrate": "woa23"},
+            climatology=True,
+            file_check=False,
+        )
+
+        # as CDO gives back NOAA's page in place of the data
+        error = ValueError(
+            "syntax error, unexpected WORD_WORD, expecting SCAN_ATTR or SCAN_DATASET or SCAN_ERROR"
+            'context: <!DOCTYPE^ HTML PUBLIC "-//IETF//DTD HTML 2.0//EN"><html><head><title>503 '
+            "Service Unavailable</title></head><body><h1>Service Unavailable</h1><p>The server is "
+            "temporarily unable to service yourrequest due to maintenance downtime"
+        )
+        told = []
+        session_info["out_dir"] = ""
+        with prompts.told_by(told.append), pytest.warns(UserWarning, match="Could not match up gridded nitrate"):
+            gridded.record_gridded_failure("nitrate", "WOA23", error)
+        assert told == [
+            {
+                "kind": "server_trouble",
+                "key": "gridded|nitrate|WOA23|",
+                "title": "nitrate (WOA23)",
+                "host": "www.ncei.noaa.gov",
+                "server": "NOAA",
+                "status": 503,
+                "reason": "Service Unavailable",
+            }
+        ]
+        shouted = capsys.readouterr().out
+        assert "NOAA's server (www.ncei.noaa.gov) answered HTTP 503 Service Unavailable" in shouted
+        assert "not a problem with your simulation" in shouted
+
+    def test_another_failure_tells_the_window_nothing(self, capsys):
+        oceanval.add_gridded_comparison(
+            name="nitrate",
+            model_variable="N3_n",
+            recipe={"nitrate": "woa23"},
+            climatology=True,
+            file_check=False,
+        )
+        told = []
+        session_info["out_dir"] = ""
+        with prompts.told_by(told.append), pytest.warns(UserWarning):
+            gridded.record_gridded_failure("nitrate", "WOA23", ConnectionError("Connection timed out"))
+        assert told == []
+
 
 class TestRetryPrompt:
     def test_declining_records_the_failure_and_moves_on(self, monkeypatch):

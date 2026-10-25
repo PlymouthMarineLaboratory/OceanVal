@@ -291,6 +291,45 @@
     font-size: 14px;
     white-space: pre-wrap;
   }
+  /* a data server that is down: at the bottom of the page, above the bar's buttons */
+  .server-trouble {
+    border-bottom: 1px solid var(--line);
+    background: var(--amber-bg);
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .bar #bar-main[hidden], .server-trouble[hidden] { display: none; }
+  /* beats .bar .wrap, which centres the bar's buttons and stacks them on narrow screens */
+  .bar .wrap.server-trouble__wrap { flex-direction: row; align-items: flex-start; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
+  .server-trouble__rows { display: grid; flex: 1; gap: 8px; min-width: 0; }
+  .server-trouble__row { display: flex; gap: 10px; align-items: flex-start; }
+  .server-trouble__row p { margin: 0; overflow-wrap: anywhere; }
+  .server-trouble__row strong { color: var(--amber); }
+  .server-trouble__row .icon { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--amber); }
+  .server-trouble__close {
+    position: relative;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .server-trouble__close:hover { background: var(--line); }
+  .server-trouble__close::before, .server-trouble__close::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 1.6px;
+    background: currentColor;
+  }
+  .server-trouble__close::before { transform: translate(-50%, -50%) rotate(45deg); }
+  .server-trouble__close::after { transform: translate(-50%, -50%) rotate(-45deg); }
   .segmented {
     display: inline-flex;
     flex-wrap: wrap;
@@ -1934,7 +1973,9 @@
 </main>
 
 <footer class="bar" id="bar" hidden>
-  <div class="wrap">
+  <!-- a data server the matchups could not read their observations from (see App._server_trouble_news) -->
+  <div class="server-trouble" id="server-trouble" role="alert" hidden></div>
+  <div class="wrap" id="bar-main">
     <p class="summary" id="summary" aria-live="polite"><button type="button" class="link" id="how-files" aria-haspopup="dialog">How does OceanVal identify simulation files to matchup?</button></p>
     <div class="actions" id="actions"></div>
   </div>
@@ -2572,7 +2613,8 @@
     howFiles = howFiles || $("how-files");
     summary.replaceChildren(...(asked ? [asked] : []), ...(view === "setup" ? [howFiles] : []));
     $("actions").replaceChildren(...actions);
-    $("bar").hidden = actions.length === 0;
+    $("bar-main").hidden = actions.length === 0;
+    $("bar").hidden = actions.length === 0 && $("server-trouble").hidden;
     if (view === "setup") refreshSetup();
     if (view === "output") refreshMatchupOutput();
     if (view === "analyze_variables") refreshAnalyzeVariables();
@@ -2695,11 +2737,56 @@
     window.scrollTo(0, 0);
   }
 
+  // ---- a data server that is down, at the bottom of every page ----
+  // what was shown when × was pressed: shown again once something new is said
+  let serverTroubleDismissed = null;
+  const serverTroubleSignature = (list) =>
+    JSON.stringify(list.map((t) => [t.host, t.status, t.reason, t.matchups]));
+
+  function serverTroubleRow(trouble) {
+    const named = trouble.server && trouble.server !== trouble.host;
+    const limiting = trouble.status === 429;
+    const who = named ? `${trouble.server}'s data server` : `The data server ${trouble.host || ""}`.trim();
+    const answer = [trouble.status, trouble.reason].filter((x) => x).join(" ");
+    const said = [
+      `${trouble.host || "It"} answered \u201c${answer}\u201d at ${trouble.at}.`,
+      limiting
+        ? "It is limiting how fast it can be read from."
+        : `This is a problem at ${named ? `${trouble.server}'s` : "its"} end, not with your simulation.`,
+      `Could not match up: ${trouble.matchups.join(", ")}.`,
+      "Wait a while before trying again.",
+    ];
+    return el("div", { class: "server-trouble__row" },
+      icon("warn"),
+      el("p", {},
+        el("strong", { text: `${who} is ${limiting ? "turning requests away" : "not available"} right now` }),
+        el("span", { text: " " + said.join(" ") })));
+  }
+
+  function renderServerTrouble() {
+    const list = state.run.server_trouble || [];
+    const box = $("server-trouble");
+    const signature = serverTroubleSignature(list);
+    box.hidden = list.length === 0 || signature === serverTroubleDismissed;
+    // the bar's buttons are rebuilt only when they change (renderBar), this with every state
+    $("bar").hidden = $("bar-main").hidden && box.hidden;
+    // rebuilt only when it changes, so it is not announced again with every state
+    if (box.hidden || box.dataset.signature === signature) return;
+    box.dataset.signature = signature;
+    const close = el("button", {
+      type: "button", class: "server-trouble__close", "aria-label": "Hide this message",
+      onclick: () => { serverTroubleDismissed = signature; renderServerTrouble(); },
+    });
+    box.replaceChildren(el("div", { class: "wrap server-trouble__wrap" },
+      el("div", { class: "server-trouble__rows" }, ...list.map(serverTroubleRow)), close));
+  }
+
   function render() {
     $("choice-demo").hidden = state.user_settings.values.show_demo === false;
     if (state.view !== shownView) enterView(state.view);
     renderHeader();
     renderBar();
+    renderServerTrouble();
     if (state.view === "point_data") refreshOwn("point");
     if (state.view === "gridded_data") refreshOwn("gridded");
     if (state.view === "own_future") refreshOwnFuture();

@@ -61,6 +61,11 @@ output to a validation report:
    as 37/120, and then a tick. The **Observation extraction** column has a
    turning circle while the observations are read or downloaded, and then a
    tick. OceanVal's output is shown only if the run fails, with its errors.
+   If a data server is down or overloaded (NOAA's for WOA23, say, answering
+   **503 Service Unavailable**), a notice at the bottom of the window says so
+   as soon as a matchup fails because of it: which server, what it answered
+   and when, and the matchups it stopped. This is a problem at the server's
+   end, not with your simulation, so try those matchups again later.
 
 **Back**, on every step after the first, keeps what you have entered, so you
 can go back to fix a mistake without starting again.

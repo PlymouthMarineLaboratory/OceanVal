@@ -39,6 +39,7 @@ import codecs
 import contextlib
 import atexit
 import copy
+import datetime
 import functools
 import glob
 import io
@@ -1685,6 +1686,10 @@ class App(AnalyzeSteps, SimCompareSteps):
         # the matchups a matchup run is making, as it tells of them (see
         # _matchup_news), for the page's grid of them, or None
         self.matchup_progress = None
+        # the data servers a matchup run could not read its observations
+        # from, as it tells of them (see _server_trouble_news), by host, for
+        # the notice at the bottom of the page
+        self.server_trouble = {}
         # the variables an Analyze or Compare simulations run is working out,
         # and their analyses, as it tells of them (see _analysis_news), for
         # the page's grid of them, or None
@@ -1934,6 +1939,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                     ),
                     "identifying": self.identifying,
                     "progress": self._matchup_progress_state(),
+                    "server_trouble": self._server_trouble_state(),
                     "analysis": self._analysis_progress_state(),
                     # whether Back can leave it for the units step
                     "back": self._run_back(),
@@ -2062,6 +2068,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         if news.get("kind") in ANALYSIS_NEWS:
             self._analysis_news(run, news)
             return
+        if news.get("kind") == "server_trouble":
+            self._server_trouble_news(run, news)
+            return
         with self._lock:
             if run is not self.run:
                 return
@@ -2105,6 +2114,9 @@ class App(AnalyzeSteps, SimCompareSteps):
                 elif key in progress["started"]:
                     # one already made is told as made without being started: no time
                     progress["took"][key] = now - progress["started"].pop(key)
+                if news["state"] == "made":
+                    # its server answered when it was tried again
+                    self._server_answered(key)
             elif kind == "extraction" and isinstance(news.get("total"), int):
                 key = str(news.get("key"))
                 done = news.get("done")
@@ -2126,6 +2138,59 @@ class App(AnalyzeSteps, SimCompareSteps):
             else:
                 return
             self._notify()
+
+    def _server_trouble_news(self, run, news):
+        """A matchup could not read its observations because their server
+        is down or overloaded (see oceanval.server_trouble.tell), which the
+        page says at its bottom: each server with what it answered, when,
+        and the matchups it stopped. The latest answer is the one shown."""
+        with self._lock:
+            if run is not self.run:
+                return
+            host = str(news.get("host") or "")
+            status = news.get("status")
+            trouble = self.server_trouble.setdefault(host, {"matchups": {}})
+            trouble.update(
+                {
+                    "host": host,
+                    "server": str(news.get("server") or host),
+                    "status": status if isinstance(status, int) else None,
+                    "reason": str(news.get("reason") or ""),
+                    "at": self._wall_clock().strftime("%H:%M"),
+                }
+            )
+            key = str(news.get("key") or "")
+            title = str(news.get("title") or key)
+            for item in (self.matchup_progress or {}).get("items", []):
+                if item["key"] == key and item.get("title"):
+                    # as the grid of the matchups names it
+                    title = str(item["title"])
+            trouble["matchups"].pop(key, None)
+            trouble["matchups"][key] = title
+            self._notify()
+
+    def _server_answered(self, key):
+        """The matchup key has been made, so its server is no longer said to
+        be down for it, nor at all once none of its matchups is left.
+        Called with the lock held."""
+        for host in list(self.server_trouble):
+            self.server_trouble[host]["matchups"].pop(key, None)
+            if not self.server_trouble[host]["matchups"]:
+                del self.server_trouble[host]
+
+    def _server_trouble_state(self):
+        """The servers that are down, for the notice at the bottom of the page."""
+        return [
+            dict(
+                {name: value for name, value in trouble.items() if name != "matchups"},
+                matchups=list(trouble["matchups"].values()),
+            )
+            for trouble in self.server_trouble.values()
+        ]
+
+    def _wall_clock(self):
+        """The time of day a server is said to have been down at."""
+        return datetime.datetime.now()
 
     def _clock(self):
         """The time the grid of the matchups is timed by, in seconds."""
@@ -3549,6 +3614,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             # the script, once written, starts by finding the files
             self.identifying = True
             self.matchup_progress = None
+            self.server_trouble = {}
             self._notify()
         out = page.context["out"]
         # to validate as well, the report is built once the script has run,
@@ -3957,6 +4023,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         self.status = None
         self.identifying = False
         self.matchup_progress = None
+        self.server_trouble = {}
         self.analysis_progress = None
         self._script_writer = None
         self._run_output = None
@@ -4693,8 +4760,10 @@ class App(AnalyzeSteps, SimCompareSteps):
                 # a report run after it keeps the interim report's link
                 self.interim = None
             if args[:1] != ["validate"]:
-                # the report run after a matchup keeps its grid of the matchups
+                # the report run after a matchup keeps its grid of the
+                # matchups, and the notice of the servers that were down
                 self.matchup_progress = None
+                self.server_trouble = {}
             else:
                 # and its clock goes on
                 self._matchups_clock_resume()

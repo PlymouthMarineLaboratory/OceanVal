@@ -44,6 +44,7 @@ from oceanval import surface
 from oceanval import model_check
 from oceanval import prompts
 from oceanval import selection
+from oceanval import server_trouble
 from oceanval import time_res
 from oceanval import time_stamps
 from oceanval import user_cache
@@ -2266,13 +2267,23 @@ def matchup(
                                     nc.open_data(sim_paths[0], checks=False)
                                 )
                                 recipe_lon, recipe_lat = [lon_min, lon_max], [lat_min, lat_max]
-                            df = ices.download_point_data(
-                                comparison["recipe"],
-                                max(session_info["min_year"], comparison["start"]),
-                                min(session_info["max_year"], comparison["end"]),
-                                recipe_lon,
-                                recipe_lat,
-                            )
+                            try:
+                                df = ices.download_point_data(
+                                    comparison["recipe"],
+                                    max(session_info["min_year"], comparison["start"]),
+                                    min(session_info["max_year"], comparison["end"]),
+                                    recipe_lon,
+                                    recipe_lat,
+                                )
+                            except Exception as error:
+                                # the window says so at the bottom of its page
+                                server_trouble.tell(
+                                    error,
+                                    ices.API_BASE,
+                                    live.matchup_key("point", variable, source, layer),
+                                    f"{variable} ({source}, {layer})",
+                                )
+                                raise
                         else:
                             paths = glob.glob(
                                 f"{comparison['obs_path']}/**.csv"

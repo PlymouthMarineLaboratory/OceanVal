@@ -3,6 +3,7 @@ matchup and validate in, the window's server and, where a browser can be
 run, the window itself."""
 
 import ast
+import datetime
 import glob
 import io
 import json
@@ -2640,6 +2641,61 @@ class TestServer:
         finally:
             app.run = None
 
+    def test_a_server_that_is_down_is_said_to_be(self, app, monkeypatch):
+        monkeypatch.setattr(app, "_wall_clock", lambda: datetime.datetime(2026, 10, 25, 15, 45))
+        monkeypatch.setattr(app_module.Run, "start", lambda run: None)
+        # what the state reads of a run
+        run = types.SimpleNamespace(args=["script"])
+        app.run = run
+
+        def tell(news):
+            app._matchup_news(run, news)
+
+        def down(key, title, host="www.ncei.noaa.gov", server="NOAA", status=503, reason="Service Unavailable"):
+            tell({"kind": "server_trouble", "key": key, "title": title, "host": host,
+                  "server": server, "status": status, "reason": reason})
+
+        def trouble():
+            return get_json(app, "/api/state")[1]["run"]["server_trouble"]
+
+        try:
+            assert trouble() == []
+            items = [
+                {"key": "gridded|nitrate|WOA23|", "title": "Nitrate (WOA23)"},
+                {"key": "gridded|salinity|WOA23|", "title": "Salinity (WOA23)"},
+                {"key": "gridded|chlorophyll|OCCCI|", "title": "Chlorophyll (OCCCI)"},
+            ]
+            tell({"kind": "matchups", "items": items})
+            # told before any grid: the grid's names are used once there is one
+            down("gridded|nitrate|WOA23|", "nitrate (WOA23)")
+            assert trouble() == [{
+                "host": "www.ncei.noaa.gov", "server": "NOAA", "status": 503,
+                "reason": "Service Unavailable", "at": "15:45", "matchups": ["Nitrate (WOA23)"],
+            }]
+            # another from the same server, which answered otherwise this time
+            down("gridded|salinity|WOA23|", "salinity (WOA23)", status=502, reason="Proxy Error")
+            assert trouble()[0]["matchups"] == ["Nitrate (WOA23)", "Salinity (WOA23)"]
+            assert (trouble()[0]["status"], trouble()[0]["reason"]) == (502, "Proxy Error")
+            # and another server
+            down("gridded|chlorophyll|OCCCI|", "chlorophyll (OCCCI)", host="www.oceancolour.org",
+                 server="ESA's Ocean Colour CCI")
+            assert [x["host"] for x in trouble()] == ["www.ncei.noaa.gov", "www.oceancolour.org"]
+            # made when tried again: no longer said, nor the server once none is left
+            tell({"kind": "matchup", "key": "gridded|chlorophyll|OCCCI|", "state": "made"})
+            assert [x["host"] for x in trouble()] == ["www.ncei.noaa.gov"]
+            tell({"kind": "matchup", "key": "gridded|nitrate|WOA23|", "state": "made"})
+            assert trouble()[0]["matchups"] == ["Salinity (WOA23)"]
+            # news from a run that has been left is not said
+            app._matchup_news(object(), {"kind": "server_trouble", "key": "x", "host": "h"})
+            assert len(trouble()) == 1
+            # the report run after the matchups keeps it, another run does not
+            app.start_run(["validate", "{}"], "validate()")
+            assert len(trouble()) == 1
+            app.start_run(["script", "run.py"], "python run.py")
+            assert trouble() == []
+        finally:
+            app.run = None
+
     def test_the_analyses_are_followed_as_they_are_worked_out(self, app, monkeypatch):
         clock = [10.0]
         monkeypatch.setattr(app, "_clock", lambda: clock[0])
@@ -5167,6 +5223,57 @@ def test_the_files_are_found_in_a_box_with_no_title(browser, tmp_path):
         page.wait_for_selector("#review:not([hidden])", timeout=60000)
         assert page.text_content("#title") == "Identify simulations files for validating variables"
         assert page.is_hidden("#run")
+    finally:
+        app.close()
+
+
+def test_a_server_that_is_down_is_said_to_be_at_the_bottom_of_the_page(browser, tmp_path):
+    go = tmp_path / "go"
+    script = tmp_path / "matchup.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            import os, time
+            from oceanval import prompts
+            prompts.tell({{"kind": "matchups", "items": [{{"key": "gridded|nitrate|WOA23|", "title": "Nitrate (WOA23)"}}]}})
+            prompts.tell({{"kind": "matchup", "key": "gridded|nitrate|WOA23|", "state": "matching"}})
+            prompts.tell({{"kind": "server_trouble", "key": "gridded|nitrate|WOA23|", "title": "nitrate (WOA23)",
+                           "host": "www.ncei.noaa.gov", "server": "NOAA", "status": 503,
+                           "reason": "Service Unavailable"}})
+            prompts.tell({{"kind": "matchup", "key": "gridded|nitrate|WOA23|", "state": "not_made"}})
+            while not os.path.exists({str(go)!r}):
+                time.sleep(0.05)
+            prompts.tell({{"kind": "server_trouble", "key": "gridded|salinity|WOA23|", "title": "salinity (WOA23)",
+                           "host": "www.ncei.noaa.gov", "server": "NOAA", "status": 503,
+                           "reason": "Service Unavailable"}})
+            while True:
+                time.sleep(0.05)
+            """
+        )
+    )
+    app = App(cwd=str(tmp_path))
+    app.action = "matchup"
+    app.start_run(["script", str(script)], "python run.py")
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#server-trouble:not([hidden])", timeout=60000)
+        text = page.inner_text("#server-trouble")
+        assert "NOAA's data server is not available right now" in text
+        assert "www.ncei.noaa.gov answered “503 Service Unavailable”" in text
+        assert "not with your simulation" in text
+        assert "Could not match up: Nitrate (WOA23)." in text
+        # at the bottom of the window, in the bar above its buttons
+        assert page.locator("#bar #server-trouble").count() == 1
+        bar = page.locator("#bar").bounding_box()
+        assert abs(bar["y"] + bar["height"] - page.viewport_size["height"]) < 2
+        # hidden with its ×, until there is more to say
+        page.click(".server-trouble__close")
+        page.wait_for_selector("#server-trouble", state="hidden")
+        go.write_text("")
+        page.wait_for_selector("#server-trouble:not([hidden])", timeout=60000)
+        assert "Nitrate (WOA23), salinity (WOA23)" in page.inner_text("#server-trouble")
     finally:
         app.close()
 

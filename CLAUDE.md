@@ -491,7 +491,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   matchup's is `gridded_matchup(on_observing=, on_observed=)`, from "Read in the monthly observational data" (after the model's
   `merge`) to the `ds_obs.run()` after the observations' merge, before they are cut to the surface and regridded. At ≤860px the
   grid is made smaller so every column stays in sight. At ≤640px (`NARROW_GRID`) both extraction columns are left out, so the
-  table still fits, and the count is under the Matchup circle (`countUnder`). Note that `str.splitlines()` splits at the markers' `\x1e`. In the app the recipes window does not ask for the cores
+  table still fits, and the count is under the Matchup circle (`countUnder`). **A data server that is down** (`oceanval/server_trouble.py`): `answer_of` finds a 5xx/429 in an error (urllib/requests
+  status, or the server's HTML page CDO gives back, e.g. NOAA's `<title>503 Service Unavailable</title>`); `gridded.record_gridded_failure`
+  (and matchall around the ICES download) tells the window news `{"kind": "server_trouble", key, title, host, server, status, reason}`
+  as the matchup fails. `App._server_trouble_news` keeps it by host in `App.server_trouble` (`state()["run"]["server_trouble"]`; a
+  matchup made later is taken off, kept through the report run like the grid), and the page shows it in `#server-trouble`, the top of the
+  footer `#bar`, rendered on every state (`renderServerTrouble`, not in `renderBar`'s cache); × hides it until it changes. Note that `str.splitlines()` splits at the markers' `\x1e`. In the app the recipes window does not ask for the cores
   (its box is hidden, `show_recipes` sets `form["cores"] = "1"` for the draft): they are asked, with no default, on the
   report options ("One last thing...") or, for Match up only, on the output step.
 - A multiprocessing Manager is made with `matchall._manager()`, when it is needed, never at import: its server is a

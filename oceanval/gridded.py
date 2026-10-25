@@ -15,7 +15,9 @@ import nctoolkit as nc
 import xarray as xr
 
 from oceanval import data_store
+from oceanval import live
 from oceanval import prompts
+from oceanval import server_trouble
 from oceanval import surface
 from oceanval import time_res
 from oceanval.fixers import tidy_warnings
@@ -137,12 +139,14 @@ def record_gridded_failure(vv, source, error):
         "a connection problem rather than a problem with your model output.",
         "Moving on to the next variable.",
     ]
-    if "429" in str(error) and "Too Many Requests" in str(error):
-        details[5:5] = [
-            "The server is limiting how fast you can read from it (HTTP 429).",
-            "Wait for a while before trying again: it will let you back in.",
-            "",
-        ]
+    # the server's own trouble is told to the window straight away, which
+    # says so at the bottom of its page
+    obs_path = definitions[vv].gridded_comparisons[source]["obs_path"]
+    answer = server_trouble.tell(
+        error, obs_path, live.matchup_key("gridded", vv, source), f"{vv} ({source})"
+    )
+    if answer is not None:
+        details[5:5] = server_trouble.explain(answer, server_trouble.host_of(obs_path)) + [""]
     if log_file is not None:
         details += ["", f"Logged to {log_file}"]
 
