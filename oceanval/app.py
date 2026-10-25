@@ -2891,18 +2891,6 @@ class App(AnalyzeSteps, SimCompareSteps):
             settings = dict(self.settings)
         return data_store.check_reply(settings)
 
-    def restart(self):
-        with self._lock:
-            if self.view not in ("finished", "script_saved"):
-                return False
-            self.view = "home"
-            self.action = None
-            self._end_demo()
-            self.matchup_script_saved = False
-            self.script_path = None
-            self._notify()
-            return True
-
     def reset(self):
         """Start again from the first page, from any step, with nothing the
         user entered kept: the forms, the user's own data, the run and the
@@ -5486,7 +5474,6 @@ class _Handler(recipes_gui._Handler):
             "/api/simcompare_time_shift": lambda: app.simcompare_time_shift(payload.get("choice")),
             # with what the step's boxes hold
             "/api/back": lambda: app.back(payload),
-            "/api/restart": app.restart,
             "/api/restart_all": app.reset,
             "/api/stop": app.stop,
             "/api/refilter": lambda: app.refilter(

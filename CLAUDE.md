@@ -511,8 +511,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   the draft script folder, Analyze/Compare state); the page then reloads, so its own objects are fresh. Kept: `settings`, `leftovers`,
   `.oceanvalrc` recipes, `.oceanvalcache`, `version`. A run is stopped, and threads of the steps still going (`_prepare`,
   `_recipes_window`, `_units_step`, `_ask_in_window`, the Analyze/Compare reads) find theirs is over by `App._reset_count` or by their
-  generation counters, which `reset` bumps: **a new thread that sets `view` after waiting must check them**. `restart()` (Start again, only
-  from `finished`/`script_saved`) is a different thing and keeps the forms.
+  generation counters, which `reset` bumps: **a new thread that sets `view` after waiting must check them**. **Start again**
+  (the button on `finished`/`script_saved`) is the same: it posts `/api/restart_all` and reloads, so nothing of the run just
+  finished is kept (the user's rule, 2026-10-25; there is no separate `restart()`).
 - The window's Info panel (the **i** beside Settings) shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.

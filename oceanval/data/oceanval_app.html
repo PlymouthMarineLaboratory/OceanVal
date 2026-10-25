@@ -2603,7 +2603,11 @@
         showDone("closed");
       }));
       const matchupsReady = state.action === "matchup" && state.run.status === "finished";
-      actions.push(button("Start again", matchupsReady ? "ghost" : "primary", () => post("api/restart")));
+      actions.push(button("Start again", matchupsReady ? "ghost" : "primary", async () => {
+        // the same as Restart beside Info: everything entered is forgotten and the page loaded afresh
+        const reply = await post("api/restart_all", {});
+        if (reply.ok) location.reload();
+      }));
       if (matchupsReady) {
         actions.push(button("Validate these matchups", "primary",
           () => post("api/choose", { action: "validate", data_dir: state.run.results })));

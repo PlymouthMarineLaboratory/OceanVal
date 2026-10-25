@@ -2436,7 +2436,7 @@ class TestServer:
         assert state["run"]["status"] == "finished"
         # the answer follows the question, as at a terminal
         assert state["console"]["text"].endswith("Happy? (y/n) n\nanswer: n\n")
-        assert post(app, "/api/restart")[0] == 200
+        assert post(app, "/api/restart_all")[0] == 200
         assert app.view == "home"
 
     def test_the_matchups_are_followed_as_matchup_tells_of_them(self, app, tmp_path, monkeypatch):
@@ -4869,6 +4869,22 @@ class TestDemo:
         assert app.setup_form["ndown"] == "1"
         assert app.output_form["out"] == os.path.join("oceanval_demo", "mine.py")
 
+    def test_starting_again_after_a_run_forgets_its_settings(self, app):
+        with app._lock:
+            app.view, app.action = "finished", "validate"
+            app.setup_form["simdir"] = "/some/simulation"
+            app.validate_form["subregions"] = "some regions"
+            app.own_data["point"].append({"name": "mine"})
+            app.matchup_progress = {"items": []}
+            app.status, app.returncode = "finished", 0
+        assert post(app, "/api/restart_all")[0] == 200
+        assert (app.view, app.action) == ("home", None)
+        assert app.setup_form["simdir"] == ""
+        assert app.validate_form["subregions"] == ""
+        assert app.own_data == {"point": [], "gridded": []}
+        assert app.matchup_progress is None
+        assert app.status is None
+
     def test_starting_again_forgets_the_demo(self, app, fetched):
         app.choose("demo")
         post(app, "/api/demo_download", NORESM)
@@ -4876,7 +4892,7 @@ class TestDemo:
         with app._lock:
             app.view = "finished"
 
-        assert post(app, "/api/restart")[0] == 200
+        assert post(app, "/api/restart_all")[0] == 200
         assert app.demo is None
         assert app.setup_form["simdir"] == ""
         assert app.output_form["out_dir"] == app.cwd

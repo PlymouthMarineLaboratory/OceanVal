@@ -119,7 +119,7 @@ class TestLanding:
     def test_the_other_tiles_start_afresh(self, app, sims):
         to_options(app)
         app.view, app.action = "finished", "simcompare"
-        assert post(app, "/api/restart")[0] == 200
+        assert post(app, "/api/restart_all")[0] == 200
         assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
         # the options of the comparison are not an analysis's
         assert app.analyze_placed is None and app.analyze_found is None

@@ -99,7 +99,7 @@ class TestLanding:
     def test_start_again_returns_to_the_landing_page(self, app):
         app.view = "finished"
         app.action = "analyze"
-        assert post(app, "/api/restart")[0] == 200
+        assert post(app, "/api/restart_all")[0] == 200
         assert (app.view, app.action) == ("home", None)
 
 
@@ -603,7 +603,7 @@ class TestOptions:
         assert post(app, "/api/analyze_save_script")[0] == 409
         assert post(app, "/api/analyze_run")[0] == 409
         # and Start again goes back to the first page
-        assert post(app, "/api/restart")[0] == 200
+        assert post(app, "/api/restart_all")[0] == 200
         assert app.view == "home"
         assert get_json(app, "/api/state")[1]["run"]["script_saved"] is False
 
