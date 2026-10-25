@@ -505,6 +505,14 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - Every question OceanVal asks goes through `oceanval/prompts.py` (`ask`, `interactive`,
   `answered_by`) — never call `input()`/`isatty()` directly, or the window can't answer it. In
   the child process a question is a `QUESTION_MARKER` line on stdout, answered on stdin.
+- **Restart** (the circular arrow beside the **i**, `mountChrome(restart=)` in `data/gui.js`, in the recipes window too) asks in a pop-up
+  (`#restart-confirm`, Cancel is the default, and it says a run in progress will be stopped), then posts `/api/restart_all` →
+  `App.reset`, which goes to `home` from **any** view with everything entered forgotten (forms, own data, recipes/units state, the run,
+  the draft script folder, Analyze/Compare state); the page then reloads, so its own objects are fresh. Kept: `settings`, `leftovers`,
+  `.oceanvalrc` recipes, `.oceanvalcache`, `version`. A run is stopped, and threads of the steps still going (`_prepare`,
+  `_recipes_window`, `_units_step`, `_ask_in_window`, the Analyze/Compare reads) find theirs is over by `App._reset_count` or by their
+  generation counters, which `reset` bumps: **a new thread that sets `view` after waiting must check them**. `restart()` (Start again, only
+  from `finished`/`script_saved`) is a different thing and keeps the forms.
 - The window's Info panel (the **i** beside Settings) shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.

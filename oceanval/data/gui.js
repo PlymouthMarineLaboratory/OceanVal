@@ -101,6 +101,7 @@ const OceanValGUI = (() => {
   //   behind         the parts of the page that cannot be reached while a panel is open
   //   onSaved()      called once the preferences are saved (the page may show them)
   const COG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  const RESTART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
   const INFO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 17v-6M12 7.5h.01" stroke-width="2.6"/></svg>';
 
   const CHROME_HTML = `
@@ -173,15 +174,22 @@ const OceanValGUI = (() => {
   </div>
 </div>`;
 
-  function mountChrome({ state, post, settingsPath, behind, onSaved = () => {} }) {
+  // restart: { go, running }, for a page that can start again from the first
+  // page. go() asks the app to forget everything (and moves the page on),
+  // returning whether it did; running() is whether a run would be stopped.
+  function mountChrome({ state, post, settingsPath, behind, onSaved = () => {}, restart = null }) {
     const brand = document.querySelector(".brand");
-    brand.append(
+    brand.append(...[
       el("button", { type: "button", class: "settings-open", id: "settings-open", "aria-haspopup": "dialog",
         "aria-controls": "preferences", "aria-label": "Preferences", title: "Preferences" },
         el("span", { class: "settings-open__icon", "aria-hidden": "true", html: COG })),
       el("button", { type: "button", class: "info-open", id: "info-open", "aria-haspopup": "dialog",
         "aria-controls": "info", "aria-label": "About OceanVal", title: "About OceanVal" },
-        el("span", { class: "info-open__icon", "aria-hidden": "true", html: INFO })));
+        el("span", { class: "info-open__icon", "aria-hidden": "true", html: INFO })),
+      restart ? el("button", { type: "button", class: "info-open restart-open", id: "restart-open", "aria-haspopup": "dialog",
+        "aria-controls": "restart-confirm", "aria-label": "Restart", title: "Restart" },
+        el("span", { class: "restart-open__icon", "aria-hidden": "true", html: RESTART })) : null,
+    ].filter(Boolean));
     document.body.insertAdjacentHTML("beforeend", CHROME_HTML);
 
     function applyTheme(theme) {
@@ -389,6 +397,66 @@ const OceanValGUI = (() => {
       if (event.key === "Escape") {
         event.preventDefault();
         closeInfo();
+      }
+    });
+
+    if (restart) mountRestart({ restart, hideBehind });
+  }
+
+  // the button's pop-up: starting again from the first page throws away what
+  // was entered, so it is asked about, with Cancel the default
+  function mountRestart({ restart, hideBehind }) {
+    const stopping = el("p", { class: "restart__stopping", id: "restart-stopping", hidden: "",
+      text: "The run in progress will be stopped." });
+    const cancel = el("button", { type: "button", class: "btn btn--ghost", id: "restart-cancel", text: "Cancel" });
+    const confirm = el("button", { type: "button", class: "btn btn--danger", id: "restart-go", text: "Restart" });
+    const dialog = el("div", { class: "picker", id: "restart-confirm", hidden: "" },
+      el("div", { class: "picker__card restart__card", role: "dialog", "aria-modal": "true", "aria-labelledby": "restart-title" },
+        el("div", { class: "restart__body" },
+          el("h2", { id: "restart-title", text: "Start again?" }),
+          el("p", { text: "Do you want to go back to the first page? Everything you have entered will be discarded, and you will start from a clean slate." }),
+          stopping),
+        el("div", { class: "picker__foot" }, cancel, confirm)));
+    document.body.append(dialog);
+
+    function open() {
+      stopping.hidden = !restart.running();
+      confirm.disabled = false;
+      dialog.hidden = false;
+      hideBehind(true);
+      // keeping what was entered is the safe default
+      cancel.focus();
+    }
+
+    function close() {
+      dialog.hidden = true;
+      hideBehind(false);
+      $("restart-open").focus();
+    }
+
+    async function go() {
+      confirm.disabled = true;
+      cancel.disabled = true;
+      let done = false;
+      try {
+        done = await restart.go();
+      } catch (error) {
+        done = false;
+      }
+      cancel.disabled = false;
+      if (done) return;
+      close();
+      toast("OceanVal could not start again. Please try once more.");
+    }
+
+    $("restart-open").addEventListener("click", open);
+    cancel.addEventListener("click", close);
+    confirm.addEventListener("click", go);
+    dialog.addEventListener("click", (event) => { if (event.target === dialog && !confirm.disabled) close(); });
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !confirm.disabled) {
+        event.preventDefault();
+        close();
       }
     });
   }

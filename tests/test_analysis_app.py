@@ -103,6 +103,89 @@ class TestLanding:
         assert (app.view, app.action) == ("home", None)
 
 
+class TestRestart:
+    """Restart, beside Info: from any step back to the first page, with a clean slate."""
+
+    def test_it_forgets_an_analysis_from_the_options_step(self, app, sim):
+        from oceanval import user_cache
+
+        user_cache.record_sim_dir(os.path.join(app.cwd, sim))
+        before = app.version
+        to_options(app)
+        assert app.analyze_placed and app.analyze_setup
+        settings, asked = dict(app.settings), app.leftovers_asked
+        assert post(app, "/api/restart_all") == (200, {"ok": True})
+        assert app.view == "home" and app.action is None
+        assert app.version > before
+        assert app.analyze_setup is None and app.analyze_placed is None and app.analyze_found is None
+        assert app.analyze_check is None and app.analyze_rows is None
+        assert app.analyze_setup_form == analysis_forms.default_setup_form(app.cwd)
+        # what is the user's, beyond this session, is kept
+        assert app.settings == settings and app.leftovers_asked == asked
+        assert user_cache.recent_sim_dirs() == [os.path.join(app.cwd, sim)]
+        # and the analysis can be started again, from nothing
+        state = to_variables(app)
+        assert state["rows"] is None or all(not row.get("model_variable") for row in state["rows"])
+
+    def test_it_works_from_the_validation_steps_and_forgets_their_boxes(self, app):
+        assert post(app, "/api/choose", {"action": "validate_menu"})[0] == 200
+        assert post(app, "/api/choose", {"action": "matchup"})[0] == 200
+        app.setup_form = dict(app.setup_form, simdir="somewhere")
+        app.own_data["point"].append({"name": "mine"})
+        assert post(app, "/api/restart_all")[0] == 200
+        assert app.view == "home" and app.action is None
+        assert app.setup_form["simdir"] != "somewhere"
+        assert app.own_data == {"point": [], "gridded": []}
+
+    def test_it_works_from_compare_simulations(self, app):
+        assert post(app, "/api/choose", {"action": "simcompare"})[0] == 200
+        assert app.view == "simcompare_sims"
+        assert post(app, "/api/restart_all")[0] == 200
+        assert app.view == "home" and app.action is None
+        assert app.sc_sims is None
+
+    def test_a_run_in_progress_is_stopped(self, app):
+        class Run:
+            args = ["analyze", "x"]
+            stopped_by_reset = False
+
+            def stop(self):
+                self.stopped_by_reset = True
+
+        run = Run()
+        app.run, app.view, app.status, app.action = run, "running", "running", "analyze"
+        assert post(app, "/api/restart_all")[0] == 200
+        assert run.stopped_by_reset
+        assert app.run is None and app.status is None and app.view == "home"
+        # its end, when it comes, is not noticed
+        app._run_finished(run)
+        assert app.view == "home"
+
+    def test_the_recipes_window_is_cancelled_and_its_thread_leaves_the_view_alone(self, app):
+        class Page:
+            cancelled = finished = False
+
+            def cancel(self):
+                self.cancelled = True
+
+            def finish(self):
+                self.finished = True
+
+        page = Page()
+        app.recipes_page, app.view = page, "recipes"
+        # a thread of the recipes step, begun before the restart
+        number = app._reset_count
+        assert post(app, "/api/restart_all")[0] == 200
+        assert page.cancelled and page.finished and app.recipes_page is None
+        app._went_wrong(ValueError("late"), number)
+        assert app.view == "home" and app.setup_error is None
+
+    def test_stale_reads_of_the_simulation_are_dropped(self, app):
+        before = app._analyze_reading
+        assert post(app, "/api/restart_all")[0] == 200
+        assert app._analyze_reading > before
+
+
 class TestSimulation:
     def test_an_analysis_needs_no_domain_or_years(self, app, sim):
         state = to_variables(app)

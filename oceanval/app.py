@@ -1710,6 +1710,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         self._init_simcompare()
         # whose steps the state Analyze's options step keeps is
         self._analyze_owner = ANALYZE
+        # how many times the window has been restarted (see reset), which the
+        # threads of the steps before it check to know theirs are over
+        self._reset_count = 0
 
     # ---- state ----
 
@@ -2900,6 +2903,105 @@ class App(AnalyzeSteps, SimCompareSteps):
             self._notify()
             return True
 
+    def reset(self):
+        """Start again from the first page, from any step, with nothing the
+        user entered kept: the forms, the user's own data, the run and the
+        steps' threads all go. What is kept is not the run's: the window's
+        settings, the recipes saved in .oceanvalrc, the simulations
+        remembered in .oceanvalcache and the question of temporary files left
+        by earlier sessions, which has been answered once. A run in progress
+        is stopped."""
+        with self._lock:
+            if self.closed.is_set():
+                return False
+            # the steps' threads that are waiting find theirs is over
+            self._reset_count += 1
+            run, self.run = self.run, None
+            page, self.recipes_page = self.recipes_page, None
+            reading, self._output_years = self._output_years, None
+            draft, self._draft_dir = self._draft_dir, None
+            self._cancel_register_check()
+            self._drop_model_check()
+            self._drop_analyze_check()
+            self._sc_drop_checks()
+            self._sc_drop_times()
+            self._end_demo()
+            self._forget_steps()
+            self._forget_register()
+            self.view = "home"
+            self.action = None
+            self.setup_form = default_setup_form()
+            self.setup_error = None
+            self.setup_arguments = None
+            self.out_dir = self.cwd
+            self.overwrite = True
+            self.previous = True
+            self.output_form = dict(default_output_form(), out_dir=self.cwd)
+            self.output_made = None
+            self._run_output = None
+            self.own_data = {"point": [], "gridded": []}
+            self.own_saved = []
+            self.validate_form = default_validate_form()
+            self._validate_data_dir_default = None
+            self.compare_form = default_compare_form()
+            self.compare_arguments = None
+            self.report_arguments = None
+            self._script_writer = None
+            self.point_time_res_choice = None
+            self.point_time_res_form = None
+            self.time_shift_form = None
+            self.question = None
+            self.units_rows = None
+            self._units_conversions = None
+            self._units_back = False
+            self._units_done.clear()
+            self.run_label = None
+            self.status = None
+            self.returncode = None
+            self.results_dir = None
+            self.identifying = False
+            self.matchups_rejected = False
+            self.matchup_script_saved = False
+            self.script_path = None
+            self.interim = None
+            self.matchup_progress = None
+            self.server_trouble = {}
+            self.analysis_progress = None
+            self.console.clear()
+            # the Analyze and Compare steps start afresh, but their reads and
+            # probes still going must not match the numbers of the new ones
+            counted = (
+                self._analyze_reading,
+                self._analyze_shift_number,
+                self._analyze_probe_number,
+                self._sc_shift_number,
+                self._sc_grids_number,
+            )
+            sims_read = dict(self._sc_reading)
+            self._init_analyze()
+            self._init_simcompare()
+            self._analyze_owner = ANALYZE
+            (
+                self._analyze_reading,
+                self._analyze_shift_number,
+                self._analyze_probe_number,
+                self._sc_shift_number,
+                self._sc_grids_number,
+            ) = (number + 1 for number in counted)
+            self._sc_reading = {name: number + 1 for name, number in sims_read.items()}
+            self._notify()
+        # outside the lock: stopping them can take a moment
+        if run is not None:
+            run.stop()
+        if reading is not None:
+            reading["reading"].cancel()
+        if page is not None:
+            page.cancel()
+            page.finish()
+        if draft is not None:
+            shutil.rmtree(draft, ignore_errors=True)
+        return True
+
     def setup(self, form):
         """Read the simulation with create_recipes, from the simulation step's
         boxes. Returns the HTTP status and the reply for the page."""
@@ -3455,6 +3557,7 @@ class App(AnalyzeSteps, SimCompareSteps):
     def _prepare(self, arguments):
         with self._lock:
             known = self._fvcom
+            number = self._reset_count
         # asked already, for the same files
         fvcom = known[1] if known is not None and known[0] == _simulation(arguments) else None
         stream = _ConsoleStream(self.console)
@@ -3478,18 +3581,26 @@ class App(AnalyzeSteps, SimCompareSteps):
                     # the units step, and then the run
                     self._units_onwards(page, page.result)
         except Exception as error:
-            self._went_wrong(error)
+            self._went_wrong(error, number)
             return
         if out is None or self.closed.is_set():
             # Back, in the recipes window
             with self._lock:
-                if self.view in ("preparing", "recipes") and not self.closed.is_set():
+                if (
+                    self.view in ("preparing", "recipes")
+                    and not self.closed.is_set()
+                    and number == self._reset_count
+                ):
                     self.view = self._before_recipes()
                     self._notify()
 
-    def _went_wrong(self, error):
+    def _went_wrong(self, error, number=None):
         """Go back to the simulation step, saying what went wrong while it
-        was read, or in the steps after it."""
+        was read, or in the steps after it. number is the count of restarts
+        (see reset) the steps were begun in: after another, there is nothing
+        to go back to."""
+        if number is not None and number != self._reset_count:
+            return
         # create_recipes' own checks say what to change; anything else
         # is worth seeing in full
         if not isinstance(error, (ValueError, TypeError)):
@@ -3505,6 +3616,10 @@ class App(AnalyzeSteps, SimCompareSteps):
         """Show the create_recipes window as the recipes step, and wait for
         it to be used (see recipes_gui.hosted_by). The window is kept, to be
         shown again for Back from the steps after it (see _units_onwards)."""
+        with self._lock:
+            if self.view != "preparing":
+                # the window was restarted while the simulation was read
+                return None
         page.token = self.token
         page.context["app"] = {
             "action": self.action,
@@ -3542,6 +3657,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             if self.closed.is_set():
                 return None
+            number = self._reset_count
             restore = recipes_restore(
                 self.recipes_choices,
                 page.rows,
@@ -3569,7 +3685,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                 # the steps before it can change the simulation, so it is
                 # made afresh once they are carried on from
                 self._recipes = None
-                if not self.closed.is_set():
+                if not self.closed.is_set() and number == self._reset_count:
                     self.view = self._before_recipes()
                     self._notify()
         return result
@@ -3652,11 +3768,13 @@ class App(AnalyzeSteps, SimCompareSteps):
         """The units step and the steps after it, again, for Back from the
         matchups, in a thread of its own."""
         stream = _ConsoleStream(self.console)
+        with self._lock:
+            number = self._reset_count
         try:
             with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
                 self._units_onwards(page, page.result, shown=True)
         except Exception as error:
-            self._went_wrong(error)
+            self._went_wrong(error, number)
 
     def _convert_units(self, result, conversions):
         """The recipes window's choices, result, with the conversions chosen
@@ -3699,17 +3817,20 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             if self.closed.is_set():
                 return None
+            number = self._reset_count
             to_read = self.units_rows is None if shown else self._show_units(result)
             setup, own = dict(self.setup_arguments), self.own_data
         if to_read:
             rows = self._read_units(result, setup, own)
             with self._lock:
+                if number != self._reset_count:
+                    return None
                 self._units_read = (result, rows)
                 if self.view == "units_table":
                     self.units_rows = rows
                     self._notify()
         while not self._units_done.wait(0.25):
-            if self.closed.is_set():
+            if self.closed.is_set() or number != self._reset_count:
                 return None
         with self._lock:
             return _BACK if self._units_back else self._units_conversions
@@ -4896,6 +5017,8 @@ class App(AnalyzeSteps, SimCompareSteps):
     def _ask_in_window(self, text, choices, details=None):
         """Ask a question in the page, for prompts.answered_by."""
         answers = queue.Queue()
+        with self._lock:
+            number = self._reset_count
         self._put_question(text, choices, answers.put, details)
         while True:
             try:
@@ -4905,6 +5028,8 @@ class App(AnalyzeSteps, SimCompareSteps):
                     raise EOFError(
                         "OceanVal was closed before the question was answered"
                     )
+                if number != self._reset_count:
+                    raise EOFError("The window was restarted before the question was answered")
 
     def answer(self, number, text):
         """Answer the question numbered number, if it is still being asked.
@@ -5362,6 +5487,7 @@ class _Handler(recipes_gui._Handler):
             # with what the step's boxes hold
             "/api/back": lambda: app.back(payload),
             "/api/restart": app.restart,
+            "/api/restart_all": app.reset,
             "/api/stop": app.stop,
             "/api/refilter": lambda: app.refilter(
                 payload.get("exclude"), payload.get("require")

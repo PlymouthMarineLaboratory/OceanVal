@@ -1507,6 +1507,16 @@
     post,
     settingsPath: app ? "../api/settings" : "settings",
     behind: () => [document.querySelector(".masthead"), document.querySelector("main"), document.querySelector(".bar")],
+    // only in the app, whose first page it goes back to
+    restart: app ? {
+      running: () => false,
+      go: async () => {
+        const reply = await post("../api/restart_all", {});
+        if (!reply.ok) return false;
+        location.assign(home);
+        return true;
+      },
+    } : null,
   });
   summarise();
 })();

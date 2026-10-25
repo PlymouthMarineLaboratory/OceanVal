@@ -294,6 +294,8 @@ def _panels_work(page, oceanvalrc, theme):
     page.keyboard.press("Escape")
     assert page.is_hidden("#info")
     assert page.evaluate("document.activeElement.id") == "info-open"
+    # Restart is only for the pages the oceanval window hosts, which have a first page to go back to
+    assert page.locator("#restart-open").count() == 0
 
 
 def test_the_preferences_and_info_are_in_the_window_too(browser, oceanvalrc):

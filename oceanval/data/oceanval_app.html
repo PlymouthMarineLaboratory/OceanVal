@@ -8486,6 +8486,17 @@
     behind: () => BEHIND,
     // the first page shows or hides the demo
     onSaved: render,
+    // starting again forgets everything the app and the page held, so the page
+    // is loaded afresh from the app's clean state
+    restart: {
+      running: () => ["starting", "running"].includes((state.run || {}).status),
+      go: async () => {
+        const reply = await post("api/restart_all", {});
+        if (!reply.ok) return false;
+        location.reload();
+        return true;
+      },
+    },
   });
 
   // ---- Compare simulations: the simulations, their variables, files and grids (see oceanval.sim_compare_app) ----

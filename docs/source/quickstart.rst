@@ -101,6 +101,10 @@ your home directory (or the file ``OCEANVALRC`` names), and read each time the
 window opens. The **i** beside it shows the version of OceanVal, links to the website and
 GitHub, and the built-in datasets.
 
+The circular arrow beside the **i** (**Restart**) goes back to the first page from any step. It asks first,
+as everything you entered in the window is then discarded (a run in progress is stopped), so that you start
+from a clean slate. Your Preferences, your own recipes in ``.oceanvalrc`` and the simulations OceanVal remembers are kept.
+
 The **data store** is a folder for keeping the built-in observational data that is downloaded
 (WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES), so later matchups need not download it again.
 Your own data is never kept in it. The folder must already exist: OceanVal keeps everything in an

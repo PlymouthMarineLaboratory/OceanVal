@@ -8440,6 +8440,39 @@ class TestInfo:
         assert app.state()["datasets"] == before
         assert "MySat" not in json.dumps(app.state()["datasets"])
 
+    def test_the_restart_button_in_a_browser(self, browser, tmp_path):
+        app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
+        url = app.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-start:not([hidden])")
+            # beside Info, in the header
+            ids = page.evaluate("[...document.querySelector('.brand').querySelectorAll('button')].map(b => b.id)")
+            assert ids[ids.index("info-open") + 1] == "restart-open"
+            assert page.is_hidden("#restart-confirm")
+            page.click("#restart-open")
+            assert page.is_visible("#restart-confirm")
+            assert page.is_hidden("#restart-stopping")
+            assert page.evaluate("document.activeElement.id") == "restart-cancel"
+            # Cancel and Escape change nothing
+            page.click("#restart-cancel")
+            assert page.is_hidden("#restart-confirm")
+            assert app.view == "start"
+            page.click("#restart-open")
+            page.keyboard.press("Escape")
+            assert page.is_hidden("#restart-confirm")
+            assert app.view == "start"
+            # Restart goes back to the first page
+            page.click("#restart-open")
+            page.click("#restart-go")
+            page.wait_for_selector("#view-home:not([hidden])")
+            assert app.view == "home"
+            assert page.is_hidden("#restart-confirm")
+        finally:
+            app.close()
+
     def test_the_info_panel_in_a_browser(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
         app.choose("validate_menu")
