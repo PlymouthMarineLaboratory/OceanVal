@@ -1854,7 +1854,7 @@
   <section id="view-script-saved" hidden>
     <div class="script-saved card">
       <h2 id="script-saved-title" tabindex="-1">Your matchup script is saved</h2>
-      <p>Nothing has been matched up and no report has been built. To do both later, open a terminal, activate the environment OceanVal is installed in, and run:</p>
+      <p id="script-saved-text">Nothing has been matched up and no report has been built. To do both later, open a terminal, activate the environment OceanVal is installed in, and run:</p>
       <code id="script-saved-command"></code>
       <p>Script file:</p>
       <code id="script-saved-path"></code>
@@ -2283,7 +2283,7 @@
         }
         if (run.identifying && !state.question) return "";
         return ACTION_TITLES[state.action];
-      case "script_saved": return "Your matchup script is saved";
+      case "script_saved": return savedScriptWords().title;
       default:
         return run.status === "finished" ? "Finished"
           : run.status === "stopped" ? "Stopped" : "Something went wrong";
@@ -2356,7 +2356,8 @@
         }, { id: "af-continue", disabled: !analyzeFilesReady() }));
     } else if (view === "analyze_options") {
       actions.push(button("Back", "ghost", () => post("api/back")),
-        button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }));
+        button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }),
+        button("Save Python script to run later", "ghost", saveAnalysisScript, { id: "ao-save", disabled: true }));
     } else if (view === "simcompare_sims") {
       actions.push(button("Back", "ghost", () => post("api/back", { form: scReadSims() })),
         button("Continue", "primary", submitScSims, { id: "sc-continue", disabled: true }));
@@ -3652,7 +3653,10 @@
   function updateRun() {
     const run = $("ao-run");
     $("ao-need").hidden = ANALYSES.some((kind) => state.analyze.chosen[kind]);
-    if (run) run.disabled = !(ANALYSES.some((kind) => state.analyze.chosen[kind]) && coresGiven() && figureCodeGiven());
+    const ready = ANALYSES.some((kind) => state.analyze.chosen[kind]) && coresGiven() && figureCodeGiven();
+    if (run) run.disabled = !ready;
+    const save = $("ao-save");
+    if (save) save.disabled = !ready;
   }
 
   // one to the machine's cores, made once; a value the state holds that is not among them is still shown
@@ -4416,8 +4420,18 @@
   });
 
   async function runAnalysis() {
+    await startAnalysis("api/analyze_run", "The analysis could not be started.");
+  }
+
+  // the script is written and kept, and nothing is run
+  async function saveAnalysisScript() {
+    await startAnalysis("api/analyze_save_script", "The script could not be saved.");
+  }
+
+  async function startAnalysis(url, failure) {
     $("ao-run").disabled = true;
-    const reply = await post("api/analyze_run");
+    $("ao-save").disabled = true;
+    const reply = await post(url);
     if (!reply.ok) {
       if (reply.errors && reply.errors.area) toast("Open the time series and put its regions and area right.");
       if (reply.errors && reply.errors.cores) $("ao-cores-msg").textContent = reply.errors.cores;
@@ -4425,7 +4439,7 @@
       if (reply.errors && reply.errors.missing) {
         $("ao-missing-msg").textContent = reply.errors.missing.missing_from || reply.errors.missing.missing_to || "";
       }
-      toast(reply.error || "The analysis could not be started.");
+      toast(reply.error || failure);
       renderAnalyzeOptions();
     }
   }
@@ -7518,7 +7532,19 @@
     }
   });
 
+  // what the page of a saved script says: it is a matchup script unless an analysis or comparison was saved
+  function savedScriptWords() {
+    const [what, done] = state.action === "analyze" ? ["analysis", "worked out"]
+      : state.action === "simcompare" ? ["comparison", "worked out"] : ["matchup", "matched up"];
+    return {
+      title: `Your ${what} script is saved`,
+      text: `Nothing has been ${done} and no report has been built. To do both later, open a terminal, activate the environment OceanVal is installed in, and run:`,
+    };
+  }
+
   function renderSavedScript() {
+    $("script-saved-title").textContent = savedScriptWords().title;
+    $("script-saved-text").textContent = savedScriptWords().text;
     $("script-saved-command").textContent = state.run.script_command || "";
     $("script-saved-path").textContent = state.run.script || "";
   }

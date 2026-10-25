@@ -553,10 +553,11 @@ class SimCompareSteps:
 
     # ---- the run ----
 
-    def simcompare_run(self, chosen, thicknesses, cores, figure_code, as_missing, area):
-        """Write the comparison script, and run it. Called with the lock held,
-        from analyze_run, which has checked the analyses; returns the HTTP status
-        and the reply, and the run to start, if any."""
+    def simcompare_run(self, chosen, thicknesses, cores, figure_code, as_missing, area, save=False):
+        """Write the comparison script, and run it, or, with save, only write it,
+        to be run later. Called with the lock held, from analyze_run, which has
+        checked the analyses; returns the HTTP status and the reply, and the run
+        to start, if any."""
         from oceanval.app import _shown
 
         shifts = self._sc_shifts()
@@ -566,7 +567,8 @@ class SimCompareSteps:
             shifts,
             self.sc_unify,
             self.sc_paths["out_dir"],
-            times_index=self._sc_keep_times(),
+            # the times the checks read are kept for a run now, not for a script kept for later
+            times_index=None if save else self._sc_keep_times(),
             climatology=chosen["climatology"]["rows"] if chosen["climatology"] else None,
             phenology=chosen["phenology"]["rows"] if chosen["phenology"] else None,
             thickness=next(iter(thicknesses), None),
@@ -587,11 +589,14 @@ class SimCompareSteps:
                 file.write(sim_compare_forms.script_text(arguments))
         except OSError as error:
             return (400, {"ok": False, "error": f"The script could not be written: {error}"}), None
-        self.view = "running"
-        self.status = "starting"
         self.results_dir = self.sc_paths["out_dir"]
         self._sc_drop_checks()
         self._drop_analyze_check()
+        if save:
+            self._script_saved(script)
+            return (200, {"ok": True}), None
+        self.view = "running"
+        self.status = "starting"
         self.console.clear()
         return (200, {"ok": True}), (["simcompare", script], f"python {_shown(script, self.cwd)}")
 

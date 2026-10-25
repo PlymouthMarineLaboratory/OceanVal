@@ -4,6 +4,7 @@ gaps in them, the climatology and phenology pop-outs, and the run."""
 
 import ast
 import os
+import shlex
 
 import numpy as np
 import pytest
@@ -464,6 +465,38 @@ class TestOptions:
         assert given["cores"] == 2 and given["as_missing"] == [0.0, 0.0]
         assert given["figure_code"] is True
 
+    def test_the_script_can_be_saved_to_run_later(self, app, sim, runs):
+        to_options(app)
+        # the same things are needed as to run it
+        assert post(app, "/api/analyze_save_script")[0] == 400
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})[0] == 200
+        status, reply = post(app, "/api/analyze_save_script")
+        assert status == 400 and reply["errors"] == {"cores": "Say how many cores OceanVal may use."}
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
+        assert post(app, "/api/analyze_save_script")[0] == 400
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        assert app.view == "analyze_options" and not os.path.exists(os.path.join(app.cwd, "analysis.py"))
+        assert post(app, "/api/analyze_save_script") == (200, {"ok": True})
+        # the script is written, and nothing is run
+        script = os.path.join(app.cwd, "analysis.py")
+        assert runs == []
+        assert app.view == "script_saved"
+        run = get_json(app, "/api/state")[1]["run"]
+        assert run["script_saved"] is True and run["script"] == script
+        assert run["script_command"] == f"python {shlex.quote(script)}"
+        call = ast.parse(open(script).read()).body[-1].value
+        assert ast.unparse(call.func) == "oceanval.analyze"
+        given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
+        assert given["cores"] == 2 and given["figure_code"] is False
+        # it is over
+        assert post(app, "/api/analyze_save_script")[0] == 409
+        assert post(app, "/api/analyze_run")[0] == 409
+        # and Start again goes back to the first page
+        assert post(app, "/api/restart")[0] == 200
+        assert app.view == "home"
+        assert get_json(app, "/api/state")[1]["run"]["script_saved"] is False
+
 
 # the map changes pop-out's boxes: the historical year against the one future year the simulation has
 CHANGES = {
@@ -882,11 +915,15 @@ def test_analyze_in_a_browser(browser, tmp_path):
         assert list(app.analyze_chosen["climatology"]["rows"]) == ["Temperature"]
         page.wait_for_selector("#ao-climatology.is-chosen")
         # the analysis cannot be run until the cores are given, and the figure code question answered
-        assert page.is_disabled("#ao-run")
+        assert page.is_disabled("#ao-run") and page.is_disabled("#ao-save")
         page.select_option("#ao-cores", "2")
-        assert page.is_disabled("#ao-run")
+        assert page.is_disabled("#ao-run") and page.is_disabled("#ao-save")
         page.check("#ao-code-yes")
-        assert page.is_enabled("#ao-run")
+        assert page.is_enabled("#ao-run") and page.is_enabled("#ao-save")
+        # the script can be saved to run later, from a button to the right of the one that runs it
+        assert page.inner_text("#ao-save") == "Save Python script to run later"
+        assert page.evaluate("() => document.querySelector('#ao-save').getBoundingClientRect().left"
+                             " > document.querySelector('#ao-run').getBoundingClientRect().right")
         wait_for(lambda: app.analyze_figure_code == "yes")
         page.click("#ao-climatology")
         assert surface.is_checked()

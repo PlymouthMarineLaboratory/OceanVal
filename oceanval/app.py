@@ -4807,6 +4807,9 @@ class _Handler(recipes_gui._Handler):
         if path == "/api/analyze_run":
             self._reply_json(*app.analyze_run())
             return
+        if path == "/api/analyze_save_script":
+            self._reply_json(*app.analyze_run(save=True))
+            return
         if path == "/api/report":
             self._reply_json(*app.report(payload.get("form")))
             return

@@ -344,7 +344,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   checks in `oceanval/analysis_forms.py`. The files page reuses `model_check.ModelCheck`
   (a row with no `time_res` has its files' own worked out) and asks the time_shift
   question first when `time_stamps.check_rows` finds end-stamped times. The run writes
-  `analysis.py` and runs it as `app_child analyze <path>`.
+  `analysis.py` and runs it as `app_child analyze <path>`. **Save Python script to run later** (`#ao-save`, beside Run, enabled as it is; `/api/analyze_save_script` → `analyze_run(save=True)`) writes
+  the same script, runs nothing, and shows view `script_saved` (`_script_saved`, shared with Compare simulations, whose saved script has no `times_index`,
+  those files being temporary; the page's words by `savedScriptWords`).
 
 ### Compare simulations (`oceanval/sim_compare.py`)
 

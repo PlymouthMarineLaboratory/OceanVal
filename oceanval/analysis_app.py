@@ -21,6 +21,8 @@ these views:
                          or east-west line)
     "running"            the script the window writes, which calls
                          oceanval.analyze(), as a matchup script is run
+    "script_saved"       the script written, to be run later, when the user
+                         chose to save it rather than run it
 
 Back goes a step the other way from each, keeping what was entered. The
 forms and their checks are in oceanval.analysis_forms.
@@ -602,8 +604,9 @@ class AnalyzeSteps:
             self._notify()
         return 200, {"ok": True}
 
-    def analyze_run(self):
-        """Write the analysis script, and run it."""
+    def analyze_run(self, save=False):
+        """Write the analysis script, and run it, or, with save, only write
+        it, to be run later."""
         from oceanval.app import _path, _shown
 
         with self._lock:
@@ -649,7 +652,9 @@ class AnalyzeSteps:
                         "error": "The regions and area need putting right first.",
                     }
             if self.action == SIMCOMPARE:
-                reply, run = self.simcompare_run(chosen, thicknesses, cores, figure_code, as_missing, area)
+                reply, run = self.simcompare_run(
+                    chosen, thicknesses, cores, figure_code, as_missing, area, save=save
+                )
                 if run is None:
                     return reply
                 label_run = run
@@ -677,15 +682,26 @@ class AnalyzeSteps:
                         file.write(analysis_forms.script_text(arguments))
                 except OSError as error:
                     return 400, {"ok": False, "error": f"The script could not be written: {error}"}
-                self.view = "running"
-                self.status = "starting"
                 self.results_dir = self.analyze_setup["out_dir"]
                 self._drop_analyze_check()
+                if save:
+                    self._script_saved(script)
+                    return 200, {"ok": True}
+                self.view = "running"
+                self.status = "starting"
                 self.console.clear()
                 label_run = (["analyze", script], f"python {_shown(script, self.cwd)}")
                 reply = (200, {"ok": True})
         self.start_run(*label_run)
         return reply
+
+    def _script_saved(self, script):
+        """Stop at the script, written to be run later: the page that says
+        where it is, and the command to run it. Called with the lock held."""
+        self.view = "script_saved"
+        self.matchup_script_saved = True
+        self.script_path = os.path.abspath(os.path.join(self.cwd, script))
+        self._notify()
 
     # ---- Back ----
 

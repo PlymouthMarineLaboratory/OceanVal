@@ -461,6 +461,23 @@ class TestOptionsAndRun:
         late = {"rows": {"Temperature": {"use": True, "start": "2013", "end": "2016", "surface": True}}}
         assert post(app, "/api/analyze_option", {"kind": "climatology", "form": late})[0] == 400
 
+    def test_the_script_can_be_saved_without_the_times_of_the_checks(self, app, sims, runs):
+        to_options(app, {"need": "yes", "method": "baseline", "baseline": "Base run"})
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY}) == (200, {"ok": True})
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        assert post(app, "/api/analyze_save_script") == (200, {"ok": True})
+        script = os.path.join(app.cwd, "comparison.py")
+        assert runs == [] and app.view == "script_saved"
+        run = get_json(app, "/api/state")[1]["run"]
+        assert run["script_saved"] is True and run["script"] == script
+        call = ast.parse(open(script).read()).body[-1].value
+        assert ast.unparse(call.func) == "oceanval.compare_simulations"
+        given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
+        # the times the checks read are temporary, so they are not in a script kept for later
+        assert all("times_index" not in sim for sim in given["simulations"])
+        sim_compare.check_simulations(given["simulations"])
+
     def test_back_goes_to_the_grids(self, app, sims):
         to_options(app)
         assert post(app, "/api/back")[0] == 200
@@ -717,6 +734,7 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#view-analyze-options:not([hidden])")
         assert page.is_visible("#ao-compare-note")
         assert page.inner_text("#ao-run") == "Run the comparison"
+        assert page.inner_text("#ao-save") == "Save Python script to run later"
         assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5}
         assert errors == []
     finally:
