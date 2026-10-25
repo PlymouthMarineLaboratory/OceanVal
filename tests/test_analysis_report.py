@@ -96,6 +96,9 @@ class TestTheBook:
         status = self.wait_for(book, 1)
         assert status["expected"] == 2 and status["built"] == ["Chlorophyll"]
         assert status["landing"] == os.path.join(pages_of(book.folder), "000_overview.html")
+        # each variable's page, by its key, for the oceanval window's grid of them
+        assert status["added"] == {"chlorophyll": os.path.join(pages_of(book.folder), "001_chlorophyll.html")}
+        assert status["building_key"] is None and status["failed"] == []
         overview = read(status["landing"])
         assert BANNER in overview and "built from 1 of 2 variables so far" in overview
         assert "001_chlorophyll.html" in overview
@@ -142,7 +145,24 @@ class TestTheBook:
         assert sorted(os.path.basename(x) for x in glob.glob(os.path.join(pages_of(book.folder), "*.html"))) == [
             "000_overview.html", "001_chlorophyll.html", "003_temperature.html",
         ]
-        assert status_of(book.folder)["pages"] == 2
+        status = status_of(book.folder)
+        assert status["pages"] == 2
+        assert status["failed"] == ["broken"]
+        assert sorted(status["added"]) == ["chlorophyll", "temperature"]
+
+    def test_the_variable_being_built_is_said_by_its_key(self, book):
+        book = book()
+        statuses = []
+        original = book.write_status
+
+        def write_status(state, building=None, building_key=None):
+            statuses.append((building, building_key))
+            original(state, building, building_key)
+
+        book.write_status = write_status
+        book.add(1, {"key": "chlorophyll", "name": "Chlorophyll"})
+        book.finish()
+        assert ("Chlorophyll", "chlorophyll") in statuses
 
     def test_an_analysis_that_stops_keeps_the_pages_of_what_was_worked_out(self, book):
         book = book(expected=3)

@@ -131,16 +131,31 @@ def _recipe_entry(variable, recipe, point=False, cwd=None):
     return None
 
 
-def _recipe_obs_variable(variable, recipe, cwd=None):
-    """The variable in a recipe's observation files, without the network."""
-    # WOA23 temperature and salinity need a decade to name their variable
+def recipe_info(variable, recipe, cwd=None):
+    """What find_recipe says of a recipe, without the network, or None."""
+    # WOA23 temperature and salinity need a decade to name their files
     years = {"start": _WOA23_PERIODS[-2][0], "end": _WOA23_PERIODS[-2][1]}
     try:
-        found = find_recipe({variable: recipe}, cwd=cwd, **years)
+        return find_recipe({variable: recipe}, cwd=cwd, **years)
     except Exception:
+        return None
+
+
+def _recipe_obs_variable(variable, recipe, cwd=None):
+    """The variable in a recipe's observation files, without the network."""
+    found = recipe_info(variable, recipe, cwd)
+    if found is None:
         return None
     # ICES observations are named by their parameter code
     return found.get("obs_variable") or found.get("ices_parameter")
+
+
+def recipe_source(variable, recipe, cwd=None):
+    """The source a recipe's matchups are named by, as add_gridded_comparison
+    and add_point_comparison take it from find_recipe, without the network,
+    or None. It is the same whatever the years."""
+    found = recipe_info(variable, recipe, cwd)
+    return None if found is None else found.get("source")
 
 
 def _model_side(model_variable, units):

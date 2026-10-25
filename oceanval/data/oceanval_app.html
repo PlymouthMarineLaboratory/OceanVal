@@ -111,6 +111,11 @@
   /* the answer given before, when the step is reached again */
   .choice.is-chosen { position: relative; border-color: var(--teal-600); background: var(--teal-50); box-shadow: 0 0 0 2px var(--teal-600), var(--shadow-lg); transform: scale(1.03); }
   .choice.is-chosen::after { content: "\2713"; position: absolute; top: 12px; right: 12px; display: grid; place-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--teal-600); color: #fff; font-size: 17px; font-weight: 800; }
+  /* the x that takes an analysis off its tile, bottom right (the tick is at the top) */
+  .choice__remove { position: absolute; right: 12px; bottom: 12px; width: 28px; height: 28px; border-radius: var(--radius-sm); color: var(--muted); cursor: pointer; display: grid; place-content: center; }
+  .choice__remove::before { content: "×"; font: 600 22px/1 var(--font-body); }
+  .choice__remove:hover { background: var(--line); color: var(--ink); }
+  .choice__remove:focus-visible { outline: none; box-shadow: var(--focus); }
   .choice__tag { padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .own-legend { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; color: var(--muted); font-size: 13px; }
   .own-swatch { width: 4px; height: 16px; border-radius: 2px; background: var(--red); }
@@ -206,8 +211,28 @@
   .setup-form { display: grid; gap: 18px; margin: 0; }
   .setup-box { padding: 24px 26px 26px; }
   .setup-box__script { margin-top: 18px; }
-  /* the matchups the output directory has already, each with a tick to make it
-     again and one to have it in the report */
+  /* the setup page (Analyze's first page, Validate's too) and Validate's output step are taller
+     than the other forms; their width is unchanged */
+  #view-setup .setup-form, #view-output .setup-form { gap: 28px; }
+  #view-setup .setup-box, #view-output .setup-box { padding: 36px 26px 40px; }
+  #view-setup .form__row + .form__row { margin-top: 24px; }
+  #view-setup .ndown-row { margin-top: 54px; }
+  #view-setup .form__row.is-pair { margin-top: 22px; }
+  #view-setup .group__intro, #view-output .group__intro { margin: 22px 0 16px; }
+  #view-output .setup-box__script { margin-top: 40px; }
+  #view-output .existing { margin-top: 38px; }
+  @media (max-width: 760px) {
+    #view-setup .setup-form, #view-output .setup-form { gap: 18px; }
+    #view-setup .setup-box, #view-output .setup-box { padding: 22px 18px 24px; }
+    #view-setup .form__row + .form__row { margin-top: 14px; }
+    #view-setup .ndown-row { margin-top: 46px; }
+    #view-setup .form__row.is-pair { margin-top: 14px; }
+    #view-setup .group__intro, #view-output .group__intro { margin-top: 14px; }
+    #view-output .setup-box__script { margin-top: 32px; }
+    #view-output .existing { margin-top: 30px; }
+  }
+  /* the matchups the output directory has already, each to be used, or replaced
+     (one this run makes) or ignored (one it does not, which the report leaves out) */
   .existing { margin-top: 16px; }
   .existing__title { margin: 0 0 6px; font-size: 13.5px; }
   .existing__table { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
@@ -223,8 +248,13 @@
   .existing td.is-centered:has(input:checked) { background: var(--teal-100); }
   .existing tbody tr:last-child td { border-bottom: 0; }
   .existing td small { display: block; color: var(--muted); font-size: 12.5px; }
+  /* an option a row does not have: this run does not make it, or no report follows */
+  .existing__none { color: var(--muted); }
+  .existing [hidden] { display: none; }
   .existing__head { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
   .existing__confirm { margin-top: 12px; color: var(--ink); font-weight: 600; }
+  /* the number of cores matchup uses, a short list rather than the width of the page */
+  .cores-field .s-select { width: auto; min-width: 240px; }
   .existing__confirm[hidden] { display: none; }
   /* a legend straddles its fieldset's top edge; floated, it sits inside the padding */
   .setup-box > legend { float: left; width: 100%; }
@@ -233,10 +263,12 @@
   .form__row > .g-row + .g-row { margin-top: 0; }
   .form__row + .form__row { margin-top: 14px; }
   .form__row.is-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ndown-row { display: grid; grid-template-columns: max-content 84px; gap: 12px; align-items: center; margin-top: 12px; }
+  .ndown-row { display: grid; grid-template-columns: max-content 84px max-content; gap: 12px; align-items: center; margin-top: 24px; }
   .ndown-row > .g-label { margin: 0; }
   .ndown-row > .g-label.is-required { color: var(--red); font-weight: 700; }
   .ndown-row > .s-input { width: 84px; text-align: center; }
+  /* how many files were found, a quiet highlight beside the box that sets where to look */
+  .ndown-found { margin-left: 8px; padding: 6px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--teal-50); color: var(--teal-700); font-weight: 600; }
   .group__intro { margin: -2px 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
   .group__line.is-ok { color: var(--teal-700); }
   .group__line .link { font-size: inherit; }
@@ -514,6 +546,12 @@
   .matchup-grid td[data-state="done"] .icon { color: var(--teal-600); }
   .matchup-grid td[data-state="failed"] .icon { color: var(--danger); }
   .matchup-grid td[data-state="none"] { color: var(--muted); }
+  /* an analysis still to do (Analyze and Compare simulations' grid) */
+  .matchup-grid__todo { width: 14px; height: 14px; box-sizing: border-box; border: 2px solid var(--muted); border-radius: 50%; opacity: 0.55; }
+  /* as many as six analyses side by side (narrower, the grid's own sizes below apply) */
+  @media (min-width: 861px) {
+    .matchup-grid.is-analyses th.is-state, .matchup-grid.is-analyses td.is-state { width: 112px; }
+  }
   /* how many of a matchup's model files have been read, while they are */
   .matchup-grid__count { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* under the matchup's circle, where the grid is too narrow for a column of its own */
@@ -532,6 +570,12 @@
     .matchup-grid th { font-size: 10px; letter-spacing: 0.01em; }
     .matchup-grid th.is-state, .matchup-grid td.is-state { width: 60px; padding-left: 4px; padding-right: 4px; }
     .matchup-grid th.is-time, .matchup-grid td.is-time { width: 48px; padding-left: 4px; padding-right: 4px; }
+  }
+  /* as many as six analyses side by side on a phone (NARROW_GRID): their names are turned on their side */
+  @media (max-width: 640px) {
+    .matchup-grid.is-analyses th.is-state, .matchup-grid.is-analyses td.is-state { width: 30px; padding-left: 2px; padding-right: 2px; }
+    .matchup-grid.is-analyses thead th.is-state { vertical-align: bottom; text-align: center; }
+    .matchup-grid__sideways { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; text-align: left; }
   }
   .progress__body { flex: 1; min-width: 0; }
   .progress__bar { height: 8px; margin: 14px 0 0; overflow: hidden; border-radius: 999px; background: var(--teal-200); }
@@ -630,6 +674,7 @@
     .form__row > .g-row + .g-row { margin-top: 10px; }
     .ndown-row { grid-template-columns: minmax(0, 1fr); gap: 6px 10px; }
     .ndown-row > .g-label { grid-column: 1 / -1; }
+    .ndown-found { grid-column: 1 / -1; justify-self: start; margin-left: 0; }
     .ask { grid-template-columns: auto minmax(0, 1fr); }
     .ask__answer { grid-column: 1 / -1; justify-content: flex-start; }
     .ask__answer .s-input { flex: 1; width: auto; }
@@ -724,7 +769,7 @@
   /* ---- Compare simulations (see oceanval.sim_compare_app) ---- */
   .sc-sim { padding: 18px 0 8px; border-top: 1px solid var(--line); }
   .sc-sim:first-of-type { border-top: 0; padding-top: 6px; }
-  .sc-sim__title { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 15px; }
+  .sc-sim__title { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; font-size: 15px; }
   .sc-sim__title .sc-remove { margin-left: auto; }
   .sc-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; flex: none; }
   .sc-sim .form__row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px; }
@@ -788,13 +833,13 @@
   .analyze-stations .s-input.is-num { width: 120px; }
   .analyze-stations .s-input.is-name { width: 100%; min-width: 160px; }
   .analyze-options .choice__tag { margin-top: auto; }
-  .analyze-options__intro { margin-bottom: 22px; }
   /* the transects pop-out: a section for each variable, and in it a card for each transect */
   .transect-vars { display: grid; gap: 22px; }
   .transect-var { padding: 0 0 4px; border-top: 1px solid var(--line); }
   .transect-var__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 12px 0 8px; }
   .transect-var__head small { color: var(--muted); font-size: 12.5px; }
   .transect-var.is-off .transect-cards, .transect-var.is-off .transect-var__add { opacity: 0.55; }
+  .transect-var__copy { margin-left: auto; }
   .transect-cards { display: grid; gap: 12px; margin: 0 0 12px; }
   .transect-card { padding: 12px 14px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
   .transect-card__head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; }
@@ -839,6 +884,11 @@
   .analyze-dialog__body > table > tbody > tr.is-off > td { color: var(--muted); }
   .analyze-dialog__body > table > tbody > tr.is-off .s-input { opacity: 0.6; }
   .analyze-dialog .tick-label { color: var(--ink); white-space: nowrap; }
+  /* the All variables row, whose boxes set every variable's, and each variable's Reset back to it */
+  .analyze-dialog__body > table > tbody.analyze-all > tr > td { background: var(--teal-50); }
+  .analyze-dialog__body > table > tbody.analyze-all > tr:last-child > td { border-bottom: 2px solid var(--line); }
+  .analyze-dialog .analyze-reset { display: block; margin-top: 4px; font-size: 12.5px; }
+  .analyze-dialog .analyze-reset[hidden] { display: none; }
   /* what has to be given is red: the years of a ticked row, how to take the water column, the thickness */
   .analyze-dialog tr.is-on .s-input.is-year, .analyze-dialog .s-select.is-required, .analyze-thickness .s-input { border-color: var(--red-field-line); }
   .analyze-dialog thead .own-req { margin-left: 4px; padding: 0 6px; font-size: 9.5px; }
@@ -977,17 +1027,17 @@
       <button type="button" class="choice" data-action="analyze" id="home-analyze">
         <span class="choice__icon" data-icon="analyze"></span>
         <span class="choice__title">Analyze simulations</span>
-        <span class="choice__text">Look at a simulation on its own: the climatology and the phenology of its variables, in an HTML report.</span>
+        <span class="choice__text">Climatologies&nbsp;| seasonal cycles&nbsp;| long-term changes&nbsp;| transects&nbsp;| phenologies</span>
       </button>
       <button type="button" class="choice" data-action="simcompare" id="home-simcompare">
         <span class="choice__icon" data-icon="simcompare"></span>
         <span class="choice__title">Compare simulations</span>
-        <span class="choice__text">Look at up to five simulations side by side: the same analyses of each, with the time series in a colour for each simulation.</span>
+        <span class="choice__text">Compare climatologies&nbsp;| seasonal cycles&nbsp;| long-term changes&nbsp;| transects&nbsp;| phenologies</span>
       </button>
       <button type="button" class="choice" data-action="validate_menu" id="home-validate">
         <span class="choice__icon" data-icon="report"></span>
         <span class="choice__title">Validate simulations</span>
-        <span class="choice__text">Compare a simulation with observations: match it up, validate it, and compare validations.</span>
+        <span class="choice__text">Matchup and compare simulations with observations. Bias&nbsp;| Correlation&nbsp;| RMSD</span>
       </button>
     </div>
   </section>
@@ -1095,11 +1145,11 @@
     <div class="banner" id="setup-error" role="alert" hidden></div>
     <form class="setup-form" id="setup-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box">
-        <legend>Tell OceanVal about your simulation files</legend>
         <div class="g-row"><label class="g-label is-required" for="f-simdir">Which directory stores your simulation data? <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
         <div class="ndown-row">
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
           <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required>
+          <span class="ndown-found" id="ndown-found" role="status" hidden></span>
         </div>
         <div class="form__row is-pair">
           <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
@@ -1107,26 +1157,34 @@
         </div>
         <p class="group__msg" id="m-simulation"></p>
         <p class="group__intro"><button type="button" class="link" id="view-files" aria-haspopup="dialog">Click here to view the files in a random subdirectory of the listed directory</button></p>
-        <p class="group__intro"><button type="button" class="link" id="how-files" aria-haspopup="dialog">How does OceanVal identify simulation files to matchup?</button></p>
       </fieldset>
       <fieldset class="group card setup-box" id="setup-domain">
         <legend>What spatial coverage do you need for your observational data? <span class="own-req">Required</span></legend>
         <div class="segmented" id="f-domain" role="radiogroup" aria-label="Domain"></div>
         <p class="group__msg">OceanVal will select appropriate datasets. These can be modified later.</p>
       </fieldset>
-      <fieldset class="group card setup-box">
-        <legend>Tell OceanVal where you want output to be saved</legend>
+      <input type="hidden" id="f-start">
+      <input type="hidden" id="f-end">
+      <button type="submit" hidden></button>
+    </form>
+  </section>
+
+  <!-- the last step before a matchup starts, as what is done with the matchups there
+       already depends on the matchups chosen (see oceanval.app.check_output) -->
+  <section id="view-output" hidden>
+    <form class="setup-form" id="output-form" novalidate autocomplete="off">
+      <fieldset class="group card setup-box" id="setup-output">
         <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
-        <label class="tick-label existing__confirm" id="row-replace-analysis" hidden><input type="checkbox" class="tick" id="f-replace_analysis">Tick to replace the analysis files in this directory (oceanval_analysis)</label>
         <div class="existing" id="row-existing" hidden>
           <p class="g-label is-required existing__title" id="existing-title">What do you want to do with existing matchups? <span class="own-req" id="existing-required">Required</span></p>
           <p class="group__intro" id="existing-intro"></p>
           <div class="existing__table"><table aria-labelledby="existing-title">
             <thead><tr>
               <th scope="col">Variable</th><th scope="col">Source</th><th scope="col">Type</th>
-              <th scope="col" class="is-centered"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="use" id="existing-all-use" aria-label="Use all of them">Use</label></th>
-              <th scope="col" class="is-centered"><label class="existing__head"><input type="radio" class="tick" name="existing-all" value="replace" id="existing-all-replace" aria-label="Replace all of them"><span id="existing-replace-name">Replace</span></label></th>
+              <th scope="col" class="is-centered" id="existing-col-use"><label class="existing__head"><input type="radio" class="tick" name="existing-all-use" value="use" id="existing-all-use" aria-label="Use all of them">Use</label></th>
+              <th scope="col" class="is-centered" id="existing-col-replace"><label class="existing__head"><input type="radio" class="tick" name="existing-all-replace" value="replace" id="existing-all-replace" aria-label="Replace all of those this run matches up">Replace</label></th>
+              <th scope="col" class="is-centered" id="existing-col-ignore"><label class="existing__head"><input type="radio" class="tick" name="existing-all-ignore" value="ignore" id="existing-all-ignore" aria-label="Ignore all of those this run does not match up">Ignore</label></th>
             </tr></thead>
             <tbody id="existing-body"></tbody>
           </table></div>
@@ -1135,9 +1193,10 @@
         <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off"></label>
         <p class="group__intro" id="f-out-intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
         <p class="group__msg" id="m-out"></p>
+        <!-- matchup alone's, which has no report options to ask it with -->
+        <div class="g-row setup-box__script cores-field" id="row-f-cores" hidden><label class="g-label is-required" for="f-cores">How many cores do you want to use? <span class="own-req">Required</span></label><select class="s-select" id="f-cores"><option value="">Choose the number of cores</option></select></div>
+        <p class="group__msg" id="m-cores"></p>
       </fieldset>
-      <input type="hidden" id="f-start">
-      <input type="hidden" id="f-end">
       <button type="submit" hidden></button>
     </form>
   </section>
@@ -1247,6 +1306,11 @@
       <fieldset class="group form__wide" id="v-group-out_dir">
         <div class="g-row"><label class="g-label" for="v-out_dir">Which directory do you want to build the report in?</label><div class="path-field"><input class="s-input is-mono" id="v-out_dir" list="v-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-out_dir">Browse…</button></div><datalist id="v-out_dir-folders"></datalist></div>
         <p class="group__msg" id="vm-out_dir"></p>
+      </fieldset>
+      <!-- matchup's, before anything is matched up (see oceanval.app.check_cores) -->
+      <fieldset class="group form__wide cores-field" id="v-group-cores" hidden>
+        <div class="g-row"><label class="g-label is-required" for="v-cores">How many cores do you want to use? <span class="own-req">Required</span></label><select class="s-select" id="v-cores"><option value="">Choose the number of cores</option></select></div>
+        <p class="group__msg" id="vm-cores"></p>
       </fieldset>
       <!-- the options, shown once there are matchups to validate, and only those for the matchups ticked -->
       <div class="form__contents" id="v-options">
@@ -1416,11 +1480,10 @@
     </div>
     <div class="banner" id="av-error" role="alert" hidden></div>
     <div id="av-main" hidden>
-      <p class="lede">Give each variable a name of your own, and the model variable holding it. Several model variables can be summed, as <code>a+b</code>. Pick them from the model's variables, or type them.</p>
       <p class="analyze-note" id="av-refilled" hidden>The simulation has changed, so OceanVal filled in the variables it recognised again. The rows you gave yourself are kept.</p>
       <div class="card analyze-table"><table>
         <colgroup><col style="width:34%"><col><col style="width:56px"></colgroup>
-        <thead><tr><th scope="col">Your name <span class="own-req">Required</span></th><th scope="col">Model name <span class="own-req">Required</span></th><th scope="col" aria-label="Remove"></th></tr></thead>
+        <thead><tr><th scope="col">Environmental variable <span class="own-req">Required</span></th><th scope="col">Variable name in the simulation <span class="own-req">Required</span></th><th scope="col" aria-label="Remove"></th></tr></thead>
         <tbody id="av-rows"></tbody>
       </table></div>
       <div class="analyze-foot">
@@ -1456,9 +1519,8 @@
         <p class="identify__text">OceanVal is checking whether the times of the files are the start or the end of the period each mean covers.</p>
       </div>
     </div>
-    <section class="review card analyze-files" id="af-review" aria-labelledby="af-title" hidden>
+    <section class="review card analyze-files" id="af-review" aria-labelledby="title" hidden>
       <div class="review__head">
-        <h2 class="review__title" id="af-title" tabindex="-1">The files holding each variable, and any gaps in their times</h2>
         <p class="review__lede" id="af-lede"></p>
       </div>
       <div class="review__dates-progress" id="af-progress" hidden>
@@ -1480,47 +1542,55 @@
   </section>
 
   <section id="view-analyze-options" hidden>
-    <p class="lede analyze-options__intro">Choose what to work out. Each opens a window to choose the variables, and the years, for it.</p>
+    <div id="ao-page-1">
     <p class="sc-analyze-note" id="ao-compare-note" hidden>Everything you choose is worked out for <strong>every</strong> simulation, over the same years, which must be years all of them have, and the cell thickness (a variable in each simulation's output, or a file) is the same in all of them.</p>
-    <p class="own-legend" id="ao-need"><span class="own-swatch" aria-hidden="true"></span><span><b>Required:</b> choose at least one of these.</span></p>
+    <p class="lede" id="ao-select">Select one or more of the analyses</p>
     <div class="choices is-two analyze-options">
       <button type="button" class="choice" id="ao-climatology" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="climatology"></span>
         <span class="choice__title">Map climatologies</span>
         <span class="choice__text" id="ao-climatology-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
+        <span class="choice__remove" role="button" tabindex="0" data-remove="climatology" hidden></span>
       </button>
       <button type="button" class="choice" id="ao-phenology" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="phenology"></span>
         <span class="choice__title">Map phenologies</span>
         <span class="choice__text" id="ao-phenology-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
+        <span class="choice__remove" role="button" tabindex="0" data-remove="phenology" hidden></span>
       </button>
       <button type="button" class="choice" id="ao-long_term" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="longterm"></span>
         <span class="choice__title">Long-term time series</span>
         <span class="choice__text" id="ao-long_term-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
+        <span class="choice__remove" role="button" tabindex="0" data-remove="long_term" hidden></span>
       </button>
       <button type="button" class="choice" id="ao-seasonal" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="seasonal"></span>
         <span class="choice__title">Seasonal cycles</span>
         <span class="choice__text" id="ao-seasonal-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
+        <span class="choice__remove" role="button" tabindex="0" data-remove="seasonal" hidden></span>
       </button>
       <button type="button" class="choice" id="ao-map_changes" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="changes"></span>
         <span class="choice__title">Map temporal changes</span>
         <span class="choice__text" id="ao-map_changes-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
+        <span class="choice__remove" role="button" tabindex="0" data-remove="map_changes" hidden></span>
       </button>
       <button type="button" class="choice" id="ao-transects" aria-haspopup="dialog">
         <span class="choice__icon" data-icon="transect"></span>
         <span class="choice__title">Analyse transects</span>
         <span class="choice__text" id="ao-transects-text"></span>
         <span class="choice__tag" hidden>Chosen</span>
+        <span class="choice__remove" role="button" tabindex="0" data-remove="transects" hidden></span>
       </button>
     </div>
+    </div>
+    <div id="ao-page-2" hidden>
     <fieldset class="group analyze-area" id="ao-cores-group">
       <legend>Cores <span class="own-req">Required</span></legend>
       <label class="g-row"><span class="g-label is-required">How many cores should OceanVal use?</span><select class="s-select" id="ao-cores"><option value="">Choose…</option></select></label>
@@ -1552,13 +1622,23 @@
       <p class="group__intro analyze-code__help">With Yes, each figure in the report has a <strong>Copy code to reproduce figure</strong> button at its top right. It copies the Python code that draws the figure from the analysis's saved results, which you can change and run in the conda environment OceanVal ran in.</p>
       <p class="group__msg" id="ao-code-msg"></p>
     </fieldset>
+    </div>
+    <div id="ao-page-3" hidden>
+    <fieldset class="group analyze-area" id="ao-out-group">
+      <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
+      <p class="group__msg" id="ao-m-out_dir"></p>
+      <label class="tick-label existing__confirm" id="ao-row-replace" hidden><input type="checkbox" class="tick" id="ao-replace_analysis"><span id="ao-replace-text">Tick to replace the analysis files in this directory (oceanval_analysis)</span></label>
+      <label class="g-row setup-box__script"><span class="g-label" id="ao-out-label">What do you want the analysis script to be called</span><input class="s-input is-mono" id="ao-out" spellcheck="false" autocapitalize="off"></label>
+      <p class="group__intro" id="ao-out-intro"></p>
+      <p class="group__msg" id="ao-m-out"></p>
+    </fieldset>
+    </div>
   </section>
 
   <section id="view-simcompare-sims" hidden>
     <div class="banner" id="sc-sims-error" role="alert" hidden></div>
     <form class="setup-form" id="sc-sims-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box">
-        <legend>Tell OceanVal about the simulations to compare</legend>
         <p class="group__intro">Give two to five simulations. For each, a name (which is how the report calls it), the directory its output is in, and how many subdirectories below that directory its files are.</p>
         <div class="sc-sim" id="sc-row-1">
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-1"></span>Simulation 1<button type="button" class="analyze-remove sc-remove" id="sc-remove-1" title="Remove this simulation" aria-label="Remove simulation 1" hidden>×</button></h3>
@@ -1640,14 +1720,6 @@
           <p class="group__msg is-error" id="sc-sims-msg" role="status" aria-live="polite"></p>
         </div>
       </fieldset>
-      <fieldset class="group card setup-box">
-        <legend>Tell OceanVal where you want output to be saved</legend>
-        <div class="g-row"><label class="g-label" for="sc-out_dir">Where do you want the comparison to be saved?</label><div class="path-field"><input class="s-input is-mono" id="sc-out_dir" list="sc-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="sc-out_dir">Browse…</button></div><datalist id="sc-out_dir-folders"></datalist></div>
-        <p class="group__msg" id="sc-m-out_dir"></p>
-        <label class="g-row setup-box__script"><span class="g-label">What do you want the comparison script to be called</span><input class="s-input is-mono" id="sc-out" spellcheck="false" autocapitalize="off"></label>
-        <p class="group__intro">This is created to produce a fully reproducible version of this comparison that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
-        <p class="group__msg" id="sc-m-out"></p>
-      </fieldset>
       <button type="submit" hidden></button>
     </form>
   </section>
@@ -1662,7 +1734,6 @@
     </div>
     <div class="banner" id="scv-error" role="alert" hidden></div>
     <div id="scv-main" hidden>
-      <p class="lede">Give each variable a name of your own, and the model variable holding it in <strong>each</strong> simulation: they can be called different things in each. Several model variables can be summed, as <code>a+b</code>. Pick them from the simulation's variables, or type them. The variable must be in the same units in every simulation.</p>
       <div class="card analyze-table"><table id="scv-table">
         <thead id="scv-head"></thead>
         <tbody id="scv-rows"></tbody>
@@ -1701,7 +1772,7 @@
       </div>
     </div>
     <div id="scf-review" hidden>
-      <p class="lede" id="scf-lede">OceanVal reads the dates of each variable's files in each simulation, to find any gaps in them. The simulations are compared over the years they all have.</p>
+      <p class="lede" id="scf-lede">The simulation output with the highest temporal resolution has been identified and is listed below. These files will be used for analysis. The simulations are compared over the years they all have.</p>
       <p class="review__dates-note" id="scf-note" role="status" hidden></p>
       <div id="scf-sims"></div>
     </div>
@@ -1864,7 +1935,7 @@
 
 <footer class="bar" id="bar" hidden>
   <div class="wrap">
-    <p class="summary" id="summary" aria-live="polite"></p>
+    <p class="summary" id="summary" aria-live="polite"><button type="button" class="link" id="how-files" aria-haspopup="dialog">How does OceanVal identify simulation files to matchup?</button></p>
     <div class="actions" id="actions"></div>
   </div>
 </footer>
@@ -1947,13 +2018,14 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro" id="clim-intro"></p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, for at least one variable, and the years of each variable ticked.</span></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, and the years. Untick a variable to leave it out.</span></p>
       <p class="analyze-msg is-rows" id="clim-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
           <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th><th colspan="2" class="is-series" hidden></th></tr>
           <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th><th scope="col" class="is-series" hidden>Rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
         </thead>
+        <tbody class="analyze-all" id="clim-all"></tbody>
         <tbody id="clim-body"></tbody>
       </table>
       <div class="analyze-thickness" id="clim-thickness-row" hidden>
@@ -2018,6 +2090,7 @@
       <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked, and the years of each variable ticked.</span></p>
       <table>
         <thead><tr><th scope="col">Model variable <span class="own-req">Tick at least one</span></th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th></tr></thead>
+        <tbody class="analyze-all" id="phen-all"></tbody>
         <tbody id="phen-body"></tbody>
       </table>
       <p class="analyze-msg is-rows" id="phen-msg" role="status" aria-live="polite"></p>
@@ -2037,7 +2110,7 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">Maps of how a variable changes between a historical period and one or two future periods. Each period is mapped as the mean of its years' annual means. Give the first and last years of each period, tick the surface, the bottom (the deepest value that is not missing), the water column, or more than one, and choose what to plot and whether the changes are absolute or percentages.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, for at least one variable, and, for each variable ticked, the years of its historical period and of its first future period, what to plot, and the kind of change. A second future period is optional: give both of its years, or neither.</span></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, the years of its historical period and of its first future period, what to plot, and the kind of change. Untick a variable to leave it out. A second future period is optional: give both of its years, or neither.</span></p>
       <p class="analyze-msg is-rows" id="chg-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
@@ -2045,6 +2118,7 @@
           <tr><th scope="col" rowspan="2">Variable</th><th scope="colgroup" colspan="2">Historical</th><th scope="colgroup" colspan="2">Future 1</th><th scope="colgroup" colspan="2">Future 2 <span class="own-opt">Optional</span></th><th scope="col" rowspan="2">Surface</th><th scope="col" rowspan="2">Bottom</th><th scope="col" rowspan="2">Water column</th></tr>
           <tr><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th></tr>
         </thead>
+        <tbody class="analyze-all" id="chg-all"></tbody>
         <tbody id="chg-body"></tbody>
       </table>
       <div class="analyze-thickness" id="chg-thickness-row" hidden>
@@ -2237,6 +2311,10 @@
   }
 
   // ---- the header and the bar ----
+  // the options step is two pages of one server view: the analyses, then how to run them
+  const analyzePage = { number: 1 };
+  let howFiles = null;  // the setup page's "How does OceanVal identify…" button, which lives in the bar
+
   function title() {
     const run = state.run;
     switch (state.view) {
@@ -2244,13 +2322,16 @@
       case "start": return "";
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
-      case "setup": return state.action === "analyze" ? "Tell OceanVal about your simulation"
+      case "setup": return state.action === "analyze" ? ""
         : "What kind of datasets do you want to use for validation?";
       case "analyze_variables": return "What variables do you want to analyse?";
       case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
         && !state.analyze.time_shift.choice ? "Are the model's times at the end of each mean?"
-        : "Check the files of each variable";
-      case "analyze_options": return state.action === "simcompare" ? "What do you want to compare?" : "What do you want to work out?";
+        : "What files will be used for the analysis?";
+      case "analyze_options":
+        if (analyzePage.number === 3) return state.action === "simcompare" ? "Where do you want the comparison to be saved?" : "Where do you want the analysis to be saved?";
+        if (analyzePage.number === 2) return state.action === "simcompare" ? "How should the comparison be run?" : "How should the analysis be run?";
+        return state.action === "simcompare" ? "What do you want to compare?" : "What do you want to work out?";
       case "simcompare_sims": return "Which simulations do you want to compare?";
       case "simcompare_variables": return "What variables do you want to compare?";
       case "simcompare_files": return scState().shift && scState().shift.status === "asked"
@@ -2266,6 +2347,8 @@
       case "own_future": return `Save your ${(state.own.future || {}).kind || "own"} data for future use`;
       case "preparing": return "";  // the box in the middle of the page says it
       case "units_table": return "Do the units match up?";
+      case "output": return state.action === "matchup" ? "Where do you want the matchups to be saved?"
+        : "Where do you want the matchups and the validation report to be saved?";
       case "validate": return "Build a validation report";
       case "compare": return "Which validations do you want to compare?";
       case "report_options": return "One last thing... How would you like your validation report?";
@@ -2293,7 +2376,7 @@
   function renderHeader() {
     $("title").textContent = title();
     $("title").hidden = !$("title").textContent;
-    $("title").classList.toggle("is-setup-title", state.view === "setup" || state.view === "report_options");
+    $("title").classList.toggle("is-setup-title", ["setup", "output", "report_options"].includes(state.view));
     const meta = $("meta");
     meta.replaceChildren();
     if (state.demo && state.view !== "start") {
@@ -2315,9 +2398,10 @@
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
       state.demo && state.demo.status, demoKey(), Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
-      state.register.saved.length, analyzeFilesReady(), scFilesReady()].join("|");
+      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
+      if (view === "output") refreshMatchupOutput();
       if (view === "analyze_variables") refreshAnalyzeVariables();
       if (view === "analyze_options") renderAnalyzeOptions();
       if (view === "simcompare_sims") refreshScSims();
@@ -2355,9 +2439,17 @@
           if (!reply.ok) toast(reply.error || "That cannot be done now.");
         }, { id: "af-continue", disabled: !analyzeFilesReady() }));
     } else if (view === "analyze_options") {
-      actions.push(button("Back", "ghost", () => post("api/back")),
-        button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }),
-        button("Save Python script to run later", "ghost", saveAnalysisScript, { id: "ao-save", disabled: true }));
+      if (analyzePage.number === 3) {
+        actions.push(button("Back", "ghost", () => { analyzePage.number = 2; render(); $("ao-cores").focus(); }),
+          button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }),
+          button("Save Python script to run later", "ghost", saveAnalysisScript, { id: "ao-save", disabled: true }));
+      } else if (analyzePage.number === 2) {
+        actions.push(button("Back", "ghost", () => { analyzePage.number = 1; render(); $("ao-climatology").focus(); }),
+          button("Continue", "primary", () => { analyzePage.number = 3; render(); fillOutput(); $("ao-out_dir").focus(); }, { id: "ao-next", disabled: true }));
+      } else {
+        actions.push(button("Back", "ghost", () => post("api/back")),
+          button("Continue", "primary", () => { analyzePage.number = 2; render(); $("ao-cores").focus(); }, { id: "ao-continue", disabled: true }));
+      }
     } else if (view === "simcompare_sims") {
       actions.push(button("Back", "ghost", () => post("api/back", { form: scReadSims() })),
         button("Continue", "primary", submitScSims, { id: "sc-continue", disabled: true }));
@@ -2422,6 +2514,12 @@
       }
       actions.push(button("Back", "ghost", () => post("api/back", { conversions: unitsBoxes() })),
         button("Continue", "primary", submitUnits, { id: "units-continue", disabled: true }));
+    } else if (view === "output") {
+      // to the matchups, with the boxes, which are shown again as they are; to validate too,
+      // the report options come next, and matchup alone carries on from here
+      actions.push(button("Back", "ghost", () => post("api/back", { form: output })),
+        button(state.action === "matchup" ? "Match up" : "Continue", "primary", submitMatchupOutput,
+          { id: "output-run", disabled: true }));
     } else if (view === "running") {
       // while the matchup is still finding the files, or asking about them, it
       // has matched nothing up, so can be stopped to go back to the units
@@ -2469,10 +2567,14 @@
           () => post("api/choose", { action: "validate", data_dir: state.run.results })));
       }
     }
-    summary.replaceChildren(...(asked ? [asked] : []));
+    // the setup page's link to how files are identified sits at the bar's left, beside Continue;
+    // the button is kept, as the summary is rebuilt with each view
+    howFiles = howFiles || $("how-files");
+    summary.replaceChildren(...(asked ? [asked] : []), ...(view === "setup" ? [howFiles] : []));
     $("actions").replaceChildren(...actions);
     $("bar").hidden = actions.length === 0;
     if (view === "setup") refreshSetup();
+    if (view === "output") refreshMatchupOutput();
     if (view === "analyze_variables") refreshAnalyzeVariables();
     if (view === "analyze_options") renderAnalyzeOptions();
     if (view === "simcompare_sims") refreshScSims();
@@ -2492,7 +2594,7 @@
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
     own_future: "view-own-future",
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
-    units_table: "view-units-table", point_time_res: "view-point-time-res",
+    units_table: "view-units-table", output: "view-output", point_time_res: "view-point-time-res",
     preparing: "view-run", running: "view-run", finished: "view-run",
     script_saved: "view-script-saved" };
   let shownView = null;
@@ -2521,6 +2623,8 @@
       analyzeFiles.key = null;
       analyzeFiles.shift = null;
     } else if (view === "analyze_options") {
+      analyzePage.number = 1;
+      analyzeOutput.filled = false;
       $("ao-climatology").focus();
     } else if (view === "simcompare_sims") {
       fillScSims();
@@ -2540,6 +2644,9 @@
       // the units are confirmed afresh every time this step is reached
       unitsUnconfirm();
       fillUnits();
+    } else if (view === "output") {
+      fillMatchupOutput();
+      $("f-out_dir").focus();
     } else if (view === "register_kind") {
       // the answer given before, as it is reached again
       for (const kind of ["point", "gridded"]) {
@@ -2772,16 +2879,16 @@
       if (box) box.classList.add("is-oceanval");
     }
   }
-  for (const id of ["setup-form", "validate-form"]) {
+  for (const id of ["setup-form", "output-form", "validate-form"]) {
     for (const kind of ["input", "change"]) {
       $(id).addEventListener(kind, (event) => event.target.classList.remove("is-oceanval"));
     }
   }
 
   // ---- 2: the simulation ----
-  const SETUP_FIELDS = ["simdir", "ndown", "exclude", "require", "start", "end", "out_dir", "out"];
+  const SETUP_FIELDS = ["simdir", "ndown", "exclude", "require", "start", "end"];
   // the boxes the live check depends on
-  const PROBED = new Set(["simdir", "ndown", "exclude", "require", "out_dir", "out"]);
+  const PROBED = new Set(["simdir", "ndown", "exclude", "require"]);
   const setup = {};
   depthBox($("f-ndown"));
   let setupErrors = {};
@@ -2890,21 +2997,9 @@
     fillRecent();
     Object.assign(setup, state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
-    existingShown = null;
     segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
-    $("f-out_dir").placeholder = state.cwd;
-    const analyzing = state.action === "analyze";
-    $("f-out_dir-label").textContent = analyzing ? "Where do you want the analysis to be saved?"
-      : state.action === "matchup"
-      ? "Where do you want matchups to be saved?"
-      : "Where do you want matchups and validation output to be saved?";
     // an analysis has no observations, so no domain to choose
-    $("setup-domain").hidden = analyzing;
-    $("f-out-label").textContent = analyzing ? "What do you want the analysis script to be called"
-      : "What do you want the matchup script to be called";
-    $("f-out-intro").textContent = analyzing
-      ? "This is created to produce a fully reproducible version of this analysis that can be run from the command line. You will not need to run this, and the file is saved for completeness."
-      : "This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.";
+    $("setup-domain").hidden = state.action === "analyze";
     setupErrors = {};
     // the demo's one year is not to be widened to the years its file covers
     autoYears = Boolean(setup.start && setup.end) && !state.demo;
@@ -2919,100 +3014,11 @@
       setup[name] = event.target.value;
       delete setupErrors[name];
       if (name === "start" || name === "end") autoYears = false;
-      // what was ticked was for the directory before
-      if (name === "out_dir") { setup.replace_analysis = false; delete setupErrors.replace_analysis; }
       if (PROBED.has(name)) askProbe(400);
       refreshSetup();
     });
   }
 
-  // ---- the matchups the output directory has already (see oceanval.app.existing_matchups) ----
-  // each row is a "variable/source", to be used as it is (as each is to start with), or
-  // replaced, which, if a report follows, is ignoring it too: made again if this run
-  // matches it up (matchup's overwrite), and left out of the report if not (validate's previous)
-  const EXISTING_LAYERS = { surface: "Point (surface)", all: "Point (all depths)", bottom: "Point (near the bottom)" };
-  const existingKind = (kind) => kind.kind === "gridded" ? "Gridded" : EXISTING_LAYERS[kind.layer] || "Point";
-  // none is asked about in the demo's own folder, as OceanVal answers for those of models tried before
-  const existingRows = () => (probe && state.action !== "analyze" && !probe.out_dir_is_demo && probe.out_dir_matchups) || [];
-  // with no report to follow, there is nothing to ignore one in
-  const existingForReport = () => state.action === "matchup_validate";
-  const EXISTING_OPTIONS = ["use", "replace"];
-  const existingNames = () => existingForReport()
-    ? { use: "Use", replace: "Replace or ignore" }
-    : { use: "Use", replace: "Replace" };
-  // the list shown, so that a different one is answered afresh
-  let existingShown = null;
-
-  // what is done with a row: "use" or "replace"
-  const existingChoice = (key) => (setup.overwrite || []).includes(key) ? "replace" : "use";
-
-  function chooseExisting(keys, option) {
-    const chosen = new Set(keys);
-    setup.overwrite = (setup.overwrite || []).filter((key) => !chosen.has(key));
-    if (option === "replace") setup.overwrite.push(...keys);
-    refreshSetup();
-  }
-
-  function existingOption(row, option, index) {
-    return el("input", {
-      type: "radio", class: "tick", name: `existing-${index}`, value: option, "data-key": row.key,
-      "aria-label": `${existingNames()[option]} the existing matchup: ${row.title} (${row.source})`,
-      onchange: () => chooseExisting([row.key], option),
-    });
-  }
-
-  function renderExisting() {
-    const rows = existingRows();
-    $("row-existing").hidden = !rows.length;
-    if (!rows.length) return;
-    const report = existingForReport();
-    const shown = JSON.stringify([rows, report]);
-    if (shown !== existingShown) {
-      // a different list: what was confirmed was for another
-      if (existingShown !== null) setup.existing_confirmed = false;
-      existingShown = shown;
-      $("existing-intro").textContent = report
-        ? "Use: the matchup is kept as it is (not made again) and validated. Replace/Ignore: it is not used, so it is made again if this run matches it up, and left out of the report if not. Each is used to start with, so check them and tick to confirm below. Tick an option at the top of its column to choose it for them all. Nothing is removed from this directory."
-        : "Use: the matchup is kept and used as it is. Replace: it is made again if this run matches it up. Each is used to start with, so check them and tick to confirm below. Tick an option at the top of its column to choose it for them all. Nothing is removed from this directory.";
-      $("existing-replace-name").textContent = report ? "Replace/Ignore" : "Replace";
-      $("existing-all-replace").setAttribute("aria-label", `${existingNames().replace} all of them`);
-      $("existing-body").replaceChildren(...rows.map((row, index) => el("tr", {},
-        el("td", {}, row.title, row.variable.toLowerCase() === row.title.toLowerCase()
-          ? null : el("small", { class: "is-mono", text: row.variable })),
-        el("td", { text: row.source }),
-        el("td", {}, ...row.kinds.map((kind) => el("div", { text: existingKind(kind) }))),
-        ...EXISTING_OPTIONS.map((option) => el("td", { class: "is-centered" }, existingOption(row, option, index))))));
-    }
-    document.querySelectorAll("#existing-body input[data-key]").forEach((box) => {
-      box.checked = existingChoice(box.dataset.key) === box.value;
-    });
-    // the option at the top of a column is ticked when every row has it
-    const choices = new Set(rows.map((row) => existingChoice(row.key)));
-    for (const option of EXISTING_OPTIONS) {
-      $(`existing-all-${option}`).checked = choices.size === 1 && choices.has(option);
-    }
-    $("f-existing_confirmed").checked = Boolean(setup.existing_confirmed);
-  }
-
-  for (const option of EXISTING_OPTIONS) {
-    $(`existing-all-${option}`).addEventListener("change", () => {
-      chooseExisting(existingRows().map((row) => row.key), option);
-    });
-  }
-  $("f-existing_confirmed").addEventListener("change", (event) => {
-    setup.existing_confirmed = event.target.checked;
-    delete setupErrors.existing_confirmed;
-    refreshSetup();
-  });
-  // an analysis in the output directory is replaced by this one: the user must tick to say so, and
-  // have named the directory (empty is the one worked in)
-  const replacingAnalysis = () => Boolean(state.action === "analyze" && probe && probe.out_dir_has_analysis);
-  const NAME_THE_DIRECTORY = "There is an analysis in the directory you started OceanVal in. To replace it, name the directory here rather than leaving the box empty.";
-  $("f-replace_analysis").addEventListener("change", (event) => {
-    setup.replace_analysis = event.target.checked;
-    delete setupErrors.replace_analysis;
-    refreshSetup();
-  });
   $("setup-form").addEventListener("submit", (event) => { event.preventDefault(); submitSetup(); });
 
   function askProbe(delay) {
@@ -3022,8 +3028,7 @@
       let found;
       try {
         const response = await fetch(`api/probe?${query({
-          simdir: setup.simdir, ndown: setup.ndown, out: setup.out, exclude: setup.exclude, require: setup.require,
-          out_dir: setup.out_dir,
+          simdir: setup.simdir, ndown: setup.ndown, out: "", exclude: setup.exclude, require: setup.require, out_dir: "",
         })}`, { cache: "no-store" });
         found = await response.json();
       } catch (error) {
@@ -3071,15 +3076,7 @@
       if (!isInteger(setup[name])) errors[name] = errors[name] || (text(name) ? `${name === "start" ? "Start" : "End"} must be a year, e.g. 2011.` : "");
     }
     if (!errors.start && !errors.end && +setup.end < +setup.start && !analyzing) errors.end = "End must not be before start.";
-    if (!errors.out_dir && probe && probe.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
-    if (!text("out")) errors.out = errors.out || "";
     if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
-    // what is done with the matchups there already has to be confirmed, as each starts on Use
-    if (existingRows().length && !setup.existing_confirmed) errors.existing_confirmed = "";
-    if (replacingAnalysis()) {
-      if (!text("out_dir")) errors.out_dir = NAME_THE_DIRECTORY;
-      else if (!setup.replace_analysis) errors.replace_analysis = "";
-    }
     return errors;
   }
 
@@ -3096,7 +3093,6 @@
   }
 
   function refreshSetup() {
-    renderExisting();
     const errors = setupProblems();
     for (const name of SETUP_FIELDS) {
       const invalid = Boolean(errors[name]);
@@ -3110,16 +3106,15 @@
     if (errors.simdir || errors.ndown) {
       simulation.push(line(errors.simdir || errors.ndown, "error"));
     }
+    // the count of files found is in the box beside "directories down"; the rest is said below
+    let counted = "";
     if (!errors.simdir && probe && probe.directory === "found") {
       const depth = probe.ndown;
       const filtered = probe.all_files !== null && probe.all_files !== probe.files;
       if (probe.files > 0) {
-        let found = filtered
-          ? `${probe.files} of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters`
-          : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} ${depthText(depth)}`;
-        // a validation's years are read from the files' times, and offered in the recipes window
-        if (probe.years && state.action === "analyze") found += probe.years[0] === probe.years[1] ? `, named for ${probe.years[0]}` : `, named for ${probe.years[0]}–${probe.years[1]}`;
-        simulation.push(line(found + ".", "ok"));
+        counted = filtered
+          ? `${probe.files} of the ${probe.all_files} netCDF files found pass the file filters`
+          : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} found`;
       } else if (depth !== null && probe.all_files > 0) {
         simulation.push(line(`None of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters.`, "nofiles"));
       } else if (depth !== null && probe.suggestion) {
@@ -3137,40 +3132,9 @@
     if (String(setup.exclude).trim() || String(setup.require).trim()) {
       simulation.push(line(`Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
+    $("ndown-found").textContent = counted;
+    $("ndown-found").hidden = !counted;
     message("m-simulation", simulation, false);
-
-    // the tick to replace an analysis there already is only for one that is there
-    if (!replacingAnalysis()) setup.replace_analysis = false;
-    $("row-replace-analysis").hidden = !replacingAnalysis();
-    $("f-replace_analysis").checked = Boolean(setup.replace_analysis);
-
-    if (errors.out_dir) {
-      message("m-out_dir", [line(errors.out_dir, "error")], true);
-    } else if (state.action === "analyze") {
-      const saved = "The analysis will be saved in oceanval_analysis, inside this directory.";
-      const lines = [line(String(setup.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
-      if (probe && probe.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
-      if (replacingAnalysis()) {
-        lines.push(line("There is an analysis here already, from an earlier run. It will be replaced: choose another directory to keep it, or tick below to replace it.", "warn"));
-      }
-      message("m-out_dir", lines);
-    } else {
-      const saved = state.action === "matchup"
-        ? "The matchups will be saved in oceanval_matchups, inside this directory."
-        : "The matchups will be saved in oceanval_matchups, and the validation report in oceanval_report, inside this directory.";
-      const lines = [line(String(setup.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
-      if (probe && probe.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
-      if (probe && probe.out_dir_has_matchups && probe.out_dir_is_demo) {
-        lines.push(line("The demo's matchups of models tried before are here. This run's are made again, and the others are left out of the report."));
-      } else if (probe && probe.out_dir_has_matchups) {
-        lines.push(line("There are matchups here already, from an earlier run. Choose another directory if you need to keep them apart.", "warn"));
-      }
-      message("m-out_dir", lines);
-    }
-
-    if (errors.out) message("m-out", [line(errors.out, "error")], true);
-    else if (probe && probe.out_exists) message("m-out", [line(`This file already exists, and will be replaced. Unless you plan to run this ${state.action === "analyze" ? "analysis" : "matchup"} file yourself, there is no need to worry about the name.`, "warn")]);
-    else message("m-out", []);
 
     const blocked = Object.keys(errors).length > 0;
     const next = $("continue");
@@ -3195,6 +3159,235 @@
     const banner = $("setup-error");
     banner.hidden = !state.setup.error;
     if (state.setup.error) banner.replaceChildren(icon("error"), el("span", { text: state.setup.error }));
+  }
+
+  // the choices of matchup's cores, from one to the machine's, with a value kept that is not among them
+  function coreOptions(box, given) {
+    const wanted = Array.from({ length: state.cpu_count || 0 }, (_, number) => String(number + 1));
+    given = String(given || "");
+    if (given && !wanted.includes(given)) wanted.push(given);
+    box.replaceChildren(box.options[0], ...wanted.map((number) => el("option", { value: number, text: number })));
+    box.value = given;
+  }
+
+  // ---- where the matchups are saved: once the matchups are confirmed (see oceanval.app.check_output) ----
+  const OUTPUT_FIELDS = ["out_dir", "out"];
+  // the boxes, what the server said of them, and the live check of the directory and the script's name
+  const output = {};
+  const matchupOutput = { errors: {}, probe: null, timer: null, number: 0 };
+
+  // the matchups the output directory has already (see oceanval.app.matchups_asked_about): each row
+  // is a "variable/source", to be used as it is (as each is to start with), or not (output.unused):
+  // replaced, if this run makes it (row.made), or ignored, left out of the report, if not
+  const EXISTING_LAYERS = { surface: "Point (surface)", all: "Point (all depths)", bottom: "Point (near the bottom)" };
+  const existingKind = (kind) => kind.kind === "gridded" ? "Gridded" : EXISTING_LAYERS[kind.layer] || "Point";
+  // none is asked about in the demo's own folder, as OceanVal answers for those of models tried before
+  const existingRows = () => {
+    const found = matchupOutput.probe;
+    return (found && !found.out_dir_is_demo && found.out_dir_matchups) || [];
+  };
+  const EXISTING_OPTIONS = ["use", "replace", "ignore"];
+  const EXISTING_NAMES = { use: "Use", replace: "Replace", ignore: "Ignore" };
+  // the options a row has: one this run makes is used or made again, one it does not is used or ignored
+  const existingOptions = (row) => ["use", row.made ? "replace" : "ignore"];
+  // the list shown, so that a different one is answered afresh
+  let existingShown = null;
+
+  // what is done with a row: "use", "replace" or "ignore"
+  function existingChoice(row) {
+    if (!(output.unused || []).includes(row.key)) return "use";
+    return row.made ? "replace" : "ignore";
+  }
+
+  // option for each of rows that has it
+  function chooseExisting(rows, option) {
+    const chosen = new Set(rows.filter((row) => existingOptions(row).includes(option)).map((row) => row.key));
+    output.unused = (output.unused || []).filter((key) => !chosen.has(key));
+    if (option !== "use") output.unused.push(...chosen);
+    refreshMatchupOutput();
+  }
+
+  function existingOption(row, option, index) {
+    if (!existingOptions(row).includes(option)) {
+      const why = option === "replace" ? "This run does not match it up" : "This run matches it up, so it is used or replaced";
+      return el("span", { class: "existing__none", title: why, "aria-label": why, text: "–" });
+    }
+    return el("input", {
+      type: "radio", class: "tick", name: `existing-${index}`, value: option, "data-key": row.key,
+      "aria-label": `${EXISTING_NAMES[option]} the existing matchup: ${row.title} (${row.source})`,
+      onchange: () => chooseExisting([row], option),
+    });
+  }
+
+  // what each option does, for the options some row has
+  function existingIntro(shown) {
+    const parts = [];
+    if (shown.has("use")) {
+      parts.push(state.action === "matchup_validate"
+        ? "Use: the matchup is kept as it is (not made again) and validated."
+        : "Use: the matchup is kept and used as it is (not made again).");
+    }
+    if (shown.has("replace")) parts.push("Replace: it is one this run matches up, and is made again.");
+    if (shown.has("ignore")) parts.push("Ignore: it is not one this run matches up, and is left out of the report.");
+    parts.push("Each is used to start with, so check them and tick to confirm below.",
+      "Tick an option at the top of its column to choose it for every row that has it. Nothing is removed from this directory.");
+    return parts.join(" ");
+  }
+
+  function renderExisting() {
+    const rows = existingRows();
+    $("row-existing").hidden = !rows.length;
+    if (!rows.length) return;
+    // a column only for an option some row has
+    const shown = new Set(rows.flatMap(existingOptions));
+    const list = JSON.stringify([rows, state.action]);
+    if (list !== existingShown) {
+      // a different list: what was confirmed was for another
+      if (existingShown !== null) output.existing_confirmed = false;
+      existingShown = list;
+      $("existing-intro").textContent = existingIntro(shown);
+      for (const option of EXISTING_OPTIONS) $(`existing-col-${option}`).hidden = !shown.has(option);
+      $("existing-body").replaceChildren(...rows.map((row, index) => el("tr", {},
+        el("td", {}, row.title, row.variable.toLowerCase() === row.title.toLowerCase()
+          ? null : el("small", { class: "is-mono", text: row.variable })),
+        el("td", { text: row.source }),
+        el("td", {}, ...row.kinds.map((kind) => el("div", { text: existingKind(kind) }))),
+        ...EXISTING_OPTIONS.map((option) => el("td", { class: "is-centered", hidden: !shown.has(option) },
+          existingOption(row, option, index))))));
+    }
+    const byKey = new Map(rows.map((row) => [row.key, row]));
+    document.querySelectorAll("#existing-body input[data-key]").forEach((box) => {
+      box.checked = existingChoice(byKey.get(box.dataset.key)) === box.value;
+    });
+    // the option at the top of a column is ticked when every row that has it has chosen it
+    for (const option of EXISTING_OPTIONS) {
+      const having = rows.filter((row) => existingOptions(row).includes(option));
+      $(`existing-all-${option}`).checked = having.length > 0 && having.every((row) => existingChoice(row) === option);
+    }
+    $("f-existing_confirmed").checked = Boolean(output.existing_confirmed);
+  }
+
+  for (const option of EXISTING_OPTIONS) {
+    $(`existing-all-${option}`).addEventListener("change", () => chooseExisting(existingRows(), option));
+  }
+  $("f-existing_confirmed").addEventListener("change", (event) => {
+    output.existing_confirmed = event.target.checked;
+    delete matchupOutput.errors.existing_confirmed;
+    refreshMatchupOutput();
+  });
+  for (const name of OUTPUT_FIELDS) {
+    $(`f-${name}`).addEventListener("input", (event) => {
+      output[name] = event.target.value;
+      delete matchupOutput.errors[name];
+      askMatchupOutputProbe(400);
+      refreshMatchupOutput();
+    });
+  }
+  // matchup alone's cores, which it has no report options to ask with
+  $("f-cores").addEventListener("change", (event) => {
+    output.cores = event.target.value;
+    delete matchupOutput.errors.cores;
+    refreshMatchupOutput();
+  });
+  $("output-form").addEventListener("submit", (event) => { event.preventDefault(); submitMatchupOutput(); });
+
+  function fillMatchupOutput() {
+    Object.assign(output, state.output.form);
+    output.unused = [...(output.unused || [])];
+    for (const name of OUTPUT_FIELDS) {
+      $(`f-${name}`).value = output[name];
+      $(`f-${name}`).classList.remove("is-oceanval");
+    }
+    $("row-f-cores").hidden = state.action !== "matchup";
+    coreOptions($("f-cores"), output.cores);
+    $("f-out_dir").placeholder = state.cwd;
+    $("f-out_dir-label").textContent = state.action === "matchup"
+      ? "Where do you want matchups to be saved?"
+      : "Where do you want matchups and validation output to be saved?";
+    existingShown = null;
+    matchupOutput.errors = {};
+    matchupOutput.probe = null;
+    if (state.demo) markDemo("f", state.demo.prefilled.output);
+    askMatchupOutputProbe(0);
+  }
+
+  function askMatchupOutputProbe(delay) {
+    clearTimeout(matchupOutput.timer);
+    matchupOutput.timer = setTimeout(async () => {
+      const number = ++matchupOutput.number;
+      let found;
+      try {
+        const response = await fetch(`api/probe?${query({
+          simdir: "", ndown: "", out: output.out, exclude: "", require: "", out_dir: output.out_dir })}`, { cache: "no-store" });
+        found = await response.json();
+      } catch (error) {
+        return;
+      }
+      // a later check has been asked for since
+      if (number !== matchupOutput.number) return;
+      matchupOutput.probe = found;
+      refreshMatchupOutput();
+    }, delay);
+  }
+
+  function matchupOutputProblems() {
+    const errors = { ...matchupOutput.errors };
+    const found = matchupOutput.probe;
+    if (!errors.out_dir && found && found.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
+    if (!String(output.out).trim()) errors.out = errors.out || "";
+    if (state.action === "matchup" && !String(output.cores || "").trim()) errors.cores = errors.cores || "";
+    // what is done with the matchups there already has to be confirmed, as each starts on Use
+    if (existingRows().length && !output.existing_confirmed) errors.existing_confirmed = "";
+    // until the directory is looked at, what is there is not known
+    if (!found) errors.probe = "";
+    return errors;
+  }
+
+  function refreshMatchupOutput() {
+    renderExisting();
+    const errors = matchupOutputProblems();
+    const found = matchupOutput.probe;
+    for (const name of OUTPUT_FIELDS) {
+      const invalid = Boolean(errors[name]);
+      $(`f-${name}`).classList.toggle("is-invalid", invalid);
+      $(`f-${name}`).setAttribute("aria-invalid", String(invalid));
+    }
+    if (errors.out_dir) {
+      message("m-out_dir", [line(errors.out_dir, "error")], true);
+    } else {
+      const saved = state.action === "matchup"
+        ? "The matchups will be saved in oceanval_matchups, inside this directory."
+        : "The matchups will be saved in oceanval_matchups, and the validation report in oceanval_report, inside this directory.";
+      const lines = [line(String(output.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
+      if (found && found.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
+      if (found && found.out_dir_has_matchups && found.out_dir_is_demo) {
+        lines.push(line("The demo's matchups of models tried before are here. This run's are made again, and the others are left out of the report."));
+      } else if (found && found.out_dir_has_matchups) {
+        lines.push(line("There are matchups here already, from an earlier run. Choose another directory if you need to keep them apart.", "warn"));
+      }
+      message("m-out_dir", lines);
+    }
+    if (errors.out) message("m-out", [line(errors.out, "error")], true);
+    else if (found && found.out_exists) message("m-out", [line("This file already exists, and will be replaced. Unless you plan to run this matchup file yourself, there is no need to worry about the name.", "warn")]);
+    else message("m-out", []);
+    $("f-cores").classList.toggle("is-invalid", Boolean(errors.cores));
+    message("m-cores", errors.cores ? [line(errors.cores, "error")] : [], Boolean(errors.cores));
+    const blocked = Object.keys(errors).length > 0;
+    const run = $("output-run");
+    if (run) {
+      run.disabled = blocked;
+      run.title = blocked ? "Fill in everything first" : "";
+    }
+  }
+
+  async function submitMatchupOutput() {
+    if (Object.keys(matchupOutputProblems()).length) return;
+    const reply = await post("api/output", { form: output });
+    if (!reply.ok) {
+      matchupOutput.errors = reply.errors || {};
+      if (reply.error) toast(reply.error);
+      refreshMatchupOutput();
+    }
   }
 
   // ---- Analyze: the variables to analyse, their files, and what to work out (see oceanval.analysis_app) ----
@@ -3227,9 +3420,9 @@
       auto: false,
     };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Chlorophyll",
-      spellcheck: "false", autocomplete: "off", "aria-label": "Your name for the variable" });
+      spellcheck: "false", autocomplete: "off", "aria-label": "Environmental variable" });
     const model = el("input", { class: "s-input is-mono", type: "text", value: item.model_variable, placeholder: "e.g. P1_Chl+P2_Chl",
-      spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": "The model variable holding it" });
+      spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": "Variable name in the simulation" });
     // what OceanVal filled in is red and bold until it is changed
     if (item.filled) [name, model].forEach((box) => box.classList.add("is-oceanval"));
     const yours = () => {
@@ -3295,8 +3488,8 @@
     item.nameBox = name;
     item.modelBox = model;
     item.tr = el("tr", {},
-      el("td", { "data-label": "Your name" }, name, item.nameMsg),
-      el("td", { "data-label": "Model name" }, model, item.modelMsg, picker ? picker.details : null),
+      el("td", { "data-label": "Environmental variable" }, name, item.nameMsg),
+      el("td", { "data-label": "Variable name in the simulation" }, model, item.modelMsg, picker ? picker.details : null),
       el("td", {}, remove));
     return item;
   }
@@ -3351,7 +3544,7 @@
       if (item.name.trim() && item.model_variable.trim() && !nameError && !modelError) complete += 1;
     });
     const wrong = problems.some(([a, b]) => a || b);
-    $("av-msg").textContent = !complete && !wrong ? "Add a variable to analyse." : "";
+    $("av-msg").textContent = "";
     const next = $("av-continue");
     if (next) {
       next.disabled = analyzeVariables.busy || wrong || !complete || !analyzeVariables.built;
@@ -3431,8 +3624,7 @@
     const placed = state.analyze.placed;
     analyzeFiles.key = JSON.stringify(placed.map((row) => [row.name, row.model_variable, row.pattern]));
     analyzeFiles.rows = {};
-    $("af-lede").replaceChildren("Simulation output found in ", el("code", { text: state.analyze.sim_dir || "" }),
-      ". OceanVal reads the dates of each variable's files, to find any gaps in them.");
+    $("af-lede").textContent = "The simulation output with the highest temporal resolution has been identified and is listed below. These files will be used for analysis.";
     let number = 0;
     $("af-body").replaceChildren(...placed.flatMap((row) => {
       const files = el("div", { class: "review__found" });
@@ -3587,14 +3779,6 @@
   const KIND_DIALOGS = { climatology: "clim-dialog", long_term: "clim-dialog", seasonal: "clim-dialog", phenology: "phen-dialog", map_changes: "chg-dialog", transects: "trans-dialog" };
   const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal cycles", map_changes: "map changes", transects: "transects" };
   const KIND_TITLES = { climatology: "Map climatologies", phenology: "Map phenologies", long_term: "Long-term time series", seasonal: "Seasonal cycles", map_changes: "Map temporal changes", transects: "Analyse transects" };
-  const KIND_NOT_CHOSEN = {
-    climatology: "The annual mean, from the mean of each month of the year, at the surface, the bottom or through the water column. Not chosen yet.",
-    phenology: "The time of the seasonal peak at the surface, from a daily climatology. Not chosen yet.",
-    long_term: "The mean of each year, over the model's domain, its regions and at stations. Not chosen yet.",
-    seasonal: "The mean of each month of the year over the years, the mean seasonal cycle, over the model's domain, its regions and at stations. Not chosen yet.",
-    map_changes: "Maps of how a variable changes between a historical period and one or two future periods, as absolute values and as changes. Not chosen yet.",
-    transects: "The model's values along straight north–south or east–west lines, as many as you like: their mean, their trend, or the change between the first and last years. Not chosen yet.",
-  };
   const KIND_INTROS = {
     climatology: "The mean of each month of the year, and the annual mean, over the years from Start to End. Each is mapped.",
     long_term: "The mean of each year from Start to End, which is the mean of its months, over the model's domain as a whole, over each region you choose on the page, and at each station. A rolling mean of the annual means (1 year is none) can be taken, and the series shown as the annual means, or as their change from the first year, absolute or in per cent.",
@@ -3613,7 +3797,7 @@
 
   function analyzeSummary(kind) {
     const chosen = state.analyze.chosen[kind];
-    if (!chosen) return KIND_NOT_CHOSEN[kind];
+    if (!chosen) return "";  // a tile that is not chosen is its title only
     if (kind === "transects") {
       const where = Object.entries(chosen.rows).map(([name, lines]) => `${name}, ${lines.length} transect${lines.length === 1 ? "" : "s"}`);
       return `For ${where.join("; ")}.`;
@@ -3633,17 +3817,23 @@
   }
 
   function renderAnalyzeOptions() {
+    $("ao-page-1").hidden = analyzePage.number !== 1;
+    $("ao-page-2").hidden = analyzePage.number !== 2;
+    $("ao-page-3").hidden = analyzePage.number !== 3;
     $("ao-compare-note").hidden = state.action !== "simcompare";
     for (const kind of ANALYSES) {
       const tile = $(`ao-${kind}`);
       const chosen = Boolean(state.analyze.chosen[kind]);
       tile.classList.toggle("is-chosen", chosen);
       tile.querySelector(".choice__tag").hidden = !chosen;
+      tile.querySelector(".choice__remove").hidden = !chosen;
+      tile.querySelector(".choice__remove").setAttribute("aria-label", `Remove ${KIND_TITLES[kind]}`);
       $(`ao-${kind}-text`).textContent = analyzeSummary(kind);
     }
     fillCores();
     fillMissing();
     fillFigureCode();
+    if (analyzePage.number === 3 && analyzeOutput.filled) refreshOutput();
     updateRun();
   }
 
@@ -3652,12 +3842,129 @@
 
   function updateRun() {
     const run = $("ao-run");
-    $("ao-need").hidden = ANALYSES.some((kind) => state.analyze.chosen[kind]);
-    const ready = ANALYSES.some((kind) => state.analyze.chosen[kind]) && coresGiven() && figureCodeGiven();
-    if (run) run.disabled = !ready;
+    const chosen = ANALYSES.some((kind) => state.analyze.chosen[kind]);
+    const ready = chosen && coresGiven() && figureCodeGiven();
+    // the last page's boxes must be right too, when it is the one shown
+    const saveable = ready && (analyzePage.number !== 3 || Object.keys(outputProblems()).length === 0);
+    if (run) run.disabled = !saveable;
     const save = $("ao-save");
-    if (save) save.disabled = !ready;
+    if (save) save.disabled = !saveable;
+    const next = $("ao-continue");
+    if (next) next.disabled = !chosen;
+    const after = $("ao-next");
+    if (after) after.disabled = !ready;
   }
+
+  // ---- where the output is saved, the last page ----
+  // an analysis's, or a comparison's (as oceanval.analysis_forms and sim_compare_forms say it)
+  const nameTheDirectory = () => `There is ${state.action === "simcompare" ? "a comparison" : "an analysis"} in the directory you started OceanVal in. To replace it, name the directory here rather than leaving the box empty.`;
+  // whether the directory has what this run would replace
+  const outputReplaced = (found) => Boolean(state.action === "simcompare" ? found.out_dir_has_comparison : found.out_dir_has_analysis);
+  // errors the server gave, and the probe of the directory and the script's name
+  const analyzeOutput = { filled: false, probe: null, errors: {}, timer: null, number: 0 };
+
+  function readOutput() {
+    return { out_dir: $("ao-out_dir").value, out: $("ao-out").value, replace_analysis: $("ao-replace_analysis").checked };
+  }
+
+  // filled once from what the server holds, so that going back and on keeps what was typed
+  function fillOutput() {
+    if (!analyzeOutput.filled) {
+      const kept = state.analyze.output;
+      const comparing = state.action === "simcompare";
+      $("ao-out_dir").value = kept.out_dir;
+      $("ao-out").value = kept.out;
+      $("ao-replace_analysis").checked = Boolean(kept.replace_analysis);
+      $("ao-out_dir").placeholder = state.cwd;
+      $("ao-out-label").textContent = comparing ? "What do you want the comparison script to be called"
+        : "What do you want the analysis script to be called";
+      $("ao-replace-text").textContent = comparing
+        ? "Tick to replace the comparison files in this directory (oceanval_simulation_comparison)"
+        : "Tick to replace the analysis files in this directory (oceanval_analysis)";
+      $("ao-out-intro").textContent = `This is created to produce a fully reproducible version of this ${comparing ? "comparison" : "analysis"} that can be run from the command line. You will not need to run this, and the file is saved for completeness.`;
+      analyzeOutput.errors = {};
+      analyzeOutput.probe = null;
+      analyzeOutput.filled = true;
+    }
+    askOutputProbe(0);
+    refreshOutput();
+  }
+
+  function askOutputProbe(delay) {
+    clearTimeout(analyzeOutput.timer);
+    analyzeOutput.timer = setTimeout(async () => {
+      const number = ++analyzeOutput.number;
+      let found;
+      try {
+        const response = await fetch(`api/probe?${query({
+          simdir: "", ndown: "", out: $("ao-out").value, exclude: "", require: "", out_dir: $("ao-out_dir").value })}`, { cache: "no-store" });
+        found = await response.json();
+      } catch (error) {
+        return;
+      }
+      if (number !== analyzeOutput.number) return;
+      analyzeOutput.probe = found;
+      refreshOutput();
+    }, delay);
+  }
+
+  // what is wrong with the boxes of the last page, as far as the page can tell
+  function outputProblems() {
+    const errors = { ...analyzeOutput.errors };
+    const found = analyzeOutput.probe || {};
+    if (found.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
+    if (!$("ao-out").value.trim()) errors.out = errors.out || "";
+    // an analysis (or comparison) in the directory is replaced by this one: the user must tick to say so, and have named it
+    if (outputReplaced(found)) {
+      if (!$("ao-out_dir").value.trim()) errors.out_dir = nameTheDirectory();
+      else if (!$("ao-replace_analysis").checked) errors.replace_analysis = "";
+    }
+    return errors;
+  }
+
+  function refreshOutput() {
+    const errors = outputProblems();
+    const found = analyzeOutput.probe || {};
+    const comparing = state.action === "simcompare";
+    const replacing = outputReplaced(found);
+    if (!replacing) $("ao-replace_analysis").checked = false;
+    $("ao-row-replace").hidden = !replacing;
+    if (errors.out_dir) {
+      message("ao-m-out_dir", [line(errors.out_dir, "error")], true);
+    } else {
+      const saved = comparing
+        ? "The comparison will be saved in oceanval_simulation_comparison, inside this directory."
+        : "The analysis will be saved in oceanval_analysis, inside this directory.";
+      const lines = [line($("ao-out_dir").value.trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
+      if (found.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
+      if (replacing) lines.push(line(`There is ${comparing ? "a comparison" : "an analysis"} here already, from an earlier run. It will be replaced: choose another directory to keep it, or tick below to replace it.`, "warn"));
+      message("ao-m-out_dir", lines);
+    }
+    $("ao-out_dir").classList.toggle("is-invalid", Boolean(errors.out_dir));
+    $("ao-out").classList.toggle("is-invalid", Boolean(errors.out));
+    if (errors.out) message("ao-m-out", [line(errors.out, "error")], true);
+    else if (found.out_exists) message("ao-m-out", [line(`This file already exists, and will be replaced. Unless you plan to run this ${comparing ? "comparison" : "analysis"} file yourself, there is no need to worry about the name.`, "warn")]);
+    else message("ao-m-out", []);
+    updateRun();
+  }
+
+  $("ao-out_dir").addEventListener("input", () => {
+    // what was ticked was for the directory before
+    $("ao-replace_analysis").checked = false;
+    delete analyzeOutput.errors.out_dir;
+    delete analyzeOutput.errors.replace_analysis;
+    askOutputProbe(400);
+    refreshOutput();
+  });
+  $("ao-out").addEventListener("input", () => {
+    delete analyzeOutput.errors.out;
+    askOutputProbe(400);
+    refreshOutput();
+  });
+  $("ao-replace_analysis").addEventListener("change", () => {
+    delete analyzeOutput.errors.replace_analysis;
+    refreshOutput();
+  });
 
   // one to the machine's cores, made once; a value the state holds that is not among them is still shown
   function fillCores() {
@@ -3808,14 +4115,17 @@
       const [startYear, endYear] = defaultYears(row.name);
       const start = yearBox(box.start, startYear, `Start of the ${noun} of ${row.name}`, row.name);
       const end = yearBox(box.end, endYear, `End of the ${noun} of ${row.name}`, row.name);
+      // whether the variable is in the analysis at all, ticked to start with (the user's rule)
+      const use = el("input", { type: "checkbox", class: "tick", "aria-label": `The ${noun} of ${row.name}` });
+      use.checked = Boolean(box.use);
       const surface = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the surface` });
-      surface.checked = Boolean(box.use) && Boolean(box.surface);
+      surface.checked = Boolean(box.surface);
       const column = row.levels > 1;
       const bottom = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the bottom` });
-      bottom.checked = column && Boolean(box.use) && Boolean(box.bottom);
+      bottom.checked = column && Boolean(box.bottom);
       bottom.disabled = !column;
       const water = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} through the water column` });
-      water.checked = column && Boolean(box.use) && Boolean(box.water_column);
+      water.checked = column && Boolean(box.water_column);
       water.disabled = !column;
       const how = el("select", { class: "s-select", "aria-label": `How to take ${row.name} through the water column` },
         el("option", { value: "", text: "Choose…" }),
@@ -3829,8 +4139,10 @@
         ...Object.entries(SERIES_SHOWS).map(([value, text]) => el("option", { value, text })));
       show.value = box.show in SERIES_SHOWS ? box.show : "absolute";
       const msg = el("p", { class: "analyze-msg" });
+      const reset = resetLink(row.name);
       const tr = el("tr", {},
-        el("td", {}, el("strong", { text: row.name }), el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name), msg),
+        el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
+          el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name), reset, msg),
         el("td", {}, start), el("td", {}, end),
         el("td", {}, el("label", { class: "tick-label" }, surface, "Surface")),
         el("td", {}, column
@@ -3842,19 +4154,25 @@
         ...(series ? [el("td", {}, rolling), el("td", {}, show)] : []));
       const refresh = () => {
         how.disabled = !water.checked;
-        tr.classList.toggle("is-off", !surface.checked && !bottom.checked && !water.checked);
-        tr.classList.toggle("is-on", surface.checked || bottom.checked || water.checked);
-        how.classList.toggle("is-required", water.checked);
+        tr.classList.toggle("is-off", !use.checked);
+        tr.classList.toggle("is-on", use.checked);
+        how.classList.toggle("is-required", use.checked && water.checked);
         refreshThickness();
         refreshConfirm();
       };
-      surface.addEventListener("change", refresh);
-      bottom.addEventListener("change", refresh);
-      water.addEventListener("change", refresh);
-      analyzeDialog.rows[row.name] = { start, end, surface, bottom, water, how, rolling, show, msg, refresh };
+      use.addEventListener("change", refresh);
+      // a layer ticked puts the variable back in the analysis
+      for (const layer of [surface, bottom, water]) {
+        layer.addEventListener("change", () => {
+          if (layer.checked) use.checked = true;
+          refresh();
+        });
+      }
+      analyzeDialog.rows[row.name] = { use, start, end, surface, bottom, water, how, rolling, show, msg, reset, refresh };
       refresh();
       return tr;
     }));
+    allVariablesRow(kind);
   }
 
   // the map changes: for each variable the years of three periods (the second future one optional), the layers,
@@ -3874,14 +4192,16 @@
         ];
       }
       for (const boxes of [years.future2]) for (const input of boxes) input.classList.add("is-optional");
+      const use = el("input", { type: "checkbox", class: "tick", "aria-label": `The map changes of ${row.name}` });
+      use.checked = Boolean(box.use);
       const surface = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the surface` });
-      surface.checked = Boolean(box.use) && Boolean(box.surface);
+      surface.checked = Boolean(box.surface);
       const column = row.levels > 1;
       const bottom = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the bottom` });
-      bottom.checked = column && Boolean(box.use) && Boolean(box.bottom);
+      bottom.checked = column && Boolean(box.bottom);
       bottom.disabled = !column;
       const water = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} through the water column` });
-      water.checked = column && Boolean(box.use) && Boolean(box.water_column);
+      water.checked = column && Boolean(box.water_column);
       water.disabled = !column;
       const how = el("select", { class: "s-select", "aria-label": `How to take ${row.name} through the water column` },
         el("option", { value: "", text: "Choose…" }),
@@ -3897,8 +4217,10 @@
       const plot = choose(CHANGE_PLOTS, box.plot, `What to plot of ${row.name}`);
       const change = choose(CHANGE_KINDS, box.change, `The kind of change of ${row.name}`);
       const msg = el("p", { class: "analyze-msg" });
+      const reset = resetLink(row.name);
       const main = el("tr", { class: "chg-main" },
-        el("td", {}, el("strong", { text: row.name }), el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name)),
+        el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
+          el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name), reset),
         ...periods.flatMap(([key]) => years[key].map((input) => el("td", {}, input))),
         el("td", {}, el("label", { class: "tick-label" }, surface, "Surface")),
         el("td", {}, column
@@ -3911,13 +4233,13 @@
         el("td", { colspan: "10" }, el("div", { class: "chg-choices" },
           el("label", {}, "Plot", plot), el("label", {}, "Change", change)), msg));
       const refresh = () => {
-        const on = surface.checked || bottom.checked || water.checked;
+        const on = use.checked;
         for (const tr of [main, options]) {
           tr.classList.toggle("is-off", !on);
           tr.classList.toggle("is-on", on);
         }
         how.disabled = !water.checked;
-        how.classList.toggle("is-required", water.checked);
+        how.classList.toggle("is-required", on && water.checked);
         plot.classList.toggle("is-required", on && !plot.value);
         change.classList.toggle("is-required", on && !change.value);
         // the second future period is optional, but both its years are needed once one is given
@@ -3926,25 +4248,199 @@
         refreshThickness();
         refreshConfirm();
       };
-      for (const input of [surface, bottom, water, plot, change]) input.addEventListener("change", refresh);
+      for (const input of [use, plot, change]) input.addEventListener("change", refresh);
+      // a layer ticked puts the variable back in the analysis
+      for (const layer of [surface, bottom, water]) {
+        layer.addEventListener("change", () => {
+          if (layer.checked) use.checked = true;
+          refresh();
+        });
+      }
       for (const input of years.future2) input.addEventListener("input", refresh);
-      analyzeDialog.rows[row.name] = { years, surface, bottom, water, how, plot, change, msg, refresh };
+      analyzeDialog.rows[row.name] = { use, years, surface, bottom, water, how, plot, change, msg, reset, refresh };
       refresh();
       return [main, options];
     }));
+    allVariablesRow("map_changes");
   }
 
-  // Confirm needs a variable ticked: the surface, the bottom, the water column or more than one (the phenology's one tick)
+  // ---- the All variables row at the top of a pop-out's table: what is set there is set for every variable (those
+  // a box does not apply to, as the bottom of a variable with one level, are left as they are). A variable can still be
+  // set otherwise, and its Reset puts it back to the All variables row. The row is the page's only: it is never sent ----
+  const ALL_BODIES = { phenology: "phen-all", map_changes: "chg-all" };
+
+  // a box of a variable's row by its key in the All variables row: "start", or "historical.0" for a map changes period
+  function rowControl(row, key) {
+    const [name, index] = key.split(".");
+    return index === undefined ? row[name] : (row.years[name] || [])[Number(index)];
+  }
+
+  const valueOf = (control) => (control.type === "checkbox" ? control.checked : control.value);
+  const eventOf = (control) => (control.type === "checkbox" || control.tagName === "SELECT" ? "change" : "input");
+
+  // a box set as if by hand, so its row's own checks run
+  function setControl(control, value) {
+    if (valueOf(control) === value) return;
+    if (control.type === "checkbox") control.checked = value;
+    else control.value = value;
+    control.dispatchEvent(new Event(eventOf(control), { bubbles: true }));
+  }
+
+  // the years every variable has, for the arrow of the All variables row's year boxes, or every year of any of them
+  function sharedYears() {
+    const spans = state.analyze.placed.map((row) => row.years).filter(Boolean);
+    if (!spans.length) return null;
+    let [first, last] = [Math.max(...spans.map((span) => span[0])), Math.min(...spans.map((span) => span[1]))];
+    if (first > last) [first, last] = [Math.min(...spans.map((span) => span[0])), Math.max(...spans.map((span) => span[1]))];
+    return Array.from({ length: last - first + 1 }, (_, number) => first + number);
+  }
+
+  // a variable's Reset, shown once it is set otherwise than the All variables row
+  function resetLink(name) {
+    const reset = el("button", { type: "button", class: "link analyze-reset", hidden: true, text: "Reset to All variables",
+      "aria-label": `Reset ${name} to All variables` });
+    reset.addEventListener("click", () => {
+      const row = analyzeDialog.rows[name];
+      if (row) resetRow(row);
+    });
+    return reset;
+  }
+
+  // the boxes Reset puts back: all but the tick that has the variable in the analysis or not
+  function resetKeys() {
+    return Object.keys(analyzeDialog.all.controls).filter((key) => key !== "use");
+  }
+
+  function differs(row) {
+    return resetKeys().some((key) => {
+      const target = rowControl(row, key);
+      return target && !target.disabled && valueOf(target) !== valueOf(analyzeDialog.all.controls[key]);
+    });
+  }
+
+  function resetRow(row) {
+    // in the order of the row, so the water column is ticked before the way to take it is set
+    for (const key of resetKeys()) {
+      const target = rowControl(row, key);
+      if (target && !target.disabled) setControl(target, valueOf(analyzeDialog.all.controls[key]));
+    }
+    refreshResets();
+  }
+
+  function refreshResets() {
+    for (const row of Object.values(analyzeDialog.rows)) {
+      if (row.reset) row.reset.hidden = !analyzeDialog.all || !row.use.checked || !differs(row);
+    }
+    const all = analyzeDialog.all;
+    if (all && all.controls.how) all.controls.how.disabled = !all.controls.water.checked;
+  }
+
+  // what is set in the All variables row is set for every variable it applies to
+  function fanOut(key) {
+    const source = analyzeDialog.all.controls[key];
+    for (const row of Object.values(analyzeDialog.rows)) {
+      const target = rowControl(row, key);
+      if (target && !target.disabled) setControl(target, valueOf(source));
+    }
+    refreshResets();
+  }
+
+  function allVariablesRow(kind) {
+    const tbody = $(ALL_BODIES[kind] || "clim-all");
+    analyzeDialog.all = null;
+    const placed = state.analyze.placed;
+    const rows = Object.values(analyzeDialog.rows);
+    if (placed.length < 2) {
+      tbody.replaceChildren();
+      refreshResets();
+      return;
+    }
+    const controls = {};
+    const years = sharedYears();
+    // the hint of a year box, when every variable's is the same
+    const hint = (index) => {
+      const hints = new Set(placed.map((row) => defaultYears(row.name)[index]));
+      return hints.size === 1 ? [...hints][0] : null;
+    };
+    const yearOf = (key, label, placeholder) => {
+      const input = el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric",
+        placeholder: placeholder ? String(placeholder) : "", "aria-label": `${label} of every variable`, spellcheck: "false", autocomplete: "off" });
+      controls[key] = years ? withChoices(input, years) : input;
+      return el("td", {}, controls[key]);
+    };
+    const tickOf = (key, label, text) => {
+      controls[key] = el("input", { type: "checkbox", class: "tick", "aria-label": `${label} of every variable` });
+      return el("label", { class: "tick-label" }, controls[key], text);
+    };
+    const selectOf = (key, label, options, blank) => {
+      controls[key] = el("select", { class: "s-select", "aria-label": `${label} of every variable` },
+        ...(blank ? [el("option", { value: "", text: blank })] : []),
+        ...Object.entries(options).map(([value, text]) => el("option", { value, text })));
+      return controls[key];
+    };
+    const column = placed.some((row) => row.levels > 1);
+    const noLevels = () => el("small", { text: "No depth levels" });
+    const layers = () => [
+      el("td", {}, tickOf("surface", "The surface", "Surface")),
+      el("td", {}, column ? tickOf("bottom", "The bottom", "Bottom") : noLevels()),
+      el("td", {}, column
+        ? el("div", {}, tickOf("water", "The water column", "Water column"),
+          selectOf("how", "How to take the water column", { mean: "Vertical mean", integral: "Depth integral" }, "Choose…"))
+        : noLevels()),
+    ];
+    controls.use = el("input", { type: "checkbox", class: "tick", "aria-label": "Include every variable" });
+    const name = el("td", {}, el("label", { class: "tick-label" }, controls.use, el("strong", { text: "All variables" })),
+      el("small", { text: "What is set here is set for every variable" }));
+    const trs = [];
+    if (kind === "phenology") {
+      trs.push(el("tr", { class: "is-all" }, name, yearOf("start", "Start", hint(0)), yearOf("end", "End", hint(1))));
+    } else if (kind === "map_changes") {
+      const periods = [["historical", "historical period"], ["future1", "first future period"], ["future2", "second future period"]];
+      trs.push(el("tr", { class: "is-all chg-main" }, name,
+        ...periods.flatMap(([key, label]) => [
+          yearOf(`${key}.0`, `First year of the ${label}`, key === "historical" ? hint(0) : null),
+          yearOf(`${key}.1`, `Last year of the ${label}`, key === "historical" ? hint(1) : null),
+        ]), ...layers()));
+      trs.push(el("tr", { class: "is-all chg-options" }, el("td", { colspan: "10" }, el("div", { class: "chg-choices" },
+        el("label", {}, "Plot", selectOf("plot", "What to plot", CHANGE_PLOTS, "Choose…")),
+        el("label", {}, "Change", selectOf("change", "The kind of change", CHANGE_KINDS, "Choose…"))))));
+    } else {
+      const series = kind === "long_term" ? [
+        el("td", {}, controls.rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric", placeholder: "1",
+          "aria-label": "Years of the rolling mean of the annual means of every variable (1 is none)", spellcheck: "false", autocomplete: "off" })),
+        el("td", {}, selectOf("show", "How to show the long-term series", SERIES_SHOWS)),
+      ] : [];
+      trs.push(el("tr", { class: "is-all" }, name, yearOf("start", "Start", hint(0)), yearOf("end", "End", hint(1)), ...layers(), ...series));
+    }
+    tbody.replaceChildren(...trs);
+    // to start with, what every variable has, or nothing
+    for (const [key, control] of Object.entries(controls)) {
+      const values = new Set(rows.map((row) => rowControl(row, key)).filter((target) => target && !target.disabled).map(valueOf));
+      if (control.type === "checkbox") {
+        control.checked = values.size === 1 && [...values][0] === true;
+        control.disabled = values.size === 0;
+      } else {
+        control.value = values.size === 1 ? [...values][0] : (control.tagName === "SELECT" && !control.querySelector('option[value=""]') ? control.options[0].value : "");
+      }
+      control.addEventListener(eventOf(control), () => fanOut(key));
+    }
+    if (controls.rolling && !controls.rolling.value) controls.rolling.value = "1";
+    analyzeDialog.all = { kind, controls };
+    refreshResets();
+  }
+
+  for (const prefix of ["clim", "phen", "chg"]) {
+    for (const type of ["input", "change"]) $(`${prefix}-body`).addEventListener(type, refreshResets);
+  }
+
+  // Confirm needs a variable ticked
   function refreshConfirm() {
     const kind = analyzeDialog.kind;
     if (!kind) return;
-    const rows = Object.values(analyzeDialog.rows);
-    const layered = LAYER_ROWS.includes(kind);
-    const ticked = rows.some((row) => (layered ? row.surface.checked || row.bottom.checked || row.water.checked : row.use.checked));
+    const ticked = Object.values(analyzeDialog.rows).some((row) => row.use.checked);
     const prefix = dialogPrefix(kind);
     $(`${prefix}-confirm`).disabled = !ticked;
-    $(`${prefix}-msg`).textContent = ticked ? "" :
-      (layered ? "Tick Surface, Bottom, Water column, or more than one, for at least one variable." : "Tick at least one variable.");
+    $(`${prefix}-msg`).textContent = ticked ? "" : "Tick at least one variable.";
   }
 
   function refreshThickness() {
@@ -3954,7 +4450,7 @@
       $("trans-thickness-row").hidden = !vertical;
       return;
     }
-    const any = Object.values(analyzeDialog.rows).some((row) => row.water && row.water.checked);
+    const any = Object.values(analyzeDialog.rows).some((row) => row.use.checked && row.water && row.water.checked);
     $(`${dialogPrefix(analyzeDialog.kind)}-thickness-row`).hidden = !any;
   }
 
@@ -4048,10 +4544,11 @@
       const start = yearBox(box.start, startYear, `Start of the phenology of ${row.name}`, row.name);
       const end = yearBox(box.end, endYear, `End of the phenology of ${row.name}`, row.name);
       const msg = el("p", { class: "analyze-msg" });
+      const reset = resetLink(row.name);
       const tr = el("tr", {},
         el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
           el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name),
-          daily ? null : el("small", { text: needsDaily(row) }), msg),
+          daily ? null : el("small", { text: needsDaily(row) }), reset, msg),
         el("td", {}, start), el("td", {}, end));
       const refresh = () => {
         tr.classList.toggle("is-off", !use.checked);
@@ -4060,10 +4557,11 @@
         refreshConfirm();
       };
       use.addEventListener("change", refresh);
-      analyzeDialog.rows[row.name] = { use, start, end, msg, refresh };
+      analyzeDialog.rows[row.name] = { use, start, end, msg, reset, refresh };
       refresh();
       return tr;
     }));
+    allVariablesRow("phenology");
   }
 
   // ---- the transects pop-out: a section for each variable, with a card for each of its transects ----
@@ -4213,11 +4711,15 @@
     const msg = el("p", { class: "analyze-msg" });
     const cards = el("div", { class: "transect-cards" });
     const add = el("button", { type: "button", class: "btn btn--ghost transect-var__add", text: "Add a transect" });
+    // this variable's transects, for every other variable too
+    const copy = state.analyze.placed.length > 1
+      ? el("button", { type: "button", class: "btn btn--ghost transect-var__copy", text: "Copy these transects to every variable" })
+      : null;
     const wrapper = el("section", { class: "transect-var" },
       el("div", { class: "transect-var__head" },
         el("label", { class: "tick-label" }, use, el("strong", { text: variable.name })),
         el("small", { class: "is-mono", text: variable.model_variable }), outputYears(variable.name),
-        variable.levels > 1 ? null : el("small", { text: "No depth levels: it has no Vertical section" })),
+        variable.levels > 1 ? null : el("small", { text: "No depth levels: it has no Vertical section" }), copy),
       msg, cards, add);
     const lines = (box.transects && box.transects.length) ? box.transects : [{}];
     section.cards = [];
@@ -4235,7 +4737,22 @@
       refreshThickness();
     };
     use.addEventListener("change", refresh);
-    Object.assign(section, { use, msg, refresh });
+    if (copy) {
+      copy.addEventListener("click", () => {
+        const lines = readTransects(section);
+        const others = Object.values(analyzeDialog.rows).filter((other) => other !== section);
+        for (const other of others) {
+          other.use.checked = true;
+          other.cards = [];
+          // made again for the other variable: a Vertical part it cannot have, or changes over too few years, are left out
+          other.cardsBox.replaceChildren(...lines.map((values) => transectCard(other.variable, values, other)));
+          numberTransects(other);
+          other.refresh();
+        }
+        msg.textContent = `Copied to ${others.length} other variable${others.length === 1 ? "" : "s"}.`;
+      });
+    }
+    Object.assign(section, { use, msg, refresh, variable, cardsBox: cards });
     analyzeDialog.rows[variable.name] = section;
     refresh();
     return wrapper;
@@ -4243,6 +4760,7 @@
 
   function transectSections(form) {
     analyzeDialog.rows = {};
+    analyzeDialog.all = null;  // the transects have no All variables row
     $("trans-body").replaceChildren(...state.analyze.placed.map((variable) => transectSection(variable, form)));
   }
 
@@ -4317,7 +4835,7 @@
     }
     if (kind === "map_changes") {
       for (const [name, row] of Object.entries(analyzeDialog.rows)) {
-        rows[name] = { use: row.surface.checked || row.bottom.checked || row.water.checked,
+        rows[name] = { use: row.use.checked,
           plot: row.plot.value, change: row.change.value,
           surface: row.surface.checked, bottom: row.bottom.checked, water_column: row.water.checked, how: row.how.value };
         for (const [key, [start, end]] of Object.entries(row.years)) {
@@ -4329,7 +4847,7 @@
     }
     for (const [name, row] of Object.entries(analyzeDialog.rows)) {
       if (LAYERED.includes(kind)) {
-        rows[name] = { use: row.surface.checked || row.bottom.checked || row.water.checked, start: row.start.value, end: row.end.value,
+        rows[name] = { use: row.use.checked, start: row.start.value, end: row.end.value,
           surface: row.surface.checked, bottom: row.bottom.checked, water_column: row.water.checked, how: row.how.value };
         if (kind === "long_term") Object.assign(rows[name], { window: row.rolling.value, show: row.show.value });
       } else {
@@ -4397,6 +4915,21 @@
   }
 
   for (const kind of ANALYSES) $(`ao-${kind}`).addEventListener("click", () => openAnalyzeDialog(kind));
+  // the x on a chosen tile takes the analysis off; it must not open the tile's pop-out
+  for (const kind of ANALYSES) {
+    const remove = $(`ao-${kind}`).querySelector(".choice__remove");
+    const take = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const reply = await post("api/analyze_option", { kind, form: { remove: true } });
+      if (!reply.ok) toast(reply.error || "This could not be removed.");
+    };
+    remove.addEventListener("click", take);
+    remove.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") take(event);
+      else event.stopPropagation();
+    });
+  }
   for (const prefix of ["clim", "phen", "chg", "trans"]) {
     $(`${prefix}-cancel`).addEventListener("click", closeAnalyzeDialog);
     $(`${prefix}-remove`).addEventListener("click", removeAnalysis);
@@ -4431,16 +4964,28 @@
   async function startAnalysis(url, failure) {
     $("ao-run").disabled = true;
     $("ao-save").disabled = true;
-    const reply = await post(url);
+    const reply = await post(url, { form: readOutput() });
     if (!reply.ok) {
-      if (reply.errors && reply.errors.area) toast("Open the time series and put its regions and area right.");
-      if (reply.errors && reply.errors.cores) $("ao-cores-msg").textContent = reply.errors.cores;
-      if (reply.errors && reply.errors.figure_code) $("ao-code-msg").textContent = reply.errors.figure_code;
-      if (reply.errors && reply.errors.missing) {
-        $("ao-missing-msg").textContent = reply.errors.missing.missing_from || reply.errors.missing.missing_to || "";
+      const errors = reply.errors || {};
+      // the page the box with the error is on
+      if (errors.out_dir !== undefined || errors.out !== undefined || errors.replace_analysis !== undefined) {
+        analyzeOutput.errors = { out_dir: errors.out_dir, out: errors.out, replace_analysis: errors.replace_analysis };
+        for (const name of Object.keys(analyzeOutput.errors)) if (analyzeOutput.errors[name] === undefined) delete analyzeOutput.errors[name];
+      } else if (errors.cores || errors.figure_code || errors.missing) {
+        analyzePage.number = 2;
+      }
+      if (errors.area) {
+        // the time series is a tile of the first page
+        analyzePage.number = 1;
+        toast("Open the time series and put its regions and area right.");
+      }
+      if (errors.cores) $("ao-cores-msg").textContent = errors.cores;
+      if (errors.figure_code) $("ao-code-msg").textContent = errors.figure_code;
+      if (errors.missing) {
+        $("ao-missing-msg").textContent = errors.missing.missing_from || errors.missing.missing_to || "";
       }
       toast(reply.error || failure);
-      renderAnalyzeOptions();
+      render();
     }
   }
 
@@ -5500,6 +6045,7 @@
     "vm-subset": ["lon_min", "lon_max", "lat_min", "lat_max"],
     "vm-subregions": ["subregions", "subregions_file"],
     "vm-transect": ["transect", ...TRANSECT_BOXES],
+    "vm-cores": ["cores"],
   };
   const validateForm = {};
   let validateErrors = {};
@@ -5757,11 +6303,14 @@
     if (state.demo && state.view === "report_options") markDemo("v", state.demo.prefilled.report);
     $("v-data_dir").placeholder = state.cwd;
     $("v-out_dir").placeholder = state.cwd;
-    // to validate as well, the matchups and the report go where the simulation step said
+    // to validate as well, the matchups and the report go where the output step said
     const before = state.view === "report_options";
     $("v-group-data_dir").hidden = before;
     $("v-group-out_dir").hidden = before;
     $("v-report-dir").hidden = !before;
+    // matchup's cores, asked for here before anything is matched up
+    $("v-group-cores").hidden = !coresAsked();
+    if (coresAsked()) coreOptions($("v-cores"), validateForm.cores);
     if (before) {
       $("v-report-dir").replaceChildren(
         state.question ? "Nothing is matched up until you carry on. " : "",
@@ -5926,6 +6475,14 @@
     });
   }
   $("v-concise").addEventListener("change", (event) => { validateForm.concise = event.target.value === "true"; });
+  $("v-cores").addEventListener("change", (event) => {
+    validateForm.cores = event.target.value;
+    delete validateErrors.cores;
+    refreshValidate();
+  });
+  // whether the report options ask for matchup's cores: before anything is matched up
+  const coresAsked = () => state.view === "report_options" && Boolean(state.question);
+  const coresMissing = () => coresAsked() && !String(validateForm.cores || "").trim();
   $("validate-form").addEventListener("submit", (event) => { event.preventDefault(); submitValidate(); });
 
   function refreshValidate() {
@@ -5951,8 +6508,9 @@
     if (build) {
       // there is nothing to build until there are matchups to validate
       const noMatchups = state.view === "validate" && !validateMatchups();
-      build.disabled = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups;
+      build.disabled = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing();
       build.title = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
+        : coresMissing() ? "Choose the number of cores"
         : noneTicked ? NONE_TICKED
         : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
         : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
@@ -5966,7 +6524,7 @@
 
   async function submitValidate() {
     // Enter in a box sends the form too, past the disabled button
-    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length) return;
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
     validateBusy = true;
@@ -5989,7 +6547,7 @@
 
   // stops before anything is matched up, keeping the script with the report options as they are
   async function submitSaveScript() {
-    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length) return;
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
     validateBusy = true;
@@ -6293,9 +6851,11 @@
       describe: DESCRIBE["f-simdir"].describe,
     };
   }
-  DESCRIBE["sc-out_dir"] = {
-    title: "Choose where to save the comparison",
-    describe: () => ["The comparison is saved in oceanval_simulation_comparison, inside it.", ""],
+  DESCRIBE["ao-out_dir"] = {
+    title: "Choose where to save the output",
+    describe: () => [state.action === "simcompare"
+      ? "The comparison is saved in oceanval_simulation_comparison, inside it."
+      : "The analysis is saved in oceanval_analysis, inside it.", ""],
   };
   // the directories of recipes of your own
   DESCRIBE["r-point-obs_path"] = {
@@ -6503,10 +7063,11 @@
   function closeHow() {
     $("how").hidden = true;
     BEHIND.forEach((node) => { node.inert = false; });
-    $("how-files").focus();
+    howFiles.focus();
   }
 
-  $("how-files").addEventListener("click", openHow);
+  howFiles = howFiles || $("how-files");
+  howFiles.addEventListener("click", openHow);
   $("how-close").addEventListener("click", closeHow);
   $("how").addEventListener("click", (event) => { if (event.target === $("how")) closeHow(); });
   $("how").addEventListener("keydown", (event) => {
@@ -6695,6 +7256,16 @@
           text: said ? `${said}…` : "OceanVal is starting the comparison. It works out what you chose for each variable in each simulation, and then builds the report." }
         : { title: "Analysing the simulation",
           text: said ? `${said}…` : "OceanVal is starting the analysis. It works out what you chose for each variable, and then builds the report." };
+      // the grid of the variables says what is being worked out
+      if (analysisGridShown()) {
+        const items = run.analysis.items;
+        const done = items.filter((item) => item.state === "done").length;
+        stage.title = done === items.length ? "Finishing the report"
+          : `${comparing ? "Comparing" : "Analysing"}: ${done} of ${plural(items.length, "variable")} worked out`;
+        stage.done = done;
+        stage.of = items.length;
+        return stage;
+      }
       // the report is built a variable at a time, as they are worked out
       if (interim && interim.expected && interim.state !== "complete") {
         stage.title = `${comparing ? "Comparing" : "Analysing"}: ${interim.pages} of ${plural(interim.expected, "variable")} in the report`;
@@ -6768,14 +7339,14 @@
       bar.setAttribute("aria-valuenow", String(stage.done));
       $("progress-fill").style.width = `${Math.min(100, 100 * stage.done / stage.of)}%`;
     }
-    renderMatchupGrid();
+    if (!renderMatchupGrid()) renderAnalysisGrid();
     box.hidden = false;
   }
 
   // ---- the matchups a matchup run is making, and their pages in the interim report ----
   const GRID_SAID = {
     waiting: "Not started", working: "In progress", done: "Done", failed: "Not made",
-    none: "Not in the interim report",
+    none: "Not in the interim report", todo: "To do",
   };
 
   function matchupGridShown() {
@@ -6783,9 +7354,10 @@
     return Boolean(progress && progress.items.length && ["matchup", "matchup_validate"].includes(state.action));
   }
 
-  // a cell's mark: empty, a turning circle, a tick (a link to the page, for
-  // the interim report), a cross, or a dash for a matchup the report leaves out
-  // said, if given, in place of what GRID_SAID says of the status
+  // a cell's mark: empty, a hollow ring for what is still to do, a turning
+  // circle, a tick (a link to the page, for the interim report), a cross, or a
+  // dash for a matchup the report leaves out, said, if given, in place of what
+  // GRID_SAID says of the status
   function gridMark(cell, status, href, said) {
     const key = `${status}|${href || ""}|${said || ""}`;
     // redrawn only when it changes, so the circles keep turning
@@ -6796,6 +7368,7 @@
       : status === "done" ? icon("check")
       : status === "failed" ? icon("cross")
       : status === "none" ? el("span", { "aria-hidden": "true", text: "—" })
+      : status === "todo" ? el("span", { class: "matchup-grid__todo", "aria-hidden": "true" })
       : null;
     said = said || GRID_SAID[status];
     if (href) said = `${said}: open its page of the interim report`;
@@ -6854,7 +7427,7 @@
   // too narrow for the extraction columns (as on a phone), the grid leaves them out, so it
   // still fits and its ticks stay in sight, and the count is under the matchup's circle
   const NARROW_GRID = window.matchMedia("(max-width: 640px)");
-  NARROW_GRID.addEventListener("change", () => renderMatchupGrid());
+  NARROW_GRID.addEventListener("change", () => renderMatchupGrid() || renderAnalysisGrid());
 
   function countUnder(cell, item) {
     const files = item.extraction;
@@ -6904,6 +7477,7 @@
     const rows = JSON.stringify([withReport, narrow, items.map((item) => [item.key, item.title, item.source])]);
     if (box.dataset.rows !== rows) {
       box.dataset.rows = rows;
+      box.classList.remove("is-analyses");
       const head = [
         "Variable", "Data source", ...(narrow ? [] : ["Model extraction", "Observation extraction"]), "Matchup", "Time",
         ...(withReport ? ["Interim report"] : []),
@@ -6946,6 +7520,93 @@
       else if (interim.building_key === item.key && interim.state === "building") gridMark(report, "working");
       else if (failed.includes(item.key)) gridMark(report, "failed");
       else gridMark(report, "waiting");
+    });
+    return true;
+  }
+
+  // ---- the variables an Analyze or Compare simulations run is working out, and their analyses ----
+  const ANALYSIS_COLUMNS = {
+    climatology: "Climatology", phenology: "Phenology", long_term: "Long-term series",
+    seasonal: "Seasonal cycles", map_changes: "Map changes", transects: "Transects",
+  };
+
+  function analysisGridShown() {
+    const progress = state.run.analysis;
+    return Boolean(progress && progress.items.length && ["analyze", "simcompare"].includes(state.action));
+  }
+
+  // an analysis of a variable: a hollow ring while it is to do, a turning circle while it is being
+  // worked out, a tick once it is (in every simulation, with the count of those done in between),
+  // a cross for one the run stopped in, and a dash for a variable not having it
+  function analysisMark(cell, item, kind, simulations) {
+    const shown = item.cells[kind];
+    if (!shown) {
+      gridMark(cell, "none", null, "Not chosen for this variable");
+      return;
+    }
+    const of = simulations > 1 ? ` (${shown.done} of ${simulations} simulations done)` : "";
+    if (shown.state === "partial") {
+      const said = `Worked out in ${shown.done} of ${simulations} simulations`;
+      const key = `partial|${shown.done}|${simulations}`;
+      if (cell.dataset.key === key) return;
+      cell.dataset.key = key;
+      cell.dataset.state = "counting";
+      cell.replaceChildren(el("span", {
+        class: "matchup-grid__count", role: "img", "aria-label": said, title: said, text: `${shown.done}/${simulations}`,
+      }));
+    } else if (shown.state === "working") gridMark(cell, "working", null, `Being worked out${of}`);
+    else if (shown.state === "done") gridMark(cell, "done", null, "Worked out");
+    else if (shown.state === "failed") gridMark(cell, "failed", null, `Not worked out: the run stopped${of}`);
+    else gridMark(cell, "todo");
+  }
+
+  // returns whether it is shown. Too narrow for them all (as on a phone), the
+  // grid leaves out the report's column, so the analyses' stay in sight
+  function renderAnalysisGrid() {
+    const box = $("progress-grid");
+    if (!analysisGridShown()) return false;
+    box.hidden = false;
+    const progress = state.run.analysis;
+    const kinds = progress.kinds;
+    const items = progress.items;
+    const withReport = !NARROW_GRID.matches;
+    const rows = JSON.stringify(["analyses", withReport, kinds, items.map((item) => [item.key, item.title])]);
+    if (box.dataset.rows !== rows) {
+      box.dataset.rows = rows;
+      box.classList.add("is-analyses");
+      const head = ["Variable", ...kinds.map((kind) => ANALYSIS_COLUMNS[kind] || kind), "Time", ...(withReport ? ["Report"] : [])];
+      const headClass = (text, index) => index === 0 ? null : index === kinds.length + 1 ? "is-time" : "is-state";
+      // on a phone, the analyses' names are turned on their side (see .matchup-grid__sideways)
+      const headCell = (text, index) => index > 0 && index <= kinds.length && !withReport
+        ? el("th", { scope: "col", class: "is-state" }, el("span", { class: "matchup-grid__sideways", text }))
+        : el("th", { scope: "col", class: headClass(text, index), text });
+      box.replaceChildren(el("table", {},
+        el("thead", {}, el("tr", {}, ...head.map(headCell))),
+        el("tbody", {}, ...items.map((item) => el("tr", { "data-key": item.key },
+          el("td", { class: "matchup-grid__title", text: item.title }),
+          ...kinds.map((kind) => el("td", { class: "is-state", "data-column": kind })),
+          el("td", { class: "is-time", "data-column": "time" }),
+          withReport ? el("td", { class: "is-state", "data-column": "report" }) : null))),
+        el("tfoot", {}, el("tr", {},
+          el("th", { scope: "row", colspan: String(kinds.length + 1), text: "Time elapsed" }),
+          el("td", { class: "is-time", "data-column": "total" }),
+          withReport ? el("td", { class: "is-state" }) : null))));
+    }
+    setClock(box.querySelector('[data-column="total"]'), progress.elapsed, progress.running);
+    const interim = state.interim || {};
+    const added = interim.added || {};
+    const failed = interim.failed || [];
+    items.forEach((item, index) => {
+      const row = box.querySelectorAll("tbody tr")[index];
+      row.classList.toggle("is-active", item.state === "working" && progress.running);
+      for (const kind of kinds) analysisMark(row.querySelector(`[data-column="${kind}"]`), item, kind, progress.simulations);
+      setClock(row.querySelector('[data-column="time"]'), item.seconds, item.state === "working" && progress.running);
+      const report = row.querySelector('[data-column="report"]');
+      if (!report) return;
+      if (added[item.key]) gridMark(report, "done", added[item.key]);
+      else if (interim.building_key === item.key && interim.state === "building") gridMark(report, "working");
+      else if (failed.includes(item.key)) gridMark(report, "failed", null, "Its page could not be built");
+      else gridMark(report, "todo");
     });
     return true;
   }
@@ -7829,7 +8490,7 @@
       for (const [field, id] of Object.entries(SC_BOXES)) row[field] = $(`sc-${id}_${n}`).value;
       rows.push(row);
     }
-    return { rows, out_dir: $("sc-out_dir").value, out: $("sc-out").value };
+    return { rows };
   }
 
   function scShowRows() {
@@ -7855,16 +8516,12 @@
     form.rows.forEach((row, index) => { if (Object.values(row).some((box) => String(box).trim())) shown = Math.max(shown, index + 1); });
     scSims.shown = Math.min(SC_MOST, Math.max(shown, form.rows.length > 2 ? form.rows.length : 2));
     scWriteSims(form);
-    $("sc-out_dir").value = form.out_dir;
-    $("sc-out").value = form.out;
-    $("sc-out_dir").placeholder = state.cwd;
     scSims.errors = {};
     scSims.probes = {};
     $("sc-sims-error").hidden = true;
     scShowRows();
     scSims.fillRecent.forEach((fill) => fill());
     for (let n = 1; n <= scSims.shown; n++) scAskProbe(n, 0);
-    scAskOutProbe(0);
     refreshScSims();
   }
 
@@ -7879,8 +8536,8 @@
       let found;
       try {
         const response = await fetch(`api/probe?${query({
-          simdir: $(`sc-dir_${n}`).value, ndown: $(`sc-ndown_${n}`).value, out: $("sc-out").value || "comparison.py",
-          exclude: $(`sc-exclude_${n}`).value, require: $(`sc-require_${n}`).value, out_dir: $("sc-out_dir").value,
+          simdir: $(`sc-dir_${n}`).value, ndown: $(`sc-ndown_${n}`).value, out: "", out_dir: "",
+          exclude: $(`sc-exclude_${n}`).value, require: $(`sc-require_${n}`).value,
         })}`, { cache: "no-store" });
         found = await response.json();
       } catch (error) {
@@ -7888,21 +8545,6 @@
       }
       if (number !== scSims.numbers[n]) return;
       scSims.probes[n] = found;
-      refreshScSims();
-    }, delay);
-  }
-
-  let scOutTimer = null;
-  function scAskOutProbe(delay) {
-    clearTimeout(scOutTimer);
-    scOutTimer = setTimeout(async () => {
-      try {
-        const response = await fetch(`api/probe?${query({
-          simdir: "", ndown: "", out: $("sc-out").value, exclude: "", require: "", out_dir: $("sc-out_dir").value })}`, { cache: "no-store" });
-        scSims.outProbe = await response.json();
-      } catch (error) {
-        return;
-      }
       refreshScSims();
     }, delay);
   }
@@ -7953,10 +8595,9 @@
         const depth = probe.ndown;
         const filtered = probe.all_files !== null && probe.all_files !== probe.files;
         if (probe.files > 0) {
-          let found = filtered
-            ? `${probe.files} of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters`
-            : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} ${depthText(depth)}`;
-          if (probe.years) found += probe.years[0] === probe.years[1] ? `, named for ${probe.years[0]}` : `, named for ${probe.years[0]}–${probe.years[1]}`;
+          const found = filtered
+            ? `${probe.files} of the ${probe.all_files} netCDF files found pass the file filters`
+            : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} found`;
           lines.push(line(found + ".", "ok"));
         } else if (depth !== null && probe.all_files > 0) {
           lines.push(line(`None of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters.`, "nofiles"));
@@ -7974,20 +8615,6 @@
       }
       message(`sc-m-${n}`, lines, false);
     }
-    const out = scSims.outProbe || {};
-    const outErrors = { ...(scSims.errors.out_dir ? { out_dir: scSims.errors.out_dir } : {}), ...(scSims.errors.out ? { out: scSims.errors.out } : {}) };
-    if (out.out_dir === "file") outErrors.out_dir = "This is a file, not a directory.";
-    if (!$("sc-out").value.trim()) outErrors.out = outErrors.out || "";
-    const saved = "The comparison will be saved in oceanval_simulation_comparison, inside this directory.";
-    const outLines = outErrors.out_dir ? [line(outErrors.out_dir, "error")] : [line($("sc-out_dir").value.trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
-    if (!outErrors.out_dir && out.out_dir === "missing") outLines.push(line("It does not exist yet, so OceanVal will create it."));
-    if (!outErrors.out_dir && out.out_dir_has_comparison) outLines.push(line("There is a comparison here already, from an earlier run. It will be replaced: choose another directory to keep it.", "warn"));
-    message("sc-m-out_dir", outLines, Boolean(outErrors.out_dir));
-    $("sc-out_dir").classList.toggle("is-invalid", Boolean(outErrors.out_dir));
-    $("sc-out").classList.toggle("is-invalid", Boolean(outErrors.out));
-    if (outErrors.out) message("sc-m-out", [line(outErrors.out, "error")], true);
-    else if (out.out_exists) message("sc-m-out", [line("This file already exists, and will be replaced. Unless you plan to run this comparison file yourself, there is no need to worry about the name.", "warn")]);
-    else message("sc-m-out", []);
     const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);
     let note = scSims.errors.simulations || "";
     if (!note && problems.complete < 2 && !rowsWrong) note = "Give at least two simulations to compare.";
@@ -7995,7 +8622,7 @@
     $("sc-add").disabled = scSims.shown >= SC_MOST;
     const next = $("sc-continue");
     if (next) {
-      next.disabled = scSims.busy || rowsWrong || problems.complete < 2 || Boolean(outErrors.out_dir) || !$("sc-out").value.trim();
+      next.disabled = scSims.busy || rowsWrong || problems.complete < 2;
     }
   }
 
@@ -8033,14 +8660,6 @@
     $(`sc-name_${scSims.shown}`).focus();
     refreshScSims();
   });
-  for (const id of ["sc-out_dir", "sc-out"]) {
-    $(id).addEventListener("input", () => {
-      delete scSims.errors[id === "sc-out" ? "out" : "out_dir"];
-      scAskOutProbe(400);
-      if (id === "sc-out_dir") for (let n = 1; n <= scSims.shown; n++) scAskProbe(n, 400);
-      refreshScSims();
-    });
-  }
   $("sc-sims-form").addEventListener("submit", (event) => { event.preventDefault(); submitScSims(); });
 
   async function submitScSims() {
@@ -8056,7 +8675,7 @@
     scSims.busy = false;
     if (!reply.ok) {
       const errors = reply.errors || {};
-      scSims.errors = { ...(errors.rows || {}), out_dir: errors.out_dir, out: errors.out, simulations: errors.simulations };
+      scSims.errors = { ...(errors.rows || {}), simulations: errors.simulations };
       scSims.touched = Object.fromEntries(Array.from({ length: SC_MOST }, (_, i) => [i + 1, true]));
       if (reply.error) toast(reply.error);
     }
@@ -8071,7 +8690,7 @@
     const sims = scState().sims;
     const item = { name: row.name || "", models: { ...(row.models || {}) }, filled: Boolean(row.filled), server: {}, hint: "", auto: {}, boxes: {}, msgs: {}, syncs: {} };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Temperature",
-      spellcheck: "false", autocomplete: "off", "aria-label": "Your name for the variable" });
+      spellcheck: "false", autocomplete: "off", "aria-label": "Environmental variable" });
     if (item.filled) name.classList.add("is-oceanval");
     item.nameBox = name;
     item.nameMsg = el("p", { class: "analyze-msg" });
@@ -8139,7 +8758,7 @@
       item.tr.remove();
       refreshScVariables();
     });
-    item.tr = el("tr", {}, el("td", { "data-label": "Your name" }, name, item.nameMsg), ...cells, el("td", {}, remove));
+    item.tr = el("tr", {}, el("td", { "data-label": "Environmental variable" }, name, item.nameMsg), ...cells, el("td", {}, remove));
     return item;
   }
 
@@ -8149,7 +8768,7 @@
     $("scv-table").replaceChildren(
       el("colgroup", {}, el("col", { style: "width:22%" }), ...sims.map(() => el("col", { style: `width:${width}%` })), el("col", { style: "width:56px" })),
       el("thead", {}, el("tr", {},
-        el("th", { scope: "col" }, "Your name ", el("span", { class: "own-req", text: "Required" })),
+        el("th", { scope: "col" }, "Environmental variable ", el("span", { class: "own-req", text: "Required" })),
         ...sims.map((sim, index) => el("th", { scope: "col" }, scNamed(sim.name, scColour(index)))),
         el("th", { scope: "col", "aria-label": "Remove" }))),
       el("tbody", { id: "scv-rows" }));
@@ -8213,7 +8832,7 @@
       if (here.name === "" && !rowWrong && item.name.trim()) complete += 1;
       if (rowWrong) wrong = true;
     });
-    $("scv-msg").textContent = !complete && !wrong ? "Add a variable to compare." : "";
+    $("scv-msg").textContent = "";
     const next = $("scv-continue");
     if (next) {
       next.disabled = scVars.busy || wrong || !complete;

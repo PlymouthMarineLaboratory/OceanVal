@@ -442,6 +442,28 @@ class TestEachSimulationOnItsOwn:
         oceanval.compare_simulations(**given(sims, out_dir=str(tmp_path)))
         assert not os.path.exists(stale)
 
+    def test_the_window_is_told_of_each_analysis_in_each_simulation(self, sims, tmp_path, no_report):
+        from oceanval import prompts
+
+        told = []
+        with prompts.told_by(told.append):
+            oceanval.compare_simulations(**given(sims, out_dir=str(tmp_path)))
+        assert told[0] == {
+            "kind": "analyses",
+            "simulations": 2,
+            "items": [{"key": "temperature", "title": "Temperature", "kinds": ["climatology"]}],
+        }
+        said = [(news["kind"], news.get("analysis"), news["state"]) for news in told[1:]]
+        # the variable is started once, and each analysis is worked out in each simulation
+        assert said == [
+            ("analysis_variable", None, "working"),
+            ("analysis", "climatology", "working"),
+            ("analysis", "climatology", "done"),
+            ("analysis", "climatology", "working"),
+            ("analysis", "climatology", "done"),
+            ("analysis_variable", None, "done"),
+        ]
+
 
 class TestSameThicknessNames:
     def test_each_simulation_uses_its_own_thickness(self, tmp_path, no_report):

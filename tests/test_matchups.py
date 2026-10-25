@@ -519,6 +519,52 @@ class TestMatchupsQuestion:
         # matchup's first call starts from all the times the check read
         assert set(given[0]) == set(files[:-1])
 
+    def test_the_window_chooses_where_the_matchups_go_along_with_yes(self, tmp_path, monkeypatch):
+        """With its out_dir, overwrite and cores, as the oceanval window asks for
+        them once the matchups are confirmed: nothing is written in the script's
+        out_dir before then."""
+        from oceanval.session import session_info
+
+        oceanval.reset()
+        oceanval.add_gridded_comparison(
+            name="temperature",
+            obs_path="data/evaldata/gridded/nws/temperature",
+            source="foo",
+            model_variable="votemper",
+            obs_variable="votemper",
+            climatology=True,
+        )
+        draft, chosen = tmp_path / "draft", tmp_path / "chosen"
+
+        class Stop(Exception):
+            pass
+
+        seen = []
+
+        def answerer(question, choices, details):
+            # nothing is in the draft's out_dir when the question is asked
+            seen.append(os.listdir(draft) if draft.exists() else [])
+            return prompts.Answer("y", {"out_dir": str(chosen), "overwrite": ["temperature/foo"], "cores": 1})
+
+        def index_times(paths, fvcom=False, times=None, progress=None):
+            raise Stop()
+
+        monkeypatch.setattr(matchall, "index_times", index_times)
+        with prompts.answered_by(answerer):
+            with pytest.raises(Stop):
+                oceanval.matchup(
+                    sim_dir="data/example", start=2004, end=2004, cores=6, out_dir=str(draft),
+                )
+        oceanval.reset()
+
+        assert seen == [[]]
+        assert not draft.exists() or os.listdir(draft) == []
+        # the matchups go where the window said
+        assert (chosen / "oceanval_matchups" / "mapping.csv").exists()
+        assert session_info["out_dir"] == str(chosen) + "/"
+        assert session_info["overwrite"] == ["temperature/foo"]
+        assert session_info["cores"] == 1
+
 class TestPointTimeResCheck:
     """Point datasets matched by day against output coarser than daily are
     asked about once the matchups are right (see oceanval.time_res)."""

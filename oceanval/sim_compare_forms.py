@@ -23,11 +23,41 @@ def blank_sim():
 
 def default_sims_form(cwd):
     """The simulations step's boxes, as they start."""
+    return {"rows": [blank_sim() for _ in range(START_ROWS)]}
+
+
+def default_output_form(cwd):
+    """The last page's boxes, as they start. replace_analysis is whether the
+    user has ticked to replace the comparison the output directory has
+    already, which it must have if it does (the box Analyze has, on the same
+    page)."""
+    return {"out_dir": cwd, "out": "simulation_comparison.py", "replace_analysis": False}
+
+
+def clean_output_form(form, cwd):
+    """The last page's boxes as the page sent them, limited to its own."""
+    form = form if isinstance(form, dict) else {}
     return {
-        "rows": [blank_sim() for _ in range(START_ROWS)],
-        "out_dir": cwd,
-        "out": "simulation_comparison.py",
+        "out_dir": str(form.get("out_dir") if form.get("out_dir") is not None else cwd).strip(),
+        "out": str(form.get("out") or "").strip(),
+        "replace_analysis": bool(form.get("replace_analysis")),
     }
+
+
+def check_output(form, cwd):
+    """The last page's boxes (see clean_output_form) as the full paths
+    {"out_dir", "out"} the script and the comparison are saved at: (paths,
+    errors), where errors maps each box that cannot be used to the reason. A
+    comparison in the output directory is replaced by the new one, so the user
+    must have ticked to say so, and named the directory."""
+    return analysis_forms.check_output(form, cwd, sim_compare.FOLDER, NAME_THE_DIRECTORY)
+
+
+# said when a comparison is in the directory worked in and the box is empty; the page says it too
+NAME_THE_DIRECTORY = (
+    "There is a comparison in the directory you started OceanVal in. "
+    "To replace it, name the directory here rather than leaving the box empty."
+)
 
 
 def clean_sims_form(form, cwd):
@@ -39,43 +69,29 @@ def clean_sims_form(form, cwd):
         rows.append({box: str(row.get(box) or "").strip()[:500] for box in blank_sim()})
     while len(rows) < START_ROWS:
         rows.append(blank_sim())
-    return {
-        "rows": rows,
-        "out_dir": str(form.get("out_dir") if form.get("out_dir") is not None else cwd).strip(),
-        "out": str(form.get("out") or "").strip(),
-    }
+    return {"rows": rows}
 
 
 def check_sims(form, cwd):
     """The simulations step's boxes (see clean_sims_form) as compare_simulations()
-    takes the simulations: (sims, errors, paths). sims is a list of {"name",
+    takes the simulations: (sims, errors). sims is a list of {"name",
     "simdir", "ndown", "exclude", "require"} for the rows filled in, and errors
-    maps "rows" to {the row's place: {box: reason}}, "out_dir" and "out" to
-    their reasons, and "simulations" to a reason for the step as a whole; paths
-    is the full paths {"out_dir", "out"} the script and the comparison are
-    saved at. A row left empty is skipped."""
+    maps "rows" to {the row's place: {box: reason}} and "simulations" to a
+    reason for the step as a whole. A row left empty is skipped."""
     sims = []
     errors = {}
     keys = {}
-    out = {}
-    paths = {}
     for index, row in enumerate(form["rows"]):
         if not any(row.values()):
             continue
         here = {}
         arguments, found = analysis_forms.check_setup(
-            {"simdir": row["simdir"], "ndown": row["ndown"], "exclude": row["exclude"], "require": row["require"],
-             "out_dir": form["out_dir"], "out": form["out"]},
+            {"simdir": row["simdir"], "ndown": row["ndown"], "exclude": row["exclude"], "require": row["require"]},
             cwd,
         )
         for box in ("simdir", "ndown"):
             if box in found:
                 here[box] = found[box]
-        for box in ("out_dir", "out"):
-            if box in found:
-                out[box] = found[box]
-            elif box in arguments:
-                paths[box] = arguments[box]
         name = row["name"]
         key = analysis.variable_key(name)
         if not name:
@@ -98,14 +114,13 @@ def check_sims(form, cwd):
                 "require": arguments.get("require"),
             }
         )
-    errors.update(out)
     if not errors and len(sims) < 2:
         errors["simulations"] = "Give at least two simulations to compare."
     if "rows" not in errors and len(sims) > MOST_SIMULATIONS:
         errors["simulations"] = f"At most {MOST_SIMULATIONS} simulations can be compared."
     if errors:
-        return None, errors, {}
-    return sims, {}, paths
+        return None, errors
+    return sims, {}
 
 
 # ---- the variables ----

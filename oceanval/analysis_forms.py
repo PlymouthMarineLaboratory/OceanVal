@@ -3,11 +3,11 @@ oceanval.analysis_app): what they start with, and the checks of what is
 entered in them. Nothing here changes the window.
 
 The steps are the simulation (the setup page, without the domain), the
-variables to analyse ("Your name" and the model variable holding it), the
-files holding them with any gaps in their times, and the analyses, each in a
-pop-out: climatology, phenology, the long-term and seasonal time series,
+variables to analyse ("Environmental variable" and the model variable holding
+it), the files holding them with any gaps in their times, and the analyses, each
+in a pop-out: climatology, phenology, the long-term and seasonal time series,
 which share the regions, lon/lat box and stations they are of, and
-transects.
+transects. Where the output is saved is asked last.
 """
 
 import datetime
@@ -22,13 +22,13 @@ from oceanval import time_res as time_resolution
 # the most rows the variables step takes
 MOST_ROWS = 200
 
-# the setup page's boxes that the Analyze steps have no use for, and what is
-# asked of the matchups in the output directory already, which it does not show
-_NOT_ANALYZED = ("domain", "start", "end", "overwrite", "previous", "existing_confirmed")
+# the setup page's boxes that the Analyze steps have no use for
+_NOT_ANALYZED = ("domain", "start", "end")
 
 
 def default_setup_form(cwd):
-    """The simulation step's boxes for an analysis, as they start."""
+    """The simulation step's boxes for an analysis, as they start. Its out_dir,
+    out and replace_analysis are the last page's, which starts with them."""
     from oceanval.app import default_setup_form as setup_form
 
     # replace_analysis: whether the user has ticked to replace the analysis
@@ -38,13 +38,9 @@ def default_setup_form(cwd):
 
 def check_setup(form, cwd):
     """The simulation step's boxes as analyze() arguments: (arguments,
-    errors), as oceanval.app.check_setup gives them, without the domain,
-    the years and the matchups already there, which an analysis has no use
-    for.
-
-    An analysis in the output directory is replaced by the new one, so the
-    user must have ticked to say so (replace_analysis), and named the
-    directory rather than left the box empty, which is the directory worked in."""
+    errors), as oceanval.app.check_setup gives them, without the domain and
+    the years, which an analysis has no use for. The output is asked for last
+    (see check_output)."""
     from oceanval.app import _form
     from oceanval.app import check_setup as check
 
@@ -53,9 +49,30 @@ def check_setup(form, cwd):
     for name in _NOT_ANALYZED:
         arguments.pop(name, None)
         errors.pop(name, None)
-    if "out_dir" in arguments and os.path.isdir(os.path.join(arguments["out_dir"], analysis.FOLDER)):
+    return arguments, errors
+
+
+def check_output(form, cwd, folder=analysis.FOLDER, name_the_directory=None):
+    """The last page's boxes, out_dir, out and replace_analysis: (arguments,
+    errors) with the full paths {"out_dir", "out"}, and for each box that cannot
+    be used the reason.
+
+    What is in folder (an analysis's, or a comparison's: see
+    oceanval.sim_compare_forms) in the output directory is replaced by the new
+    one, so the user must have ticked to say so (replace_analysis), and named
+    the directory rather than left the box empty, which is the directory worked
+    in (name_the_directory, NAME_THE_DIRECTORY unless given, says so)."""
+    from oceanval.app import _form
+    from oceanval.app import check_output as check
+
+    form = _form(form, default_setup_form(cwd))
+    # what is asked of the matchups there is matchup's, not an analysis's
+    arguments, errors = check({"out_dir": form["out_dir"], "out": form["out"]}, cwd)
+    arguments = {name: arguments[name] for name in ("out_dir", "out") if name in arguments}
+    errors = {name: errors[name] for name in ("out_dir", "out") if name in errors}
+    if "out_dir" in arguments and os.path.isdir(os.path.join(arguments["out_dir"], folder)):
         if not form["out_dir"]:
-            errors["out_dir"] = NAME_THE_DIRECTORY
+            errors["out_dir"] = name_the_directory or NAME_THE_DIRECTORY
         elif not form["replace_analysis"]:
             errors["replace_analysis"] = ""
     return arguments, errors
@@ -263,12 +280,13 @@ def _years(box, errors, known):
 
 def default_climatology(placed, years_of):
     """A layered pop-out's boxes (the climatology's, and the time series'), as
-    they start: nothing ticked, no years and no way to take the water column,
-    for each variable. Nothing is chosen for the user: the years of each
-    variable's output are only shown beside it (see output_years)."""
+    they start: each variable ticked (the user's rule: one is left out by
+    unticking it), but no layer, no years and no way to take the water column.
+    Nothing else is chosen for the user: the years of each variable's output
+    are only shown beside it (see output_years)."""
     return {
         "rows": {
-            row["name"]: {"use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            row["name"]: {"use": True, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
                 # the long-term series' rolling mean, none to start with, and how it is shown
                 "window": "1", "show": analysis.SHOW_ABSOLUTE,
             }
@@ -279,9 +297,13 @@ def default_climatology(placed, years_of):
 
 
 def default_phenology(placed, years_of, time_res_of):
-    """The phenology pop-out's boxes, as they start: nothing ticked and no
-    years, for each variable."""
-    return {"rows": {row["name"]: {"use": False, "start": "", "end": ""} for row in placed}}
+    """The phenology pop-out's boxes, as they start: each variable with daily
+    output ticked (one without cannot have a phenology), and no years."""
+    return {
+        "rows": {
+            row["name"]: {"use": time_res_of(row["name"]) == time_resolution.DAILY, "start": "", "end": ""} for row in placed
+        }
+    }
 
 
 def clean_climatology(form, placed):
@@ -345,7 +367,7 @@ def _check_layers(box, row, found):
     layers ticked in box: none, or the bottom or the water column of a
     variable with one vertical level, or a water column with no way to take it."""
     if not box["surface"] and not box["bottom"] and not box["water_column"]:
-        found["surface"] = "Tick the surface, the bottom, the water column, or more than one."
+        found["surface"] = "Tick the surface, the bottom, the water column, or more than one, or untick the variable."
     if box["bottom"] and row["levels"] < 2:
         found["bottom"] = "It has only one vertical level."
     if box["water_column"] and row["levels"] < 2:
@@ -452,13 +474,13 @@ CHANGE_BOXES = tuple(f"{period}_{end}" for period in CHANGE_PERIODS for end in (
 
 
 def default_map_changes(placed):
-    """The map changes pop-out's boxes, as they start: nothing ticked, no
-    years, no plot and no change, for each variable."""
+    """The map changes pop-out's boxes, as they start: each variable ticked,
+    but no layer, no years, no plot and no change."""
     blank = {box: "" for box in CHANGE_BOXES}
     return {
         "rows": {
             row["name"]: dict(
-                blank, use=False, plot="", change="", surface=False, bottom=False, water_column=False, how=""
+                blank, use=True, plot="", change="", surface=False, bottom=False, water_column=False, how=""
             )
             for row in placed
         },
@@ -570,8 +592,8 @@ def blank_transect():
 
 def default_transects(placed):
     """The transects pop-out's boxes, as they start: for each variable on its
-    own, not ticked, with one transect with nothing in it."""
-    return {"rows": {row["name"]: {"use": False, "transects": [blank_transect()]} for row in placed}, "thickness": ""}
+    own, ticked, with one transect with nothing in it."""
+    return {"rows": {row["name"]: {"use": True, "transects": [blank_transect()]} for row in placed}, "thickness": ""}
 
 
 def _blank(line):

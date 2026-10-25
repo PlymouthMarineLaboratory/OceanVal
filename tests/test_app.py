@@ -29,10 +29,10 @@ import xarray as xr
 
 import oceanval
 from oceanval import app as app_module
-from oceanval import app_child, cdo_watch, leftovers, live, model_check, prompts
+from oceanval import analysis_report, app_child, cdo_watch, leftovers, live, model_check, prompts, sim_compare
 from oceanval.app import (
-    App, Console, Question, Run, check_compare, check_report, check_setup, check_validate,
-    default_validate_form, existing_matchups,
+    App, Console, Question, Run, check_compare, check_output, check_report, check_setup, check_validate,
+    default_validate_form, existing_matchups, matchups_asked_about,
 )
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.gridded import _ask_minutes, _ask_yes_no
@@ -47,10 +47,20 @@ SETUP_FORM = {
     "end": "2012",
     "exclude": "",
     "require": "",
+}
+
+# the output step's boxes, the last before a matchup starts
+OUTPUT_FORM = {
     "out_dir": "",
-    "overwrite": [],
+    "unused": [],
     "existing_confirmed": False,
     "out": "matchup.py",
+}
+
+# a matchup as matchup lists it with its question of whether the matchups are right
+COBE2_MATCHUP = {
+    "kind": "gridded", "variable": "temperature", "source": "cobe2", "layer": None,
+    "vertical": False, "title": "Temperature", "key": "temperature/cobe2",
 }
 
 # what matchup sends with its question of whether the matchups are right
@@ -99,6 +109,31 @@ def units_match(app):
     assert post(app, "/api/units_continue", {"conversions": {}, "confirmed": True})[0] == 200
 
 
+def chosen_output(app, tmp_path):
+    """Write the script where the output step would, by default: matchup.py
+    in the directory worked in, with the matchups beside it."""
+    with app._lock:
+        app._keep_in_script(out=str(tmp_path / "matchup.py"), out_dir="", overwrite=True)
+        app.out_dir = app.results_dir = str(tmp_path)
+        writer = app._script_writer
+    app._write_script(writer)
+
+
+def draft(app):
+    """The draft of the script the run starts from, in a folder of OceanVal's
+    own, until the output step writes it where it says."""
+    return app._recipes.context["out"]
+
+
+def output_continue(app, **output):
+    """Carry on from the output step, once the matchups are confirmed, with
+    its boxes as OUTPUT_FORM with output (and a core, which matchup alone
+    asks for there)."""
+    wait_for(lambda: app.view == "output")
+    status, reply = post(app, "/api/output", {"form": {**OUTPUT_FORM, "cores": "1", **output}})
+    assert status == 200, reply
+
+
 def choose_domain(page, domain="global"):
     """Choose the spatial coverage on the setup page, which has no default."""
     page.check(f'#f-domain input[value="{domain}"]')
@@ -106,8 +141,8 @@ def choose_domain(page, domain="global"):
 
 def fill_required_recipe_settings(page):
     """Give what the recipes window has no default for in the app: the years,
-    which can be typed or chosen from the years the output's times cover, and
-    the number of cores."""
+    which can be typed or chosen from the years the output's times cover. The
+    number of cores is asked once the matchups are confirmed, not here."""
     red = "rgb(192, 57, 43)"
     for name in ("start", "end"):
         assert page.input_value(f"#s-{name}") == ""
@@ -120,12 +155,7 @@ def fill_required_recipe_settings(page):
     assert page.get_attribute("#s-start", "placeholder") == "2011"
     assert page.get_attribute("#s-end", "placeholder") == "2012"
     assert page.text_content("#g-output-years") == "The simulation's output runs from 2011 to 2012, from the times in its files."
-    cores = page.locator(".cores-row .g-label")
-    assert page.input_value("#s-cores") == ""
-    assert page.locator("#s-cores option").first.text_content() == "Choose the number of cores"
-    assert page.locator("#s-cores").evaluate("node => node.required")
-    assert cores.evaluate("node => getComputedStyle(node).color") == red
-    assert cores.text_content() == "How many cores do you want to use?Required"
+    assert page.is_hidden("#s-cores")
     assert page.is_disabled("#write")
     # the first year chosen with the arrow at the right of its box
     box = page.locator("#s-start").bounding_box()
@@ -137,8 +167,22 @@ def fill_required_recipe_settings(page):
     assert "These go beyond the 2011–2012 found in the simulation's files." in page.text_content("#g-years")
     page.fill("#s-end", "2012")
     assert "go beyond" not in page.text_content("#g-years")
-    assert page.is_disabled("#write")
-    page.select_option("#s-cores", "1")
+
+
+def through_output(page):
+    """Carry on from where the matchups are saved, once they are confirmed,
+    as it starts (and with a core, for matchup alone, which asks for it there)."""
+    page.wait_for_selector("#view-output:not([hidden])")
+    if page.is_visible("#f-cores"):
+        page.select_option("#f-cores", "1")
+    page.wait_for_function("!document.getElementById('output-run').disabled")
+    page.click("#output-run")
+
+
+def pick_cores(page):
+    """Choose a core on the report options, which matchup is given with them."""
+    if page.is_visible("#v-cores"):
+        page.select_option("#v-cores", "1")
 
 
 def recipe_settings(app, **changes):
@@ -605,11 +649,10 @@ class TestRemoteAccess:
 class TestSetupChecks:
     def test_the_arguments(self, tmp_path):
         (tmp_path / "sim").mkdir()
-        arguments, errors = check_setup(
-            dict(SETUP_FORM, domain="nwes", out="run/m.py"), str(tmp_path)
-        )
+        arguments, errors = check_setup(dict(SETUP_FORM, domain="nwes"), str(tmp_path))
 
         assert errors == {}
+        # where the output is saved is asked last (see TestOutputChecks)
         assert arguments == {
             "simdir": str(tmp_path / "sim"),
             "ndown": 2,
@@ -618,81 +661,7 @@ class TestSetupChecks:
             "end": 2012,
             "exclude": None,
             "require": None,
-            "out_dir": str(tmp_path),
-            "overwrite": True,
-            "previous": True,
-            "out": str(tmp_path / "run" / "m.py"),
         }
-
-    def test_the_output_directory(self, tmp_path):
-        (tmp_path / "sim").mkdir()
-        (tmp_path / "notes.txt").write_text("")
-
-        def check(out_dir):
-            return check_setup(dict(SETUP_FORM, out_dir=out_dir), str(tmp_path))
-
-        # relative to the directory worked in, and it need not be there yet
-        assert check("results")[0]["out_dir"] == str(tmp_path / "results")
-        assert check(str(tmp_path / "elsewhere"))[0]["out_dir"] == str(tmp_path / "elsewhere")
-        assert check("notes.txt")[1] == {"out_dir": "This is a file, not a directory."}
-
-    def test_the_matchups_there_already_are_listed_by_variable_and_source(self, tmp_path):
-        write_mixed_matchups(tmp_path / "old")
-        assert [
-            (row["key"], row["title"], row["kinds"]) for row in existing_matchups(str(tmp_path / "old"))
-        ] == [
-            ("temperature/COBE2", "Temperature", [{"kind": "gridded", "layer": None}]),
-            ("temperature/WOA23", "Temperature", [{"kind": "gridded", "layer": None}]),
-            ("nitrate/glodap", "Nitrate", [{"kind": "point", "layer": "all"}]),
-            ("nitrate/ICES", "Nitrate", [{"kind": "point", "layer": "surface"}]),
-        ]
-        # a matchups folder with none in it, as one that did not get far leaves, has none to ask about
-        (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
-        assert existing_matchups(str(tmp_path / "empty")) == []
-        assert existing_matchups(str(tmp_path / "nowhere")) == []
-
-    def test_what_is_done_with_the_matchups_there_already_must_be_said(self, tmp_path):
-        (tmp_path / "sim").mkdir()
-        write_mixed_matchups(tmp_path / "old")
-        (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
-
-        def check(report=True, **changes):
-            return check_setup(dict(SETUP_FORM, out_dir="old", **changes), str(tmp_path), report=report)
-
-        # each is used in the report as it is, to start with, which must be confirmed
-        arguments, errors = check()
-        assert errors == {"existing_confirmed": ""}
-        assert (arguments["overwrite"], arguments["previous"]) == (False, True)
-        arguments, errors = check(existing_confirmed=True)
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (False, True)
-        # only one used is kept as it is: one replaced (or ignored) is made again
-        # if this run matches it up, and left out of the report if not
-        arguments, errors = check(existing_confirmed=True, overwrite=MIXED_KEYS)
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
-        arguments, errors = check(
-            existing_confirmed=True,
-            overwrite=["temperature/COBE2", "temperature/WOA23", "nitrate/glodap", "oxygen/ICES"],
-        )
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (
-            ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap"], ["nitrate/ICES"],
-        )
-        # with no report, there is no use in it to ask about: those not replaced are
-        # kept and used as they are, which must be confirmed too
-        assert check(report=False, overwrite=["nitrate/ICES"])[1] == {"existing_confirmed": ""}
-        arguments, errors = check(report=False, existing_confirmed=True, overwrite=["nitrate/ICES"])
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (["nitrate/ICES"], True)
-        arguments = check(report=False, existing_confirmed=True)[0]
-        assert (arguments["overwrite"], arguments["previous"]) == (False, True)
-        # nor in the demo's own folder, where every model tried keeps its matchups:
-        # this run's are made again, and no others are in the report
-        arguments, errors = check_setup(
-            dict(SETUP_FORM, out_dir="old"), str(tmp_path), demo_dir=str(tmp_path / "old")
-        )
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
-        # nothing is asked without matchups there
-        for out_dir in ("empty", "new"):
-            arguments, errors = check_setup(dict(SETUP_FORM, out_dir=out_dir), str(tmp_path))
-            assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, True)
 
     def test_the_file_filters_are_words(self, tmp_path):
         (tmp_path / "sim").mkdir()
@@ -715,8 +684,6 @@ class TestSetupChecks:
             ({"domain": ""}, "domain"),
             ({"start": "x"}, "start"),
             ({"end": "2010"}, "end"),
-            ({"out": ""}, "out"),
-            ({"out": "sim"}, "out"),
         ],
     )
     def test_boxes_that_cannot_be_used(self, tmp_path, changes, error):
@@ -724,6 +691,117 @@ class TestSetupChecks:
         assert list(check_setup(dict(SETUP_FORM, **changes), str(tmp_path))[1]) == [
             error
         ]
+
+
+class TestOutputChecks:
+    """The output step's boxes, the last before a matchup starts."""
+
+    def test_the_arguments(self, tmp_path):
+        arguments, errors = check_output(dict(OUTPUT_FORM, out="run/m.py"), str(tmp_path))
+
+        assert errors == {}
+        assert arguments == {
+            "out_dir": str(tmp_path),
+            "overwrite": True,
+            "previous": True,
+            "out": str(tmp_path / "run" / "m.py"),
+        }
+
+    def test_the_output_directory(self, tmp_path):
+        (tmp_path / "notes.txt").write_text("")
+
+        def check(out_dir):
+            return check_output(dict(OUTPUT_FORM, out_dir=out_dir), str(tmp_path))
+
+        # relative to the directory worked in, and it need not be there yet
+        assert check("results")[0]["out_dir"] == str(tmp_path / "results")
+        assert check(str(tmp_path / "elsewhere"))[0]["out_dir"] == str(tmp_path / "elsewhere")
+        assert check("notes.txt")[1] == {"out_dir": "This is a file, not a directory."}
+
+    def test_the_matchups_there_already_are_listed_by_variable_and_source(self, tmp_path):
+        write_mixed_matchups(tmp_path / "old")
+        assert [
+            (row["key"], row["title"], row["kinds"]) for row in existing_matchups(str(tmp_path / "old"))
+        ] == [
+            ("temperature/COBE2", "Temperature", [{"kind": "gridded", "layer": None}]),
+            ("temperature/WOA23", "Temperature", [{"kind": "gridded", "layer": None}]),
+            ("nitrate/glodap", "Nitrate", [{"kind": "point", "layer": "all"}]),
+            ("nitrate/ICES", "Nitrate", [{"kind": "point", "layer": "surface"}]),
+        ]
+        # a matchups folder with none in it, as one that did not get far leaves, has none to ask about
+        (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
+        assert existing_matchups(str(tmp_path / "empty")) == []
+        assert existing_matchups(str(tmp_path / "nowhere")) == []
+
+    def test_those_asked_about_depend_on_what_the_run_makes(self, tmp_path):
+        write_mixed_matchups(tmp_path / "old")
+        made = {"temperature/cobe2", "nitrate/ices"}
+
+        def asked(report):
+            return [
+                (row["key"], row["made"])
+                for row in matchups_asked_about(str(tmp_path / "old"), made, report)
+            ]
+
+        # one the run makes is used or replaced, one it does not is used in the report or ignored
+        assert asked(True) == [
+            ("temperature/COBE2", True), ("temperature/WOA23", False),
+            ("nitrate/glodap", False), ("nitrate/ICES", True),
+        ]
+        # with no report to use them in, only those the run makes are asked about
+        assert asked(False) == [("temperature/COBE2", True), ("nitrate/ICES", True)]
+        # not knowing what the run makes, each is one it makes
+        assert all(row["made"] for row in matchups_asked_about(str(tmp_path / "old")))
+
+    def test_what_is_done_with_the_matchups_there_already_must_be_said(self, tmp_path):
+        write_mixed_matchups(tmp_path / "old")
+        (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
+        # the run makes the gridded COBE2 and the surface ICES matchups again
+        made = {"temperature/cobe2", "nitrate/ices"}
+
+        def check(report=True, **changes):
+            return check_output(
+                dict(OUTPUT_FORM, out_dir="old", **changes), str(tmp_path), report=report, made=made
+            )
+
+        # each is used as it is, to start with, which must be confirmed
+        arguments, errors = check()
+        assert errors == {"existing_confirmed": ""}
+        assert (arguments["overwrite"], arguments["previous"]) == (False, True)
+        arguments, errors = check(existing_confirmed=True)
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (False, True)
+        # every one unused: those the run makes are replaced, the others ignored
+        arguments, errors = check(existing_confirmed=True, unused=MIXED_KEYS)
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
+        # one replaced and one ignored: only those used are in the report as they are
+        arguments, errors = check(existing_confirmed=True, unused=["temperature/COBE2", "nitrate/glodap", "oxygen/ICES"])
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (
+            ["temperature/COBE2"], ["temperature/WOA23", "nitrate/ICES"],
+        )
+        # with no report, only those the run makes are asked about, to be used or replaced
+        assert check(report=False, unused=["nitrate/ICES"])[1] == {"existing_confirmed": ""}
+        arguments, errors = check(report=False, existing_confirmed=True, unused=["nitrate/ICES"])
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (["nitrate/ICES"], True)
+        arguments = check(report=False, existing_confirmed=True)[0]
+        assert (arguments["overwrite"], arguments["previous"]) == (False, True)
+        # and none, if the run makes none of them
+        arguments, errors = check_output(dict(OUTPUT_FORM, out_dir="old"), str(tmp_path), report=False, made=set())
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, True)
+        # nor in the demo's own folder, where every model tried keeps its matchups:
+        # this run's are made again, and no others are in the report
+        arguments, errors = check_output(
+            dict(OUTPUT_FORM, out_dir="old"), str(tmp_path), demo_dir=str(tmp_path / "old")
+        )
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
+        # nothing is asked without matchups there
+        for out_dir in ("empty", "new"):
+            arguments, errors = check_output(dict(OUTPUT_FORM, out_dir=out_dir), str(tmp_path))
+            assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, True)
+
+    @pytest.mark.parametrize("changes", [{"out": ""}, {"out": "sim"}])
+    def test_a_script_that_cannot_be_written(self, tmp_path, changes):
+        (tmp_path / "sim").mkdir()
+        assert list(check_output(dict(OUTPUT_FORM, **changes), str(tmp_path))[1]) == ["out"]
 
 
 class TestBrowsing:
@@ -1176,15 +1254,16 @@ class TestChoosingMatchups:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        output_continue(app)
         assert get_json(app, "/api/state")[1]["report"]["matchups"] == listed
 
         # none ticked
-        form = {"unticked": ["temperature/COBE2", "temperature/ICES"]}
+        form = {"unticked": ["temperature/COBE2", "temperature/ICES"], "cores": "1"}
         status, reply = post(app, "/api/report", {"form": form})
         assert (status, reply["errors"]) == (400, {"variables": "Tick at least one dataset to validate."})
 
         # the gridded one unticked, so its options are not used
-        form = {"unticked": ["temperature/COBE2"], "subregions": "global", "fixed_scale": True}
+        form = {"unticked": ["temperature/COBE2"], "subregions": "global", "fixed_scale": True, "cores": "1"}
         assert post(app, "/api/report", {"form": dict(form, **DEPTH_FORM)})[0] == 200
         assert app.report_arguments == {
             "data_dir": str(tmp_path),
@@ -1195,8 +1274,8 @@ class TestChoosingMatchups:
         wait_for(lambda: validated)
         text = app.console.since(0, None)["text"]
         assert (
-            'settings: {"live_validation": {"depth_bins": [[0, 20], [20, 200], [200, null]], '
-            '"variables": ["temperature/ICES"]}}'
+            '"live_validation": {"depth_bins": [[0, 20], [20, 200], [200, null]], '
+            '"variables": ["temperature/ICES"]}'
         ) in text
         assert json.loads(validated[0][1])["variables"] == ["temperature/ICES"]
 
@@ -1240,11 +1319,15 @@ class TestChoosingMatchups:
             )
         )
         app.action = "matchup_validate"
-        app.previous = previous
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        assert post(app, "/api/report", {"form": {"unticked": ["temperature/COBE2"]}})[0] == 200
+        # those used, as the output step chooses them
+        unused = ([] if previous is True else MIXED_KEYS if previous is False
+                  else [key for key in MIXED_KEYS if key not in previous])
+        output_continue(app, existing_confirmed=True, unused=unused)
+        assert app.previous == previous
+        assert post(app, "/api/report", {"form": {"unticked": ["temperature/COBE2"], "cores": "1"}})[0] == 200
         expected = {"data_dir": str(tmp_path), "out_dir": str(tmp_path), "variables": variables}
         if previous is not True:
             expected["previous"] = previous
@@ -1668,44 +1751,30 @@ class TestServer:
         assert post(app, "/recipes/write", {"rows": rows, "settings": recipe_settings(app)})[0] == 200
         units_match(app)
         wait_for(lambda: runs)
-        script = str(tmp_path / "matchup.py")
+        # a draft in a folder of OceanVal's own, written where the user says once the
+        # matchups are confirmed, with nothing in the directory worked in until then
+        script = draft(app)
+        assert not script.startswith(str(tmp_path))
+        assert not (tmp_path / "matchup.py").exists()
         text = open(script).read()
+        assert f'    out_dir="{os.path.dirname(script)}",\n' in text
 
         # to validate as well, the report is built after the script, with the
         # options chosen once the matchups are checked
         kind = "script" if action == "matchup" else "matchup"
-        assert runs == [([kind, script], "python matchup.py")]
+        assert runs == [([kind, script], f"python {script}")]
         assert '\noceanval.add_gridded_comparison(\n    name="temperature",' in text
         if action == "matchup":
             # the report is left for later
-            assert "\n# oceanval.validate()\n" in text
+            assert "\n# oceanval.validate(" in text
             assert "\noceanval.validate(" not in text
         else:
-            assert "\noceanval.validate()\n" in text
-        assert app.results_dir == str(tmp_path)
+            # of the draft's directory, until the output step says where the matchups go
+            assert f'\noceanval.validate(\n    data_dir="{os.path.dirname(script)}",' in text
+        # chosen once the matchups are confirmed
+        assert app.results_dir is None
         # the recipes step is over, so its link leads back to the app
         assert 'id="view-start"' in get(app, "/recipes/")[1]
-
-    def test_the_output_directory_reaches_the_script(self, app, tmp_path, runs):
-        write_simulation(tmp_path / "sim")
-        app.choose("matchup_validate")
-        post(app, "/api/setup", {"form": dict(SETUP_FORM, out_dir="results")})
-        post(app, "/api/own_data", {"answer": False})
-        wait_for(lambda: app.view == "recipes")
-        results = str(tmp_path / "results")
-        # chosen with the simulation, so the recipes step does not ask again
-        assert app.recipes_page.form["out_dir"] == results
-
-        rows = [{"variable": "temperature", "model_variable": "thetao", "selected": ["cobe2"]}]
-        assert post(app, "/recipes/write", {"rows": rows, "settings": recipe_settings(app)})[0] == 200
-        units_match(app)
-        wait_for(lambda: runs)
-        text = open(tmp_path / "matchup.py").read()
-
-        assert f'    sim_dir="{tmp_path / "sim"}",\n' in text
-        assert f'    out_dir="{results}",\n' in text
-        assert f'oceanval.validate(\n    data_dir="{results}",\n    out_dir="{results}",\n)' in text
-        assert app.results_dir == results
 
     def test_the_report_options_are_written_into_the_script(
         self, app, tmp_path, runs, monkeypatch
@@ -1719,7 +1788,9 @@ class TestServer:
         assert post(app, "/recipes/write", {"rows": rows, "settings": recipe_settings(app)})[0] == 200
         units_match(app)
         wait_for(lambda: runs)
-        # as when the script has run without asking about the matchups
+        # as when the script has run without asking about the matchups, after the
+        # output step said where it goes
+        chosen_output(app, tmp_path)
         app.view = "report_options"
         # COBE-SST 2 is gridded, so the step can ask for a transect
         assert get_json(app, "/api/state")[1]["report"]["gridded"] is True
@@ -1762,7 +1833,9 @@ class TestServer:
         assert post(app, "/recipes/write", {"rows": rows, "settings": recipe_settings(app)})[0] == 200
         units_match(app)
         wait_for(lambda: runs)
-        # as when the script has run without asking about the matchups
+        # as when the script has run without asking about the matchups, after the
+        # output step said where it goes
+        chosen_output(app, tmp_path)
         app.view = "report_options"
 
     def test_a_transect_that_cannot_be_used_is_refused(self, app, tmp_path, runs):
@@ -1809,6 +1882,7 @@ class TestServer:
         assert post(app, "/recipes/write", {"rows": rows, "settings": settings})[0] == 200
         units_match(app)
         wait_for(lambda: runs)
+        chosen_output(app, tmp_path)
         app.view = "report_options"
 
     def test_depth_bins_are_written_into_the_script(
@@ -1885,7 +1959,7 @@ class TestServer:
         assert post(app, "/recipes/write", {"rows": rows, "settings": settings})[0] == 200
         units_match(app)
         wait_for(lambda: runs)
-        text = open(tmp_path / "matchup.py").read()
+        text = open(draft(app)).read()
         # asking is matchup's default, so it is not written
         assert "    ask=" not in text
         assert '    thickness="z_level",\n' in text
@@ -1941,14 +2015,15 @@ class TestServer:
         _, state = get_json(app, "/api/state")
 
         assert state["view"] == "units_table"
-        # the script is already written, and nothing runs until it is carried on from
-        assert (tmp_path / "matchup.py").exists()
+        # the draft of the script is written, and nothing runs until it is carried on from
+        assert os.path.exists(draft(app))
+        assert not (tmp_path / "matchup.py").exists()
         assert runs == []
 
         # nothing is converted that the page does not send
         assert post(app, "/api/units_continue", {"conversions": {}, "confirmed": True})[0] == 200
         wait_for(lambda: runs)
-        assert "obs_multiplier" not in open(tmp_path / "matchup.py").read()
+        assert "obs_multiplier" not in open(draft(app)).read()
         assert app.view == "running"
 
     def test_nothing_carries_on_while_the_units_are_read(self, app):
@@ -2085,7 +2160,7 @@ class TestServer:
 
         assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
         wait_for(lambda: runs)
-        text = open(tmp_path / "matchup.py").read()
+        text = open(draft(app)).read()
         ast.parse(text)
 
         def call(start):
@@ -2174,7 +2249,7 @@ class TestServer:
         units_match(app)
         wait_for(lambda: runs)
 
-        text = open(tmp_path / "matchup.py").read()
+        text = open(draft(app)).read()
         assert (
             '\noceanval.add_point_comparison(\n    name="chl",\n    source="mycruise",\n'
             in text
@@ -2219,9 +2294,12 @@ class TestServer:
         post(app, "/recipes/write", {"rows": rows, "settings": recipe_settings(app, **page.form)})
         units_match(app)
         wait_for(lambda: runs)
-        script = open(tmp_path / "matchup.py").read()
-        # cores is always chosen in the window, so it is always written
-        assert '    n_dirs_down=2,\n    cores=1,\n    exclude=["ptrc"],\n)' in script
+        script = open(draft(app)).read()
+        # with the draft's cores, which the window always writes (the user's are written once chosen)
+        call = script[script.index("oceanval.matchup(") :]
+        call = call[: call.index("\n)")]
+        for line in ('    n_dirs_down=2,', '    cores=1,', '    exclude=["ptrc"],'):
+            assert line in call
 
     def test_back_from_the_recipes_step(self, app, tmp_path, runs):
         write_simulation(tmp_path / "sim")
@@ -2562,6 +2640,119 @@ class TestServer:
         finally:
             app.run = None
 
+    def test_the_analyses_are_followed_as_they_are_worked_out(self, app, monkeypatch):
+        clock = [10.0]
+        monkeypatch.setattr(app, "_clock", lambda: clock[0])
+        run = object()
+        app.run = run
+
+        def tell(kind, **news):
+            app._matchup_news(run, {"kind": kind, **news})
+
+        def cells(key):
+            progress = app._analysis_progress_state()
+            item = next(item for item in progress["items"] if item["key"] == key)
+            return {kind: cell["state"] for kind, cell in item["cells"].items()}
+
+        try:
+            # a comparison of two simulations: each analysis is told once for each
+            tell("analyses", simulations=2, items=[
+                # in any order, they are given in that of analysis.KINDS
+                {"key": "chl", "title": "Chlorophyll", "kinds": ["seasonal", "climatology"]},
+                {"key": "temp", "title": "Temperature", "kinds": ["transects"]},
+            ])
+            progress = app._analysis_progress_state()
+            # only the analyses some variable has are columns
+            assert progress["kinds"] == ["climatology", "seasonal", "transects"]
+            assert progress["simulations"] == 2
+            assert progress["items"][0]["kinds"] == ["climatology", "seasonal"]
+            assert cells("chl") == {"climatology": "waiting", "seasonal": "waiting"}
+            assert [item["state"] for item in progress["items"]] == ["waiting", "waiting"]
+            tell("analysis_variable", key="chl", state="working")
+            tell("analysis", key="chl", analysis="climatology", state="working")
+            assert cells("chl") == {"climatology": "working", "seasonal": "waiting"}
+            tell("analysis", key="chl", analysis="climatology", state="done")
+            # in one of the two simulations
+            assert cells("chl")["climatology"] == "partial"
+            assert app._analysis_progress_state()["items"][0]["cells"]["climatology"]["done"] == 1
+            tell("analysis", key="chl", analysis="climatology", state="working")
+            assert cells("chl")["climatology"] == "working"
+            tell("analysis", key="chl", analysis="climatology", state="done")
+            assert cells("chl")["climatology"] == "done"
+            clock[0] = 14.0
+            assert app._analysis_progress_state()["items"][0]["seconds"] == 4.0
+            tell("analysis_variable", key="chl", state="done")
+            clock[0] = 20.0
+            progress = app._analysis_progress_state()
+            assert progress["items"][0]["state"] == "done"
+            # it took what it took, however long ago
+            assert progress["items"][0]["seconds"] == 4.0
+            assert progress["items"][1]["seconds"] is None
+            # news that is not a state of them is left out
+            tell("analysis", key="temp", analysis="transects", state="started")
+            tell("analysis_variable", key="temp")
+            assert cells("temp") == {"transects": "waiting"}
+            # the run ends half way through one
+            tell("analysis_variable", key="temp", state="working")
+            tell("analysis", key="temp", analysis="transects", state="working")
+            clock[0] = 23.0
+            app._analysis_clock_stop()
+            clock[0] = 50.0
+            progress = app._analysis_progress_state()
+            assert cells("temp") == {"transects": "failed"}
+            assert progress["items"][1]["seconds"] == 3.0
+            assert progress["elapsed"] == 13.0
+            assert not progress["running"]
+        finally:
+            app.run = None
+
+    def test_the_analyses_are_followed_from_the_run(self, app, tmp_path, monkeypatch):
+        script = tmp_path / "analysis.py"
+        go = tmp_path / "go"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                import os, time
+                from oceanval import prompts
+                prompts.tell({{"kind": "analyses", "simulations": 1,
+                               "items": [{{"key": "chl", "title": "Chlorophyll", "kinds": ["phenology"]}}]}})
+                prompts.tell({{"kind": "analysis_variable", "key": "chl", "state": "working"}})
+                prompts.tell({{"kind": "analysis", "key": "chl", "analysis": "phenology", "state": "working"}})
+                print("OceanVal: Working out the phenology of Chlorophyll")
+                while not os.path.exists({str(go)!r}):
+                    time.sleep(0.05)
+                """
+            )
+        )
+        clock = [100.0]
+        monkeypatch.setattr(app, "_clock", lambda: clock[0])
+        app.action = "analyze"
+        app.start_run(["analyze", str(script)], "python analysis.py")
+        wait_for(lambda: app.analysis_progress and app.analysis_progress["working"])
+        clock[0] = 102.0
+        _, state = get_json(app, "/api/state")
+        assert state["run"]["analysis"] == {
+            "simulations": 1,
+            "kinds": ["phenology"],
+            "items": [{
+                "key": "chl", "title": "Chlorophyll", "kinds": ["phenology"], "state": "working",
+                "seconds": 2.0, "cells": {"phenology": {"state": "working", "done": 0}},
+            }],
+            "elapsed": 2.0,
+            "running": True,
+        }
+        # the matchups' grid is not made of it
+        assert state["run"]["progress"] is None
+        go.write_text("")
+        wait_for(lambda: app.view == "finished")
+        _, state = get_json(app, "/api/state")
+        assert "oceanval-progress" not in state["console"]["text"]
+        assert state["run"]["analysis"]["items"][0]["cells"]["phenology"]["state"] == "failed"
+        # another run starts afresh
+        monkeypatch.setattr(app_module.Run, "start", lambda run: None)
+        app.start_run(["analyze", str(script)], "python analysis.py")
+        assert app.analysis_progress is None
+
     def test_the_files_read_are_counted_by_a_process_of_its_own(self, app, tmp_path):
         """The model files read in nctoolkit are counted by a process watching
         CDO's (see oceanval.cdo_watch), whose news shares the run's stdout."""
@@ -2629,6 +2820,8 @@ class TestServer:
         assert get_json(app, "/api/question_files", id=question["id"], pattern="y")[0] == 409
 
         assert post(app, "/api/answer", {"id": question["id"], "answer": "y"})[0] == 200
+        # where the matchups go, and the cores, and then matchup carries on
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
         assert app.status == "finished"
         assert "answer: y\nmatching up\n" in app.console.since(0, None)["text"]
@@ -2663,6 +2856,9 @@ class TestServer:
         number = app.question.id
 
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        # where the matchups go first
+        assert app.view == "output"
+        output_continue(app)
         _, state = get_json(app, "/api/state")
         assert state["view"] == "report_options"
         # matchup still waits for the answer, so nothing is matched up yet
@@ -2675,19 +2871,24 @@ class TestServer:
         assert "answer:" not in app.console.since(0, None)["text"]
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 409
 
-        # Back shows the matchups again, still asked about
+        # Back shows where the matchups go, and then the matchups again, still asked about
+        assert post(app, "/api/back")[0] == 200
+        assert app.view == "output"
         assert post(app, "/api/back")[0] == 200
         assert (app.view, app.question.id) == ("running", number)
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        output_continue(app)
         assert app.view == "report_options"
 
         status, reply = post(app, "/api/report", {"form": {"lon_min": "x"}})
         assert status == 400
         assert reply["errors"]["lon_min"] == "Limits must be numbers."
+        # the cores are asked for here too, with no default
+        assert reply["errors"]["cores"] == "Choose the number of cores."
         assert app.view == "report_options"
 
         form = {"lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65",
-                "pdf": True, "concise": False}
+                "pdf": True, "concise": False, "cores": "1"}
         assert post(app, "/api/report", {"form": form})[0] == 200
         assert get_json(app, "/api/state")[1]["report"]["given"] is True
         # then matchup carries on, and the report is built once it has run
@@ -2719,6 +2920,7 @@ class TestServer:
         wait_for(lambda: app.question is not None)
         number = app.question.id
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        output_continue(app)
         assert app.view == "report_options"
 
         # the boxes are checked as for the report
@@ -2727,7 +2929,7 @@ class TestServer:
         assert reply["errors"]["lon_min"] == "Limits must be numbers."
         assert app.view == "report_options"
 
-        assert post(app, "/api/save_script", {"form": {"pdf": True}})[0] == 200
+        assert post(app, "/api/save_script", {"form": {"pdf": True, "cores": "1"}})[0] == 200
         wait_for(lambda: app.view == "script_saved")
         _, state = get_json(app, "/api/state")
         assert state["run"]["status"] == "stopped"
@@ -2787,9 +2989,10 @@ class TestServer:
         app.start_run(["matchup", str(script)], "python run.py")
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        output_continue(app)
 
         form = {"lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65",
-                "pdf": True, "zip": True, "concise": False}
+                "pdf": True, "zip": True, "concise": False, "cores": "1"}
         assert post(app, "/api/report", {"form": form})[0] == 200
         # until matchup's builder says how far it has got, the page says it is coming
         assert get_json(app, "/api/state")[1]["interim"] == {
@@ -2803,9 +3006,11 @@ class TestServer:
         # shown as typed at a terminal
         assert "Are you happy with these matchups? (y/n) y\nanswer: y\n" in text
         assert (
-            'settings: {"live_validation": {"concise": false, '
-            '"lat_lim": [40.0, 65.0], "lon_lim": [-20.0, 10.0]}}'
+            '"live_validation": {"concise": false, '
+            '"lat_lim": [40.0, 65.0], "lon_lim": [-20.0, 10.0]}'
         ) in text
+        # with where the matchups go, what is done with those there already, and the cores
+        assert f'"cores": 1, ' in text and f'"out_dir": "{tmp_path}", "overwrite": true' in text
         # the full report still has them all
         assert json.loads(validated[0][0][1])["pdf"] is True
 
@@ -3225,20 +3430,23 @@ class TestPointTimeResStep:
         assert status == 400 and app.view == "point_time_res"
 
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
+        # where the matchups go, and then the report options
+        assert app.view == "output"
+        output_continue(app)
         assert app.view == "report_options"
-        # Back from the report options comes here again
+        # Back from where the matchups go comes here again
         assert post(app, "/api/back", {"form": {}})[0] == 200
+        assert app.view == "output"
+        assert post(app, "/api/back", {"form": dict(OUTPUT_FORM)})[0] == 200
         assert app.view == "point_time_res"
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
+        output_continue(app)
 
-        assert post(app, "/api/report", {"form": {}})[0] == 200
+        assert post(app, "/api/report", {"form": {"cores": "1"}})[0] == 200
         wait_for(lambda: validated)
         text = app.console.since(0, None)["text"]
         # only what is changed goes with yes
-        assert (
-            'settings: {"point_time_res": {"datasets": {"temperature/ICES": ["month"]}, "default": null}}'
-            in text
-        )
+        assert '"point_time_res": {"datasets": {"temperature/ICES": ["month"]}, "default": null}' in text
 
     def test_a_matchup_only_run_carries_on_with_it(self, app, tmp_path):
         app.action = "matchup"
@@ -3249,9 +3457,10 @@ class TestPointTimeResStep:
 
         form = {"mode": "all", "all": "month"}
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
         text = app.console.since(0, None)["text"]
-        assert 'settings: {"point_time_res": {"datasets": {}, "default": ["month"]}}' in text
+        assert '"point_time_res": {"datasets": {}, "default": ["month"]}' in text
 
     def test_keeping_them_sends_nothing_new(self, app, tmp_path):
         app.action = "matchup"
@@ -3259,8 +3468,9 @@ class TestPointTimeResStep:
         wait_for(lambda: app.question is not None)
         post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
         assert post(app, "/api/point_time_res", {"form": {"mode": "keep"}})[0] == 200
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
-        assert 'settings: {"point_time_res": {"datasets": {}, "default": null}}' in (
+        assert '"point_time_res": {"datasets": {}, "default": null}' in (
             app.console.since(0, None)["text"]
         )
 
@@ -3269,6 +3479,7 @@ class TestPointTimeResStep:
         app.start_run(["script", str(TestServer.matchups_script(None, tmp_path))], "python run.py")
         wait_for(lambda: app.question is not None)
         post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
         assert post(app, "/api/point_time_res", {"form": {"mode": "keep"}})[0] == 409
 
@@ -3298,7 +3509,7 @@ class TestPointTimeResStep:
         post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
 
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
-        text = open(tmp_path / "matchup.py").read()
+        text = open(draft(app)).read()
         start = "oceanval.add_point_comparison(" if written == "point" else "oceanval.matchup("
         call = text[text.index(start) :]
         call = call[: call.index("\n)")]
@@ -3356,6 +3567,7 @@ class TestTimeShiftQuestion:
         assert app.question.matchups
         assert app.time_shift_form == {"mode": "keep"}
         post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
         assert "shift: n" in app.console.since(0, None)["text"]
 
@@ -3380,8 +3592,8 @@ class TestTimeShiftQuestion:
         units_match(app)
         wait_for(lambda: runs)
 
-    def matchup_call(self, tmp_path):
-        text = open(tmp_path / "matchup.py").read()
+    def matchup_call(self, app):
+        text = open(draft(app)).read()
         call = text[text.index("oceanval.matchup(") :]
         return call[: call.index("\n)")]
 
@@ -3395,12 +3607,12 @@ class TestTimeShiftQuestion:
         assert post(app, "/api/answer", {"id": app.question.id, "answer": answer})[0] == 200
         assert answers == [answer]
         # not yet: Back from the matchups goes to the units, and asks again
-        assert "time_shift" not in self.matchup_call(tmp_path)
+        assert "time_shift" not in self.matchup_call(app)
 
         app._put_question("Are you happy with these matchups? (y/n) ", ("y", "n"), answers.append,
                           dict(MATCHUPS, time_shift=written))
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
-        assert f"    time_shift={written}," in self.matchup_call(tmp_path)
+        assert f"    time_shift={written}," in self.matchup_call(app)
 
     def test_without_it_the_matchups_are_asked_as_before(self, app, tmp_path):
         app.action = "matchup"
@@ -3408,6 +3620,7 @@ class TestTimeShiftQuestion:
         wait_for(lambda: app.question is not None)
         assert app.question.matchups and not app.question.time_shift
         post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
 
 
@@ -3580,9 +3793,13 @@ class TestDatesOfTheFiles:
         self.asked(app, tmp_path)
         [check] = StubCheck.made
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert app.view == "output"
+        output_continue(app)
         assert app.view == "report_options"
         assert get_json(app, "/api/state")[1]["model_check"]["number"] == check.number
-        # Back shows the matchups with it as it is
+        # Back shows where the matchups go, and then the matchups, with it as it is
+        assert post(app, "/api/back", {"form": {}})[0] == 200
+        assert app.view == "output"
         assert post(app, "/api/back", {"form": {}})[0] == 200
         assert app.view == "running"
         assert (StubCheck.made, check.stopped, check.removed) == ([check], False, False)
@@ -3596,14 +3813,15 @@ class TestDatesOfTheFiles:
         [check] = StubCheck.made
         check.status, check.index = status, "/tmp/times.pkl"
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        output_continue(app)
         if action == "matchup_validate":
-            assert post(app, "/api/report", {"form": {}})[0] == 200
+            assert post(app, "/api/report", {"form": {"cores": "1"}})[0] == 200
             wait_for(lambda: validated)
         else:
             wait_for(lambda: app.view == "finished")
         text = app.console.since(0, None)["text"]
         if sent:
-            assert 'settings: {"times_index": "/tmp/times.pkl"}' in text
+            assert '"times_index": "/tmp/times.pkl"' in text
         else:
             assert "times_index" not in text
         # one still going is stopped, as matchup reads the times itself
@@ -3619,6 +3837,7 @@ class TestDatesOfTheFiles:
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
         assert app.view == "point_time_res"
         assert post(app, "/api/point_time_res", {"form": {"mode": "keep"}})[0] == 200
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
         assert '"times_index": "/tmp/times.pkl"' in app.console.since(0, None)["text"]
 
@@ -3862,7 +4081,7 @@ class TestBack:
         assert boxes == {"recipe:nitrate:woa23": {"multiplier": "2", "adder": ""}}
         assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
         wait_for(lambda: runs)
-        text = open(tmp_path / "matchup.py").read()
+        text = open(draft(app)).read()
         assert "    obs_multiplier=2,\n" in text[text.index('name="nitrate"') :].split("\n)\n")[0]
 
     def test_leaving_the_recipes_window_keeps_what_it_held(self, app, tmp_path, runs):
@@ -3949,9 +4168,111 @@ class TestBack:
         assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
         wait_for(lambda: app.question is not None and app.run is not first)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
         assert app.status == "finished"
         assert "answer: y\nmatching up\n" in app.console.since(0, None)["text"]
+
+    def settings_stand_in(self, tmp_path):
+        """A stand-in for the script, which asks whether the matchups are
+        right, as matchup does, and says what it was given along with yes."""
+        script = tmp_path / "stand_in.py"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                import json
+                from oceanval import prompts
+                question = "Are you happy with these matchups? (y/n) "
+                answer = prompts.ask(question, ("y", "n"), details={dict(MATCHUPS, matchups=[COBE2_MATCHUP])!r})
+                print("answer:", answer)
+                print("settings:", json.dumps(getattr(answer, "settings", {{}}), sort_keys=True))
+                """
+            )
+        )
+        return script
+
+    def test_where_the_matchups_go_is_asked_once_they_are_confirmed(self, app, tmp_path, monkeypatch):
+        """And then the report options, with the cores, all sent to matchup with
+        yes; the script is written only where the output step says."""
+        stand_in = self.settings_stand_in(tmp_path)
+        start_run = app.start_run
+        validated = []
+        monkeypatch.setattr(
+            app, "start_run", lambda args, label: validated.append(args) if args[0] == "validate"
+            else start_run([args[0], str(stand_in)], label),
+        )
+        write_matchups(tmp_path / "results")
+        self.to_recipes(app, tmp_path, action="matchup_validate")
+        self.write(app)
+        units_match(app)
+        wait_for(lambda: app.question is not None)
+        number = app.question.id
+
+        assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        # the output step, with matchup still waiting for the answer
+        assert (app.view, app.question.id) == ("output", number)
+        # what the run makes, from the matchups it asks about
+        assert app.output_made == ["temperature/cobe2"]
+        # Back goes to the matchups, still asked about
+        assert post(app, "/api/back", {"form": dict(OUTPUT_FORM, out="mine.py")})[0] == 200
+        assert (app.view, app.question.id) == ("running", number)
+        assert app.output_form["out"] == "mine.py"
+        assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+
+        # the matchups there already have to be said what is done with
+        status, reply = post(app, "/api/output", {"form": dict(OUTPUT_FORM, out_dir="results", out="run.py")})
+        assert (status, reply["errors"]) == (400, {"existing_confirmed": ""})
+        output_continue(app, out_dir="results", out="run.py", existing_confirmed=True,
+                        unused=["temperature/cobe2"])
+        assert app.view == "report_options"
+        results = str(tmp_path / "results")
+        assert app.results_dir == results
+        text = open(tmp_path / "run.py").read()
+        assert f'    out_dir="{results}",\n' in text
+        assert not (tmp_path / "matchup.py").exists()
+        # Back goes to the output step
+        assert post(app, "/api/back", {"form": {"pdf": True}})[0] == 200
+        assert app.view == "output"
+        output_continue(app, out_dir="results", out="run.py", existing_confirmed=True,
+                        unused=["temperature/cobe2"])
+
+        # the cores are asked for with the report options
+        status, reply = post(app, "/api/report", {"form": {"pdf": True}})
+        assert (status, reply["errors"]) == (400, {"cores": "Choose the number of cores."})
+        assert post(app, "/api/report", {"form": {"pdf": True, "cores": "2"}})[0] == 200
+        wait_for(lambda: validated)
+        console = app.console.since(0, None)["text"]
+        settings = json.loads(re.search(r"^settings: (\{.*\})$", console, re.M).group(1))
+        # the matchup there already that this run makes is replaced
+        assert {name: settings[name] for name in ("out_dir", "overwrite", "cores")} == {
+            "out_dir": results, "overwrite": True, "cores": 2,
+        }
+        text = open(tmp_path / "run.py").read()
+        assert "    cores=2," in text
+        assert f'    data_dir="{results}",' in text and "    pdf=True," in text
+        assert json.loads(validated[0][1])["data_dir"] == results
+
+    def test_matchup_alone_asks_for_the_cores_with_where_the_matchups_go(self, app, tmp_path, monkeypatch):
+        stand_in = self.settings_stand_in(tmp_path)
+        start_run = app.start_run
+        monkeypatch.setattr(app, "start_run", lambda args, label: start_run([args[0], str(stand_in)], label))
+        self.to_recipes(app, tmp_path)
+        self.write(app)
+        units_match(app)
+        wait_for(lambda: app.question is not None)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert app.view == "output"
+
+        status, reply = post(app, "/api/output", {"form": dict(OUTPUT_FORM, cores="")})
+        assert (status, reply["errors"]) == (400, {"cores": "Choose the number of cores."})
+        too_many = str((os.cpu_count() or 1) + 1)
+        assert post(app, "/api/output", {"form": dict(OUTPUT_FORM, cores=too_many)})[0] == 400
+        output_continue(app, cores="1")
+        wait_for(lambda: app.view == "finished")
+        console = app.console.since(0, None)["text"]
+        assert '"cores": 1' in console and f'"out_dir": "{tmp_path}"' in console
+        text = open(tmp_path / "matchup.py").read()
+        assert "    cores=1," in text
 
     def test_back_from_the_time_shift_question_keeps_the_choice(self, app, tmp_path, monkeypatch):
         """It is asked before the matchups, so nothing is matched up yet"""
@@ -3982,6 +4303,7 @@ class TestBack:
         post(app, "/api/answer", {"id": app.question.id, "answer": "n"})
         wait_for(lambda: app.question is not None and app.question.matchups)
         post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
+        output_continue(app)
         wait_for(lambda: app.view == "finished")
         assert "shift: n" in app.console.since(0, None)["text"]
 
@@ -4031,13 +4353,18 @@ class TestBack:
         wait_for(lambda: app.question is not None)
         number = app.question.id
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        output_continue(app)
         form = {"pdf": True, "subregions": "global", "lon_min": "-20", **DEPTH_FORM}
 
+        # to where the matchups are saved, and then the matchups
         assert post(app, "/api/back", {"form": form})[0] == 200
+        assert (app.view, app.question.id) == ("output", number)
+        assert post(app, "/api/back")[0] == 200
         assert (app.view, app.question.id) == ("running", number)
         # this run was not started by the units step, so has none to go back to
         assert get_json(app, "/api/state")[1]["run"]["back"] is False
         assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+        output_continue(app)
         kept = get_json(app, "/api/state")[1]["validate"]["form"]
         assert (kept["pdf"], kept["subregions"], kept["lon_min"], kept["word"]) == (
             True, "global", "-20", False,
@@ -4208,7 +4535,7 @@ class TestDemo:
         # nothing is asked for until a model and its variables are ticked
         assert (demo["model"], demo["variables"], demo["files"]) == (None, [], [])
         assert [model["label"] for model in demo["models"]] == list(app_module.DEMO_MODELS)
-        assert demo["prefilled"] == {"setup": [], "report": []}
+        assert demo["prefilled"] == {"setup": [], "output": [], "report": []}
         assert demo["folder"] == os.path.join(app.cwd, "oceanval_demo")
         # nothing is downloaded until asked for
         assert not os.path.exists(demo["folder"])
@@ -4232,11 +4559,12 @@ class TestDemo:
         post(app, "/api/demo_download", NORESM)
         wait_for(lambda: app.view == "demo_instructions")
         assert post(app, "/api/demo_continue")[0] == 200
-        found = get_json(app, "/api/probe", simdir="", ndown="", out="", out_dir=app.setup_form["out_dir"])[1]
+        found = get_json(app, "/api/probe", simdir="", ndown="", out="", out_dir=app.output_form["out_dir"])[1]
         assert (found["out_dir_has_matchups"], found["out_dir_is_demo"]) == (True, True)
         # this run's are made again, and no others are in the report
-        assert post(app, "/api/setup", {"form": app.setup_form})[0] == 200
-        assert (app.overwrite, app.previous) == (True, False)
+        with app._lock:
+            arguments, errors = app._check_matchup_output(app.output_form)
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
 
     def test_the_report_is_concise_unless_detailed_is_chosen(self, app, fetched):
         app.choose("demo")
@@ -4314,8 +4642,11 @@ class TestDemo:
             os.path.join("oceanval_demo", "simulation"), "0", "global")
         # only the first year in the file
         assert (form["start"], form["end"]) == ("2010", "2010")
-        assert (form["out_dir"], form["out"]) == (
+        # where the output goes is asked once the matchups are confirmed, filled in too
+        output = state["output"]["form"]
+        assert (output["out_dir"], output["out"]) == (
             "oceanval_demo", os.path.join("oceanval_demo", "matchup.py"))
+        assert state["demo"]["prefilled"]["output"] == ["out_dir", "out"]
         # concise and fast, with no subregions, unless detailed is chosen on the instructions
         assert state["validate"]["form"]["subregions"] == ""
         assert state["validate"]["form"]["concise"] is True
@@ -4323,7 +4654,7 @@ class TestDemo:
         assert state["demo"]["prefilled"]["report"] == app_module.DEMO_PREFILLED["report"]
         # only the chosen model's files are used: those with its name in
         assert form["require"] == "NorESM2-LM"
-        assert state["demo"]["prefilled"]["setup"] == ["simdir", "ndown", "require", "out_dir", "out"]
+        assert state["demo"]["prefilled"]["setup"] == ["simdir", "ndown", "require"]
         # the filled-in boxes pass the simulation step's checks
         assert check_setup(form, app.cwd)[1] == {}
         # back to the instructions, and the demo's page, from which the file is not downloaded again
@@ -4378,7 +4709,7 @@ class TestDemo:
         assert app.setup_form["require"] == "UKESM1-0-LL"
         assert len(list(folder.iterdir())) == 4
         _, state = get_json(app, "/api/state")
-        assert state["demo"]["prefilled"]["setup"] == ["simdir", "ndown", "require", "out_dir", "out"]
+        assert state["demo"]["prefilled"]["setup"] == ["simdir", "ndown", "require"]
 
         # a box that was changed by hand is not filled in again
         app.setup_form["require"] = "mine"
@@ -4466,20 +4797,21 @@ class TestDemo:
         to_setup(app)
         # the user changed a box, and went back
         with app._lock:
-            app.setup_form = dict(app.setup_form, out=os.path.join("oceanval_demo", "mine.py"))
+            app.setup_form = dict(app.setup_form, ndown="1")
+            app.output_form = dict(app.output_form, out=os.path.join("oceanval_demo", "mine.py"))
         assert post(app, "/api/back")[0] == 200
         assert app.view == "demo_instructions"
 
         # the page only marks what still holds what the demo filled in
-        assert get_json(app, "/api/state")[1]["demo"]["prefilled"]["setup"] == [
-            "simdir", "ndown", "require", "out_dir",
-        ]
+        prefilled = get_json(app, "/api/state")[1]["demo"]["prefilled"]
+        assert (prefilled["setup"], prefilled["output"]) == (["simdir", "require"], ["out_dir"])
         # and Continue on the demo's page, after Back, does not fill it in again
         post(app, "/api/back")
         assert app.view == "demo"
         assert post(app, "/api/demo_download", NORESM)[0] == 200
         to_setup(app)
-        assert app.setup_form["out"] == os.path.join("oceanval_demo", "mine.py")
+        assert app.setup_form["ndown"] == "1"
+        assert app.output_form["out"] == os.path.join("oceanval_demo", "mine.py")
 
     def test_starting_again_forgets_the_demo(self, app, fetched):
         app.choose("demo")
@@ -4491,6 +4823,7 @@ class TestDemo:
         assert post(app, "/api/restart")[0] == 200
         assert app.demo is None
         assert app.setup_form["simdir"] == ""
+        assert app.output_form["out_dir"] == app.cwd
         assert app.validate_form["subregions"] == ""
         app.choose("matchup")
         assert get_json(app, "/api/state")[1]["demo"] is None
@@ -4606,7 +4939,9 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert simdir_label.locator(".own-req").text_content() == "Required"
         assert simdir_label.evaluate("node => getComputedStyle(node).color") == "rgb(192, 57, 43)"
         assert simdir_label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
-        assert page.text_content("#summary").strip() == ""
+        # nothing is said in the bar but the link to how files are identified, beside Continue
+        assert page.text_content("#summary").strip() == "How does OceanVal identify simulation files to matchup?"
+        assert page.locator("#summary > *").count() == 1 and page.locator("#summary #how-files").count() == 1
         page.fill("#f-simdir", "sim")
         # years are inferred, but the user must choose the directory depth
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
@@ -4628,23 +4963,24 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.input_value("#f-ndown") == "2"
         assert page.is_hidden("body > .year-list")
         # the years are read from the files' times, for the recipes window: none are shown here
-        page.wait_for_function("document.querySelector('#m-simulation').textContent.includes('2 directories down')")
-        assert page.text_content("#m-simulation") == "2 netCDF files 2 directories down."
+        page.wait_for_function("document.querySelector('#ndown-found').textContent.includes('2 netCDF files found')")
+        assert page.text_content("#ndown-found") == "2 netCDF files found"
         # there is no default domain: it has to be chosen too
         assert page.is_disabled("#continue")
         choose_domain(page)
         assert page.is_enabled("#continue")
-        # the output goes where oceanval was started, unless changed
-        assert page.input_value("#f-out_dir") == str(tmp_path)
-        assert page.text_content("#f-out_dir-label") == "Where do you want matchups to be saved?"
-        assert page.is_hidden("#row-existing")
+        # where the output goes is asked last
+        assert page.is_hidden("#f-out_dir")
 
         page.click("#continue")
+        # the link to how files are identified is the setup page's only
+        page.wait_for_function("document.querySelector('#summary #how-files') === null")
         assert page.text_content("#summary").strip() == ""
         # no data of our own
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
-        assert page.text_content("#write") == "Match up"
+        # the units and where the matchups are saved come next
+        assert page.text_content("#write") == "Continue"
         assert page.locator("#meta .meta__k").all_text_contents() == ["Simulation"]
         # chosen with the simulation instead
         assert page.is_hidden("#group-files")
@@ -4761,6 +5097,23 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         page.keyboard.press("Escape")
         assert page.is_hidden("#files")
         page.click("#actions button:has-text('Yes')")
+
+        # then where the matchups are saved: where oceanval was started, unless changed,
+        # and, with no report options to ask it with, the number of cores, which has no default
+        page.wait_for_selector("#view-output:not([hidden])")
+        assert page.text_content("#title") == "Where do you want the matchups to be saved?"
+        assert page.input_value("#f-out_dir") == str(tmp_path)
+        assert page.text_content("#f-out_dir-label") == "Where do you want matchups to be saved?"
+        assert page.input_value("#f-out") == "matchup.py"
+        assert page.is_hidden("#row-existing")
+        assert page.is_visible("#f-cores")
+        assert page.input_value("#f-cores") == ""
+        assert page.locator("#f-cores option").first.text_content() == "Choose the number of cores"
+        assert [button.text_content() for button in page.locator("#actions button").all()] == ["Back", "Match up"]
+        assert page.is_disabled("#output-run")
+        page.select_option("#f-cores", "1")
+        page.wait_for_function("!document.getElementById('output-run').disabled")
+        page.click("#output-run")
 
         # any other question is asked under the output
         page.wait_for_selector("#ask:not([hidden])", timeout=60000)
@@ -4885,9 +5238,10 @@ def test_the_point_time_res_step_in_a_browser(browser, tmp_path):
         assert page.is_enabled(select)
         page.select_option(select, "month")
         page.click("#ptr-continue")
+        through_output(page)
         wait_for(lambda: app.view == "finished")
         assert (
-            'settings: {"point_time_res": {"datasets": {"temperature/ICES": ["month"]}, "default": null}}'
+            '"point_time_res": {"datasets": {"temperature/ICES": ["month"]}, "default": null}'
             in app.console.since(0, None)["text"]
         )
     finally:
@@ -4926,6 +5280,7 @@ def test_the_time_shift_question_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#review:not([hidden])")
         assert page.is_hidden("#time-shift")
         page.click("text=Yes, continue")
+        through_output(page)
         wait_for(lambda: app.view == "finished")
         assert "shift: y" in app.console.since(0, None)["text"]
     finally:
@@ -4955,7 +5310,9 @@ def test_the_report_options_step_stores_the_script_in_a_browser(browser, tmp_pat
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
+        through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
+        pick_cores(page)
 
         assert page.text_content("#save-script") == "Stop and store Python script for later"
         page.click("#save-script")
@@ -4998,11 +5355,12 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
+        through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
 
         assert page.text_content("#title") == "One last thing... How would you like your validation report?"
         assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "nowrap"
-        # the matchups and the report go where the simulation step said
+        # the matchups and the report go where the output step said
         assert page.is_hidden("#v-group-data_dir")
         assert page.is_hidden("#v-group-out_dir")
         assert page.text_content("#v-report-dir") == (
@@ -5011,14 +5369,23 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         )
         assert page.evaluate("document.activeElement.id") == "v-lon_min"
         assert page.text_content("#build") == "Match up and validate"
+        # matchup's cores, which have no default, are asked for here
+        assert page.is_visible("#v-cores") and page.input_value("#v-cores") == ""
+        assert page.is_disabled("#build")
+        pick_cores(page)
+        assert page.is_enabled("#build")
         assert "matching up" not in page.text_content("#console-text")
 
-        # Back shows the matchups again, to be answered afresh
+        # Back shows where the matchups go, and then the matchups again, to be answered afresh
+        page.click("#actions button:has-text('Back')")
+        page.wait_for_selector("#view-output:not([hidden])")
         page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
         assert page.is_enabled("#actions button:has-text('Yes')")
         page.click("#actions button:has-text('Yes')")
+        through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
+        pick_cores(page)
 
         page.check("#v-pdf")
         page.select_option("#v-concise", "false")
@@ -5213,10 +5580,14 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
         page.set_viewport_size({"width": 1400, "height": 1000})
 
-        # Yes goes straight to the report options, and Back shows the dates again
+        # Yes goes on, through where the matchups go, to the report options, and Back shows the dates again
         number = app.model_check.number
         page.click("#actions button:has-text('Yes')")
+        through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
+        pick_cores(page)
+        page.click("#actions button:has-text('Back')")
+        page.wait_for_selector("#view-output:not([hidden])")
         page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
         assert app.model_check.number == number
@@ -5224,12 +5595,14 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
         assert nsbc.locator(".review__verdict").text_content().strip() == "Some dates appear to be missing"
 
         page.click("#actions button:has-text('Yes')")
+        through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
+        pick_cores(page)
         index = app.model_check.index
         page.click("#build")
         wait_for(lambda: validated)
         # what the check read of the dates is given to matchup
-        assert f'settings: {{"times_index": "{index}"}}' in app.console.since(0, None)["text"]
+        assert f'"times_index": "{index}"' in app.console.since(0, None)["text"]
         assert errors == []
         assert fetched == []
     finally:
@@ -5280,7 +5653,9 @@ def go_to_report_options(page, url):
     page.goto(url)
     page.wait_for_selector("#review:not([hidden])")
     page.click("#actions button:has-text('Yes')")
+    through_output(page)
     page.wait_for_selector("#view-validate:not([hidden])")
+    pick_cores(page)
 
 
 def test_the_matchups_to_validate_in_a_browser(browser, tmp_path, monkeypatch):
@@ -5597,9 +5972,13 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
 
         # Back keeps them
         page.click("#actions button:has-text('Back')")
+        page.wait_for_selector("#view-output:not([hidden])")
+        page.click("#actions button:has-text('Back')")
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
+        through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
+        pick_cores(page)
         assert values()[-3:] == [("600", "1000"), ("1000", "2000"), ("2000", "")]
 
         # sent with the rest of the options
@@ -6140,6 +6519,139 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         app.close()
 
 
+def test_the_analyses_grid_in_a_browser(browser, tmp_path):
+    """While Compare simulations (or Analyze) runs, a grid of the variables
+    and their analyses says what is being worked out: a hollow ring for what
+    is to do, a turning circle while it is going, the count of simulations
+    done in between, and a tick once done, with a column only for the
+    analyses some variable has."""
+    script = tmp_path / "simulation_comparison.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            import os, time
+            from oceanval import prompts
+
+            def wait(name):
+                while not os.path.exists(os.path.join({str(tmp_path)!r}, name)):
+                    time.sleep(0.05)
+
+            def tell(kind, **news):
+                prompts.tell({{"kind": kind, **news}})
+
+            tell("analyses", simulations=2, items=[
+                {{"key": "chl", "title": "Chlorophyll", "kinds": ["climatology", "long_term"]}},
+                {{"key": "temp", "title": "Temperature", "kinds": ["transects"]}},
+            ])
+            wait("go1")
+            tell("analysis_variable", key="chl", state="working")
+            tell("analysis", key="chl", analysis="climatology", state="working")
+            print("OceanVal: Working out the climatology of Chlorophyll: surface")
+            wait("go2")
+            tell("analysis", key="chl", analysis="climatology", state="done")
+            wait("go3")
+            tell("analysis", key="chl", analysis="long_term", state="working")
+            tell("analysis", key="chl", analysis="long_term", state="done")
+            tell("analysis", key="chl", analysis="climatology", state="working")
+            tell("analysis", key="chl", analysis="climatology", state="done")
+            tell("analysis", key="chl", analysis="long_term", state="working")
+            tell("analysis", key="chl", analysis="long_term", state="done")
+            tell("analysis_variable", key="chl", state="done")
+            wait("never")
+            """
+        )
+    )
+    folder = tmp_path / sim_compare.FOLDER
+    pages = folder / sim_compare.REPORT / "_build" / "html" / "notebooks"
+    pages.mkdir(parents=True)
+    (pages / "001_chl.html").write_text("<html><body><p>Chlorophyll</p></body></html>")
+    app = App(cwd=str(tmp_path))
+    with app._lock:
+        app.action = "simcompare"
+        app.results_dir = str(tmp_path)
+    app.start_run(["simcompare", str(script)], f"python {script}")
+    url = app.start()
+
+    def cell(row, column):
+        return page.locator(f'#progress-grid tbody tr:nth-child({row}) [data-column="{column}"]')
+
+    def said(row, column):
+        return cell(row, column).locator("[role=img]").get_attribute("aria-label")
+
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#progress-grid:not([hidden])", timeout=60000)
+        # a column for each analysis some variable has, and none for the others
+        assert page.locator("#progress-grid th").all_text_contents() == [
+            "Variable", "Climatology", "Long-term series", "Transects", "Time", "Report", "Time elapsed",
+        ]
+        assert page.locator("#progress-grid tbody .matchup-grid__title").all_text_contents() == [
+            "Chlorophyll", "Temperature",
+        ]
+        assert page.text_content("#progress-title") == "Comparing: 0 of 2 variables worked out"
+        # to do: a hollow ring
+        assert cell(1, "climatology").get_attribute("data-state") == "todo"
+        assert cell(1, "climatology").locator(".matchup-grid__todo").count() == 1
+        assert said(1, "climatology") == "To do"
+        assert cell(1, "report").get_attribute("data-state") == "todo"
+        # an analysis a variable does not have: a dash
+        assert cell(1, "transects").text_content() == "—"
+        assert said(1, "transects") == "Not chosen for this variable"
+        assert cell(2, "climatology").text_content() == "—"
+        assert cell(2, "transects").get_attribute("data-state") == "todo"
+
+        (tmp_path / "go1").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="climatology"] .identify__spinner')
+        assert page.locator("#progress-grid tbody tr.is-active").count() == 1
+        assert said(1, "climatology") == "Being worked out (0 of 2 simulations done)"
+        assert cell(1, "long_term").get_attribute("data-state") == "todo"
+        assert re.fullmatch(r"\d+:\d\d", cell(1, "time").text_content())
+        assert cell(2, "time").text_content() == ""
+        # what is being worked out is said under the title
+        page.wait_for_function(
+            "document.getElementById('progress-text').textContent.includes('climatology of Chlorophyll')"
+        )
+
+        (tmp_path / "go2").write_text("")
+        # done in one of the two simulations: the count
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="climatology"] .matchup-grid__count')
+        assert cell(1, "climatology").text_content() == "1/2"
+        assert said(1, "climatology") == "Worked out in 1 of 2 simulations"
+
+        (tmp_path / "go3").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="long_term"][data-state="done"]')
+        assert cell(1, "climatology").get_attribute("data-state") == "done"
+        assert page.text_content("#progress-title") == "Comparing: 1 of 2 variables worked out"
+        assert page.locator("#progress-grid tbody tr.is-active").count() == 0
+
+        # its page in the report: a tick, a link to it
+        (folder / analysis_report.STATUS).write_text(json.dumps({
+            "state": "building", "pages": 1, "expected": 2, "built": ["Chlorophyll"],
+            "added": {"chl": str(pages / "001_chl.html")}, "building_key": "temp", "failed": [],
+            "landing": str(pages / "001_chl.html"),
+        }))
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="report"] a')
+        assert cell(1, "report").get_attribute("data-state") == "done"
+        assert cell(1, "report").locator("a").get_attribute("href").endswith("notebooks/001_chl.html")
+        assert cell(2, "report").get_attribute("data-state") == "working"
+
+        # it fits a phone's width, every analysis in sight, without the report's column
+        page.set_viewport_size({"width": 390, "height": 800})
+        page.wait_for_function("document.querySelectorAll('#progress-grid [data-column=\"report\"]').length === 0")
+        assert page.locator("#progress-grid thead th").all_text_contents() == [
+            "Variable", "Climatology", "Long-term series", "Transects", "Time",
+        ]
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        assert page.evaluate("(() => { const grid = document.getElementById('progress-grid'); "
+                             "return grid.scrollWidth <= grid.clientWidth; })()")
+        # and back again
+        page.set_viewport_size({"width": 1100, "height": 800})
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="report"] a')
+    finally:
+        app.close()
+
+
 def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
@@ -6155,8 +6667,7 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
         warning = page.locator("#m-simulation .group__line.is-nofiles")
         warning.wait_for()
         assert "No netCDF files in the directory itself" in warning.text_content()
-        found = page.locator("#m-simulation .group__line.is-ok")
-        assert found.count() == 0
+        assert page.is_hidden("#ndown-found")
         body = warning.evaluate(
             "node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight, getComputedStyle(node).fontSize]"
         )
@@ -6294,19 +6805,35 @@ def test_finding_key_information_in_a_browser(browser, tmp_path):
 
 
 @pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
-def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, action):
-    """A grid of the matchups there already, each to be used (as each is to
-    start with) or replaced, which, if a report follows, is ignoring it too,
-    with a tick at the top of each column to choose it for them all; what is
-    chosen must be confirmed, as each starts on use."""
+def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, monkeypatch, action):
+    """In the output step, once the matchups are confirmed, a grid of the
+    matchups there already: each to be used (as each is to start with), or
+    replaced, if this run matches it up, or ignored, left out of the report,
+    if it does not (asked about only if a report follows), with a tick at the
+    top of each column to choose it for every row that has it; what is chosen
+    must be confirmed, as each starts on use."""
     write_simulation(tmp_path / "sim")
     write_mixed_matchups(tmp_path / "old")
+    # a stand-in for the script, which makes the gridded COBE2 temperature only
+    made = dict(COBE2_MATCHUP, source="COBE2", key="temperature/COBE2")
+    stand_in = tmp_path / "stand_in.py"
+    stand_in.write_text(
+        textwrap.dedent(
+            f"""
+            from oceanval import prompts
+            question = "Are you happy with these matchups? (y/n) "
+            print("answer:", prompts.ask(question, ("y", "n"), details={dict(MATCHUPS, matchups=[made])!r}))
+            """
+        )
+    )
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
+    start_run = app.start_run
+    monkeypatch.setattr(app, "start_run", lambda args, label: start_run([args[0], str(stand_in)], label))
     url = app.start()
     report = action == "matchup_validate"
-    options = ["use", "replace"]
-    option ='#existing-body input[value="{}"][data-key="{}"]'
+    option = '#existing-body input[value="{}"][data-key="{}"]'
+    made_keys = ["temperature/COBE2"]
 
     def choices():
         """What each row has ticked."""
@@ -6314,9 +6841,15 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, act
             "rows => rows.map((row) => [...row.querySelectorAll('input:checked')].map((box) => box.value))"
         )
 
+    def offered():
+        """The options each row has."""
+        return page.locator("#existing-body tr").evaluate_all(
+            "rows => rows.map((row) => [...row.querySelectorAll('input')].map((box) => box.value))"
+        )
+
     def tops():
         """The options ticked at the top of their columns."""
-        return [name for name in options if page.is_checked(f"#existing-all-{name}")]
+        return [name for name in ("use", "replace", "ignore") if page.is_checked(f"#existing-all-{name}")]
 
     try:
         page = browser.new_page()
@@ -6326,8 +6859,24 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, act
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
         choose_domain(page)
+        page.click("#continue")
+        page.click("#own-no")
+        page.wait_for_url("**/recipes/**", timeout=90000)
+        fill_required_recipe_settings(page)
+        page.click("#write")
+        page.wait_for_selector("#units-body-gridded tr[data-units-row]")
+        page.check("#units-confirm")
+        page.click("#units-continue")
+        page.wait_for_selector("#review:not([hidden])", timeout=90000)
+        page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-output:not([hidden])")
+        assert page.text_content("#actions button.btn--primary") == ("Continue" if report else "Match up")
+        if not report:
+            page.select_option("#f-cores", "1")
+        page.wait_for_function("!document.getElementById('output-run').disabled")
         assert page.is_hidden("#row-existing")
-        assert page.is_enabled("#continue")
+        # with no report, those the run does not make are left as they are, unasked about
+        rows = MIXED_KEYS if report else made_keys
 
         page.fill("#f-out_dir", "old")
         page.wait_for_selector("#row-existing:not([hidden])")
@@ -6338,62 +6887,53 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, act
         # confirming what is chosen is required, report or not
         assert page.is_visible("#existing-required")
         assert page.is_visible("#row-existing-confirm")
-        assert [
-            page.text_content(f"#existing-all-{name} >> xpath=..") for name in options
-        ] == ["Use", "Replace/Ignore" if report else "Replace"]
-        assert page.get_attribute("#existing-all-replace", "aria-label") == (
-            "Replace or ignore all of them" if report else "Replace all of them"
-        )
-        assert page.locator("#existing-body tr").evaluate_all(
-            "rows => rows.map((row) => [...row.cells].slice(0, 3).map((cell) => cell.textContent))"
-        ) == [
-            ["Temperature", "COBE2", "Gridded"],
-            ["Temperature", "WOA23", "Gridded"],
-            ["Nitrate", "glodap", "Point (all depths)"],
-            ["Nitrate", "ICES", "Point (surface)"],
+        # a column for each option some row has
+        columns = ["use", "replace", "ignore"] if report else ["use", "replace"]
+        assert [name for name in ("use", "replace", "ignore") if page.is_visible(f"#existing-col-{name}")] == columns
+        assert [page.text_content(f"#existing-all-{name} >> xpath=..") for name in columns] == [
+            name.title() for name in columns
         ]
-        assert page.locator("#existing-body tr").evaluate_all("rows => rows.map((row) => row.cells.length)") == (
-            [3 + len(options)] * 4
-        )
+        assert page.locator("#existing-body tr").evaluate_all(
+            "rows => rows.map((row) => [...row.cells].slice(0, 2).map((cell) => cell.textContent))"
+        ) == [[key.split("/")[0].title(), key.split("/")[1]] for key in rows]
+        # one the run makes is used or replaced, one it does not is used or ignored
+        assert offered() == [["use", "replace" if key in made_keys else "ignore"] for key in rows]
+        intro = page.text_content("#existing-intro")
+        assert ("Replace: it is one this run matches up" in intro) and (("Ignore:" in intro) == report)
         # each is used to start with
-        assert choices() == [["use"]] * 4
+        assert choices() == [["use"]] * len(rows)
         assert tops() == ["use"]
-        assert page.is_disabled("#continue")
+        assert page.is_disabled("#output-run")
 
-        # one option a row, and one at the top chooses it for them all
-        page.check(option.format("replace", "temperature/COBE2"))
-        assert choices() == [["replace"], ["use"], ["use"], ["use"]]
-        assert tops() == []
+        # one option a row, and one at the top chooses it for every row that has it
         page.check("#existing-all-replace")
-        assert choices() == [["replace"]] * 4
-        assert tops() == ["replace"]
+        assert choices() == [["replace" if key in made_keys else "use"] for key in rows]
+        assert "replace" in tops()
+        if report:
+            page.check("#existing-all-ignore")
+            assert choices() == [["replace" if key in made_keys else "ignore"] for key in rows]
+            assert tops() == ["replace", "ignore"]
         page.check("#existing-all-use")
-        assert choices() == [["use"]] * 4
+        assert choices() == [["use"]] * len(rows)
         assert tops() == ["use"]
-        if report:
-            page.check(option.format("replace", "temperature/WOA23"))
-            page.check(option.format("replace", "nitrate/glodap"))
         page.check(option.format("replace", "temperature/COBE2"))
-        assert choices() == (
-            [["replace"], ["replace"], ["replace"], ["use"]] if report else [["replace"], ["use"], ["use"], ["use"]]
-        )
-        assert tops() == []
-        # what is chosen must be confirmed
-        assert page.is_disabled("#continue")
-        page.check("#f-existing_confirmed")
-        assert page.is_enabled("#continue")
-
-        page.click("#continue")
-        page.click("#own-no")
-        page.wait_for_url("**/recipes/**", timeout=90000)
-        assert page.is_hidden("#s-overwrite")
         if report:
-            # only the one used is kept as it is
-            assert app.recipes_page.form["overwrite"] == ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap"]
-            assert app.previous == ["nitrate/ICES"]
+            page.check(option.format("ignore", "nitrate/glodap"))
+        # what is chosen must be confirmed
+        assert page.is_disabled("#output-run")
+        page.check("#f-existing_confirmed")
+        assert page.is_enabled("#output-run")
+
+        page.click("#output-run")
+        # the one replaced is all those the run makes; only those used are in the report
+        wait_for(lambda: app.view != "output")
+        assert app.overwrite is True
+        if report:
+            assert app.view == "report_options"
+            assert app.previous == ["temperature/WOA23", "nitrate/ICES"]
         else:
-            assert app.recipes_page.form["overwrite"] == ["temperature/COBE2"]
             assert app.previous is True
+        assert app.results_dir == str(tmp_path / "old")
     finally:
         app.close()
 
@@ -6630,7 +7170,7 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         page.click("#units-continue")
         page.wait_for_selector("#console-text:has-text('running')", state="attached", timeout=60000)
 
-        text = open(tmp_path / "matchup.py").read()
+        text = open(draft(app)).read()
         assert "    obs_multiplier=1.025,\n" in text[text.index('name="nitrate"') :].split("\n)\n")[0]
         assert "    obs_multiplier=2,\n" in text
     finally:
@@ -6681,6 +7221,10 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         def to_units():
             page.wait_for_selector("#view-units-table:not([hidden]) #units-body-gridded tr[data-units-row]",
                                    timeout=90000)
+
+        def to_output():
+            page.wait_for_selector("#view-output:not([hidden])")
+            page.wait_for_function("!document.getElementById('output-run').disabled")
 
         page.goto(url)
         page.click('button.choice[data-action="matchup_validate"]')
@@ -6741,20 +7285,41 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.check("#units-confirm")
         page.click("#units-continue")
 
-        # the report options, kept with Back
+        # where the matchups are saved, once they are confirmed, and then the report options
         page.wait_for_selector("#review:not([hidden])", timeout=90000)
         page.click("#actions button:has-text('Yes')")
+        to_output()
+        assert page.text_content("#actions button.btn--primary") == "Continue"
+        assert page.is_hidden("#f-cores")
+        page.fill("#f-out", "mine.py")
+        page.click("#output-run")
         page.wait_for_selector("#view-validate:not([hidden])")
+        # the cores are asked for here, with no default
+        assert page.is_visible("#v-cores")
+        assert page.input_value("#v-cores") == ""
+        assert page.is_disabled("#build")
+        page.select_option("#v-cores", "1")
+        assert page.is_enabled("#build")
         page.check("#v-pdf")
         page.select_option("#v-subregions", "global")
+        # Back keeps them, and where the matchups are saved
+        bar("Back").click()
+        to_output()
+        assert page.input_value("#f-out") == "mine.py"
         bar("Back").click()
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
+        to_output()
+        assert page.input_value("#f-out") == "mine.py"
+        page.click("#output-run")
         page.wait_for_selector("#view-validate:not([hidden])")
         assert page.is_checked("#v-pdf")
         assert page.input_value("#v-subregions") == "global"
+        assert page.input_value("#v-cores") == "1"
 
         # and back all the way to the simulation
+        bar("Back").click()
+        to_output()
         bar("Back").click()
         page.wait_for_selector("#review:not([hidden])")
         bar("Back").click()
@@ -7004,8 +7569,8 @@ def test_viewing_files_in_a_random_directory_in_a_browser(browser, tmp_path):
 
         # nothing to look in yet
         page.click("#view-files")
-        page.wait_for_selector("#sample-list .picker__empty")
-        assert "Enter the directory" in page.text_content("#sample-list")
+        # "Looking…" is said first, in the same style, until the answer comes
+        page.wait_for_selector("#sample-list .picker__empty:has-text('Enter the directory')")
         page.keyboard.press("Escape")
         assert page.is_hidden("#sample")
 

@@ -105,22 +105,41 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   in `oceanval_matchups/last_matchup.json` (`selection.save_last_run`, from `matchall._Told.made`; removed by
   `forget_last_run` once the matchups are confirmed, so a run that does not finish leaves none). `validate(previous=)`
   is True (all), False (`selection.last_run` only) or a list of earlier ones as `variables` takes them;
-  `matchup(overwrite=)` also takes such a list (`selection.picks`). In the window, an out_dir with matchups
-  (`app.existing_matchups`, a row per "variable/source") gets a grid on the setup page, "What do you want to do with
-  existing matchups?": per row one of two, Use / Replace/Ignore (radios with the tick look, Use to start with; a radio
-  at the top of each column chooses it for all rows). Replacing and ignoring were one and the same, so they are one
-  column. **Only a used matchup is kept as it is**: one replaced is made again if this run matches it up, and left
-  out of the report if not (form `overwrite` only; `check_setup` gives overwrite = those replaced, previous = those
-  used, all → True, none → False). Matchup only calls the column Replace, and those used are reused. A confirmation tick under the grid (`existing_confirmed`) is required in both, as users may
-  not notice every row starts on Use; it is reset when the list shown changes. The demo's own folder (`check_setup(demo_dir=)`, `out_dir_is_demo`), where every model tried keeps its
-  matchups, has no grid: overwrite=True, previous=False. Analyze's `analysis_forms.check_setup` calls the same `check_setup`
-  but shows no grid, so it drops the answers (`_NOT_ANALYZED`: overwrite, previous, existing_confirmed); an error kept for a
-  box the page does not show disables Continue with nothing said. `previous` is never passed to the interim report
+  `matchup(overwrite=)` also takes such a list (`selection.picks`). **In the window, where the matchups are saved is asked
+  once the matchups are confirmed**: the run starts after the units step from a draft of the script in a folder of the
+  app's own (`App._draft_script`; `out_dir` = that folder, `cores=1`), and `matchup` writes nothing in `out_dir` before
+  the answer to "Are you happy with these matchups?" (the `oceanval_matchups` folder and `model_bathymetry.nc` are made
+  after it). Yes is held while view `output` (after `point_time_res`, if asked; `/api/output` → `output_continue`,
+  `check_output`; boxes `output_form`: `out_dir`, `unused`, `existing_confirmed`, `out`, and `cores` for Match up only)
+  and then, to validate too, `report_options` ("One last thing...", which asks the **cores**, `check_cores`, as the
+  recipes window no longer does) are answered; `App._yes` sends `out_dir`, `overwrite` and `cores` (`_run_output`)
+  with yes, which `matchup` applies (`_full_out_dir`, `_checked_overwrite`, `_checked_cores`). The script is written
+  under its chosen name from the output step on (`_keep_in_script(out=)`, `create_recipes`' `write(out=)`). Back:
+  `report_options` → `output` → `point_time_res`/the matchups question → (Back from the run) the units step.
+  The output step's grid, "What do you want to do with existing matchups?", has a row per "variable/source"
+  (`app.matchups_asked_about`, each with `made`: whether this run matches it up, from the question's
+  `details["matchups"]`, kept in `output_made`; the probe marks the rows while the view is `output`): per row one of
+  two, Use (to start with) and Replace if the run makes it, or Ignore if not (left out of the report); a row the run
+  does not make is listed only with a report to follow. Radios with the tick look; a column only for an option some
+  row has; a lone radio at the top of each column chooses it for every row that has it. **Only a used matchup is kept
+  as it is** (form `unused`; `check_output` gives overwrite = those replaced, of those made, previous = those used,
+  all → True, none → False). A confirmation tick under the grid (`existing_confirmed`) is required, as users may not
+  notice every row starts on Use; it is reset when the list shown changes. The demo's own folder
+  (`check_output(demo_dir=)`, `out_dir_is_demo`), where every model tried keeps its matchups, has no grid:
+  overwrite=True, previous=False.
+  `previous` is never passed to the interim report
   (`live.NOT_INTERIM`), and `_checked_report` adds the earlier keys to `variables` when some of the run's are unticked.
-  Analyze's own rule is about an analysis in the output directory (`oceanval_analysis`, which `analyze()` replaces whole): the setup page
-  (`#f-replace_analysis`, shown when the probe's `out_dir_has_analysis`) and `analysis_forms.check_setup` (`replace_analysis`) require a tick
-  to replace it **and** a named directory (an empty `out_dir` box means the cwd and is refused, `NAME_THE_DIRECTORY`); the tick is reset when
-  `out_dir` is edited. Compare simulations' `oceanval_simulation_comparison` warning is still only a warning.
+  Analyze's own rule is about an analysis in the output directory (`oceanval_analysis`, which `analyze()` replaces whole): the options step's
+  last page (`#ao-replace_analysis`, shown when the probe's `out_dir_has_analysis`) and `analysis_forms.check_output` (`replace_analysis`, checked by
+  `analyze_run`) require a tick to replace it **and** a named directory (an empty `out_dir` box means the cwd and is refused,
+  `NAME_THE_DIRECTORY`); the tick is reset when `out_dir` is edited. Compare simulations has the same rule for `oceanval_simulation_comparison`
+  (which `compare_simulations()` replaces whole), with the same box and key (`replace_analysis`, its label switched; probe
+  `out_dir_has_comparison`): `sim_compare_forms.check_output` is `analysis_forms.check_output(folder=sim_compare.FOLDER)` with its own
+  `NAME_THE_DIRECTORY`.
+  **Where the output is saved (`out_dir`, the script's `out`) is asked last, for Analyze and Compare**, as page 3 of the options step, not by
+  the setup page or the simulations step: `check_setup`/`check_sims` leave it out, and `analyze_run(form=)` takes it and checks it
+  (`analysis_forms.check_output`, `sim_compare_forms.check_output`; the boxes are kept in `analyze_setup_form` / `sc_output_form` and shown in
+  `state["analyze"]["output"]`). Validate and Matchup ask it once the matchups are confirmed (above).
 
 ### Recipes of the user's own (`.oceanvalrc`)
 
@@ -218,6 +237,15 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   The pieces Analyze and Compare share: `analysis.Templates`, `prepare_book`, `write_page`, `link_report`.
   Tests that do not need the report use the `no_report` fixture (`tests/conftest.py`'s `no_book`, a
   stand-in for `InterimBook` that keeps the saved info).
+- **The grid of the variables** (Analyze and Compare simulations' run, `renderAnalysisGrid` in `#progress-grid`, beside validate's
+  `renderMatchupGrid`): a row per variable, a column per analysis **some variable has** (none for the others), then Time and Report.
+  The run tells it through `prompts.tell` (`analysis._tell`: `analyses` with the rows' kinds and `simulations`, then
+  `analysis_variable` and `analysis` working/done, told in `_work_out`, so once per simulation; long-term and seasonal together),
+  which `App._matchup_news` hands to `App._analysis_news` (`ANALYSIS_NEWS`) → `state()["run"]["analysis"]`: a cell is `done` once
+  every simulation has done it, `partial` with the count between, `failed` if working when the run ended. Marks: hollow ring
+  (`todo`, `.matchup-grid__todo`) to do, turning circle, tick, dash for an analysis the variable does not have. The Report column is
+  `InterimBook`'s status (`added`/`building_key`/`failed`, by variable key, through `_interim_state`). At ≤640px (`NARROW_GRID`)
+  the Report column is left out and the analyses' names are turned on their side (`.matchup-grid__sideways`), so every column fits.
 - **Every Analyze figure is drawn by running its own code**, the script the report's
   "Copy code to reproduce figure" button copies (`analyze(figure_code=True)`, the window's
   required Yes/No): each `analysis_plots` function builds a standalone script (nctoolkit/
@@ -281,16 +309,23 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   enforces), the years of every analysis must lie inside the output's (`analysis_forms._years` in the window,
   `analyze()` against `row["times"]`: a start before its first year or an end after its last is refused), and `as_missing` is applied in `_model_data` and to the thickness, as matchup
   does. **Nothing is pre-selected in the window**: the forms start empty (rows, ticks, years,
-  thickness, `how`); the years of the output are only placeholders/hints. The assumptions are
+  thickness, `how`); the years of the output are only placeholders/hints. The one exception (the user's rule,
+  2026-10-25): each variable's own tick in the pop-outs (`use`, by its name; phenology only for daily output)
+  starts ticked, so a variable is left out by unticking it, and one ticked with no layer is an error on its row.
+  With 2+ variables each pop-out's table starts with an **All variables** row (`allVariablesRow`, its own
+  `<tbody class="analyze-all">` `#clim-all`/`#phen-all`/`#chg-all`, kept in `analyzeDialog.all`, never sent):
+  a box set there is set in every row it applies to (`fanOut`, skipping disabled boxes, by dispatching the
+  row's own events), and a row that differs has **Reset to All variables** (`resetLink`/`resetRow`; the tick is
+  not reset). Transects have **Copy these transects to every variable** on each variable's section instead. The assumptions are
   the missing-value boxes', until the user edits them: the value `oceanval/missing_probe.py`
   finds (xarray, the surface at the first time step of up to 10 files of the first placed variable,
   the value many cells share in every file; started in a thread when the options step opens by
   `AnalyzeSteps._probe_missing`, `state.analyze.missing_probed`, shown in amber `is-found`), else for a
   NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) 0–0 in the `is-ersem` style.
   `analysis_forms.prefill` (what OceanVal could fill the variables with) is unused for that reason;
-  the "Your name" box instead has an arrow listing `analysis_forms.presets` (every recipe variable
+  the "Environmental variable" box (was "Your name"; the model column is "Variable name in the simulation") instead has an arrow listing `analysis_forms.presets` (every recipe variable
   with the model variable `create_recipes.voted_mapping` finds, `state.analyze.presets`), through the
-  `yearList` machinery (`input.onPick`); choosing one fills Model name in red/bold unless the user typed it.
+  `yearList` machinery (`input.onPick`); choosing one fills the model variable in red/bold unless the user typed it.
 - The long-term series also take `window` (rolling mean of the annual means, trailing, 1 = none) and `show` (`absolute` | `absolute_change` | `percentage_change`, from the first year with a value), `analysis.SHOWS`/`_series_options`, applied in `analysis_series.smooth_and_change` after `annual_series` (the missing/incomplete years are worked out before, from the means as they are); the csv holds the values as shown and `saved["show"]`/units `%` say what they are. In the window they are two columns after Water column in the long-term pop-out only (`is-series` cells), `analysis_forms._check_series_options`.
 - Map temporal changes are `oceanval/analysis_changes.py` (`map_changes={name: {"historical":
   {start, end}, "future": [1-2 of those], "plot": "absolute"|"absolute_changes"|"changes",
@@ -338,7 +373,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `oceanval` env's 1.3.0 reports it as validate's transect does).
 - Every start/end year box of the Analyze pop-outs (`yearBox`, transects' `optionYears`) goes through `withYears` in `oceanval_app.html`: an arrow at its right end (or Down) opens one shared `year-list` (fixed, so the pop-out body can't clip it) of `first..last` of `placed[].years` (the dates check has no year missing between). A new year box must be made with `yearBox`/`withYears`. The list itself is `OceanValGUI.withChoices` in `data/gui.js` (CSS in `gui.css`), shared with the recipes window's First/Last and the name boxes' presets (`choiceHints`, `onPick`).
 - The window's Analyze steps live in `oceanval/analysis_app.py` (`AnalyzeSteps`, a mixin of
-  `App`; views `analyze_variables`, `analyze_files`, `analyze_options`; six pop-outs, the
+  `App`; views `analyze_variables`, `analyze_files`, `analyze_options`, which the page shows as three pages of one server view (`analyzePage` in `oceanval_app.html`: the six analyses with Continue, then cores, missing values and figure code with Continue, then where the output is saved with Run/Save; Back on the second and third is client-only); six pop-outs, the
   time series' two sharing one dialog with the climatology, the regions/area card, the
   stations, the map changes' own, `chg-dialog`, and the transects' own, `trans-dialog`, with a card for each transect), their forms and
   checks in `oceanval/analysis_forms.py`. The files page reuses `model_check.ModelCheck`
@@ -456,8 +491,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   matchup's is `gridded_matchup(on_observing=, on_observed=)`, from "Read in the monthly observational data" (after the model's
   `merge`) to the `ds_obs.run()` after the observations' merge, before they are cut to the surface and regridded. At ≤860px the
   grid is made smaller so every column stays in sight. At ≤640px (`NARROW_GRID`) both extraction columns are left out, so the
-  table still fits, and the count is under the Matchup circle (`countUnder`). Note that `str.splitlines()` splits at the markers' `\x1e`. In the app's recipes window cores has no default
-  (`show_recipes` sets `form["cores"] = ""`): "Choose the number of cores" must be picked.
+  table still fits, and the count is under the Matchup circle (`countUnder`). Note that `str.splitlines()` splits at the markers' `\x1e`. In the app the recipes window does not ask for the cores
+  (its box is hidden, `show_recipes` sets `form["cores"] = "1"` for the draft): they are asked, with no default, on the
+  report options ("One last thing...") or, for Match up only, on the output step.
 - A multiprocessing Manager is made with `matchall._manager()`, when it is needed, never at import: its server is a
   process of its own that only its parent stops, so one made by a window that crashed ran for ever (`_manager`'s server
   exits once its parent is gone). `matchall.session_warnings` is made by `_session_warnings()` before a pool is forked.

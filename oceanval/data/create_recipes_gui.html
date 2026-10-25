@@ -473,13 +473,8 @@
       $(`s-${name}-required`).hidden = false;
       $(`s-${name}`).required = true;
     }
-    // the number of cores has no default here: the label goes above the list, which asks for it
-    const coresRow = $("s-cores").closest(".cores-row");
-    coresRow.classList.add("is-stacked");
-    const coresLabel = coresRow.querySelector(".g-label");
-    coresLabel.classList.add("is-required");
-    coresLabel.append(el("span", { class: "year-required", text: "Required" }));
-    $("s-cores").required = true;
+    // the number of cores is asked for once the matchups are confirmed
+    $("s-cores").closest("fieldset").hidden = true;
     $("page-title").textContent = app.action === "matchup"
       ? "Choose what to match up"
       : "Let's fine-tune what you want to matchup";
@@ -588,8 +583,6 @@
   // 1 to the machine's cores; a kept value beyond them is still shown, with its error
   const coreChoices = Array.from({ length: state.cpu_count || 0 }, (_, number) => String(number + 1));
   if (String(form.cores).trim() && !coreChoices.includes(String(form.cores))) coreChoices.push(String(form.cores));
-  // in the app the number of cores is always chosen, so the list starts by asking for it
-  if (app) field("cores").append(el("option", { value: "", text: "Choose the number of cores" }));
   field("cores").append(...coreChoices.map((number) => el("option", { value: number, text: number })));
   $("thickness-options").append(
     el("option", { value: "z_level" }), ...state.available.map((name) => el("option", { value: name })));
@@ -1270,7 +1263,8 @@
   const cancelButton = $("cancel");
   const resetButton = $("reset");
   let busy = false;
-  const writeLabel = !app ? "Write script" : app.action === "matchup" ? "Match up" : "Continue";
+  // in the app, the units and where the matchups are saved come next
+  const writeLabel = app ? "Continue" : "Write script";
   writeButton.textContent = writeLabel;
   if (app) cancelButton.textContent = "Back";
 
@@ -1318,7 +1312,7 @@
     writeButton.disabled = busy || invalid > 0 || settingsToFix > 0;
     $("fix-settings").hidden = invalid === 0 && settingsToFix === 0;
     writeButton.title = invalid || settingsToFix ? "Fix what is marked in red first"
-      : app ? `Write ${context.out}, and run it` : `Write ${context.out}`;
+      : app ? "" : `Write ${context.out}`;
     resetButton.hidden = busy || !changed();
   }
 

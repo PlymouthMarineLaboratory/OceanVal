@@ -8,7 +8,7 @@ import os
 import numpy as np
 import pytest
 
-from oceanval import sim_compare
+from oceanval import analysis, sim_compare, sim_compare_forms
 from oceanval.app import App
 from simulations import write_analysis_simulation
 from test_app import get, get_json, leftover_dir, post, wait_for  # noqa: F401 (leftover_dir is autouse)
@@ -47,9 +47,13 @@ def sims_form(**changes):
         {"name": "Base run", "simdir": "base", "ndown": "1", "exclude": "", "require": ""},
         {"name": "Fine run", "simdir": "fine", "ndown": "1", "exclude": "", "require": ""},
     ]
-    form = {"rows": rows, "out_dir": "", "out": "comparison.py"}
+    form = {"rows": rows}
     form.update(changes)
     return form
+
+
+# the last page's boxes, which the run takes
+OUTPUT = {"form": {"out_dir": "", "out": "comparison.py"}}
 
 
 def state(app):
@@ -466,7 +470,7 @@ class TestOptionsAndRun:
         assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY}) == (200, {"ok": True})
         assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
         assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
-        assert post(app, "/api/analyze_save_script") == (200, {"ok": True})
+        assert post(app, "/api/analyze_save_script", OUTPUT) == (200, {"ok": True})
         script = os.path.join(app.cwd, "comparison.py")
         assert runs == [] and app.view == "script_saved"
         run = get_json(app, "/api/state")[1]["run"]
@@ -478,6 +482,47 @@ class TestOptionsAndRun:
         assert all("times_index" not in sim for sim in given["simulations"])
         sim_compare.check_simulations(given["simulations"])
 
+    def test_where_the_output_is_saved_is_checked_by_the_run(self, app, sims, runs):
+        to_options(app, {"need": "yes", "method": "baseline", "baseline": "Base run"})
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY}) == (200, {"ok": True})
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        # the boxes of the last page are not the first page's: it starts with them
+        assert state(app)["analyze"]["output"] == {
+            "out_dir": app.cwd, "out": "simulation_comparison.py", "replace_analysis": False}
+        status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": "", "out": ""}})
+        assert status == 400 and set(reply["errors"]) == {"out"} and runs == []
+        os.makedirs(os.path.join(app.cwd, "somewhere"))
+        status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": "", "out": "somewhere"}})
+        assert status == 400 and set(reply["errors"]) == {"out"}
+        # what was sent is kept for the page, and the script goes where it says
+        assert state(app)["analyze"]["output"] == {"out_dir": "", "out": "somewhere", "replace_analysis": False}
+        assert post(app, "/api/analyze_save_script", {"form": {"out_dir": "", "out": "mine.py"}}) == (200, {"ok": True})
+        assert os.path.exists(os.path.join(app.cwd, "mine.py"))
+
+    def test_a_comparison_in_the_output_directory_has_to_be_ticked_to_be_replaced(self, app, sims, runs):
+        to_options(app, {"need": "yes", "method": "baseline", "baseline": "Base run"})
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY}) == (200, {"ok": True})
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        # an analysis there is not this run's to replace: only the empty script name is said
+        os.makedirs(os.path.join(app.cwd, analysis.FOLDER))
+        status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": app.cwd, "out": ""}})
+        assert status == 400 and set(reply["errors"]) == {"out"}
+        os.makedirs(os.path.join(app.cwd, sim_compare.FOLDER))
+        # which the user must tick to replace, having named the directory
+        status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": app.cwd, "out": "comparison.py"}})
+        assert status == 400 and reply["errors"] == {"replace_analysis": ""} and runs == []
+        status, reply = post(
+            app, "/api/analyze_run", {"form": {"out_dir": "", "out": "comparison.py", "replace_analysis": True}}
+        )
+        assert status == 400 and reply["errors"] == {"out_dir": sim_compare_forms.NAME_THE_DIRECTORY}
+        assert "a comparison" in sim_compare_forms.NAME_THE_DIRECTORY
+        assert post(
+            app, "/api/analyze_save_script", {"form": {"out_dir": app.cwd, "out": "mine.py", "replace_analysis": True}}
+        ) == (200, {"ok": True})
+        assert os.path.exists(os.path.join(app.cwd, "mine.py"))
+
     def test_back_goes_to_the_grids(self, app, sims):
         to_options(app)
         assert post(app, "/api/back")[0] == 200
@@ -488,7 +533,7 @@ class TestOptionsAndRun:
         assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY}) == (200, {"ok": True})
         assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
         assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
-        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        assert post(app, "/api/analyze_run", OUTPUT) == (200, {"ok": True})
         script = os.path.join(app.cwd, "comparison.py")
         assert runs == [(["simcompare", script], "python comparison.py")]
         assert app.view == "running" and app.results_dir == app.cwd
@@ -525,7 +570,7 @@ class TestOptionsAndRun:
         post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})
         post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "1"}})
         post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})
-        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        assert post(app, "/api/analyze_run", OUTPUT) == (200, {"ok": True})
         folder = app.sc_times_dir
         assert folder and os.path.isdir(folder)
         with app._lock:
@@ -537,7 +582,7 @@ class TestOptionsAndRun:
         post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})
         post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "1"}})
         post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "yes"}})
-        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        assert post(app, "/api/analyze_run", OUTPUT) == (200, {"ok": True})
         assert "unify=" not in open(os.path.join(app.cwd, "comparison.py")).read()
 
     def test_the_report_is_served_from_its_own_folder(self, app, tmp_path):
@@ -577,7 +622,7 @@ class TestPhenology:
         assert post(app, "/api/analyze_option", {"kind": "phenology", "form": phenology}) == (200, {"ok": True})
         post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "1"}})
         post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})
-        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        assert post(app, "/api/analyze_run", OUTPUT) == (200, {"ok": True})
         call = ast.parse(open(os.path.join(app.cwd, "comparison.py")).read()).body[-1].value
         given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
         assert given["phenology"] == {"Chlorophyll": {"start": 2013, "end": 2014}}
@@ -635,7 +680,22 @@ def test_phenology_is_ticked_in_a_browser(browser, tmp_path):
         page.wait_for_function("() => !document.querySelector('#phen-confirm').disabled")
         page.click("#phen-confirm")
         page.wait_for_selector("#phen-dialog", state="hidden")
+        # the tile says what was chosen once the window has it
+        page.wait_for_selector("#ao-phenology.is-chosen")
         assert "Chlorophyll" in page.inner_text("#ao-phenology-text")
+        page.click("#ao-continue")
+        page.wait_for_selector("#ao-page-2:not([hidden])")
+        assert page.inner_text("#title") == "How should the comparison be run?"
+        assert page.is_disabled("#ao-next")
+        page.select_option("#ao-cores", "1")
+        page.check("#ao-code-no")
+        page.click("#ao-next")
+        page.wait_for_selector("#ao-page-3:not([hidden])")
+        # where the comparison is saved is asked last, for it, and has no tick to replace anything
+        assert page.inner_text("#title") == "Where do you want the comparison to be saved?"
+        assert page.input_value("#ao-out") == "simulation_comparison.py" and page.is_hidden("#ao-row-replace")
+        assert page.inner_text("#ao-run") == "Run the comparison"
+        assert page.inner_text("#ao-save") == "Save Python script to run later"
         assert errors == []
     finally:
         app.close()
@@ -733,9 +793,49 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.click("#scg-continue")
         page.wait_for_selector("#view-analyze-options:not([hidden])")
         assert page.is_visible("#ao-compare-note")
-        assert page.inner_text("#ao-run") == "Run the comparison"
-        assert page.inner_text("#ao-save") == "Save Python script to run later"
+        # the tiles are the first page; the run buttons are on the second, once something is chosen
+        assert page.inner_text("#title") == "What do you want to compare?"
+        assert page.is_disabled("#ao-continue")
         assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5}
+
+        # a comparison already where it is to be saved must be ticked to be replaced
+        os.makedirs(tmp_path / "old" / sim_compare.FOLDER)
+        # an analysis there is not this run's to replace
+        os.makedirs(tmp_path / "other" / analysis.FOLDER)
+        for kind, form in (
+            ("climatology", {"rows": {"Temperature": {"use": True, "start": "2013", "end": "2014", "surface": True}}}),
+            ("cores", {"cores": "1"}), ("missing", {"from": "0", "to": "0"}), ("figure_code", {"choice": "no"}),
+        ):
+            assert post(app, "/api/analyze_option", {"kind": kind, "form": form})[0] == 200
+        page.wait_for_function("() => !document.querySelector('#ao-continue').disabled")
+        page.click("#ao-continue")
+        page.wait_for_function("() => !document.querySelector('#ao-next').disabled")
+        page.click("#ao-next")
+        page.wait_for_selector("#ao-page-3:not([hidden])")
+        assert page.is_hidden("#ao-row-replace")
+        page.fill("#ao-out_dir", "other")
+        page.wait_for_function("() => document.querySelector('#ao-m-out_dir').textContent.includes('inside this directory')")
+        assert page.is_hidden("#ao-row-replace")
+        page.fill("#ao-out_dir", "old")
+        page.wait_for_selector("#ao-row-replace:not([hidden])")
+        assert page.text_content("#ao-row-replace") == (
+            "Tick to replace the comparison files in this directory (oceanval_simulation_comparison)")
+        assert page.text_content("#ao-m-out_dir .group__line.is-warn") == (
+            "There is a comparison here already, from an earlier run. It will be replaced: "
+            "choose another directory to keep it, or tick below to replace it.")
+        assert page.is_disabled("#ao-run") and page.is_disabled("#ao-save")
+        page.check("#ao-replace_analysis")
+        assert page.is_enabled("#ao-run") and page.is_enabled("#ao-save")
+        # the tick was for that directory
+        page.fill("#ao-out_dir", "old/")
+        assert not page.is_checked("#ao-replace_analysis")
+        assert page.is_disabled("#ao-run")
+
+        # an empty box is the directory worked in, which must be named
+        os.makedirs(tmp_path / sim_compare.FOLDER)
+        page.fill("#ao-out_dir", "")
+        page.wait_for_function("() => document.querySelector('#ao-m-out_dir').textContent.includes('a comparison in the directory')")
+        assert page.is_disabled("#ao-run")
         assert errors == []
     finally:
         app.close()

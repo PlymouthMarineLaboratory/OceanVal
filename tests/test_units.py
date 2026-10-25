@@ -402,3 +402,25 @@ class TestConversions:
         units.apply_conversions({"recipe:nitrate:woa23": (1, 0)}, options, {})
 
         assert options == {}
+
+
+class TestRecipeSource:
+    """The source a recipe's matchups are named by, which the oceanval window's
+    output step matches against those in the output directory already."""
+
+    @pytest.mark.parametrize(
+        "variable, recipe, source",
+        [
+            # WOA23 temperature and salinity need years for find_recipe, but not for their source
+            ("salinity", "woa23", "WOA23"),
+            ("temperature", "woa23", "WOA23"),
+            ("nitrate", "woa23", "WOA23"),
+            ("temperature", "cobe2", "COBE2"),
+            ("temperature", "ices", "ICES"),
+        ],
+    )
+    def test_the_source_of_a_built_in_recipe(self, variable, recipe, source):
+        assert units.recipe_source(variable, recipe) == source
+
+    def test_an_unknown_recipe_has_none(self):
+        assert units.recipe_source("temperature", "nowhere") is None

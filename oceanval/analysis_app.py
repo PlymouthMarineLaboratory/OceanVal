@@ -33,7 +33,7 @@ import threading
 
 import pandas as pd
 
-from oceanval import analysis, analysis_forms, missing_probe, model_check, recipes_gui, time_stamps
+from oceanval import analysis, analysis_forms, missing_probe, model_check, recipes_gui, sim_compare_forms, time_stamps
 from oceanval import time_res as time_resolution
 
 # the id the check of the dates of an analysis's files is made for (see
@@ -604,9 +604,10 @@ class AnalyzeSteps:
             self._notify()
         return 200, {"ok": True}
 
-    def analyze_run(self, save=False):
+    def analyze_run(self, save=False, form=None):
         """Write the analysis script, and run it, or, with save, only write
-        it, to be run later."""
+        it, to be run later. form is the last page's boxes (out_dir, out and,
+        for an analysis, replace_analysis); without it the ones kept are used."""
         from oceanval.app import _path, _shown
 
         with self._lock:
@@ -651,7 +652,15 @@ class AnalyzeSteps:
                         "errors": {"area": errors},
                         "error": "The regions and area need putting right first.",
                     }
+            paths, errors = self._check_output(form)
+            if errors:
+                return 400, {
+                    "ok": False,
+                    "errors": errors,
+                    "error": "Where the output is saved needs putting right.",
+                }
             if self.action == SIMCOMPARE:
+                self.sc_paths = paths
                 reply, run = self.simcompare_run(
                     chosen, thicknesses, cores, figure_code, as_missing, area, save=save
                 )
@@ -659,6 +668,7 @@ class AnalyzeSteps:
                     return reply
                 label_run = run
             else:
+                self.analyze_setup = dict(self.analyze_setup, **paths)
                 arguments = analysis_forms.arguments(
                     self.analyze_setup,
                     self.analyze_placed,
@@ -694,6 +704,22 @@ class AnalyzeSteps:
                 reply = (200, {"ok": True})
         self.start_run(*label_run)
         return reply
+
+    def _check_output(self, form):
+        """Keep and check the last page's boxes, from the page or, if none were
+        sent, as last kept: (paths, errors). Called with the lock held."""
+        from oceanval.app import _form
+
+        if self.action == SIMCOMPARE:
+            if isinstance(form, dict):
+                self.sc_output_form = sim_compare_forms.clean_output_form(form, self.cwd)
+            return sim_compare_forms.check_output(self.sc_output_form, self.cwd)
+        if isinstance(form, dict):
+            kept = _form(form, analysis_forms.default_setup_form(self.cwd))
+            self.analyze_setup_form = dict(
+                self.analyze_setup_form, **{name: kept[name] for name in ("out_dir", "out", "replace_analysis")}
+            )
+        return analysis_forms.check_output(self.analyze_setup_form, self.cwd)
 
     def _script_saved(self, script):
         """Stop at the script, written to be run later: the page that says
@@ -752,6 +778,12 @@ class AnalyzeSteps:
             # the names "Your name" offers, with the model variable of each
             "presets": (
                 (found or {}).get("presets") or [] if self.view == "analyze_variables" else []
+            ),
+            # the last page's boxes
+            "output": (
+                self.sc_output_form
+                if self.action == SIMCOMPARE
+                else {name: self.analyze_setup_form[name] for name in ("out_dir", "out", "replace_analysis")}
             ),
             "rows": self.analyze_rows,
             "refilled": self.analyze_refilled,

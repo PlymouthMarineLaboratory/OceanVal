@@ -37,7 +37,9 @@ import argparse
 import calendar
 import codecs
 import contextlib
+import atexit
 import copy
+import functools
 import glob
 import io
 import itertools
@@ -50,10 +52,12 @@ import re
 import secrets
 import select
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -80,7 +84,6 @@ from oceanval.create_recipes import (
     simulation_paths,
     simulation_years,
 )
-from oceanval.parsers import find_recipe
 
 
 # the regions of the built-in recipes, as https://pmlmodelling.github.io/OceanVal/recipes.html
@@ -148,6 +151,10 @@ COMPARE_ROWS = 5
 # it opens first
 COMPARISON_HTML = ("oceanval_comparison", "compare", "_build", "html")
 COMPARISON_LANDING = ("notebooks", "comparison_seasonal.html")
+
+# what an Analyze or Compare simulations run tells of its variables (see
+# oceanval.analysis._tell), for the page's grid of them
+ANALYSIS_NEWS = ("analyses", "analysis_variable", "analysis")
 
 # the depths the simulation step looks for output files at, when there are
 # none where it was told to look
@@ -260,14 +267,23 @@ def default_setup_form():
         "end": "",
         "exclude": "",
         "require": "",
+    }
+
+
+def default_output_form():
+    """The output step's boxes, the last before a matchup starts, as they
+    start: where the matchups (and the report) are saved, and the script."""
+    return {
         "out_dir": "",
-        # asked only if out_dir has matchups already (see check_setup): the
-        # "variable/source" of those to be replaced (or ignored, which is the
-        # same; the others are used, as each is to start with), and whether the
-        # user has confirmed what is done with them
-        "overwrite": [],
+        # asked only if out_dir has matchups already (see check_output): the
+        # "variable/source" of those not used, replaced if this run makes them
+        # and ignored if not (the others are used, as each is to start with),
+        # and whether the user has confirmed what is done with them
+        "unused": [],
         "existing_confirmed": False,
         "out": "matchup.py",
+        # matchup alone's, which has no report options to ask it with; chosen every time
+        "cores": "",
     }
 
 
@@ -296,6 +312,8 @@ def default_validate_form():
         # the matchups listed whose ticks were taken off, by their
         # "variable/source": any others, as of matchups found later, are ticked
         "unticked": [],
+        # matchup's, asked with the report options before anything is matched up
+        "cores": "",
     }
 
 
@@ -310,11 +328,8 @@ def default_depth_boxes():
 
 def demo_setup_form(model):
     """The simulation step's boxes, as the demo fills them in: the
-    downloaded files, with the matchups, the report and the script beside
-    them in DEMO_FOLDER. The files of every model tried share a directory,
-    so only the chosen model's are used: those with its name in. Nothing is
-    asked about the matchups of a model tried before there (see
-    check_setup)."""
+    downloaded files. The files of every model tried share a directory,
+    so only the chosen model's are used: those with its name in."""
     return dict(
         default_setup_form(),
         simdir=os.path.join(DEMO_FOLDER, "simulation"),
@@ -323,6 +338,16 @@ def demo_setup_form(model):
         require=model,
         start=str(DEMO_YEAR),
         end=str(DEMO_YEAR),
+    )
+
+
+def demo_output_form():
+    """The output step's boxes, as the demo fills them in: the matchups,
+    the report and the script beside the downloaded files, in DEMO_FOLDER.
+    Nothing is asked about the matchups of a model tried before there (see
+    check_output)."""
+    return dict(
+        default_output_form(),
         out_dir=DEMO_FOLDER,
         out=os.path.join(DEMO_FOLDER, "matchup.py"),
     )
@@ -360,7 +385,8 @@ def demo_report_form(concise=True):
 
 # the boxes the demo fills in, which the page marks as OceanVal's
 DEMO_PREFILLED = {
-    "setup": ["simdir", "ndown", "require", "out_dir", "out"],
+    "setup": ["simdir", "ndown", "require"],
+    "output": ["out_dir", "out"],
     "report": [
         "subregions", "concise", "pdf", "word", "transect",
         "transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat",
@@ -502,7 +528,7 @@ def _form(form, defaults):
 
 
 # the boxes that are lists of names, such as the matchups unticked
-KEY_LISTS = ("unticked", "overwrite")
+KEY_LISTS = ("unticked", "unused")
 
 
 def _keys(names):
@@ -553,20 +579,9 @@ def _ticked_of(ticked, keys):
     return True if len(ticked) == len(keys) else ticked or False
 
 
-def check_setup(form, cwd, report=True, demo_dir=None):
-    """Turn the simulation step's boxes into create_recipes arguments, and
-    out_dir, the directory the matchups and the report are saved in.
-
-    If out_dir has matchups already, the user says of each whether it is used
-    (as each is to start with) or replaced. Only one used is kept as it is,
-    and validated if a report follows the matchups (report): one replaced is
-    made again if this run matches it up (matchup's overwrite), and, which
-    the page calls ignoring it, left out of the report if not (validate's
-    previous). The user must tick to confirm it, as each starts on use.
-    Without matchups there, overwrite and
-    previous are True. In demo_dir, the demo's own, where every model tried
-    keeps its matchups, nothing is asked: this run's are made again and no
-    others are in the report.
+def check_setup(form, cwd):
+    """Turn the simulation step's boxes into create_recipes arguments. Where
+    the output is saved is asked last (see check_output).
 
     Returns (arguments, errors), where errors maps each box that cannot be
     used to the reason.
@@ -607,6 +622,63 @@ def check_setup(form, cwd, report=True, demo_dir=None):
     # the file filters, as words separated by spaces
     arguments["exclude"] = form["exclude"].split() or None
     arguments["require"] = form["require"].split() or None
+    return arguments, errors
+
+
+def check_cores(text):
+    """The number of cores matchup is to use, as chosen in a box: (cores,
+    None), or (None, the reason it cannot be used). It has no default: the
+    right number depends on the machine and the run."""
+    text = str(text if text is not None else "").strip()
+    if not text:
+        return None, "Choose the number of cores."
+    try:
+        cores = int(text)
+    except ValueError:
+        cores = 0
+    if cores < 1:
+        return None, "Cores must be a whole number, 1 or more."
+    count = os.cpu_count()
+    if count and cores > count:
+        return None, f"This machine has {count} cores. Choose {count} or fewer."
+    return cores, None
+
+
+def matchups_asked_about(out_dir, made=None, report=True):
+    """The matchups in out_dir already (see existing_matchups) that the output
+    step asks about, each with made: whether this run matches it up, so that it
+    can be used as it is or replaced. made is the "variable/source" of each
+    matchup the run makes, in lower case (see App._show_output), or None
+    for every one. One the run does not make can be used in the report or
+    ignored, so it is asked about only if a report follows (report)."""
+    rows = []
+    for row in existing_matchups(out_dir):
+        again = made is None or row["key"].lower() in made
+        if again or report:
+            rows.append(dict(row, made=again))
+    return rows
+
+
+def check_output(form, cwd, report=True, demo_dir=None, made=None):
+    """Turn the output step's boxes, the last before a matchup starts, into
+    out_dir, the directory the matchups and the report are saved in, out,
+    the script, and matchup's overwrite and validate's previous.
+
+    If out_dir has matchups already, the user says of each whether it is used
+    (as each is to start with), or not (unused): one this run makes (see
+    matchups_asked_about) is then replaced (matchup's overwrite), and one it
+    does not make is ignored, left out of the report (validate's previous).
+    Only one used is kept as it is, and validated if a report follows
+    (report). The user must tick to confirm it, as each starts on use.
+    Without matchups to ask about, overwrite and previous are True. In
+    demo_dir, the demo's own, where every model tried keeps its matchups,
+    nothing is asked: this run's are made again and no others are in the
+    report.
+
+    Returns (arguments, errors), as check_setup does.
+    """
+    form = _form(form, default_output_form())
+    arguments, errors = {}, {}
     # empty is the directory worked in
     out_dir = _path(form["out_dir"] or ".", cwd)
     if os.path.isfile(out_dir):
@@ -614,16 +686,19 @@ def check_setup(form, cwd, report=True, demo_dir=None):
     else:
         arguments["out_dir"] = out_dir
         # each "variable/source" the page has a row for
-        keys = [row["key"] for row in existing_matchups(out_dir)]
+        rows = matchups_asked_about(out_dir, made, report)
+        keys = [row["key"] for row in rows]
+        unused = set(form["unused"])
         if not keys:
             arguments["overwrite"] = arguments["previous"] = True
         elif out_dir == demo_dir:
             arguments["overwrite"], arguments["previous"] = True, not report
         else:
-            arguments["overwrite"] = _ticked_of(form["overwrite"], keys)
+            again = [row["key"] for row in rows if row["made"]]
+            arguments["overwrite"] = _ticked_of(unused, again)
             # with a report, only those used are in it as they are
             arguments["previous"] = (
-                _ticked_of([key for key in keys if key not in form["overwrite"]], keys) if report else True
+                _ticked_of([key for key in keys if key not in unused], keys) if report else True
             )
             if not form["existing_confirmed"]:
                 errors["existing_confirmed"] = ""
@@ -1461,7 +1536,9 @@ class App(AnalyzeSteps, SimCompareSteps):
     own_future), "preparing" (while create_recipes reads the simulation) and
     "recipes" (its window) to match up, then "units_table" (the model's and
     the observations' units, with the conversions OceanVal suggests, to check,
-    change and always confirm), or "validate" for the report options, and then
+    change and always confirm), "output" (where the matchups are saved, what
+    is done with those there already, and the script, asked last as the
+    choices depend on the matchups chosen), or "validate" for the report options, and then
     "running" and "finished". To match up and validate, once the matchups are
     checked in "running", "report_options" asks for the report's options
     before anything is matched up, while matchup waits for the answer to
@@ -1502,14 +1579,24 @@ class App(AnalyzeSteps, SimCompareSteps):
         self.console = Console(self._notify)
         self.view = "home"
         self.action = None
-        self.setup_form = dict(default_setup_form(), out_dir=self.cwd)
+        self.setup_form = default_setup_form()
         self.setup_error = None
         self.setup_arguments = None
         # where the matchups and the report are saved
         self.out_dir = self.cwd
-        # matchup's overwrite and validate's previous, as the simulation step chose them
+        # matchup's overwrite and validate's previous, as the output step chose them
         self.overwrite = True
         self.previous = True
+        # the output step, once the matchups are confirmed: its boxes, the
+        # "variable/source" (lower case) of the matchups the run makes, and
+        # what matchup is given along with yes (see _yes): out_dir, overwrite
+        # and cores, or None until it is carried on from
+        self.output_form = dict(default_output_form(), out_dir=self.cwd)
+        self.output_made = None
+        self._run_output = None
+        # where the recipes window writes its script, which the output step
+        # writes to the path it names (see _draft_script)
+        self._draft_dir = None
         # the user's own observations, as the arguments of the calls to
         # register them, and the recipes saved from them for future use too
         # (see own_future_save)
@@ -1598,6 +1685,10 @@ class App(AnalyzeSteps, SimCompareSteps):
         # the matchups a matchup run is making, as it tells of them (see
         # _matchup_news), for the page's grid of them, or None
         self.matchup_progress = None
+        # the variables an Analyze or Compare simulations run is working out,
+        # and their analyses, as it tells of them (see _analysis_news), for
+        # the page's grid of them, or None
+        self.analysis_progress = None
         # the temporary files earlier sessions left behind, which the page
         # offers to remove once, and whether the user has answered
         self.leftovers = leftovers.find_leftovers()
@@ -1783,6 +1874,9 @@ class App(AnalyzeSteps, SimCompareSteps):
                 },
                 "register": self._register_state(),
                 "units": {"rows": self.units_rows, "boxes": self._units_boxes_shown()},
+                "output": {"form": self.output_form},
+                # for the lists of how many cores to use
+                "cpu_count": os.cpu_count(),
                 "point_time_res": self._point_time_res_state(),
                 "time_shift": self._time_shift_state(),
                 "model_check": self._model_check_state(),
@@ -1840,6 +1934,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                     ),
                     "identifying": self.identifying,
                     "progress": self._matchup_progress_state(),
+                    "analysis": self._analysis_progress_state(),
                     # whether Back can leave it for the units step
                     "back": self._run_back(),
                     # the file filters the script was written with, which
@@ -1964,6 +2059,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         are being read or have been, and whether it is made or not, then that
         they are finished. The times the grid shows are taken here, as the
         news arrives."""
+        if news.get("kind") in ANALYSIS_NEWS:
+            self._analysis_news(run, news)
+            return
         with self._lock:
             if run is not self.run:
                 return
@@ -2090,6 +2188,128 @@ class App(AnalyzeSteps, SimCompareSteps):
             "finished": progress["finished"],
             "elapsed": progress["banked"] + (0.0 if since is None else now - since),
             "running": since is not None,
+        }
+
+    def _analysis_news(self, run, news):
+        """What an Analyze or Compare simulations run tells of its variables
+        as it works them out (see oceanval.analysis._tell): the variables and
+        the analyses each is to have, then each variable as it is started and
+        done, and each of its analyses (once for each simulation). The times
+        the grid shows are taken here, as the news arrives."""
+        with self._lock:
+            if run is not self.run:
+                return
+            kind = news.get("kind")
+            progress = self.analysis_progress
+            now = self._clock()
+            if kind == "analyses":
+                items = news.get("items")
+                simulations = news.get("simulations")
+                self.analysis_progress = {
+                    "simulations": simulations if isinstance(simulations, int) and simulations > 0 else 1,
+                    "items": [
+                        {
+                            "key": item["key"],
+                            "title": str(item.get("title") or item["key"]),
+                            "kinds": [kind for kind in analysis.KINDS if kind in (item.get("kinds") or [])],
+                        }
+                        for item in (items if isinstance(items, list) else [])
+                        if isinstance(item, dict) and isinstance(item.get("key"), str)
+                    ],
+                    # each variable's "working" or "done"
+                    "states": {},
+                    # the (key, analysis) being worked out now, and how many
+                    # simulations each has been worked out in
+                    "working": set(),
+                    "done": {},
+                    # when each variable was started and how long it then took
+                    "started": {},
+                    "took": {},
+                    # the seconds of the run, once it is over, when it began
+                    # (None once it is over), and when it ended
+                    "banked": 0.0,
+                    "since": now,
+                    "ended": None,
+                }
+            elif progress is None:
+                return
+            elif kind == "analysis_variable" and news.get("state") in ("working", "done"):
+                key = str(news.get("key"))
+                progress["states"][key] = news["state"]
+                if news["state"] == "working":
+                    progress["started"][key] = now
+                elif key in progress["started"]:
+                    progress["took"][key] = now - progress["started"].pop(key)
+            elif kind == "analysis" and news.get("state") in ("working", "done"):
+                cell = (str(news.get("key")), str(news.get("analysis")))
+                if news["state"] == "working":
+                    progress["working"].add(cell)
+                else:
+                    progress["working"].discard(cell)
+                    progress["done"][cell] = progress["done"].get(cell, 0) + 1
+            else:
+                return
+            self._notify()
+
+    def _analysis_clock_stop(self):
+        """Stop the clock of the grid of the variables, which the run's end
+        does. Called with the lock held."""
+        progress = self.analysis_progress
+        if progress is not None and progress["since"] is not None:
+            progress["ended"] = self._clock()
+            progress["banked"] += progress["ended"] - progress["since"]
+            progress["since"] = None
+
+    def _analysis_progress_state(self):
+        """The grid of the variables of an Analyze or Compare simulations
+        run: "kinds", the analyses any variable has, in the order of
+        analysis.KINDS, and each variable with its state, "waiting",
+        "working" or "done", the seconds it has taken (so far, while it is
+        working; None if not started), and "cells", the state of each of its
+        analyses: "waiting", "working", "done" once worked out in every
+        simulation, "partial" in some ("done" says how many), or "failed",
+        for one being worked out when the run ended. "elapsed" is the
+        seconds the run has gone on, "running" whether it is going now."""
+        progress = self.analysis_progress
+        if progress is None:
+            return None
+        now = self._clock()
+        running = progress["since"] is not None
+        simulations = progress["simulations"]
+        rows = []
+        for item in progress["items"]:
+            key = item["key"]
+            cells = {}
+            for kind in item["kinds"]:
+                done = progress["done"].get((key, kind), 0)
+                if (key, kind) in progress["working"]:
+                    state = "working" if running else "failed"
+                elif done >= simulations:
+                    state = "done"
+                else:
+                    state = "partial" if done else "waiting"
+                cells[kind] = {"state": state, "done": done}
+            state = progress["states"].get(key, "waiting")
+            seconds = progress["took"].get(key)
+            if seconds is None and key in progress["started"]:
+                # the time it had taken when the run ended, if it did
+                seconds = (now if running else progress["ended"]) - progress["started"][key]
+            rows.append({
+                "key": key,
+                "title": item["title"],
+                "kinds": item["kinds"],
+                "state": state,
+                "seconds": seconds,
+                "cells": cells,
+            })
+        used = {kind for item in progress["items"] for kind in item["kinds"]}
+        since = progress["since"]
+        return {
+            "simulations": simulations,
+            "kinds": [kind for kind in analysis.KINDS if kind in used],
+            "items": rows,
+            "elapsed": progress["banked"] + (0.0 if since is None else now - since),
+            "running": running,
         }
 
     def _analysis_interim(self, kind):
@@ -2309,11 +2529,18 @@ class App(AnalyzeSteps, SimCompareSteps):
             earlier["demo"] = "start"
         held = self._held_matchups()
         if self.view == "report_options" and held:
-            # the point_time_res step, or the matchups again, whose question
-            # is still being asked
-            earlier["report_options"] = "point_time_res" if held.time_res_rows else "running"
+            # where the matchups are saved
+            earlier["report_options"] = "output"
             if isinstance(sent.get("form"), dict):
                 self.validate_form = _form(sent["form"], default_validate_form())
+        if self.view == "output" and held:
+            # the point_time_res step, or the matchups again, whose question
+            # is still being asked
+            earlier["output"] = "point_time_res" if held.time_res_rows else "running"
+            if isinstance(sent.get("form"), dict):
+                self.output_form = _form(sent["form"], default_output_form())
+            # chosen afresh, once the matchups are confirmed again
+            self._run_output = None
         if self.view == "validate" and isinstance(sent.get("form"), dict):
             self.validate_form = _form(sent["form"], default_validate_form())
         if self.view == "point_time_res" and held:
@@ -2402,7 +2629,8 @@ class App(AnalyzeSteps, SimCompareSteps):
             return
         self.demo = None
         self._demo_cancel.set()
-        self.setup_form = dict(default_setup_form(), out_dir=self.cwd)
+        self.setup_form = default_setup_form()
+        self.output_form = dict(default_output_form(), out_dir=self.cwd)
         self.validate_form = default_validate_form()
 
     def demo_download(self, model=None, variables=None):
@@ -2487,6 +2715,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             if demo["filled"] is None:
                 # only the first time, so that what was changed after Back is kept
                 self.setup_form = demo_setup_form(demo["model"])
+                self.output_form = demo_output_form()
                 self.validate_form = demo_report_form(demo["concise"])
                 demo["report_filled"] = demo["concise"]
             elif demo["filled"] != demo["model"]:
@@ -2550,9 +2779,10 @@ class App(AnalyzeSteps, SimCompareSteps):
             return {step: [] for step in DEMO_PREFILLED}
         filled = {
             "setup": demo_setup_form(self.demo["filled"]),
+            "output": demo_output_form(),
             "report": demo_report_form(self.demo["report_filled"]),
         }
-        forms = {"setup": self.setup_form, "report": self.validate_form}
+        forms = {"setup": self.setup_form, "output": self.output_form, "report": self.validate_form}
         return {
             step: [name for name in names if forms[step].get(name) == filled[step][name]]
             for step, names in DEMO_PREFILLED.items()
@@ -2614,20 +2844,13 @@ class App(AnalyzeSteps, SimCompareSteps):
             if self.view != "setup":
                 return 409, {"ok": False, "error": "This step is over."}
             self.setup_form = _form(form, default_setup_form())
-            # matchup alone builds no report, so has nothing to ask of it
-            arguments, errors = check_setup(
-                self.setup_form,
-                self.cwd,
-                report=self.action == "matchup_validate",
-                demo_dir=os.path.join(self.cwd, DEMO_FOLDER) if self.demo is not None else None,
-            )
+            arguments, errors = check_setup(self.setup_form, self.cwd)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
             self.setup_error = None
-            self.out_dir = arguments.pop("out_dir")
-            self.overwrite = arguments.pop("overwrite")
-            self.previous = arguments.pop("previous")
+            # written where the output step says, once it is carried on from
+            arguments["out"] = self._draft_script()
             self.setup_arguments = arguments
             self.view = "own_data"
             self._notify()
@@ -3229,13 +3452,11 @@ class App(AnalyzeSteps, SimCompareSteps):
             # the window's point_time_res applies to these too
             "own_point": bool(self.own_data["point"]),
         }
-        # chosen in the simulation step; the directory worked in is matchup's default
-        page.form["out_dir"] = "" if self.out_dir == self.cwd else self.out_dir
-        page.form["overwrite"] = self.overwrite
         page.form["start"] = ""
         page.form["end"] = ""
-        # chosen by the user every time: the right number depends on the machine and the run
-        page.form["cores"] = ""
+        # the draft script's: the cores are chosen once the matchups are confirmed
+        # (see output_continue and report), so the window does not show the box
+        page.form["cores"] = "1"
         # the years to choose from, read from the output's times
         page.context["output_years"] = self.output_years_of(_simulation(page.context))
         if self.demo is not None:
@@ -3292,7 +3513,12 @@ class App(AnalyzeSteps, SimCompareSteps):
         """The units step, for what the recipes window, page, chose
         (result), with Back from it to the window, and then the run, once
         the units are carried on from. shown is whether the units step is
-        being shown already, for Back from the matchups."""
+        being shown already, for Back from the matchups. The run starts from
+        a draft of the script, in a folder of OceanVal's own (see
+        _draft_script), with nothing written in the output directory: where
+        that is, what is done with the matchups there and the cores are
+        chosen once the matchups are confirmed (see output_continue), and
+        given to matchup along with yes (see _yes)."""
         while True:
             conversions = self._units_step(page, result, shown)
             shown = False
@@ -3303,12 +3529,18 @@ class App(AnalyzeSteps, SimCompareSteps):
             result = self._recipes_window(page)
             if result is None:
                 return
+        mapping, selection, settings, point_options, gridded_options = result
+        draft = os.path.dirname(page.context["out"])
+        settings = dict(settings or {}, out_dir=draft, overwrite=True, cores=1)
+        result = (mapping, selection, settings, point_options, gridded_options)
         if conversions:
-            result = self._convert_units(page, result, conversions)
+            result = self._convert_units(result, conversions)
+        page.write(*result)
         with self._lock:
             if self.closed.is_set():
                 return
-            # to write the report options into the script, once chosen
+            # to write the script again with what is chosen once the matchups
+            # are confirmed, where the output step says
             self._script_writer = (page.write, result)
             # none, until the script is started, so there is nothing to leave
             self.run = None
@@ -3360,9 +3592,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         except Exception as error:
             self._went_wrong(error)
 
-    def _convert_units(self, page, result, conversions):
-        """Write the script again with the conversions chosen in the units
-        step, and return the recipes window's choices with them added."""
+    def _convert_units(self, result, conversions):
+        """The recipes window's choices, result, with the conversions chosen
+        in the units step added, for the script to be written with."""
         mapping, selection, settings, point_options, gridded_options = result
         gridded_options = {key: dict(value) for key, value in gridded_options.items()}
         point_options = {key: dict(value) for key, value in point_options.items()}
@@ -3373,7 +3605,6 @@ class App(AnalyzeSteps, SimCompareSteps):
         units.apply_conversions(
             conversions, gridded_options, self.own_data, point_options
         )
-        page.write(mapping, selection, settings, point_options, gridded_options)
         return mapping, selection, settings, point_options, gridded_options
 
     # ---- the units step ----
@@ -3383,8 +3614,6 @@ class App(AnalyzeSteps, SimCompareSteps):
         with the rows read for it already, if they have been, as for Back
         from the matchups. Returns whether they are still to be read. Called
         with the lock held."""
-        # the matchups, and the report, go where the simulation step said
-        self.results_dir = self.out_dir
         read = self._units_read if self._units_read and self._units_read[0] is result else None
         # the page says they are being read until they have been
         self.units_rows = read[1] if read else None
@@ -3513,6 +3742,124 @@ class App(AnalyzeSteps, SimCompareSteps):
             self._units_done.set()
         return 200, {"ok": True}
 
+    # ---- the output step, once the matchups are confirmed ----
+
+    def _draft_script(self):
+        """Where the recipes window writes the script, and the run starts it
+        from: a folder of OceanVal's own, removed at exit, as the user names
+        the script, and the output directory, only once the matchups are
+        confirmed (see output_continue). Called with the lock held."""
+        if self._draft_dir is None or not os.path.isdir(self._draft_dir):
+            self._draft_dir = tempfile.mkdtemp(prefix="oceanval_script_")
+            atexit.register(shutil.rmtree, self._draft_dir, True)
+        return os.path.join(self._draft_dir, "matchup.py")
+
+    def _output_first(self):
+        """Whether the output step is still to come before this run matches
+        anything up: it is a window's matchup, asking whether the matchups
+        are right, with its output not chosen yet. Called with the lock held."""
+        return (
+            self.run is not None
+            and self.run.args[:1] in (["matchup"], ["script"])
+            and self._run_output is None
+        )
+
+    def _show_output(self, question):
+        """Show the output step, for the matchups question lists, which it
+        holds the answer to. Called with the lock held."""
+        details = question.details or {}
+        self.output_made = sorted(
+            {str(matchup.get("key", "")).lower() for matchup in details.get("matchups") or []}
+        )
+        self.view = "output"
+        self._notify()
+
+    def _check_matchup_output(self, form):
+        """check_output for this run. (Not _check_output, which is Analyze's
+        own, see AnalyzeSteps.) Called with the lock held."""
+        return check_output(
+            form,
+            self.cwd,
+            # matchup alone builds no report, so has nothing to ask of it
+            report=self.action == "matchup_validate",
+            demo_dir=os.path.join(self.cwd, DEMO_FOLDER) if self.demo is not None else None,
+            made=set(self.output_made or ()),
+        )
+
+    def _keep_in_script(self, out=None, **settings):
+        """Put settings into what the script is written from, and write it
+        to out from now on, if given. Called with the lock held."""
+        if self._script_writer is None:
+            return
+        write, result = self._script_writer
+        if out is not None:
+            write = functools.partial(getattr(write, "func", write), out=out)
+            self.script_path = out
+        result = list(result)
+        result[2] = dict(result[2] or {}, **settings)
+        self._script_writer = (write, tuple(result))
+
+    def _write_script(self, writer, **report):
+        """Write the script, from writer, as _script_writer holds it, saying
+        so in the console if it cannot be. Called without the lock held."""
+        if writer is None:
+            return
+        write, choices = writer
+        try:
+            write(*choices, **report)
+        except OSError as error:
+            self.console.write(f"The script could not be written: {error}\n")
+
+    def output_continue(self, form):
+        """Carry on from the output step, with its boxes (form): where the
+        matchups are saved, what is done with those there already, the
+        script's name, and, for matchup alone, the cores. A matchup and
+        validate run goes on to the report options; matchup alone carries
+        on. Returns the HTTP status and the reply for the page."""
+        with self._lock:
+            question = self._held_matchups()
+            if self.view != "output" or question is None:
+                return 409, {"ok": False, "error": "That cannot be done now."}
+            self.output_form = _form(form, default_output_form())
+            arguments, errors = self._check_matchup_output(self.output_form)
+            cores = None
+            if self.action == "matchup":
+                cores, error = check_cores(self.output_form["cores"])
+                if error is not None:
+                    errors["cores"] = error
+            if errors:
+                self._notify()
+                return 400, {"ok": False, "errors": errors}
+            self.out_dir = arguments["out_dir"]
+            self.overwrite = arguments["overwrite"]
+            self.previous = arguments["previous"]
+            # the matchups, and the report, go where it says
+            self.results_dir = self.out_dir
+            self._run_output = {"out_dir": self.out_dir, "overwrite": self.overwrite}
+            self._keep_in_script(
+                out=arguments["out"],
+                # the directory worked in is matchup's default
+                out_dir="" if self.out_dir == self.cwd else self.out_dir,
+                overwrite=self.overwrite,
+            )
+            report = self.action == "matchup_validate"
+            if report:
+                self.view = "report_options"
+            else:
+                self._run_output["cores"] = cores
+                self._keep_in_script(cores=cores)
+                self.view = "running"
+                self.question = None
+            writer = self._script_writer
+            self._notify()
+        # where the user said, now that it is named
+        self._write_script(writer)
+        if report:
+            return 200, {"ok": True}
+        self.console.write("y\n")
+        question.respond(self._yes({}, question))
+        return 200, {"ok": True}
+
     def validate(self, form):
         """Build the report, from the report options step's boxes."""
         with self._lock:
@@ -3582,8 +3929,8 @@ class App(AnalyzeSteps, SimCompareSteps):
         return question if question is not None and question.matchups else None
 
     def _run_back(self):
-        """Whether Back can leave the run for the units step: it is the
-        matchup the units step started, still finding the files or asking
+        """Whether Back can leave the run for the output step: it is the
+        matchup the output step started, still finding the files or asking
         whether the matchups are right, so it has matched nothing up."""
         run = self.run
         return (
@@ -3610,23 +3957,15 @@ class App(AnalyzeSteps, SimCompareSteps):
         self.status = None
         self.identifying = False
         self.matchup_progress = None
+        self.analysis_progress = None
         self._script_writer = None
+        self._run_output = None
         self._drop_model_check()
         if self._own_given is not None:
             # into the same dictionary, which the recipes window writes the script from
             for kind in own_data.KINDS:
                 self.own_data[kind] = self._own_given[kind]
             self._own_given = None
-
-    def _report_first(self):
-        """Whether the report options are still to be chosen before this
-        run matches anything up: it is a matchup and validate run, which
-        builds the report once its script has run."""
-        return (
-            self.run is not None
-            and self.run.args[:1] == ["matchup"]
-            and self.report_arguments is None
-        )
 
     def _report_gridded(self):
         """Whether the run's matchups include gridded ones, which a transect
@@ -3779,13 +4118,16 @@ class App(AnalyzeSteps, SimCompareSteps):
 
     def _yes(self, settings, question=None):
         """Yes, the matchups are right, as answered at a terminal, with
-        settings chosen along with it, the point_time_res step's choice, and,
-        if the dates of the files question lists have been checked, where the
-        check saved their times, for matchup to use. A check still going is
-        stopped, as matchup reads the times itself."""
+        settings chosen along with it, the point_time_res step's choice, what
+        the output step (and the report options') chose: out_dir, overwrite
+        and cores, and, if the dates of the files question lists have been
+        checked, where the check saved their times, for matchup to use. A
+        check still going is stopped, as matchup reads the times itself."""
         if self.point_time_res_choice is not None:
             settings = dict(settings, point_time_res=self.point_time_res_choice)
         with self._lock:
+            if self._run_output is not None:
+                settings = dict(settings, **self._run_output)
             check = self._check_for(question)
         if check is not None and check.finished and check.index:
             settings = dict(settings, times_index=check.index)
@@ -3804,10 +4146,9 @@ class App(AnalyzeSteps, SimCompareSteps):
             return found
         selection = self._script_writer[1][1]
         for variable, recipe in selection or ():
-            with contextlib.suppress(Exception):
-                info = find_recipe({variable: recipe}, cwd=self.cwd)
-                if info.get("point"):
-                    found[time_res.key(variable, info["source"])] = ("recipe", (variable, recipe))
+            info = units.recipe_info(variable, recipe, self.cwd)
+            if info and info.get("point"):
+                found[time_res.key(variable, info["source"])] = ("recipe", (variable, recipe))
         for index, entry in enumerate(self.own_data["point"]):
             found[time_res.key(entry.get("name"), entry.get("source"))] = ("own", index)
         return found
@@ -3853,9 +4194,10 @@ class App(AnalyzeSteps, SimCompareSteps):
 
     def point_time_res(self, form):
         """Take the point_time_res step's choice, for the point datasets
-        matched by day against output coarser than daily. Then the report
-        options are chosen, in a matchup and validate run, or matchup
-        carries on with it. Returns the HTTP status and the reply."""
+        matched by day against output coarser than daily. Then where the
+        matchups are saved is chosen (and, to validate too, the report
+        options), or matchup carries on with it. Returns the HTTP status and
+        the reply."""
         with self._lock:
             question = self._held_matchups()
             if self.view != "point_time_res" or question is None:
@@ -3869,9 +4211,8 @@ class App(AnalyzeSteps, SimCompareSteps):
             self.point_time_res_choice = choice
             self._keep_point_time_res(choice, rows)
             writer = self._script_writer
-            if self._report_first():
-                self.view = "report_options"
-                self._notify()
+            if self._output_first():
+                self._show_output(question)
                 return 200, {"ok": True}
             self.view = "running"
             self.question = None
@@ -3890,8 +4231,9 @@ class App(AnalyzeSteps, SimCompareSteps):
 
     def _checked_report(self, form):
         """The validate() arguments the boxes of the report options step
-        give, and the errors in them, as (report, errors). Called without
-        the lock held."""
+        give, the cores matchup is to use, which it asks for too, and the
+        errors in them, as (report, cores, errors). Called without the lock
+        held."""
         with self._lock:
             self.validate_form = _form(form, default_validate_form())
             form = dict(self.validate_form)
@@ -3909,13 +4251,21 @@ class App(AnalyzeSteps, SimCompareSteps):
         # outside the lock: reading a regions file can take a moment
         report, report_errors = check_report(form, self.cwd)
         errors.update(report_errors)
+        # only before anything is matched up
+        cores = None
+        with self._lock:
+            matching = self._held_matchups() is not None
+        if matching:
+            cores, error = check_cores(form["cores"])
+            if error is not None:
+                errors["cores"] = error
         if variables is not None and not errors:
             # the earlier matchups chosen for the report are not listed here,
             # so stay in it whatever is unticked
             report["variables"] = variables + self._earlier_in_report(matchups)
         if self.previous is not True:
             report["previous"] = self.previous
-        return report, errors
+        return report, cores, errors
 
     def _earlier_in_report(self, listed):
         """The "variable/source" of the matchups there already, other than
@@ -3941,7 +4291,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             if self.view != "report_options" or self._held_matchups() is None:
                 return 409, {"ok": False, "error": "This step is over."}
-        report, errors = self._checked_report(form)
+        report, cores, errors = self._checked_report(form)
         if errors:
             return 400, {"ok": False, "errors": errors}
         with self._lock:
@@ -3950,16 +4300,10 @@ class App(AnalyzeSteps, SimCompareSteps):
             self.view = "running"
             self.question = None
             self.matchup_script_saved = True
+            self._keep_in_script(cores=cores)
             writer = self._script_writer
             self._notify()
-        if writer is not None:
-            write, choices = writer
-            try:
-                write(*choices, report=report)
-            except OSError as error:
-                self.console.write(
-                    f"The script could not be written again with the report options: {error}\n"
-                )
+        self._write_script(writer, report=report)
         self.stop()
         return 200, {"ok": True}
 
@@ -3972,7 +4316,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             if self.view != "report_options":
                 return 409, {"ok": False, "error": "This step is over."}
-        report, errors = self._checked_report(form)
+        report, cores, errors = self._checked_report(form)
         if errors:
             return 400, {"ok": False, "errors": errors}
         with self._lock:
@@ -3982,7 +4326,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             self.view = "running"
             question = self._held_matchups()
             self.question = None
-            # the report goes beside the matchups, as the simulation step said
+            # the report goes beside the matchups, as the output step said
             directory = self.results_dir or self.out_dir
             self.report_arguments = {
                 "data_dir": directory,
@@ -3990,16 +4334,14 @@ class App(AnalyzeSteps, SimCompareSteps):
                 **report,
             }
             arguments = dict(self.report_arguments)
+            # matchup's cores, asked for here, unless it has run already
+            if cores is not None:
+                if self._run_output is not None:
+                    self._run_output["cores"] = cores
+                self._keep_in_script(cores=cores)
             writer = self._script_writer
             self._notify()
-        if writer is not None:
-            write, choices = writer
-            try:
-                write(*choices, report=report)
-            except OSError as error:
-                self.console.write(
-                    f"The script could not be written again with the report options: {error}\n"
-                )
+        self._write_script(writer, report=report)
         if question is not None:
             # matchup builds an interim report with the report's options as
             # it goes, which the page links to (see oceanval.live)
@@ -4079,8 +4421,17 @@ class App(AnalyzeSteps, SimCompareSteps):
             if os.path.isfile(results)
             else "found" if os.path.isdir(results) else "missing"
         )
-        found["out_dir_matchups"] = existing_matchups(results)
-        found["out_dir_has_matchups"] = bool(found["out_dir_matchups"])
+        with self._lock:
+            output_step = self.view == "output"
+            made = set(self.output_made or ())
+            report = self.action == "matchup_validate"
+        # in the output step, those it asks about, each with whether this run makes it
+        found["out_dir_matchups"] = (
+            matchups_asked_about(results, made, report) if output_step else existing_matchups(results)
+        )
+        found["out_dir_has_matchups"] = bool(
+            found["out_dir_matchups"] if not output_step else existing_matchups(results)
+        )
         # whose matchups, of the models tried before, nothing is asked about (see check_setup)
         found["out_dir_is_demo"] = self.demo is not None and results == os.path.join(
             self.cwd, DEMO_FOLDER
@@ -4347,6 +4698,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             else:
                 # and its clock goes on
                 self._matchups_clock_resume()
+            self.analysis_progress = None
             self.identifying = script
             self.matchups_rejected = False
             self.matchup_script_saved = False
@@ -4358,6 +4710,9 @@ class App(AnalyzeSteps, SimCompareSteps):
             if args[:1] == ["matchup"]:
                 # chosen once the matchups are checked
                 self.report_arguments = None
+            if script:
+                # chosen in the output step, once the matchups are checked
+                self._run_output = None
             interim = None
             if args[:1] in (["analyze"], ["simcompare"]):
                 # its report is built a variable at a time, which the page
@@ -4399,6 +4754,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             if run is not self.run:
                 return
             self._matchups_clock_stop()
+            self._analysis_clock_stop()
             if run.stopped:
                 status = "stopped"
             else:
@@ -4495,7 +4851,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             if (
                 question is None
                 or question.id != number
-                or self.view in ("report_options", "point_time_res")
+                or self.view in ("report_options", "point_time_res", "output")
             ):
                 return False
             answer = text.strip().lower()
@@ -4508,9 +4864,9 @@ class App(AnalyzeSteps, SimCompareSteps):
                 self.view = "point_time_res"
                 self._notify()
                 return True
-            if question.matchups and answer == "y" and self._report_first():
-                self.view = "report_options"
-                self._notify()
+            if question.matchups and answer == "y" and self._output_first():
+                # where the matchups are saved, and then, to validate too, the report options
+                self._show_output(question)
                 return True
             self.question = None
             writer = None
@@ -4856,10 +5212,10 @@ class _Handler(recipes_gui._Handler):
             self._reply_json(*app.analyze_option(payload.get("kind"), payload.get("form")))
             return
         if path == "/api/analyze_run":
-            self._reply_json(*app.analyze_run())
+            self._reply_json(*app.analyze_run(form=payload.get("form")))
             return
         if path == "/api/analyze_save_script":
-            self._reply_json(*app.analyze_run(save=True))
+            self._reply_json(*app.analyze_run(save=True, form=payload.get("form")))
             return
         if path == "/api/report":
             self._reply_json(*app.report(payload.get("form")))
@@ -4874,6 +5230,9 @@ class _Handler(recipes_gui._Handler):
             self._reply_json(
                 *app.units_continue(payload.get("conversions"), payload.get("confirmed"))
             )
+            return
+        if path == "/api/output":
+            self._reply_json(*app.output_continue(payload.get("form")))
             return
         if path == "/api/own_add":
             self._reply_json(

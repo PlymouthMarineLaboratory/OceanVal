@@ -81,6 +81,11 @@ class InterimBook:
         self.overview = os.path.join(self.notebooks_dir, f"{analysis.LANDING}.ipynb")
         # number: (page, name) of each page built
         self.pages = {}
+        # for the oceanval window's grid of the variables, by each one's
+        # key: the page of each added to the report, and those whose page
+        # could not be built
+        self.added = {}
+        self.failed = []
         self.queue = queue.Queue()
         # how many variables have been taken from the queue, and how many
         # had been when the overview was last run
@@ -103,7 +108,7 @@ class InterimBook:
             sys.stdout.write(line)
             sys.stdout.flush()
 
-    def write_status(self, state, building=None):
+    def write_status(self, state, building=None, building_key=None):
         status = {
             "state": state,
             "what": self.what,
@@ -111,6 +116,9 @@ class InterimBook:
             "expected": self.expected,
             "built": [name for _, name in sorted(self.pages.values())],
             "building": building,
+            "building_key": building_key,
+            "added": self.added,
+            "failed": self.failed,
             "landing": self.landing,
             "updated": datetime.datetime.now().isoformat(timespec="seconds"),
         }
@@ -219,7 +227,7 @@ class InterimBook:
             if self.stopping.is_set():
                 return
             self.taken += 1
-            self.write_status("building", building=entry["name"])
+            self.write_status("building", building=entry["name"], building_key=entry["key"])
             try:
                 path = analysis.write_page(self.folder, number, entry, self.templates)
                 self._run(path)
@@ -229,15 +237,20 @@ class InterimBook:
                     f"the page of {entry['name']} could not be built. See "
                     f"{os.path.join(self.book_dir, LOG)}."
                 )
+                self.failed.append(entry["key"])
                 continue
             self.pages[number] = (analysis.page_name(number, entry), entry["name"])
-            added.append(entry["name"])
+            added.append((number, entry))
         if not added or self.stopping.is_set():
             self.write_status("building")
             return
         self._run_overview()
         announced = self.landing is not None
         self._bind()
+        for number, entry in added:
+            # its page, now it has the navigation
+            self.added[entry["key"]] = os.path.join(self.html_dir, "notebooks", f"{self.pages[number][0]}.html")
+        added = [entry["name"] for _, entry in added]
         where = "" if announced else f" Open it at {self.landing}"
         self.say(
             f"added {', '.join(added)} ({len(self.pages)} of {self.expected} "

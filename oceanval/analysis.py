@@ -39,7 +39,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import netcdf_lock, sim_unify, surface
+from oceanval import netcdf_lock, prompts, sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
 from oceanval.matchall import _restores_nctoolkit_options
@@ -1059,6 +1059,37 @@ def _say(text):
     print(f"OceanVal: {text}", flush=True)
 
 
+def _tell(kind, **news):
+    """Tell the oceanval window how the analysis is going, for its grid of
+    the variables and their analyses: "analyses", the variables to work out
+    and what each is to have, then "analysis_variable" as each variable is
+    started and done, and "analysis" as each of its analyses is (once for
+    each simulation, in a comparison). Nothing is said at a terminal."""
+    prompts.tell({"kind": kind, **news})
+
+
+def tell_analyses(rows, simulations=1):
+    """The "analyses" news: the variables of rows, in the order they are
+    worked out, each with the analyses it is to have."""
+    _tell(
+        "analyses",
+        simulations=simulations,
+        items=[
+            {"key": row["key"], "title": row["name"], "kinds": [kind for kind in KINDS if row[kind]]}
+            for row in rows
+        ],
+    )
+
+
+def tell_variable(row, state):
+    _tell("analysis_variable", key=row["key"], state=state)
+
+
+def _tell_each(row, kinds, state):
+    for kind in kinds:
+        _tell("analysis", key=row["key"], analysis=kind, state=state)
+
+
 def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None, masks_for=None):
     """Work out what row asks for (see check_arguments, with its files and
     times added by analyze), saving it in results_dir, and return what
@@ -1090,6 +1121,7 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
     entry["last"] = "%04d-%02d-%02d" % dates[-1] if dates else None
 
     if row["climatology"]:
+        _tell_each(row, ["climatology"], "working")
         years = (row["climatology"]["start"], row["climatology"]["end"])
         layers = {}
         for layer in row["climatology"]["layers"]:
@@ -1124,8 +1156,10 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
             "dates": row["climatology"]["dates"],
             "layers": layers,
         }
+        _tell_each(row, ["climatology"], "done")
 
     if row["phenology"]:
+        _tell_each(row, ["phenology"], "working")
         years = (row["phenology"]["start"], row["phenology"]["end"])
         _say(f"Working out the phenology of {row['name']}")
         ds = daily_climatology_of(row["phenology"]["files"], row, years, time_shift, row["levels"])
@@ -1145,23 +1179,32 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
             "file": os.path.basename(phenology_file),
             "days": days,
         }
+        _tell_each(row, ["phenology"], "done")
 
     if row["long_term"] or row["seasonal"]:
         from oceanval import analysis_series
 
+        # worked out together, a layer at a time
+        series = [kind for kind in ("long_term", "seasonal") if row[kind]]
+        _tell_each(row, series, "working")
         entry.update(
             analysis_series.work_out(
                 row, results_dir, thickness, thickness_for, time_shift, area, {} if masks_for is None else masks_for
             )
         )
+        _tell_each(row, series, "done")
     if row["map_changes"]:
         from oceanval import analysis_changes
 
+        _tell_each(row, ["map_changes"], "working")
         entry["map_changes"] = analysis_changes.work_out(row, results_dir, time_shift, thickness, thickness_for)
+        _tell_each(row, ["map_changes"], "done")
     if row["transects"]:
         from oceanval import analysis_transects
 
+        _tell_each(row, ["transects"], "working")
         entry["transects"] = analysis_transects.work_out(row, results_dir, time_shift, thickness, thickness_for)
+        _tell_each(row, ["transects"], "done")
     return entry
 
 
@@ -1586,6 +1629,7 @@ def analyze(
     # next is (see oceanval.analysis_report)
     book = analysis_report.InterimBook(folder, len(rows), Templates())
     book.start()
+    tell_analyses(rows)
     thickness_for = {}
     masks_for = {}
     try:
@@ -1594,7 +1638,9 @@ def analyze(
             # says nothing about the output as a whole
             warnings.filterwarnings("ignore", message=r".* missing in the dataset")
             for number, row in enumerate(rows, start=1):
+                tell_variable(row, "working")
                 info_rows.append(_work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks_for))
+                tell_variable(row, "done")
                 # what the variable's page, and the overview, read
                 save_info(results_dir, INFO_FILE, info)
                 book.add(number, info_rows[-1])

@@ -572,6 +572,45 @@ class TestClimatology:
         assert monthly.shape[0] == 12
         assert np.allclose(monthly.mean(axis=0), 2, atol=0.01)
 
+
+def test_the_window_is_told_of_each_variable_and_analysis(daily, tmp_path, no_report):
+    """For the oceanval window's grid of them (see oceanval.app._analysis_news)."""
+    from oceanval import prompts
+
+    told = []
+    with prompts.told_by(told.append):
+        oceanval.analyze(
+            daily, {"Chlorophyll": "P1_Chl+P2_Chl", "Temperature": "thetao"},
+            climatology={"Chlorophyll": {"start": 2013, "end": 2013, "surface": True}},
+            phenology={"Chlorophyll": {"start": 2013, "end": 2013}},
+            seasonal={"Temperature": {"start": 2013, "end": 2013, "surface": True}},
+            n_dirs_down=1, out_dir=str(tmp_path), cores=1, view=False,
+        )
+    assert told[0] == {
+        "kind": "analyses",
+        "simulations": 1,
+        "items": [
+            {"key": "chlorophyll", "title": "Chlorophyll", "kinds": ["climatology", "phenology"]},
+            {"key": "temperature", "title": "Temperature", "kinds": ["seasonal"]},
+        ],
+    }
+    said = [
+        (news["key"], news.get("analysis"), news["state"]) for news in told[1:]
+    ]
+    assert said == [
+        ("chlorophyll", None, "working"),
+        ("chlorophyll", "climatology", "working"),
+        ("chlorophyll", "climatology", "done"),
+        ("chlorophyll", "phenology", "working"),
+        ("chlorophyll", "phenology", "done"),
+        ("chlorophyll", None, "done"),
+        ("temperature", None, "working"),
+        ("temperature", "seasonal", "working"),
+        ("temperature", "seasonal", "done"),
+        ("temperature", None, "done"),
+    ]
+    assert {news["kind"] for news in told[1:]} == {"analysis_variable", "analysis"}
+
     def test_the_gaps_in_the_output_are_kept(self, monthly, tmp_path, no_report):
         oceanval.analyze(
             monthly,
@@ -823,8 +862,11 @@ class TestForms:
         arguments, errors = analysis_forms.check_setup(form, str(tmp_path))
         assert errors == {}
         assert arguments["simdir"] == daily
-        assert arguments["out"] == os.path.join(str(tmp_path), "analysis.py")
-        assert not {"domain", "start", "end", "overwrite", "previous"} & set(arguments)
+        # where the output is saved is asked last (see check_output)
+        assert not {"domain", "start", "end", "overwrite", "previous", "out_dir", "out"} & set(arguments)
+        paths, errors = analysis_forms.check_output(form, str(tmp_path))
+        assert errors == {}
+        assert paths == {"out_dir": str(tmp_path), "out": os.path.join(str(tmp_path), "analysis.py")}
 
     def test_what_oceanval_could_fill_in(self, daily):
         rows = analysis_forms.prefill(analysis.streams(daily, 1))
@@ -957,16 +999,17 @@ class TestForms:
         assert chosen == {"Chlorophyll": {"start": 2013, "end": 2014}}
         assert errors == {"Temperature": {"use": "Its output is not daily."}}
 
-    def test_the_forms_start_with_nothing_chosen(self, daily):
+    def test_the_forms_start_with_every_variable_ticked_and_nothing_else(self, daily):
         placed = self.placed(daily)
         climatology = analysis_forms.default_climatology(placed, lambda name: (2013, 2014))
         assert climatology["rows"]["Temperature"] == {
-            "use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            "use": True, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
             "window": "1", "show": "absolute",
         }
         res = {"Chlorophyll": "1d", "Temperature": "monthly"}
         phenology = analysis_forms.default_phenology(placed, lambda name: (2013, 2014), res.get)
-        assert not any(row["use"] for row in phenology["rows"].values())
+        # only a variable with daily output can have its phenology
+        assert {name: row["use"] for name, row in phenology["rows"].items()} == {"Chlorophyll": True, "Temperature": False}
         assert all(row["start"] == "" and row["end"] == "" for row in phenology["rows"].values())
 
     def test_the_water_column_needs_a_way_to_take_it(self, daily):

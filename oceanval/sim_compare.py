@@ -50,6 +50,8 @@ from oceanval.analysis import (
     first_step_of,
     locate_rows,
     save_info,
+    tell_analyses,
+    tell_variable,
     thickness_data,
     variable_key,
 )
@@ -519,6 +521,8 @@ def compare_simulations(
     rows = rows_by_sim[names[0]]
     book = analysis_report.InterimBook(folder, len(rows), sim_report.templates(), what="comparison")
     book.start()
+    # each analysis is told once for each simulation
+    tell_analyses(rows, simulations=len(sims))
     for sim in sims:
         os.makedirs(os.path.join(results_dir, sim["key"]))
     masks_for = {}
@@ -527,6 +531,7 @@ def compare_simulations(
             warnings.filterwarnings("ignore", message=r".* missing in the dataset")
             # a variable at a time, in each simulation, so that its page can be built
             for number, row in enumerate(rows):
+                tell_variable(row, "working")
                 entries = {}
                 for sim in sims:
                     _say(f"Working out {row['name']} in the simulation {sim['name']}")
@@ -539,6 +544,7 @@ def compare_simulations(
                         area,
                         masks_for,
                     )
+                tell_variable(row, "done")
                 first = entries[names[0]]
                 variables_info.append(
                     {

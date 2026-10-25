@@ -192,8 +192,8 @@ def check_settings(form, available, fvcom=False):
     if settings["out_dir"] and os.path.isfile(os.path.expanduser(settings["out_dir"])):
         errors["out_dir"] = "This is a file, not a directory."
     overwrite = form.get("overwrite", True)
-    # the oceanval window's setup step can choose which matchups to overwrite
-    # (see oceanval.app.check_setup), which the hidden tick leaves as they are
+    # a list of the matchups to overwrite; the oceanval window hides the tick
+    # and chooses them in its output step (see oceanval.app.check_output)
     settings["overwrite"] = (
         [entry for entry in overwrite if isinstance(entry, str)] or False
         if isinstance(overwrite, list)

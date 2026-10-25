@@ -239,6 +239,47 @@ def _check_water_column_variables(comparisons, all_df):
             )
 
 
+def _checked_cores(cores):
+    """matchup's cores, checked: the default, 6, is cut to the system's."""
+    if cores == 6:
+        if cores > os.cpu_count():
+            cores = os.cpu_count()
+            print(
+                f"Setting cores to {cores} as this is the number of cores available on your system"
+            )
+    # error for cores < 1
+    if cores < 1:
+        raise ValueError("cores must be a positive integer")
+    return cores
+
+
+def _checked_overwrite(overwrite):
+    """matchup's overwrite, checked: True, False, or a list of variables or
+    "variable/source"."""
+    if not isinstance(overwrite, bool):
+        if not isinstance(overwrite, (list, tuple)):
+            raise TypeError('overwrite must be a boolean, or a list of variables or "variable/source"')
+        # none of them
+        overwrite = selection.check_variables(overwrite, name="overwrite") if overwrite else False
+    return overwrite
+
+
+def _full_out_dir(out_dir):
+    """matchup's out_dir, checked, as a full path."""
+    if not isinstance(out_dir, str):
+        raise TypeError("out_dir must be a string")
+    return os.path.abspath(os.path.expanduser(out_dir))
+
+
+def _saved_titles(out_dir):
+    """The report's names of the variables matched up in out_dir before."""
+    ff = out_dir + "oceanval_matchups/short_titles.pkl"
+    if os.path.exists(ff):
+        with open(ff, "rb") as f:
+            return pickle.load(f)
+    return dict()
+
+
 def _remove_fvcom_dir(fvcom_dir):
     """
     Remove the regridded FVCOM files
@@ -1285,6 +1326,8 @@ def matchup(
         If True, the user will be asked if they are happy with the matchups. Default is True.
     out_dir : str
         Path to output directory. Default is "", so the output will be saved in the current directory.
+        Nothing is written in it until the matchups are confirmed. The oceanval window chooses out_dir,
+        overwrite and cores along with that answer.
     exclude : list
         List of strings to exclude. This is useful if you have files in the directory that you do not want to include in the matchup.
     require : list
@@ -1362,15 +1405,7 @@ def matchup(
     session_info["lon_lim"] = lon_lim
     session_info["lat_lim"] = lat_lim
 
-    if cores == 6:
-        if cores > os.cpu_count():
-            cores = os.cpu_count()
-            print(
-                f"Setting cores to {cores} as this is the number of cores available on your system"
-            )
-    # error for cores < 1
-    if cores < 1:
-        raise ValueError("cores must be a positive integer")
+    cores = _checked_cores(cores)
     nc.options(cores=cores)
     session_info["cores"] = cores
 
@@ -1412,11 +1447,7 @@ def matchup(
         raise TypeError("point_time_res must be a list or a string")
     session_info["point_time_res"] = copy.deepcopy(point_time_res)
 
-    if not isinstance(overwrite, bool):
-        if not isinstance(overwrite, (list, tuple)):
-            raise TypeError('overwrite must be a boolean, or a list of variables or "variable/source"')
-        # none of them
-        overwrite = selection.check_variables(overwrite, name="overwrite") if overwrite else False
+    overwrite = _checked_overwrite(overwrite)
     session_info["overwrite"] = overwrite
 
     if not isinstance(ask, bool):
@@ -1425,13 +1456,7 @@ def matchup(
     # where the built-in observations downloaded are kept, if anywhere
     obs_store.start(obs_store.config(data_store))
 
-    # ensure out_dir is a string
-
-    if not isinstance(out_dir, str):
-        raise TypeError("out_dir must be a string")
-    out_dir = os.path.expanduser(out_dir)
-    # full path
-    out_dir = os.path.abspath(out_dir)
+    out_dir = _full_out_dir(out_dir)
     # add out_dir to session_info
     session_info["out_dir"] = out_dir + "/"
 
@@ -1564,13 +1589,7 @@ def matchup(
     ds_depths = None
 
 
-    ff = session_info["out_dir"] + "oceanval_matchups/short_titles.pkl"
-    if os.path.exists(ff):
-        with open(ff, "rb") as f:
-            short_titles = pickle.load(f)
-    else:
-        short_titles = dict()
-    session_info["short_title"] = short_titles | session_info["short_title"]
+    session_info["short_title"] = _saved_titles(session_info["out_dir"]) | session_info["short_title"]
 
     sim_start = -1000
     sim_end = 10000
@@ -1664,8 +1683,9 @@ def matchup(
     var_chosen = [vv for vv, source in gridded + point["all"] + point["surface"]]
     var_chosen = list(set(var_chosen))
 
-    # create oceanval_matchups directory
-    os.makedirs(session_info["out_dir"] + "/oceanval_matchups", exist_ok=True)
+    # nothing is written in out_dir until the matchups are confirmed: the oceanval
+    # window chooses out_dir along with yes. The thickness's bathymetry is kept until then
+    bathymetry = None
 
     invert_thickness = False
     point_all = point["all"] + point["surface"]
@@ -1748,15 +1768,9 @@ def matchup(
             if session_info["as_missing"] is not None:
                 ds_thickness.as_missing(session_info["as_missing"])
             ds_thickness.run()
-            print(f"Thickness variable is {ds_thickness.variables[0]} from {ff}")
-            #####
-            # now output the bathymetry if it does not exists
-
-            ff_bath = session_info["out_dir"] + "oceanval_matchups/model_bathymetry.nc"
-            if not os.path.exists(ff_bath):
-                ds_bath = ds_thickness.copy()
-                ds_bath.vertical_sum()
-                ds_bath.to_nc(ff_bath, zip=True)
+            print(f"Thickness variable is {ds_thickness.variables[0]} ({thickness_label})")
+            # the bathymetry, written in out_dir once the matchups are confirmed
+            bathymetry = ds_thickness.copy()
 
             if invert_thickness:
                 if ask:
@@ -1996,6 +2010,28 @@ def matchup(
 
     # the matchups are confirmed, so the simulation is one to offer again
     user_cache.record_sim_dir(sim_dir)
+
+    # in the oceanval window, where the matchups go, which of those there already
+    # are made again, and the cores are chosen along with yes (see oceanval.app)
+    given = getattr(x, "settings", {})
+    if "out_dir" in given:
+        out_dir = _full_out_dir(given["out_dir"])
+        session_info["out_dir"] = out_dir + "/"
+        session_info["fvcom_dir"] = session_info["out_dir"] + "oceanval_matchups/fvcom_tmp"
+        if fvcom:
+            _remove_fvcom_dir(session_info["fvcom_dir"])
+        session_info["short_title"] = _saved_titles(session_info["out_dir"]) | session_info["short_title"]
+    if "overwrite" in given:
+        overwrite = session_info["overwrite"] = _checked_overwrite(given["overwrite"])
+    if "cores" in given:
+        cores = session_info["cores"] = _checked_cores(given["cores"])
+        nc.options(cores=cores)
+
+    os.makedirs(session_info["out_dir"] + "oceanval_matchups", exist_ok=True)
+    ff_bath = session_info["out_dir"] + "oceanval_matchups/model_bathymetry.nc"
+    if bathymetry is not None and not os.path.exists(ff_bath):
+        bathymetry.vertical_sum()
+        bathymetry.to_nc(ff_bath, zip=True)
 
     if time_res_rows:
         print(time_res.warning(time_res_rows))

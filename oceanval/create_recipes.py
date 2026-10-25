@@ -1698,7 +1698,9 @@ def _create_recipes(
         point_options=None,
         gridded_options=None,
         report=None,
+        out=out,
     ):
+        # out: the oceanval window's output step names the script after the recipes window
         selection = set(selection) - replaced
         # the window can change the years along with everything else
         years = (settings["start"], settings["end"]) if settings else (start, end)

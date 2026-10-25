@@ -68,10 +68,12 @@ class SimCompareSteps:
     action, the Analyze steps and the rest are the App's own."""
 
     def _init_simcompare(self):
-        # the simulations step's boxes, the simulations they were turned into
-        # and the paths of the script and of the comparison
+        # the simulations step's boxes, the simulations they were turned into,
+        # the last page's boxes and the paths of the script and of the
+        # comparison they were turned into
         self.sc_sims_form = sim_compare_forms.default_sims_form(self.cwd)
         self.sc_sims = None
+        self.sc_output_form = sim_compare_forms.default_output_form(self.cwd)
         self.sc_paths = None
         # each simulation's streams as they are read, by name: {"status":
         # "reading", "done" or "failed", "progress", "error", "streams",
@@ -106,14 +108,13 @@ class SimCompareSteps:
             if self.view != "simcompare_sims":
                 return 409, {"ok": False, "error": "This step is over."}
             self.sc_sims_form = sim_compare_forms.clean_sims_form(form, self.cwd)
-            sims, errors, paths = sim_compare_forms.check_sims(self.sc_sims_form, self.cwd)
+            sims, errors = sim_compare_forms.check_sims(self.sc_sims_form, self.cwd)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
             same = _same_sims(self.sc_sims, sims) and all(
                 self.sc_found.get(sim["name"], {}).get("status") != "failed" for sim in sims
             )
-            self.sc_paths = paths
             if not same:
                 kept = {sim["name"]: sim for sim in self.sc_sims or []}
                 self.sc_sims = sims
