@@ -225,6 +225,7 @@
   .existing td small { display: block; color: var(--muted); font-size: 12.5px; }
   .existing__head { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
   .existing__confirm { margin-top: 12px; color: var(--ink); font-weight: 600; }
+  .existing__confirm[hidden] { display: none; }
   /* a legend straddles its fieldset's top edge; floated, it sits inside the padding */
   .setup-box > legend { float: left; width: 100%; }
   .setup-box > legend + * { clear: both; }
@@ -1117,6 +1118,7 @@
         <legend>Tell OceanVal where you want output to be saved</legend>
         <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
+        <label class="tick-label existing__confirm" id="row-replace-analysis" hidden><input type="checkbox" class="tick" id="f-replace_analysis">Tick to replace the analysis files in this directory (oceanval_analysis)</label>
         <div class="existing" id="row-existing" hidden>
           <p class="g-label is-required existing__title" id="existing-title">What do you want to do with existing matchups? <span class="own-req" id="existing-required">Required</span></p>
           <p class="group__intro" id="existing-intro"></p>
@@ -2916,6 +2918,8 @@
       setup[name] = event.target.value;
       delete setupErrors[name];
       if (name === "start" || name === "end") autoYears = false;
+      // what was ticked was for the directory before
+      if (name === "out_dir") { setup.replace_analysis = false; delete setupErrors.replace_analysis; }
       if (PROBED.has(name)) askProbe(400);
       refreshSetup();
     });
@@ -2999,6 +3003,15 @@
     delete setupErrors.existing_confirmed;
     refreshSetup();
   });
+  // an analysis in the output directory is replaced by this one: the user must tick to say so, and
+  // have named the directory (empty is the one worked in)
+  const replacingAnalysis = () => Boolean(state.action === "analyze" && probe && probe.out_dir_has_analysis);
+  const NAME_THE_DIRECTORY = "There is an analysis in the directory you started OceanVal in. To replace it, name the directory here rather than leaving the box empty.";
+  $("f-replace_analysis").addEventListener("change", (event) => {
+    setup.replace_analysis = event.target.checked;
+    delete setupErrors.replace_analysis;
+    refreshSetup();
+  });
   $("setup-form").addEventListener("submit", (event) => { event.preventDefault(); submitSetup(); });
 
   function askProbe(delay) {
@@ -3062,6 +3075,10 @@
     if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
     // what is done with the matchups there already has to be confirmed, as each starts on Use
     if (existingRows().length && !setup.existing_confirmed) errors.existing_confirmed = "";
+    if (replacingAnalysis()) {
+      if (!text("out_dir")) errors.out_dir = NAME_THE_DIRECTORY;
+      else if (!setup.replace_analysis) errors.replace_analysis = "";
+    }
     return errors;
   }
 
@@ -3121,14 +3138,19 @@
     }
     message("m-simulation", simulation, false);
 
+    // the tick to replace an analysis there already is only for one that is there
+    if (!replacingAnalysis()) setup.replace_analysis = false;
+    $("row-replace-analysis").hidden = !replacingAnalysis();
+    $("f-replace_analysis").checked = Boolean(setup.replace_analysis);
+
     if (errors.out_dir) {
       message("m-out_dir", [line(errors.out_dir, "error")], true);
     } else if (state.action === "analyze") {
       const saved = "The analysis will be saved in oceanval_analysis, inside this directory.";
       const lines = [line(String(setup.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
       if (probe && probe.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
-      if (probe && probe.out_dir_has_analysis) {
-        lines.push(line("There is an analysis here already, from an earlier run. It will be replaced: choose another directory to keep it.", "warn"));
+      if (replacingAnalysis()) {
+        lines.push(line("There is an analysis here already, from an earlier run. It will be replaced: choose another directory to keep it, or tick below to replace it.", "warn"));
       }
       message("m-out_dir", lines);
     } else {

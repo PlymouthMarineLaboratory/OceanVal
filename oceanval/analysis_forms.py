@@ -31,21 +31,41 @@ def default_setup_form(cwd):
     """The simulation step's boxes for an analysis, as they start."""
     from oceanval.app import default_setup_form as setup_form
 
-    return dict(setup_form(), out_dir=cwd, out="analysis.py")
+    # replace_analysis: whether the user has ticked to replace the analysis
+    # the output directory has already, which it must have if it does
+    return dict(setup_form(), out_dir=cwd, out="analysis.py", replace_analysis=False)
 
 
 def check_setup(form, cwd):
     """The simulation step's boxes as analyze() arguments: (arguments,
     errors), as oceanval.app.check_setup gives them, without the domain,
     the years and the matchups already there, which an analysis has no use
-    for."""
+    for.
+
+    An analysis in the output directory is replaced by the new one, so the
+    user must have ticked to say so (replace_analysis), and named the
+    directory rather than left the box empty, which is the directory worked in."""
+    from oceanval.app import _form
     from oceanval.app import check_setup as check
 
+    form = _form(form, default_setup_form(cwd))
     arguments, errors = check(dict(form, domain="global", start="0", end="0"), cwd)
     for name in _NOT_ANALYZED:
         arguments.pop(name, None)
         errors.pop(name, None)
+    if "out_dir" in arguments and os.path.isdir(os.path.join(arguments["out_dir"], analysis.FOLDER)):
+        if not form["out_dir"]:
+            errors["out_dir"] = NAME_THE_DIRECTORY
+        elif not form["replace_analysis"]:
+            errors["replace_analysis"] = ""
     return arguments, errors
+
+
+# said when an analysis is in the directory worked in and the box is empty; the page says it too
+NAME_THE_DIRECTORY = (
+    "There is an analysis in the directory you started OceanVal in. "
+    "To replace it, name the directory here rather than leaving the box empty."
+)
 
 
 # ---- the variables ----

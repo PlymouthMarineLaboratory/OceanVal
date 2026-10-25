@@ -127,6 +127,15 @@ class TestSimulation:
         # an analysis already there is said to be replaced
         os.makedirs(os.path.join(app.cwd, analysis.FOLDER))
         assert get_json(app, "/api/probe", simdir="sim", ndown="1", out="", out_dir="")[1]["out_dir_has_analysis"]
+        # which the user must tick to replace, having named the directory
+        status, reply = post(app, "/api/setup", {"form": setup_form(app, out_dir=app.cwd)})
+        assert status == 400 and reply["errors"] == {"replace_analysis": ""}
+        status, reply = post(app, "/api/setup", {"form": setup_form(app, out_dir="")})
+        assert status == 400 and reply["errors"] == {"out_dir": analysis_forms.NAME_THE_DIRECTORY}
+        status, reply = post(app, "/api/setup", {"form": setup_form(app, out_dir="", replace_analysis=True)})
+        assert status == 400 and set(reply["errors"]) == {"out_dir"}
+        assert post(app, "/api/setup", {"form": setup_form(app, out_dir=app.cwd, replace_analysis=True)}) == (200, {"ok": True})
+        wait_for(lambda: app.analyze_found["status"] != "reading")
 
     def test_matchups_in_the_output_directory_are_not_asked_about(self, app, sim, tmp_path):
         # the output directory is the directory worked in, which the page does not ask
@@ -896,6 +905,64 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#ao-climatology:not(.is-chosen)")
         assert page.is_visible("#ao-need") and page.is_disabled("#ao-run")
         assert errors == []
+    finally:
+        app.close()
+
+
+def test_replacing_an_analysis_must_be_ticked_in_a_browser(browser, tmp_path):
+    """An analysis in the output directory is replaced by the new one: Continue
+    waits for a tick, which is forgotten when the directory is changed, and the
+    directory must be named rather than left empty."""
+    write_analysis_simulation(str(tmp_path / "sim"))
+    os.makedirs(tmp_path / "old" / analysis.FOLDER)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-analyze")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "1")
+        page.wait_for_function("() => !document.querySelector('#continue').disabled")
+        assert page.is_hidden("#row-replace-analysis")
+
+        page.fill("#f-out_dir", "old")
+        page.wait_for_selector("#row-replace-analysis:not([hidden])")
+        assert page.text_content("#m-out_dir .group__line.is-warn") == (
+            "There is an analysis here already, from an earlier run. It will be replaced: "
+            "choose another directory to keep it, or tick below to replace it.")
+        assert page.is_disabled("#continue")
+        page.check("#f-replace_analysis")
+        assert page.is_enabled("#continue")
+        # the tick was for that directory
+        page.fill("#f-out_dir", "old/")
+        assert not page.is_checked("#f-replace_analysis")
+        assert page.is_disabled("#continue")
+        page.check("#f-replace_analysis")
+        # a directory with no analysis needs no tick
+        page.fill("#f-out_dir", "new")
+        page.wait_for_selector("#row-replace-analysis", state="hidden")
+        assert page.is_enabled("#continue")
+        page.fill("#f-out_dir", "old")
+        page.wait_for_selector("#row-replace-analysis:not([hidden])")
+        assert not page.is_checked("#f-replace_analysis")
+
+        # an empty box is the directory worked in
+        os.makedirs(tmp_path / analysis.FOLDER)
+        page.fill("#f-out_dir", "")
+        page.wait_for_function("() => document.querySelector('#m-out_dir').textContent.includes('name the directory')")
+        assert page.is_disabled("#continue")
+        page.check("#f-replace_analysis")
+        assert page.is_disabled("#continue")
+        page.fill("#f-out_dir", "old")
+        page.check("#f-replace_analysis")
+        page.click("#continue")
+        page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+        assert not errors
     finally:
         app.close()
 

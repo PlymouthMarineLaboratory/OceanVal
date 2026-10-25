@@ -117,6 +117,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   but shows no grid, so it drops the answers (`_NOT_ANALYZED`: overwrite, previous, existing_confirmed); an error kept for a
   box the page does not show disables Continue with nothing said. `previous` is never passed to the interim report
   (`live.NOT_INTERIM`), and `_checked_report` adds the earlier keys to `variables` when some of the run's are unticked.
+  Analyze's own rule is about an analysis in the output directory (`oceanval_analysis`, which `analyze()` replaces whole): the setup page
+  (`#f-replace_analysis`, shown when the probe's `out_dir_has_analysis`) and `analysis_forms.check_setup` (`replace_analysis`) require a tick
+  to replace it **and** a named directory (an empty `out_dir` box means the cwd and is refused, `NAME_THE_DIRECTORY`); the tick is reset when
+  `out_dir` is edited. Compare simulations' `oceanval_simulation_comparison` warning is still only a warning.
 
 ### Recipes of the user's own (`.oceanvalrc`)
 
