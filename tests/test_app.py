@@ -17,6 +17,7 @@ import tempfile
 import textwrap
 import threading
 import time
+import types
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -3086,6 +3087,62 @@ class TestServer:
         app.state(version=app.version, timeout=4, page="a")
         assert not app.closed.is_set()
         assert app.closed.wait(8)
+
+    def test_a_run_is_not_stopped_when_the_pages_go_quiet(self, app, tmp_path, capsys):
+        # as Safari does to a tab in the background: the page is frozen
+        app.page_timeout = 1
+        script = tmp_path / "run.py"
+        script.write_text("import time\nprint('started', flush=True)\ntime.sleep(4)\n")
+        assert get_json(app, "/api/state", page="a")[0] == 200
+        app.start_run(["script", str(script)], "python run.py")
+        wait_for(lambda: "started" in app.console.since(0, None)["text"])
+
+        # long past the time a quiet page is given, the run goes on
+        assert not app.closed.wait(2.5)
+        assert app.run.running()
+        # the terminal is told once how to see it again
+        told = capsys.readouterr().out
+        assert told.count("The OceanVal window has gone quiet") == 1
+        assert app.url in told
+
+        # and once it is over, the window quits
+        assert app.closed.wait(10)
+        assert app.status == "finished"
+        assert app.closed_reason == "The browser window was closed."
+
+    def test_a_matchup_handing_over_to_its_report_is_still_busy(self, app, monkeypatch):
+        busy = []
+        monkeypatch.setattr(app, "start_run", lambda args, label: busy.append((args[0], app._busy())))
+        run = types.SimpleNamespace(
+            args=["matchup", "run.py"], stopped=False, returncode=0, stop=lambda: None, join=lambda timeout=None: None
+        )
+        with app._lock:
+            app.run, app.status = run, "running"
+            app.matchup_script_saved = False
+            app.report_arguments = {"data_dir": app.cwd, "out_dir": app.cwd}
+        app._run_finished(run)
+        assert busy == [("validate", True)]
+
+    def test_a_hidden_page_is_given_longer(self, app):
+        app.page_timeout = 1
+        app.hidden_page_timeout = 4
+        assert post(app, "/api/visibility", {"page": "a", "hidden": True}) == (200, {"ok": True})
+        # past the time a page looked at is given
+        assert not app.closed.wait(2.5)
+        # looked at again, then gone
+        assert post(app, "/api/visibility", {"page": "a", "hidden": False})[0] == 200
+        assert app.closed.wait(4)
+        assert app.closed_reason == "The browser window was closed."
+
+    def test_a_hidden_page_that_is_never_heard_from_again_is_gone(self, app):
+        app.page_timeout = 1
+        app.hidden_page_timeout = 2
+        assert post(app, "/api/visibility", {"page": "a", "hidden": True})[0] == 200
+        assert app.closed.wait(5)
+
+    def test_saying_a_page_is_hidden_needs_the_token(self, app):
+        assert post(app, "/api/visibility", {"page": "a", "hidden": True}, token="wrong")[0] == 403
+        assert "a" not in app._pages
 
 
 

@@ -8523,12 +8523,15 @@
       }
       if (!apply(next)) return;
       version = next.version;
-      // output can come in many small pieces: let them gather a moment
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // output can come in many small pieces: let them gather a moment,
+      // unless the tab is not looked at, where a timer can be held up for
+      // longer than the app waits to hear from the page
+      if (!document.hidden) await new Promise((resolve) => setTimeout(resolve, 150));
     }
   }
 
   // the first poll answers at once, with what has been printed so far
+  OceanValGUI.tellVisibility(token, "");
   if (apply(state)) poll();
 })();
 </script>

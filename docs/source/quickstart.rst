@@ -83,8 +83,11 @@ validation saved, are left out. The years are kept in ``.oceanvalcache`` too,
 and read again only when the files change.
 
 Closing the browser window quits ``oceanval`` in the terminal, within about
-15 seconds, stopping anything it is running, whichever browser you use. So
-do **Quit** (which is instant) and Ctrl+C.
+15 seconds, whichever browser you use. A run that is going is never stopped
+by it, nor by moving to another tab (which some browsers, such as Safari,
+freeze): it carries on, the terminal prints the link to open the window
+again, and ``oceanval`` quits once the run is over. **Stop**, **Quit** and
+Ctrl+C stop a run at once.
 
 The cog beside the OceanVal name at the top left of every page of the window
 (**Preferences**) sets how the window looks (Default, Dark, Silver or Blue), whether the first

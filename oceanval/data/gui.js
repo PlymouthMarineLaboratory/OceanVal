@@ -71,6 +71,24 @@ const OceanValGUI = (() => {
     }
   }
 
+  // tells the app when this page's tab is not looked at, and when it is
+  // again, as a browser may then slow the page's requests or freeze it
+  // (Safari does), which the app would otherwise take for a closed window
+  // (see App.page_visibility). keepalive, so that it is sent as the tab goes
+  function tellVisibility(token, root) {
+    const tell = () => {
+      fetch(`${root}api/visibility`, {
+        method: "POST",
+        cache: "no-store",
+        keepalive: true,
+        headers: { "Content-Type": "application/json", "X-OceanVal-Token": token },
+        body: JSON.stringify({ page: pageId, hidden: document.hidden }),
+      }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", tell);
+    if (document.hidden) tell();
+  }
+
   // ---- the header's buttons, and the panels they open ----
   // the cog (preferences, kept in the home .oceanvalrc) and the i (about), as
   // the oceanval app and the create_recipes window both have them, at the top
@@ -617,7 +635,7 @@ const OceanValGUI = (() => {
   window.addEventListener("resize", closeChoices);
 
   return {
-    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, mountChrome, variablesPicker,
+    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variablesPicker,
     withChoices, choicesOpen, closeChoices,
   };
 })();

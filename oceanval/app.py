@@ -133,9 +133,13 @@ VALIDATE_MENU = "validate_menu"
 # closing the browser quits the command: a page open in it has a request
 # waiting on the app (the state's, or a heartbeat held for HEARTBEAT_HOLD
 # seconds), which keeps it known to the app, and once every page has been
-# gone for PAGE_TIMEOUT seconds the window counts as closed
+# gone for PAGE_TIMEOUT seconds the window counts as closed. A page in a tab
+# not looked at says so (see page_visibility), as a browser may slow or
+# freeze it then (Safari does), and is given HIDDEN_PAGE_TIMEOUT instead. A
+# run is never stopped for it: the window quits once the run is over
 HEARTBEAT_HOLD = 10
 PAGE_TIMEOUT = 15
+HIDDEN_PAGE_TIMEOUT = 30 * 60
 
 # how many simulations the compare step has rows for
 COMPARE_ROWS = 5
@@ -1485,8 +1489,13 @@ class App(AnalyzeSteps, SimCompareSteps):
         # from (see touch); with how long one is silent before it counts as
         # closed, which is longer than the state request it waits on
         self.page_timeout = PAGE_TIMEOUT
+        self.hidden_page_timeout = HIDDEN_PAGE_TIMEOUT
         self._pages = {}
         self._page_seen = False
+        # the pages in a tab not looked at, and whether the terminal has been
+        # told that the pages have all gone quiet while a run goes on
+        self._hidden = set()
+        self._quiet_told = False
         self._lock = threading.RLock()
         self._changed = threading.Condition(self._lock)
         self.version = 0
@@ -1620,6 +1629,27 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             self._pages[str(page)[:64]] = time.monotonic()
             self._page_seen = True
+            self._quiet_told = False
+
+    def page_visibility(self, page, hidden):
+        """Note that the page with this id is in a tab not looked at (hidden),
+        or is looked at again. A browser may slow or freeze such a page, so it
+        is given longer to be heard from (see _watch)."""
+        if not page:
+            return
+        page = str(page)[:64]
+        with self._lock:
+            if hidden:
+                self._hidden.add(page)
+            else:
+                self._hidden.discard(page)
+        self.touch(page)
+
+    def _busy(self):
+        """Whether a run is starting or going: one is never stopped because
+        the pages went quiet. A matchup run handing over to its report run
+        keeps the status "running" between the two (see _run_finished)."""
+        return self.status in ("starting", "running")
 
     def heartbeat(self, page, hold=HEARTBEAT_HOLD, connected=None):
         """What the pages with no state request of their own (the recipes
@@ -1639,15 +1669,32 @@ class App(AnalyzeSteps, SimCompareSteps):
         """Quit once the pages that were open in the browser are all gone,
         which is how closing the browser reaches the terminal: no browser
         reliably says that it is closing, so the pages are heard from
-        instead. Nothing happens before the first page has been."""
+        instead. Nothing happens before the first page has been. A page in a
+        tab not looked at may be frozen by the browser rather than closed,
+        so a run going on is left to finish, and the terminal says how to
+        see it again; the window quits once it is over."""
         while not self.closed.wait(1):
+            tell = False
             with self._lock:
                 now = time.monotonic()
                 for page, seen in list(self._pages.items()):
-                    if now - seen > self.page_timeout:
+                    timeout = self.hidden_page_timeout if page in self._hidden else self.page_timeout
+                    if now - seen > timeout:
                         del self._pages[page]
+                        self._hidden.discard(page)
                 gone = self._page_seen and not self._pages
-            if gone:
+                busy = gone and self._busy()
+                if busy and not self._quiet_told:
+                    self._quiet_told = tell = True
+            if tell:
+                print(
+                    "The OceanVal window has gone quiet (its tab is in the background, or "
+                    "the browser was closed). The run carries on: open\n"
+                    f"  {self.url}\n"
+                    "to see it again, or press Ctrl+C here to stop it.",
+                    flush=True,
+                )
+            if gone and not busy:
                 self.quit("The browser window was closed.")
 
     def authorised(self, token):
@@ -4768,6 +4815,10 @@ class _Handler(recipes_gui._Handler):
             self._recipes(path, payload)
             return
         app = self.app
+        if path == "/api/visibility":
+            app.page_visibility(payload.get("page"), bool(payload.get("hidden")))
+            self._reply_json(200, {"ok": True})
+            return
         if path == "/api/setup":
             self._reply_json(*app.setup(payload.get("form")))
             return

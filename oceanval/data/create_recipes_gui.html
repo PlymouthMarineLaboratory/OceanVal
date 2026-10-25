@@ -436,7 +436,10 @@
   const app = context.app || null;
   const home = "../?token=" + encodeURIComponent(state.token);
   // the app quits when the browser closes, which it knows by hearing from its pages
-  if (app) OceanValGUI.heartbeat(state.token, "../");
+  if (app) {
+    OceanValGUI.heartbeat(state.token, "../");
+    OceanValGUI.tellVisibility(state.token, "../");
+  }
   // in the app, the window starts as it was last left, for Back from a later
   // step or after going back before it (see app.recipes_restore)
   const restore = (app && app.restore) || null;
