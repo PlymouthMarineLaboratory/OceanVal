@@ -266,6 +266,20 @@ class TestVariables:
         assert [row["name"] for row in state["rows"]] == ["Chlorophyll", "Mine"]
         assert state["refilled"] is False
 
+    def test_the_dates_are_checked_again_once_a_run_has_dropped_the_check(self, app, sim):
+        """A run drops the check of the dates; starting again with the same
+        variables must make a new one, not wait for one for ever."""
+        to_files(app)
+        with app._lock:
+            app._drop_analyze_check()
+        assert app.analyze_check is None
+        assert post(app, "/api/back", {})[0] == 200
+        assert post(app, "/api/back", {"rows": ROWS})[0] == 200
+        assert post(app, "/api/setup", {"form": setup_form(app, "sim")})[0] == 200
+        assert post(app, "/api/analyze_variables", {"rows": ROWS})[0] == 200
+        wait_for(lambda: app.analyze_check is not None and app.analyze_check.status != "running")
+        assert post(app, "/api/analyze_files")[0] == 200
+
     def test_a_change_of_simulation_checks_the_new_files_and_dates(self, app, sim, tmp_path):
         state = to_files(app)
         assert [row["years"] for row in state["placed"]] == [[2013, 2014], [2013, 2014]]
@@ -1370,13 +1384,13 @@ def test_the_year_boxes_list_the_years_of_the_output(browser, tmp_path):
 
 
 def test_the_long_term_series_have_a_rolling_mean_and_a_way_to_show_them(browser, tmp_path):
-    """After Water column, the long-term pop-out has Rolling mean (years),
+    """After Water column, the long-term pop-out has a "Use a rolling mean (years)" column,
     1 to start with, and Show as; the climatology's has neither."""
     page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012, 2013, 2014), "long_term", "clim-dialog")
     try:
         heads = page.locator("#clim-dialog thead tr").nth(1).locator("th:visible").all_inner_texts()
         assert [h.lower().replace("required", "").strip() for h in heads] == [
-            "variable", "start", "end", "surface", "bottom", "water column", "rolling mean (years)", "show as"]
+            "variable", "start", "end", "surface", "bottom", "water column", "use a rolling mean (years)", "show as"]
         row = page.locator("#clim-body > tr").first
         window = row.locator("input.is-window")
         show = row.locator("select.is-show")
@@ -1522,7 +1536,7 @@ def test_transects_in_a_browser(browser, tmp_path):
         assert years.count() == 8 and all(years.nth(i).is_disabled() for i in range(8))
         for number in (0, 1):
             assert [x.strip() for x in cards.first.locator("select").nth(number).locator("option").all_inner_texts()] == [
-                "Changes: choose…", "Absolute", "Absolute change", "Percentage change",
+                "Trends: choose…", "Absolute", "Absolute change", "Percentage change",
             ]
         # the rolling mean window starts at 1, is only open once changes are chosen, and is right of their years
         window = cards.first.locator("input.is-window").first

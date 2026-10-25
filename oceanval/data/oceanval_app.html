@@ -2065,7 +2065,7 @@
       <table>
         <thead>
           <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th><th colspan="2" class="is-series" hidden></th></tr>
-          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th><th scope="col" class="is-series" hidden>Rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
+          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th><th scope="col" class="is-series" hidden>Use a rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
         </thead>
         <tbody class="analyze-all" id="clim-all"></tbody>
         <tbody id="clim-body"></tbody>
@@ -4723,7 +4723,7 @@
       const absent = part.climatology === "vertical" && noLevels;
       tick.checked = Boolean(values[part.climatology]) && !absent;
       const select = el("select", { class: "s-select", "aria-label": `${part.name} changes` },
-        el("option", { value: "", text: "Changes: choose…" }),
+        el("option", { value: "", text: "Trends: choose…" }),
         ...TRANSECT_HOWS.map(([value, text]) => el("option", { value, text })));
       for (const option of select.options) {
         if (option.value && available !== null && available < TRANSECT_MIN_YEARS[option.value]) option.disabled = true;
@@ -4734,7 +4734,7 @@
         value: values[`${part.changes}_window`] || "1", placeholder: "1",
         "aria-label": `Years of the rolling mean of the annual means of the ${lower} changes (1 is none)`,
         spellcheck: "false", autocomplete: "off" });
-      const rollingRow = el("label", { class: "transect-window" }, el("span", { text: "Rolling mean (years)" }), rolling);
+      const rollingRow = el("label", { class: "transect-window" }, el("span", { text: "Use a rolling mean (years)" }), rolling);
       ticks[part.climatology] = tick;
       selects[part.changes] = select;
       rollings[part.changes] = rolling;

@@ -272,7 +272,7 @@ class AnalyzeSteps:
             self.analyze_placed = placed
             self.analyze_refilled = False
             self.view = "analyze_files"
-            if changed or self.analyze_shift is None:
+            if changed or self.analyze_shift is None or self.analyze_check is None:
                 self._drop_analyze_check()
                 self._check_time_stamps()
             self._notify()

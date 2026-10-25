@@ -240,7 +240,7 @@ class SimCompareSteps:
             self.sc_placed = placed
             self.analyze_placed = sim_compare_forms.combined(placed)
             self.view = "simcompare_files"
-            if changed or self.sc_shift is None:
+            if changed or self.sc_shift is None or not self.sc_checks:
                 self._sc_drop_checks()
                 self._sc_check_time_stamps()
                 # looked at again, from the files of the variables
