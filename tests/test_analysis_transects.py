@@ -94,7 +94,11 @@ class TestArguments:
             ([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window="3"))], "whole number of 1 or more"),
             ([line(NORTH_SOUTH, vertical_trends=ALL_YEARS)], "The vertical_trends of .* need \"how\""),
             ([line(NORTH_SOUTH, vertical_trends=dict(ALL_YEARS, how="absolute", window=0))], "window of the vertical_trends"),
-            ([line(NORTH_SOUTH, vertical_trends={"start": 2010, "end": 2011, "how": "absolute"})], "absolute vertical_trends .* need at least 3 years"),
+            ([line(NORTH_SOUTH, vertical_trends={"start": 2010, "end": 2010, "how": "absolute"})], "absolute vertical_trends .* need at least 2 years"),
+            (
+                [line(NORTH_SOUTH, vertical_trends={"start": 2010, "end": 2011, "how": "absolute", "window": 2})],
+                "absolute vertical_trends .* need at least 2 years after a rolling mean of 2, so 3",
+            ),
         ],
     )
     def test_what_is_wrong_is_said(self, lines, message):
@@ -103,19 +107,21 @@ class TestArguments:
 
     @needs_to_transect
     def test_the_trends_need_enough_years(self):
-        with pytest.raises(ValueError, match="at least 3 years"):
-            self.check([line(NORTH_SOUTH, trends={"start": 2010, "end": 2011, "how": "absolute"})])
-        with pytest.raises(ValueError, match="at least 2 years"):
-            self.check([line(NORTH_SOUTH, trends={"start": 2010, "end": 2010, "how": "absolute_change"})])
+        # the annual means by year need two years to be a change over the years, whatever is shown
+        for how in ("absolute", "absolute_change", "percentage_change"):
+            with pytest.raises(ValueError, match="at least 2 years"):
+                self.check([line(NORTH_SOUTH, trends={"start": 2010, "end": 2010, "how": how})])
+        assert self.check([line(NORTH_SOUTH, trends={"start": 2010, "end": 2011, "how": "absolute"})])
         assert self.check([line(NORTH_SOUTH, trends={"start": 2010, "end": 2011, "how": "absolute_change"})])
 
     @needs_to_transect
     def test_the_window_is_one_by_default_and_must_leave_enough_years(self):
         assert self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute"))])[0]["trends"]["window"] == 1
         assert self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=4))])[0]["trends"]["window"] == 4
-        # six years with a window of 5 leave two smoothed years: enough for a change, not for a slope
-        with pytest.raises(ValueError, match="at least 3 years after a rolling mean of 5, so 7"):
-            self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=5))])
+        # six years with a window of 5 leave two smoothed years, which is enough, but a window of 6 leaves one
+        assert self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=5))])
+        with pytest.raises(ValueError, match="at least 2 years after a rolling mean of 6, so 7"):
+            self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=6))])
         assert self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=5))])
         with pytest.raises(ValueError, match="at least 2 years after a rolling mean of 6, so 7"):
             self.check([line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=6))])
@@ -173,19 +179,24 @@ class TestWhatIsWorkedOut:
             assert row.value == pytest.approx(level + 6.5 + 2.5 + 0.5 * (row.position + 2))
 
     @needs_to_transect
-    def test_an_absolute_trend_is_the_slope_of_the_annual_means(self, monthly, tmp_path, no_report):
+    def test_the_absolute_changes_are_the_annual_means_by_year(self, monthly, tmp_path, no_report):
         saved, (frames,) = run(monthly, [line(EAST_WEST, trends=dict(ALL_YEARS, how="absolute"))], tmp_path)
         option = saved["lines"][0]["options"]["trends"]
-        assert option["units"] == "degC per year" and option["title"] == "Surface changes: absolute"
-        assert frames["trends"].value.to_numpy() == pytest.approx(1.0) and (frames["trends"].years == 6).all()
+        assert option["units"] == "degC" and option["title"] == "Surface changes: absolute" and option["years"] == [2010, 2015]
+        frame = frames["trends"]
+        assert set(frame.columns) == {"position", "year", "value"}
+        assert sorted(frame.year.unique()) == list(range(2010, 2016))
+        # 1 degC warmer a year at every position, and the surface of 2010 has a mean of 10 + 6.5 at the middle
+        for _, part in frame.groupby("position"):
+            assert part.sort_values("year").value.diff().dropna().to_numpy() == pytest.approx(1.0)
         # over fewer years
         _, (frames,) = run(
             monthly, [line(EAST_WEST, trends={"start": 2012, "end": 2015, "how": "absolute"})], tmp_path / "again"
         )
-        assert (frames["trends"].years == 4).all() and frames["trends"].value.to_numpy() == pytest.approx(1.0)
+        assert sorted(frames["trends"].year.unique()) == [2012, 2013, 2014, 2015]
 
     @needs_to_transect
-    def test_a_change_is_the_last_year_minus_the_first(self, monthly, tmp_path, no_report):
+    def test_a_change_is_each_year_minus_the_first(self, monthly, tmp_path, no_report):
         saved, (absolute, percent) = run(
             monthly,
             [
@@ -195,9 +206,12 @@ class TestWhatIsWorkedOut:
             tmp_path,
         )
         assert saved["lines"][1]["options"]["trends"]["units"] == "%"
-        # 2015 is 5 degrees warmer than 2010; the surface of 2010 has a mean of 10 + 6.5
-        assert absolute["trends"].value.to_numpy() == pytest.approx(5.0)
-        assert percent["trends"].value.to_numpy() == pytest.approx(100 * 5.0 / 16.5)
+        # each year is 1 degree warmer than the last; the surface of 2010 has a mean of 10 + 6.5
+        change, pct = absolute["trends"], percent["trends"]
+        assert change.value.to_numpy() == pytest.approx((change.year - 2010).to_numpy())
+        assert pct.value.to_numpy() == pytest.approx(100 * (pct.year - 2010).to_numpy() / 16.5)
+        # the first year is the reference, so it has no change
+        assert (change[change.year == 2010].value == 0).all()
 
     @needs_to_transect
     def test_a_rolling_mean_is_applied_to_the_annual_means(self, monthly, tmp_path, no_report):
@@ -214,13 +228,17 @@ class TestWhatIsWorkedOut:
         options = [x["options"]["trends"] for x in saved["lines"]]
         assert [x["window"] for x in options] == [3, 2, 2, 1]
         frames = [pd.read_csv(os.path.join(results(str(tmp_path)), x["csv"])) for x in options]
-        # a straight line is still a straight line when smoothed, from the four 3-year means of six years
-        assert frames[0].value.to_numpy() == pytest.approx(1.0) and (frames[0].years == 4).all()
-        # the last two years (2014-15) are 4 degrees warmer than the first two (2010-11)
-        assert frames[1].value.to_numpy() == pytest.approx(4.0)
-        assert frames[2].value.to_numpy() == pytest.approx(100 * 4.0 / (10 + 6.5 + 0.5))
-        # a window of 1 is the change from the first year to the last
-        assert frames[3].value.to_numpy() == pytest.approx(5.0)
+        # each year shown is the last of its window: 3 years make the first of the six, then four are left
+        assert sorted(frames[0].year.unique()) == [2012, 2013, 2014, 2015] and options[0]["years"] == [2012, 2015]
+        # the first 3-year mean is that of 2010-2012, which is the mean of 2011, 10 + 6.5 + 1
+        first = frames[0][frames[0].year == 2012].value.to_numpy()
+        assert first == pytest.approx(17.5)
+        # the changes are from the first rolling mean (2010-11), which is the reference
+        assert sorted(frames[1].year.unique()) == [2011, 2012, 2013, 2014, 2015]
+        assert frames[1].value.to_numpy() == pytest.approx((frames[1].year - 2011).to_numpy())
+        assert frames[2].value.to_numpy() == pytest.approx(100 * (frames[2].year - 2011).to_numpy() / (10 + 6.5 + 0.5))
+        # a window of 1 is the change from the first year
+        assert frames[3].value.to_numpy() == pytest.approx((frames[3].year - 2010).to_numpy())
 
     @needs_to_transect
     def test_the_vertical_section_has_changes_too(self, monthly, tmp_path, no_report):
@@ -238,28 +256,30 @@ class TestWhatIsWorkedOut:
         assert [x["title"] for x in options] == [
             "Vertical changes: absolute", "Vertical changes: absolute change", "Vertical changes: percentage change"
         ]
-        assert [x["units"] for x in options] == ["degC per year", "degC", "%"] and options[0]["depths"] == "levels"
+        assert [x["units"] for x in options] == ["degC", "degC", "%"] and options[0]["depths"] == "levels"
         for frames in (absolute, change, percent):
-            assert set(frames["vertical_trends"].columns) == {"position", "depth", "value"}
+            assert set(frames["vertical_trends"].columns) == {"position", "depth", "year", "value"}
+            # the model has fewer levels than there are panels, so all are shown
             assert sorted(frames["vertical_trends"].depth.unique()) == ANALYSIS_LEVELS
-        # every level warms by 1 a year, so 5 from 2010 to 2015
-        assert absolute["vertical_trends"].value.to_numpy() == pytest.approx(1.0)
-        assert change["vertical_trends"].value.to_numpy() == pytest.approx(5.0)
-        # the mean of 2014-15 less that of 2010-11 is 4, as a percentage of the first two years' mean at each level
+        # every level warms by 1 a year
+        diff = change["vertical_trends"]
+        assert diff.value.to_numpy() == pytest.approx((diff.year - 2010).to_numpy())
+        # the mean of 2010-11 is the first, and the percentage is of that at each level
         for _, row in percent["vertical_trends"].iterrows():
             level = ANALYSIS_LEVEL_VALUES[ANALYSIS_LEVELS.index(row.depth)]
-            assert row.value == pytest.approx(100 * 4.0 / (level + 6.5 + 0.5))
+            assert row.value == pytest.approx(100 * (row.year - 2011) / (level + 6.5 + 0.5))
 
     @needs_to_transect
-    def test_the_vertical_changes_with_a_thickness_are_on_the_common_depths(self, monthly, tmp_path, no_report):
+    def test_the_vertical_changes_with_a_thickness_are_shown_at_a_few_depths(self, monthly, tmp_path, no_report):
         saved, (frames,) = run(
             monthly, [line(NORTH_SOUTH, vertical_trends=dict(ALL_YEARS, how="absolute_change"))], tmp_path, thickness="e3t"
         )
         assert saved["lines"][0]["options"]["vertical_trends"]["depths"] == "thickness"
         frame = frames["vertical_trends"]
         depths = sorted(frame.depth.unique())
-        assert len(depths) == analysis_transects.N_DEPTHS and depths[0] == pytest.approx(0.5) and depths[-1] == pytest.approx(6.5)
-        assert frame.value.to_numpy() == pytest.approx(5.0)
+        # from the shallowest, not as far as the deepest, of the depths that all positions share
+        assert 1 < len(depths) <= analysis_transects.DEPTH_PANELS and depths[0] == pytest.approx(0.5) and depths[-1] < 6.5
+        assert frame.value.to_numpy() == pytest.approx((frame.year - 2010).to_numpy())
 
     @needs_to_transect
     def test_the_surface_and_vertical_changes_have_their_own_years_and_how(self, monthly, tmp_path, no_report):
@@ -277,8 +297,9 @@ class TestWhatIsWorkedOut:
         )
         options = saved["lines"][0]["options"]
         assert list(options) == ["trends", "vertical_trends"] and (saved["start"], saved["end"]) == (2010, 2015)
-        assert frames["trends"].value.to_numpy() == pytest.approx(2.0)
-        assert frames["vertical_trends"].value.to_numpy() == pytest.approx(1.0)
+        assert sorted(frames["trends"].year.unique()) == [2010, 2011, 2012]
+        assert frames["trends"].value.to_numpy() == pytest.approx((frames["trends"].year - 2010).to_numpy())
+        assert sorted(frames["vertical_trends"].year.unique()) == [2012, 2013, 2014, 2015]
 
     @needs_to_transect
     def test_a_rolling_mean_over_a_year_that_was_left_out(self, tmp_path, no_report):
@@ -303,7 +324,8 @@ class TestWhatIsWorkedOut:
             "2012 was left out, as the output does not have all 12 months in it.",
             "The rolling mean is over the years there is output for.",
         ]
-        assert second["notes"] == [] and not second["empty"]
+        # a year left out is not in the heat map, but the first period is there, so there are changes
+        assert second["notes"][0] == "2012 was left out, as the output does not have all 12 months in it." and not second["empty"]
         assert third["notes"] == ["2012 does not have all 12 months of output, so there is no change."] and third["empty"]
 
     @needs_to_transect
@@ -325,7 +347,8 @@ class TestWhatIsWorkedOut:
         assert list(options) == ["climatology", "trends", "vertical"]
         assert [(o["start"], o["end"]) for o in options.values()] == [(2010, 2011), (2011, 2013), (2014, 2015)]
         assert (saved["start"], saved["end"]) == (2010, 2015)
-        assert frames["trends"].value.to_numpy() == pytest.approx(2.0)
+        assert sorted(frames["trends"].year.unique()) == [2011, 2012, 2013]
+        assert frames["trends"].value.to_numpy() == pytest.approx((frames["trends"].year - 2011).to_numpy())
         # 2014 and 2015 are 4.5 warmer than 2010 on average, and the first row is the shallowest depth
         assert frames["vertical"].value.iloc[0] == pytest.approx(ANALYSIS_LEVEL_VALUES[0] + 6.5 + 4.5)
 
@@ -434,15 +457,6 @@ class TestWhatIsWorkedOut:
 
 
 class TestTheSums:
-    def test_the_trend_is_a_least_squares_slope(self):
-        years = [2000, 2001, 2002, 2003]
-        annual = np.array([[1.0, 5.0], [3.0, np.nan], [5.0, 5.0], [7.0, 5.0]])
-        trend, count = analysis_transects.slope(annual, years)
-        assert trend == pytest.approx([2.0, 0.0]) and list(count) == [4, 3]
-        # fewer than three years have no trend
-        trend, count = analysis_transects.slope(annual[:2], years[:2])
-        assert np.isnan(trend).all() and list(count) == [2, 1]
-
     def test_a_year_is_complete_if_it_has_all_its_months(self):
         times = [(2000, month) for month in range(1, 13)] + [(2001, month) for month in range(1, 12)]
         assert analysis_transects.complete_years(times, 2000, 2002, 12) == [2000]
@@ -463,10 +477,30 @@ class TestTheSums:
         positions = np.array([50.0, 51.0, 52.0])
         values = np.array([[-10.0, 0.0, 10.0], [-5.0, 5.0, 20.0]])
         spec = {"start": 2000, "end": 2001, "how": "percentage_change"}
-        frame, _ = analysis_transects.derive_trends(positions, [2000, 2001], values, spec, [], 1)
-        value = frame.value.to_numpy()
+        frame, _ = analysis_transects.derive_changes(positions, [2000, 2001], values, spec, [], 1)
+        value = frame[frame.year == 2001].value.to_numpy()
         # warming of a negative mean is an increase; no change from zero can be a percentage
         assert value[0] == pytest.approx(50.0) and np.isnan(value[1]) and value[2] == pytest.approx(100.0)
+        # and the first year is the reference
+        first = frame[frame.year == 2000].value.to_numpy()
+        assert first[0] == 0 and np.isnan(first[1]) and first[2] == 0
+
+    def test_the_depths_shown_are_a_few_from_the_top(self):
+        assert analysis_transects.panel_depths([1.0, 2.0, 6.0]).tolist() == [1.0, 2.0, 6.0]
+        depths = np.linspace(0.0, 100.0, 50)
+        shown = analysis_transects.panel_depths(depths)
+        assert len(shown) == analysis_transects.DEPTH_PANELS and shown[0] == 0.0 and shown[-1] < 100.0
+
+    def test_values_of_different_years_are_on_the_same_common_depths(self):
+        depths = np.array([[1.0, 2.0], [3.0, 6.0]])
+        values = np.array([[[10.0, 20.0], [30.0, 60.0]], [[11.0, 21.0], [31.0, 61.0]]])
+        frame, _ = analysis_transects.derive_changes(
+            np.array([50.0, 51.0]), [2000, 2001], values,
+            {"start": 2000, "end": 2001, "how": "absolute"}, [], 1, depths=depths,
+        )
+        assert set(frame.columns) == {"position", "depth", "year", "value"}
+        assert sorted(frame.year.unique()) == [2000, 2001]
+        assert frame[frame.year == 2000].depth.tolist() == frame[frame.year == 2001].depth.tolist()
 
 
     def test_cells_are_at_the_middle_of_their_thickness(self):
@@ -579,7 +613,7 @@ class TestForms:
         diagonal = self.box(start_lon="0", start_lat="0", end_lon="5", end_lat="5")
         nothing = self.box(climatology=False, climatology_start="", climatology_end="")
         missing = self.box(start_lon="x", vertical=True, vertical_start="2010")
-        short = self.box(climatology=False, trends="absolute", trends_start="2010", trends_end="2011")
+        short = self.box(climatology=False, trends="absolute", trends_start="2010", trends_end="2010")
         chosen, errors = self.check(placed, self.form(placed, Temperature=[self.box(), diagonal, nothing, missing, short]))
         assert chosen is None and set(errors) == {"Temperature"}
         found = errors["Temperature"]["transects"]
@@ -588,7 +622,7 @@ class TestForms:
         assert set(found["1"]) == {"start_lon", "start_lat", "end_lon", "end_lat"} and "north–south or east–west" in found["1"]["start_lon"]
         assert set(found["2"]) == {"options"} and "Tick a Climatology or choose Changes" in found["2"]["options"]
         assert found["3"]["start_lon"] == "Coordinates must be numbers." and found["3"]["vertical_end"] == "End must be a year, e.g. 2011."
-        assert found["4"] == {"trends_end": "Absolute needs at least 3 years, and this is 2."}
+        assert found["4"] == {"trends_end": "Absolute needs at least 2 years, and this is 1."}
 
     @needs_to_transect
     def test_the_years_are_checked_against_the_variables_output(self, monthly):
@@ -607,10 +641,12 @@ class TestForms:
         # one year of output has no trend of any kind
         _, errors = check(trends, (2013, 2013))
         assert errors["Temperature"]["transects"]["0"]["trends"] == "Absolute change needs at least 2 years of output: Temperature's is only 2013."
-        # two years is enough for a change, not for the slope
+        # two years is enough, however they are shown
         assert check(dict(trends, trends_start="2013", trends_end="2014"), (2013, 2014))[1] == {}
-        _, errors = check(dict(trends, trends="absolute", trends_start="2013", trends_end="2014"), (2013, 2014))
-        assert "needs at least 3 years of output: Temperature's is from 2013 to 2014" in errors["Temperature"]["transects"]["0"]["trends"]
+        assert check(dict(trends, trends="absolute", trends_start="2013", trends_end="2014"), (2013, 2014))[1] == {}
+        # and a rolling mean takes years off
+        _, errors = check(dict(trends, trends="absolute", trends_window="2", trends_start="2013", trends_end="2014"), (2013, 2014))
+        assert "needs at least 2 years of output after a rolling mean of 2, so 3: Temperature's is from 2013 to 2014" in errors["Temperature"]["transects"]["0"]["trends"]
         # what is not a trend is not affected
         assert check(self.box(climatology_start="2013", climatology_end="2013"), (2013, 2013))[1] == {}
 
@@ -675,9 +711,9 @@ class TestForms:
         found = self.check(placed, self.form(placed, Temperature=[dict(changes, vertical_trends_window="x", vertical_trends_end="")]))[1]
         assert set(found["Temperature"]["transects"]["0"]) == {"vertical_trends_window", "vertical_trends_end"}
         assert self.check(placed, self.form(placed, thickness="", Temperature=[changes]))[1]["thickness"]
-        _, errors = self.check(placed, self.form(placed, Temperature=[dict(changes, vertical_trends="absolute", vertical_trends_window="5")]))
+        _, errors = self.check(placed, self.form(placed, Temperature=[dict(changes, vertical_trends="absolute", vertical_trends_window="6")]))
         # the output (2010-2015) is too short for it
-        assert "after a rolling mean of 5, so 7" in errors["Temperature"]["transects"]["0"]["vertical_trends"]
+        assert "after a rolling mean of 6, so 7" in errors["Temperature"]["transects"]["0"]["vertical_trends"]
         # a variable with one level has no section, whatever is in it
         chosen, errors = self.check(placed, self.form(placed, Chlorophyll=[changes]))
         assert errors["Chlorophyll"]["transects"] == {

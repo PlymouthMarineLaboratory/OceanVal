@@ -352,21 +352,22 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - Transects are `oceanval/analysis_transects.py`: for each variable on its own (`transects=
   {name: [lines]}`), any number of north-south/east-west lines (checked by
   `oceanval.transects.check_transect`, as validate's), each with its ends and at least one of
-  `climatology` (surface monthly climatology), `trends` (surface, `how` "absolute" slope per year /
-  "absolute_change" last year minus first / "percentage_change", with an optional `window`: a nctoolkit
-  `rolling_mean` of the annual means, default 1 = none), `vertical` (annual-mean section) and
-  `vertical_trends` (the same `how`/`window`, at each depth of the section: `annual_means(vertical=True)`,
-  `derive_trends(depths=)`), **each option with its own `start`/`end` years**. The window shows them as
+  `climatology` (surface monthly climatology), `trends` (surface; the **Changes** are a position × year heat map,
+  not a number per position: `how` "absolute" = the annual means, "absolute_change" = each minus the **first value of the rolled
+  series**, "percentage_change" = that as a percentage of |first|, with an optional `window`: a nctoolkit
+  `rolling_mean` of the annual means, default 1 = none, each year being the last of its window), `vertical` (annual-mean section) and
+  `vertical_trends` (the same `how`/`window`, drawn as one heat map for each of `DEPTH_PANELS` depths of the section, `panel_depths`:
+  `annual_means(vertical=True)`, `derive_changes(depths=)`), **each option with its own `start`/`end` years**. The window shows them as
   **Surface** and **Vertical** parts, each a Climatology and its Changes ("Changes" is the UI's word for
   trends), the ends in one line, the rolling mean right of the changes' years. The trends' annual means are nctoolkit's
   (`annual_means`: complete years only, `tmean("year")`, then `rolling_mean`), not numpy. The monthly means come
   first (`analysis.monthly_means_of`, once per layer over the union of years, the surface or
   `LEVELS`), then nctoolkit's `to_transect` on a copy, then `derive` makes a small CSV per
-  option (`<key>_transect_<n>_<option>.csv`: `position`, `depth` or `month`, `value`) that the
+  option (`<key>_transect_<n>_<option>.csv`: `position`, `depth`, `month` or (the changes) `year`, `value`) that the
   figures (`analysis_plots.transect_map`/`transect_figure`, `chunk_transects`) read. `vertical`
   and `vertical_trends` need `thickness` like the water column: `z_level` uses the levels as depths, otherwise the
   thickness is extracted along the line and each cell put at its depth, then the section put on
-  `N_DEPTHS` shared depths. A year with months missing is left out of trends, and the points of a
+  `N_DEPTHS` shared depths. A year with months missing is left out of the changes (a first period with one missing has none), and the points of a
   line need not form a lon-lat grid (`_along` reads both). In the window each variable has its own
   transects (`analysis_forms.default_transects`/`clean_transects`/`check_transects`; the cell
   thickness box is shared with the other pop-outs, `THICKNESS_KINDS`). Needs nctoolkit 1.3.6+ (the

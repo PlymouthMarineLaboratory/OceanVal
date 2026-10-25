@@ -2187,7 +2187,7 @@
       <p class="analyze-dialog__intro">The model's values along straight lines. Each variable has transects of its own: tick the variables to work transects out for, add as many transects as you like to each, and choose what to work out along each one, and the years of each.</p>
       <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked; for each transect, where it starts and ends, at least one <b>Climatology</b> or <b>Changes</b>, in the <b>Surface</b> or the <b>Vertical</b>, and the years of each of them.</span></p>
       <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
-      <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years, with an optional rolling mean.</p>
+      <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years as a map of position along the line by year, of the annual means or of their change from the first year (or the first rolling mean), with an optional rolling mean.</p>
       <div class="analyze-thickness" id="trans-thickness-row" hidden>
         <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" list="trans-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
         <div id="trans-thickness-picker"></div>
@@ -4684,7 +4684,7 @@
   // ---- the transects pop-out: a section for each variable, with a card for each of its transects ----
   const TRANSECT_HOWS = [["absolute", "Absolute"], ["absolute_change", "Absolute change"], ["percentage_change", "Percentage change"]];
   // the years of output each way of showing a trend needs, as analysis_transects has them
-  const TRANSECT_MIN_YEARS = { absolute: 3, absolute_change: 2, percentage_change: 2 };
+  const TRANSECT_MIN_YEARS = { absolute: 2, absolute_change: 2, percentage_change: 2 };
   // the ends of a transect, in one line: its start (longitude, latitude), then its end
   const TRANSECT_END_BOXES = [["start_lon", "Longitude of the start", "e.g. -30"], ["start_lat", "Latitude of the start", "e.g. 0"],
     ["end_lon", "Longitude of the end", "e.g. -30"], ["end_lat", "Latitude of the end", "e.g. 65"]];

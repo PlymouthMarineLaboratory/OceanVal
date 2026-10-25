@@ -1381,11 +1381,7 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
                 output = {
                     int(y) for df in row["times"].values() for y in df.year if trends["start"] <= int(y) <= trends["end"]
                 }
-                needed = (
-                    analysis_transects.MIN_TREND_YEARS
-                    if trends["how"] == analysis_transects.ABSOLUTE
-                    else analysis_transects.MIN_CHANGE_YEARS
-                ) + trends.get("window", 1) - 1
+                needed = analysis_transects.MIN_CHANGE_YEARS + trends.get("window", 1) - 1
                 if len(output) < needed:
                     problems.append(
                         f"The {analysis_transects.HOWS[trends['how']].lower()} {option} of transect {number} of "
@@ -1521,23 +1517,23 @@ def analyze(
         variable on its own. For each variable, by its name in variables, a list
         of transects, each a dict of "start" and "end" ([lon, lat] of each end)
         and at least one of "climatology" (the monthly climatology at the
-        surface), "trends" (at the surface: how it changed over the years),
+        surface), "trends" (at the surface: how it changed over the years, a
+        heat map of position along the transect by year),
         "vertical" (the annual mean through the water column, in a section) and
-        "vertical_trends" (how that section changed over the years), each a
+        "vertical_trends" (the same heat maps at some depths of the section), each a
         dict of "start" and "end" years, and, for the two trends, "how":
-        "absolute" (the linear trend of the annual means, per year),
-        "absolute_change" (the annual mean of the last year minus that of the
-        first) or "percentage_change" (that as a percentage of the first year's
-        mean), e.g. {"Temperature": [{"start": [-30, 0], "end": [-30, 65],
+        "absolute" (the annual means), "absolute_change" (each annual mean
+        minus the first) or "percentage_change" (that as a percentage of the
+        first), e.g. {"Temperature": [{"start": [-30, 0], "end": [-30, 65],
         "climatology": {"start": 2000, "end": 2009}, "trends": {"start": 2000,
         "end": 2009, "how": "absolute"}}]}. Requires nctoolkit 1.3.6 or later.
         Each month of each year is averaged first, a year's mean is the mean of
         its months' means (worked out with nctoolkit), and years without all
         their months are left out of the trends. "trends" and "vertical_trends" can also have a
         "window", the number of years of a rolling mean of the annual means,
-        worked out with nctoolkit's rolling_mean before the trend is: the
-        default, 1, is no rolling mean, and with a window of N a change is
-        the mean of the last N years minus the mean of the first N.
+        worked out with nctoolkit's rolling_mean: the default, 1, is no
+        rolling mean, and with a window of N each year shown is the last of N
+        years, and a change is from the first rolling mean (of the first N years).
     map_changes : dict
         The variables to map the changes of, between a historical period and
         one or two future periods. For each variable, by its name in variables,

@@ -35,6 +35,6 @@ for line in tr["lines"]:
             display(md("The model has no values for this along the transect."))
             continue
         ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
-        extra = " Grey shows land, or where there are no values." if drawn.found["kind"] in ("months", "section") else ""
+        extra = " Grey shows land, or where there are no values." if drawn.found["kind"] in ("months", "section", "heatmap", "heatmaps") else ""
         display(md(f"**Figure {i_figure}**: {text['caption']}{extra}"))
         i_figure += 1

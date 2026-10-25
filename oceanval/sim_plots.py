@@ -600,7 +600,7 @@ def _month_grids_code(info, sims, files, line, limits, extend, label, size, colu
 
 def _lines_code(info, sims, files, line, label, ylabel):
     """The code of a transect's values along it at the surface, a line for each
-    simulation, with a line at zero, where a trend or a change turns over."""
+    simulation, with a line at zero."""
     position_code, position_label = ap._position_text(line)
     return _code(
         "import matplotlib.pyplot as plt\nimport pandas as pd\nfrom matplotlib.ticker import FuncFormatter\n",
@@ -626,9 +626,9 @@ def _lines_code(info, sims, files, line, label, ylabel):
 def transect_figure(results_dir, key, index, option):
     """The figure of one option of one transect of a variable (see
     oceanval.analysis_transects.OPTIONS), in every simulation, or None if no
-    simulation has values along it. Lines are a colour for each simulation, and sections
-    and grids of months are a panel for each, on one colour scale. Drawn.found holds
-    "kind": "months", "line" or "section"."""
+    simulation has values along it. Lines are a colour for each simulation, and sections,
+    grids of months and the changes' heat maps are a panel for each, on one colour scale. Drawn.found holds
+    "kind": "months", "line", "section" or "heatmaps"."""
     info = load(results_dir)
     variable = entry(info, key)
     sims, files, savedes = [], [], []
@@ -664,19 +664,25 @@ def transect_figure(results_dir, key, index, option):
         code = _lines_code(info, sims, files, line, f"Mean, {ap._years_range(saved['start'], saved['end'])}", value_label)
         kind = "line"
     else:
-        label = {
-            "absolute": legend(f"{variable['name']} trend", saved["units"]),
-            "absolute_change": legend(f"{variable['name']} change", variable["units"]),
-            "percentage_change": f"{variable['name']} change (%)",
-        }[saved["how"]]
-        title = saved["title"] + (f", {saved['window']}-year rolling mean" if (saved.get("window") or 1) > 1 else "")
+        label, title = ap.changes_labels(saved, variable["name"], variable["units"])
+        colours, diverging = ap.changes_colours(saved)
+        limits, extend = _scale(values, diverging=diverging)
         if option == "vertical_trends":
-            limits, extend = _scale(values, diverging=True)
-            size = (3.6 * columns + 1.4, 3.4 * rows + 0.6)
-            code = _sections_code(info, sims, files, line, limits, extend, "RdBu_r", label, size, columns, rows)
-            kind = "section"
+            # a column for each simulation, and a row for each of its depths shown
+            depths = [sorted(frame["depth"].unique()) for frame in frames]
+            most = max(len(shown) for shown in depths)
+            grid = (most, len(sims))
+            panels = [
+                (column, float(shown[row]), f"{sims[column]}, {ap._depth_text(shown[row])}") if row < len(shown) else None
+                for row in range(most)
+                for column, shown in enumerate(depths)
+            ]
         else:
-            code = _lines_code(info, sims, files, line, title, label)
-            kind = "line"
+            grid = (rows, columns)
+            panels = [(column, None, sim) for column, sim in enumerate(sims)]
+        code = ap.changes_code(
+            files, line, panels, grid, colours, limits, extend, label, ap.changes_size(line, grid), heading=title
+        )
+        kind = "heatmaps"
     _run(code, "sim_transect_figure")
     return Drawn(code, False, {"kind": kind}, _about(info))

@@ -688,7 +688,7 @@ def check_transects(form, placed, known_years, available=(), cwd="."):
                     else:
                         window = int(text)
                 output = known_years(row["name"])
-                needed = analysis_transects.MIN_TREND_YEARS if how == analysis_transects.ABSOLUTE else analysis_transects.MIN_CHANGE_YEARS
+                needed = analysis_transects.MIN_CHANGE_YEARS
                 if how and output and f"{option}_window" not in found:
                     n_output = output[1] - output[0] + 1
                     if n_output - window + 1 < needed:

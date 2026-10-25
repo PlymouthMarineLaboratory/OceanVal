@@ -268,9 +268,8 @@ def methods(info):
         methods_.append(
             "**Transects.** Each transect is a straight line that runs north-south or east-west, with the options chosen for it and the years of each. The mean of each month of each year is taken first, as for the climatology, and extracted along the line with nctoolkit's `to_transect` (bilinear interpolation onto evenly spaced points), at the surface or, for the *vertical climatology* option, through the water column. "
             "The *surface climatology* is the mean of each month of the year over the years chosen, and the *vertical climatology* section is the annual mean at each depth. "
-            "An *absolute trend* is the slope of a straight line fitted by least squares to the annual means at the surface, per year, where a year with months missing is left out; it needs at least three such years. "
-            "The *absolute change* is the annual mean of the last year chosen minus that of the first, and the *percentage change* is that as a percentage of the absolute value of the first year's mean. "
-            "The sections and the grids of months of the simulations share one colour scale."
+            "The *changes* are heat maps of the position along the transect by year, where a year with months missing is left out: the *absolute* ones show the annual means, the *absolute change* each annual mean minus the first, and the *percentage change* that as a percentage of the absolute value of the first, with a rolling mean of the annual means if one was chosen (each year is then the last of its window, and the first is the first rolling mean). In the water column they are shown at some of the depths. "
+            "The sections, the grids of months and the heat maps of the simulations share one colour scale."
         )
     if info.get("subregions"):
         which = {"nwes": "the northwest European Shelf regions", "global": "the global regions"}.get(

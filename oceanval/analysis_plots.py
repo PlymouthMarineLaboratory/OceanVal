@@ -1039,7 +1039,7 @@ def _section_code(path, line, panels, bars, size):
 
 def _line_code(path, line, label, ylabel):
     """The code of a transect's values along it at the surface, as a line, with
-    a line at zero, where a trend or a change turns over."""
+    a line at zero."""
     position_code, position_label = _position_text(line)
     return _code(
         "import matplotlib.pyplot as plt\nimport pandas as pd\nfrom matplotlib.ticker import FuncFormatter\n",
@@ -1056,6 +1056,110 @@ def _line_code(path, line, label, ylabel):
         "    ax.spines[side].set_visible(False)",
         "fig.tight_layout()",
     )
+
+
+def _depth_text(depth):
+    """A depth, for the title of a panel."""
+    return f"{depth:.1f} m" if abs(depth) < 10 else f"{depth:,.0f} m"
+
+
+def changes_code(paths, line, panels, grid, colours, limits, extend, label, size, heading=None):
+    """The code of the changes along a transect over the years: a heat map of
+    the position along the transect (a longitude, or a latitude) by year, a
+    panel for each of panels, each (which of the paths' CSVs it is of, the
+    depth, or None at the surface, its title) or None for a place with no
+    panel, in a grid of (rows, columns),
+    under one colour bar. A longitude is on the x axis, and a latitude on the
+    y axis, as the climatology's months are. heading is above them all."""
+    position_code, position_label = _position_text(line)
+    north_south = line["direction"] == "north-south"
+    listing = _listing(
+        "panels", panels, "each panel: the file of the data it shows, its depth (None at the surface) and its title; None for no panel"
+    )
+    if north_south:
+        draw = [
+            '    table = part.pivot(index="position", columns="year", values="value")',
+            "    mesh = ax.pcolormesh(table.columns.values, table.index.values, np.ma.masked_invalid(table.values), **options)",
+            "    ax.yaxis.set_major_formatter(FuncFormatter(position_text))",
+            "    ax.xaxis.set_major_locator(MaxNLocator(integer=True))",
+        ]
+        labels = [
+            f"for ax in axes[:, 0]:\n    ax.set_ylabel({_py(position_label)})",
+            'for ax in axes[-1]:\n    ax.set_xlabel("Year")',
+        ]
+    else:
+        draw = [
+            '    table = part.pivot(index="year", columns="position", values="value")',
+            "    mesh = ax.pcolormesh(table.columns.values, table.index.values, np.ma.masked_invalid(table.values), **options)",
+            "    ax.xaxis.set_major_formatter(FuncFormatter(position_text))",
+            "    ax.xaxis.set_major_locator(MaxNLocator(4))",
+            "    ax.yaxis.set_major_locator(MaxNLocator(integer=True))",
+        ]
+        labels = [
+            'for ax in axes[:, 0]:\n    ax.set_ylabel("Year")',
+            f"for ax in axes[-1]:\n    ax.set_xlabel({_py(position_label)})",
+        ]
+    return _code(
+        "import matplotlib.pyplot as plt\nimport numpy as np\nimport pandas as pd\n"
+        "from matplotlib.ticker import FuncFormatter, MaxNLocator\n",
+        f"frames = [pd.read_csv(path) for path in {_py(list(paths))}]",
+        "\n".join(position_code),
+        listing,
+        f"# the colours: for changes they are about zero\ncolours = {_py(colours)}\nlimits = {_py(limits)}",
+        _call(
+            "fig, axes = plt.subplots",
+            {"nrows": grid[0], "ncols": grid[1], "figsize": tuple(size), "sharex": True, "sharey": True,
+             "squeeze": False, "layout": "constrained"},
+        ),
+        'options = {"cmap": colours, "vmin": limits[0], "vmax": limits[1], "shading": "nearest"}',
+        "for ax, panel in zip(axes.ravel(), panels):",
+        "    if panel is None:",
+        "        ax.set_visible(False)",
+        "        continue",
+        "    which, depth, title = panel",
+        "    part = frames[which]",
+        "    if depth is not None:",
+        "        part = part[np.isclose(part.depth, depth)]",
+        *draw,
+        "    # a year or a position without values shows as land",
+        f"    ax.set_facecolor({_py(TRANSECT_LAND)})",
+        "    ax.set_title(title)",
+        "for ax in axes.ravel()[len(panels):]:",
+        "    ax.set_visible(False)",
+        *labels,
+        *([f"fig.suptitle({_py(heading)})"] if heading else []),
+        f"fig.colorbar(mesh, ax=axes.ravel().tolist(), extend={_py(extend)}, label={_py(label)})",
+    )
+
+
+def changes_size(line, grid):
+    """The size of the figure of changes_code, from its grid of (rows, columns)."""
+    rows, columns = grid
+    if line["direction"] == "north-south":
+        return (3.6 * columns + 1.6, 3.4 * rows + 0.8)
+    return (4.8 * columns + 1.4, 3.0 * rows + 1.0)
+
+
+def changes_labels(saved, name, units):
+    """The label of the colour bar of changes, and its title, from what
+    analyze() saved of the option, the name of the variable and its units."""
+    label = {
+        "absolute": legend(name, saved["units"]),
+        "absolute_change": legend(f"{name} change", units),
+        "percentage_change": f"{name} change (%)",
+    }[saved["how"]]
+    window = saved.get("window") or 1
+    # what it is, then (on a line of its own, as the figure is not wide) how it was worked out
+    how = [f"{window}-year rolling mean"] if window > 1 else []
+    if saved["how"] != "absolute":
+        how.append(f"relative to {_years_range(saved['start'], saved['start'] + window - 1)}")
+    return label, saved["title"] + ("\n" + ", ".join(how) if how else "")
+
+
+def changes_colours(saved):
+    """The colour map of changes: a sequential one for the annual means, and, for the changes,
+    one about zero."""
+    return ("viridis", False) if saved["how"] == "absolute" else ("RdBu_r", True)
 
 
 def _months_code(path, line, limits, extend, label, size):
@@ -1107,7 +1211,7 @@ def _months_code(path, line, limits, extend, label, size):
 def transect_figure(results_dir, key, index, option):
     """The figure of one option of one transect of a variable (see
     oceanval.analysis_transects.OPTIONS), or None if the model has no values
-    along it. Drawn.found holds "kind": "months", "line" or "section"."""
+    along it. Drawn.found holds "kind": "months", "line", "section", "heatmap" or "heatmaps"."""
     info = load(results_dir)
     variable = entry(info, key)
     line = transect_of(variable, index)
@@ -1133,20 +1237,23 @@ def transect_figure(results_dir, key, index, option):
         code = _line_code(path, line, f"Mean, {_years_range(saved['start'], saved['end'])}", value_label)
         kind = "line"
     else:
-        label = {
-            "absolute": legend(f"{variable['name']} trend", saved["units"]),
-            "absolute_change": legend(f"{variable['name']} change", variable["units"]),
-            "percentage_change": f"{variable['name']} change (%)",
-        }[saved["how"]]
-        title = saved["title"] + (f", {saved['window']}-year rolling mean" if (saved.get("window") or 1) > 1 else "")
+        label, title = changes_labels(saved, variable["name"], variable["units"])
+        colours, diverging = changes_colours(saved)
+        limits, extend = _scale(frame["value"], diverging=diverging)
         if option == "vertical_trends":
-            # a change or a trend is about zero, so the colours are too
-            limits, extend = _scale(frame["value"], diverging=True)
-            code = _section_code(path, line, [("value", title, "RdBu_r", limits)], [([0], label, extend)], (6.8, 4.2))
-            kind = "section"
+            depths = sorted(frame["depth"].unique())
+            columns = 2 if len(depths) > 1 else 1
+            grid = (-(-len(depths) // columns), columns)
+            panels = [(0, float(depth), _depth_text(depth)) for depth in depths]
+            code = changes_code(
+                [path], line, panels, grid, colours, limits, extend, label, changes_size(line, grid), heading=title
+            )
+            kind = "heatmaps" if len(depths) > 1 else "heatmap"
         else:
-            code = _line_code(path, line, title, label)
-            kind = "line"
+            code = changes_code(
+                [path], line, [(0, None, title)], (1, 1), colours, limits, extend, label, changes_size(line, (1, 1))
+            )
+            kind = "heatmap"
     _run(code, "transect_figure")
     return Drawn(code, False, {"kind": kind}, _about(info))
 
@@ -1167,22 +1274,30 @@ def transect_text(variable, index, option):
     units = unit_html(variable["units"])
     window = saved.get("window") or 1
     rolling = (
-        f" The annual means were smoothed by a rolling mean of {window} years, with nctoolkit's rolling_mean, before this was worked out."
+        f" The annual means were smoothed by a rolling mean of {window} years, with nctoolkit's rolling_mean, so that each year shown is the last of its {window} years."
         if window > 1 and option in ("trends", "vertical_trends")
         else ""
     )
     rolled = f" (after a {window}-year rolling mean)" if window > 1 else ""
-    # what a trend or a change is of, and where along the transect it is worked out
+    # what the changes are of, and where along the transect they are worked out
     if option == "vertical_trends":
-        thing, at = name, "at each point along the transect and each depth"
-        in_section = " in the section through the water column"
+        thing, at = name, "at each point along the transect and at each of the depths shown"
+        in_section = " in the water column"
         depths = (
-            f" Each cell is put at its depth, worked out from the cell thickness, and the section is put on {_n_depths()} evenly spaced depths."
+            f" Each cell is put at its depth, worked out from the cell thickness, and the section is put on {_n_depths()} evenly spaced depths, "
+            "of which the heat maps show some."
             if saved["depths"] == "thickness"
-            else ""
+            else " The heat maps show some of the model's depths."
         )
     else:
         thing, at, in_section, depths = f"surface {name}", "at each point along the transect", "", ""
+    # the first period the changes are from
+    first = (
+        f"its annual mean in {saved['start']}"
+        if window == 1
+        else f"the mean of the first {window} years ({saved['start']}-{saved['start'] + window - 1}), the first value of the rolling mean"
+    )
+    first_years = _years_range(saved["start"], saved["start"] + window - 1)
     if option == "climatology":
         if saved["months"] > 1:
             method = f"The surface climatology of {name} is its mean in each month of the year over {years}, at each point along the transect."
@@ -1203,37 +1318,31 @@ def transect_text(variable, index, option):
         caption = f"Annual mean {name} ({units}) through the water column along the transect, {years}."
     elif saved["how"] == "absolute":
         method = (
-            f"The trend is the slope of a straight line fitted by least squares to the annual means of {thing} over {years}, {at}, in {unit_html(saved['units'])}. "
-            "A year's mean is the mean of its months' means, worked out with nctoolkit, and it is left out if it has months missing."
+            f"The annual mean of {thing} is the mean of its months' means in each year of {years}, worked out with nctoolkit, {at}. "
+            "A year is left out if it has months missing. The heat map has the position along the transect on one axis and the year on the other."
             + rolling
             + depths
         )
-        caption = f"Trend in {thing}{in_section} along the transect, {years}, in {unit_html(saved['units'])}{rolled}."
+        caption = f"Annual mean {thing}{in_section} ({units}) along the transect, by year, {years}{rolled}."
     elif saved["how"] == "absolute_change":
         method = (
-            (
-                f"The change is the annual mean of {thing} in {saved['end']} minus its annual mean in {saved['start']}, {at}. "
-                "A year's mean is the mean of its months' means, worked out with nctoolkit."
-                if window == 1
-                else f"The change is the mean of the last {window} years of {thing} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), {at}."
-            )
+            f"The change in each year is its annual mean of {thing} minus {first}, {at}. "
+            "A year's mean is the mean of its months' means, worked out with nctoolkit, and it is left out if it has months missing. "
+            "The heat map has the position along the transect on one axis and the year on the other."
             + rolling
             + depths
         )
-        caption = f"Change in {thing}{in_section} ({units}) along the transect, from {saved['start']} to {saved['end']}{rolled}."
+        caption = f"Change in {thing}{in_section} ({units}) along the transect, by year, relative to {first_years}, {years}{rolled}."
     else:
         method = (
-            (
-                f"The percentage change is the annual mean of {thing} in {saved['end']} minus its annual mean in {saved['start']}, "
-                if window == 1
-                else f"The percentage change is the mean of the last {window} years of {thing} ({saved['end'] - window + 1}-{saved['end']}) minus the mean of the first {window} ({saved['start']}-{saved['start'] + window - 1}), "
-            )
-            + "as a percentage of the absolute value of the first, so that an increase is always positive. "
-            "It is missing where that is zero. A year's mean is the mean of its months' means."
+            f"The percentage change in each year is its annual mean of {thing} minus {first}, "
+            "as a percentage of the absolute value of the first, so that an increase is always positive. "
+            f"It is missing where that is zero. A year's mean is the mean of its months' means, {at}. "
+            "The heat map has the position along the transect on one axis and the year on the other."
             + rolling
             + depths
         )
-        caption = f"Percentage change in {thing}{in_section} along the transect, from {saved['start']} to {saved['end']}{rolled}."
+        caption = f"Percentage change in {thing}{in_section} along the transect, by year, relative to {first_years}, {years}{rolled}."
     return {"title": saved["title"], "method": method, "caption": caption}
 
 

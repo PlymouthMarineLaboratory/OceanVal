@@ -39,11 +39,12 @@ for line in tr["lines"]:
             display(md("The models have no values for this along the transect."))
             continue
         sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
-        extra = " Grey shows land, or where there are no values." if drawn.found["kind"] in ("months", "section") else ""
+        extra = " Grey shows land, or where there are no values." if drawn.found["kind"] in ("months", "section", "heatmap", "heatmaps") else ""
         share = {
             "line": " A line for each simulation.",
             "months": " A panel for each simulation, on one colour scale.",
             "section": " A panel for each simulation, on one colour scale.",
+            "heatmaps": " A panel for each simulation, on one colour scale.",
         }[drawn.found["kind"]]
         display(md(f"**Figure {i_figure}**: {text['caption']}{share}{extra}"))
         i_figure += 1

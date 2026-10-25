@@ -7,17 +7,16 @@ years of its own, two at the surface and two through the water column:
 
 - "climatology": the monthly climatology at the surface, by month and
   position (a line if the output is annual), as validate shows the surface.
-- "trends": at the surface, along the line, how it changed over the years:
-  "absolute" (the linear trend of the annual means, per year),
-  "absolute_change" (the annual mean of the last year minus that of the first)
-  or "percentage_change" (that as a percentage of the first year's mean, of its
-  absolute value, so that an increase is positive). The annual means are
-  worked out with nctoolkit, and with a "window" of more than 1 year smoothed
-  by nctoolkit's rolling_mean before the trend is worked out, so that a change
-  is then the mean of the last window years minus the mean of the first.
+- "trends": at the surface, along the line, how it changed over the years, as a
+  heat map of the position along the line by year, from the annual means (worked
+  out with nctoolkit, and with a "window" of more than 1 year smoothed by
+  nctoolkit's rolling_mean, each year then being the last of its window):
+  "absolute" (the annual means), "absolute_change" (each minus the first of them,
+  the first rolling mean if there is a window) or "percentage_change" (that as a
+  percentage of the first's absolute value, so that an increase is positive).
 - "vertical": the annual mean through the water column, by depth and
   position, as validate shows its section.
-- "vertical_trends": the same changes as "trends", at each depth and position
+- "vertical_trends": the same changes as "trends", a heat map for each of a few depths
   of the section (the window's "Changes" of its Vertical part).
 
 The monthly means are taken first, as for the climatology and the time series,
@@ -63,10 +62,9 @@ HOWS = {
     ABSOLUTE_CHANGE: "Absolute change",
     PERCENTAGE_CHANGE: "Percentage change",
 }
-# the ones that compare the last year with the first
+# the ones that compare each year with the first
 CHANGES = (ABSOLUTE_CHANGE, PERCENTAGE_CHANGE)
-# the years an absolute trend needs, and a change
-MIN_TREND_YEARS = 3
+# the annual means the changes need: the first, and one to compare with it
 MIN_CHANGE_YEARS = 2
 
 # the layer of monthly_means_of that keeps every level, for a vertical transect
@@ -78,6 +76,8 @@ LINE_KEYS = ("start", "end") + tuple(OPTIONS)
 # a vertical section of a model whose cells are not at the same depths everywhere
 # is put on this many evenly spaced depths, from the shallowest to the deepest
 N_DEPTHS = 50
+# the depths the vertical changes are shown at, one heat map (position by year) for each
+DEPTH_PANELS = 4
 
 # the most points a transect is sampled at, and how many it has if the model's
 # grid cannot be read to say
@@ -156,7 +156,7 @@ def check_lines(lines, name):
                     f"a whole number of 1 or more (1 is no rolling mean), not {window!r}."
                 )
             span = end - start + 1
-            needed = MIN_TREND_YEARS if how == ABSOLUTE else MIN_CHANGE_YEARS
+            needed = MIN_CHANGE_YEARS
             if span - window + 1 < needed:
                 raise ValueError(
                     f"The {HOWS[how].lower()} {option} of {which} need at least {needed} years"
@@ -302,24 +302,6 @@ def annual_means(extracted, key, line, times, spec, per_year, vertical=False):
     return positions, out_years, values
 
 
-def slope(annual, years):
-    """The least-squares trend per year of annual (by year, then at each
-    point), and the number of years it is from. Missing where fewer than
-    MIN_TREND_YEARS years have values."""
-    x = np.asarray(years, dtype="float64").reshape((-1,) + (1,) * (annual.ndim - 1))
-    valid = np.isfinite(annual)
-    count = valid.sum(axis=0)
-    x = np.where(valid, x, np.nan)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        x_mean = np.nanmean(x, axis=0)
-        y_mean = np.nanmean(annual, axis=0)
-        sxx = np.nansum((x - x_mean) ** 2, axis=0)
-        sxy = np.nansum((x - x_mean) * (annual - y_mean), axis=0)
-        trend = np.where((count >= MIN_TREND_YEARS) & (sxx > 0), sxy / np.where(sxx > 0, sxx, 1), np.nan)
-    return trend, count
-
-
 def monthly_climatology(values, times):
     """The mean of each month of the year, over the years, by month (the
     months there are, in order) then as values: (months, climatology)."""
@@ -355,16 +337,19 @@ def cell_depths(thickness):
     return np.where(thick > 0, depths, np.nan)
 
 
-def on_common_depths(depths, values):
+def on_common_depths(depths, values, common=None):
     """values by depth then position, where each position has depths of its
     own (depths, the same shape), on N_DEPTHS evenly spaced depths that all
     positions share, from the shallowest to the deepest: (the depths, the
     values). Each position is linearly interpolated between its cells, and
-    is missing outside them, where it is the seabed or the surface."""
+    is missing outside them, where it is the seabed or the surface. common
+    is those depths, if they are already known (values of different years
+    are then on the same ones)."""
     valid = np.isfinite(depths) & np.isfinite(values)
-    if not valid.any():
-        return np.linspace(0.0, 1.0, N_DEPTHS), np.full((N_DEPTHS, values.shape[1]), np.nan)
-    common = np.linspace(depths[valid].min(), depths[valid].max(), N_DEPTHS)
+    if common is None:
+        if not valid.any():
+            return np.linspace(0.0, 1.0, N_DEPTHS), np.full((N_DEPTHS, values.shape[1]), np.nan)
+        common = np.linspace(depths[valid].min(), depths[valid].max(), N_DEPTHS)
     out = np.full((N_DEPTHS, values.shape[1]), np.nan)
     for position in range(values.shape[1]):
         keep = valid[:, position]
@@ -403,8 +388,8 @@ def derive(option, positions, depths, values, times, spec, per_year):
     works out from values (see _along, with their times, each (year, month)):
     (a data frame, notes). spec is the option's {"start", "end"}. The frame has
     position, then depth for the vertical, then month for the surface
-    climatology (unless the output is annual), then value. The trends are
-    derive_trends."""
+    climatology (unless the output is annual), then value. The changes are
+    derive_changes."""
     start, end = spec["start"], spec["end"]
     notes = []
     if option in (CLIMATOLOGY, VERTICAL):
@@ -433,81 +418,95 @@ def derive(option, positions, depths, values, times, spec, per_year):
     raise ValueError(f"{option} is not something that derive works out.")
 
 
-def _shown_depths(depths):
-    """The depths to give a frame with no values: those there are, or the
-    numbers of the cells if each position has its own."""
-    return depths if depths.ndim == 1 else np.arange(depths.shape[0], dtype="float64")
+def panel_depths(depths):
+    """The depths the vertical changes are shown at, from those there are
+    (in order): DEPTH_PANELS of them, from the shallowest to three quarters
+    of the way down (the deepest has values at the deepest place only)."""
+    depths = np.asarray(depths, dtype="float64")
+    if len(depths) <= DEPTH_PANELS:
+        return depths
+    wanted = depths[0] + (depths[-1] - depths[0]) * np.arange(DEPTH_PANELS) / DEPTH_PANELS
+    return depths[sorted({int(np.abs(depths - target).argmin()) for target in wanted})]
 
 
-def _trend_table(positions, depths, columns):
-    """The frame of a trend: by position, or, if depths (the depths of the
-    section, by depth if the same everywhere, or by depth then position if
-    each position has its own), by depth and position, the columns each as
-    values by depth then position (or just position)."""
+def _changes_frame(positions, years, values, depths=None):
+    """The frame of the changes: position, then depth (if depths), then year and
+    value, from values by year then position (by year, depth and position
+    if depths, those of the section)."""
     if depths is None:
-        return _table(positions, None, columns)
-    if depths.ndim == 2:
-        # each position has its own depths
-        out = {}
-        for name, values in columns.items():
-            common, out[name] = on_common_depths(depths, values)
-        return _table(positions, common, out)
-    return _table(positions, depths, columns)
+        year_grid, position_grid = np.meshgrid(years, positions, indexing="ij")
+        data = {"position": position_grid.ravel(), "year": year_grid.ravel()}
+    else:
+        year_grid, depth_grid, position_grid = np.meshgrid(years, depths, positions, indexing="ij")
+        data = {"position": position_grid.ravel(), "depth": depth_grid.ravel(), "year": year_grid.ravel()}
+    data["value"] = np.asarray(values, dtype="float64").ravel()
+    return pd.DataFrame(data)
 
 
-def derive_trends(positions, years, values, spec, left_out, per_year, depths=None):
-    """The trends of a transect from its annual means (see annual_means):
-    (a data frame, notes). positions are along the transect and spec the
-    option's {"start", "end", "how", "window"}; left_out the years from start
-    to end that were left out because they do not have all their months. The
-    frame has position, value and, for the absolute trend at the surface,
-    years, the number of annual means it is from. values is None if there are
-    none. For the section through the water column depths are those of the
-    cells (see derive), values are by year, depth and position, and the frame
-    has depth too."""
-    start, end, how = spec["start"], spec["end"], spec["how"]
+def _empty_changes(vertical):
+    """The frame of changes there are none of."""
+    return pd.DataFrame({name: [] for name in (["position", "depth"] if vertical else ["position"]) + ["year", "value"]})
+
+
+def derive_changes(positions, years, values, spec, left_out, per_year, depths=None):
+    """The changes of a transect over the years from its annual means (see
+    annual_means), as a heat map of position by year: (a data frame, notes).
+    positions are along the transect and spec the option's {"start", "end",
+    "how", "window"}; left_out the years from start to end that were left out
+    because they do not have all their months. The frame has position, year
+    and value, a row for each of the annual means (with a rolling mean, a year
+    is the last of its window). The value is the annual mean ("absolute"), or
+    its difference from the first annual mean ("absolute_change"), or that as
+    a percentage of the first ("percentage_change"), which is missing where the first
+    is 0. The frame has no rows if values is None. For the section through the
+    water column depths are those of the cells (see derive), values are by
+    year, depth and position, and the frame has depth too, at
+    panel_depths of the section."""
+    start, how = spec["start"], spec["how"]
     window = spec.get("window", 1)
     vertical = depths is not None
     notes = []
+    if left_out:
+        notes.append(_left_out(left_out, per_year))
+        if window > 1:
+            notes.append("The rolling mean is over the years there is output for.")
+    if values is None or len(values) == 0:
+        return _empty_changes(vertical), notes
+    if how != ABSOLUTE:
+        # the first period the changes are from: the first window years of the years
+        missing = [year for year in range(start, start + window) if year in left_out]
+        if missing:
+            notes.clear()
+            for year in missing:
+                notes.append(
+                    f"{year} " + ("does not have all 12 months of output" if per_year > 1 else "has no output")
+                    + ", so there is no change."
+                )
+            return _empty_changes(vertical), notes
+    shown = None
     if vertical:
-        empty_shape = (len(_shown_depths(depths)), len(positions))
-    else:
-        empty_shape = (len(positions),)
-    if values is None:
-        columns = {"value": np.full(empty_shape, np.nan)}
-        if how == ABSOLUTE and not vertical:
-            columns["years"] = np.zeros(len(positions), dtype=int)
-        if left_out:
-            notes.append(_left_out(left_out, per_year))
-        return _trend_table(positions, None if not vertical else _shown_depths(depths), columns), notes
-    if how == ABSOLUTE:
-        if left_out:
-            notes.append(_left_out(left_out, per_year))
-            if window > 1:
-                notes.append("The rolling mean is over the years there is output for.")
-        trend, count = slope(values, years)
-        columns = {"value": trend}
-        if not vertical:
-            columns["years"] = count
-        return _trend_table(positions, depths, columns), notes
-    # the first and the last window years of the years, which the change is between
-    ends = list(range(start, start + window)) + list(range(end - window + 1, end + 1))
-    missing = [year for year in dict.fromkeys(ends) if year in left_out]
-    for year in missing:
-        notes.append(
-            f"{year} " + ("does not have all 12 months of output" if per_year > 1 else "has no output") + ", so there is no change."
-        )
-    if missing or len(values) == 0:
-        return _trend_table(
-            positions, None if not vertical else _shown_depths(depths), {"value": np.full(empty_shape, np.nan)}
-        ), notes
-    first, last = values[0], values[-1]
-    change = last - first
-    if how == PERCENTAGE_CHANGE:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            change = np.where(first != 0, 100 * change / np.abs(first), np.nan)
-    return _trend_table(positions, depths, {"value": change}), notes
+        if depths.ndim == 2:
+            # each position has its own depths: all on the depths there are somewhere
+            used = depths[np.isfinite(depths) & np.isfinite(values).any(axis=0)]
+            if used.size == 0:
+                return _empty_changes(vertical), notes
+            common = np.linspace(used.min(), used.max(), N_DEPTHS)
+            values = np.array([on_common_depths(depths, year_values, common)[1] for year_values in values])
+            depths = common
+        keep = np.isfinite(values).any(axis=(0, 2))
+        shown = [depth for depth in panel_depths(depths) if keep[int(np.abs(depths - depth).argmin())]]
+        if not shown:
+            return _empty_changes(vertical), notes
+        values = values[:, [int(np.abs(depths - depth).argmin()) for depth in shown], :]
+    if how != ABSOLUTE:
+        first = values[0]
+        change = values - first
+        if how == PERCENTAGE_CHANGE:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                change = np.where(first != 0, 100 * change / np.abs(first), np.nan)
+        values = change
+    return _changes_frame(positions, years, values, shown), notes
 
 
 def _left_out(years, per_year):
@@ -523,8 +522,6 @@ def _units(units, option, how=None):
     """What the values of an option are in."""
     if option in TREND_OPTIONS and how == PERCENTAGE_CHANGE:
         return "%"
-    if option in TREND_OPTIONS and how == ABSOLUTE:
-        return f"{units} per year" if units else "per year"
     return units
 
 
@@ -599,7 +596,7 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
                 left_out = [
                     year for year in range(spec["start"], spec["end"] + 1) if year not in complete_years(times, year, year, per_year)
                 ]
-                frame, notes = derive_trends(
+                frame, notes = derive_changes(
                     positions, series_years, series, spec, left_out, per_year, depths if vertical else None
                 )
             else:
@@ -613,6 +610,8 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
                 "end": spec["end"],
                 "how": how,
                 "window": spec.get("window"),
+                # the first and last of the years the heat map shows (with a rolling mean, the end of the first window)
+                "years": [int(frame["year"].min()), int(frame["year"].max())] if "year" in frame and len(frame) else None,
                 "units": _units(row["units"], option, how),
                 "depths": None if option not in VERTICAL_OPTIONS else ("levels" if thickness == Z_LEVEL else "thickness"),
                 "csv": csv,
