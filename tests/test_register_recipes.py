@@ -15,6 +15,7 @@ from test_app import (  # noqa: F401 - the fixtures
     SETUP_FORM,
     app,
     choose_domain,
+    draft,
     get,
     get_json,
     leftover_dir,
@@ -283,7 +284,7 @@ class TestUsingThem:
         assert (row["obs_units"], row["obs_variable"]) == ("mmol N/m^3", "N3_n")
         units_match(app)
         wait_for(lambda: runs)
-        script = (tmp_path / "matchup.py").read_text()
+        script = open(draft(app)).read()
         assert 'recipe={"nitrate": "mysat"},' in script
         assert "Your recipes, from .oceanvalrc" in script
         compile(script, "matchup.py", "exec")
@@ -533,7 +534,7 @@ class TestFromOwnData:
         assert status == 200, reply
         units_match(app)
         wait_for(lambda: runs)
-        script = (tmp_path / "matchup.py").read_text()
+        script = open(draft(app)).read()
         assert '\noceanval.add_gridded_comparison(\n    name="nitrate",\n    source="MySat",\n' in script
         assert "Your recipes, from .oceanvalrc" in script
         mine = [line for line in script.splitlines() if 'recipe={"nitrate": "mysat"}' in line]
