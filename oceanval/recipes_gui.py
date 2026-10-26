@@ -34,8 +34,10 @@ from oceanval.create_recipes import (
     USER_REGION,
     _WOA23_PERIODS,
     _has_vertical_option,
+    _is_climatology,
     _model_variable_names,
     _unknown_variables,
+    climatology_years,
     default_selection,
     gridded_catalogue,
     matchup_defaults,
@@ -122,6 +124,8 @@ def default_form(start, end, exclude=None, require=None):
     return {
         "start": str(start),
         "end": str(end),
+        "clim_start": "",
+        "clim_end": "",
         "lon_min": limit("lon_lim", 0),
         "lon_max": limit("lon_lim", 1),
         "lat_min": limit("lat_lim", 0),
@@ -183,6 +187,27 @@ def check_settings(form, available, fvcom=False):
             errors[name] = f"{'First' if name == 'start' else 'Last'} must be a year, e.g. 2011."
     if not errors and settings["end"] < settings["start"]:
         errors["end"] = "Last year must not be before the first year."
+
+    # the years climatology datasets average the simulation over, if not the
+    # years being validated, and the WOA23 years asked for when those do not
+    # sit inside one decade (not matchup() arguments, so not in the footer)
+    clim_years = _check_pair(text, errors, "clim_start", "clim_end", "climatologies")
+    if clim_years:
+        settings["clim_years"] = clim_years
+    if clim_years and "start" not in errors and "end" not in errors:
+        first, last = clim_years
+        if first > settings["end"] or last < settings["start"]:
+            errors["clim_start"] = (
+                f"These years miss the {settings['start']}–{settings['end']} "
+                "being matched up."
+            )
+    woa_years = _check_pair(text, errors, "woa23_start", "woa23_end", "WOA23")
+    if woa_years:
+        settings["woa_years"] = woa_years
+    if woa_years and not _in_one_period(woa_years):
+        errors["woa23_end"] = (
+            "These years must sit inside one WOA23 decade, e.g. 2005–2014."
+        )
 
     limits = check_limits(text, errors)
     if limits is not None:
@@ -261,6 +286,32 @@ def check_settings(form, available, fvcom=False):
         errors["concise"] = "Choose concise or detailed."
     settings["subregions"] = check_subregions(text, errors)
     return settings, errors
+
+
+def _in_one_period(years):
+    """Whether years sit inside one of the decades WOA23 publishes."""
+    return any(first <= years[0] and years[1] <= last for first, last in _WOA23_PERIODS)
+
+
+def _check_pair(text, errors, first_name, last_name, what):
+    """A first and last year from two boxes: (first, last), or None if both
+    are empty or errors says what is wrong with them."""
+    given = [name for name in (first_name, last_name) if text(name)]
+    if not given:
+        return None
+    years = []
+    for name in (first_name, last_name):
+        try:
+            years.append(int(text(name)))
+        except ValueError:
+            errors[name] = (
+                f"Give both years for {what}, or leave them both empty."
+                if not text(name)
+                else "Years must be whole numbers."
+            )
+    if len(years) == 2 and years[1] < years[0]:
+        errors[last_name] = "Last year must not be before the first year."
+    return tuple(years) if len(years) == 2 and last_name not in errors else None
 
 
 def check_limits(text, errors):
@@ -372,14 +423,26 @@ def check_point_options(form, years):
     return options, errors
 
 
-def check_gridded_options(form, years, vertical_option=False, decadal=False):
+def check_gridded_options(
+    form,
+    years,
+    vertical_option=False,
+    decadal=False,
+    climatology=False,
+    clim_years=None,
+    woa_years=None,
+):
     """Turn one gridded dataset's options into add_gridded_comparison
     arguments.
 
     years are as for check_point_options. vertical_option is whether the
     dataset can be validated through the full water column at all, and
     decadal whether it is one WOA23 publishes per decade, whose years must
-    then both be given and sit inside one decade. Returns (options, errors).
+    then both be given and sit inside one decade. climatology is whether it
+    is a climatology, which is given clim_years, the years to average the
+    simulation over, if it has none of its own. A decadal one whose years
+    (clim_years, else years) sit inside no decade is given woa_years, the
+    ones asked for in the window, or is refused. Returns (options, errors).
     """
     form = form if isinstance(form, dict) else {}
     options, errors = _check_years(form, years)
@@ -387,26 +450,31 @@ def check_gridded_options(form, years, vertical_option=False, decadal=False):
     options["vertical"] = True if vertical_option and form.get("vertical") else None
 
     start, end = options["start"], options["end"]
-    needs_dataset_decade = years is not None and not any(
-        first <= years[0] and years[1] <= last for first, last in _WOA23_PERIODS
-    )
-    if (
-        decadal
-        and not errors
-        and (start is not None or end is not None or needs_dataset_decade)
-    ):
-        if start is None:
-            errors["start"] = "WOA23 publishes this per decade, so give both years."
-        if end is None:
-            errors["end"] = "WOA23 publishes this per decade, so give both years."
-        if (
-            start is not None
-            and end is not None
-            and not any(first <= start and end <= last for first, last in _WOA23_PERIODS)
-        ):
-            errors["end"] = (
-                "These years must sit inside one WOA23 decade, e.g. 2005–2014."
-            )
+    if errors:
+        return options, errors
+    if start is not None or end is not None:
+        if decadal:
+            if start is None:
+                errors["start"] = "WOA23 publishes this per decade, so give both years."
+            if end is None:
+                errors["end"] = "WOA23 publishes this per decade, so give both years."
+            if start is not None and end is not None and not _in_one_period((start, end)):
+                errors["end"] = (
+                    "These years must sit inside one WOA23 decade, e.g. 2005–2014."
+                )
+        return options, errors
+    if not climatology:
+        return options, errors
+
+    # none of its own years
+    chosen = climatology_years(decadal, years, clim_years, woa_years)
+    target = clim_years or years
+    if chosen:
+        options["start"], options["end"] = chosen
+    elif decadal and target is not None and not _in_one_period(target):
+        errors["start"] = errors["end"] = (
+            "WOA23 publishes this per decade, so give both years."
+        )
     return options, errors
 
 
@@ -561,6 +629,9 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
             # inside one WOA23 decade
             "vertical_option": _has_vertical_option(entry),
             "decadal": bool(entry.get("decadal")),
+            # averaged over the simulation's years: given the window's
+            # climatology years
+            "climatology": _is_climatology(entry),
         }
 
     rows = [
@@ -969,6 +1040,9 @@ class RecipePage:
                                 years,
                                 dataset["vertical_option"],
                                 dataset["decadal"],
+                                dataset["climatology"],
+                                settings.get("clim_years"),
+                                settings.get("woa_years"),
                             )
                         if problems:
                             kind_errors.setdefault(variable, {})[recipe] = problems

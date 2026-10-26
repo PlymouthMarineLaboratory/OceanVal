@@ -1322,6 +1322,50 @@ class TestSettings:
             '#     start=2005, end=2014,\n'
         ) in script
 
+    def test_climatologies_are_given_the_years_for_climatologies(self):
+        # also where the recipe is not ticked, so is commented out
+        script = self.build(
+            domain="global",
+            selection={("temperature", "woa23")},
+            settings=settings(clim_years=(2006, 2012)),
+        )
+
+        assert (
+            '    recipe={"temperature": "woa23"},\n'
+            '    start=2006,\n'
+            '    end=2012,\n'
+            '    climatology=True,\n'
+        ) in script
+        assert (
+            '#     recipe={"salinity": "woa23"},\n'
+            '#     start=2006,\n'
+            '#     end=2012,\n'
+        ) in script
+        # a time series is left as it is
+        cobe2 = script.split('recipe={"temperature": "cobe2"},\n')[1].split(")\n")[0]
+        assert "start=" not in cobe2
+        # and the years are not matchup's
+        assert "clim_years" not in script
+
+    def test_woa23_years_are_used_where_none_of_the_years_fit_a_decade(self):
+        script = build_recipe_script(
+            "/sim", 2, dict(self.MAPPING, nitrate="no3"), (2011, 2012), "global",
+            selection={("temperature", "woa23"), ("nitrate", "woa23")},
+            settings=settings(clim_years=(1990, 2020), woa_years=(2005, 2014)),
+        )
+
+        # nitrate is the all-years file, so keeps the years for climatologies
+        assert (
+            '    recipe={"nitrate": "woa23"},\n'
+            '    start=1990,\n'
+            '    end=2020,\n'
+        ) in script
+        assert (
+            '    recipe={"temperature": "woa23"},\n'
+            '    start=2005,\n'
+            '    end=2014,\n'
+        ) in script
+
     def test_validate_can_be_left_for_later(self, simulation, tmp_path):
         out = str(tmp_path / "matchup.py")
         oceanval.create_recipes(

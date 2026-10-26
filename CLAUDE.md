@@ -141,6 +141,14 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (`analysis_forms.check_output`, `sim_compare_forms.check_output`; the boxes are kept in `analyze_setup_form` / `sc_output_form` and shown in
   `state["analyze"]["output"]`). Validate and Matchup ask it once the matchups are confirmed (above).
 
+- **Years for climatologies** (recipes window, "What simulation years do you want to use for climatologies?", `clim_start`/`clim_end`
+  → `settings["clim_years"]`, only present when given): written as `start`/`end` on every gridded recipe that is a climatology
+  (`create_recipes._is_climatology`: `climatology=True` in its arguments, or a user recipe's flag), ticked or not, unless the dataset
+  has years of its own (`create_recipes.climatology_years`, `_climate_options`; `recipes_gui.check_gridded_options`). Blank = the validation
+  years. WOA23 temperature/salinity (`decadal`) need years inside one `_WOA23_PERIODS` decade: when the climatology (else validation) years
+  fit none, **Continue** opens `#woa-dialog` (`askWoaYears`) for `woa23_start`/`woa23_end` (`settings["woa_years"]`), which become that
+  recipe's `start`/`end`; the server refuses the write without them. These keys are not `matchup()` arguments and stay out of the footer.
+
 ### Recipes of the user's own (`.oceanvalrc`)
 
 - `oceanval/user_recipes.py` reads and writes the JSON `.oceanvalrc` files: one in the

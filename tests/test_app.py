@@ -4007,6 +4007,17 @@ class TestRecipesRestore:
         # the others are chosen in other steps
         assert choices["settings"] == {"start": "2011", "end": "2012", "thickness": ""}
 
+    def test_the_years_for_climatologies_and_for_woa23_are_kept(self):
+        choices = self.left(
+            [], start="1990", end="2020", clim_start="2000", clim_end=2010,
+            woa23_start="2005", woa23_end=None,
+        )
+
+        assert choices["settings"] == {
+            "start": "1990", "end": "2020", "clim_start": "2000", "clim_end": "2010",
+            "woa23_start": "2005", "woa23_end": "",
+        }
+
     @pytest.mark.parametrize(
         "row, edited",
         [

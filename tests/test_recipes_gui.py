@@ -534,6 +534,44 @@ class TestServer:
         }
         assert page.written == []
 
+    def test_climatologies_are_given_the_years_for_climatologies(self, page):
+        rows = [{
+            "variable": "temperature",
+            "model_variable": "thetao",
+            "selected": ["cobe2", "nsbc"],
+            "gridded": {"cobe2": {}, "nsbc": {}},
+        }]
+        form = dict(default_form(1990, 2020), clim_start="2000", clim_end="2010")
+        status, _ = _post(page.url, "/write", {"rows": rows, "settings": form})
+
+        assert status == 200
+        # not COBE2, which is a time series
+        assert page.written[0][4] == {
+            ("temperature", "nsbc"): {"start": 2000, "end": 2010, "vertical": None},
+        }
+
+    def test_woa23_temperature_is_given_years_when_none_sit_inside_a_decade(self, page):
+        rows = [{
+            "variable": "temperature",
+            "model_variable": "thetao",
+            "selected": ["woa23"],
+            "gridded": {"woa23": {}},
+        }]
+        form = dict(default_form(1990, 2020), clim_start="2000", clim_end="2010")
+        status, reply = _post(page.url, "/write", {"rows": rows, "settings": form})
+
+        assert status == 400
+        assert set(reply["gridded_errors"]["temperature"]["woa23"]) == {"start", "end"}
+        assert page.written == []
+
+        form.update(woa23_start="2005", woa23_end="2014")
+        status, _ = _post(page.url, "/write", {"rows": rows, "settings": form})
+
+        assert status == 200
+        assert page.written[0][4] == {
+            ("temperature", "woa23"): {"start": 2005, "end": 2014, "vertical": None},
+        }
+
     def test_settings_that_cannot_be_used_are_sent_back(self, page):
         form = dict(default_form(2011, 2012), cores="0", lon_min="-20")
         status, reply = _post(page.url, "/write", {"rows": [], "settings": form})
@@ -780,19 +818,94 @@ class TestGriddedOptions:
         assert list(check_gridded_options(form, None, True, decadal=True)[1]) == errors
         assert check_gridded_options(form, None, True)[1] == {}
 
-    def test_global_years_without_a_woa23_decade_require_dataset_years(self):
-        options, errors = check_gridded_options({}, (1990, 2020), True, decadal=True)
+    def test_climatology_years_without_a_woa23_decade_require_woa23_years(self):
+        options, errors = check_gridded_options(
+            {}, (1990, 2020), True, decadal=True, climatology=True
+        )
 
         assert errors == {
             "start": "WOA23 publishes this per decade, so give both years.",
             "end": "WOA23 publishes this per decade, so give both years.",
         }
+        # the years asked for in the window are used
         options, errors = check_gridded_options(
-            {"start": "2005", "end": "2014"}, (1990, 2020), True, decadal=True
+            {}, (1990, 2020), True, decadal=True, climatology=True, woa_years=(2005, 2014)
         )
         assert errors == {}
         assert (options["start"], options["end"]) == (2005, 2014)
+        # the dataset's own are used before them
+        options, errors = check_gridded_options(
+            {"start": "1995", "end": "2004"}, (1990, 2020), True, decadal=True,
+            climatology=True, woa_years=(2005, 2014),
+        )
+        assert errors == {}
+        assert (options["start"], options["end"]) == (1995, 2004)
 
+    def test_the_years_for_climatologies_are_given_to_climatologies_only(self):
+        options, errors = check_gridded_options(
+            {}, (1990, 2020), climatology=True, clim_years=(2000, 2010)
+        )
+        assert errors == {}
+        assert (options["start"], options["end"]) == (2000, 2010)
+        # not to a time series
+        options, _ = check_gridded_options({}, (1990, 2020), clim_years=(2000, 2010))
+        assert (options["start"], options["end"]) == (None, None)
+        # nor over a dataset's own
+        options, _ = check_gridded_options(
+            {"start": "2001"}, (1990, 2020), climatology=True, clim_years=(2000, 2010)
+        )
+        assert (options["start"], options["end"]) == (2001, None)
+
+    def test_the_years_for_climatologies_decide_whether_woa23_needs_a_decade(self):
+        # the years being validated sit in no decade, but those for climatologies do
+        options, errors = check_gridded_options(
+            {}, (1990, 2020), True, decadal=True, climatology=True, clim_years=(2006, 2012)
+        )
+        assert errors == {}
+        assert (options["start"], options["end"]) == (2006, 2012)
+        # the years being validated sit in one, those for climatologies do not
+        _, errors = check_gridded_options(
+            {}, (2006, 2012), True, decadal=True, climatology=True, clim_years=(1990, 2020)
+        )
+        assert set(errors) == {"start", "end"}
+        # and with neither given, WOA23 takes the decade of the years being validated
+        options, errors = check_gridded_options(
+            {}, (2006, 2012), True, decadal=True, climatology=True
+        )
+        assert errors == {} and (options["start"], options["end"]) == (None, None)
+
+
+class TestClimatologyYearsSetting:
+    @staticmethod
+    def check(**boxes):
+        form = dict(default_form(1990, 2020), **boxes)
+        settings, errors = check_settings(form, {"thetao"})
+        return settings, {name: errors[name] for name in errors if "clim" in name or "woa" in name}
+
+    def test_they_are_empty_to_start_with_and_then_left_out(self):
+        settings, errors = self.check()
+        assert errors == {}
+        assert "clim_years" not in settings and "woa_years" not in settings
+
+    def test_they_are_given_with_the_settings(self):
+        settings, errors = self.check(clim_start="2000", clim_end="2010")
+        assert errors == {}
+        assert settings["clim_years"] == (2000, 2010)
+
+    @pytest.mark.parametrize(
+        "boxes, names",
+        [
+            ({"clim_start": "2000"}, ["clim_end"]),
+            ({"clim_end": "2000"}, ["clim_start"]),
+            ({"clim_start": "20x0", "clim_end": "2010"}, ["clim_start"]),
+            ({"clim_start": "2010", "clim_end": "2000"}, ["clim_end"]),
+            ({"clim_start": "2030", "clim_end": "2040"}, ["clim_start"]),
+            ({"woa23_start": "2005", "woa23_end": "2020"}, ["woa23_end"]),
+            ({"woa23_start": "2005"}, ["woa23_end"]),
+        ],
+    )
+    def test_those_that_cannot_be_used_are_refused(self, boxes, names):
+        assert list(self.check(**boxes)[1]) == names
 
 class TestHosting:
     def test_the_oceanval_app_shows_the_window_instead(self, monkeypatch):
@@ -1607,42 +1720,72 @@ def test_your_own_data_is_shown_ticked_in_the_browser(browser, tmp_path, monkeyp
     assert '\noceanval.add_gridded_comparison(\n    name="zooc",\n' in script
 
 
-def test_woa23_dataset_years_are_required_when_global_years_have_no_decade(browser, tmp_path, monkeypatch):
-    page, _, finished = _open_window(browser, tmp_path, monkeypatch)
+def test_woa23_asks_for_its_years_when_those_for_climatologies_sit_in_no_decade(browser, tmp_path, monkeypatch):
+    page, out, finished = _open_window(browser, tmp_path, monkeypatch)
     page.fill("#s-start", "1990")
     page.fill("#s-end", "2020")
     page.check('input[aria-label="WOA23, Global, for Temperature"]')
 
+    # nothing is required of the dataset's own boxes, and the hint says what happens
     first_year = page.locator('input[aria-label="First year of WOA23 observations for Temperature"]')
-    last_year = page.locator('input[aria-label="Last year of WOA23 observations for Temperature"]')
     year_row = first_year.locator("xpath=ancestor::div[contains(concat(' ', @class, ' '), ' opts__row ')]")
-    assert "is-required" in year_row.get_attribute("class")
-    assert first_year.get_attribute("aria-required") == "true"
-    assert last_year.get_attribute("aria-required") == "true"
-    assert first_year.get_attribute("aria-invalid") == "true"
-    assert last_year.get_attribute("aria-invalid") == "true"
-    opts_block = first_year.locator("xpath=ancestor::div[contains(concat(' ', @class, ' '), ' opts ')]")
-    help = opts_block.locator(".opts__help")
-    assert help.locator("summary").get_attribute("aria-label") == "Show available WOA23 year periods"
-    assert help.locator(".opts__help-popover").is_hidden()
-    help.locator("summary").click()
-    popover = help.locator(".opts__help-popover")
-    assert popover.is_visible()
-    assert popover.locator("li").all_text_contents() == [
-        "1955–1964", "1965–1974", "1975–1984", "1985–1994",
-        "1995–2004", "2005–2014", "2015–2022",
-    ]
-    assert "First and Last must fit within the same period." in popover.text_content()
-    assert page.is_disabled("#write")
-    assert page.is_visible("#fix-settings")
-
-    first_year.fill("2005")
-    last_year.fill("2014")
-    assert first_year.get_attribute("aria-invalid") == "false"
-    assert last_year.get_attribute("aria-invalid") == "false"
+    assert "is-required" not in year_row.get_attribute("class")
+    assert "you will be asked for WOA23 temperature years" in page.inner_text("#g-climate")
     assert page.is_enabled("#write")
-    assert page.is_hidden("#fix-settings")
 
-    page.click("#cancel")
+    page.click("#write")
+    assert page.is_visible("#woa-dialog")
+    assert "no decade covers 1990–2020" in page.inner_text("#woa-dialog")
+    assert "1955–1964, 1965–1974" in page.inner_text("#woa-dialog")
+
+    # years that fit no decade are refused in the pop-out
+    page.fill("#woa-start", "2005")
+    page.fill("#woa-end", "2020")
+    page.click("#woa-ok")
+    assert page.is_visible("#woa-dialog")
+    assert "inside one WOA23 decade" in page.inner_text("#woa-problem")
+
+    # Cancel goes back to the page, which can be used as before
+    page.click("#woa-cancel")
+    assert page.locator("#woa-dialog").count() == 0
+    assert page.is_enabled("#write")
+
+    page.click("#write")
+    page.fill("#woa-start", "2005")
+    page.fill("#woa-end", "2014")
+    page.click("#woa-ok")
     page.wait_for_selector("#done:not([hidden])")
-    assert finished() is None
+    assert finished() == out
+    block = open(out).read().split('recipe={"temperature": "woa23"},\n')[1].split(")\n")[0]
+    assert "    start=2005,\n    end=2014,\n" in block
+
+
+def test_the_years_for_climatologies_are_used_without_asking_when_they_fit_a_decade(browser, tmp_path, monkeypatch):
+    page, out, finished = _open_window(browser, tmp_path, monkeypatch)
+    page.fill("#s-start", "1990")
+    page.fill("#s-end", "2020")
+    page.fill("#s-clim_start", "2006")
+    page.fill("#s-clim_end", "2012")
+    page.check('input[aria-label="WOA23, Global, for Temperature"]')
+    assert "2005–2014" in page.inner_text("#g-climate")
+
+    page.click("#write")
+    page.wait_for_selector("#done:not([hidden])")
+    assert finished() == out
+    script = open(out).read()
+    block = script.split('recipe={"temperature": "woa23"},\n')[1].split(")\n")[0]
+    assert "    start=2006,\n    end=2012,\n" in block
+    # COBE2 is a time series
+    block = script.split('recipe={"temperature": "cobe2"},\n')[1].split(")\n")[0]
+    assert "start=" not in block
+
+
+def test_woa23_nutrients_never_ask_for_years(browser, tmp_path, monkeypatch):
+    page, out, finished = _open_window(browser, tmp_path, monkeypatch)
+    page.fill("#s-start", "1990")
+    page.fill("#s-end", "2020")
+    page.click("#write")
+    # no decade covers the years, but no WOA23 temperature or salinity is ticked
+    page.wait_for_selector("#done:not([hidden])")
+    assert page.locator("#woa-dialog").count() == 0
+    assert finished() == out

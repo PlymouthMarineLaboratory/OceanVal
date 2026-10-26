@@ -251,6 +251,14 @@
             <p class="group__msg" id="g-output-years"></p>
             <p class="group__msg" id="g-years"></p>
           </fieldset>
+          <fieldset class="group" id="group-climate">
+            <legend>What simulation years do you want to use for climatologies?</legend>
+            <div class="g-row pair">
+              <label><span class="g-label">First</span><input class="s-input is-num" id="s-clim_start" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">Last</span><input class="s-input is-num" id="s-clim_end" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            </div>
+            <p class="group__msg" id="g-climate"></p>
+          </fieldset>
           <fieldset class="group">
             <label class="g-row cores-row"><span class="g-label">How many cores do you want to use?</span><select class="s-select" id="s-cores"></select></label>
             <p class="group__msg" id="g-matchup"></p>
@@ -449,10 +457,10 @@
   const outputYears = Array.isArray(context.output_years) ? context.output_years : null;
   if (outputYears) {
     const years = Array.from({ length: outputYears[1] - outputYears[0] + 1 }, (_, number) => outputYears[0] + number);
-    for (const name of ["start", "end"]) {
+    for (const name of ["start", "end", "clim_start", "clim_end"]) {
       const box = $(`s-${name}`);
       box.classList.add("is-year");
-      box.placeholder = String(outputYears[name === "start" ? 0 : 1]);
+      box.placeholder = String(outputYears[name.endsWith("start") ? 0 : 1]);
       withChoices(box, years);
     }
     $("g-output-years").textContent = outputYears[0] === outputYears[1]
@@ -546,6 +554,7 @@
   const serverErrors = {};
   const GROUPS = {
     years: ["start", "end"],
+    climate: ["clim_start", "clim_end"],
     subset: ["lon_min", "lon_max", "lat_min", "lat_max"],
     output: ["out_dir", "overwrite"],
     thickness: ["thickness"],
@@ -568,7 +577,7 @@
   // each setting as the boxes it is made of, so changes and problems are
   // counted per setting rather than per box
   const SETTINGS = [
-    ["start"], ["end"], GROUPS.subset, ["out_dir"], ["overwrite"], ["thickness"],
+    ["start"], ["end"], ["clim_start"], ["clim_end"], GROUPS.subset, ["out_dir"], ["overwrite"], ["thickness"],
     ["missing_from", "missing_to"], ["point_time_res"], ["cores"], ["ask"],
     ["exclude"], ["require"], ["pdf"], ["word"], ["concise"], ["subregions", "subregions_file"],
   ];
@@ -649,6 +658,29 @@
   const woa23Period = (years) =>
     state.woa23_periods.find(([first, last]) => years[0] >= first && years[1] <= last);
   const hasOwnYears = (dataset) => ["start", "end"].some((name) => String(dataset.opts[name]).trim());
+  // the years climatology datasets average the simulation over: the ones for
+  // climatologies when they are given, else the ones being validated
+  const climYears = () =>
+    isInteger(form.clim_start) && isInteger(form.clim_end) && +form.clim_start <= +form.clim_end
+      ? [+form.clim_start, +form.clim_end] : null;
+  const climateYears = () => climYears() || knownYears();
+  // the years asked for in the pop-out when those sit inside no WOA23 decade
+  const woaYears = { start: "", end: "" };
+  if (restore) {
+    for (const name of ["start", "end"]) woaYears[name] = String(restore.settings[`woa23_${name}`] || "");
+  }
+  const woaYearsGiven = () =>
+    isInteger(woaYears.start) && isInteger(woaYears.end) && +woaYears.start <= +woaYears.end
+      && Boolean(woa23Period([+woaYears.start, +woaYears.end]));
+  // the ticked WOA23 datasets published per decade that have no years of their own
+  const decadalDatasets = () => rows.filter((row) => row.status === "ok").flatMap((row) => row.datasets
+    .filter((dataset) => dataset.decadal && dataset.checked && !hasOwnYears(dataset))
+    .map((dataset) => ({ row, dataset })));
+  // whether those need years from the pop-out: the years sit inside no decade
+  const needsWoaYears = () => {
+    const years = climateYears();
+    return decadalDatasets().length > 0 && Boolean(years) && !woa23Period(years);
+  };
   // matchup needs a thickness to validate anything through the water column
   // the user's own data as the window has it, or else as the app says it is
   const ownVertical = () => ownChipList.length
@@ -674,6 +706,20 @@
       }
     }
     if (!errors.start && !errors.end && +form.end < +form.start) errors.end = "Last year must not be before the first year.";
+
+    // both or neither: empty is the years being validated
+    const clim = ["clim_start", "clim_end"].filter((name) => String(form[name]).trim());
+    for (const name of clim) {
+      if (!isInteger(form[name])) errors[name] = "Years must be whole numbers.";
+    }
+    if (clim.length === 1) {
+      errors[clim[0] === "clim_start" ? "clim_end" : "clim_start"] = "Give both years for climatologies, or leave them both empty.";
+    } else if (clim.length === 2 && !errors.clim_start && !errors.clim_end) {
+      if (+form.clim_end < +form.clim_start) errors.clim_end = "Last year must not be before the first year.";
+      else if (!errors.start && !errors.end && (+form.clim_start > +form.end || +form.clim_end < +form.start)) {
+        errors.clim_start = `These years miss the ${form.start}–${form.end} being matched up.`;
+      }
+    }
 
     const given = GROUPS.subset.filter((name) => String(form[name]).trim());
     for (const name of given) {
@@ -728,19 +774,21 @@
     return errors;
   }
 
+  // what is said, under the climatology years, of the WOA23 datasets published per decade
   function woa23Hint() {
-    // the ticked WOA23 datasets published per decade, left to take theirs from these years
-    const names = rows.filter((row) => row.status === "ok").flatMap((row) => row.datasets
-      .filter((dataset) => dataset.decadal && dataset.checked && !hasOwnYears(dataset))
-      .map(() => row.title.toLowerCase()));
-    const years = knownYears();
+    const names = decadalDatasets().map(({ row }) => row.title.toLowerCase());
+    const years = climateYears();
     if (!names.length || !years) return null;
+    const list = `WOA23 ${names.join(" and ")}`;
     const period = woa23Period(years);
     if (period) {
-      return { text: `WOA23 ${names.join(" and ")} use${names.length === 1 ? "s" : ""} its ${period[0]}–${period[1]} climatology.` };
+      return { text: `${list} use${names.length === 1 ? "s" : ""} its ${period[0]}–${period[1]} climatology.` };
+    }
+    if (woaYearsGiven()) {
+      return { text: `${list} use${names.length === 1 ? "s" : ""} the years ${woaYears.start}–${woaYears.end}, chosen for WOA23.` };
     }
     return {
-      text: `No WOA23 decade covers ${years[0]}–${years[1]}, so give WOA23 ${names.join(" and ")} years inside one below, or the script asks you to choose one.`,
+      text: `No WOA23 decade covers ${years[0]}–${years[1]}, so you will be asked for ${list} years inside one when you continue.`,
       warn: true,
     };
   }
@@ -755,6 +803,15 @@
         if (outputYears && years && (years[0] < outputYears[0] || years[1] > outputYears[1])) {
           hints.push({ text: `These go beyond the ${outputYears[0]}–${outputYears[1]} found in the simulation's files. Check they are right: years with no output are not matched up.`, warn: true });
         }
+        return hints;
+      }
+      case "climate": {
+        const used = rows.filter((row) => row.status === "ok").flatMap((row) => row.datasets
+          .filter((dataset) => dataset.climatology && dataset.checked)
+          .map((dataset) => `${dataset.label} ${row.title.toLowerCase()}`));
+        const hints = [{ text: used.length
+          ? `Used by ${used.join(", ")}. Empty: the years being validated.`
+          : "None of the ticked datasets are climatologies. Empty: the years being validated." }];
         const warning = woa23Hint();
         return warning ? [...hints, warning] : hints;
       }
@@ -946,11 +1003,10 @@
     const years = knownYears();
     const missed = years ? `These years miss the ${years[0]}–${years[1]} being matched up.` : "";
     const both = "WOA23 publishes this per decade, so give both years.";
-    const needsDatasetDecade = Boolean(years && !woa23Period(years));
     if (start !== null && end !== null && start > end) errors.end = "To must not be before From.";
     else if (years && start !== null && start > years[1]) errors.start = missed;
     else if (years && end !== null && end < years[0]) errors.end = missed;
-    else if (dataset.decadal && (needsDatasetDecade || start !== null || end !== null)) {
+    else if (dataset.decadal && (start !== null || end !== null)) {
       if (start === null) errors.start = both;
       if (end === null) errors.end = both;
       if (start !== null && end !== null && !woa23Period([start, end])) {
@@ -979,20 +1035,22 @@
     }
     if (dataset.decadal) {
       // with a matching global decade, the script can use that decade
-      const years = knownYears();
+      const years = climateYears();
       const period = years && woa23Period(years);
-      const required = shown && Boolean(years && !period || hasOwnYears(dataset));
+      const required = shown && hasOwnYears(dataset);
       opts.yearsRow.classList.toggle("is-required", required);
       for (const name of ["start", "end"]) {
         const missing = !String(dataset.opts[name]).trim();
         opts.controls[name].required = required && missing;
         opts.controls[name].setAttribute("aria-required", String(required && missing));
       }
-      opts.controls.start.placeholder = period ? String(period[0]) : "from";
-      opts.controls.end.placeholder = period ? String(period[1]) : "to";
+      const given = climYears();
+      opts.controls.start.placeholder = period ? String(given ? given[0] : period[0]) : "from";
+      opts.controls.end.placeholder = period ? String(given ? given[1] : period[1]) : "to";
       opts.years.title = period
-        ? `Empty: WOA23's ${period[0]}–${period[1]} decade, which covers the years in the global settings.`
-        : "WOA23 publishes this per decade, so give years inside one.";
+        ? (given ? `Empty: the years for climatologies, ${given[0]}–${given[1]}, which sit inside WOA23's ${period[0]}–${period[1]} decade.`
+          : `Empty: WOA23's ${period[0]}–${period[1]} decade, which covers the years being validated.`)
+        : "Empty: you are asked for WOA23 years when you continue. WOA23 publishes this per decade, so give years inside one.";
     }
     const errors = shown ? optionErrors(dataset) : {};
     for (const [name, control] of Object.entries(opts.controls)) {
@@ -1268,7 +1326,7 @@
   writeButton.textContent = writeLabel;
   if (app) cancelButton.textContent = "Back";
 
-  const ownChanged = ({ dataset }) => Object.keys(dataset.opts).some((name) => dataset.opts[name] !== dataset.initial[name]);
+  const ownChanged = ({ chip: { dataset } }) => Object.keys(dataset.opts).some((name) => dataset.opts[name] !== dataset.initial[name]);
   const changed = () =>
     FIELDS.some((name) => form[name] !== initialForm[name])
     || ownChipList.some(ownChanged)
@@ -1377,7 +1435,12 @@
   function choices(write = false) {
     return {
       // a thickness that no dataset needs is left out of the script
-      settings: write && !needsThickness() ? { ...form, thickness: "" } : form,
+      settings: {
+        ...(write && !needsThickness() ? { ...form, thickness: "" } : form),
+        // only the WOA23 years asked for, and still needed
+        woa23_start: needsWoaYears() ? woaYears.start : "",
+        woa23_end: needsWoaYears() ? woaYears.end : "",
+      },
       rows: rows.map((row) => {
         const options = { gridded: {}, point: {} };
         for (const dataset of row.datasets) {
@@ -1398,8 +1461,78 @@
     };
   }
 
+  // the pop-out asking for the years of WOA23 temperature and salinity, which it
+  // publishes per decade, when the years for climatologies sit inside no decade;
+  // resolves to whether years were given (false: the user went back to the page)
+  function askWoaYears() {
+    const years = climateYears();
+    const names = decadalDatasets().map(({ row }) => row.title.toLowerCase()).join(" and ");
+    const boxes = ["start", "end"].map((key) => el("input", {
+      class: "s-input is-num",
+      id: `woa-${key}`,
+      inputmode: "numeric",
+      placeholder: key === "start" ? "from" : "to",
+      spellcheck: "false",
+      autocomplete: "off",
+      value: woaYears[key],
+      "aria-label": `${key === "start" ? "First" : "Last"} year for WOA23`,
+    }));
+    const problem = el("p", { class: "group__msg is-error", id: "woa-problem", role: "alert" });
+    const cancel = el("button", { type: "button", class: "btn btn--ghost", id: "woa-cancel", text: "Cancel" });
+    const ok = el("button", { type: "button", class: "btn btn--primary", id: "woa-ok", text: "Continue" });
+    const dialog = el("div", { class: "picker", id: "woa-dialog", hidden: "" },
+      el("div", { class: "picker__card restart__card", role: "dialog", "aria-modal": "true", "aria-labelledby": "woa-title" },
+        el("div", { class: "restart__body" },
+          el("h2", { id: "woa-title", text: "Which years do you want to use for WOA23?" }),
+          el("p", { text: `WOA23 ${names} is published per decade, and no decade covers ${years[0]}–${years[1]}. `
+            + "Give the first and last year to use for it, inside one of these periods: "
+            + state.woa23_periods.map(([first, last]) => `${first}–${last}`).join(", ") + "." }),
+          el("div", { class: "g-row pair" },
+            el("label", {}, el("span", { class: "g-label", text: "First" }), boxes[0]),
+            el("label", {}, el("span", { class: "g-label", text: "Last" }), boxes[1])),
+          problem),
+        el("div", { class: "picker__foot" }, cancel, ok)));
+    document.body.append(dialog);
+    const behind = [document.querySelector(".masthead"), document.querySelector("main"), document.querySelector(".bar")];
+    return new Promise((resolve) => {
+      const close = (answer) => {
+        document.removeEventListener("keydown", onKey, true);
+        dialog.remove();
+        behind.forEach((node) => { node.inert = false; });
+        resolve(answer);
+      };
+      const onKey = (event) => {
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(false); }
+        else if (event.key === "Enter" && dialog.contains(document.activeElement) && document.activeElement !== cancel) {
+          event.preventDefault();
+          ok.click();
+        }
+      };
+      cancel.addEventListener("click", () => close(false));
+      dialog.addEventListener("click", (event) => { if (event.target === dialog) close(false); });
+      ok.addEventListener("click", () => {
+        const [first, last] = boxes.map((box) => box.value.trim());
+        let text = "";
+        if (!isInteger(first) || !isInteger(last)) text = "Give both years, as whole numbers, e.g. 2005 and 2014.";
+        else if (+last < +first) text = "Last year must not be before the first year.";
+        else if (!woa23Period([+first, +last])) text = "These years must sit inside one WOA23 decade, e.g. 2005–2014.";
+        problem.textContent = text;
+        boxes.forEach((box) => { box.classList.toggle("is-invalid", Boolean(text)); box.setAttribute("aria-invalid", String(Boolean(text))); });
+        if (text) return;
+        woaYears.start = first;
+        woaYears.end = last;
+        close(true);
+      });
+      document.addEventListener("keydown", onKey, true);
+      dialog.hidden = false;
+      behind.forEach((node) => { node.inert = true; });
+      boxes[woaYears.start ? 1 : 0].focus();
+    });
+  }
+
   writeButton.addEventListener("click", async () => {
     if (busy || writeButton.disabled) return;
+    if (needsWoaYears() && !(await askWoaYears())) return;
     setBusy(true);
     let reply;
     try {

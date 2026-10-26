@@ -374,6 +374,7 @@ def _user_entry(recipe, cwd=None):
         "arguments": arguments,
         "units": units,
         "user": True,
+        "climatology": bool(recipe.get("climatology")) and not point,
         "where": recipe["where"],
         "path": recipe["path"],
         "point": point,
@@ -1008,6 +1009,51 @@ def _comment(lines):
     return [f"# {line}".rstrip() for line in lines]
 
 
+def climatology_years(decadal, years, clim_years=None, woa_years=None):
+    """The start and end to give a climatology recipe that has none of its
+    own: the years chosen for climatologies, or None to leave the recipe's
+    own default, which for one WOA23 publishes per decade is the decade
+    covering years, the ones being validated.
+
+    A decadal recipe whose years (clim_years, else years) sit inside no
+    decade is given woa_years, the ones asked for in the window.
+    """
+    target = clim_years or years
+    if decadal and target is not None and _woa23_period(target) is None:
+        return tuple(woa_years) if woa_years else None
+    return tuple(clim_years) if clim_years else None
+
+
+def _climate_options(entry, options, years, settings):
+    """options for a gridded recipe, with the years for climatologies it has
+    none of its own for."""
+    options = dict(options or {})
+    if (
+        settings
+        and _is_climatology(entry)
+        and options.get("start") is None
+        and options.get("end") is None
+    ):
+        chosen = climatology_years(
+            bool(entry.get("decadal")),
+            years,
+            settings.get("clim_years"),
+            settings.get("woa_years"),
+        )
+        if chosen:
+            options["start"], options["end"] = chosen
+    return options
+
+
+def _is_climatology(entry):
+    """Whether a gridded recipe is a climatology, which the simulation is
+    averaged over the years of."""
+    return bool(entry.get("climatology")) or any(
+        argument.replace(" ", "").startswith("climatology=True")
+        for argument in entry["arguments"]
+    )
+
+
 def _has_vertical_option(entry):
     """Whether a recipe can be validated through the full water column.
 
@@ -1474,7 +1520,9 @@ def build_recipe_script(
                 years,
                 live(entry),
                 live_entries,
-                gridded_options.get((variable, entry["recipe"])),
+                _climate_options(
+                    entry, gridded_options.get((variable, entry["recipe"])), years, settings
+                ),
                 fvcom,
             )
         )
@@ -1502,7 +1550,9 @@ def build_recipe_script(
                     )
                 )
             else:
-                options = gridded_options.get((variable, entry["recipe"]))
+                options = _climate_options(
+                    entry, gridded_options.get((variable, entry["recipe"])), years, settings
+                )
                 lines.extend(
                     _recipe_block(
                         entry, mapping.get(variable), None, years, live(entry), (), options, fvcom

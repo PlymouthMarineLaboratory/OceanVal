@@ -999,6 +999,10 @@ def _validate_call(arguments, cwd):
 RECIPES_KEPT = (
     "start",
     "end",
+    "clim_start",
+    "clim_end",
+    "woa23_start",
+    "woa23_end",
     "lon_min",
     "lon_max",
     "lat_min",
