@@ -269,6 +269,10 @@
   .ndown-row > .s-input { width: 84px; text-align: center; }
   /* how many files were found, a quiet highlight beside the box that sets where to look */
   .ndown-found { margin-left: 8px; padding: 6px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--teal-50); color: var(--teal-700); font-weight: 600; }
+  .ndown-found.is-finding, .group__line.is-finding { display: inline-flex; gap: 8px; align-items: center; }
+  .ndown-found.is-finding { color: var(--muted); background: transparent; }
+  .ndown-found .identify__spinner, .group__line.is-finding .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
+  .group__line.is-finding { color: var(--muted); }
   .group__intro { margin: -2px 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
   .group__line.is-ok { color: var(--teal-700); }
   .group__line .link { font-size: inherit; }
@@ -853,6 +857,7 @@
   .analyze-remove:focus-visible { outline: none; box-shadow: var(--focus); }
   .analyze-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 14px 0 0; }
   .analyze-foot .group__msg { margin: 0; }
+  .analyze-foot__end { margin-left: auto; }
   .analyze-files .review__head { padding-bottom: 4px; }
   .analyze-options.choices.is-two { max-width: 980px; gap: 28px; }
   .analyze-options .choice { aspect-ratio: auto; min-height: 200px; padding-top: 30px; }
@@ -1528,7 +1533,10 @@
       <div class="analyze-foot">
         <button type="button" class="btn btn--ghost" id="av-add">Add a variable</button>
         <button type="button" class="btn btn--ghost" id="av-add-all">Add all variables</button>
+        <button type="button" class="btn btn--ghost" id="av-add-3d">Add 3D variables</button>
+        <button type="button" class="btn btn--ghost" id="av-add-2d">Add 2D variables</button>
         <p class="group__msg is-error" id="av-msg" role="status" aria-live="polite"></p>
+        <button type="button" class="btn btn--ghost analyze-foot__end" id="av-remove-all">Remove all variables</button>
       </div>
     </div>
   </section>
@@ -2987,6 +2995,8 @@
   let probe = null;
   let probeNumber = 0;
   let probeTimer = null;
+  // true from the edit of a box the check reads until its answer (or failure) is in
+  let probePending = false;
   // whether the years were filled in from the files, so can change with them
   let autoYears = false;
 
@@ -3115,8 +3125,12 @@
 
   function askProbe(delay) {
     clearTimeout(probeTimer);
+    // the number is taken now, not when the timer fires, so an answer to an earlier check
+    // that is still on its way is dropped rather than shown in place of "Finding files"
+    const number = ++probeNumber;
+    probePending = true;
+    refreshSetup();
     probeTimer = setTimeout(async () => {
-      const number = ++probeNumber;
       let found;
       try {
         const response = await fetch(`api/probe?${query({
@@ -3124,10 +3138,12 @@
         })}`, { cache: "no-store" });
         found = await response.json();
       } catch (error) {
+        if (number === probeNumber) { probePending = false; refreshSetup(); }
         return;
       }
       // a later check has been asked for since
       if (number !== probeNumber) return;
+      probePending = false;
       probe = found;
       useProbe();
       refreshSetup();
@@ -3145,7 +3161,7 @@
     if (!probe) return;
     const blank = (name) => !String(setup[name]).trim();
     const read = outputYearsRead();
-    const years = (read && read.years) || probe.years || (probe.suggestion && probe.suggestion.years);
+    const years = (read && read.years) || probe.years;
     if ((blank("start") && blank("end")) || autoYears) {
       setup.start = $("f-start").value = years ? String(years[0]) : "1995";
       setup.end = $("f-end").value = years ? String(years[1]) : "2004";
@@ -3198,9 +3214,11 @@
     if (errors.simdir || errors.ndown) {
       simulation.push(line(errors.simdir || errors.ndown, "error"));
     }
+    // while the files are being looked for, the last answer is not shown
+    const finding = probePending && Boolean(String(setup.simdir).trim());
     // the count of files found is in the box beside "directories down"; the rest is said below
     let counted = "";
-    if (!errors.simdir && probe && probe.directory === "found") {
+    if (!finding && !errors.simdir && probe && probe.directory === "found") {
       const depth = probe.ndown;
       const filtered = probe.all_files !== null && probe.all_files !== probe.files;
       if (probe.files > 0) {
@@ -3209,23 +3227,18 @@
           : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} found`;
       } else if (depth !== null && probe.all_files > 0) {
         simulation.push(line(`None of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters.`, "nofiles"));
-      } else if (depth !== null && probe.suggestion) {
-        const other = probe.suggestion;
-        simulation.push(line(`No netCDF files ${depthText(depth)}, but there are ${other.files} ${depthText(other.ndown)}. `, "nofiles",
-          el("button", { type: "button", class: "link", text: `Use ${other.ndown}`, onclick: () => {
-            setup.ndown = $("f-ndown").value = String(other.ndown);
-            askProbe(0);
-            refreshSetup();
-          } })));
       } else if (depth !== null) {
-        simulation.push(line(`No netCDF files ${depthText(depth)}, nor at any depth down to 3 directories.`, "nofiles"));
+        simulation.push(line(`No netCDF files ${depthText(depth)}.`, "nofiles"));
       }
     }
     if (String(setup.exclude).trim() || String(setup.require).trim()) {
       simulation.push(line(`Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
-    $("ndown-found").textContent = counted;
-    $("ndown-found").hidden = !counted;
+    const badge = $("ndown-found");
+    badge.classList.toggle("is-finding", finding);
+    if (finding) badge.replaceChildren(el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Finding files");
+    else badge.textContent = counted;
+    badge.hidden = !finding && !counted;
     message("m-simulation", simulation, false);
 
     const blocked = Object.keys(errors).length > 0;
@@ -3637,6 +3650,11 @@
     });
     const wrong = problems.some(([a, b]) => a || b);
     $("av-msg").textContent = "";
+    // a kind of variable the simulation has none of, or nothing to remove, leaves its button off
+    const available = analyzePicker().available;
+    $("av-add-3d").disabled = !available.some(WHICH_VARIABLES["3d"]);
+    $("av-add-2d").disabled = !available.some(WHICH_VARIABLES["2d"]);
+    $("av-remove-all").disabled = analyzeVariables.rows.every((item) => !item.name.trim() && !item.model_variable.trim());
     const next = $("av-continue");
     if (next) {
       next.disabled = analyzeVariables.busy || wrong || !complete || !analyzeVariables.built;
@@ -3672,8 +3690,16 @@
     item.nameBox.focus();
   });
 
-  // one row for every variable in the simulation's files that no row holds yet: its long name on the left, its name on the right
-  $("av-add-all").addEventListener("click", () => {
+  // 3D: a vertical axis of more than one level, as nctoolkit's contents give it (the rule Analyze's Vertical analyses use)
+  const isThreeD = (variable) => ((analyzePicker().levels || {})[variable] || 1) > 1;
+  const WHICH_VARIABLES = {
+    all: () => true,
+    "3d": isThreeD,
+    "2d": (variable) => !isThreeD(variable),
+  };
+
+  // one row for every variable of the kind in the simulation's files that no row holds yet: its long name on the left, its name on the right
+  function addVariables(kind) {
     const picked = analyzePicker();
     const isEmpty = (item) => !item.name.trim() && !item.model_variable.trim();
     analyzeVariables.rows = analyzeVariables.rows.filter((item) => {
@@ -3682,7 +3708,7 @@
     });
     const used = new Set(analyzeVariables.rows.flatMap((item) => modelNames(item.model_variable)));
     const taken = new Set(analyzeVariables.rows.map((item) => variableKey(item.name.trim())));
-    const wanted = picked.available.filter((variable) => !used.has(variable));
+    const wanted = picked.available.filter((variable) => WHICH_VARIABLES[kind](variable) && !used.has(variable));
     const longName = (variable) => (picked.long_names[variable] || "").trim() || variable;
     const shared = {};
     picked.available.forEach((variable) => { const key = variableKey(longName(variable)); shared[key] = (shared[key] || 0) + 1; });
@@ -3695,6 +3721,20 @@
     analyzeVariables.rows.push(...added);
     $("av-rows").append(...added.map((item) => item.tr));
     refreshAnalyzeVariables();
+  }
+
+  for (const [id, kind] of [["av-add-all", "all"], ["av-add-3d", "3d"], ["av-add-2d", "2d"]]) {
+    $(id).addEventListener("click", () => addVariables(kind));
+  }
+
+  // every row goes, leaving one blank row to type in, as a simulation with no variables chosen starts with
+  $("av-remove-all").addEventListener("click", () => {
+    analyzeVariables.rows.forEach((item) => item.tr.remove());
+    const blank = variableRow({});
+    analyzeVariables.rows = [blank];
+    $("av-rows").append(blank.tr);
+    refreshAnalyzeVariables();
+    blank.nameBox.focus();
   });
 
   async function submitAnalyzeVariables() {
@@ -8608,7 +8648,7 @@
   }
 
   // ---- the simulations ----
-  const scSims = { shown: 2, errors: {}, probes: {}, timers: {}, numbers: {}, fillRecent: [], busy: false };
+  const scSims = { shown: 2, errors: {}, probes: {}, pending: {}, timers: {}, numbers: {}, fillRecent: [], busy: false };
   const SC_BOXES = { name: "name", simdir: "dir", ndown: "ndown", exclude: "exclude", require: "require" };
 
   function scReadSims() {
@@ -8646,6 +8686,7 @@
     scWriteSims(form);
     scSims.errors = {};
     scSims.probes = {};
+    scSims.pending = {};
     $("sc-sims-error").hidden = true;
     scShowRows();
     scSims.fillRecent.forEach((fill) => fill());
@@ -8659,8 +8700,11 @@
 
   function scAskProbe(n, delay) {
     clearTimeout(scSims.timers[n]);
+    // as askProbe: the number is taken at the edit, and "Finding files" is shown until the answer is in
+    const number = (scSims.numbers[n] = (scSims.numbers[n] || 0) + 1);
+    scSims.pending[n] = true;
+    refreshScSims();
     scSims.timers[n] = setTimeout(async () => {
-      const number = (scSims.numbers[n] = (scSims.numbers[n] || 0) + 1);
       let found;
       try {
         const response = await fetch(`api/probe?${query({
@@ -8669,9 +8713,11 @@
         })}`, { cache: "no-store" });
         found = await response.json();
       } catch (error) {
+        if (number === scSims.numbers[n]) { scSims.pending[n] = false; refreshScSims(); }
         return;
       }
       if (number !== scSims.numbers[n]) return;
+      scSims.pending[n] = false;
       scSims.probes[n] = found;
       refreshScSims();
     }, delay);
@@ -8719,7 +8765,10 @@
         if (shownErrors[field] && field !== "name") lines.push(line(shownErrors[field], "error"));
       }
       if (shownErrors.name) lines.push(line(shownErrors.name, "error"));
-      if (!here.simdir && !here.ndown && probe && probe.directory === "found") {
+      if (scSims.pending[n] && $(`sc-dir_${n}`).value.trim()) {
+        lines.push(line("Finding files", "finding"));
+        lines[lines.length - 1].prepend(el("span", { class: "identify__spinner", "aria-hidden": "true" }));
+      } else if (!here.simdir && !here.ndown && probe && probe.directory === "found") {
         const depth = probe.ndown;
         const filtered = probe.all_files !== null && probe.all_files !== probe.files;
         if (probe.files > 0) {
@@ -8729,16 +8778,8 @@
           lines.push(line(found + ".", "ok"));
         } else if (depth !== null && probe.all_files > 0) {
           lines.push(line(`None of the ${probe.all_files} netCDF files ${depthText(depth)} pass the file filters.`, "nofiles"));
-        } else if (depth !== null && probe.suggestion) {
-          const other = probe.suggestion;
-          lines.push(line(`No netCDF files ${depthText(depth)}, but there are ${other.files} ${depthText(other.ndown)}. `, "nofiles",
-            el("button", { type: "button", class: "link", text: `Use ${other.ndown}`, onclick: () => {
-              $(`sc-ndown_${n}`).value = String(other.ndown);
-              scAskProbe(n, 0);
-              refreshScSims();
-            } })));
         } else if (depth !== null) {
-          lines.push(line(`No netCDF files ${depthText(depth)}, nor at any depth down to 3 directories.`, "nofiles"));
+          lines.push(line(`No netCDF files ${depthText(depth)}.`, "nofiles"));
         }
       }
       message(`sc-m-${n}`, lines, false);
@@ -8776,6 +8817,7 @@
       scSims.shown = Math.max(2, scSims.shown - 1);
       scSims.errors = {};
       scSims.probes = {};
+      scSims.pending = {};
       scShowRows();
       for (let m = 1; m <= scSims.shown; m++) scAskProbe(m, 0);
       refreshScSims();

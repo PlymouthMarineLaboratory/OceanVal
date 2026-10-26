@@ -712,6 +712,38 @@ def test_the_child_runs_a_comparison_script(tmp_path, monkeypatch):
     app_child.main(["simcompare", str(script)])
 
 
+def test_a_simulation_row_says_it_is_finding_files_until_the_answer_is_in(browser, tmp_path):
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    try:
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-simcompare")
+        page.wait_for_selector("#view-simcompare-sims:not([hidden])")
+        held = []
+        page.route("**/api/probe*", lambda route: held.append(route))
+        page.fill("#sc-dir_1", "base")
+        page.fill("#sc-ndown_1", "1")
+        assert "Finding files" in page.inner_text("#sc-m-1")
+        assert page.is_visible("#sc-m-1 .identify__spinner")
+        for _ in range(50):
+            if held:
+                break
+            page.wait_for_timeout(100)
+        assert held
+        for route in held:
+            route.continue_()
+        page.unroute("**/api/probe*")
+        page.wait_for_function("() => document.querySelector('#sc-m-1').innerText.includes('netCDF files')")
+        assert "Finding files" not in page.inner_text("#sc-m-1")
+        assert page.locator("#sc-m-1 .identify__spinner").count() == 0
+    finally:
+        page.close()
+        app.close()
+
+
 def test_comparing_simulations_in_a_browser(browser, tmp_path):
     write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
     write_analysis_simulation(str(tmp_path / "fine"), years=(2013, 2014), daily=False, trend=1.0, lats=B_LATS, lons=B_LONS)

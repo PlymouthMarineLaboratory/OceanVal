@@ -157,10 +157,6 @@ COMPARISON_LANDING = ("notebooks", "comparison_seasonal.html")
 # oceanval.analysis._tell), for the page's grid of them
 ANALYSIS_NEWS = ("analyses", "analysis_variable", "analysis")
 
-# the depths the simulation step looks for output files at, when there are
-# none where it was told to look
-_SEARCH_DEPTHS = range(4)
-
 # how long the recipes window waits for the years of the output to be read
 # from its files' times (a few seconds, usually done before it opens), before
 # its years are boxes to type in instead of lists of them
@@ -4571,8 +4567,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         in: whether the directory is there, how many output files are ndown
         directories below it that pass the file filters (exclude and
         require, as words separated by spaces) - and how many there are
-        without them - the years their names cover, and, if there are none
-        there at all, a depth that has some. Also whether out_dir, where the
+        without them - and the years their names cover. Also whether out_dir, where the
         matchups are saved, is a directory, and the matchups it has already
         (see existing_matchups)."""
         filters = {
@@ -4586,7 +4581,6 @@ class App(AnalyzeSteps, SimCompareSteps):
             "files": None,
             "all_files": None,
             "years": None,
-            "suggestion": None,
         }
         found["out_exists"] = bool(out.strip()) and os.path.isfile(
             _path(out.strip(), self.cwd)
@@ -4642,22 +4636,6 @@ class App(AnalyzeSteps, SimCompareSteps):
                     key = _simulation({"simdir": path, "ndown": depth, **filters})
                     found["output_key"] = _output_key(key)
                     self._read_output_years(key, paths)
-                return found
-            if found["all_files"]:
-                # the depth is right, and the filters leave out every file
-                return found
-        for other in _SEARCH_DEPTHS:
-            if other == depth:
-                continue
-            paths = simulation_paths(path, other, **filters)
-            if paths:
-                years = simulation_years(path, paths)
-                found["suggestion"] = {
-                    "ndown": other,
-                    "files": len(paths),
-                    "years": list(years) if years else None,
-                }
-                break
         return found
 
     # ---- the years of the simulation's output ----

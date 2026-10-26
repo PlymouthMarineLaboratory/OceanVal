@@ -438,6 +438,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   page (view `home`) of Analyze (see above) and Validate, which leads to the validation page
   (view `start`) for choosing matchup+validate / matchup only / validate, the simulation (live-checked via `/api/probe`),
   the create_recipes window, and a progress panel for the run (its console is shown only if the run fails).
+- **The live file check shows "Finding files"** (a spinner, `.is-finding`) from the edit of the directory, depth or filter boxes until the
+  `/api/probe` answer is in: `probePending` in `askProbe` (the badge `#ndown-found`, Validate/Matchup/Analyze) and `scSims.pending[n]` in
+  `scAskProbe` (`#sc-m-n`). The check's number is taken at the edit, so an earlier answer still on its way is dropped, and the last count is not
+  shown meanwhile. Any new probed box must go through these.
 - **Closing the browser quits the command, but a quiet window never stops a run** (the user's rule, 2026-10-25: Safari froze
   a tab in the background and the Analyze run was killed). `App._watch` drops a page silent for `PAGE_TIMEOUT` (15 s), or
   `HIDDEN_PAGE_TIMEOUT` (30 min) for one that said its tab is hidden (`OceanValGUI.tellVisibility`, a keepalive POST to

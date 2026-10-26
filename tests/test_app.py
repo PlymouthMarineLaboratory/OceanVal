@@ -1627,12 +1627,10 @@ class TestServer:
         assert (found["directory"], found["ndown"], found["files"]) == ("found", 2, 2)
         assert found["years"] == [2011, 2012]
         assert found["out_exists"]
-        # with no files where it was told to look, it says where there are some
+        # with no files where it was told to look, it says so and no more
         _, found = get_json(app, "/api/probe", simdir="sim", ndown="1", out="")
         assert found["files"] == 0
-        assert found["suggestion"] == {"ndown": 2, "files": 2, "years": [2011, 2012]}
-        _, found = get_json(app, "/api/probe", simdir="sim", ndown="", out="")
-        assert found["suggestion"]["ndown"] == 2
+        assert "suggestion" not in found
         _, found = get_json(app, "/api/probe", simdir="nowhere", ndown="2", out="")
         assert found["directory"] == "missing"
 
@@ -1674,7 +1672,7 @@ class TestServer:
         assert probe(require="ptrc grid")["files"] == 0
         # the depth is right, so it is the filters that need changing
         found = probe(require="nothing_like_this")
-        assert (found["files"], found["all_files"], found["suggestion"]) == (0, 4, None)
+        assert (found["files"], found["all_files"]) == (0, 4)
 
     def test_the_years_of_the_output_are_read_from_its_times(self, app, tmp_path):
         # the names say 2011 and 2012, the times 2011 to 2013
@@ -5015,11 +5013,9 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.text_content("#summary").strip() == "How does OceanVal identify simulation files to matchup?"
         assert page.locator("#summary > *").count() == 1 and page.locator("#summary #how-files").count() == 1
         page.fill("#f-simdir", "sim")
-        # years are inferred, but the user must choose the directory depth
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        # the user must choose the directory depth; the years are inferred from the files there
         assert page.input_value("#f-ndown") == ""
         assert page.is_disabled("#continue")
-        assert page.input_value("#f-start") == "2011"
         # the depth can be picked from a list of 0 to 5, opened by the arrow in the box, as well as typed
         ndown = page.locator("#f-ndown")
         edge = ndown.bounding_box()
@@ -5034,6 +5030,8 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         options.nth(2).click()
         assert page.input_value("#f-ndown") == "2"
         assert page.is_hidden("body > .year-list")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        assert page.input_value("#f-start") == "2011"
         # the years are read from the files' times, for the recipes window: none are shown here
         page.wait_for_function("document.querySelector('#ndown-found').textContent.includes('2 netCDF files found')")
         assert page.text_content("#ndown-found") == "2 netCDF files found"
@@ -6785,7 +6783,6 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
         page.goto(url)
         page.click('button.choice[data-action="matchup"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "0")
         warning = page.locator("#m-simulation .group__line.is-nofiles")
         warning.wait_for()
@@ -6844,8 +6841,8 @@ def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc,
         page.goto(url)
         page.click('button.choice[data-action="matchup_validate"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
@@ -6979,8 +6976,8 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         page.goto(url)
         page.click(f'button.choice[data-action="{action}"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
@@ -7105,8 +7102,8 @@ def test_the_recipes_window_keeps_the_app_open(browser, tmp_path, monkeypatch):
         page.goto(url)
         page.click('button.choice[data-action="matchup"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
@@ -7209,8 +7206,8 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         page.goto(url)
         page.click('button.choice[data-action="matchup"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
@@ -7352,8 +7349,8 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.goto(url)
         page.click('button.choice[data-action="matchup_validate"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
@@ -7522,8 +7519,8 @@ def test_clearing_every_selection_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.click('button.choice[data-action="matchup"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
@@ -7560,8 +7557,8 @@ def test_adding_your_own_data_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.click('button.choice[data-action="matchup"]')
         page.fill("#f-simdir", "sim")
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
         choose_domain(page)
         page.click("#continue")
         page.click("#own-yes")
@@ -7639,8 +7636,8 @@ def test_choosing_directories_in_a_browser(browser, tmp_path):
             "document.querySelector('#picker-crumbs .is-current').textContent === 'sim'"
         )
         page.click("#picker-choose")
-        # as if it had been typed: the live check fills in the rest
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        # as if it had been typed: the live check is asked (the years wait for the depth)
+        page.wait_for_function("!document.querySelector('#ndown-found').classList.contains('is-finding')")
         assert page.input_value("#f-simdir") == "sim"
         assert page.input_value("#f-ndown") == ""
 
@@ -7988,8 +7985,8 @@ def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path)
         page.click("#f-simdir-recent .combo__option")
         assert page.is_hidden("#f-simdir-recent")
         assert page.input_value("#f-simdir") == str(tmp_path / "sim")
-        # as if it had been typed: the live check fills in the rest
-        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        # as if it had been typed: the live check is asked (the years wait for the depth)
+        page.wait_for_function("!document.querySelector('#ndown-found').classList.contains('is-finding')")
 
         # and from the keyboard
         page.fill("#f-simdir", "")

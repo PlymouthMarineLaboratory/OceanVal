@@ -1320,6 +1320,12 @@ def open_analyze_option(browser, tmp_path, years, option, dialog, rows=(("Temper
     return page, app, errors
 
 
+def picker_of(app):
+    """The model's variables the variables step offers, as the app sends them (the
+    page's own `state` is not reachable from the console)."""
+    return get_json(app, "/api/state")[1]["analyze"]["picker"]
+
+
 def test_add_all_variables_fills_the_rows_from_the_files(browser, tmp_path):
     """Add all variables makes a row per variable in the output (long name,
     variable name), and a second click adds nothing."""
@@ -1336,7 +1342,7 @@ def test_add_all_variables_fills_the_rows_from_the_files(browser, tmp_path):
     page.wait_for_function("() => !document.querySelector('#continue').disabled")
     page.click("#continue")
     page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
-    available = page.evaluate("() => state.analyze.picker.available")
+    available = picker_of(app)["available"]
     page.click("#av-add-all")
     rows = page.locator("#av-rows > tr")
     assert rows.count() == len(available)
@@ -1346,6 +1352,115 @@ def test_add_all_variables_fills_the_rows_from_the_files(browser, tmp_path):
     assert page.locator("#av-rows > tr").count() == len(available)
     assert not page.locator("#av-continue").is_disabled()
     page.close()
+
+
+def open_analyze_variables_in_browser(browser, tmp_path):
+    """The Analyze variables step of the analysis simulation, opened in a browser:
+    (the page, the app)."""
+    write_analysis_simulation(str(tmp_path / "sim"), years=(2011, 2012))
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    page.goto(url)
+    page.wait_for_selector("#view-home:not([hidden])")
+    page.click("#home-analyze")
+    page.wait_for_selector("#view-setup:not([hidden])")
+    page.fill("#f-simdir", "sim")
+    page.fill("#f-ndown", "1")
+    page.wait_for_function("() => !document.querySelector('#continue').disabled")
+    page.click("#continue")
+    page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+    return page, app
+
+
+def variable_rows_of(page):
+    rows = page.locator("#av-rows > tr")
+    return [rows.nth(i).locator("td").nth(1).locator("input").first.input_value() for i in range(rows.count())]
+
+
+def test_add_3d_and_2d_variables_split_the_variables_by_their_levels(browser, tmp_path):
+    """Add 3D variables adds those whose vertical axis has more than one level
+    (nctoolkit's contents), Add 2D variables the rest, and clicking again adds nothing."""
+    page, app = open_analyze_variables_in_browser(browser, tmp_path)
+    levels = picker_of(app)["levels"]
+    available = picker_of(app)["available"]
+    three = sorted(v for v in available if levels.get(v, 1) > 1)
+    two = sorted(v for v in available if levels.get(v, 1) <= 1)
+    assert "thetao" in three and "P1_Chl" in two
+    page.click("#av-add-3d")
+    assert sorted(variable_rows_of(page)) == three
+    assert not page.locator("#av-continue").is_disabled()
+    page.click("#av-add-3d")
+    assert sorted(variable_rows_of(page)) == three
+    page.click("#av-add-2d")
+    assert sorted(variable_rows_of(page)) == sorted(available)
+    page.click("#av-add-all")
+    assert len(variable_rows_of(page)) == len(available)
+    page.close()
+
+
+def test_add_2d_variables_alone_adds_no_3d_variable(browser, tmp_path):
+    page, app = open_analyze_variables_in_browser(browser, tmp_path)
+    levels = picker_of(app)["levels"]
+    page.click("#av-add-2d")
+    models = variable_rows_of(page)
+    assert models and all(levels.get(v, 1) <= 1 for v in models)
+    page.close()
+
+
+def test_remove_all_variables_leaves_one_blank_row(browser, tmp_path):
+    page, app = open_analyze_variables_in_browser(browser, tmp_path)
+    # nothing to remove yet
+    assert page.is_disabled("#av-remove-all")
+    page.click("#av-add-all")
+    assert not page.is_disabled("#av-remove-all")
+    assert not page.is_disabled("#av-continue")
+    page.click("#av-remove-all")
+    assert variable_rows_of(page) == [""]
+    assert page.is_disabled("#av-continue")
+    assert page.is_disabled("#av-remove-all")
+    # and the variables can be added again
+    page.click("#av-add-all")
+    available = picker_of(app)["available"]
+    assert sorted(variable_rows_of(page)) == sorted(available)
+    page.close()
+
+
+def test_the_setup_page_says_it_is_finding_files_until_the_answer_is_in(browser, tmp_path):
+    """While the files are being looked for the box beside the depth shows
+    "Finding files" and a spinner, not the previous count."""
+    write_analysis_simulation(str(tmp_path / "sim"), years=(2011, 2012))
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    try:
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-analyze")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "1")
+        page.wait_for_function("() => document.querySelector('#ndown-found').textContent.includes('netCDF files found')")
+        held = []
+        page.route("**/api/probe*", lambda route: held.append(route))
+        page.fill("#f-ndown", "0")
+        # at once, before the request is even made, and with no count left over
+        assert page.text_content("#ndown-found") == "Finding files"
+        assert page.is_visible("#ndown-found .identify__spinner")
+        for _ in range(50):
+            if held:
+                break
+            page.wait_for_timeout(100)
+        assert held
+        assert page.text_content("#ndown-found") == "Finding files"
+        for route in held:
+            route.continue_()
+        page.unroute("**/api/probe*")
+        page.wait_for_function("() => !document.querySelector('#ndown-found').textContent.includes('Finding files')")
+        assert page.locator("#ndown-found .identify__spinner").count() == 0
+    finally:
+        page.close()
+        app.close()
 
 
 def open_transects_in_browser(browser, tmp_path, years):
