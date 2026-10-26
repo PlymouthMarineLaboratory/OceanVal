@@ -388,6 +388,14 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   analyses use) and 2D the rest; Remove all leaves one blank row. Tests read the picker with `picker_of(app)`: the page's own `state` is inside a
   closure, so `page.evaluate("() => state")` finds the `<script id="state">` element.
 
+- **Info pop-outs** (`oceanval/analysis_examples.py`): an **i** (`infoButton`/`withInfo` in `oceanval_app.html`, `.info-btn`, beside the label, never inside it) next to
+  each option of the Analyze pop-outs opens `#example-dialog`, which says **in words** what the option plots. **No figure is drawn or stored** (the user's rule, 2026-10-26:
+  drawn examples were far too slow, even as plain lon/lat maps, so the pop-out is text only; `test_nothing_is_drawn_or_stored` fails if the package gains a picture other than
+  its logos). `EXAMPLES[kind][option]` is the one place the wording is (`climatology`, `long_term`, `seasonal` and `map_changes` x `surface`/`bottom`/`water_column`;
+  `phenology.peak`; `transects.surface_climatology`/`surface_changes`/`vertical_climatology`/`vertical_changes`); `describe()` sends it in `state.analyze.examples` (only in
+  `analyze_options`), and the page shows an i only where `exampleOf(kind, option)` finds an entry, so a new option's i is a new entry and a `withInfo(...)` at its tick (the phenology's
+  is beside its title, `#phen-info`).
+
 ### Compare simulations (`oceanval/sim_compare.py`)
 
 - `compare_simulations(simulations, variables, ...)` does everything `analyze()` does for 2–5 simulations
@@ -438,6 +446,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   page (view `home`) of Analyze (see above) and Validate, which leads to the validation page
   (view `start`) for choosing matchup+validate / matchup only / validate, the simulation (live-checked via `/api/probe`),
   the create_recipes window, and a progress panel for the run (its console is shown only if the run fails).
+- **Whether a browser is opened** is `recipes_gui._can_open_browser`: `OCEANVAL_BROWSER` 1/0 decides if set; else `BROWSER` (VS Code's
+  helper) opens; **over SSH nothing else does**, as `DISPLAY` is then an X11 forward (MobaXterm sets one) and the browser would open on the
+  remote machine; else a display, macOS or Windows. `oceanval --no-browser` sets `OCEANVAL_BROWSER=0` in `os.environ`, so `app_child`
+  (which reads the same function for the reports it opens) obeys it. When none is opened the link and `remote_hint` (`ssh -L`) are printed.
 - **The live file check shows "Finding files"** (a spinner, `.is-finding`) from the edit of the directory, depth or filter boxes until the
   `/api/probe` answer is in: `probePending` in `askProbe` (the badge `#ndown-found`, Validate/Matchup/Analyze) and `scSims.pending[n]` in
   `scAskProbe` (`#sc-m-n`). The check's number is taken at the edit, so an earlier answer still on its way is dropped, and the last count is not
@@ -446,10 +458,6 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   a tab in the background and the Analyze run was killed). `App._watch` drops a page silent for `PAGE_TIMEOUT` (15 s), or
   `HIDDEN_PAGE_TIMEOUT` (30 min) for one that said its tab is hidden (`OceanValGUI.tellVisibility`, a keepalive POST to
   `/api/visibility` on `visibilitychange` → `App.page_visibility`); with every page gone it quits only when not `_busy()`
-- **Whether a browser is opened** is `recipes_gui._can_open_browser`: `OCEANVAL_BROWSER` 1/0 decides if set; else `BROWSER` (VS Code's
-  helper) opens; **over SSH nothing else does**, as `DISPLAY` is then an X11 forward (MobaXterm sets one) and the browser would open on the
-  remote machine; else a display, macOS or Windows. `oceanval --no-browser` sets `OCEANVAL_BROWSER=0` in `os.environ`, so `app_child`
-  (which reads the same function for the reports it opens) obeys it. When none is opened the link and `remote_hint` (`ssh -L`) are printed.
   (status `starting`/`running`, which `_run_finished` keeps through a matchup's hand-over to its report run), otherwise it
   prints the window's link to the terminal once and quits when the run is over. `poll()` skips its 150 ms wait while hidden.
 - create_recipes runs in a thread of the app; `recipes_gui.hosted_by(app)` makes its window

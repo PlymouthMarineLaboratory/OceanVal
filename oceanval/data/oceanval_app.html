@@ -958,6 +958,18 @@
   .chg-choices .s-select { margin-top: 0; min-width: 190px; }
   .analyze-dialog tr.is-on .s-input.is-year.is-optional { border-color: var(--line); }
   .analyze-dialog tr.is-on .s-input.is-year.is-optional.is-need { border-color: var(--red-field-line); }
+  /* the i beside an option, which says what it plots (oceanval.analysis_examples) */
+  .tick-with-info { display: inline-flex; align-items: center; gap: 6px; }
+  .picker__title { display: flex; align-items: center; gap: 8px; }
+  .info-btn { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--teal-700); cursor: pointer; }
+  .info-btn svg { width: 18px; height: 18px; }
+  .info-btn:hover { background: var(--teal-50); color: var(--teal-900); }
+  .info-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+  .picker__card.example-card { max-width: 720px; }
+  .example-where { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .example-body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px 8px; overscroll-behavior: contain; }
+  .example-text p { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+  @media (max-width: 640px) { .example-body { padding: 0 16px 8px; } }
   @media (max-width: 720px) {
     .review__grid { grid-template-columns: 40px repeat(12, minmax(0, 1fr)); gap: 2px; }
   }
@@ -2139,7 +2151,7 @@
 <div class="picker analyze-dialog" id="phen-dialog" hidden>
   <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="phen-title">
     <div class="picker__head">
-      <h2 id="phen-title">Map phenologies</h2>
+      <div class="picker__title"><h2 id="phen-title">Map phenologies</h2><span id="phen-info"></span></div>
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">The time of the seasonal peak at the surface: in each grid cell, the day of the year with the highest value in the variable's daily climatology over the years from Start to End. It needs daily output. Tick the variables to work it out for, and give the years.</p>
@@ -2215,6 +2227,23 @@
       <button type="button" class="btn btn--ghost analyze-remove-analysis" id="trans-remove" hidden>Remove this analysis</button>
       <button type="button" class="btn btn--ghost" id="trans-cancel">Cancel</button>
       <button type="button" class="btn btn--primary" id="trans-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="picker" id="example-dialog" hidden>
+  <div class="picker__card example-card" role="dialog" aria-modal="true" aria-labelledby="example-title">
+    <div class="picker__head">
+      <div>
+        <h2 id="example-title"></h2>
+        <p class="example-where" id="example-where"></p>
+      </div>
+    </div>
+    <div class="example-body" id="example-body">
+      <div class="example-text" id="example-text"></div>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--primary" id="example-close">Close</button>
     </div>
   </div>
 </div>
@@ -4293,6 +4322,63 @@
     return placedRow(name).default_years || [null, null];
   }
 
+  // ---- the i beside an option: what it plots, in words ----
+  // (what each says is oceanval.analysis_examples.EXAMPLES, which the app sends in state.analyze.examples)
+  const exampleDialog = { opener: null, under: null };
+
+  function exampleOf(kind, option) {
+    return ((state.analyze.examples || {})[kind] || {})[option] || null;
+  }
+
+  // the i of an option of the pop-out of this kind, which says what it plots, or null where there is none
+  function infoButton(kind, option, what) {
+    if (!exampleOf(kind, option)) return null;
+    const button = el("button", { type: "button", class: "info-btn", "aria-haspopup": "dialog",
+      "aria-label": `About ${what}`, title: "What this plots", html: ICONS.info });
+    button.addEventListener("click", () => openExample(kind, option, button));
+    return button;
+  }
+
+  // node with the i of its option beside it, or node as it is where the option has no example.
+  // The i is beside the label, not in it, so that clicking it does not tick the box
+  function withInfo(node, kind, option, what) {
+    const button = infoButton(kind, option, what);
+    return button ? el("span", { class: "tick-with-info" }, node, button) : node;
+  }
+
+  function openExample(kind, option, opener) {
+    const example = exampleOf(kind, option);
+    if (!example) return;
+    exampleDialog.opener = opener;
+    $("example-title").textContent = example.title;
+    $("example-where").textContent = KIND_TITLES[kind];
+    $("example-text").replaceChildren(...example.text.map((text) => el("p", { text })));
+    // the pop-out the i is in cannot be reached while this is open
+    exampleDialog.under = $(KIND_DIALOGS[kind]);
+    exampleDialog.under.inert = true;
+    $("example-dialog").hidden = false;
+    $("example-body").scrollTop = 0;
+    $("example-close").focus();
+  }
+
+  function closeExample() {
+    if ($("example-dialog").hidden) return;
+    $("example-dialog").hidden = true;
+    if (exampleDialog.under) exampleDialog.under.inert = false;
+    exampleDialog.under = null;
+    if (exampleDialog.opener && document.contains(exampleDialog.opener)) exampleDialog.opener.focus();
+  }
+
+  $("example-close").addEventListener("click", closeExample);
+  $("example-dialog").addEventListener("click", (event) => { if (event.target === $("example-dialog")) closeExample(); });
+  $("example-dialog").addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    // only this closes, not the pop-out under it
+    event.preventDefault();
+    event.stopPropagation();
+    closeExample();
+  });
+
   function climatologyRows(form, kind) {
     analyzeDialog.rows = {};
     const noun = KIND_NAMES[kind];
@@ -4330,12 +4416,12 @@
         el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
           el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name), reset, msg),
         el("td", {}, start), el("td", {}, end),
-        el("td", {}, el("label", { class: "tick-label" }, surface, "Surface")),
+        el("td", {}, withInfo(el("label", { class: "tick-label" }, surface, "Surface"), kind, "surface", `the surface option of ${row.name}`)),
         el("td", {}, column
-          ? el("label", { class: "tick-label" }, bottom, "Bottom")
+          ? withInfo(el("label", { class: "tick-label" }, bottom, "Bottom"), kind, "bottom", `the bottom option of ${row.name}`)
           : el("small", { text: "No depth levels" })),
         el("td", {}, column
-          ? el("div", {}, el("label", { class: "tick-label" }, water, "Water column"), how)
+          ? el("div", {}, withInfo(el("label", { class: "tick-label" }, water, "Water column"), kind, "water_column", `the water column option of ${row.name}`), how)
           : el("small", { text: "No depth levels" })),
         ...(series ? [el("td", {}, rolling), el("td", {}, show)] : []));
       const refresh = () => {
@@ -4408,12 +4494,12 @@
         el("td", {}, el("label", { class: "tick-label" }, use, el("strong", { text: row.name })),
           el("small", { class: "is-mono", text: row.model_variable }), outputYears(row.name), reset),
         ...periods.flatMap(([key]) => years[key].map((input) => el("td", {}, input))),
-        el("td", {}, el("label", { class: "tick-label" }, surface, "Surface")),
+        el("td", {}, withInfo(el("label", { class: "tick-label" }, surface, "Surface"), "map_changes", "surface", `the surface option of ${row.name}`)),
         el("td", {}, column
-          ? el("label", { class: "tick-label" }, bottom, "Bottom")
+          ? withInfo(el("label", { class: "tick-label" }, bottom, "Bottom"), "map_changes", "bottom", `the bottom option of ${row.name}`)
           : el("small", { text: "No depth levels" })),
         el("td", {}, column
-          ? el("div", {}, el("label", { class: "tick-label" }, water, "Water column"), how)
+          ? el("div", {}, withInfo(el("label", { class: "tick-label" }, water, "Water column"), "map_changes", "water_column", `the water column option of ${row.name}`), how)
           : el("small", { text: "No depth levels" })));
       const options = el("tr", { class: "chg-options" },
         el("td", { colspan: "10" }, el("div", { class: "chg-choices" },
@@ -4567,10 +4653,10 @@
     const column = placed.some((row) => row.levels > 1);
     const noLevels = () => el("small", { text: "No depth levels" });
     const layers = () => [
-      el("td", {}, tickOf("surface", "The surface", "Surface")),
-      el("td", {}, column ? tickOf("bottom", "The bottom", "Bottom") : noLevels()),
+      el("td", {}, withInfo(tickOf("surface", "The surface", "Surface"), kind, "surface", "the surface option of every variable")),
+      el("td", {}, column ? withInfo(tickOf("bottom", "The bottom", "Bottom"), kind, "bottom", "the bottom option of every variable") : noLevels()),
       el("td", {}, column
-        ? el("div", {}, tickOf("water", "The water column", "Water column"),
+        ? el("div", {}, withInfo(tickOf("water", "The water column", "Water column"), kind, "water_column", "the water column option of every variable"),
           selectOf("how", "How to take the water column", { mean: "Vertical mean", integral: "Depth integral" }, "Choose…"))
         : noLevels()),
     ];
@@ -4816,9 +4902,11 @@
       years[part.changes] = optionYears(values, part.changes, `${lower} changes`, hint, variable.name);
       body.push(
         el("tr", { class: "transect-part" }, el("th", { scope: "colgroup", colspan: "4", text: part.name })),
-        el("tr", {}, el("td", {}, el("label", { class: "tick-label" }, tick, "Climatology")),
+        el("tr", {}, el("td", {}, withInfo(el("label", { class: "tick-label" }, tick, "Climatology"), "transects",
+            `${lower}_climatology`, `the ${lower} climatology of the transect`)),
           el("td", {}, years[part.climatology].start), el("td", {}, years[part.climatology].end), el("td")),
-        el("tr", {}, el("td", {}, select), el("td", {}, years[part.changes].start), el("td", {}, years[part.changes].end),
+        el("tr", {}, el("td", {}, withInfo(select, "transects", `${lower}_changes`, `the ${lower} changes of the transect`)),
+          el("td", {}, years[part.changes].start), el("td", {}, years[part.changes].end),
           el("td", {}, rollingRow)));
     }
     const notes = [];
@@ -4995,6 +5083,8 @@
       refreshThickness();
     } else {
       phenologyRows(form);
+      const info = infoButton("phenology", "peak", "the map phenologies");
+      $("phen-info").replaceChildren(...(info ? [info] : []));
     }
     $(`${dialogPrefix(kind)}-remove`).hidden = !state.analyze.chosen[kind];
     refreshConfirm();

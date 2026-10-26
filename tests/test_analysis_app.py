@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from oceanval import analysis, analysis_forms, model_check, transects
+from oceanval import analysis, analysis_examples, analysis_forms, model_check, transects
 from oceanval.app import App
 from simulations import write_analysis_simulation
 from test_app import get, get_json, leftover_dir, post, wait_for, write_mixed_matchups  # noqa: F401 (leftover_dir is autouse)
@@ -1999,4 +1999,129 @@ def test_the_names_drop_down_the_larger_pop_outs_and_the_missing_value_in_a_brow
             page.click(f"#{dialog} .picker__foot button:has-text('Cancel')")
         assert errors == []
     finally:
+        app.close()
+
+
+# ---- the info buttons, which say in words what an option plots ----
+
+
+def test_only_the_options_step_is_given_what_the_buttons_say(app, sim):
+    assert to_variables(app)["examples"] == {}
+
+
+def test_the_options_step_is_given_what_the_buttons_say(app, sim):
+    assert to_options(app)["examples"] == analysis_examples.describe()
+
+
+INFO_ROWS = (("Chlorophyll", "P1_Chl+P2_Chl"), ("Temperature", "thetao"))
+
+
+def test_the_info_buttons_of_the_climatology_pop_out(browser, tmp_path):
+    page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012), "climatology", "clim-dialog", rows=INFO_ROWS)
+    try:
+        everyone, rows = page.locator("#clim-all > tr"), page.locator("#clim-body > tr")
+        chlorophyll, temperature = rows.nth(0), rows.nth(1)
+        # one beside each layer a variable has, and the All variables row's beside each
+        assert everyone.locator(".info-btn").count() == 3
+        assert chlorophyll.locator(".info-btn").count() == 1 and temperature.locator(".info-btn").count() == 3
+        assert temperature.locator(".info-btn").evaluate_all("buttons => buttons.map((button) => button.getAttribute('aria-label'))") == [
+            "About the surface option of Temperature", "About the bottom option of Temperature",
+            "About the water column option of Temperature"]
+        # beside the label, not in it, so that it does not tick the box
+        assert page.locator("#clim-dialog label .info-btn").count() == 0
+        surface = temperature.locator(".info-btn").nth(0)
+        tick = temperature.locator("input[type=checkbox]").nth(1)
+        surface.click()
+        page.wait_for_selector("#example-dialog:not([hidden])")
+        assert page.inner_text("#example-title") == "Surface" and page.inner_text("#example-where") == "Map climatologies"
+        assert "sea surface" in page.inner_text("#example-text")
+        # words only: nothing is drawn
+        assert page.locator("#example-dialog img, #example-dialog canvas, #example-dialog svg").count() == 0
+        # the pop-out it is over cannot be reached, and the box is as it was
+        assert page.evaluate("() => document.getElementById('clim-dialog').inert")
+        assert not tick.is_checked()
+        # Escape closes only this one, and the i is where the focus goes back to
+        page.keyboard.press("Escape")
+        assert page.is_hidden("#example-dialog") and page.is_visible("#clim-dialog")
+        assert not page.evaluate("() => document.getElementById('clim-dialog').inert")
+        assert surface.evaluate("button => button === document.activeElement")
+        # the Close button, and a click beside the card, close it too
+        temperature.locator(".info-btn").nth(1).click()
+        assert page.inner_text("#example-title") == "Bottom"
+        page.click("#example-close")
+        assert page.is_hidden("#example-dialog") and page.is_visible("#clim-dialog")
+        everyone.locator(".info-btn").nth(2).click()
+        assert page.inner_text("#example-title") == "Water column" and "Depth integral" in page.inner_text("#example-text")
+        page.mouse.click(5, 5)
+        assert page.is_hidden("#example-dialog") and page.is_visible("#clim-dialog")
+        assert errors == []
+    finally:
+        page.close()
+        app.close()
+
+
+@pytest.mark.parametrize(
+    "option, dialog, title, rows",
+    [
+        ("long_term", "clim-dialog", "Long-term time series", "#clim-body > tr"),
+        ("seasonal", "clim-dialog", "Seasonal cycles", "#clim-body > tr"),
+        ("map_changes", "chg-dialog", "Map temporal changes", "#chg-body > tr.chg-main"),
+    ],
+)
+def test_the_other_pop_outs_with_layers_have_the_info_buttons_too(browser, tmp_path, option, dialog, title, rows):
+    page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012), option, dialog, rows=INFO_ROWS)
+    try:
+        row = page.locator(rows)
+        assert row.nth(0).locator(".info-btn").count() == 1 and row.nth(1).locator(".info-btn").count() == 3
+        assert page.locator(f"#{dialog} .info-btn").count() == 3 + 1 + 3
+        for number, name in enumerate(["Surface", "Bottom", "Water column"]):
+            row.nth(1).locator(".info-btn").nth(number).click()
+            page.wait_for_selector("#example-dialog:not([hidden])")
+            assert page.inner_text("#example-title") == name and page.inner_text("#example-where") == title
+            page.keyboard.press("Escape")
+            assert page.is_hidden("#example-dialog") and page.is_visible(f"#{dialog}")
+        assert errors == []
+    finally:
+        page.close()
+        app.close()
+
+
+def test_the_phenology_pop_out_has_an_i_beside_its_title(browser, tmp_path):
+    page, app, errors = open_analyze_option(browser, tmp_path, (2013, 2014), "phenology", "phen-dialog")
+    try:
+        button = page.locator("#phen-info .info-btn")
+        assert button.count() == 1 and page.locator("#phen-dialog .info-btn").count() == 1
+        assert page.evaluate("() => document.querySelector('#phen-info').previousElementSibling.id") == "phen-title"
+        button.click()
+        page.wait_for_selector("#example-dialog:not([hidden])")
+        assert page.inner_text("#example-title") == "Peak day" and page.inner_text("#example-where") == "Map phenologies"
+        assert "day of the year with the highest value" in page.inner_text("#example-text")
+        page.keyboard.press("Escape")
+        assert page.is_hidden("#example-dialog") and page.is_visible("#phen-dialog")
+        assert errors == []
+    finally:
+        page.close()
+        app.close()
+
+
+def test_each_transect_has_an_i_beside_its_four_options(browser, tmp_path):
+    page, app, errors = open_analyze_option(browser, tmp_path, (2013, 2014), "transects", "trans-dialog", rows=INFO_ROWS)
+    try:
+        section = page.locator("#trans-body .transect-var").nth(1)
+        card = section.locator(".transect-card").first
+        buttons = card.locator(".info-btn")
+        assert buttons.count() == 4 and card.locator("label .info-btn").count() == 0
+        section.get_by_role("button", name="Add a transect").click()
+        assert section.locator(".info-btn").count() == 8
+        for number, title in enumerate(["Surface climatology", "Surface changes", "Vertical climatology", "Vertical changes"]):
+            buttons.nth(number).click()
+            page.wait_for_selector("#example-dialog:not([hidden])")
+            assert page.inner_text("#example-title") == title and page.inner_text("#example-where") == "Analyse transects"
+            page.keyboard.press("Escape")
+            assert page.is_hidden("#example-dialog") and page.is_visible("#trans-dialog")
+        # the i beside a drop-down does not change it
+        assert card.locator("select").first.input_value() == "" and not card.locator("input[type=checkbox]").nth(0).is_checked()
+        assert errors == []
+    finally:
+        page.close()
         app.close()

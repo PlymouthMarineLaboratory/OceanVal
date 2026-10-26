@@ -36,7 +36,16 @@ import threading
 
 import pandas as pd
 
-from oceanval import analysis, analysis_forms, missing_probe, model_check, recipes_gui, sim_compare_forms, time_stamps
+from oceanval import (
+    analysis,
+    analysis_examples,
+    analysis_forms,
+    missing_probe,
+    model_check,
+    recipes_gui,
+    sim_compare_forms,
+    time_stamps,
+)
 from oceanval import time_res as time_resolution
 
 # the id the check of the dates of an analysis's files is made for (see
@@ -848,6 +857,8 @@ class AnalyzeSteps:
             "nemo_ersem": bool((found or {}).get("ersem")),
             "daily": time_resolution.DAILY,
             "z_level": analysis.Z_LEVEL,
+            # what the info buttons of the pop-outs say (see oceanval.analysis_examples)
+            "examples": analysis_examples.describe() if self.view == "analyze_options" else {},
             "thickness_suggested": (
                 "e3t" if found and found.get("picker") and "e3t" in found["picker"]["available"] else ""
             ),

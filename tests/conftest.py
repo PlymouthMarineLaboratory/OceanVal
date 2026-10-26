@@ -94,3 +94,4 @@ def browser():
     yield chromium
     chromium.close()
     playwright.stop()
+
