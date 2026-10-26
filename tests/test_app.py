@@ -6847,7 +6847,7 @@ def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, l
         # amber (the --amber token), not red
         assert ndown.evaluate("node => getComputedStyle(node).fontWeight") == "600"
         assert ndown.evaluate("node => getComputedStyle(node).color") != "rgb(192, 57, 43)"
-        line = page.locator("#m-simulation .group__line.is-detected")
+        line = page.locator("#ndown-layout .group__line.is-detected")
         line.wait_for()
         assert line.text_content() == f"Folder structure was identified as {text}"
         # the files at that depth are counted
@@ -6855,14 +6855,14 @@ def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, l
         # a directory without the layout empties what OceanVal filled in
         page.fill("#f-simdir", "other")
         page.wait_for_function("document.querySelector('#f-ndown').value === ''")
-        assert page.locator("#m-simulation .group__line.is-detected").count() == 0
+        assert page.locator("#ndown-layout .group__line.is-detected").count() == 0
         # a value typed is the user's: it stays, with no suggestion shown
         page.fill("#f-ndown", "3")
         page.fill("#f-simdir", "sim")
         page.wait_for_timeout(1000)
         assert page.input_value("#f-ndown") == "3"
         assert not ndown.evaluate("node => node.classList.contains('is-detected')")
-        assert page.locator("#m-simulation .group__line.is-detected").count() == 0
+        assert page.locator("#ndown-layout .group__line.is-detected").count() == 0
     finally:
         app.close()
 

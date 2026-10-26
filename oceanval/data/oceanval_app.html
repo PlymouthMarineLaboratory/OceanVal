@@ -263,12 +263,14 @@
   .form__row > .g-row + .g-row { margin-top: 0; }
   .form__row + .form__row { margin-top: 14px; }
   .form__row.is-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ndown-row { display: grid; grid-template-columns: max-content 84px max-content; gap: 12px; align-items: center; margin-top: 24px; }
+  .ndown-row { display: grid; grid-template-columns: max-content 84px max-content max-content; gap: 12px; align-items: center; margin-top: 24px; }
   .ndown-row > .g-label { margin: 0; }
   .ndown-row > .g-label.is-required { color: var(--red); font-weight: 700; }
   .ndown-row > .s-input { width: 84px; text-align: center; }
   /* how many files were found, a quiet highlight beside the box that sets where to look */
   .ndown-found { margin-left: 8px; padding: 6px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--teal-50); color: var(--teal-700); font-weight: 600; }
+  .ndown-layout { margin-left: 4px; }
+  .group__pair { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
   .ndown-found.is-finding, .group__line.is-finding { display: inline-flex; gap: 8px; align-items: center; }
   .ndown-found.is-finding { color: var(--muted); background: transparent; }
   .ndown-found .identify__spinner, .group__line.is-finding .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
@@ -720,7 +722,7 @@
     .form__row > .g-row + .g-row { margin-top: 10px; }
     .ndown-row { grid-template-columns: minmax(0, 1fr); gap: 6px 10px; }
     .ndown-row > .g-label { grid-column: 1 / -1; }
-    .ndown-found { grid-column: 1 / -1; justify-self: start; margin-left: 0; }
+    .ndown-found, .ndown-layout { grid-column: 1 / -1; justify-self: start; margin-left: 0; }
     .ask { grid-template-columns: auto minmax(0, 1fr); }
     .ask__answer { grid-column: 1 / -1; justify-content: flex-start; }
     .ask__answer .s-input { flex: 1; width: auto; }
@@ -1197,6 +1199,7 @@
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
           <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required>
           <span class="ndown-found" id="ndown-found" role="status" hidden></span>
+          <span class="ndown-layout" id="ndown-layout" hidden></span>
         </div>
         <div class="form__row is-pair">
           <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
@@ -3257,7 +3260,9 @@
     // the depth was filled in from the layout of the folders: amber, as an assumption to check
     const detected = autoNdown && !finding && Boolean(probe && probe.layout) && probe.directory === "found";
     $("f-ndown").classList.toggle("is-detected", detected);
-    if (detected) simulation.push(line(`Folder structure was identified as ${probe.layout.pattern}`, "detected"));
+    const layoutBadge = $("ndown-layout");
+    layoutBadge.replaceChildren(...(detected ? [line(`Folder structure was identified as ${probe.layout.pattern}`, "detected")] : []));
+    layoutBadge.hidden = !detected;
     const badge = $("ndown-found");
     badge.classList.toggle("is-finding", finding);
     if (finding) badge.replaceChildren(el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Finding files");
@@ -8824,7 +8829,12 @@
           lines.push(line(`No netCDF files ${depthText(depth)}.`, "nofiles"));
         }
       }
-      if (detected) lines.push(line(`Folder structure was identified as ${probe.layout.pattern}`, "detected"));
+      if (detected) {
+        const layoutLine = line(`Folder structure was identified as ${probe.layout.pattern}`, "detected");
+        const last = lines[lines.length - 1];
+        if (last && last.classList.contains("is-ok")) lines[lines.length - 1] = el("span", { class: "group__pair" }, last, layoutLine);
+        else lines.push(layoutLine);
+      }
       message(`sc-m-${n}`, lines, false);
     }
     const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);
