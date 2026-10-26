@@ -2659,6 +2659,15 @@
     // the setup page's link to how files are identified sits at the bar's left, beside Continue;
     // the button is kept, as the summary is rebuilt with each view
     howFiles = howFiles || $("how-files");
+    // update the button and dialog text based on whether it's analyze or matchup/validate
+    const action = state.action;
+    const isAnalyze = action === "analyze" || action === "simcompare";
+    const fileWord = isAnalyze ? "analyze" : "matchup";
+    const howTitle = `How does OceanVal identify simulation files to ${fileWord}?`;
+    if (howFiles.textContent !== howTitle) {
+      howFiles.textContent = howTitle;
+      $("how-title").textContent = howTitle;
+    }
     summary.replaceChildren(...(asked ? [asked] : []), ...(view === "setup" ? [howFiles] : []));
     $("actions").replaceChildren(...actions);
     $("bar-main").hidden = actions.length === 0;
