@@ -446,6 +446,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   a tab in the background and the Analyze run was killed). `App._watch` drops a page silent for `PAGE_TIMEOUT` (15 s), or
   `HIDDEN_PAGE_TIMEOUT` (30 min) for one that said its tab is hidden (`OceanValGUI.tellVisibility`, a keepalive POST to
   `/api/visibility` on `visibilitychange` → `App.page_visibility`); with every page gone it quits only when not `_busy()`
+- **Whether a browser is opened** is `recipes_gui._can_open_browser`: `OCEANVAL_BROWSER` 1/0 decides if set; else `BROWSER` (VS Code's
+  helper) opens; **over SSH nothing else does**, as `DISPLAY` is then an X11 forward (MobaXterm sets one) and the browser would open on the
+  remote machine; else a display, macOS or Windows. `oceanval --no-browser` sets `OCEANVAL_BROWSER=0` in `os.environ`, so `app_child`
+  (which reads the same function for the reports it opens) obeys it. When none is opened the link and `remote_hint` (`ssh -L`) are printed.
   (status `starting`/`running`, which `_run_finished` keeps through a matchup's hand-over to its report run), otherwise it
   prints the window's link to the terminal once and quits when the run is over. `poll()` skips its 150 ms wait while hidden.
 - create_recipes runs in a thread of the app; `recipes_gui.hosted_by(app)` makes its window

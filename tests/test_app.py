@@ -635,6 +635,23 @@ class TestRemoteAccess:
         assert f"127.0.0.1:{free}/" not in opened[0]
         assert "ssh -L" not in capsys.readouterr().out
 
+    def test_no_browser_stops_one_being_opened(self, monkeypatch, capsys):
+        self._remote(monkeypatch, False)
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setenv("DISPLAY", ":1")
+        monkeypatch.delenv("BROWSER", raising=False)
+        monkeypatch.delenv("OCEANVAL_BROWSER", raising=False)
+        opened = []
+        monkeypatch.setattr(
+            app_module.recipes_gui, "_open_browser", lambda url: opened.append(url) or True
+        )
+        monkeypatch.setattr(app_module.App, "_watch", lambda self: self.closed.set())
+        app_module.main(["--no-browser"])
+        monkeypatch.delenv("OCEANVAL_BROWSER")
+
+        assert opened == []
+        assert "Open this link in a web browser" in capsys.readouterr().out
+
     def test_a_port_that_was_asked_for_must_be_free(self, monkeypatch, capsys):
         self._remote(monkeypatch, True)
         taken = socket.socket()

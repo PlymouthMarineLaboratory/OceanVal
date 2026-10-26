@@ -5514,7 +5514,17 @@ def main(argv=None):
         "where no browser can be opened from here, if it is free, otherwise "
         "any free port)",
     )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="do not open a web browser on this machine: print the link to "
+        "open instead (the default over SSH, where OCEANVAL_BROWSER=1 "
+        "opens one anyway)",
+    )
     arguments = parser.parse_args(argv)
+    if arguments.no_browser:
+        # the run's own process (reports it opens) reads it too
+        os.environ["OCEANVAL_BROWSER"] = "0"
 
     # the usual port is only for the ssh -L command printed when no browser
     # can be opened, so it is the same each time. When one is opened (by VS

@@ -1324,18 +1324,39 @@ class TestChooseRecipes:
     def test_no_browser_is_opened_without_a_display(self, monkeypatch):
         # webbrowser would fall back on a text browser in the terminal
         monkeypatch.setattr(sys, "platform", "linux")
-        for name in ("DISPLAY", "WAYLAND_DISPLAY", "BROWSER"):
+        for name in (
+            "DISPLAY", "WAYLAND_DISPLAY", "BROWSER", "OCEANVAL_BROWSER",
+            "SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY",
+        ):
             monkeypatch.delenv(name, raising=False)
         assert not recipes_gui._can_open_browser()
 
         monkeypatch.setenv("DISPLAY", ":1")
         assert recipes_gui._can_open_browser()
 
+    def test_an_x11_forward_over_ssh_is_not_your_browser(self, monkeypatch):
+        # MobaXterm sets DISPLAY, so a browser would open on the remote machine
+        monkeypatch.setattr(sys, "platform", "linux")
+        for name in ("BROWSER", "OCEANVAL_BROWSER"):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("DISPLAY", "localhost:10.0")
+        monkeypatch.setenv("SSH_CONNECTION", "10.0.0.2 51234 10.0.0.9 22")
+        assert not recipes_gui._can_open_browser()
+
+        monkeypatch.setenv("OCEANVAL_BROWSER", "1")
+        assert recipes_gui._can_open_browser()
+
+        monkeypatch.setenv("OCEANVAL_BROWSER", "0")
+        monkeypatch.delenv("SSH_CONNECTION")
+        assert not recipes_gui._can_open_browser()
+
     def test_a_browser_set_by_vs_code_is_used(self, monkeypatch):
         monkeypatch.setattr(sys, "platform", "linux")
         for name in ("DISPLAY", "WAYLAND_DISPLAY"):
             monkeypatch.delenv(name, raising=False)
         monkeypatch.setenv("BROWSER", "/home/me/.vscode-server/bin/helpers/browser.sh")
+        monkeypatch.setenv("SSH_CONNECTION", "10.0.0.2 51234 10.0.0.9 22")
+        monkeypatch.delenv("OCEANVAL_BROWSER", raising=False)
 
         assert recipes_gui._can_open_browser()
 

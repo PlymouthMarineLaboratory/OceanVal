@@ -1124,9 +1124,17 @@ def _can_open_browser():
     Without a display, webbrowser falls back on a text browser such as lynx,
     which would take over the terminal create_recipes is waiting in. BROWSER
     is set by VS Code's remote terminals, to open links on your own machine.
+    Over SSH without it, a DISPLAY is an X11 forward (MobaXterm sets one), so
+    a browser would open on the remote machine, not the one being used.
+    OCEANVAL_BROWSER overrides: 1 opens one, 0 (`oceanval --no-browser`) never.
     """
+    chosen = os.environ.get("OCEANVAL_BROWSER", "").strip().lower()
+    if chosen in ("1", "0"):
+        return chosen == "1"
     if os.environ.get("BROWSER"):
         return True
+    if over_ssh():
+        return False
     if sys.platform in ("darwin", "win32"):
         return True
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))

@@ -90,6 +90,15 @@ Files beside it, such as a post-processed time series or the grids an earlier
 validation saved, are left out. The years are kept in ``.oceanvalcache`` too,
 and read again only when the files change.
 
+Over SSH, including MobaXterm, whose X11 forwarding would otherwise open a
+browser on the remote machine, ``oceanval`` does not open a browser. It prints
+the link and the command that forwards the port, such as
+``ssh -L 8765:127.0.0.1:8765 you@server``: run it in a new terminal on your own
+computer (or add the forward to MobaXterm's Tunneling settings once), leave it
+open, and open the link in your browser. VS Code forwards the port for you.
+``oceanval --no-browser`` does the same anywhere, and ``OCEANVAL_BROWSER=1``
+opens a browser over SSH anyway.
+
 Closing the browser window quits ``oceanval`` in the terminal, within about
 15 seconds, whichever browser you use. A run that is going is never stopped
 by it, nor by moving to another tab (which some browsers, such as Safari,
