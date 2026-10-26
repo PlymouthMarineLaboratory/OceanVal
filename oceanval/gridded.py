@@ -308,7 +308,7 @@ def model_dataset(
     # times that mark the end of the period each mean covers
     # (see oceanval.time_stamps) are shifted before the years
     # are selected, so the year's last mean is in its year
-    if not time_shift:
+    if not month_per_file and not time_shift:
         ds_model.subset(years=sim_years)
     surface.choose(ds_model, selection, fast)
     if more_than_one_level and not fast:
