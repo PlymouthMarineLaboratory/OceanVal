@@ -664,5 +664,5 @@ def test_pdf_pages_are_numbered_and_carry_a_linked_wordmark():
     assert "@bottom-left{content:'Page ' counter(page) ' of ' counter(pages)" in style
     assert "@bottom-right{content:element(oceanvalfooter)}" in style
     assert ".oceanval-pdf-footer{position:running(oceanvalfooter)}" in style
-    assert 'href="https://pmlmodelling.github.io/OceanVal/"' in footer
+    assert 'href="https://PlymouthMarineLaboratory.github.io/OceanVal/"' in footer
     assert "data:image/svg+xml;base64," in footer

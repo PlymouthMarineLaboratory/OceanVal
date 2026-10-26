@@ -314,7 +314,7 @@ def _offline_report_navigation(
     wordmark_block = ""
     if wordmark_path:
         wordmark_block = (
-            '<a href="https://pmlmodelling.github.io/OceanVal/" class="oceanval-wordmark-link" '
+            '<a href="https://PlymouthMarineLaboratory.github.io/OceanVal/" class="oceanval-wordmark-link" '
             'target="_blank" rel="noopener">'
             '<span class="oceanval-wordmark-label">Produced by</span>'
             f'<img class="oceanval-wordmark" src="{wordmark_path}" alt="oceanval">'
@@ -438,7 +438,7 @@ def _offline_report_pdf_footer():
     encoded = base64.b64encode(wordmark).decode("ascii")
     return (
         '<div class="oceanval-pdf-footer">'
-        '<a href="https://pmlmodelling.github.io/OceanVal/">'
+        '<a href="https://PlymouthMarineLaboratory.github.io/OceanVal/">'
         f'<img src="data:image/svg+xml;base64,{encoded}" alt="OceanVal">'
         "</a></div>"
     )

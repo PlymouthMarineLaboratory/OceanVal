@@ -19,8 +19,8 @@ Core abilities of oceanVal include:
 
 
 PROJECT_URLS = {
-    "Bug Tracker": "https://github.com/pmlmodelling/oceanVal/issues",
-    "Source Code": "https://github.com/pmlmodelling/oceanVal",
+    "Bug Tracker": "https://github.com/PlymouthMarineLaboratory/oceanVal/issues",
+    "Source Code": "https://github.com/PlymouthMarineLaboratory/oceanVal",
 }
 
 extras_require: dict() = dict()
@@ -46,7 +46,7 @@ setup(name='oceanval',
     ],
 
       project_urls=PROJECT_URLS,
-      url = "https://github.com/pmlmodelling/oceanVal",
+      url = "https://github.com/PlymouthMarineLaboratory/oceanVal",
       author='Robert Wilson',
       maintainer='Robert Wilson',
       author_email='rwi@pml.ac.uk',

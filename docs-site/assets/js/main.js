@@ -171,7 +171,7 @@
      published) ---------- */
   var versionEls = document.querySelectorAll("#oceanval-docs-version");
   if (versionEls.length) {
-    fetch("https://raw.githubusercontent.com/pmlmodelling/oceanVal/main/setup.py")
+    fetch("https://raw.githubusercontent.com/PlymouthMarineLaboratory/oceanVal/main/setup.py")
       .then(function (res) { return res.text(); })
       .then(function (text) {
         var match = text.match(/version\s*=\s*['"]([^'"]+)['"]/);

@@ -14,7 +14,7 @@ the current diff for what changed). Please check whether these places need
 updating to match, and update whichever do:
 
 1. **`docs-site/`** — the marketing/documentation site deployed to
-   `https://pmlmodelling.github.io/OceanVal/` via
+   `https://PlymouthMarineLaboratory.github.io/OceanVal/` via
    `.github/workflows/pages.yml`. Plain static HTML, no build step, no
    templating engine — shared header/nav/footer markup is duplicated across
    all eleven `.html` files (ten content pages plus `version-history.html`),
@@ -98,7 +98,7 @@ only after I've confirmed I want that, same as any other change.
   full-domain summary for `validate()`, the first notebook for `compare()`).
   Don't reintroduce an index/landing page without a reason; it was removed
   on purpose.
-- **The repo may show as `pmlmodelling/OceanVal`** (capital V) — it was
+- **The repo may show as `PlymouthMarineLaboratory/OceanVal`** (capital V) — it was
   renamed from `pmlmodelling/oceanVal`. Pushes to the old remote URL still
   redirect and succeed, but if you're calling the GitHub API directly,
   either casing works for most endpoints — if one 404s unexpectedly, try

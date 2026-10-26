@@ -1,15 +1,15 @@
-<a href="https://pmlmodelling.github.io/OceanVal/"><img src="docs-site/assets/img/oceanval_wordmark.svg" width="240" alt="OceanVal" align="left" /></a>
+<a href="https://PlymouthMarineLaboratory.github.io/OceanVal/"><img src="docs-site/assets/img/oceanval_wordmark.svg" width="240" alt="OceanVal" align="left" /></a>
 <p align="right">
   <a href="https://oceanval.readthedocs.io/en/latest/?badge=latest"><img src="https://readthedocs.org/projects/oceanval/badge/?version=latest" alt="Documentation Status" /></a>
   <a href="https://anaconda.org/channels/conda-forge/packages/oceanval/overview"><img src="https://anaconda.org/conda-forge/oceanval/badges/version.svg" alt="Conda Badge" /></a>
-  <img src="https://github.com/pmlmodelling/oceanVal/actions/workflows/python-app.yml/badge.svg" alt="GitHub Testing" />
-  <img src="https://github.com/pmlmodelling/oceanVal/actions/workflows/macos-app.yml/badge.svg" alt="GitHub Testing on macOS" />
+  <img src="https://github.com/PlymouthMarineLaboratory/oceanVal/actions/workflows/python-app.yml/badge.svg" alt="GitHub Testing" />
+  <img src="https://github.com/PlymouthMarineLaboratory/oceanVal/actions/workflows/macos-app.yml/badge.svg" alt="GitHub Testing on macOS" />
 </p>
 <br clear="left" />
 
 Ocean model analysis and  validation made easy in Python.
 
-To learn more about the package, visit the [OceanVal website](https://pmlmodelling.github.io/OceanVal/). The
+To learn more about the package, visit the [OceanVal website](https://PlymouthMarineLaboratory.github.io/OceanVal/). The
 
 OceanVal is designed for the automated analyis and validation of ocean models. You provide the model and validation data. OceanVal does the rest. It can also analyse a simulation on its own, with no observations: the climatology and the phenology of its variables, in an HTML report.
 
@@ -28,7 +28,7 @@ You can install the development version of OceanVal from GitHub using the follow
 First, clone this directory:
 
 ```sh
-git clone https://github.com/pmlmodelling/oceanval.git
+git clone https://github.com/PlymouthMarineLaboratory/oceanval.git
 ```
 
 Then move to this directory.
@@ -79,9 +79,9 @@ OceanVal needs jupyter-book 2 or later, which `pip install .` installs.
 Alternatively, install the conda environment and package using the following commands:
 
 ```sh
-    conda env create --name oceanval -f https://raw.githubusercontent.com/pmlmodelling/oceanval/main/oceanval.yml
+    conda env create --name oceanval -f https://raw.githubusercontent.com/PlymouthMarineLaboratory/oceanval/main/oceanval.yml
     conda activate oceanval​
-    pip install git+https://github.com/pmlmodelling/oceanval.git​
+    pip install git+https://github.com/PlymouthMarineLaboratory/oceanval.git​
 ```
 
 

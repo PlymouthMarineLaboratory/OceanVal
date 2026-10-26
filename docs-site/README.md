@@ -116,7 +116,7 @@ starting with an underscore.
 Every page shows OceanVal's current version next to the header logo
 (`<span id="oceanval-docs-version" class="brand-version">`). It's entirely
 client-side: `assets/js/main.js` fetches `setup.py` from the `main` branch
-on GitHub (`raw.githubusercontent.com/pmlmodelling/oceanVal/main/setup.py`)
+on GitHub (`raw.githubusercontent.com/PlymouthMarineLaboratory/oceanVal/main/setup.py`)
 on page load, reads the `version=` line out of it with a regex, and fills
 in the placeholder `v&hellip;` with that version. Don't hardcode a version
 number here — it needs that literal placeholder text to find and replace.

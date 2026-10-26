@@ -8569,8 +8569,8 @@ class TestInfo:
             page.click("#info-open")
             assert page.is_visible("#info")
             assert page.text_content("#info-version") == f"Version {app.state()['oceanval_version']}"
-            assert page.get_attribute("#info-website", "href") == "https://pmlmodelling.github.io/OceanVal/"
-            assert page.get_attribute("#info-github", "href") == "https://github.com/pmlmodelling/oceanVal"
+            assert page.get_attribute("#info-website", "href") == "https://PlymouthMarineLaboratory.github.io/OceanVal/"
+            assert page.get_attribute("#info-github", "href") == "https://github.com/PlymouthMarineLaboratory/oceanVal"
             assert page.locator("#info-gridded tbody tr").count() == 19
             assert page.locator("#info-point tbody tr").count() == 10
             assert page.locator("#info-gridded tbody tr", has_text="GLODAPv2.2016b").first.is_visible()

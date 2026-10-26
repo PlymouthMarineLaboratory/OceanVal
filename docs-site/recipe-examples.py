@@ -6,7 +6,7 @@ your own script, set `model_variable` to the name used in your model output,
 then run the matchup and validate step at the bottom.
 
 Recipes download the observational data for you when matchup() is called.
-See https://pmlmodelling.github.io/OceanVal/recipes.html
+See https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html
 """
 
 import oceanval

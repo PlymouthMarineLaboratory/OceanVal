@@ -21,7 +21,7 @@ class TestCatalogue:
     # test_unit_conversion.py
 
     def test_the_website_lists_the_same_units(self):
-        """https://pmlmodelling.github.io/OceanVal/recipes.html has a Units
+        """https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html has a Units
         column for the gridded recipes, which must be the catalogue's."""
         if not os.path.exists(DOCS):
             pytest.skip("the docs site is not part of the installed package")

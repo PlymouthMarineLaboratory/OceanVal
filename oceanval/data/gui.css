@@ -1,9 +1,9 @@
 /* The look shared by the create_recipes window and the oceanval app:
-   OceanVal's design tokens, as on pmlmodelling.github.io/OceanVal, and the
+   OceanVal's design tokens, as on PlymouthMarineLaboratory.github.io/OceanVal, and the
    header, form controls, buttons, action bar and dialogs. Inlined into each
    page, which loads nothing from anywhere else. */
 
-/* OceanVal design tokens, as on pmlmodelling.github.io/OceanVal. Anything
+/* OceanVal design tokens, as on PlymouthMarineLaboratory.github.io/OceanVal. Anything
    with a data-theme, as the settings' previews of each theme are, starts from
    them too, so that it shows that theme whatever the page's is */
 :root, [data-theme] {

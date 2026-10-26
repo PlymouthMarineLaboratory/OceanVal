@@ -155,8 +155,8 @@ const OceanValGUI = (() => {
       <fieldset class="prefs__group">
         <legend class="prefs__legend">Links</legend>
         <ul class="info__links">
-          <li><a href="https://pmlmodelling.github.io/OceanVal/" target="_blank" rel="noopener" id="info-website">The OceanVal website</a></li>
-          <li><a href="https://github.com/pmlmodelling/oceanVal" target="_blank" rel="noopener" id="info-github">OceanVal on GitHub</a></li>
+          <li><a href="https://PlymouthMarineLaboratory.github.io/OceanVal/" target="_blank" rel="noopener" id="info-website">The OceanVal website</a></li>
+          <li><a href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener" id="info-github">OceanVal on GitHub</a></li>
         </ul>
       </fieldset>
       <fieldset class="prefs__group">

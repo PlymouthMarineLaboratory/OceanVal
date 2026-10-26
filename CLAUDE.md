@@ -559,7 +559,7 @@ There are three places describing behavior, which must be updated together after
 user-facing change to the package:
 
 1. **`docs-site/`** — the marketing/docs site deployed by `.github/workflows/pages.yml` to
-   `pmlmodelling.github.io/OceanVal`. Plain static HTML, no build step or templating engine, so
+   `PlymouthMarineLaboratory.github.io/OceanVal`. Plain static HTML, no build step or templating engine, so
    shared header/nav/footer markup is duplicated across all eleven `.html` files and must be
    edited in each if changed structurally. See `docs-site/README.md` for full details (version
    badge mechanics, the `archive/` snapshot system, page↔`.rst` mapping).

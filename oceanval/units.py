@@ -5,7 +5,7 @@ OceanVal can tell (see oceanval.unit_conversion).
 The model's units are read from the netCDF files of the simulation, and the
 observations' from RECIPE_CATALOGUE and POINT_RECIPE_CATALOGUE for the recipes
 OceanVal ships with, which the Units column of
-https://pmlmodelling.github.io/OceanVal/recipes.html repeats, from the recipes
+https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html repeats, from the recipes
 the user registered (see oceanval.user_recipes), or, for the
 user's own gridded data, from the netCDF file they supplied. Their own point
 data is csv files, which have no units, so those are left to them.

@@ -88,7 +88,7 @@ from oceanval.create_recipes import (
 )
 
 
-# the regions of the built-in recipes, as https://pmlmodelling.github.io/OceanVal/recipes.html
+# the regions of the built-in recipes, as https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html
 # names them (the ICES catalogue entries carry none)
 _DATASET_REGIONS = {"Northwest European Shelf": "NW European Shelf"}
 _POINT_DATASET_REGION = "Northeast Atlantic"

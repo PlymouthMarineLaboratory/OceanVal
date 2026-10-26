@@ -2,7 +2,7 @@
 
 Simulations were validated using the Python package **oceanval**.
 
-You can find installation instructions for **oceanval** [here](https://github.com/pmlmodelling/oceanval).
+You can find installation instructions for **oceanval** [here](https://github.com/PlymouthMarineLaboratory/oceanval).
 
 A website with full documentation for **oceanval** is available [here](https://oceanval.readthedocs.io/en/latest/index.html).
 

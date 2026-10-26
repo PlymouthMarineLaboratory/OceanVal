@@ -47,7 +47,7 @@ DOMAIN_REGIONS = {
     "nwes": "Northwest European Shelf",
 }
 
-# Every recipe on https://pmlmodelling.github.io/OceanVal/recipe-examples.py,
+# Every recipe on https://PlymouthMarineLaboratory.github.io/OceanVal/recipe-examples.py,
 # in the order that page lists them. "arguments" are the source lines of the
 # add_gridded_comparison call that follow the recipe, and "example_variable"
 # is the placeholder name the page uses, kept for the commented-out blocks.
@@ -253,7 +253,7 @@ RECIPE_CATALOGUE = RECIPE_CATALOGUE + tuple(
 # state them (those for temperature in the WOA23 and NSBC recipes, and for KD490,
 # are the documented ones, as their files are not held locally). They are shown
 # in the units step of the oceanval window and in the Units column of
-# https://pmlmodelling.github.io/OceanVal/recipes.html, which a test keeps the same.
+# https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html, which a test keeps the same.
 _GRIDDED_UNITS = {
     ("alkalinity", "glodap"): "micro-mol kg-1",
     ("chlorophyll", "occci"): "milligram m-3",
@@ -299,7 +299,7 @@ _ICES_RECIPES = (
 )
 
 # the units of the ICES observations, as the Units column of the point recipes
-# table at https://pmlmodelling.github.io/OceanVal/recipes.html gives them,
+# table at https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html gives them,
 # which a test keeps the same
 _POINT_UNITS = {
     "temperature": "\u00b0C",
@@ -1209,7 +1209,7 @@ def _header(simdir, ndown, mapping, years, domain, fvcom=False, user=False):
         "live by default and the others are commented out as alternatives -",
         "uncomment any you want as well.",
         "",
-        "See https://pmlmodelling.github.io/OceanVal/recipes.html",
+        "See https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html",
         '"""',
         "",
         "import oceanval",
