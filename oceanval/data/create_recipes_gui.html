@@ -254,8 +254,8 @@
           <fieldset class="group" id="group-climate">
             <legend>What simulation years do you want to use for climatologies?</legend>
             <div class="g-row pair">
-              <label><span class="g-label">First</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-              <label><span class="g-label">Last</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">First year</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
+              <label><span class="g-label">Last year</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
             </div>
             <p class="group__msg" id="g-climate"></p>
           </fieldset>
@@ -1474,7 +1474,7 @@
       inputmode: "numeric",
       placeholder: key === "start" ? "from" : "to",
       spellcheck: "false",
-      autocomplete: "off",
+      autocomplete: "chrome-off",
       value: woaYears[key],
       "aria-label": `${key === "start" ? "First" : "Last"} year for WOA23`,
     }));
@@ -1489,8 +1489,8 @@
             + "Give the first and last year to use for it, inside one of these periods: "
             + state.woa23_periods.map(([first, last]) => `${first}–${last}`).join(", ") + "." }),
           el("div", { class: "g-row pair" },
-            el("label", {}, el("span", { class: "g-label", text: "First" }), boxes[0]),
-            el("label", {}, el("span", { class: "g-label", text: "Last" }), boxes[1])),
+            el("label", {}, el("span", { class: "g-label", text: "First year" }), boxes[0]),
+            el("label", {}, el("span", { class: "g-label", text: "Last year" }), boxes[1])),
           problem),
         el("div", { class: "picker__foot" }, cancel, ok)));
     document.body.append(dialog);
