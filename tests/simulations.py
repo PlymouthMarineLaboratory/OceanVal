@@ -38,6 +38,25 @@ def write_matchups(directory, titles=None, last_run=None):
         selection.save_last_run(matchups, last_run)
 
 
+def write_folders(root, layout):
+    """Empty .nc files filed as OceanVal's folder layouts: "YYYY/MM" (2000/01
+    to 2000/12), "MM" (01 to 12), "flat" (in root itself), "YYYY/MM-short"
+    (only 11 months) or "YYYY/MM-names" (month names, not numbers)."""
+    months = [f"{month:02d}" for month in range(1, 13)]
+    names = {
+        "YYYY/MM": [f"2000/{m}" for m in months],
+        "YYYY/MM-short": [f"2000/{m}" for m in months[:11]],
+        "YYYY/MM-names": [f"2000/{m}" for m in ("jan", "feb", "mar")],
+        "MM": months,
+        "flat": ["."],
+    }[layout]
+    for name in names:
+        folder = os.path.join(root, name)
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "thetao.nc"), "w"):
+            pass
+
+
 def write_simulation(root, years=(2011, 2012), tracers=False):
     """A small NEMO-like simulation, filed as root/<year>/01/<file>: a grid_T
     stream of temperature, and with tracers, a ptrc_T stream of nitrate."""

@@ -38,7 +38,7 @@ from oceanval.app import (
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.gridded import _ask_minutes, _ask_yes_no
 from oceanval.recipes_gui import recipe_rows
-from simulations import write_fvcom, write_simulation
+from simulations import write_folders, write_fvcom, write_simulation
 
 SETUP_FORM = {
     "simdir": "sim",
@@ -1633,6 +1633,30 @@ class TestServer:
         assert "suggestion" not in found
         _, found = get_json(app, "/api/probe", simdir="nowhere", ndown="2", out="")
         assert found["directory"] == "missing"
+
+    @pytest.mark.parametrize(
+        "layout, expected",
+        [
+            ("YYYY/MM", {"pattern": "YYYY/MM/**.nc", "ndown": 2}),
+            ("MM", {"pattern": "MM/*.nc", "ndown": 1}),
+            ("flat", {"pattern": "*.nc", "ndown": 0}),
+            ("YYYY/MM-short", None),
+            ("YYYY/MM-names", None),
+        ],
+    )
+    def test_the_live_check_finds_the_layout_of_the_folders(self, app, tmp_path, layout, expected):
+        write_folders(tmp_path / "sim", layout)
+        # whatever depth is typed, or none
+        for ndown in ("", "0", "5"):
+            _, found = get_json(app, "/api/probe", simdir="sim", ndown=ndown, out="")
+            assert found["layout"] == expected
+
+    def test_the_live_check_finds_no_layout_without_files_or_a_directory(self, app, tmp_path):
+        os.makedirs(tmp_path / "empty")
+        _, found = get_json(app, "/api/probe", simdir="empty", ndown="", out="")
+        assert found["layout"] is None
+        _, found = get_json(app, "/api/probe", simdir="nowhere", ndown="", out="")
+        assert found["layout"] is None
 
     def test_the_live_check_of_the_output_directory(self, app, tmp_path):
         write_mixed_matchups(tmp_path / "old")
@@ -6792,6 +6816,53 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
             "node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight, getComputedStyle(node).fontSize]"
         )
         assert body == ["rgb(192, 57, 43)", "700", "25px"]
+    finally:
+        app.close()
+
+
+@pytest.mark.parametrize(
+    "layout, depth, text",
+    [
+        ("YYYY/MM", "2", "YYYY/MM/**.nc"),
+        ("MM", "1", "MM/*.nc"),
+        ("flat", "0", "*.nc"),
+    ],
+)
+def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, layout, depth, text):
+    """An amber suggestion, which the user's own value is never replaced by."""
+    write_folders(tmp_path / "sim", layout)
+    write_simulation(tmp_path / "other")
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click('button.choice[data-action="matchup"]')
+        page.fill("#f-simdir", "sim")
+        page.wait_for_function(f"document.querySelector('#f-ndown').value === '{depth}'")
+        ndown = page.locator("#f-ndown")
+        assert ndown.evaluate("node => node.classList.contains('is-detected')")
+        assert not ndown.evaluate("node => node.classList.contains('is-oceanval')")
+        # amber (the --amber token), not red
+        assert ndown.evaluate("node => getComputedStyle(node).fontWeight") == "600"
+        assert ndown.evaluate("node => getComputedStyle(node).color") != "rgb(192, 57, 43)"
+        line = page.locator("#m-simulation .group__line.is-detected")
+        line.wait_for()
+        assert line.text_content() == f"Folder structure was identified as {text}"
+        # the files at that depth are counted
+        page.wait_for_function("document.querySelector('#ndown-found').textContent.includes('netCDF file')")
+        # a directory without the layout empties what OceanVal filled in
+        page.fill("#f-simdir", "other")
+        page.wait_for_function("document.querySelector('#f-ndown').value === ''")
+        assert page.locator("#m-simulation .group__line.is-detected").count() == 0
+        # a value typed is the user's: it stays, with no suggestion shown
+        page.fill("#f-ndown", "3")
+        page.fill("#f-simdir", "sim")
+        page.wait_for_timeout(1000)
+        assert page.input_value("#f-ndown") == "3"
+        assert not ndown.evaluate("node => node.classList.contains('is-detected')")
+        assert page.locator("#m-simulation .group__line.is-detected").count() == 0
     finally:
         app.close()
 

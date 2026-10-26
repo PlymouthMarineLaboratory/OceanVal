@@ -724,6 +724,59 @@ def simulation_paths(simdir, ndown, exclude=None, require=None):
     ]
 
 
+_YEAR_DIR = re.compile(r"\d{4}")
+_MONTH_DIRS = [f"{month:02d}" for month in range(1, 13)]
+
+
+def _has_nc(directory):
+    """Whether directory holds an output file (restart files do not count)."""
+    with os.scandir(directory) as entries:
+        return any(
+            entry.name.endswith(".nc") and "restart" not in entry.name
+            for entry in entries
+            if entry.is_file()
+        )
+
+
+def folder_layout(simdir):
+    """The layout of the output in simdir that tells how many directories
+    down its files are, or None if it is not one OceanVal knows.
+
+    {"pattern": "YYYY/MM/**.nc", "ndown": 2}: a year directory (four digits) with all
+    twelve month directories, 01 to 12, one of which has output files.
+    {"pattern": "MM/*.nc", "ndown": 1}: the twelve month directories, 01 to 12, in
+    simdir itself, one of which has output files.
+    {"pattern": "*.nc", "ndown": 0}: no subdirectories (those starting with a dot
+    are not counted) and output files in the directory itself.
+
+    Only a few directories are listed, as simdir may be on a network drive.
+    Never raises.
+    """
+    try:
+        with os.scandir(simdir) as entries:
+            entries = sorted(entries, key=lambda entry: entry.name)
+        directories = [
+            entry for entry in entries if entry.is_dir() and not entry.name.startswith(".")
+        ]
+        if not directories:
+            return {"pattern": "*.nc", "ndown": 0} if _has_nc(simdir) else None
+        if set(_MONTH_DIRS) <= {entry.name for entry in directories}:
+            if any(_has_nc(os.path.join(simdir, month)) for month in _MONTH_DIRS):
+                return {"pattern": "MM/*.nc", "ndown": 1}
+        for year in directories:
+            if not _YEAR_DIR.fullmatch(year.name):
+                continue
+            with os.scandir(year.path) as inside:
+                months = {entry.name for entry in inside if entry.is_dir()}
+            if not set(_MONTH_DIRS) <= months:
+                continue
+            if any(_has_nc(os.path.join(year.path, month)) for month in _MONTH_DIRS):
+                return {"pattern": "YYYY/MM/**.nc", "ndown": 2}
+    except OSError:
+        pass
+    return None
+
+
 def simulation_files(simdir, ndown, exclude=None, require=None):
     """One example file per output stream, ndown directories below simdir.
 

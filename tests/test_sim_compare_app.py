@@ -10,7 +10,7 @@ import pytest
 
 from oceanval import analysis, sim_compare, sim_compare_forms
 from oceanval.app import App
-from simulations import write_analysis_simulation
+from simulations import write_analysis_simulation, write_folders
 from test_app import get, get_json, leftover_dir, post, wait_for  # noqa: F401 (leftover_dir is autouse)
 
 B_LATS = list(np.arange(49.5, 53.6, 0.5))
@@ -741,6 +741,38 @@ def test_a_simulation_row_says_it_is_finding_files_until_the_answer_is_in(browse
         assert page.locator("#sc-m-1 .identify__spinner").count() == 0
     finally:
         page.close()
+        app.close()
+
+
+def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser, tmp_path):
+    write_folders(tmp_path / "months", "YYYY/MM")
+    write_folders(tmp_path / "flat", "flat")
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    try:
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-simcompare")
+        page.wait_for_selector("#view-simcompare-sims:not([hidden])")
+        page.fill("#sc-dir_1", "months")
+        page.wait_for_function("document.querySelector('#sc-ndown_1').value === '2'")
+        assert page.locator("#sc-ndown_1").evaluate("node => node.classList.contains('is-detected')")
+        page.wait_for_function(
+            "document.querySelector('#sc-m-1').innerText.includes('Folder structure was identified as YYYY/MM/**.nc')"
+        )
+        page.fill("#sc-dir_2", "flat")
+        page.wait_for_function("document.querySelector('#sc-ndown_2').value === '0'")
+        assert "Folder structure was identified as *.nc" in page.inner_text("#sc-m-2")
+        # typing over it makes it the user's, and the suggestion goes
+        page.fill("#sc-ndown_1", "1")
+        assert not page.locator("#sc-ndown_1").evaluate("node => node.classList.contains('is-detected')")
+        assert "Folder structure" not in page.inner_text("#sc-m-1")
+        # a directory without the layout empties what OceanVal filled in
+        page.fill("#sc-dir_2", "base")
+        page.wait_for_function("document.querySelector('#sc-ndown_2').value === ''")
+    finally:
         app.close()
 
 

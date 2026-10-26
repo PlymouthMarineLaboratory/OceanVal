@@ -282,6 +282,9 @@
   .group__line.is-nofiles .icon { flex: none; width: 1em; height: 1em; margin-top: 0.15em; }
   /* units OceanVal has concluded are the same: amber, as a suggestion to check */
   .group__line.is-same { color: var(--amber); }
+  /* the directories down OceanVal filled in from the layout of the folders: an assumption, amber */
+  .group__line.is-detected { color: var(--amber); font-weight: 600; }
+  .s-input.is-detected { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
   .banner {
     display: flex;
     gap: 10px;
@@ -2997,6 +3000,8 @@
   let probeTimer = null;
   // true from the edit of a box the check reads until its answer (or failure) is in
   let probePending = false;
+  // whether the directories down were filled in from the folders' layout (so can change with it)
+  let autoNdown = false;
   // whether the years were filled in from the files, so can change with them
   let autoYears = false;
 
@@ -3105,6 +3110,7 @@
     setupErrors = {};
     // the demo's one year is not to be widened to the years its file covers
     autoYears = Boolean(setup.start && setup.end) && !state.demo;
+    autoNdown = false;
     for (const name of SETUP_FIELDS) $(`f-${name}`).classList.remove("is-oceanval");
     if (state.demo) markDemo("f", state.demo.prefilled.setup);
     probe = null;
@@ -3116,6 +3122,7 @@
       setup[name] = event.target.value;
       delete setupErrors[name];
       if (name === "start" || name === "end") autoYears = false;
+      if (name === "ndown") autoNdown = false;
       if (PROBED.has(name)) askProbe(400);
       refreshSetup();
     });
@@ -3167,6 +3174,19 @@
       setup.end = $("f-end").value = years ? String(years[1]) : "2004";
       autoYears = true;
     }
+    // how many directories down the files are, if the folders' layout says
+    const layout = probe.layout;
+    if (layout && (blank("ndown") || autoNdown)) {
+      autoNdown = true;
+      if (String(setup.ndown) !== String(layout.ndown)) {
+        setup.ndown = $("f-ndown").value = String(layout.ndown);
+        askProbe(0);
+      }
+    } else if (!layout && autoNdown) {
+      autoNdown = false;
+      setup.ndown = $("f-ndown").value = "";
+      askProbe(0);
+    }
   }
 
   const isInteger = (text) => /^[+-]?\d+$/.test(String(text).trim());
@@ -3189,7 +3209,7 @@
   }
 
   function line(text, kind, ...extra) {
-    const pictures = { ok: "check", warn: "warn", error: "error", oceanval: "warn", nofiles: "warn" };
+    const pictures = { ok: "check", warn: "warn", error: "error", oceanval: "warn", nofiles: "warn", detected: "warn" };
     return el("span", { class: "group__line" + (kind ? ` is-${kind}` : "") },
       pictures[kind] ? icon(pictures[kind]) : null, el("span", {}, text, ...extra));
   }
@@ -3234,6 +3254,10 @@
     if (String(setup.exclude).trim() || String(setup.require).trim()) {
       simulation.push(line(`Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
+    // the depth was filled in from the layout of the folders: amber, as an assumption to check
+    const detected = autoNdown && !finding && Boolean(probe && probe.layout) && probe.directory === "found";
+    $("f-ndown").classList.toggle("is-detected", detected);
+    if (detected) simulation.push(line(`Folder structure was identified as ${probe.layout.pattern}`, "detected"));
     const badge = $("ndown-found");
     badge.classList.toggle("is-finding", finding);
     if (finding) badge.replaceChildren(el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Finding files");
@@ -8648,7 +8672,7 @@
   }
 
   // ---- the simulations ----
-  const scSims = { shown: 2, errors: {}, probes: {}, pending: {}, timers: {}, numbers: {}, fillRecent: [], busy: false };
+  const scSims = { shown: 2, errors: {}, probes: {}, pending: {}, timers: {}, numbers: {}, auto: {}, fillRecent: [], busy: false };
   const SC_BOXES = { name: "name", simdir: "dir", ndown: "ndown", exclude: "exclude", require: "require" };
 
   function scReadSims() {
@@ -8687,6 +8711,7 @@
     scSims.errors = {};
     scSims.probes = {};
     scSims.pending = {};
+    scSims.auto = {};
     $("sc-sims-error").hidden = true;
     scShowRows();
     scSims.fillRecent.forEach((fill) => fill());
@@ -8719,8 +8744,23 @@
       if (number !== scSims.numbers[n]) return;
       scSims.pending[n] = false;
       scSims.probes[n] = found;
+      scUseProbe(n);
       refreshScSims();
     }, delay);
+  }
+
+  // how many directories down the files are, if the layout of the folders says (as useProbe)
+  function scUseProbe(n) {
+    const found = scSims.probes[n], box = $(`sc-ndown_${n}`);
+    const layout = found && found.layout;
+    if (layout && (!box.value.trim() || scSims.auto[n])) {
+      scSims.auto[n] = true;
+      if (box.value !== String(layout.ndown)) { box.value = String(layout.ndown); scAskProbe(n, 0); }
+    } else if (!layout && scSims.auto[n]) {
+      scSims.auto[n] = false;
+      box.value = "";
+      scAskProbe(n, 0);
+    }
   }
 
   // what is wrong with the rows of the simulations step, as far as the page can tell
@@ -8761,6 +8801,8 @@
       }
       const lines = [];
       const probe = scSims.probes[n];
+      const detected = Boolean(scSims.auto[n] && probe && probe.layout && probe.directory === "found" && !scSims.pending[n]);
+      $(`sc-ndown_${n}`).classList.toggle("is-detected", detected);
       for (const field of ["name", "simdir", "ndown"]) {
         if (shownErrors[field] && field !== "name") lines.push(line(shownErrors[field], "error"));
       }
@@ -8782,6 +8824,7 @@
           lines.push(line(`No netCDF files ${depthText(depth)}.`, "nofiles"));
         }
       }
+      if (detected) lines.push(line(`Folder structure was identified as ${probe.layout.pattern}`, "detected"));
       message(`sc-m-${n}`, lines, false);
     }
     const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);
@@ -8804,6 +8847,7 @@
         scSims.touched = scSims.touched || {};
         scSims.touched[n] = true;
         delete scSims.errors[String(n - 1)];
+        if (id === "ndown") scSims.auto[n] = false;
         if (id === "dir" || id === "ndown" || id === "exclude" || id === "require") scAskProbe(n, 400);
         refreshScSims();
       });
@@ -8818,6 +8862,7 @@
       scSims.errors = {};
       scSims.probes = {};
       scSims.pending = {};
+      scSims.auto = {};
       scShowRows();
       for (let m = 1; m <= scSims.shown; m++) scAskProbe(m, 0);
       refreshScSims();

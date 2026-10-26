@@ -82,6 +82,7 @@ from oceanval.create_recipes import (
     _literal,
     _unknown_variables,
     recipe_variables,
+    folder_layout,
     simulation_paths,
     simulation_years,
 )
@@ -4581,6 +4582,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             "files": None,
             "all_files": None,
             "years": None,
+            "layout": None,
         }
         found["out_exists"] = bool(out.strip()) and os.path.isfile(
             _path(out.strip(), self.cwd)
@@ -4615,6 +4617,8 @@ class App(AnalyzeSteps, SimCompareSteps):
             found["directory"] = "missing"
             return found
         found["directory"] = "found"
+        # the layout of the folders (whatever depth is typed), which tells the depth
+        found["layout"] = folder_layout(path)
         try:
             depth = int(ndown)
             if depth < 0:

@@ -534,6 +534,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   simulations) are `depthBox`es: `withChoices` boxes whose arrow lists 0 to 5 ("0 in the directory itself", "1 directory
   down", ...), and any whole number, 0 or more, can still be typed. A new box asking for a depth must be made with `depthBox`.
   A list wider than its box is moved in from the window's edge, and a blank box has none of its list chosen.
+  **A blank box is filled from the folders' layout** (`create_recipes.folder_layout`, in `/api/probe`'s `layout`: `{pattern, ndown}`
+  whatever depth is typed): a year directory with all of `01`..`12` and `.nc` files (`YYYY/MM/**.nc`, 2), the twelve months in the
+  directory (`MM/*.nc`, 1), or no subdirectories and `.nc` files (`*.nc`, 0). It is only a few `scandir`s (NFS). The fill is amber
+  (`is-detected`, tokens), with the line "Folder structure was identified as <pattern>" (`autoNdown` for setup, `scSims.auto[n]` for
+  Compare); typing or picking sets the flag off and the value is the user's for good, and a directory without a layout empties a
+  value OceanVal filled. The probe is asked again once it fills, to count the files.
 - Both windows inline `data/gui.css` and `data/gui.js` (shared look and helpers, including
   `OceanValGUI.variablesPicker`, the pop-out of the model's variables) via
   `recipes_gui.render_page`. The browser tests (`browser` fixture in `tests/conftest.py`) skip
