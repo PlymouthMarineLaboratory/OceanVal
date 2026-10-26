@@ -378,6 +378,9 @@ class SimCompareSteps:
         folder, self.sc_times_dir = getattr(self, "sc_times_dir", None), None
         if folder:
             shutil.rmtree(folder, ignore_errors=True)
+        folder, self.analyze_times_dir = getattr(self, "analyze_times_dir", None), None
+        if folder:
+            shutil.rmtree(folder, ignore_errors=True)
 
     def _sc_drop_checks(self):
         """Stop the checks of the dates of the files, and remove their files, in a

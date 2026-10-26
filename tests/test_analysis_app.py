@@ -575,6 +575,26 @@ class TestOptions:
         assert given["cores"] == 2 and given["as_missing"] == [0.0, 0.0]
         assert given["figure_code"] is True
 
+    def test_the_times_the_check_read_are_kept_for_the_run(self, app, tmp_path):
+        index = tmp_path / "times.pkl"
+        index.write_bytes(b"x")
+
+        class Check:
+            finished = True
+
+        Check.index = str(index)
+        app.analyze_check = Check()
+        kept = app._analyze_keep_times()
+        assert kept != str(index) and open(kept, "rb").read() == b"x"
+        # a check not finished, or with nothing saved, keeps nothing
+        Check.finished = False
+        assert app._analyze_keep_times() is None and not os.path.exists(kept)
+        app.analyze_check = None
+        assert app._analyze_keep_times() is None
+        assert "times_index" not in analysis_forms.arguments(
+            {"simdir": "d", "ndown": 1, "out_dir": ".", "out": "a.py"}, [], None, None, None, None
+        )
+
     def test_the_script_can_be_saved_to_run_later(self, app, sim, runs):
         to_options(app)
         # the same things are needed as to run it

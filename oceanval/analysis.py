@@ -1421,6 +1421,7 @@ def analyze(
     figure_code=False,
     transects=None,
     map_changes=None,
+    times_index=None,
 ):
     """
     Analyze a simulation on its own, with no observations, and build an HTML
@@ -1553,6 +1554,9 @@ def analyze(
         button, which copies the Python code that draws it from the analysis's
         saved results, to run (and change) in the conda environment OceanVal
         ran in. Default is False.
+    times_index : str
+        The path of the times of the files, as the window's check of their
+        dates saved them, so they are not read again. Left out, they are read.
 
     Returns
     -------------
@@ -1589,7 +1593,11 @@ def analyze(
     if os.path.isfile(out_dir):
         raise ValueError(f"out_dir, {out_dir}, is a file, not a directory.")
 
-    locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift)
+    if times_index is not None:
+        if not isinstance(times_index, (str, os.PathLike)):
+            raise ValueError("times_index must be the path of a file, or left out.")
+        times_index = os.path.abspath(os.fspath(times_index))
+    locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_index)
 
     # any analysis there before is replaced, as validate() replaces its report
     folder = os.path.join(out_dir, FOLDER)

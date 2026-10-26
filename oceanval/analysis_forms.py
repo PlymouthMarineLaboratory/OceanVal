@@ -894,8 +894,10 @@ def arguments(
     figure_code=None,
     transects=None,
     map_changes=None,
+    times_index=None,
 ):
-    """analyze()'s arguments, from the steps. area is what check_area gave,
+    """analyze()'s arguments, from the steps. times_index is where the window's
+    check of the dates saved the files' times, if they are not to be read again. area is what check_area gave,
     with the stations (see check_stations), if a time series is asked for.
     transects is what check_transects gave, if they are asked for, and
     map_changes what check_map_changes gave."""
@@ -941,6 +943,8 @@ def arguments(
         out["as_missing"] = as_missing
     if figure_code is not None:
         out["figure_code"] = figure_code
+    if times_index:
+        out["times_index"] = times_index
     return out
 
 

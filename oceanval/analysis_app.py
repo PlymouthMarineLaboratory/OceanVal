@@ -28,7 +28,10 @@ Back goes a step the other way from each, keeping what was entered. The
 forms and their checks are in oceanval.analysis_forms.
 """
 
+import atexit
 import os
+import shutil
+import tempfile
 import threading
 
 import pandas as pd
@@ -95,6 +98,8 @@ class AnalyzeSteps:
         # the check of the dates of the files, and the shift it was made with
         self.analyze_check = None
         self._analyze_check_shift = None
+        # the folder the check's times are kept in for a run (see _analyze_keep_times)
+        self.analyze_times_dir = None
         # each pop-out's boxes as last confirmed, and what they chose
         self.analyze_forms = {kind: None for kind in KINDS}
         self.analyze_chosen = {kind: None for kind in KINDS}
@@ -370,6 +375,26 @@ class AnalyzeSteps:
         self.analyze_check = model_check.ModelCheck(CHECK_ID, request, self._notify)
         self._analyze_check_shift = shift
         threading.Thread(target=self.analyze_check.start, name="oceanval-analyze-check", daemon=True).start()
+
+    def _analyze_keep_times(self):
+        """Keep the times of the files the check read, which the run would
+        otherwise read again (the check's folder is removed before it starts):
+        copy them to a folder of its own, and return the path, or None. The
+        folder goes with _sc_drop_times. Called with the lock held."""
+        self._sc_drop_times()
+        check = self.analyze_check
+        index = getattr(check, "index", None)
+        if check is None or not check.finished or not index or not os.path.isfile(index):
+            return None
+        try:
+            folder = tempfile.mkdtemp(prefix="oceanval_times_")
+            self.analyze_times_dir = folder
+            atexit.register(shutil.rmtree, folder, True)
+            path = os.path.join(folder, "1.pkl")
+            shutil.copyfile(index, path)
+            return path
+        except OSError:
+            return None
 
     def _drop_analyze_check(self):
         """Stop the check of the dates of the files, if there is one, and
@@ -669,6 +694,8 @@ class AnalyzeSteps:
                 label_run = run
             else:
                 self.analyze_setup = dict(self.analyze_setup, **paths)
+                # the times the check read are kept for a run now, not for a script kept for later
+                times_index = None if save else self._analyze_keep_times()
                 arguments = analysis_forms.arguments(
                     self.analyze_setup,
                     self.analyze_placed,
@@ -684,6 +711,7 @@ class AnalyzeSteps:
                     figure_code,
                     chosen["transects"],
                     chosen["map_changes"]["rows"] if chosen["map_changes"] else None,
+                    times_index=times_index,
                 )
                 script = _path(self.analyze_setup["out"], self.cwd)
                 try:
