@@ -254,8 +254,8 @@
           <fieldset class="group" id="group-climate">
             <legend>What simulation years do you want to use for climatologies?</legend>
             <div class="g-row pair">
-              <label><span class="g-label">First</span><input class="s-input is-num" id="s-clim_start" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-              <label><span class="g-label">Last</span><input class="s-input is-num" id="s-clim_end" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">First</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">Last</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
             </div>
             <p class="group__msg" id="g-climate"></p>
           </fieldset>
@@ -1470,6 +1470,7 @@
     const boxes = ["start", "end"].map((key) => el("input", {
       class: "s-input is-num",
       id: `woa-${key}`,
+      name: `woa23-${key}-year`,
       inputmode: "numeric",
       placeholder: key === "start" ? "from" : "to",
       spellcheck: "false",
