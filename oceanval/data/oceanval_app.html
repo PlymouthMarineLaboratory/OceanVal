@@ -944,6 +944,19 @@
   .analyze-dialog thead tr.is-need > th { padding-bottom: 2px; border-bottom: 0; text-transform: none; }
   .own-opt { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: middle; }
   .analyze-dialog .picker__foot .analyze-remove-analysis { margin-right: auto; }
+  /* the grid of the variables of "Add multiple variables": a click chooses one, which is then filled and ticked */
+  .multi-search { max-width: 360px; margin-bottom: 14px; }
+  .multi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+  .multi-cell { position: relative; display: block; width: 100%; padding: 9px 30px 9px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface, transparent); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+  .multi-cell:hover { border-color: var(--teal-600); }
+  .multi-cell b { display: block; font: 600 13px/18px var(--font-mono); overflow-wrap: anywhere; }
+  .multi-cell small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.3; }
+  .multi-cell em { margin-left: 6px; color: var(--muted); font-size: 11px; font-style: normal; font-weight: 700; }
+  .multi-cell.is-chosen { border-color: var(--teal-600); background: var(--teal-50); box-shadow: 0 0 0 2px var(--teal-600); font-weight: 700; }
+  .multi-cell.is-chosen::after { content: "\2713"; position: absolute; top: 8px; right: 8px; display: grid; place-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--teal-600); color: #fff; font-size: 12px; font-weight: 800; }
+  .multi-cell:disabled { cursor: default; opacity: 0.55; }
+  .multi-cell:disabled:hover { border-color: var(--line-strong); }
+  .multi-cell[hidden] { display: none; }
   .analyze-thickness { margin: 16px 0 6px; }
   .analyze-thickness .s-input { max-width: 360px; }
   .analyze-thickness .s-input.is-assumed { color: var(--amber); font-weight: 600; }
@@ -1550,9 +1563,10 @@
       </table></div>
       <div class="analyze-foot">
         <button type="button" class="btn btn--ghost" id="av-add">Add a variable</button>
+        <button type="button" class="btn btn--ghost" id="av-add-multiple">Add multiple variables</button>
         <button type="button" class="btn btn--ghost" id="av-add-all">Add all variables</button>
-        <button type="button" class="btn btn--ghost" id="av-add-3d">Add 3D variables</button>
-        <button type="button" class="btn btn--ghost" id="av-add-2d">Add 2D variables</button>
+        <button type="button" class="btn btn--ghost" id="av-add-3d">Add all 3D variables</button>
+        <button type="button" class="btn btn--ghost" id="av-add-2d">Add all 2D variables</button>
         <p class="group__msg is-error" id="av-msg" role="status" aria-live="polite"></p>
         <button type="button" class="btn btn--ghost analyze-foot__end" id="av-remove-all">Remove all variables</button>
       </div>
@@ -2144,6 +2158,24 @@
       <button type="button" class="btn btn--ghost analyze-remove-analysis" id="clim-remove" hidden>Remove this analysis</button>
       <button type="button" class="btn btn--ghost" id="clim-cancel">Cancel</button>
       <button type="button" class="btn btn--primary" id="clim-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="picker analyze-dialog" id="multi-dialog" hidden>
+  <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="multi-title">
+    <div class="picker__head">
+      <div class="picker__title"><h2 id="multi-title">Add multiple variables</h2></div>
+    </div>
+    <div class="analyze-dialog__body">
+      <p class="analyze-dialog__intro">Click the variables of the simulation's output files to add. Those already in the list are marked and cannot be picked again.</p>
+      <input type="search" class="s-input multi-search" id="multi-search" placeholder="Search by name or description" aria-label="Search the variables" autocomplete="off">
+      <div class="multi-grid" id="multi-grid"></div>
+      <p class="analyze-msg" id="multi-count" role="status" aria-live="polite"></p>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost" id="multi-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="multi-confirm" disabled>Add selected</button>
     </div>
   </div>
 </div>
@@ -3719,6 +3751,7 @@
     $("av-msg").textContent = "";
     // a kind of variable the simulation has none of, or nothing to remove, leaves its button off
     const available = analyzePicker().available;
+    $("av-add-multiple").disabled = !available.length;
     $("av-add-3d").disabled = !available.some(WHICH_VARIABLES["3d"]);
     $("av-add-2d").disabled = !available.some(WHICH_VARIABLES["2d"]);
     $("av-remove-all").disabled = analyzeVariables.rows.every((item) => !item.name.trim() && !item.model_variable.trim());
@@ -3767,6 +3800,11 @@
 
   // one row for every variable of the kind in the simulation's files that no row holds yet: its long name on the left, its name on the right
   function addVariables(kind) {
+    addVariableRows((variable) => WHICH_VARIABLES[kind](variable));
+  }
+
+  // the rows for the variables `wants` accepts that no row holds yet (empty rows go first)
+  function addVariableRows(wants) {
     const picked = analyzePicker();
     const isEmpty = (item) => !item.name.trim() && !item.model_variable.trim();
     analyzeVariables.rows = analyzeVariables.rows.filter((item) => {
@@ -3775,7 +3813,7 @@
     });
     const used = new Set(analyzeVariables.rows.flatMap((item) => modelNames(item.model_variable)));
     const taken = new Set(analyzeVariables.rows.map((item) => variableKey(item.name.trim())));
-    const wanted = picked.available.filter((variable) => WHICH_VARIABLES[kind](variable) && !used.has(variable));
+    const wanted = picked.available.filter((variable) => wants(variable) && !used.has(variable));
     const longName = (variable) => (picked.long_names[variable] || "").trim() || variable;
     const shared = {};
     picked.available.forEach((variable) => { const key = variableKey(longName(variable)); shared[key] = (shared[key] || 0) + 1; });
@@ -3793,6 +3831,70 @@
   for (const [id, kind] of [["av-add-all", "all"], ["av-add-3d", "3d"], ["av-add-2d", "2d"]]) {
     $(id).addEventListener("click", () => addVariables(kind));
   }
+
+  // "Add multiple variables": a grid of the simulation's variables, a click chooses one, Add selected adds the chosen
+  const multiple = { opener: null, chosen: new Set(), cells: {} };
+
+  function refreshMultiple() {
+    const count = multiple.chosen.size;
+    $("multi-count").textContent = count ? `${plural(count, "variable")} chosen.` : "";
+    $("multi-confirm").disabled = !count;
+    for (const [variable, cell] of Object.entries(multiple.cells)) cell.classList.toggle("is-chosen", multiple.chosen.has(variable));
+  }
+
+  function openMultiple() {
+    const picked = analyzePicker();
+    const held = new Set(analyzeVariables.rows.flatMap((item) => modelNames(item.model_variable)));
+    multiple.opener = document.activeElement;
+    multiple.chosen = new Set();
+    multiple.cells = {};
+    $("multi-search").value = "";
+    $("multi-grid").replaceChildren(...picked.available.map((variable) => {
+      const longName = (picked.long_names[variable] || "").trim();
+      const cell = el("button", { type: "button", class: "multi-cell", "aria-pressed": "false", "data-variable": variable, disabled: held.has(variable),
+        title: held.has(variable) ? "Already in the list" : null },
+        el("b", {}, variable, el("em", { text: isThreeD(variable) ? "3D" : "2D" })),
+        longName ? el("small", { text: longName }) : null);
+      cell.dataset.search = `${variable} ${longName}`.toLowerCase();
+      cell.addEventListener("click", () => {
+        if (multiple.chosen.has(variable)) multiple.chosen.delete(variable); else multiple.chosen.add(variable);
+        cell.setAttribute("aria-pressed", String(multiple.chosen.has(variable)));
+        refreshMultiple();
+      });
+      if (held.has(variable)) cell.classList.add("is-chosen");
+      multiple.cells[variable] = cell;
+      return cell;
+    }));
+    refreshMultiple();
+    // the ones already held keep their tick but are not ours to choose
+    for (const variable of held) if (multiple.cells[variable]) multiple.cells[variable].classList.add("is-chosen");
+    $("multi-dialog").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    $("multi-search").focus();
+  }
+
+  function closeMultiple() {
+    $("multi-dialog").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+    if (multiple.opener && document.contains(multiple.opener)) multiple.opener.focus();
+  }
+
+  $("av-add-multiple").addEventListener("click", openMultiple);
+  $("multi-cancel").addEventListener("click", closeMultiple);
+  $("multi-confirm").addEventListener("click", () => {
+    const chosen = new Set(multiple.chosen);
+    closeMultiple();
+    addVariableRows((variable) => chosen.has(variable));
+  });
+  $("multi-search").addEventListener("input", () => {
+    const words = $("multi-search").value.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const cell of Object.values(multiple.cells)) cell.hidden = !words.every((word) => cell.dataset.search.includes(word));
+  });
+  $("multi-dialog").addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    closeMultiple();
+  });
 
   // every row goes, leaving one blank row to type in, as a simulation with no variables chosen starts with
   $("av-remove-all").addEventListener("click", () => {
