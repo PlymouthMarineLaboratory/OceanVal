@@ -1038,7 +1038,7 @@ def index_times(paths, fvcom=False, times=None, progress=None, workers=None):
     process may use, or workers if given (0 or 1 reads them all here).
     """
     times = dict() if times is None else times
-    todo = [ff for ff in dict.fromkeys(paths) if ff not in times and "restart" not in ff]
+    #todo = [ff for ff in dict.fromkeys(paths) if ff not in times and "restart" not in ff]
     if len(todo) == 0:
         return times
 
@@ -1111,7 +1111,7 @@ def _files_found(sim_dir, patterns, exclude, require, strict_names):
             exclude,
             require,
         )
-        found[pattern] = sorted(x for x in paths if "restart" not in x)
+        found[pattern] = sorted(x for x in paths)
     return found
 
 
@@ -1134,7 +1134,7 @@ def extract_variable_mapping(folder, exclude=[], n_check=None):
     # add restart to exclude, in a list of its own: appending to the one given
     # changed matchup()'s default, so each matchup in a session excluded
     # "restart" once more, and the window (which reads the defaults) saw it
-    exclude = [*(exclude or []), "restart"]
+    #exclude = [*(exclude or []), "restart"]
     # the files of this simulation only: kept from an earlier matchup in the
     # session, its files were searched for the cell thickness too, and one of
     # another simulation holding it could be used
@@ -1165,8 +1165,8 @@ def extract_variable_mapping(folder, exclude=[], n_check=None):
         # if n_check is not None and an integer, limit options to n_check
         if n_check is not None and isinstance(n_check, int):
             options = random.sample(options, min(n_check, len(options)))
-        if True:
-            options = [x for x in options if "restart" not in os.path.basename(x)]
+        #if True:
+            #options = [x for x in options if "restart" not in os.path.basename(x)]
 
         if len([x for x in options if ".nc" in x]) > 0:
             break
