@@ -482,7 +482,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
   logic, `depthBox`, "Finding files", the recent-directories arrow and the amber `restart` Skip box are OceanVal's own; only
   the multi-row **Missing values** fieldset (`#setup-missing`, `missingRows`, sent as JSON `missing` by `setupForm()`,
-  `viewer_app.parse_missing`) is the viewer's. A simulation viewed is recorded in `.oceanvalcache` (`record_sim_dir`).
+  `viewer_app.parse_missing`) is the viewer's. **Its rows start filled in from the files** (`viewer_missing.guess` via
+  `/api/viewer/missing`, asked by `askMissingGuess` after each `/api/probe` answer with files; `scan(wait=False)`, then
+  `missing_probe.probe` on the first mappable variable of the first file type, else 0 for `is_likely_nemo_ersem` names): amber
+  `is-found` / `is-ersem` with Analyze's wording, "Attempting to identify missing value range" and a spinner while it runs. Typing in or
+  removing a row (`missingEdited`) makes the rows the user's for good; rows OceanVal filled are emptied when the simulation or
+  filters change. A simulation viewed is recorded in `.oceanvalcache` (`record_sim_dir`).
 - `viewer_catalogue.scan(wait=False)` reads the variables of each file type's first file; `Catalogue.read_times` then reads
   every file's times **in a process of its own**: `viewer_times.py` is run as a script by path (`python -I`), imports nothing
   of OceanVal (a test checks), and has its own spawn pool (half the cores); `Reading.cancel` kills it, which Back and Restart
@@ -499,6 +504,11 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   the laid-out figure; `invalidate_layout`, as a new frame size alone is not laid out), again on resize
   (`ResizeObserver`); box zoom has `match_aspect`. The page's JS block "View simulation output" uses `vw-` ids/classes throughout. A thread setting
   `view` checks `_viewer_number` (bumped by `_viewer_drop`: Back, Restart, quit, a new Continue).
+- **Levels with no depths** (a vertical dim with no 1-D variable, as GETM's `z`/`zi`, written bottom first) are named
+  "0 (bottom)" … "29 (surface)" when `viewer_catalogue._ends` can tell: from a vertical coordinate of the variable
+  (`coordinates`/coords spanning the dim, `positive`/`standard_name`; GETM's `zct_av`, with -1e20 on land) or else from
+  the wet cells of its first and last level (z-levels); else bare indices. Only a strided slice of the first time step
+  is read. `surface_level` is where the page's level starts. Levels with depths and FVCOM's layers are unchanged.
 - Tests: `tests/test_viewer_*.py` (simulations in `tests/viewer_simulations.py`, fixture `viewer_simulation`), CI group 3.
 
 ### The `oceanval` command and its browser windows

@@ -167,6 +167,8 @@ class ViewerSteps:
         # bumped whenever what is being read is no longer wanted: a thread
         # reading for an earlier number gives up
         self._viewer_number = 0
+        # the last guess at the missing value, as (the simulation asked about, the answer)
+        self._viewer_guessed = None
 
     def _viewer_state(self):
         return {
@@ -332,6 +334,28 @@ class ViewerSteps:
         if found is None:
             return {"ok": False, "error": "Nothing has been read yet."}
         return {"ok": True, "number": self.viewer_catalogue_number, **found.summary()}
+
+    def viewer_missing_guess(self, query):
+        """What the setup page's missing value rows could start with for the
+        simulation as typed in (see oceanval.viewer_missing.guess): {"value",
+        "ersem"}. The last answer is kept, as the page asks again whenever a
+        box is edited."""
+        from oceanval import viewer_missing
+        from oceanval.app import _path
+
+        try:
+            ndown = int(query.get("ndown", ""))
+            assert ndown >= 0 and query.get("simdir", "").strip()
+        except (ValueError, AssertionError):
+            return {"value": None, "ersem": False}
+        key = (_path(query["simdir"].strip(), self.cwd), ndown, query.get("exclude", ""), query.get("require", ""))
+        with self._lock:
+            if self._viewer_guessed is not None and self._viewer_guessed[0] == key:
+                return self._viewer_guessed[1]
+        answer = viewer_missing.guess(*key)
+        with self._lock:
+            self._viewer_guessed = (key, answer)
+        return answer
 
     def viewer_plot(self, query):
         """The map the page asks for: {"ok", "item" (a Bokeh json_item),

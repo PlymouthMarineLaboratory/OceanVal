@@ -5337,6 +5337,7 @@ class _Handler(recipes_gui._Handler):
             "/api/viewer/catalogue",
             "/api/viewer/plot",
             "/api/viewer/limits",
+            "/api/viewer/missing",
             "/bokeh.min.js",
         ):
             self._reply(404, "Not found", "text/plain; charset=utf-8")
@@ -5386,6 +5387,8 @@ class _Handler(recipes_gui._Handler):
             self._reply_json(200, self.app.viewer_plot(query))
         elif url.path == "/api/viewer/limits":
             self._reply_json(200, self.app.viewer_limits(query))
+        elif url.path == "/api/viewer/missing":
+            self._reply_json(200, self.app.viewer_missing_guess(query))
         elif url.path == "/api/browse":
             self._reply_json(200, self.app.browse(query.get("path", "")))
         elif url.path == "/api/matchups":

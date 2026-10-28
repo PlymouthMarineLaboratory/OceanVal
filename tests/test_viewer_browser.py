@@ -56,6 +56,11 @@ def test_files_page_finds_the_depth(page, simulation):
     assert "YYYY/MM/**.nc" in tab.text_content("#ndown-layout")
     assert "is-detected" in tab.get_attribute("#f-ndown", "class")
     assert tab.is_enabled("#continue")
+    # the files the filters leave out are not mentioned, only the number there are
+    tab.fill("#f-exclude", "grid_T")
+    tab.wait_for_function("() => document.querySelector('#ndown-found').textContent.startsWith('24 ')")
+    assert tab.text_content("#ndown-found") == "24 netCDF files found"
+    tab.fill("#f-exclude", "")
     # typing a depth makes it the user's own
     tab.fill("#f-ndown", "1")
     tab.wait_for_selector("#m-simulation .is-nofiles")
@@ -102,6 +107,96 @@ def test_missing_values_on_the_files_page(page, simulation):
     tab.click("#vw-back")
     tab.wait_for_selector("#view-setup:not([hidden])")
     assert tab.input_value("#missing-from-1") == "10"
+
+
+def _land_files_page(tab, root):
+    tab.fill("#f-simdir", root)
+    tab.wait_for_function("() => document.querySelector('#f-ndown').value === '0'")
+    tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
+
+
+def test_a_missing_value_found_in_the_files_is_filled_in_to_be_checked(page, tmp_path):
+    from viewer_simulations import land_simulation
+
+    tab, app = page
+    _land_files_page(tab, land_simulation(str(tmp_path / "land"), land=-999.0))
+    tab.wait_for_function("() => document.querySelector('#missing-from-0').value === '-999'")
+    assert tab.input_value("#missing-to-0") == "-999"
+    assert "is-found" in tab.get_attribute("#missing-from-0", "class")
+    assert tab.is_visible("#missing-found") and tab.is_hidden("#missing-ersem")
+    assert tab.is_enabled("#continue")
+    # typing over it makes it the user's: the amber goes, and nothing is put there again
+    tab.fill("#missing-from-0", "-9")
+    assert "is-found" not in tab.get_attribute("#missing-from-0", "class")
+    assert tab.is_hidden("#missing-found")
+    tab.fill("#f-require", "land_0")
+    tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
+    time.sleep(0.5)
+    assert tab.input_value("#missing-from-0") == "-9"
+    # and what is in the rows is what Continue is given
+    tab.click("#continue")
+    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    assert app.viewer_missing == [(-9.0, -999.0)]
+
+
+def test_the_page_says_it_is_identifying_the_missing_value(page, tmp_path, monkeypatch):
+    import threading
+
+    from viewer_simulations import land_simulation
+
+    from oceanval import viewer_missing
+
+    tab, app = page
+    release = threading.Event()
+    original = viewer_missing.guess
+    monkeypatch.setattr(viewer_missing, "guess", lambda *args: release.wait(30) and original(*args))
+    _land_files_page(tab, land_simulation(str(tmp_path / "land"), land=-999.0))
+    tab.wait_for_selector("#missing-identifying:not([hidden])")
+    assert tab.text_content("#missing-identifying").strip() == "Attempting to identify missing value range"
+    assert tab.is_visible("#missing-identifying .identify__spinner")
+    release.set()
+    tab.wait_for_selector("#missing-identifying", state="hidden")
+    assert tab.input_value("#missing-from-0") == "-999"
+    # typing while it is looked for ends it, and the answer does not come after
+    release.clear()
+    tab.fill("#f-require", "land_0")
+    tab.wait_for_selector("#missing-identifying:not([hidden])")
+    tab.fill("#missing-from-0", "-9")
+    assert tab.is_hidden("#missing-identifying")
+    release.set()
+    time.sleep(0.5)
+    assert tab.input_value("#missing-from-0") == "-9"
+
+
+def test_the_rows_are_taken_back_when_the_simulation_changes(page, tmp_path):
+    from viewer_simulations import land_simulation, nemo_simulation
+
+    tab, app = page
+    _land_files_page(tab, land_simulation(str(tmp_path / "land"), land=0.0))
+    tab.wait_for_function("() => document.querySelector('#missing-from-0').value === '0'")
+    # a simulation with nothing to find: the rows OceanVal filled are emptied
+    nemo = nemo_simulation(str(tmp_path / "nemo"), years=(2000,))
+    tab.fill("#f-simdir", nemo)
+    tab.wait_for_function("() => document.querySelector('#f-ndown').value === '2'")
+    tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
+    tab.wait_for_function("() => document.querySelector('#missing-from-0').value === ''")
+    assert tab.is_hidden("#missing-found")
+
+
+def test_an_ersem_simulation_has_zeros_assumed_to_be_missing(page, simulation, monkeypatch):
+    from oceanval import recipes_gui
+
+    tab, app = page
+    monkeypatch.setattr(recipes_gui, "is_likely_nemo_ersem", lambda names: True)
+    tab.fill("#f-simdir", simulation)
+    tab.wait_for_function("() => document.querySelector('#missing-from-0').value === '0'")
+    assert tab.input_value("#missing-to-0") == "0"
+    assert "is-ersem" in tab.get_attribute("#missing-from-0", "class")
+    assert tab.is_visible("#missing-ersem") and tab.is_hidden("#missing-found")
+    # a row removed is the user's doing, and stays removed
+    tab.click("[aria-label='Remove missing value 1']")
+    assert tab.input_value("#missing-from-0") == ""
+    assert "is-ersem" not in tab.get_attribute("#missing-from-0", "class")
 
 
 def test_viewer(page, simulation):
@@ -211,6 +306,33 @@ def test_the_map_keeps_distances_on_one_scale(page, tmp_path):
     _fits(tab, aspect)
 
 
+def test_levels_written_bottom_first_start_at_the_surface(page, tmp_path):
+    """Levels with no depths (GETM's) are named at the surface and the bottom,
+    and the map starts at the surface, the last level here."""
+    from viewer_simulations import levels_file
+
+    root = tmp_path / "getm"
+    root.mkdir()
+    levels_file(str(root / "levels.nc"), height="up")
+    tab, app = page
+    tab.fill("#f-simdir", str(root))
+    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
+    tab.click("#continue")
+    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    _times_in(tab, app)
+    tab.fill("#vw-search", "temp")
+    tab.keyboard.press("Enter")
+    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
+    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    assert tab.locator("#vw-level option").all_text_contents() == ["0 (bottom)", "1", "2", "3", "4 (surface)"]
+    assert tab.input_value("#vw-level") == "4"
+    assert tab.is_hidden("#vw-plot-error")
+    # a level chosen is kept
+    tab.select_option("#vw-level", "0")
+    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    assert tab.input_value("#vw-level") == "0"
+
+
 def test_another_simulation_is_drawn_after_back(page, simulation, tmp_path):
     """The maps of a simulation viewed before are not shown for another with
     the same variables: the page asks for the new simulation's map."""
@@ -266,19 +388,28 @@ def test_sum_of_variables(page, simulation):
     tab.click("#vw-clear")
     assert tab.locator("#vw-list li input:checked").count() == 0
     assert tab.is_hidden("#vw-chosen")
-    # a click anywhere on a row ticks it, adding it to the sum
+    # a click on a row chooses that variable alone: a second click replaces the first
     tab.click(f"{row('chl')} .vw-list__name")
     tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
     tab.click(row("votemper"), position={"x": 200, "y": 10})
+    assert tab.locator("#vw-list li input:checked").count() == 1
+    assert tab.is_checked(f"{row('votemper')} input")
+    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    assert "Sum of" not in tab.text_content("#vw-info")
+    # only the box adds to the sum
+    tab.check(f"{row('chl')} input")
     assert tab.locator("#vw-list li input:checked").count() == 2
     tab.wait_for_function("() => document.querySelector('#vw-info').textContent.includes('Sum of')")
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    # an incompatible row does nothing, and a second click unticks
-    tab.click(f"{row('sossheig')} .vw-list__name", force=True)
-    assert tab.locator("#vw-list li input:checked").count() == 2
-    tab.click(f"{row('votemper')} .vw-list__name")
+    # an incompatible row cannot be ticked, but a click chooses it alone
+    assert tab.is_disabled(f"{row('sossheig')} input")
+    tab.click(f"{row('sossheig')} .vw-list__name")
     assert tab.locator("#vw-list li input:checked").count() == 1
+    assert tab.is_checked(f"{row('sossheig')} input")
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    # unticking the box leaves nothing chosen
+    tab.uncheck(f"{row('sossheig')} input")
+    assert tab.locator("#vw-list li input:checked").count() == 0
     tab.click("#vw-back")
     tab.wait_for_selector("#view-setup:not([hidden])")
 

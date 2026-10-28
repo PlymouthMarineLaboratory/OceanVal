@@ -110,6 +110,8 @@ def describe_variables(ds, time_dim):
     skip = _bounds_names(ds)
     coords = set(ds.coords)
     found = {}
+    # vertical dim -> which end is the surface, for levels with no depths (the variables on one dim share it)
+    ends = {}
     for name, variable in ds.data_vars.items():
         if name in skip or name in coords or variable.ndim == 0:
             continue
@@ -123,6 +125,12 @@ def describe_variables(ds, time_dim):
         horizontal = [dim for dim in rest if dim != vertical][-2:]
         lon, lat = _lonlat(ds, name)
         levels = int(variable.sizes[vertical]) if vertical else 1
+        labels, surface = None, 0
+        if vertical and levels > 1 and not _has_depths(ds, vertical):
+            if vertical not in ends:
+                ends[vertical] = _ends(ds, name, vertical, time)
+            if ends[vertical]:
+                labels, surface = _labels(levels, ends[vertical])
         found[name] = {
             "long_name": _attr(variable, "long_name") or _attr(variable, "standard_name"),
             "units": _attr(variable, "units"),
@@ -133,6 +141,9 @@ def describe_variables(ds, time_dim):
             "levels": levels,
             "level_values": _level_values(ds, vertical) if vertical else None,
             "level_units": _attr(ds[vertical], "units") if vertical and vertical in ds.variables else "",
+            # named only when the levels have no depths and which end is the surface could be told
+            "level_labels": labels,
+            "surface_level": surface,
             "horizontal": horizontal,
             "lon": lon,
             "lat": lat,
@@ -168,6 +179,7 @@ def describe_fvcom(ds, time_dim):
                 f"Layer {number}" + (" (surface)" if number == 1 else " (bottom)" if number == levels else "")
                 for number in range(1, levels + 1)
             ] if vertical else None,
+            "surface_level": 0,
             "level_units": "",
             "horizontal": [mesh],
             "mesh": mesh,
@@ -175,6 +187,115 @@ def describe_fvcom(ds, time_dim):
             "lat": None,
         }
     return found
+
+
+# at most this many values are read to tell the surface from the bottom
+_ENDS_VALUES = 200_000
+# values this large are a model's own land value (GETM's -1e20 beside a _FillValue of -2e20), not heights
+_ABSURD = 1e10
+
+
+def _has_depths(ds, dim):
+    return dim in ds.variables and ds[dim].ndim == 1
+
+
+def _small_slice(variable, keep, time_dim):
+    """{dim: index or slice} reading variable at its first time (and index 0
+    of any other dim but those in keep), with the last two of the others
+    strided so that about _ENDS_VALUES values are read for each of the kept."""
+    step = _ENDS_VALUES
+    select = {}
+    for dim in variable.dims:
+        if dim not in keep:
+            select[dim] = 0
+    rest = [dim for dim in variable.dims if dim not in keep and dim != time_dim][-2:]
+    cells = int(np.prod([variable.sizes[dim] for dim in rest])) if rest else 1
+    stride = max(1, int(np.ceil(np.sqrt(cells / step))))
+    for dim in rest:
+        select[dim] = slice(None, None, stride)
+    return select
+
+
+def _vertical_coordinate(ds, name, vertical):
+    """The name of a coordinate of variable name that spans vertical and says
+    it is vertical, and whether it is positive "up" or "down", or Nones."""
+    variable = ds[name]
+    candidates = [word for word in _attr(variable, "coordinates").split() if word in ds.variables]
+    candidates += [key for key in variable.coords if key not in candidates]
+    for key in candidates:
+        if key == vertical or vertical not in ds[key].dims:
+            continue
+        attrs = ds[key].attrs
+        positive = str(attrs.get("positive", "")).lower()
+        standard = str(attrs.get("standard_name", "")).lower()
+        if positive not in ("up", "down"):
+            if "depth" in standard:
+                positive = "down"
+            elif "height" in standard or "altitude" in standard:
+                positive = "up"
+            elif str(attrs.get("axis", "")).upper() == "Z":
+                positive = ""
+            else:
+                continue
+        return key, positive
+    return None, None
+
+
+def _ends(ds, name, vertical, time_dim):
+    """Which end of vertical, a dimension of variable name with no depths of
+    its own, is the surface: "surface_first", "surface_last" or None if that
+    cannot be told. From a vertical coordinate of the variable (GETM's zct,
+    positive up, rising from the bottom) if it has one, else from the
+    variable's own missing cells (a z-level model has less sea at depth).
+    Only a slice of the first time step is read."""
+    try:
+        key, positive = _vertical_coordinate(ds, name, vertical)
+        if key is not None:
+            coordinate = ds[key]
+            column = coordinate.isel(_small_slice(coordinate, {vertical}, time_dim)).transpose(vertical, ...)
+            values = np.asarray(column.values, dtype="float64")
+            values = np.where(np.isfinite(values) & (np.abs(values) < _ABSURD), values, np.nan)
+            steps = np.diff(values.reshape(values.shape[0], -1), axis=0)
+            steps = steps[np.isfinite(steps)]
+            if steps.size:
+                rising = float(np.median(steps))
+                if rising and not positive:
+                    # no direction given: values below 0 are heights, above it depths
+                    middle = float(np.nanmedian(values))
+                    positive = "up" if middle < 0 else "down" if middle > 0 else ""
+                if rising and positive:
+                    return "surface_last" if (rising > 0) == (positive == "up") else "surface_first"
+            return None
+        variable = ds[name]
+        levels = int(variable.sizes[vertical])
+        if levels < 2:
+            return None
+        counts = []
+        for level in (0, levels - 1):
+            select = _small_slice(variable, {vertical}, time_dim)
+            select[vertical] = level
+            values = np.asarray(variable.isel(select).values, dtype="float64")
+            counts.append(int((np.isfinite(values) & (np.abs(values) < _ABSURD)).sum()))
+        first, last = counts
+        if first > last * 1.01:
+            return "surface_first"
+        if last > first * 1.01:
+            return "surface_last"
+    except Exception:  # noqa: BLE001 - a label must never stop a stream being described
+        pass
+    return None
+
+
+def _labels(levels, ends):
+    """The level list's names for indices 0..levels-1 with the surface and
+    bottom named, and the index of the surface."""
+    surface = 0 if ends == "surface_first" else levels - 1
+    bottom = levels - 1 - surface
+    labels = [
+        str(index) + (" (surface)" if index == surface else " (bottom)" if index == bottom else "")
+        for index in range(levels)
+    ]
+    return labels, surface
 
 
 def _level_values(ds, dim):
@@ -463,6 +584,7 @@ class Catalogue:
                     "horizontal": about["horizontal"],
                     "mesh": about.get("mesh"),
                     "level_labels": about.get("level_labels"),
+                    "surface_level": about.get("surface_level", 0),
                 })
         return {
             "simdir": self.simdir,

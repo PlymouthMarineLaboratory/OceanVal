@@ -275,6 +275,7 @@
   .ndown-found.is-finding { color: var(--muted); background: transparent; }
   .ndown-found .identify__spinner, .group__line.is-finding .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
   .group__line.is-finding { color: var(--muted); }
+  #missing-identifying[hidden] { display: none; }
   .group__intro { margin: -2px 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
   .group__line.is-ok { color: var(--teal-700); }
   .group__line .link { font-size: inherit; }
@@ -960,10 +961,10 @@
   .analyze-options .choice { aspect-ratio: auto; min-height: 200px; padding-top: 30px; }
   .analyze-area { max-width: 980px; margin: 28px 0 0; }
   .analyze-area .s-select { width: auto; min-width: 280px; }
-  .analyze-area .group__line.is-ersem, .missing-field .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
-  .analyze-area .group__line.is-found { color: var(--amber); font-weight: 600; }
-  .analyze-area .s-input.is-found { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
-  .analyze-area .s-input.is-ersem, .missing-field .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
+  .analyze-area .group__line.is-ersem, .missing-field .group__line.is-ersem, #setup-missing .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
+  .analyze-area .group__line.is-found, #setup-missing .group__line.is-found { color: var(--amber); font-weight: 600; }
+  .analyze-area .s-input.is-found, #setup-missing .s-input.is-found { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
+  .analyze-area .s-input.is-ersem, .missing-field .s-input.is-ersem, #setup-missing .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
   /* the boxes matchup is given with its cores: as wide as the report options' subset */
   .missing-field .span-row, #row-f-subset .span-row { max-width: 560px; }
   .analyze-code { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; }
@@ -1342,6 +1343,9 @@
         <p class="group__intro">Numbers in the files that mean there is no data, such as 0 or -999, and are not marked as missing in them. Give one number, or fill in To as well for a range (both ends are included). They apply to every variable.</p>
         <div class="missing-rows" id="missing-rows"></div>
         <button type="button" class="link" id="missing-add">Add a missing value</button>
+        <p class="group__line is-finding" id="missing-identifying" hidden><span class="identify__spinner" aria-hidden="true"></span>Attempting to identify missing value range</p>
+        <p class="group__line is-found" id="missing-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data before you continue.</p>
+        <p class="group__line is-ersem" id="missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
         <p class="group__msg" id="m-missing-rows"></p>
       </fieldset>
       <input type="hidden" id="f-start">
@@ -1366,7 +1370,7 @@
         <div>
           <h2 class="vw-head"><label for="vw-search">Variable</label></h2>
           <input class="s-input" id="vw-search" type="search" placeholder="Search by name or description" spellcheck="false" autocapitalize="off" autocomplete="off" aria-controls="vw-list">
-          <p class="vw-sum"><span>Tick the boxes to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" id="vw-clear" hidden>Clear</button></p>
+          <p class="vw-sum"><span>Click a variable to map it. Tick boxes to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" id="vw-clear" hidden>Clear</button></p>
           <ul class="vw-list" id="vw-list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
         </div>
         <div class="vw-control" id="vw-c-years" hidden>
@@ -3107,8 +3111,12 @@
         role: "option", "data-name": name, title: why || null,
         class: `${ticked ? "is-chosen" : ""}${index === listActive ? " is-active" : ""}${why ? " is-incompatible" : ""}`,
         "aria-selected": String(ticked), "aria-disabled": String(Boolean(why)),
-        // a click anywhere on the row ticks it, adding it to the sum, or unticks it
-        onclick: () => { if (!why && !String(window.getSelection() || "")) toggle(name); },
+        // a click on the row chooses it alone; only its box adds it to the sum
+        onclick: () => {
+          if (String(window.getSelection() || "")) return;
+          if (pick.names.length === 1 && pick.names[0] === name) return;
+          choose(name);
+        },
       },
         box,
         el("span", { class: "vw-list__name", text: name }),
@@ -3169,7 +3177,7 @@
     afterStream(before);
   }
 
-  // adds a variable to the sum, or takes it out
+  // adds a variable to the sum, or takes it out (the only way to more than one: a row's box, or Shift+Enter)
   function toggle(name) {
     const before = inStream();
     pick.names = pick.names.includes(name) ? pick.names.filter((other) => other !== name) : [...pick.names, name];
@@ -3197,7 +3205,10 @@
       }
       const span = windowOf(streamOf(now.stream));
       pick.step = Math.min(Math.max(span.lo, pick.step), span.hi);
-      if (pick.level >= now.levels) pick.level = 0;
+      // levels of another kind start at the surface (the last level for output written bottom first, as GETM's)
+      const sameLevels = before && before.vertical === now.vertical && before.levels === now.levels
+        && before.surface_level === now.surface_level;
+      if (!sameLevels || pick.level >= now.levels) pick.level = now.surface_level || 0;
     } else {
       clearPlot();
     }
@@ -4362,6 +4373,7 @@
       probe = found;
       useProbe();
       refreshSetup();
+      askMissingGuess();
     }, delay);
   }
 
@@ -4402,6 +4414,9 @@
   // ---- the numbers to treat as missing, asked on this page for viewing the output ----
   // rows of [from, to] as typed, kept as text; to empty is a single number, and empty rows are not sent
   let missingRows = [];
+  // what OceanVal put in the rows from the files (see askMissingGuess): null, "found" or "ersem"; whether the
+  // user has typed in or removed a row, after which nothing is put there; and the simulation last asked about
+  let missingGuess = null, missingTouched = false, missingKey = null, missingNumber = 0, missingLooking = false;
   const isNumber = (text) => text.trim() !== "" && Number.isFinite(Number(text));
   const missingRowOk = (row) => (row[0].trim() === "" ? row[1].trim() === "" : isNumber(row[0]) && (row[1].trim() === "" || isNumber(row[1])));
   function fillMissingRows() {
@@ -4410,7 +4425,70 @@
     } catch (error) {
       missingRows = [];
     }
+    // rows that are filled in, coming back from the viewer, are the user's to keep
+    missingTouched = missingRows.some((row) => row[0].trim() !== "" || row[1].trim() !== "");
+    missingGuess = null;
+    missingKey = null;
+    missingNumber++;
+    missingLooking = false;
     renderMissingRows();
+  }
+  // the first row's boxes and the lines under them say what OceanVal filled in
+  function markMissingGuess() {
+    for (const id of ["missing-from-0", "missing-to-0"]) {
+      $(id).classList.toggle("is-found", missingGuess === "found");
+      $(id).classList.toggle("is-ersem", missingGuess === "ersem");
+    }
+    $("missing-identifying").hidden = !missingLooking;
+    $("missing-found").hidden = missingGuess !== "found";
+    $("missing-ersem").hidden = missingGuess !== "ersem";
+  }
+  // what the user does to the rows makes them theirs
+  function missingEdited() {
+    missingTouched = true;
+    missingGuess = null;
+    missingLooking = false;
+    missingNumber++;
+    markMissingGuess();
+  }
+  // the value many cells share in the files, or 0 for an ERSEM simulation, put in the rows if the user has not
+  async function askMissingGuess() {
+    if (state.action !== "viewer") return;
+    if (!probe || probe.directory !== "found" || !(probe.files > 0)) {
+      if (missingGuess) { missingRows = []; missingGuess = null; renderMissingRows(); }
+      missingKey = null;
+      missingNumber++;
+      missingLooking = false;
+      markMissingGuess();
+      return;
+    }
+    const key = JSON.stringify([setup.simdir, setup.ndown, setup.exclude, setup.require]);
+    if (key === missingKey) return;
+    missingKey = key;
+    // rows OceanVal filled for another simulation are not this one's
+    if (missingGuess) { missingRows = []; missingGuess = null; renderMissingRows(); }
+    if (missingTouched) return;
+    const number = ++missingNumber;
+    missingLooking = true;
+    markMissingGuess();
+    let answer;
+    try {
+      const response = await fetch(`api/viewer/missing?${query({
+        simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require,
+      })}`, { cache: "no-store" });
+      answer = await response.json();
+    } catch (error) {
+      if (number === missingNumber) { missingLooking = false; markMissingGuess(); }
+      return;
+    }
+    if (number !== missingNumber || missingTouched) return;
+    missingLooking = false;
+    const value = answer.value !== null ? answer.value : answer.ersem ? "0" : null;
+    if (value === null) { markMissingGuess(); return; }
+    missingRows = [[value, value]];
+    missingGuess = answer.value !== null ? "found" : "ersem";
+    renderMissingRows();
+    refreshSetup();
   }
   function renderMissingRows() {
     // the boxes are always there: an empty row if there is none
@@ -4424,6 +4502,7 @@
         input.addEventListener("input", () => {
           row[position] = input.value;
           input.classList.toggle("is-invalid", input.value.trim() !== "" && !isNumber(input.value));
+          missingEdited();
           delete setupErrors.missing;
           refreshSetup();
         });
@@ -4433,9 +4512,10 @@
         el("label", { for: `missing-from-${index}`, text: "From" }), box(0, `missing-from-${index}`, "e.g. -999"),
         el("label", { for: `missing-to-${index}`, text: "To" }), box(1, `missing-to-${index}`, "optional"),
         el("button", { type: "button", class: "missing-rows__remove", "aria-label": `Remove missing value ${index + 1}`, title: "Remove",
-          html: ICONS.cross, onclick: () => { missingRows.splice(index, 1); renderMissingRows(); refreshSetup(); } }),
+          html: ICONS.cross, onclick: () => { missingEdited(); missingRows.splice(index, 1); renderMissingRows(); refreshSetup(); } }),
       );
     }));
+    markMissingGuess();
   }
   $("missing-add").addEventListener("click", () => {
     missingRows.push(["", ""]);
@@ -4506,7 +4586,8 @@
       const depth = probe.ndown;
       const filtered = probe.all_files !== null && probe.all_files !== probe.files;
       if (probe.files > 0) {
-        counted = filtered
+        // viewing says only how many files there are, not how many the filters left out
+        counted = filtered && state.action !== "viewer"
           ? `${probe.files} of the ${probe.all_files} netCDF files found pass the file filters`
           : `${probe.files} netCDF file${probe.files === 1 ? "" : "s"} found`;
       } else if (depth !== null && probe.all_files > 0) {

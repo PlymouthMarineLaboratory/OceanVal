@@ -152,8 +152,28 @@ def test_parse_names():
 # ---- the viewer ----
 
 def test_the_token_is_needed(app):
-    for route in ("/api/viewer/catalogue", "/api/viewer/plot", "/api/viewer/limits", "/bokeh.min.js"):
+    for route in ("/api/viewer/catalogue", "/api/viewer/plot", "/api/viewer/limits", "/api/viewer/missing", "/bokeh.min.js"):
         assert get(app, route, token="wrong")[0] == 403
+
+
+def test_the_missing_value_guess(app, tmp_path):
+    from viewer_simulations import land_simulation
+
+    root = land_simulation(str(tmp_path / "sim"), land=-999.0)
+    asked = dict(simdir=root, ndown="0", exclude="", require="")
+    assert get_json(app, "/api/viewer/missing", **asked)[1] == {"value": "-999", "ersem": False}
+    # the last answer is kept: the same question is not read again
+    from oceanval import viewer_missing
+
+    original = viewer_missing.guess
+    viewer_missing.guess = lambda *args: pytest.fail("asked again")
+    try:
+        assert get_json(app, "/api/viewer/missing", **asked)[1]["value"] == "-999"
+    finally:
+        viewer_missing.guess = original
+    # a depth that is not a number, or no directory, is nothing to guess at
+    assert get_json(app, "/api/viewer/missing", **dict(asked, ndown="x"))[1] == {"value": None, "ersem": False}
+    assert get_json(app, "/api/viewer/missing", **dict(asked, simdir=""))[1] == {"value": None, "ersem": False}
 
 
 def test_bokeh_is_served(app):

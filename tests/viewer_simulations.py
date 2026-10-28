@@ -104,6 +104,48 @@ def regular_file(path, nt=3):
     return path
 
 
+def levels_file(path, nz=5, nt=2, height=None, stacking="even", land=-1e20):
+    """Output whose levels have no depths of their own (a dimension z with no
+    variable), as GETM writes: temp(time, z, y, x). With height "up", temp's
+    coordinates name zc(time, z, y, x), a height positive up rising from the
+    bottom (GETM's, level 0 the bottom), with land as GETM's land value; with
+    "down", a depth positive down rising from the surface; None, no vertical
+    coordinate. stacking says where the sea is: "even" every level of every
+    sea cell, "surface_first" fewer cells at each later level (a z-level
+    model), "surface_last" the reverse."""
+    ny, nx = 12, 10
+    lon, lat = np.meshgrid(np.linspace(-4, 8, nx), np.linspace(50, 58, ny))
+    sea = np.ones((ny, nx), bool)
+    sea[:2, :3] = False
+    temp = np.empty((nt, nz, ny, nx))
+    for level in range(nz):
+        wet = sea.copy()
+        cut = level if stacking == "surface_first" else nz - 1 - level if stacking == "surface_last" else 0
+        wet[:, nx - cut:] = False
+        temp[:, level] = np.where(wet, 10.0 + level, np.nan)
+    variables = {
+        "temp": (("time", "z", "y", "x"), temp, {"units": "degC", "long_name": "temperature", "coordinates": "lon lat"}),
+        "lon": (("y", "x"), lon, {"units": "degrees_east", "standard_name": "longitude"}),
+        "lat": (("y", "x"), lat, {"units": "degrees_north", "standard_name": "latitude"}),
+    }
+    if height is not None:
+        bottom = -30.0
+        steps = (np.arange(nz) + 0.5) / nz
+        column = bottom * (1 - steps) if height == "up" else -bottom * steps
+        zc = np.broadcast_to(column[None, :, None, None], (nt, nz, ny, nx)).copy()
+        zc[:, :, ~sea] = land
+        attrs = {"units": "m", "positive": height, "axis": "Z",
+                 "standard_name": "height_above_mean_sea_level" if height == "up" else "depth"}
+        variables["zc"] = (("time", "z", "y", "x"), zc, attrs)
+        variables["temp"][2]["coordinates"] = "lon lat zc"
+    ds = xr.Dataset(
+        {name: (dims, values, attrs) for name, (dims, values, attrs) in variables.items()},
+        coords={"time": ("time", np.arange(nt) * 30.0 + 15, {"units": "days since 1990-01-01", "calendar": "standard"})},
+    )
+    ds.to_netcdf(path)
+    return path
+
+
 # 2012-01-01 in FVCOM's modified julian days
 MJD_2012 = 55927
 
@@ -177,4 +219,29 @@ def fvcom_simulation(root, files=4, cartesian=False):
     os.makedirs(root, exist_ok=True)
     for number in range(files):
         fvcom_file(os.path.join(root, f"estuary_{number + 1:04d}.nc"), first_day=3 * number, cartesian=cartesian)
+    return root
+
+
+def land_simulation(root, land=0.0, files=3, names=("thetao",)):
+    """A flat directory of files (a regular lon-lat grid, one time) whose
+    variables vary from file to file in the sea and are `land` in the same 30
+    cells of every file, as output with no missing value marked in it has them.
+    Returns root."""
+    os.makedirs(root, exist_ok=True)
+    for number in range(files):
+        rng = np.random.default_rng(number)
+        data = {}
+        for name in names:
+            values = rng.random((10, 10)) + 5
+            values.flat[:30] = land
+            data[name] = (("time", "lat", "lon"), values[None].astype("float32"), {"units": "degC"})
+        ds = xr.Dataset(
+            data,
+            coords={
+                "lon": ("lon", np.arange(10.0), {"units": "degrees_east"}),
+                "lat": ("lat", np.arange(10.0), {"units": "degrees_north"}),
+                "time": ("time", [number * 30.0 + 15], {"units": "days since 2000-01-01", "calendar": "standard"}),
+            },
+        )
+        ds.to_netcdf(os.path.join(root, f"land_{number:02d}.nc"), encoding={name: {"_FillValue": None} for name in names})
     return root

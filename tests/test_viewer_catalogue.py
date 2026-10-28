@@ -7,7 +7,7 @@ import os
 
 import numpy as np
 import pytest
-from viewer_simulations import nemo_simulation, regular_file
+from viewer_simulations import levels_file, nemo_simulation, regular_file
 
 from oceanval import viewer_catalogue as catalogue
 from oceanval import viewer_times as times
@@ -118,6 +118,49 @@ def test_regular_grid(tmp_path):
     assert list(found.summary()["variables"]) == ["sst"]
     data, when = found.field(0, "sst", 1)
     assert data.dims == ("lat", "lon")
+
+
+def _levels_of(tmp_path, **options):
+    levels_file(str(tmp_path / "levels.nc"), **options)
+    entry = catalogue.scan(str(tmp_path), 0).summary()["variables"]["temp"]["streams"][0]
+    return entry["level_labels"], entry["surface_level"]
+
+
+@pytest.mark.parametrize("options, surface", [
+    # GETM's: a height positive up, rising from the bottom, with its land value
+    ({"height": "up"}, "last"),
+    ({"height": "down"}, "first"),
+    # no vertical coordinate: a z-level model has less sea at depth
+    ({"stacking": "surface_first"}, "first"),
+    ({"stacking": "surface_last"}, "last"),
+])
+def test_levels_with_no_depths_say_which_is_the_surface(tmp_path, options, surface):
+    labels, at = _levels_of(tmp_path, **options)
+    if surface == "last":
+        assert labels == ["0 (bottom)", "1", "2", "3", "4 (surface)"] and at == 4
+    else:
+        assert labels == ["0 (surface)", "1", "2", "3", "4 (bottom)"] and at == 0
+
+
+def test_levels_that_cannot_be_told_apart_are_not_named(tmp_path):
+    # every level as wet as the others and no vertical coordinate
+    assert _levels_of(tmp_path) == (None, 0)
+
+
+def test_levels_with_depths_are_not_named(found):
+    entry = found.summary()["variables"]["votemper"]["streams"][0]
+    assert entry["level_labels"] is None and entry["surface_level"] == 0
+
+
+def test_the_ends_are_told_from_a_small_slice(tmp_path, monkeypatch):
+    """Only a strided slice of the first time step is read."""
+    monkeypatch.setattr(catalogue, "_ENDS_VALUES", 10)
+    levels_file(str(tmp_path / "levels.nc"), height="up", nt=3)
+    with catalogue.open_dataset(str(tmp_path / "levels.nc")) as ds:
+        select = catalogue._small_slice(ds["zc"], {"z"}, "time")
+        assert select["time"] == 0 and "z" not in select
+        assert select["y"] == slice(None, None, 4) and select["x"] == slice(None, None, 4)
+        assert catalogue._ends(ds, "temp", "z", "time") == "surface_last"
 
 
 def test_resolution():
