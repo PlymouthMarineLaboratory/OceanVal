@@ -5114,9 +5114,9 @@ def test_the_files_skipped_start_with_restart(app, tmp_path):
     assert check_setup(dict(SETUP_FORM, exclude=""), str(tmp_path))[0]["exclude"] is None
 
 
-@pytest.mark.parametrize("tile", ["#home-analyze", "#home-validate"])
+@pytest.mark.parametrize("tile", ["#home-viewer", "#home-analyze", "#home-validate"])
 def test_the_files_skipped_start_in_amber_in_a_browser(browser, tmp_path, tile):
-    """Validate and Analyze share the box: it starts with restart, said in
+    """Validate, Analyze and View simulation output share the box: it starts with restart, said in
     amber, until it is changed."""
     write_simulation(tmp_path / "sim", tracers=True)
     app = App(cwd=str(tmp_path))

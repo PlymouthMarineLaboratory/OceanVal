@@ -51,6 +51,8 @@ Why OceanVal?
   notebooks you can inspect, edit, and rebuild with :func:`oceanval.rebuild`.
 * **Compare simulations**: build side-by-side comparison reports for multiple
   runs with :func:`oceanval.compare`.
+* **View simulation output**: map any variable of a simulation's netCDF
+  files, at the time, depth and years you choose, in the ``oceanval`` app.
 
 How it works
 ------------

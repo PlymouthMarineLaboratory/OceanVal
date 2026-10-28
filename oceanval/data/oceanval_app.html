@@ -810,9 +810,99 @@
   #view-home .choice__text { font-size: 16px; }
 
 
-  /* ---- the landing page has three tiles ---- */
-  #view-home .choices.is-three { width: 100%; max-width: 1180px; gap: 24px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  @media (max-width: 900px) { #view-home .choices.is-three { grid-template-columns: minmax(0, 1fr); } }
+  /* ---- the landing page has four tiles, two by two (one above another on a phone) ---- */
+  #view-home .choices.is-four { width: 100%; max-width: 1225px; gap: 30px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #view-home .choices.is-four .choice { min-height: 275px; padding: 38px 38px; gap: 18px; }
+  #view-home .choices.is-four .choice__icon { width: 80px; height: 80px; margin-bottom: 8px; border-radius: 20px; }
+  #view-home .choices.is-four .choice__icon svg { width: 40px; height: 40px; }
+  #view-home .choices.is-four .choice__title { font-size: 32px; }
+  #view-home .choices.is-four .choice__text { font-size: 20px; }
+  @media (max-width: 640px) { #view-home .choices.is-four { grid-template-columns: minmax(0, 1fr); } #view-home .choices.is-four .choice { min-height: 0; } }
+
+  /* ---- View simulation output (see oceanval.viewer_app) ---- */
+  /* the setup page's missing values, asked there for viewing only */
+  .missing-rows { display: grid; gap: 8px; margin-bottom: 8px; }
+  .missing-rows__row { display: grid; grid-template-columns: max-content 140px max-content 140px max-content; gap: 8px; align-items: center; }
+  .missing-rows__row label { color: var(--ink-soft); font-size: 12.5px; font-weight: 500; }
+  .missing-rows__remove { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-soft); cursor: pointer; }
+  .missing-rows__remove:hover { border-color: var(--line-strong); background: var(--bg-alt); }
+  .missing-rows__remove svg { width: 14px; height: 14px; }
+  @media (max-width: 640px) { .missing-rows__row { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr) max-content; } }
+  /* reading the files */
+  .vw-meter { width: 100%; height: 8px; margin-top: 26px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
+  .vw-meter > span { display: block; height: 100%; width: 0; background: var(--teal-500); transition: width 0.2s; }
+  .vw-scan-text { margin: 14px 0 0; color: var(--muted); }
+  /* the viewer has the whole width of the window */
+  body.is-viewer main.wrap { max-width: none; padding: 16px; }
+  .vw { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .vw { grid-template-columns: minmax(0, 1fr); } }
+  .vw-side { display: grid; gap: 16px; padding: 16px; max-height: calc(100vh - 170px); overflow-y: auto; position: sticky; top: 16px; }
+  @media (max-width: 860px) { .vw-side { position: static; max-height: none; } }
+  .vw-head { margin: 0 0 6px; font: 600 13px/1.3 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .vw-list { margin: 8px 0 0; padding: 4px; list-style: none; max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); }
+  .vw-list li { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 8px; align-items: start; gap: 1px 8px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+  .vw-list li:hover, .vw-list li.is-active { background: var(--teal-50); }
+  .vw-list li.is-chosen { background: var(--teal-100); box-shadow: inset 3px 0 0 var(--teal-600); }
+  .vw-list li > input { grid-row: 1 / span 3; margin: 3px 0 0; accent-color: var(--teal-600); cursor: pointer; }
+  .vw-list li > span { grid-column: 2; }
+  .vw-list li.is-incompatible { opacity: 0.5; cursor: not-allowed; }
+  .vw-list li.is-incompatible > input { cursor: not-allowed; }
+  .vw-list__name { font: 600 13px/18px var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
+  .vw-list__long { font-size: 12.5px; color: var(--muted); }
+  .vw-list__more { font-size: 11.5px; color: var(--teal-700); font-weight: 600; }
+  .vw-list__none { display: block !important; padding: 8px; color: var(--muted); font-size: 13px; cursor: default !important; }
+  .vw-sum { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+  .vw-info { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 12.5px; }
+  .vw-info dt { color: var(--muted); }
+  .vw-info dd { margin: 0; overflow-wrap: anywhere; }
+  .vw-info dd.is-mono { font-family: var(--font-mono); font-size: 12px; }
+  .vw-streams { display: grid; gap: 8px; }
+  .vw-streams__ask { margin: 0; color: var(--coral-dark); font-weight: 600; font-size: 13px; }
+  .vw-streams .ptr-mode { flex-wrap: nowrap; align-items: flex-start; padding: 10px 12px; font-size: 13px; }
+  .vw-streams .ptr-mode > span { min-width: 0; }
+  .vw-streams .ptr-mode code { font-size: 12px; overflow-wrap: anywhere; }
+  .vw-streams .ptr-mode small { display: block; color: var(--muted); font-weight: 500; }
+  .vw-control { display: grid; gap: 6px; }
+  .vw-time-row { display: flex; gap: 6px; align-items: center; }
+  .vw-time-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--teal-600); }
+  .vw-icon-btn { flex: none; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-soft); cursor: pointer; font: 600 14px/1 var(--font-body); }
+  .vw-icon-btn:hover { border-color: var(--line-strong); background: var(--bg-alt); }
+  .vw-icon-btn[aria-pressed="true"] { background: var(--teal-100); border: 2px solid var(--teal-600); color: var(--teal-700); }
+  .vw-icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .vw-when { font: 500 13px/1.3 var(--font-mono); color: var(--ink); }
+  .vw-play-row { display: flex; gap: 8px; align-items: center; }
+  .vw-play-row .g-label { margin: 0; }
+  .vw-play-row .s-select { width: auto; min-width: 96px; }
+  .vw-play-status { color: var(--muted); font-size: 12.5px; }
+  .vw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .vw-grid .is-wide { grid-column: 1 / -1; }
+  .vw-scale-links { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+  .vw-ticks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .vw-ticks .tick-label input { accent-color: var(--teal-600); }
+  .vw-ticks .tick-label.is-off { color: var(--muted-light); cursor: not-allowed; }
+  .vw-times { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12.5px; font-weight: 600; }
+  .vw-times .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
+  .vw-years-note { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .vw-years-note.is-error { color: var(--red); font-weight: 600; }
+  #vw-c-years .vw-meter { margin-top: 0; }
+  /* the map (a Bokeh figure that fills its box) is given the stage's height. Two are stacked: the next
+     frame of an animation is drawn in the one behind, then shown, so there is no blank between frames */
+  .vw-stage { display: flex; flex-direction: column; min-height: calc(100vh - 170px); padding: 12px; }
+  .vw-plot { position: relative; flex: 1; min-height: 420px; }
+  #vw-plot, #vw-plot-b { position: absolute; inset: 0; }
+  #vw-plot > div, #vw-plot-b > div { width: 100%; height: 100%; }
+  .vw-plot .is-back { visibility: hidden; }
+  .vw-busy { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--overlay); border-radius: var(--radius-sm); }
+  .vw-busy[hidden] { display: none; }
+  .vw-busy__box { display: flex; gap: 10px; align-items: center; color: var(--muted); font-weight: 600; }
+  .vw-busy__box .identify__spinner { width: 22px; height: 22px; border-width: 3px; }
+  .vw-empty { display: grid; place-items: center; height: 100%; min-height: 420px; color: var(--muted); text-align: center; padding: 20px; }
+  .vw-empty[hidden] { display: none; }
+  .vw-empty strong { display: block; color: var(--ink); font: 600 18px/1.3 var(--font-head); margin-bottom: 6px; }
+  .vw-error { margin: 8px 0 0; color: var(--red); font-weight: 600; font-size: 13px; }
+  /* FVCOM output is drawn in pyfvcom2's way, which the bar says */
+  .vw-credit { align-self: center; margin-right: 6px; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
+  .vw-credit:hover { color: var(--teal-700); }
 
   /* ---- Compare simulations (see oceanval.sim_compare_app) ---- */
   .sc-sim { padding: 18px 0 8px; border-top: 1px solid var(--line); }
@@ -1099,7 +1189,12 @@
 
 <main class="wrap">
   <section id="view-home" hidden>
-    <div class="choices is-three">
+    <div class="choices is-four">
+      <button type="button" class="choice" data-action="viewer" id="home-viewer">
+        <span class="choice__icon" data-icon="viewer"></span>
+        <span class="choice__title">View simulation output</span>
+        <span class="choice__text">Interactively view netCDF files in simulations</span>
+      </button>
       <button type="button" class="choice" data-action="analyze" id="home-analyze">
         <span class="choice__icon" data-icon="analyze"></span>
         <span class="choice__title">Analyze simulations</span>
@@ -1240,10 +1335,98 @@
         <div class="segmented" id="f-domain" role="radiogroup" aria-label="Domain"></div>
         <p class="group__msg">OceanVal will select appropriate datasets. These can be modified later.</p>
       </fieldset>
+      <fieldset class="group card setup-box" id="setup-missing" hidden>
+        <legend>Missing values <span class="g-note">(optional)</span></legend>
+        <p class="group__intro">Numbers in the files that mean there is no data, such as 0 or -999, and are not marked as missing in them. Give one number, or fill in To as well for a range (both ends are included). They apply to every variable.</p>
+        <div class="missing-rows" id="missing-rows"></div>
+        <button type="button" class="link" id="missing-add">Add a missing value</button>
+        <p class="group__msg" id="m-missing-rows"></p>
+      </fieldset>
       <input type="hidden" id="f-start">
       <input type="hidden" id="f-end">
       <button type="submit" hidden></button>
     </form>
+  </section>
+
+  <!-- View simulation output (see oceanval.viewer_app): the variables of each file type being read, then the viewer -->
+  <section id="view-viewer-scanning" class="prepare" hidden>
+    <div class="card prepare__card" role="status" aria-live="polite">
+      <span class="prepare__spinner" aria-hidden="true"></span>
+      <h2 class="prepare__title">Identifying the files and variables</h2>
+      <div class="vw-meter" aria-hidden="true"><span id="vw-scan-meter"></span></div>
+      <p class="vw-scan-text" id="vw-scan-text">Please wait!</p>
+    </div>
+  </section>
+
+  <section id="view-viewer" hidden>
+    <div class="vw">
+      <aside class="vw-side card" aria-label="What to plot">
+        <div>
+          <h2 class="vw-head"><label for="vw-search">Variable</label></h2>
+          <input class="s-input" id="vw-search" type="search" placeholder="Search by name or description" spellcheck="false" autocapitalize="off" autocomplete="off" aria-controls="vw-list">
+          <p class="vw-sum"><span>Tick the boxes to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" id="vw-clear" hidden>Clear</button></p>
+          <ul class="vw-list" id="vw-list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
+        </div>
+        <div class="vw-control" id="vw-c-years" hidden>
+          <h2 class="vw-head">Years</h2>
+          <div class="vw-grid">
+            <label><span class="g-label">First year</span><input class="s-input is-num" id="vw-first" inputmode="numeric" placeholder="first" spellcheck="false" autocomplete="off" disabled></label>
+            <label><span class="g-label">Last year</span><input class="s-input is-num" id="vw-last" inputmode="numeric" placeholder="last" spellcheck="false" autocomplete="off" disabled></label>
+          </div>
+          <div class="vw-times" id="vw-times" hidden><span class="identify__spinner" aria-hidden="true"></span><span id="vw-times-text" role="status" aria-live="polite"></span></div>
+          <div class="vw-meter" id="vw-times-meter" aria-hidden="true" hidden><span id="vw-times-bar"></span></div>
+          <p class="vw-years-note" id="vw-years-note" role="status" aria-live="polite" hidden></p>
+        </div>
+        <div id="vw-chosen" hidden>
+          <h2 class="vw-head">About</h2>
+          <dl class="vw-info" id="vw-info"></dl>
+        </div>
+        <div id="vw-streams" class="vw-streams" hidden></div>
+        <div id="vw-controls" class="vw-streams" hidden>
+          <div class="vw-control" id="vw-c-time">
+            <h2 class="vw-head"><label for="vw-step">Time</label></h2>
+            <div class="vw-time-row">
+              <button type="button" class="vw-icon-btn" id="vw-prev" aria-label="Previous time" title="Previous time (left arrow)">&#8249;</button>
+              <input type="range" id="vw-step" min="0" max="0" value="0">
+              <button type="button" class="vw-icon-btn" id="vw-next" aria-label="Next time" title="Next time (right arrow)">&#8250;</button>
+              <button type="button" class="vw-icon-btn" id="vw-play" aria-label="Play" aria-pressed="false" title="Play through the times">&#9654;</button>
+            </div>
+            <div class="vw-when" id="vw-when"></div>
+            <div class="vw-play-row">
+              <label class="g-label" for="vw-speed">Speed</label>
+              <select class="s-select" id="vw-speed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select>
+              <span class="vw-play-status" id="vw-play-status" role="status" aria-live="polite"></span>
+            </div>
+          </div>
+          <div class="vw-control" id="vw-c-level">
+            <h2 class="vw-head"><label for="vw-level">Depth</label></h2>
+            <select class="s-select" id="vw-level"></select>
+          </div>
+          <div class="vw-control" id="vw-c-colour">
+            <h2 class="vw-head">Colours</h2>
+            <div class="vw-grid">
+              <label class="is-wide"><span class="g-label">Colour map</span><select class="s-select" id="vw-cmap"></select></label>
+              <label><span class="g-label">Minimum</span><input class="s-input is-num" id="vw-vmin" inputmode="decimal" placeholder="auto"></label>
+              <label><span class="g-label">Maximum</span><input class="s-input is-num" id="vw-vmax" inputmode="decimal" placeholder="auto"></label>
+              <div class="is-wide vw-scale-links"><button type="button" class="link" id="vw-keep">Keep this scale for every time</button><button type="button" class="link" id="vw-auto">Automatic scale</button></div>
+            </div>
+            <div class="vw-ticks">
+              <label class="tick-label"><input type="checkbox" id="vw-log"> Logarithmic</label>
+              <label class="tick-label" id="vw-coast-label"><input type="checkbox" id="vw-coast"> Coastlines</label>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <section class="vw-stage card" aria-label="Map">
+        <div class="vw-plot" id="vw-plot-wrap">
+          <div id="vw-plot"></div>
+          <div id="vw-plot-b" class="is-back"></div>
+          <div class="vw-empty" id="vw-plot-empty"><div><strong>Choose a variable</strong>Search for it on the left.</div></div>
+          <div class="vw-busy" id="vw-plot-busy" hidden><div class="vw-busy__box"><span class="identify__spinner" aria-hidden="true"></span>Reading the data</div></div>
+        </div>
+        <p class="vw-error" id="vw-plot-error" role="alert" hidden></p>
+      </section>
+    </div>
   </section>
 
   <!-- the last step before a matchup starts, as what is done with the matchups there
@@ -2373,6 +2556,7 @@
     report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 14.5 2 2 4-4.5"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11.5v5M9.5 14h5"/></svg>',
+    viewer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     analyze: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M7 12l2-2.5 2 1.5 2.5-3"/></svg>',
     climatology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>',
     phenology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M4 17c3 0 4-10 8-10s5 10 8 10"/><path d="M12 4v3" stroke-dasharray="1.5 2"/></svg>',
@@ -2394,6 +2578,9 @@
     analyze: "Analysing the simulation",
     simcompare: "Comparing the simulations",
   };
+
+  // the steps that look at a simulation alone, with no observations: no domain or years on the setup page
+  const simulationOnly = () => state.action === "analyze" || state.action === "viewer";
 
   function depthText(depth) {
     return depth === 0 ? "in the directory itself" : `${depth} director${depth === 1 ? "y" : "ies"} down`;
@@ -2479,7 +2666,7 @@
       case "start": return "";
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
-      case "setup": return state.action === "analyze" ? ""
+      case "setup": return simulationOnly() ? ""
         : "What kind of datasets do you want to use for validation?";
       case "analyze_variables": return "What variables do you want to analyse?";
       case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
@@ -2503,6 +2690,8 @@
       case "gridded_data": return "Your gridded data";
       case "own_future": return `Save your ${(state.own.future || {}).kind || "own"} data for future use`;
       case "preparing": return "";  // the box in the middle of the page says it
+      case "viewer_scanning": return "";  // so does this one
+      case "viewer": return "";  // the map has the room
       case "units_table": return "Do the units match up?";
       case "output": return state.action === "matchup" ? "Where do you want the matchups to be saved?"
         : "Where do you want the matchups and the validation report to be saved?";
@@ -2555,7 +2744,7 @@
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
       state.demo && state.demo.status, demoKey(), Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
-      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number].join("|");
+      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number, viewerFvcom()].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
       if (view === "output") refreshMatchupOutput();
@@ -2583,8 +2772,15 @@
       actions.push(button("Back", "ghost", () => post("api/back")));
     } else if (view === "setup") {
       // an analysis keeps its boxes, for when it is reached again
-      actions.push(button("Back", "ghost", () => post("api/back", state.action === "analyze" ? { form: setup } : {})),
+      actions.push(button("Back", "ghost", () => post("api/back", simulationOnly() ? { form: setupForm() } : {})),
         button("Continue", "primary", submitSetup, { id: "continue" }));
+    } else if (view === "viewer_scanning" || view === "viewer") {
+      // to the setup page, as it was left; what is being read is stopped
+      if (viewerFvcom()) {
+        actions.push(el("a", { class: "vw-credit", id: "vw-fvcom-credit", href: "https://github.com/PlymouthMarineLaboratory/pyfvcom2",
+          target: "_blank", rel: "noopener noreferrer", text: "Plotting is influenced by pyfvcom2" }));
+      }
+      actions.push(button("Back", "ghost", () => { stopPlay(); post("api/back"); }, { id: "vw-back" }));
     } else if (view === "analyze_variables") {
       // with the rows, which are shown again as they are
       actions.push(button("Back", "ghost", () => post("api/back", { rows: readAnalyzeRows() })),
@@ -2734,13 +2930,16 @@
     // update the button and dialog text based on whether it's analyze or matchup/validate
     const action = state.action;
     const isAnalyze = action === "analyze" || action === "simcompare";
-    const fileWord = isAnalyze ? "analyze" : "matchup";
+    const fileWord = action === "viewer" ? "view" : isAnalyze ? "analyze" : "matchup";
     const howTitle = `How does OceanVal identify simulation files to ${fileWord}?`;
     if (howFiles.textContent !== howTitle) {
       howFiles.textContent = howTitle;
       $("how-title").textContent = howTitle;
     }
-    summary.replaceChildren(...(asked ? [asked] : []), ...(view === "setup" ? [howFiles] : []));
+    // viewing reads every file it finds, grouped by name into file types, so the setup page says that instead
+    const viewing = view === "setup" && action === "viewer";
+    summary.replaceChildren(...(asked ? [asked] : []), ...(view === "setup" && !viewing ? [howFiles] : []),
+      ...(viewing ? [el("span", { text: "Continue reads the variables, and the times of the files are read after." })] : []));
     $("actions").replaceChildren(...actions);
     $("bar-main").hidden = actions.length === 0;
     $("bar").hidden = actions.length === 0 && $("server-trouble").hidden;
@@ -2758,6 +2957,840 @@
     if (view === "register_gridded") refreshRegister("gridded");
   }
 
+  // ---- View simulation output (see oceanval.viewer_app) ----
+  // The setup page says where the files are; Continue reads the variables of each file type
+  // (viewer_scanning), and the viewer opens while the times of the files are read in the background.
+  // Only the map shown is ever read: the page asks for it (api/viewer/plot) as a Bokeh json_item.
+
+  // BokehJS, served by the window from the bokeh installed, is loaded only once the viewer is opened
+  let bokehLoading = null;
+  function ensureBokeh() {
+    if (window.Bokeh) return Promise.resolve(true);
+    if (!bokehLoading) {
+      bokehLoading = new Promise((resolve) => {
+        const script = el("script", { src: `bokeh.min.js?${query({})}` });
+        script.addEventListener("load", () => resolve(Boolean(window.Bokeh)));
+        script.addEventListener("error", () => { bokehLoading = null; resolve(false); });
+        document.head.append(script);
+      });
+    }
+    return bokehLoading;
+  }
+
+  // reading the files
+  function renderViewerScan() {
+    const scan = state.viewer.scan || { phase: "files", done: 0, total: 0 };
+    const share = scan.total ? Math.round((100 * scan.done) / scan.total) : 0;
+    $("vw-scan-meter").style.width = `${share}%`;
+    // the times of the files are read after, in the background, while the viewer is used
+    $("vw-scan-text").textContent = scan.phase === "variables"
+      ? `Reading the variables of each file type: ${scan.done} of ${scan.total}`
+      : "Finding the files";
+  }
+
+  // what is read, the files and their variables, and the number of the reading it is
+  let catalogue = null;
+  let viewerShown = null;
+  const COLOUR_MAPS = ["", "viridis", "cividis", "plasma", "inferno", "magma", "turbo", "RdBu_r", "coolwarm", "Blues", "YlGnBu", "gray"];
+  const pick = { names: [], stream: null, step: 0, level: 0, speed: "normal", cmap: "", vmin: "", vmax: "", log: false, coast: false, first: "", last: "" };
+  let lastClim = null;
+  // the colour scale an animation keeps: {key, vmin, vmax, cmap}, for the variables and level it was made for
+  let scale = null;
+  $("vw-cmap").replaceChildren(...COLOUR_MAPS.map((name) => el("option", { value: name, text: name || "Automatic (ncplot's choice)" })));
+
+  // whether FVCOM output is being looked at, whose plotting the bar credits to pyfvcom2
+  const viewerFvcom = () => state.view === "viewer" && Boolean(catalogue) && catalogue.streams.some((stream) => stream.fvcom);
+
+  // from the state, every time it changes
+  function renderViewer() {
+    ensureBokeh();
+    if (state.viewer.catalogue_number !== null && state.viewer.catalogue_number !== viewerShown) loadCatalogue();
+    // every file's times have come in
+    else if (catalogue && state.viewer.times_number !== timesNumber) refreshTimes();
+    renderYears();
+  }
+
+  async function loadCatalogue() {
+    const number = state.viewer.catalogue_number;
+    const timesAtLoad = state.viewer.times_number;
+    viewerShown = number;
+    let reply;
+    try {
+      reply = await (await fetch(`api/viewer/catalogue?${query({})}`, { cache: "no-store" })).json();
+    } catch (error) {
+      viewerShown = null;
+      return;
+    }
+    if (!reply.ok || reply.number !== number) return;
+    catalogue = reply;
+    timesNumber = timesAtLoad;
+    Object.assign(pick, { names: [], stream: null, step: 0, level: 0, first: "", last: "" });
+    scale = null;
+    forgetFrames();
+    $("vw-search").value = "";
+    clearPlot();
+    renderList();
+    renderSide();
+    renderYears();
+    renderBar();
+    $("vw-search").focus();
+    toastUnreadable();
+  }
+
+  function toastUnreadable() {
+    if (!catalogue.times_complete) return;
+    const unreadable = catalogue.streams.reduce((sum, stream) => sum + stream.unreadable, 0);
+    if (unreadable) toast(`The times of ${plural(unreadable, "file")} could not be read.`);
+  }
+
+  // The times of the files are read in the background (at first only the first file of each file type's are in),
+  // and the page is told how far that has got (state.viewer.times) and when it is done (state.viewer.times_number),
+  // when it asks again for what the file types hold and swaps their times in, keeping what is chosen: the
+  // variables, the file type, the level and colours, the years, and the time shown (by its date, as it may have
+  // a new number).
+  let timesNumber = null;
+  async function refreshTimes() {
+    timesNumber = state.viewer.times_number;
+    let reply;
+    try {
+      reply = await (await fetch(`api/viewer/catalogue?${query({})}`, { cache: "no-store" })).json();
+    } catch (error) {
+      timesNumber = null;
+      return;
+    }
+    // another set of files has been opened since: loadCatalogue is on it
+    if (!reply.ok || reply.number !== viewerShown || !catalogue) return;
+    const now = inStream();
+    const shown = now ? streamOf(now.stream).times[pick.step] : null;
+    catalogue.streams = reply.streams;
+    catalogue.times_complete = reply.times_complete;
+    scale = null;
+    forgetFrames();
+    if (now) {
+      const times = streamOf(now.stream).times;
+      const at = shown ? times.findIndex((time) => time >= shown) : 0;
+      const step = at < 0 ? times.length - 1 : at;
+      const moved = step !== pick.step;
+      pick.step = step;
+      renderSide();
+      if (moved) requestPlot(0);
+    }
+    renderYears();
+    toastUnreadable();
+  }
+
+  const searchWords = (text) => String(text || "").toLowerCase().split(/\s+/).filter(Boolean);
+  let listActive = -1;
+  function matching() {
+    const wanted = searchWords($("vw-search").value);
+    return Object.entries(catalogue.variables).filter(([name, about]) => {
+      const text = `${name} ${about.long_name} ${about.units}`.toLowerCase();
+      return wanted.every((word) => text.includes(word));
+    });
+  }
+  function renderList() {
+    if (!catalogue) return;
+    const found = matching();
+    listActive = Math.min(listActive, found.length - 1);
+    const items = found.map(([name, about], index) => {
+      const ticked = pick.names.includes(name);
+      // what cannot be added to the variables ticked: no file type has them all with the same dimensions
+      const why = !ticked && pick.names.length && !streamsFor([...pick.names, name]).length
+        ? `${name} cannot be added to ${pick.names.join(" + ")}: no file type holds them with the same dimensions.` : "";
+      const box = el("input", { type: "checkbox", "aria-label": `Add ${name} to the sum`, disabled: Boolean(why) });
+      box.checked = ticked;
+      box.addEventListener("click", (event) => event.stopPropagation());
+      box.addEventListener("change", () => toggle(name));
+      return el("li", {
+        role: "option", "data-name": name, title: why || null,
+        class: `${ticked ? "is-chosen" : ""}${index === listActive ? " is-active" : ""}${why ? " is-incompatible" : ""}`,
+        "aria-selected": String(ticked), "aria-disabled": String(Boolean(why)),
+        // a click anywhere on the row ticks it, adding it to the sum, or unticks it
+        onclick: () => { if (!why && !String(window.getSelection() || "")) toggle(name); },
+      },
+        box,
+        el("span", { class: "vw-list__name", text: name }),
+        about.long_name || about.units ? el("span", { class: "vw-list__long", text: [about.long_name, about.units && `(${about.units})`].filter(Boolean).join(" ") }) : null,
+        about.streams.length > 1 ? el("span", { class: "vw-list__more", text: `In ${about.streams.length} file types` }) : null,
+      );
+    });
+    const none = Object.keys(catalogue.variables).length ? "No variable matches that." : "No variable here can be mapped.";
+    $("vw-list").replaceChildren(...(items.length ? items : [el("li", { class: "vw-list__none", text: none })]));
+    $("vw-clear").hidden = !pick.names.length;
+  }
+  $("vw-search").addEventListener("input", () => { listActive = 0; renderList(); });
+  $("vw-search").addEventListener("keydown", (event) => {
+    if (!catalogue) return;
+    const found = matching();
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!found.length) return;
+      listActive = (listActive + (event.key === "ArrowDown" ? 1 : -1) + found.length) % found.length;
+      renderList();
+      const active = $("vw-list").querySelector(".is-active");
+      if (active) active.scrollIntoView({ block: "nearest" });
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const chosen = found[Math.max(0, listActive)];
+      // Shift+Enter ticks it, to add it to the sum; Enter chooses it alone
+      if (chosen && event.shiftKey) { if (!$("vw-list").querySelector(".is-active.is-incompatible")) toggle(chosen[0]); }
+      else if (chosen) choose(chosen[0]);
+    }
+  });
+
+  const streamOf = (id) => catalogue.streams.find((stream) => stream.id === id);
+  // the file types that hold every one of names with the same dimensions and sizes (as the first)
+  function streamsFor(names) {
+    if (!names.length) return [];
+    return catalogue.variables[names[0]].streams.filter((first) => names.every((name) => {
+      const entry = catalogue.variables[name].streams.find((other) => other.stream === first.stream);
+      return entry && String(entry.dims) === String(first.dims) && String(entry.shape) === String(first.shape);
+    })).map((entry) => entry.stream);
+  }
+  // the first variable as it is in the chosen file type
+  function inStream() {
+    if (!catalogue || !pick.names.length || pick.stream === null) return null;
+    return catalogue.variables[pick.names[0]].streams.find((entry) => entry.stream === pick.stream) || null;
+  }
+
+  // the file type is the user's to say if the variables are in more than one
+  function settle() {
+    const holders = streamsFor(pick.names);
+    pick.stream = holders.includes(pick.stream) ? pick.stream : (holders.length === 1 ? holders[0] : null);
+  }
+
+  // one variable alone
+  function choose(name) {
+    const before = inStream();
+    pick.names = [name];
+    settle();
+    afterStream(before);
+  }
+
+  // adds a variable to the sum, or takes it out
+  function toggle(name) {
+    const before = inStream();
+    pick.names = pick.names.includes(name) ? pick.names.filter((other) => other !== name) : [...pick.names, name];
+    settle();
+    if (!pick.names.length) pick.stream = null;
+    afterStream(before);
+  }
+  $("vw-clear").addEventListener("click", () => {
+    const before = inStream();
+    pick.names = [];
+    pick.stream = null;
+    afterStream(before);
+  });
+
+  function afterStream(before) {
+    stopPlay();
+    scale = null;
+    const now = inStream();
+    if (now) {
+      if (!before || before.stream !== now.stream) {
+        // the time as near the one shown as the new file type has
+        const shown = before ? streamOf(before.stream).times[pick.step] : null;
+        const times = streamOf(now.stream).times;
+        pick.step = shown ? Math.max(0, times.findIndex((time) => time >= shown)) : 0;
+      }
+      const span = windowOf(streamOf(now.stream));
+      pick.step = Math.min(Math.max(span.lo, pick.step), span.hi);
+      if (pick.level >= now.levels) pick.level = 0;
+    } else {
+      clearPlot();
+    }
+    renderList();
+    renderSide();
+    if (now) requestPlot(0);
+  }
+
+  function renderSide() {
+    const chosen = Boolean(catalogue && pick.names.length);
+    $("vw-chosen").hidden = !chosen;
+    $("vw-streams").hidden = !chosen;
+    const now = chosen ? inStream() : null;
+    $("vw-controls").hidden = !now;
+    if (!chosen) return;
+    const abouts = pick.names.map((name) => catalogue.variables[name]);
+    const about = abouts[0];
+    const sum = pick.names.length > 1;
+    const info = sum
+      ? [["Sum of", pick.names.map((name, index) => `${name}${abouts[index].units ? ` (${abouts[index].units})` : ""}`).join(" + "), true]]
+      // (the variable's name and description are in the list above)
+      : [["Units", about.units]];
+    if (now) {
+      const stream = streamOf(now.stream);
+      info.push(["Dimensions", now.dims.map((dim, index) => `${dim} (${now.shape[index]})`).join(", "), true]);
+      info.push(["File type", stream.pattern, true]);
+      if (now.mesh) info.push(["FVCOM mesh", now.mesh === "node" ? "values on the nodes" : "values on the elements (triangles)"]);
+      const span = windowOf(stream);
+      // the years chosen leave some of the times, and the files that hold them
+      const cut = stream.pending === 0 && stream.has_times && (span.lo > 0 || span.hi < stream.steps - 1);
+      const heldIn = cut ? new Set(stream.step_files.slice(span.lo, span.hi + 1)).size : stream.files;
+      info.push(["Files", cut ? `${heldIn.toLocaleString()} of ${stream.files.toLocaleString()}` : `${stream.files.toLocaleString()}`]);
+      if (stream.pending > 0) {
+        info.push(["Time resolution", "being read"]);
+      } else if (stream.has_times) {
+        // how often the output is ("daily"), not how many times there are
+        info.push(["Time resolution", stream.resolution]);
+        // the dates only, on one line
+        info.push(["Dates", `${stream.times[span.lo].slice(0, 10)} – ${stream.times[span.hi].slice(0, 10)}`, true]);
+      }
+    }
+    $("vw-info").replaceChildren(...info.filter(([, value]) => value).flatMap(([key, value, mono]) => [
+      el("dt", { text: key }), el("dd", { class: mono ? "is-mono" : "", text: value }),
+    ]));
+
+    // the file types that hold it (all of them, for a sum)
+    const holders = streamsFor(pick.names);
+    const box = $("vw-streams");
+    if (holders.length > 1) {
+      box.replaceChildren(...[
+        el("h2", { class: "vw-head", text: "File type" }),
+        pick.stream === null ? el("p", { class: "vw-streams__ask", text: `${sum ? pick.names.join(" and ") + " are both" : pick.names[0] + " is"} in ${holders.length} file types. Which do you want?` }) : null,
+      ].filter(Boolean),
+        ...holders.map((id) => {
+          const stream = streamOf(id);
+          const input = el("input", { type: "radio", name: "vw-stream", value: String(id) });
+          input.checked = pick.stream === id;
+          input.addEventListener("change", () => { const before = inStream(); pick.stream = id; afterStream(before); });
+          return el("label", { class: "ptr-mode" }, input, el("span", {},
+            el("code", { text: stream.pattern }),
+            el("small", { text: [plural(stream.files, "file"), stream.resolution, stream.has_times ? `${stream.first.slice(0, 10)} to ${stream.last.slice(0, 10)}` : ""].filter(Boolean).join(" · ") }),
+          ));
+        }),
+      );
+      box.hidden = false;
+    } else {
+      box.replaceChildren();
+      box.hidden = true;
+    }
+    if (!now) return;
+    renderControls(now);
+  }
+
+  function renderControls(now) {
+    const stream = streamOf(now.stream);
+    const span = windowOf(stream);
+    // until the times of every file are in there is one step to look at, and no moving through them
+    const waiting = stream.pending > 0;
+    const usesTime = now.time && (waiting || span.hi > span.lo);
+    $("vw-c-time").hidden = !usesTime;
+    $("vw-step").min = String(span.lo);
+    $("vw-step").max = String(span.hi);
+    $("vw-step").value = String(pick.step);
+    $("vw-when").textContent = stream.times[pick.step] || "";
+    $("vw-step").disabled = $("vw-play").disabled = waiting;
+    $("vw-prev").disabled = waiting || pick.step <= span.lo;
+    $("vw-next").disabled = waiting || pick.step >= span.hi;
+    $("vw-c-time").title = waiting ? "The times of the files are still being read" : "";
+    if (!usesTime || waiting) stopPlay();
+    const usesLevel = now.vertical && now.levels > 1;
+    $("vw-c-level").hidden = !usesLevel;
+    if (usesLevel) {
+      const units = now.level_units ? ` ${now.level_units}` : "";
+      // FVCOM's sigma layers are named, as a layer is at no one depth
+      const options = now.level_values.map((value, index) => el("option", {
+        value: String(index),
+        text: now.level_labels ? now.level_labels[index] : `${typeof value === "number" ? +value.toPrecision(6) : value}${units}`,
+      }));
+      $("vw-level").replaceChildren(...options);
+      $("vw-level").value = String(pick.level);
+    }
+    $("vw-cmap").value = pick.cmap;
+    $("vw-vmin").value = pick.vmin;
+    $("vw-vmax").value = pick.vmax;
+    $("vw-log").checked = pick.log;
+    // an FVCOM mesh's coastline is drawn with cartopy alone, without geoviews
+    const onMesh = Boolean(now.mesh);
+    const canCoast = onMesh ? state.viewer.coast_mesh : state.viewer.coast;
+    $("vw-coast").checked = pick.coast && canCoast;
+    $("vw-coast").disabled = !canCoast;
+    $("vw-coast-label").classList.toggle("is-off", $("vw-coast").disabled);
+    $("vw-coast-label").title = canCoast ? ""
+      : onMesh ? "Coastlines need cartopy (conda install -c conda-forge cartopy)"
+        : "Coastlines need cartopy and geoviews (conda install -c conda-forge geoviews-core)";
+  }
+
+  // the time: the slider and the arrows
+  function updateTime(now) {
+    const stream = streamOf(now.stream);
+    const span = windowOf(stream);
+    $("vw-step").value = String(pick.step);
+    $("vw-when").textContent = stream.times[pick.step] || "";
+    $("vw-prev").disabled = pick.step <= span.lo;
+    $("vw-next").disabled = pick.step >= span.hi;
+  }
+  function setStep(step) {
+    stopPlay();
+    const now = inStream();
+    if (!now) return;
+    const stream = streamOf(now.stream);
+    if (stream.pending > 0) return;
+    const span = windowOf(stream);
+    pick.step = Math.min(Math.max(span.lo, step), span.hi);
+    renderControls(now);
+    requestPlot(120);
+  }
+  $("vw-step").addEventListener("input", (event) => setStep(Number(event.target.value)));
+  $("vw-prev").addEventListener("click", () => setStep(pick.step - 1));
+  $("vw-next").addEventListener("click", () => setStep(pick.step + 1));
+
+  // ---- the first and last year ----
+  // The years chosen cut each file type to a window of its steps, {lo, hi}: the first step of the first year to the
+  // last step of the last year, by the times of the file type (a file type with no dates is not cut). Everything that
+  // moves through time (the slider, the arrows, Play and its colour scale) stays in it. A blank box is no limit.
+  const WHOLE = /^-?\d+$/;
+  const yearOf = (stamp) => parseInt(stamp, 10);
+  // the first and last year of the output, once the times of every file are in (else null)
+  function runYears() {
+    if (!catalogue || catalogue.streams.some((stream) => stream.pending > 0)) return null;
+    const dated = catalogue.streams.filter((stream) => stream.has_times);
+    if (!dated.length) return null;
+    return [Math.min(...dated.map((stream) => yearOf(stream.times[0]))), Math.max(...dated.map((stream) => yearOf(stream.times[stream.times.length - 1])))];
+  }
+  // the years as numbers (null for a blank box), or an error in words
+  function yearsAsked() {
+    for (const [key, label] of [["first", "First year"], ["last", "Last year"]]) {
+      if (pick[key] !== "" && !WHOLE.test(pick[key])) return { error: `${label} is a whole number, like 1990.`, field: key };
+    }
+    const first = pick.first === "" ? null : Number(pick.first);
+    const last = pick.last === "" ? null : Number(pick.last);
+    if (first !== null && last !== null && first > last) return { error: "The first year is after the last.", field: "last" };
+    return { first, last };
+  }
+  // the steps of a file type in the years (lo > hi: none of them are)
+  function stepsIn(stream, first, last) {
+    const key = `${first}|${last}`;
+    if (stream._in && stream._in.key === key) return stream._in;
+    let lo = 0, hi = stream.steps - 1;
+    while (lo <= hi && first !== null && yearOf(stream.times[lo]) < first) lo += 1;
+    while (hi >= lo && last !== null && yearOf(stream.times[hi]) > last) hi -= 1;
+    stream._in = { key, lo, hi };
+    return stream._in;
+  }
+  // the window the years leave of a file type: all of it if they are blank, wrong or leave nothing
+  function windowOf(stream) {
+    const all = { lo: 0, hi: Math.max(0, stream.steps - 1) };
+    if (!stream.has_times || stream.pending > 0) return all;
+    const asked = yearsAsked();
+    if (asked.error || (asked.first === null && asked.last === null)) return all;
+    const found = stepsIn(stream, asked.first, asked.last);
+    return found.lo > found.hi ? all : found;
+  }
+  // what is wrong with the years: {field, text}, or null. A year outside the output is only mentioned
+  function yearsProblem() {
+    const asked = yearsAsked();
+    if (asked.error) return { field: asked.field, text: asked.error };
+    const run = runYears();
+    if (!run || (asked.first === null && asked.last === null)) return null;
+    const first = asked.first === null ? run[0] : asked.first;
+    const last = asked.last === null ? run[1] : asked.last;
+    if (first > run[1] || last < run[0]) return { field: "last", text: `There is no output between ${first} and ${last}. It is from ${run[0]} to ${run[1]}.` };
+    const now = inStream();
+    if (now) {
+      const stream = streamOf(now.stream);
+      const found = stepsIn(stream, asked.first, asked.last);
+      if (stream.has_times && found.lo > found.hi) return { field: "last", text: `This file type has no output between ${first} and ${last}. It is from ${yearOf(stream.times[0])} to ${yearOf(stream.times[stream.times.length - 1])}.` };
+    }
+    return null;
+  }
+
+  // the boxes, the tracker of the times being read and what is wrong, all from the state
+  function renderYears() {
+    const times = state.viewer.times;
+    const dated = Boolean(catalogue) && catalogue.streams.some((stream) => stream.has_times || stream.pending > 0);
+    $("vw-c-years").hidden = !(state.view === "viewer" && dated);
+    if ($("vw-c-years").hidden) return;
+    const reading = Boolean(times) && !times.error;
+    const run = runYears();
+    for (const key of ["first", "last"]) {
+      const box = $(`vw-${key}`);
+      // the arrow lists the years of the output, and any year can be typed
+      box.yearChoices = run ? Array.from({ length: run[1] - run[0] + 1 }, (_, i) => run[0] + i) : [];
+      box.placeholder = run ? String(run[key === "first" ? 0 : 1]) : "…";
+      box.disabled = Boolean(times);
+      if (document.activeElement !== box) box.value = pick[key];
+      box.title = times ? "Waiting for the times of the files to be read" : "";
+    }
+    const total = reading ? times.total : 0;
+    $("vw-times").hidden = !reading;
+    $("vw-times-meter").hidden = !reading;
+    if (reading) {
+      $("vw-times-text").textContent = `Reading the times of the files: ${times.done.toLocaleString()}/${total.toLocaleString()}`;
+      $("vw-times-bar").style.width = `${total ? Math.round((100 * times.done) / total) : 0}%`;
+    }
+    const problem = yearsProblem();
+    for (const key of ["first", "last"]) {
+      const bad = Boolean(problem) && (problem.field === key || (problem.field === "last" && key === "first" && !yearsAsked().error));
+      $(`vw-${key}`).classList.toggle("is-invalid", bad);
+      $(`vw-${key}`).setAttribute("aria-invalid", String(bad));
+    }
+    // one line: the times could not be read, or what is wrong, or a year outside the output
+    let note = "", error = false;
+    if (times && times.error) { note = times.error; error = true; }
+    else if (problem) { note = problem.text; error = true; }
+    else if (run) {
+      const asked = yearsAsked();
+      if (asked.first !== null && asked.first < run[0]) note = `The output starts in ${run[0]}.`;
+      else if (asked.last !== null && asked.last > run[1]) note = `The output ends in ${run[1]}.`;
+    }
+    $("vw-years-note").hidden = !note;
+    $("vw-years-note").textContent = note;
+    $("vw-years-note").classList.toggle("is-error", error);
+  }
+
+  // a year is typed or picked: once it has settled the file types are cut to it, and the map moves into it
+  let yearsTimer = null;
+  function yearsEdited() {
+    // not at every key: "1990" is typed as 1, 19, 199, none of which is the year wanted
+    clearTimeout(yearsTimer);
+    yearsTimer = setTimeout(applyYears, 400);
+  }
+  function applyYears() {
+    stopPlay();
+    scale = null;
+    renderYears();
+    const now = inStream();
+    if (!now) return;
+    const span = windowOf(streamOf(now.stream));
+    const step = Math.min(Math.max(span.lo, pick.step), span.hi);
+    const moved = step !== pick.step;
+    pick.step = step;
+    renderSide();
+    if (moved) requestPlot(0);
+  }
+  for (const key of ["first", "last"]) {
+    const box = $(`vw-${key}`);
+    withChoices(box, []);
+    box.addEventListener("input", () => { pick[key] = box.value.trim(); yearsEdited(); });
+  }
+
+  // ---- playing: an animation ----
+  // Frames are fetched ahead (a few at a time) and shown on a clock, so the map is never covered by a "reading"
+  // message and moves as often as the files allow, up to the speed chosen. One colour scale is used for the
+  // whole run (from a few steps spread through it), so colours mean the same in every frame. The frame
+  // after the last is the first.
+  const SPEEDS = { slow: 2, normal: 5, fast: 10 };
+  const AHEAD = 8;       // frames kept ready ahead of the one shown
+  const FETCHING = 2;    // requests at once
+  const START_WITH = 3;  // frames ready before it starts moving
+  let playing = false;
+  let playRun = 0;
+  let playNext = 0;
+  const frames = new Map(); // parameters of a frame -> its reply, as a promise
+  const ready = new Set();  // those of them that are in
+  let fetching = 0;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const paramsFor = (step) => ({ ...plotParams(), step: String(step) });
+  // a frame is of the files read (another simulation can have the same variables) and of their times
+  // as they were (a step can be another time once every file's times are in)
+  const frameKey = (params) => JSON.stringify([viewerShown, timesNumber, params]);
+  const keyFor = (step) => frameKey(paramsFor(step));
+  function forgetFrames() {
+    frames.clear();
+    ready.clear();
+  }
+  function fetchFrame(step) {
+    const params = paramsFor(step);
+    const key = frameKey(params);
+    if (frames.has(key)) return frames.get(key);
+    fetching += 1;
+    const promise = fetch(`api/viewer/plot?${query(params)}`, { cache: "no-store" })
+      .then((response) => response.json())
+      .catch(() => ({ ok: false, error: "OceanVal is no longer running." }))
+      .then((reply) => {
+        fetching -= 1;
+        // forgotten meanwhile: the files or their times have changed
+        if (frames.get(key) !== promise) return reply;
+        if (reply.ok) ready.add(key); else frames.delete(key);
+        if (playing) topUp();
+        return reply;
+      });
+    frames.set(key, promise);
+    // a few frames behind the one shown are enough to go back to
+    while (frames.size > AHEAD * 2) {
+      const oldest = frames.keys().next().value;
+      frames.delete(oldest);
+      ready.delete(oldest);
+    }
+    return promise;
+  }
+  const stepsAhead = (from, count) => {
+    const span = windowOf(streamOf(inStream().stream));
+    const total = span.hi - span.lo + 1;
+    return Array.from({ length: Math.min(count, total) }, (_, i) => span.lo + ((from - span.lo + i) % total));
+  };
+  const readyAhead = (from, count) => stepsAhead(from, count).filter((step) => ready.has(keyFor(step))).length;
+  // keeps FETCHING requests going for the frames from playNext on, until AHEAD of them have been asked for
+  function topUp() {
+    if (!playing || !inStream()) return;
+    for (const step of stepsAhead(playNext, AHEAD)) {
+      if (fetching >= FETCHING) return;
+      fetchFrame(step);
+    }
+  }
+
+  // the years chosen are part of what the scale is for
+  const scaleKey = () => {
+    const span = pick.stream === null ? null : windowOf(streamOf(pick.stream));
+    return JSON.stringify([pick.names, pick.stream, pick.level, span && span.lo, span && span.hi]);
+  };
+  // the range of the variable over the whole run, once for the variables and level shown
+  async function ensureScale(run) {
+    if (scale && scale.key === scaleKey()) return true;
+    if (pick.vmin !== "" && pick.vmax !== "") return true;
+    const key = scaleKey();
+    const span = windowOf(streamOf(pick.stream));
+    $("vw-play-status").textContent = "Preparing the animation…";
+    let reply;
+    try {
+      reply = await (await fetch(`api/viewer/limits?${query({
+        stream: String(pick.stream), vars: JSON.stringify(pick.names), level: String(pick.level), first: String(span.lo), last: String(span.hi),
+      })}`, { cache: "no-store" })).json();
+    } catch (error) {
+      reply = { ok: false, error: "OceanVal is no longer running." };
+    }
+    if (run !== playRun) return false;
+    if (!reply.ok) { showPlotError(reply.error); stopPlay(); return false; }
+    scale = { key, vmin: String(reply.vmin), vmax: String(reply.vmax), cmap: reply.symmetric ? "RdBu_r" : "" };
+    return true;
+  }
+
+  function setPlaying(on) {
+    playing = on;
+    const button = $("vw-play");
+    button.setAttribute("aria-pressed", String(on));
+    button.setAttribute("aria-label", on ? "Pause" : "Play");
+    button.title = on ? "Pause" : "Play through the times";
+    button.innerHTML = on ? "&#10074;&#10074;" : "&#9654;";
+    if (!on) $("vw-play-status").textContent = "";
+  }
+  function stopPlay() {
+    playRun += 1;
+    if (playing) setPlaying(false);
+  }
+  $("vw-play").addEventListener("click", () => {
+    if (playing) { stopPlay(); return; }
+    startPlay();
+  });
+  $("vw-speed").addEventListener("change", (event) => { pick.speed = event.target.value; });
+
+  async function startPlay() {
+    const now = inStream();
+    if (!now) return;
+    const stream = streamOf(now.stream);
+    if (stream.pending > 0) return;
+    const span = windowOf(stream);
+    const total = span.hi - span.lo + 1;
+    if (total < 2) return;
+    // nothing else is to draw while it plays
+    clearTimeout(plotTimer);
+    plotNumber += 1;
+    $("vw-plot-busy").hidden = true;
+    $("vw-plot-error").hidden = true;
+    const run = ++playRun;
+    setPlaying(true);
+    playNext = pick.step >= span.hi ? span.lo : pick.step + 1;
+    const current = () => playing && run === playRun;
+    let due = 0;
+    while (current()) {
+      if (!(await ensureScale(run))) return;
+      topUp();
+      // the first frames are waited for together, so that it starts moving smoothly
+      if (due === 0) {
+        const need = Math.min(START_WITH, total);
+        while (current() && readyAhead(playNext, need) < need) {
+          $("vw-play-status").textContent = `Loading frames ${readyAhead(playNext, need)}/${need}`;
+          topUp();
+          await sleep(60);
+        }
+        if (!current()) return;
+        $("vw-play-status").textContent = "";
+      }
+      const wanted = playNext;
+      // "Loading" is said only if the frame is more than a moment late
+      const late = due !== 0 && !ready.has(keyFor(wanted))
+        ? setTimeout(() => { if (current()) $("vw-play-status").textContent = `Loading ${readyAhead(wanted, AHEAD)}/${AHEAD}`; }, 400)
+        : null;
+      const reply = await fetchFrame(wanted);
+      clearTimeout(late);
+      if (!current()) return;
+      if (!reply.ok) { showPlotError(reply.error); stopPlay(); return; }
+      // on time: a late frame is shown at once, and the next is not rushed to catch up
+      await sleep(Math.max(0, due - performance.now()));
+      if (!current()) return;
+      due = performance.now() + 1000 / SPEEDS[pick.speed];
+      $("vw-play-status").textContent = "";
+      await showFrame(reply, wanted);
+      if (!current()) return;
+      playNext = span.lo + ((wanted - span.lo + 1) % total);
+      topUp();
+    }
+  }
+
+  // one frame of the animation: drawn behind, then shown
+  async function showFrame(reply, step) {
+    const now = inStream();
+    if (!now) return;
+    lastClim = reply.clim || null;
+    await draw(reply.item);
+    pick.step = step;
+    updateTime(now);
+  }
+  document.addEventListener("keydown", (event) => {
+    if (state.view !== "viewer" || $("vw-c-time").hidden || $("vw-controls").hidden) return;
+    const target = event.target;
+    if (target.matches && target.matches("input:not([type=range]), select, textarea")) return;
+    if (event.key === "ArrowRight") { event.preventDefault(); setStep(pick.step + 1); }
+    if (event.key === "ArrowLeft") { event.preventDefault(); setStep(pick.step - 1); }
+  });
+
+  $("vw-level").addEventListener("change", (event) => { pick.level = Number(event.target.value); requestPlot(0); });
+  $("vw-cmap").addEventListener("change", (event) => { pick.cmap = event.target.value; requestPlot(0); });
+  for (const name of ["vmin", "vmax"]) {
+    $(`vw-${name}`).addEventListener("input", (event) => {
+      pick[name] = event.target.value.trim();
+      const bad = pick[name] !== "" && !Number.isFinite(Number(pick[name]));
+      event.target.classList.toggle("is-invalid", bad);
+      if (!bad) requestPlot(500);
+    });
+  }
+  $("vw-keep").addEventListener("click", () => {
+    if (!lastClim) return;
+    pick.vmin = String(+lastClim[0].toPrecision(6));
+    pick.vmax = String(+lastClim[1].toPrecision(6));
+    renderControls(inStream());
+    toast("The colour scale is kept for every time until you choose Automatic.");
+  });
+  $("vw-auto").addEventListener("click", () => { pick.vmin = pick.vmax = ""; scale = null; renderControls(inStream()); requestPlot(0); });
+  $("vw-log").addEventListener("change", (event) => { pick.log = event.target.checked; requestPlot(0); });
+  $("vw-coast").addEventListener("change", (event) => { pick.coast = event.target.checked; requestPlot(0); });
+
+  // ---- the maps ----
+  let plotNumber = 0;
+  let plotTimer = null;
+  // what is asked for: the colour scale of an animation stands in for an automatic one
+  function plotParams() {
+    const kept = scale && scale.key === scaleKey() ? scale : null;
+    return {
+      stream: String(pick.stream), vars: JSON.stringify(pick.names), step: String(pick.step), level: String(pick.level),
+      cmap: pick.cmap || (kept ? kept.cmap : ""),
+      vmin: pick.vmin !== "" ? pick.vmin : (kept ? kept.vmin : ""),
+      vmax: pick.vmax !== "" ? pick.vmax : (kept ? kept.vmax : ""),
+      log: pick.log ? "1" : "", coast: pick.coast ? "1" : "",
+    };
+  }
+
+  // a problem with what was drawn, said once (the Natural Earth coastline that could not be fetched)
+  let lastWarning = null;
+  function tellWarning(text) {
+    if (text && text !== lastWarning) toast(text);
+    lastWarning = text || null;
+  }
+
+  function showPlotError(text) {
+    $("vw-plot-error").textContent = text;
+    $("vw-plot-error").hidden = false;
+  }
+
+  function clearPlot() {
+    stopPlay();
+    plotNumber++;
+    disposeFigures();
+    $("vw-plot-empty").hidden = false;
+    $("vw-plot-busy").hidden = true;
+    $("vw-plot-error").hidden = true;
+    if (catalogue && pick.names.length && pick.stream === null) {
+      $("vw-plot-empty").replaceChildren(el("div", {}, el("strong", { text: "Choose the file type" }), "They are in more than one: say which on the left."));
+    } else {
+      $("vw-plot-empty").replaceChildren(el("div", {}, el("strong", { text: "Choose a variable" }), "Search for it on the left."));
+    }
+  }
+
+  function requestPlot(delay) {
+    // an animation draws its own frames
+    if (playing) return;
+    clearTimeout(plotTimer);
+    const number = ++plotNumber;
+    $("vw-plot-busy").hidden = false;
+    plotTimer = setTimeout(async () => {
+      const reply = await fetchFrame(pick.step);
+      if (number !== plotNumber) return;
+      $("vw-plot-busy").hidden = true;
+      if (!reply.ok) {
+        showPlotError(reply.error);
+        return;
+      }
+      $("vw-plot-error").hidden = true;
+      lastClim = reply.clim || null;
+      tellWarning(reply.warning);
+      await draw(reply.item);
+      if (number !== plotNumber) return;
+      $("vw-plot-empty").hidden = true;
+      const now = inStream();
+      if (now) renderControls(now);
+    }, delay);
+  }
+
+  // Two figures are stacked: a new one is drawn in the one behind and then shown, and the one it
+  // replaces is taken apart (Bokeh keeps a view of each figure until it is told to let it go). When the
+  // variables are the same, the new figure is zoomed as the old one was.
+  let front = "vw-plot";
+  let drawn = null;
+  const figures = { "vw-plot": [], "vw-plot-b": [] };
+  function release(id) {
+    for (const view of figures[id]) { try { view.remove(); } catch (error) { /* already gone */ } }
+    figures[id] = [];
+    $(id).replaceChildren();
+  }
+  function disposeFigures() {
+    release("vw-plot");
+    release("vw-plot-b");
+    front = "vw-plot";
+    drawn = null;
+    $("vw-plot").classList.remove("is-back");
+    $("vw-plot-b").classList.add("is-back");
+  }
+  async function draw(item) {
+    if (!(await ensureBokeh())) {
+      $("vw-plot").replaceChildren(el("p", { class: "vw-error", text: "Bokeh could not be loaded, so nothing can be drawn." }));
+      return;
+    }
+    // the first figure goes straight in; after that, in the one behind
+    const first = figures[front].length === 0;
+    const back = first ? front : (front === "vw-plot" ? "vw-plot-b" : "vw-plot");
+    release(back);
+    // embed_item gives a manager of the views it made: the figure is its root
+    const made = await Bokeh.embed.embed_item(item, back);
+    const views = Array.from(made.roots || made);
+    const key = JSON.stringify([pick.names, pick.stream]);
+    const old = figures[front][0], next = views[0];
+    // Bokeh sets a figure's ranges once it has drawn it: wait for that (the figure is out of sight meanwhile),
+    // or the zoom set below is undone
+    if (!first && next && next.has_finished) {
+      for (let waited = 0; waited < 1500 && !next.has_finished(); waited += 16) await sleep(16);
+    }
+    if (old && next && drawn === key && old.model && next.model && old.model.x_range && next.model.x_range) {
+      for (const axis of ["x_range", "y_range"]) {
+        const range = next.model[axis];
+        range.start = old.model[axis].start;
+        range.end = old.model[axis].end;
+        // so that auto-ranging, which may not have run yet, does not undo it (the reset tool still does)
+        range.have_updated_interactively = true;
+      }
+    }
+    figures[back] = views;
+    if (!first) {
+      $(back).classList.remove("is-back");
+      $(front).classList.add("is-back");
+      release(front);
+    }
+    front = back;
+    drawn = key;
+  }
+
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
@@ -2767,6 +3800,7 @@
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
     units_table: "view-units-table", output: "view-output", point_time_res: "view-point-time-res",
     preparing: "view-run", running: "view-run", finished: "view-run",
+    viewer_scanning: "view-viewer-scanning", viewer: "view-viewer",
     script_saved: "view-script-saved" };
   let shownView = null;
 
@@ -2782,7 +3816,7 @@
       fillValidate();
       $(view === "validate" ? "v-data_dir" : "v-lon_min").focus();
     } else if (view === "home") {
-      $("home-analyze").focus();
+      $("home-viewer").focus();
     } else if (view === "start") {
       document.querySelector("#view-start .choice").focus();
     } else if (view === "analyze_variables") {
@@ -2845,6 +3879,9 @@
       if (first) first.focus();
     } else if (view === "own_future") {
       fillOwnFuture();
+    } else if (view === "viewer") {
+      // the files read may be others than those shown last
+      viewerShown = null;
     } else if (view === "script_saved") {
       $("script-saved-title").focus();
     } else if (view === "point_time_res") {
@@ -2857,6 +3894,9 @@
       document.title = "OceanVal";
     }
     shownView = view;
+    // the viewer has the whole width of the window
+    document.body.classList.toggle("is-viewer", view === "viewer");
+    if (view !== "viewer") stopPlay();
     $("toast").hidden = true;
     // what was said as the step was left, for the step it led to
     if (pendingToast) {
@@ -2934,6 +3974,8 @@
     if (state.view === "simcompare_grids") renderScGrids();
     if (VIEWS[state.view] === "view-run") renderRun();
     if (state.view === "script_saved") renderSavedScript();
+    if (state.view === "viewer_scanning") renderViewerScan();
+    if (state.view === "viewer") renderViewer();
     if (!state.demo) {
       // the next demo starts with nothing ticked
       demoPick.model = null;
@@ -3167,7 +4209,7 @@
     recentToggle.hidden = !recent.length;
     $("f-simdir-combo").classList.toggle("has-recent", recent.length > 0);
     recentList.replaceChildren(
-      el("li", { class: "combo__head", role: "presentation", text: state.action === "analyze" ? "Used before" : "Validated before" }),
+      el("li", { class: "combo__head", role: "presentation", text: simulationOnly() ? "Used before" : "Validated before" }),
       ...recent.map((dir) => recentEntry(dir, pickRecent, forgetFromRecent)),
     );
     showRecent(false);
@@ -3223,8 +4265,11 @@
     Object.assign(setup, state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
     segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
-    // an analysis has no observations, so no domain to choose
-    $("setup-domain").hidden = state.action === "analyze";
+    // an analysis, or viewing the output, has no observations, so no domain to choose
+    $("setup-domain").hidden = simulationOnly();
+    // the numbers to treat as missing are asked here only for viewing (an analysis asks them with its options)
+    $("setup-missing").hidden = state.action !== "viewer";
+    fillMissingRows();
     setupErrors = {};
     // the demo's one year is not to be widened to the years its file covers
     autoYears = Boolean(setup.start && setup.end) && !state.demo;
@@ -3309,6 +4354,58 @@
 
   const isInteger = (text) => /^[+-]?\d+$/.test(String(text).trim());
 
+  // ---- the numbers to treat as missing, asked on this page for viewing the output ----
+  // rows of [from, to] as typed, kept as text; to empty is a single number, and empty rows are not sent
+  let missingRows = [];
+  const isNumber = (text) => text.trim() !== "" && Number.isFinite(Number(text));
+  const missingRowOk = (row) => (row[0].trim() === "" ? row[1].trim() === "" : isNumber(row[0]) && (row[1].trim() === "" || isNumber(row[1])));
+  function fillMissingRows() {
+    try {
+      missingRows = JSON.parse(setup.missing || "[]").map((row) => [String(row[0] || ""), String(row[1] || "")]);
+    } catch (error) {
+      missingRows = [];
+    }
+    renderMissingRows();
+  }
+  function renderMissingRows() {
+    // the boxes are always there: an empty row if there is none
+    if (!missingRows.length) missingRows.push(["", ""]);
+    $("missing-rows").replaceChildren(...missingRows.map((row, index) => {
+      const box = (position, id, placeholder) => {
+        const input = el("input", { class: "s-input is-num", id, inputmode: "decimal", placeholder, spellcheck: "false", autocomplete: "off",
+          "aria-label": `Missing value ${index + 1}, ${position === 0 ? "from" : "to"}` });
+        input.value = row[position];
+        input.classList.toggle("is-invalid", input.value.trim() !== "" && !isNumber(input.value));
+        input.addEventListener("input", () => {
+          row[position] = input.value;
+          input.classList.toggle("is-invalid", input.value.trim() !== "" && !isNumber(input.value));
+          delete setupErrors.missing;
+          refreshSetup();
+        });
+        return input;
+      };
+      return el("div", { class: "missing-rows__row" },
+        el("label", { for: `missing-from-${index}`, text: "From" }), box(0, `missing-from-${index}`, "e.g. -999"),
+        el("label", { for: `missing-to-${index}`, text: "To" }), box(1, `missing-to-${index}`, "optional"),
+        el("button", { type: "button", class: "missing-rows__remove", "aria-label": `Remove missing value ${index + 1}`, title: "Remove",
+          html: ICONS.cross, onclick: () => { missingRows.splice(index, 1); renderMissingRows(); refreshSetup(); } }),
+      );
+    }));
+  }
+  $("missing-add").addEventListener("click", () => {
+    missingRows.push(["", ""]);
+    renderMissingRows();
+    $(`missing-from-${missingRows.length - 1}`).focus();
+    refreshSetup();
+  });
+  // what the setup page sends: for viewing, with the missing values as JSON rows (empty rows left out)
+  function setupForm() {
+    if (state.action !== "viewer") return setup;
+    const rows = missingRows.filter((row) => row[0].trim() !== "" || row[1].trim() !== "");
+    setup.missing = rows.length ? JSON.stringify(rows) : "";
+    return setup;
+  }
+
   function setupProblems() {
     const errors = { ...setupErrors };
     const text = (name) => String(setup[name]).trim();
@@ -3316,13 +4413,17 @@
     else if (probe && probe.directory === "missing") errors.simdir = "There is no directory at this path.";
     if (!isInteger(setup.ndown) || +setup.ndown < 0) errors.ndown = errors.ndown || (text("ndown") ? "This must be a whole number, 0 or more." : "");
     else if (probe && probe.directory === "found" && probe.files === 0) errors.ndown = errors.ndown || "";
-    // an analysis chooses its years later, for each variable, and has no domain
-    const analyzing = state.action === "analyze";
+    // an analysis chooses its years later, for each variable, and has no domain; nor has viewing
+    const analyzing = simulationOnly();
     for (const name of analyzing ? [] : ["start", "end"]) {
       if (!isInteger(setup[name])) errors[name] = errors[name] || (text(name) ? `${name === "start" ? "Start" : "End"} must be a year, e.g. 2011.` : "");
     }
     if (!errors.start && !errors.end && +setup.end < +setup.start && !analyzing) errors.end = "End must not be before start.";
     if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
+    if (state.action === "viewer") {
+      const bad = missingRows.findIndex((row) => !missingRowOk(row));
+      if (bad >= 0) errors.missing = `Missing value ${bad + 1}: ${missingRows[bad][0].trim() === "" ? "fill in From" : "that is not a number"}.`;
+    }
     return errors;
   }
 
@@ -3373,7 +4474,8 @@
     $("f-exclude").classList.toggle("is-detected", skippingByDefault);
     if (skippingByDefault) simulation.push(line(defaultExcludeLine(), "detected"));
     if (String(setup.require).trim() || (String(setup.exclude).trim() && !skippingByDefault)) {
-      simulation.push(line(`Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
+      simulation.push(line(state.action === "viewer" ? "Only file names are checked, not directories."
+        : `Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
     // the depth was filled in from the layout of the folders: amber, as an assumption to check
     const detected = autoNdown && !finding && Boolean(probe && probe.layout) && probe.directory === "found";
@@ -3387,6 +4489,7 @@
     else badge.textContent = counted;
     badge.hidden = !finding && !counted;
     message("m-simulation", simulation, false);
+    message("m-missing-rows", errors.missing ? [line(errors.missing, "error")] : [], Boolean(errors.missing));
 
     const blocked = Object.keys(errors).length > 0;
     const next = $("continue");
@@ -3399,7 +4502,7 @@
   async function submitSetup() {
     if (Object.keys(setupProblems()).length) return;
     $("setup-error").hidden = true;
-    const reply = await post("api/setup", { form: setup });
+    const reply = await post("api/setup", { form: setupForm() });
     if (!reply.ok) {
       setupErrors = reply.errors || {};
       if (reply.error) toast(reply.error);

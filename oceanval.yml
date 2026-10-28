@@ -4,6 +4,12 @@ channels:
 dependencies:
   - cartopy
   - h5py
+  - cftime
+  # View simulation output: the maps (bokeh, holoviews, hvplot) and their coastlines (geoviews)
+  - bokeh>=3.1
+  - holoviews
+  - hvplot
+  - geoviews-core
   - cdo>2.1.0
   - nco
   - notebook

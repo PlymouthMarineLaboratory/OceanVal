@@ -95,6 +95,8 @@ oceanval
 
 ```
 
+This opens the OceanVal app in your web browser. Its first page offers four boxes: **View simulation output** (search a simulation's netCDF files and map any variable in them, at the time, depth and years you choose, or play it as an animation), **Analyze simulations**, **Compare simulations** and **Validate simulations**.
+
 
 
 

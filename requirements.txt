@@ -23,4 +23,8 @@ pint
 tqdm
 statsmodels
 psutil
-
+cftime
+bokeh>=3.1
+holoviews
+hvplot
+geoviews

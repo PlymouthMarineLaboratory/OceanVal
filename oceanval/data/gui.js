@@ -560,12 +560,14 @@ const OceanValGUI = (() => {
             if (box.checked) names.push(name);
             set(names.join("+"));
           });
-          return {
-            name,
-            box,
-            text: `${name} ${longName}`.toLowerCase(),
-            tr: el("tr", {}, el("td", {}, box), el("td", { text: name }), el("td", { text: longName })),
-          };
+          const tr = el("tr", {}, el("td", {}, box), el("td", { text: name }), el("td", { text: longName }));
+          // a click anywhere on the row ticks it, unless text is being selected
+          tr.addEventListener("click", (event) => {
+            if (event.target === box) return;
+            if (String(window.getSelection() || "")) return;
+            box.click();
+          });
+          return { name, box, text: `${name} ${longName}`.toLowerCase(), tr };
         });
         scroll.append(
           el("table", {},

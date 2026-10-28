@@ -696,6 +696,8 @@ input.tick { cursor: pointer; }
 .vars__popover td:nth-child(2) { font-family: var(--font-mono, monospace); color: var(--ink); white-space: nowrap; }
 .vars__popover th:first-child, .vars__popover td:first-child { width: 1%; padding-right: 10px; }
 .vars__popover td:first-child input { margin: 1px 0; cursor: pointer; }
+.vars__popover tbody tr { cursor: pointer; }
+.vars__popover tbody tr:hover td { background: var(--teal-50); }
 
 /* ---- a box with a list of choices (OceanValGUI.withChoices), and the list ---- */
 .combo__list {

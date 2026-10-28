@@ -1297,6 +1297,32 @@ class TestModelVariablesTable:
         finally:
             recipe_page.close()
 
+    def test_a_click_anywhere_on_a_variables_row_ticks_it(self, browser):
+        recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            first = page.locator("#rows-gridded details.vars").first
+            box = page.locator(".field__input").first
+            box.fill("")
+            first.locator("summary").click()
+            tick = lambda name: first.locator(f'input[aria-label="Use {name}"]')
+            row = lambda name: first.locator(".vars__popover tbody tr", has=page.locator(f'input[aria-label="Use {name}"]'))
+
+            row("so").locator("td").nth(1).click()
+            row("thetao").locator("td").nth(2).click()
+            assert box.input_value() == "so+thetao"
+            assert tick("so").is_checked() and tick("thetao").is_checked()
+
+            # the box itself still toggles once, and a second click unticks
+            tick("so").click()
+            assert box.input_value() == "thetao"
+            row("thetao").locator("td").nth(1).click()
+            assert box.input_value() == ""
+        finally:
+            recipe_page.close()
+
     def test_the_selected_variables_and_their_long_names_are_listed_at_the_top(self, browser):
         recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
         url = recipe_page.start()

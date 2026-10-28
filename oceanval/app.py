@@ -69,6 +69,8 @@ from oceanval import leftovers, live, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
+from oceanval.viewer_app import VIEWER, ViewerSteps
+from oceanval import viewer_app
 from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
@@ -1573,11 +1575,12 @@ class Run:
                 self.process.wait(timeout=timeout)
 
 
-class App(AnalyzeSteps, SimCompareSteps):
+class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
     """What the oceanval window shows, and the server showing it.
 
-    view is the step the page is on: "home", the landing page, whose Analyze
-    tile starts an analysis (see oceanval.analysis_app) and whose Validate
+    view is the step the page is on: "home", the landing page, whose View
+    simulation output tile opens the viewer (see oceanval.viewer_app), whose
+    Analyze tile starts an analysis (see oceanval.analysis_app) and whose Validate
     tile goes to "start", the validation page. From there: "setup", "own_data" (whether
     there are observations of your own), "point_data" and "gridded_data" (adding
     them, with "own_future" between for one to be saved as a recipe too, see
@@ -1755,6 +1758,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         self._server = None
         self._init_analyze()
         self._init_simcompare()
+        self._init_viewer()
         # whose steps the state Analyze's options step keeps is
         self._analyze_owner = ANALYZE
         # how many times the window has been restarted (see reset), which the
@@ -1900,7 +1904,11 @@ class App(AnalyzeSteps, SimCompareSteps):
                 "action": self.action,
                 "cwd": self.cwd,
                 "setup": {
-                    "form": self.analyze_setup_form if self.action == ANALYZE else self.setup_form,
+                    "form": (
+                        self.analyze_setup_form if self.action == ANALYZE
+                        else self.viewer_setup_form if self.action == VIEWER
+                        else self.setup_form
+                    ),
                     "error": self.setup_error,
                     "recent": [d for d in user_cache.recent_sim_dirs() if os.path.isdir(d)],
                     "output_years": self._output_years_state(),
@@ -1943,6 +1951,7 @@ class App(AnalyzeSteps, SimCompareSteps):
                 "model_check": self._model_check_state(),
                 "analyze": self._analyze_state(),
                 "simcompare": self._simcompare_state(),
+                "viewer": self._viewer_state(),
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -2512,6 +2521,18 @@ class App(AnalyzeSteps, SimCompareSteps):
                 self.view = "setup"
                 self._notify()
                 return True
+            if action == VIEWER:
+                if self.view != "home":
+                    return False
+                self._end_demo()
+                self._forget_steps()
+                self.question = None
+                self.interim = None
+                self.action = action
+                self.setup_error = None
+                self.view = "setup"
+                self._notify()
+                return True
             if action == SIMCOMPARE:
                 if self.view not in ("home", "finished"):
                     return False
@@ -2585,6 +2606,13 @@ class App(AnalyzeSteps, SimCompareSteps):
         which is waiting for the answer, so has matched nothing up, for the
         units step. Once anything is matched up, there is no going back."""
         sent = sent if isinstance(sent, dict) else {}
+        if self.action == VIEWER and self.view in ("setup", "viewer_scanning", "viewer"):
+            with self._lock:
+                old, went = self._viewer_back(sent)
+            # outside the lock: it waits for any file being read
+            if old is not None:
+                old.close()
+            return went
         with self._lock:
             if self.view == "units_table":
                 self._keep_units_boxes(sent.get("conversions"))
@@ -2966,6 +2994,9 @@ class App(AnalyzeSteps, SimCompareSteps):
             self._drop_analyze_check()
             self._sc_drop_checks()
             self._sc_drop_times()
+            viewed = self._viewer_drop()
+            self.viewer_setup_form = viewer_app.default_setup_form()
+            self.viewer_missing = []
             self._end_demo()
             self._forget_steps()
             self._forget_register()
@@ -3041,6 +3072,8 @@ class App(AnalyzeSteps, SimCompareSteps):
             page.finish()
         if draft is not None:
             shutil.rmtree(draft, ignore_errors=True)
+        if viewed is not None:
+            viewed.close()
         return True
 
     def setup(self, form):
@@ -3048,6 +3081,8 @@ class App(AnalyzeSteps, SimCompareSteps):
         boxes. Returns the HTTP status and the reply for the page."""
         if self.action == ANALYZE:
             return self._analyze_setup(form)
+        if self.action == VIEWER:
+            return self._viewer_setup(form)
         with self._lock:
             if self.view != "setup":
                 return 409, {"ok": False, "error": "This step is over."}
@@ -4707,7 +4742,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             if paths:
                 years = simulation_years(path, paths)
                 found["years"] = list(years) if years else None
-                if self.view == "setup" and self.action != ANALYZE:
+                if self.view == "setup" and self.action not in (ANALYZE, VIEWER):
                     # the years the recipes window offers, read from the files' times
                     key = _simulation({"simdir": path, "ndown": depth, **filters})
                     found["output_key"] = _output_key(key)
@@ -5172,7 +5207,10 @@ class App(AnalyzeSteps, SimCompareSteps):
             self._drop_model_check()
             self._drop_analyze_check()
             reading, self._output_years = self._output_years, None
+            viewed = self._viewer_drop()
             self._notify()
+        if viewed is not None:
+            viewed.close()
         if reading is not None:
             reading["reading"].cancel()
         if run is not None:
@@ -5296,6 +5334,10 @@ class _Handler(recipes_gui._Handler):
             "/api/model_check_files",
             "/api/analyze_check_files",
             "/api/simcompare_check_files",
+            "/api/viewer/catalogue",
+            "/api/viewer/plot",
+            "/api/viewer/limits",
+            "/bokeh.min.js",
         ):
             self._reply(404, "Not found", "text/plain; charset=utf-8")
         elif not self.app.authorised(query.get("token", "")):
@@ -5334,6 +5376,16 @@ class _Handler(recipes_gui._Handler):
                     connected=self._connected,
                 ),
             )
+        elif url.path == "/bokeh.min.js":
+            # the library the viewer's maps are drawn by, from the bokeh installed
+            with open(viewer_app.bokeh_js(), "rb") as file:
+                self._reply(200, file.read(), "text/javascript; charset=utf-8")
+        elif url.path == "/api/viewer/catalogue":
+            self._reply_json(200, self.app.viewer_summary())
+        elif url.path == "/api/viewer/plot":
+            self._reply_json(200, self.app.viewer_plot(query))
+        elif url.path == "/api/viewer/limits":
+            self._reply_json(200, self.app.viewer_limits(query))
         elif url.path == "/api/browse":
             self._reply_json(200, self.app.browse(query.get("path", "")))
         elif url.path == "/api/matchups":

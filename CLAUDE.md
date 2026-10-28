@@ -474,13 +474,35 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   modification time are unchanged) so `index_times` reads the rest. `locate_rows` also asks a stream for its time resolution only to
   choose between streams, and reads a calendar once per pattern.
 
+### View simulation output (`oceanval/viewer_*.py`)
+
+- Ported from the standalone ncviewer (2026-10-28): the landing page's **first** tile (`#home-viewer`, `data-action="viewer"`,
+  `viewer_app.VIEWER`); the landing page is **two by two** (`.choices.is-four`, one column at ≤640px). Mixin
+  `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
+  (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
+  logic, `depthBox`, "Finding files", the recent-directories arrow and the amber `restart` Skip box are OceanVal's own; only
+  the multi-row **Missing values** fieldset (`#setup-missing`, `missingRows`, sent as JSON `missing` by `setupForm()`,
+  `viewer_app.parse_missing`) is the viewer's. A simulation viewed is recorded in `.oceanvalcache` (`record_sim_dir`).
+- `viewer_catalogue.scan(wait=False)` reads the variables of each file type's first file; `Catalogue.read_times` then reads
+  every file's times **in a process of its own**: `viewer_times.py` is run as a script by path (`python -I`), imports nothing
+  of OceanVal (a test checks), and has its own spawn pool (half the cores); `Reading.cancel` kills it, which Back and Restart
+  do (`Catalogue.stop_times`). Fewer than `PARALLEL_FROM` files are read in the window's process under `netcdf_lock.LOCK`
+  (a plain Lock: nothing in the viewer takes it twice). Times are cached in `~/.oceanvaltimes` / `$OCEANVALTIMES` (JSON,
+  read-merge-write, never raises; autouse `oceanvaltimes` fixture), not `.oceanvalcache`.
+- Maps: `viewer_plots.map_plot` (hvplot → Bokeh json_item; holoviews/hvplot/bokeh imported only when a map is drawn, a test
+  checks) and `viewer_mesh` (FVCOM Mesh/Raster, numpy only, apart from `oceanval/fvcom.py`). GET `/api/viewer/catalogue`,
+  `/api/viewer/plot`, `/api/viewer/limits`, `/bokeh.min.js` (the installed BokehJS, loaded by the page only once the viewer
+  opens, `ensureBokeh`). The page's JS block "View simulation output" uses `vw-` ids/classes throughout. A thread setting
+  `view` checks `_viewer_number` (bumped by `_viewer_drop`: Back, Restart, quit, a new Continue).
+- Tests: `tests/test_viewer_*.py` (simulations in `tests/viewer_simulations.py`, fixture `viewer_simulation`), CI group 3.
+
 ### The `oceanval` command and its browser windows
 
 - `oceanval/app.py` is the `oceanval`/`OceanVal` console script (also `python -m oceanval`; `setup.py` defines
   `OceanVal` only where file names are case sensitive, as on macOS/Windows the two are one file and pip
   failed to upgrade over them): a
   127.0.0.1 server with a token, whose page (`data/oceanval_app.html`) opens on a landing
-  page (view `home`) of Analyze (see above) and Validate, which leads to the validation page
+  page (view `home`, two by two) of View simulation output, Analyze, Compare simulations (see above) and Validate, which leads to the validation page
   (view `start`) for choosing matchup+validate / matchup only / validate, the simulation (live-checked via `/api/probe`),
   the create_recipes window, and a progress panel for the run (its console is shown only if the run fails).
 - **Whether a browser is opened** is `recipes_gui._can_open_browser`: `OCEANVAL_BROWSER` 1/0 decides if set; else `BROWSER` (VS Code's

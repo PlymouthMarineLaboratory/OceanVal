@@ -377,6 +377,17 @@ Once you have generated validation reports for different simulations, you can co
 
 The `model_dict` should map a short name for each model to the directory containing that model's validation output. The HTML comparison report is written to `oceanval_comparison/compare/_build/html/index.html`.
 
+Viewing a simulation's output
+-----------------------------
+
+In the OceanVal app, the **View simulation output** box on the first page (the first of four, two by two) maps what a simulation's netCDF files hold, with no Python. Only the map on show is ever read: one time step at one depth of one file, so output of many GB stays quick to look at.
+
+Its first page is the same as for Analyze and Validate: the directory, how many directories down the files are (filled in, in amber, when OceanVal recognises the folders: `YYYY/MM/**.nc` is 2, `MM/*.nc` is 1, files with no subdirectories 0), the file filters (**Skip file names containing** starts with `restart`), and the arrow in the directory box listing the simulations used before, which a simulation viewed is added to. Below them, **Missing values** (optional) are numbers in the files that mean there is no data, such as 0 or -999: one number, or a range with **To** filled in too. They apply to every variable.
+
+**Continue** reads the variables of the first file of each file type (files whose names differ only in their dates) and opens the viewer straight away. The times of the files are read in the background, in a process of its own using half of the machine's cores, and kept in `~/.oceanvaltimes` (or the file `$OCEANVALTIMES` names), so a simulation opened again reads only its new or changed files. Until they are in, the first time of any variable can be mapped, but the years and the time cannot be chosen.
+
+In the viewer, search the variables by name, description or units, click one to map it (choosing the file type if it is in more than one), or tick several to map their **sum** (they must be in the same file type with the same dimensions; your missing values are applied to each first). Choose the **First year** and **Last year**, move through **Time** with the slider or arrow keys, or **Play** it as an animation (Slow, Normal or Fast, on one colour scale for the run, keeping your zoom), choose the **Depth**, and the **Colours**: the colour map, fixed limits, a logarithmic scale and **Coastlines**. Maps are drawn as ncplot draws them: an image for a regular longitude/latitude grid, a quadmesh for an uneven or curvilinear one, the grid's own indices where the longitudes and latitudes cannot place every cell, and a colour scale symmetric about 0 (`RdBu_r`) when the values span 0. Raw FVCOM output is drawn in pyfvcom2's way, on its mesh's nodes or elements, with its sigma layers as the depths. **Back** returns to the first page with everything as you left it.
+
 Analyzing a simulation on its own
 ---------------------------------
 

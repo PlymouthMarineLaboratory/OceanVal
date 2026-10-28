@@ -68,6 +68,25 @@ def oceanvalcache(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def oceanvaltimes(tmp_path_factory, monkeypatch):
+    """Keep the user's own ~/.oceanvaltimes (the times of the files the viewer
+    has read, see oceanval.viewer_times) out of the tests: each test has a
+    cache of its own."""
+    path = tmp_path_factory.mktemp("oceanvaltimes") / ".oceanvaltimes"
+    monkeypatch.setenv("OCEANVALTIMES", str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
+def viewer_simulation(tmp_path_factory):
+    """A NEMO-like simulation laid out YYYY/MM/*.nc, two years of monthly
+    files of two file types, for the viewer's tests (see viewer_simulations)."""
+    from viewer_simulations import nemo_simulation
+
+    return nemo_simulation(str(tmp_path_factory.mktemp("viewer_sim")))
+
+
+@pytest.fixture(autouse=True)
 def check_servers(monkeypatch):
     """Registering checks the THREDDS servers, as it does outside the oceanval
     window, whose matchups turn it off for the rest of their process (see

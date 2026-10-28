@@ -62,7 +62,7 @@
   <div class="container">
     <div class="breadcrumb"><a href="index.html">Home</a> / The OceanVal app</div>
     <h1>The OceanVal app</h1>
-    <p class="lead">Validate or analyse a simulation from a browser window, with no Python.</p>
+    <p class="lead">View, analyse or validate a simulation from a browser window, with no Python.</p>
   </div>
 </div>
 
@@ -72,6 +72,7 @@
     <ul>
       <li><a href="#start">Start it</a></li>
       <li><a href="#demo">Demo</a></li>
+      <li><a href="#viewer">Viewing a simulation&rsquo;s output</a></li>
       <li><a href="#analyze">Analyzing a simulation</a></li>
       <li><a href="#compare-simulations">Comparing simulations</a></li>
       <li><a href="#remote">On a remote machine</a></li>
@@ -82,7 +83,7 @@
   </aside>
 
   <div class="docs-content">
-    <p>The OceanVal app lets you validate a simulation without writing any Python. Run <code>oceanval</code> in a terminal and a page opens in your web browser that takes you from a folder of model output to a validation report: you choose what to do, point it at your simulation, choose the observations to validate against, check the units, and watch the run. The first page offers <strong>Analyze simulations</strong>, <strong>Compare simulations</strong> and <strong>Validate simulations</strong>: Validate simulations leads to the validation choices, and Analyze looks at a simulation on its own (see <a href="#analyze">below</a>).</p>
+    <p>The OceanVal app lets you validate a simulation without writing any Python. Run <code>oceanval</code> in a terminal and a page opens in your web browser that takes you from a folder of model output to a validation report: you choose what to do, point it at your simulation, choose the observations to validate against, check the units, and watch the run. The first page offers four boxes, two by two: <strong>View simulation output</strong>, <strong>Analyze simulations</strong>, <strong>Compare simulations</strong> and <strong>Validate simulations</strong>. View simulation output maps what the files hold (see <a href="#viewer">below</a>), Validate simulations leads to the validation choices, and Analyze looks at a simulation on its own (see <a href="#analyze">below</a>).</p>
 
     <h2 id="start">Start it</h2>
     <p><code>oceanval</code> only runs from a conda environment that has OceanVal installed (see <a href="installing.html">Installing</a>), as it needs the R packages, <code>cdo</code> and <code>nco</code> that conda provides. In a terminal, activate that environment, then run <code>oceanval</code> in the directory to work in:</p>
@@ -112,6 +113,21 @@ oceanval</pre>
       </video>
       <figcaption>A 35-second tour, from choosing what to do to the report. The simulation is a small synthetic one and the matchup output is staged so that it finishes in seconds; the report at the end is OceanVal&rsquo;s published <a href="example-report/notebooks/002_summary.html">example report</a>.</figcaption>
     </figure>
+
+    <h2 id="viewer">Viewing a simulation&rsquo;s output</h2>
+    <p><strong>View simulation output</strong> lets you look at what a simulation&rsquo;s netCDF files hold, and map any variable in them at the time, depth and years you choose. Nothing is written but a record of the files&rsquo; times (below), and only the map on show is ever read from the files: one time step at one depth of one file, so output of many GB stays quick to look at.</p>
+    <ol>
+      <li><strong>The simulation</strong>: the same page as for Analyze and Validate, with the directory, how many directories down the files are (filled in, in amber, when OceanVal recognises the folders, as above), the file filters, with <strong>Skip file names containing</strong> starting at <code>restart</code>, and the arrow in the directory box listing the simulations used before (one you have viewed is added to it). Below them, <strong>Missing values</strong> (optional): numbers in the files that mean there is no data, such as 0 or -999, and are not marked as missing in them. Give one number, or fill in <strong>To</strong> as well for a range (both ends are included); <strong>Add a missing value</strong> adds another. They apply to every variable, and cells with them are left blank and do not stretch the colour scale. <strong>Back</strong> from the viewer returns here to change them, with everything as you left it.</li>
+      <li><strong>Continue</strong> reads the variables of the first file of each <strong>file type</strong> (the files whose names differ only in their dates, so <code>..._20000101_grid_T.nc</code> and <code>..._20000201_grid_T.nc</code> are one type) and opens the viewer straight away. The times of all the files are then read in the background while you use it (only the time variable of each file, in a process of its own using half of the machine&rsquo;s cores), with a count such as <strong>Reading the times of the files: 1,240/3,560</strong>. Until they are in you can map the first time of any variable, but not choose the years or move through time. The times are kept in <code>.oceanvaltimes</code> in your home directory, so a simulation opened again has its times at once and only new or changed files are read.</li>
+      <li><strong>The viewer</strong>. On the left, search the variables by name, description or units; only those that can be mapped (with two horizontal dimensions, or on an FVCOM mesh) are listed. Clicking a variable maps it; if it is in more than one file type, choose which. To map the <strong>sum</strong> of several variables, tick their boxes (or press Shift+Enter on the highlighted one); <strong>Clear</strong> unticks them all. They must be in the same file type with the same dimensions, so a variable that cannot be added is dimmed. Your missing values are applied to each before they are added, and a cell missing in any of them is missing in the sum; if their units differ the sum is still drawn, so check they make sense added. Below are what the variable is (its units, dimensions, file type, files, time resolution and dates) and the controls:
+        <ul>
+          <li><strong>Years</strong>: a <strong>First year</strong> and a <strong>Last year</strong>, typed or picked from the list the arrow in each box opens; a blank box is no limit. Time, Play and its colour scale then stay inside those years, and the details say how many of the files hold them (&ldquo;Files 120 of 444&rdquo;). A first year after the last, or years with no output, are said and not used; a year beyond the output is only mentioned.</li>
+          <li><strong>Time</strong>: a slider, the arrow buttons (or the arrow keys), and <strong>Play</strong>, which animates the simulation from the time shown at <strong>Slow</strong>, <strong>Normal</strong> or <strong>Fast</strong> (2, 5 or 10 frames a second, as fast as the files can be read), on one colour scale for the whole run, keeping your zoom.</li>
+          <li><strong>Depth</strong>: the level to show (for FVCOM, its sigma layers, Layer 1 being the surface).</li>
+          <li><strong>Colours</strong>: the colour map, fixed limits (<strong>Keep this scale for every time</strong>, <strong>Automatic scale</strong>), a logarithmic scale and <strong>Coastlines</strong>.</li>
+        </ul>
+        On the right is the map, which you can zoom, pan, hover over to read values, and save as a PNG. As in ncplot, a regular longitude/latitude grid is drawn as an image, an uneven or curvilinear one as a quadmesh, and a grid whose longitudes and latitudes cannot place every cell (land cells written as 0, say) by its own indices. When the values span 0 the colour scale is symmetric about 0, in <code>RdBu_r</code>; otherwise it is <code>viridis</code>. Raw FVCOM output is drawn as pyfvcom2 draws it, a value on the nodes shaded across each triangle and one on the elements filling it, onto a grid of about 1000 pixels across; its coastline is Natural Earth&rsquo;s, which cartopy downloads the first time.</li>
+    </ol>
 
     <h2 id="analyze">Analyzing a simulation</h2>
     <p><strong>Analyze simulations</strong> works out the climatology, the phenology, time series and transects of a simulation&rsquo;s variables, with no observations, and builds an HTML report of them, laid out like a validation report. It takes you through these pages, each with <strong>Back</strong>, which keeps what you entered:</p>
