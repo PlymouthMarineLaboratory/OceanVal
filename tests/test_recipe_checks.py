@@ -139,8 +139,26 @@ class TestPoint:
     def test_places_with_no_csv_files(self, tmp_path):
         with pytest.raises(CheckFailed, match="no csv files"):
             inspect_point(str(tmp_path))
-        with pytest.raises(CheckFailed, match="no directory"):
+        with pytest.raises(CheckFailed, match="no file or directory"):
             inspect_point(str(tmp_path / "nothing"))
+
+    def test_a_csv_file(self, tmp_path):
+        pd.DataFrame({"lon": [1], "lat": [2], "observation": [3], "year": [2000]}).to_csv(
+            tmp_path / "a.csv", index=False
+        )
+        pd.DataFrame({"lon": [5], "lat": [2], "observation": [3]}).to_csv(
+            tmp_path / "b.csv", index=False
+        )
+        found = inspect_point(str(tmp_path / "a.csv"))
+        assert found["files"] == 1
+        assert found["obs_path"] == str(tmp_path / "a.csv")
+        assert found["years"] == [2000, 2000]
+
+    def test_longitudes_from_0_to_360_are_reported_as_matchup_reads_them(self, tmp_path):
+        pd.DataFrame({"lon": [190, 350], "lat": [2, 3], "observation": [3, 4]}).to_csv(
+            tmp_path / "a.csv", index=False
+        )
+        assert inspect_point(str(tmp_path))["lon"] == [-170, -10]
 
 
 def wait_for(check):

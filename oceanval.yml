@@ -19,6 +19,7 @@ dependencies:
   - r-cowplot
   - r-ggthemes
   - r-maps
+  - r-mapdata
   - r-plotrix
   - r-tidyverse
   - r-ggtext

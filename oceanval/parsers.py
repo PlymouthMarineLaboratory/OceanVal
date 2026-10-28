@@ -31,6 +31,20 @@ def read_point(ff, nrows = None):
     raise ValueError(f"Could not read file {ff} with any of the following compression types: {compressions}.")
 
 
+def point_files(obs_path):
+    """The csv files of a point comparison's observations.
+
+    obs_path is one file, which is used as it is, or a directory, whose csv
+    files are all used. A path that is neither, or a directory without csv
+    files, gives no files.
+    """
+    if os.path.isfile(obs_path):
+        return [obs_path]
+    if os.path.isdir(obs_path):
+        return sorted(glob.glob(os.path.join(obs_path, "*.csv")))
+    return []
+
+
 recipe_list = [
     {"chlorophyll": "occci"},
     {"oxygen": "woa23"},
@@ -723,7 +737,7 @@ class Validator:
 
         end (int): Last year of observations to use
 
-        obs_path (str): Directory of the observations
+        obs_path (str): A csv file of the observations, or a directory whose csv files are all used
 
         obs_multiplier (float): Multiplier for the observation, if needed to convert units
 
@@ -852,13 +866,13 @@ class Validator:
             if obs_path is None or os.path.exists(obs_path) is False:
                 raise ValueError(f"Observation path {obs_path} does not exist")
 
-            point_files = [f for f in glob.glob(os.path.join(obs_path, "*.csv"))]
+            files = point_files(obs_path)
             # if no files exists, raise error
-            if len(point_files) == 0:
+            if len(files) == 0:
                 raise ValueError(f"No csv files found in point directory {obs_path}")
             valid_vars = ["lon", "lat", "year", "month", "day", "depth", "observation", "source"]
             vertical_option = False
-            for vv in point_files:
+            for vv in files:
                 # read in the first row
                 df = read_point(vv, nrows=1)
                 # throw error something else is in there

@@ -190,7 +190,16 @@ if(available & concise == FALSE){
 library(dplyr, warn.conflicts = FALSE, quietly = TRUE)
 library(ggplot2, warn.conflicts = FALSE, quietly = TRUE)
 library(stringr, warn.conflicts = FALSE, quietly = TRUE)
-world_map <- map_data("world")
+# a small area, a lake for example, needs a map with more detail than the world map has
+if (diff(range(df_locs$lon, na.rm = TRUE)) > 50 | diff(range(df_locs$lat, na.rm = TRUE)) > 50 | !requireNamespace("mapdata", quietly = TRUE)) {
+    world_map <- map_data("world")
+} else {
+    library(mapdata, warn.conflicts = FALSE, quietly = TRUE)
+    world_map <- tryCatch(
+        map_data("worldHires", xlim = range(df_locs$lon, na.rm = TRUE) + c(-1, 1), ylim = range(df_locs$lat, na.rm = TRUE) + c(-1, 1)) %>% filter(region != "Great Lakes"),
+        error = function(e) map_data("world")
+    )
+}
 # get lon, lat limits from profile_mld
 bin_value <- function(x, bin_res) {
 	floor((x + bin_res / 2) / bin_res + 0.5) * bin_res - bin_res / 2
@@ -204,13 +213,11 @@ bin_value <- function(x, bin_res) {
 	floor((x + bin_res / 2) / bin_res + 0.5) * bin_res - bin_res / 2
 }
 
-gg <- df_locs %>%
-# final six months of the year
-    ggplot()+
-    geom_point(aes(lon, lat))+
-    theme_gray(base_size = 14)+
-    # add colour scale. Minimum zero, label 100, ">100"
+# the land is drawn first, so the points are above it
+gg <- ggplot()+
     geom_polygon(data = world_map, aes(long, lat, group = group), fill = "grey60")+
+    geom_point(data = df_locs, aes(lon, lat))+
+    theme_gray(base_size = 14)+
     coord_fixed(xlim = xlim, ylim = ylim, ratio = 1.5, expand = FALSE) 
 
 # figure out if lon minimum is less than -10
@@ -273,7 +280,16 @@ p98 = quantile(df_map$value, 0.98)
 # cap the value at this
 df_map$value = pmin(df_map$value, p98)
 
-world_map <- map_data("world")
+# a small area, a lake for example, needs a map with more detail than the world map has
+if (diff(range(df$lon, na.rm = TRUE)) > 50 | diff(range(df$lat, na.rm = TRUE)) > 50 | !requireNamespace("mapdata", quietly = TRUE)) {
+    world_map <- map_data("world")
+} else {
+    library(mapdata, warn.conflicts = FALSE, quietly = TRUE)
+    world_map <- tryCatch(
+        map_data("worldHires", xlim = range(df$lon, na.rm = TRUE) + c(-1, 1), ylim = range(df$lat, na.rm = TRUE) + c(-1, 1)) %>% filter(region != "Great Lakes"),
+        error = function(e) map_data("world")
+    )
+}
 
 Layer <- str_to_title(layer_long)
 name <- str_glue("{Layer} {vv_name} ({unit})")
@@ -299,9 +315,10 @@ n_panels <- length(unique(df_map$variable))
 panel_ncol <- if (n_panels == 3) 3 else ceiling(sqrt(n_panels))
 panel_nrow <- ceiling(n_panels / panel_ncol)
 
-gg <- df_map %>%
-    ggplot()+
-    geom_point(aes(lon, lat, colour = value))+
+# the land is drawn first, so the points are above it
+gg <- ggplot()+
+    geom_polygon(data = world_map, aes(long, lat, group = group), fill = "grey60")+
+    geom_point(data = df_map, aes(lon, lat, colour = value))+
     theme_gray(base_size = 14)+
     coord_fixed(ratio = 1.5, xlim = c(min(df$lon), max(df$lon)), ylim = c(min(df$lat), max(df$lat)), expand = FALSE)+
     labs(color = variable)+
@@ -319,10 +336,6 @@ gg <- df_map %>%
     legend.key.height = unit(1.0, "cm"))
 
 
-
-
-gg <- gg + 
-    geom_polygon(data = world_map, aes(long, lat, group = group), fill = "grey60")
 
 # remove x and y axis names
 
@@ -406,7 +419,16 @@ library(dplyr, warn.conflicts = FALSE, quietly = TRUE)
 library(ggplot2, warn.conflicts = FALSE, quietly = TRUE)
 library(stringr, warn.conflicts = FALSE, quietly = TRUE)
 library(tidyverse, warn.conflicts = FALSE, quietly = TRUE)
-world_map <- map_data("world")
+# a small area, a lake for example, needs a map with more detail than the world map has
+if (diff(range(df$lon, na.rm = TRUE)) > 50 | diff(range(df$lat, na.rm = TRUE)) > 50 | !requireNamespace("mapdata", quietly = TRUE)) {
+    world_map <- map_data("world")
+} else {
+    library(mapdata, warn.conflicts = FALSE, quietly = TRUE)
+    world_map <- tryCatch(
+        map_data("worldHires", xlim = range(df$lon, na.rm = TRUE) + c(-1, 1), ylim = range(df$lat, na.rm = TRUE) + c(-1, 1)) %>% filter(region != "Great Lakes"),
+        error = function(e) map_data("world")
+    )
+}
 # get lon, lat limits from profile_mld
 
 xlim = c(min(df$lon), max(df$lon))
@@ -481,9 +503,10 @@ title <- str_replace_all(title, "m-([0-9]+)", "m<sup>-\\1</sup>")
         plot_width <- 4.5
     }
 
-gg <- df %>%
-    ggplot()+
-    geom_point(aes(lon, lat, colour = bias))+
+# the land is drawn first, so the points are above it
+gg <- ggplot()+
+    geom_polygon(data = world_map, aes(long, lat, group = group), fill = "grey70")+
+    geom_point(data = df, aes(lon, lat, colour = bias))+
     theme_dark(base_size = 24)+
     # add colour scale. Minimum zero, label 100, ">100"
     coord_fixed(xlim = xlim, ylim = ylim, ratio = 1.5, expand = FALSE) +
@@ -522,9 +545,6 @@ colour_lab <- str_replace(colour_lab, "CO2", "CO<sub>2</sub>")
 
 #
 gg <- gg + labs(colour = title)
-
-gg <- gg + 
-    geom_polygon(data = world_map, aes(long, lat, group = group), fill = "grey70")
 
 gg <- gg +
     # remove the x and y axis totally

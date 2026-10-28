@@ -223,7 +223,7 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()<
       <li><code class="param-name">name</code> <span class="param-tag">required</span><p>A name for the dataset, e.g. "temperature" — used internally to keep track of things. Letters and numbers only.</p></li>
       <li><code class="param-name">source</code> <span class="param-tag">required</span><p>The source of the observational data, e.g. "NOAA".</p></li>
       <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations.</p></li>
-      <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to a file or directory containing the observational data. If a directory, ensure it only contains files relevant to this variable — OceanVal recursively uses all NetCDF files inside it.</p></li>
+      <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to a csv file, or to a directory of csv files. If a directory, ensure it only contains csv files relevant to this variable — OceanVal uses all the csv files directly in it.</p></li>
     </ul>
     <details class="param-optional">
       <summary>Optional parameters</summary>

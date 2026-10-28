@@ -585,6 +585,7 @@ def gridded_matchup(
                         lon_lim=lon_lim,
                         lat_lim=lat_lim,
                         cores=session_info["cores"],
+                        levels=session_info.get("fvcom_levels"),
                     )
                     paths = [fvcom_paths[x] for x in paths]
 

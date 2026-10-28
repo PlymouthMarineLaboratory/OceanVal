@@ -126,6 +126,11 @@ def default_form(start, end, exclude=None, require=None):
         "end": str(end),
         "clim_start": "",
         "clim_end": "",
+        # what FVCOM output is regridded to, which only an FVCOM simulation is asked
+        "fvcom_res": str(settings["fvcom_res"]),
+        "fvcom_min_depth": str(settings["fvcom_min_depth"]),
+        "fvcom_max_depth": str(settings["fvcom_max_depth"]),
+        "fvcom_dz": str(settings["fvcom_dz"]),
         "lon_min": limit("lon_lim", 0),
         "lon_max": limit("lon_lim", 1),
         "lat_min": limit("lat_lim", 0),
@@ -213,6 +218,9 @@ def check_settings(form, available, fvcom=False):
     if limits is not None:
         settings["lon_lim"], settings["lat_lim"] = limits
 
+    if fvcom:
+        _check_fvcom(text, errors, settings)
+
     settings["out_dir"] = text("out_dir")
     if settings["out_dir"] and os.path.isfile(os.path.expanduser(settings["out_dir"])):
         errors["out_dir"] = "This is a file, not a directory."
@@ -286,6 +294,37 @@ def check_settings(form, available, fvcom=False):
         errors["concise"] = "Choose concise or detailed."
     settings["subregions"] = check_subregions(text, errors)
     return settings, errors
+
+
+# the boxes of what FVCOM output is regridded to: the matchup() argument, the
+# name the page uses for it, and whether it has to be more than 0 (a depth can be 0)
+_FVCOM_BOXES = (
+    ("fvcom_res", "The resolution", True),
+    ("fvcom_min_depth", "The minimum depth", False),
+    ("fvcom_max_depth", "The maximum depth", True),
+    ("fvcom_dz", "The spacing", True),
+)
+
+
+def _check_fvcom(text, errors, settings):
+    """The FVCOM resolution and depths, put in settings as numbers. Whole
+    numbers are kept whole, so the script reads fvcom_max_depth=200."""
+    found = {}
+    for name, label, positive in _FVCOM_BOXES:
+        value = _number(text(name)) if text(name) else None
+        if not text(name):
+            errors[name] = f"{label} is needed."
+        elif value is None:
+            errors[name] = f"{label} must be a number."
+        elif value <= 0 if positive else value < 0:
+            errors[name] = f"{label} must be {'more than' if positive else ''} 0{'' if positive else ' or more'}."
+        else:
+            found[name] = int(value) if value == int(value) else value
+    if "fvcom_min_depth" in found and "fvcom_max_depth" in found:
+        if found["fvcom_max_depth"] <= found["fvcom_min_depth"]:
+            errors["fvcom_max_depth"] = "The maximum depth must be more than the minimum."
+    if not errors.keys() & {name for name, _, _ in _FVCOM_BOXES}:
+        settings.update(found)
 
 
 def _in_one_period(years):

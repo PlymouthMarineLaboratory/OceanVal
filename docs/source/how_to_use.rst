@@ -25,9 +25,9 @@ To register an in-situ observational dataset, you will need to specify the follo
 - `name`: A name for the dataset, e.g. "temperature". This is so that OceanVal can keep track of things. You can call this what you want, but it can only contain numbers and letters.
 - `source`: The source of the observational data (e.g. "NOAA").
 - `model_variable`: A string specifying the name of the model variable to compare against the observations.
-- `obs_path`: The path to a file or directory containing the observational data files.
+- `obs_path`: The path to a csv file, or to a directory of csv files.
 
-Note: when specifying a directory as `obs_path` ensure that the directory only contains files relevant to the observational variable being registered, as OceanVal will recursively identify and use all netCDF files in the directory.
+Note: when specifying a directory as `obs_path` ensure that the directory only contains csv files relevant to the observational variable being registered, as OceanVal will use all the csv files directly in the directory (but not those in directories below it). A csv file given by its path is used whatever it is called.
 
 The following optional parameters can also be specified:
 

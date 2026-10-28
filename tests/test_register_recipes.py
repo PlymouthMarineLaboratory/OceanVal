@@ -615,7 +615,7 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#view-register-point:not([hidden])")
         assert page.locator("#r-point-location").count() == 0
         page.fill("#r-point-obs_path", "/nowhere")
-        page.wait_for_function("document.querySelector('#r-point-data-msg').innerText.includes('no directory')")
+        page.wait_for_function("document.querySelector('#r-point-data-msg').innerText.includes('no file or directory')")
         assert failures == []
     finally:
         app.close()

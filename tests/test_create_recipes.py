@@ -1100,6 +1100,20 @@ class TestSettings:
         assert "overwrite=" not in script
         assert "point_time_res=" not in matchup_call(script)
 
+    def test_fvcom_settings_are_written_only_when_changed(self):
+        script = self.build(
+            settings=settings(fvcom_res=0.1, fvcom_max_depth=200),
+            fvcom=True,
+        )
+        ast.parse(script)
+        call = matchup_call(script)
+        assert "    fvcom=True,\n" in call
+        assert "    fvcom_res=0.1,\n" in call
+        assert "    fvcom_max_depth=200,\n" in call
+        assert "fvcom_min_depth" not in call
+        assert "fvcom_dz" not in call
+        assert "fvcom_res" not in self.build(settings=settings(), fvcom=True)
+
     def test_a_time_shift_is_written_when_given(self):
         # the oceanval window writes the answer to matchup's question about
         # the model's times; it has no box of its own

@@ -436,6 +436,10 @@ MATCHUP_SETTINGS = (
     "exclude",
     "require",
     "as_missing",
+    "fvcom_res",
+    "fvcom_min_depth",
+    "fvcom_max_depth",
+    "fvcom_dz",
 )
 VALIDATE_SETTINGS = ("subregions", "pdf", "word", "concise")
 

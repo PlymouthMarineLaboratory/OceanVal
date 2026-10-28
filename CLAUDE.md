@@ -96,6 +96,20 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `add_point_comparison`/`add_gridded_comparison`) — a dynamic attribute-tracking object recipes
   register themselves onto — and `find_recipe`, which builds obs-source URLs without touching the
   network (useful for validating recipe arguments offline).
+- **User point data** (`obs_path`) is one csv file or a directory of csv files, whichever `parsers.point_files` finds: a file is used as
+  it is (whatever its name, and not filtered by `exclude`), a directory gives its `*.csv`, not those below it. Registration (`add_point_comparison`),
+  `matchall.point_match`, `recipe_checks.inspect_point`, `own_data.check_entry` and the window's wording all use it, so a new place that
+  reads `obs_path` must too. **Longitudes above 180 in the csv are made `lon - 360` as the files are read** (`read_csv_simyears`, and the range
+  `inspect_point` reports), before `lon_lim` and the matching: nctoolkit's `match_points` does not wrap.
+- **FVCOM output** is regridded by `fvcom_matchup_files`, to `matchup(fvcom_res=0.05)` degrees for point matchups (gridded ones keep
+  half the observations' resolution) and, for vertical ones, the depths `fvcom.matchup_depths(fvcom_min_depth=0, fvcom_max_depth=150, fvcom_dz=5)`
+  (`session_info["fvcom_res"]`/`["fvcom_levels"]`, also read by `gridded.py`); the levels are in the cache key of the regridded files. The
+  recipes window asks all four when the output is FVCOM (`group-fvcom`, `recipes_gui._check_fvcom`, started at those defaults), and as they
+  are in `MATCHUP_SETTINGS` they are written into the script only when changed.
+- **The maps of the point pages** (R, `chunk_point.pytemplate`'s three, `point_template.ipynb`, `summary.ipynb`) draw the land first and the
+  points above it. A lon or lat range of more than 50 degrees (or no R `mapdata`) keeps `map_data("world")`; a smaller one uses
+  `map_data("worldHires")` from `r-mapdata`, limited to the data's extent, without the "Great Lakes" region (the lakes are water; open
+  ocean with no land falls back to `world`). The same block is in every cell (`tests/test_report_templates.py` checks that), so change them together.
 - `oceanval/create_recipes.py` scans model output directories, maps model variables to
   observational variables via netCDF `long_name` matching, and writes out a matchup script with
   live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, ...).

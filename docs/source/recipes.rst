@@ -263,7 +263,7 @@ data for future use** on its first page. Choose point or gridded data and descri
   files, or a pattern ending in ``.nc`` such as ``obs/chl_*.nc``), on a THREDDS
   server (OPeNDAP addresses, with ``dodsC`` in them) or at a web address, which
   is downloaded when it is matched up.
-- **Point data** is a directory of csv files on this machine, with ``lon``,
+- **Point data** is a csv file, or a directory of csv files, on this machine, with ``lon``,
   ``lat`` and ``observation`` columns and any of ``year``, ``month``, ``day``,
   ``depth`` and ``source``.
 
@@ -322,7 +322,7 @@ A recipe in a file looks like this:
      }
    }
 
-A point recipe has ``"kind": "point"``, with ``obs_path`` the directory of csv
+A point recipe has ``"kind": "point"``, with ``obs_path`` a csv file or the directory of csv
 files and no ``location``, ``obs_variable`` or ``climatology``. A recipe for a
 variable of your own also has ``long_name``, ``short_name`` and ``short_title``,
 which name it in the report. You can edit the files by hand: OceanVal ignores,

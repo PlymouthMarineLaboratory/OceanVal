@@ -721,6 +721,47 @@ class TestSettingsChecks:
         settings, errors = self.check(fvcom=True, thickness="anything")
         assert (settings["thickness"], errors) == (None, {})
 
+    def test_fvcom_settings_start_at_matchups_defaults(self):
+        form = default_form(2011, 2012)
+        assert [form[x] for x in ("fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz")] == [
+            "0.05", "0", "150", "5",
+        ]
+        settings, errors = self.check(fvcom=True)
+        assert errors == {}
+        assert settings == default_settings(2011, 2012)
+
+    def test_fvcom_settings_are_numbers_kept_whole_when_they_are(self):
+        settings, errors = self.check(
+            fvcom=True, fvcom_res="0.1", fvcom_min_depth="10", fvcom_max_depth="200.0", fvcom_dz="2.5"
+        )
+        assert errors == {}
+        assert [settings[x] for x in ("fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz")] == [
+            0.1, 10, 200, 2.5,
+        ]
+        assert isinstance(settings["fvcom_max_depth"], int)
+
+    @pytest.mark.parametrize(
+        "changes, box",
+        [
+            (dict(fvcom_res=""), "fvcom_res"),
+            (dict(fvcom_res="0"), "fvcom_res"),
+            (dict(fvcom_res="fine"), "fvcom_res"),
+            (dict(fvcom_min_depth="-1"), "fvcom_min_depth"),
+            (dict(fvcom_max_depth="0"), "fvcom_max_depth"),
+            (dict(fvcom_min_depth="150"), "fvcom_max_depth"),
+            (dict(fvcom_dz="-5"), "fvcom_dz"),
+            (dict(fvcom_dz="nan"), "fvcom_dz"),
+        ],
+    )
+    def test_fvcom_settings_that_cannot_be_used(self, changes, box):
+        settings, errors = self.check(fvcom=True, **changes)
+        assert set(errors) == {box}
+
+    def test_other_output_is_not_asked_about_fvcom(self):
+        settings, errors = self.check(fvcom_res="nonsense", fvcom_dz="0")
+        assert errors == {}
+        assert settings == default_settings(2011, 2012)
+
     def test_out_dir_must_not_be_a_file(self, tmp_path):
         path = tmp_path / "a_file"
         path.write_text("")
@@ -1374,6 +1415,26 @@ class TestThicknessPopOut:
             assert box.input_value() == ""
         finally:
             recipe_page.close()
+
+    def test_the_fvcom_regridding_is_only_asked_of_fvcom_output(self, browser):
+        for fvcom in (False, True):
+            recipe_page = self.page(fvcom=fvcom)
+            url = recipe_page.start()
+            try:
+                page = browser.new_page()
+                page.goto(url)
+                assert page.locator("#group-fvcom").is_visible() == fvcom
+                if fvcom:
+                    values = [page.locator(f"#s-{x}").input_value() for x in
+                              ("fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz")]
+                    assert values == ["0.05", "0", "150", "5"]
+                    page.locator("#s-fvcom_dz").fill("0")
+                    assert "more than 0" in page.locator("#g-fvcom").inner_text()
+                    page.locator("#s-fvcom_dz").fill("10")
+                    page.locator("#s-fvcom_max_depth").fill("300")
+                    assert "more than 0" not in page.locator("#g-fvcom").inner_text()
+            finally:
+                recipe_page.close()
 
     def test_it_is_not_offered_for_fvcom(self, browser):
         recipe_page = self.page(fvcom=True)

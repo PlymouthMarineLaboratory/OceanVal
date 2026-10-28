@@ -166,7 +166,7 @@ def _invalid(variable, key, recipe):
     obs_path = recipe.get("obs_path")
     if kind == "point":
         if not isinstance(obs_path, str) or not obs_path:
-            return "obs_path must be the directory of csv files"
+            return "obs_path must be a csv file or the directory of csv files"
         return None
     if recipe.get("location") not in LOCATIONS:
         return f"location must be one of {', '.join(LOCATIONS)}"

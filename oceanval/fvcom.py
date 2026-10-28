@@ -390,11 +390,56 @@ def fvcom_preprocess(
         ds_all.to_nc(ff_out, zip=True)
 
 
-# depth levels used for vertical matchups
-matchup_levels = list(range(0, 155, 5))
+# the lon-lat resolution (degrees) of the grid point matchups use, and the depths
+# (m) of vertical matchups: from min_depth to max_depth every dz. matchup takes
+# each of them as an argument, with these as the defaults
+default_res = 0.05
+default_min_depth = 0
+default_max_depth = 150
+default_dz = 5
 
 
-def _matchup_file(ff, variables, out_dir, vertical, res, lon_lim, lat_lim):
+def _setting(value, name, positive=False):
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise TypeError(f"{name} must be a number")
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError(f"{name} must be a finite number")
+    if positive and value <= 0:
+        raise ValueError(f"{name} must be greater than 0")
+    return value
+
+
+def matchup_depths(
+    min_depth=default_min_depth, max_depth=default_max_depth, dz=default_dz
+):
+    """
+    Depths of vertical matchups: min_depth to max_depth every dz, as a list.
+    The last is the last one at or above max_depth, if dz does not divide the range.
+    """
+    min_depth = _setting(min_depth, "fvcom_min_depth")
+    max_depth = _setting(max_depth, "fvcom_max_depth")
+    dz = _setting(dz, "fvcom_dz", positive=True)
+    if min_depth < 0:
+        raise ValueError("fvcom_min_depth must be a depth, i.e. positive down")
+    if max_depth <= min_depth:
+        raise ValueError("fvcom_max_depth must be greater than fvcom_min_depth")
+    levels = min_depth + dz * np.arange(int(np.floor((max_depth - min_depth) / dz + 1e-9)) + 1)
+    return [float(x) for x in np.round(levels, 6)]
+
+
+def check_matchup_settings(res, min_depth, max_depth, dz):
+    """
+    The settings of matchup's fvcom_ arguments, checked: (res, depths)
+    """
+    return _setting(res, "fvcom_res", positive=True), matchup_depths(min_depth, max_depth, dz)
+
+
+# depth levels used for vertical matchups by default
+matchup_levels = matchup_depths()
+
+
+def _matchup_file(ff, variables, out_dir, vertical, res, lon_lim, lat_lim, levels=None):
     fvcom_preprocess(
         variables=variables,
         paths=[ff],
@@ -402,7 +447,7 @@ def _matchup_file(ff, variables, out_dir, vertical, res, lon_lim, lat_lim):
         lat_lim=lat_lim,
         res=res,
         out_dir=out_dir,
-        levels=matchup_levels if vertical else None,
+        levels=(matchup_levels if levels is None else levels) if vertical else None,
     )
 
 
@@ -437,14 +482,14 @@ def _run_matchup_file(args):
 
 
 def fvcom_matchup_files(
-    paths, variables, out_dir, vertical, res, lon_lim, lat_lim, cores=1
+    paths, variables, out_dir, vertical, res, lon_lim, lat_lim, cores=1, levels=None
 ):
     """
     Regrid FVCOM files for matchup, one output file per input file.
 
     Surface values are used if vertical is False, otherwise values are interpolated
-    to 0-150 m every 5 m. Files already done for the same settings in this matchup
-    are reused.
+    to levels, which are 0-150 m every 5 m unless given. Files already done for the
+    same settings in this matchup are reused.
 
     Returns
     -------
@@ -456,12 +501,16 @@ def fvcom_matchup_files(
     res = [float(x) for x in res]
     layer = "z_level" if vertical else "surface"
     variant = f"{layer}_{'_'.join(variables)}_{res[0]:g}x{res[1]:g}"
+    if levels is None:
+        levels = matchup_levels
+    if vertical:
+        variant += "_" + hashlib.md5(json.dumps(levels).encode()).hexdigest()[:8]
 
     registry = session_info.setdefault("fvcom_files", dict())
     todo = [ff for ff in paths if (variant, ff) not in registry]
 
     if len(todo) > 0:
-        description = "0-150 m" if vertical else "surface"
+        description = f"{levels[0]:g}-{levels[-1]:g} m" if vertical else "surface"
         print(
             f"Regridding {len(todo)} FVCOM files ({description}, {res[0]:g} x {res[1]:g} degrees)"
         )
@@ -477,7 +526,7 @@ def fvcom_matchup_files(
             for ff in todo:
                 results[ff] = executor.submit(
                     _run_matchup_file,
-                    [ff, variables, jobs[ff], vertical, res, lon_lim, lat_lim],
+                    [ff, variables, jobs[ff], vertical, res, lon_lim, lat_lim, levels],
                 )
             for ff, result in results.items():
                 registry[(variant, ff)] = result.result()

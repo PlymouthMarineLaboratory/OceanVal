@@ -48,11 +48,11 @@ Vertically-resolved files can be supplied. These should be files with depth as a
 In-situ observational data
 --------------------------
 
-If you want to validate your model against in-situ observational data (e.g. from research cruises or moorings), then the data should be in CSV format.
+If you want to validate your model against in-situ observational data (e.g. from research cruises or moorings), then the data should be in CSV format. You can give OceanVal the path of one CSV file, or of a directory, in which case all the CSV files in the directory are used.
 
 The CSV file can contain the following columns, with required columns (lon/lat/observation) in bold:
 
-- **lon**: Longitude of the observation (decimal degrees)
+- **lon**: Longitude of the observation (decimal degrees). Longitudes from 0 to 360 can be used: those above 180 are converted to the equivalent negative longitudes (e.g. 350 becomes -10) when the data is matched up
 - **lat**: Latitude of the observation (decimal degrees)
 - depth: Depth of the observation (metres)
 - year: Year of the observation

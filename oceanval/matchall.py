@@ -30,12 +30,17 @@ import shutil
 import xarray as xr
 import oceanval.parsers as parsers
 from oceanval.session import session_info
-from oceanval.parsers import Validator, definitions
+from oceanval.parsers import Validator, definitions, point_files
 from tqdm import tqdm
 from oceanval.utils import extension_of_directory
 from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
 from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
+from oceanval.fvcom import check_matchup_settings as check_fvcom_settings
+from oceanval.fvcom import default_res as fvcom_default_res
+from oceanval.fvcom import default_min_depth as fvcom_default_min_depth
+from oceanval.fvcom import default_max_depth as fvcom_default_max_depth
+from oceanval.fvcom import default_dz as fvcom_default_dz
 from oceanval import data_store as obs_store
 from oceanval import cdo_watch
 from oceanval import ices
@@ -1282,6 +1287,10 @@ def matchup(
     live_validation = None,
     time_shift = None,
     data_store = None,
+    fvcom_res = fvcom_default_res,
+    fvcom_min_depth = fvcom_default_min_depth,
+    fvcom_max_depth = fvcom_default_max_depth,
+    fvcom_dz = fvcom_default_dz,
 ):
     """
     Match up model with observational data
@@ -1344,11 +1353,26 @@ def matchup(
     fvcom : bool
         Set to True if sim_dir contains raw FVCOM output. Default is False.
         Each model file is then regridded with ``fvcom_preprocess`` before matching:
-        surface values for comparisons with vertical=False, and depths of 0-150 m every 5 m
-        for comparisons with vertical=True. Point comparisons use a 0.05 degree grid, and
-        gridded comparisons use a grid at twice the resolution of the observations.
+        surface values for comparisons with vertical=False, and the depths given by
+        fvcom_min_depth, fvcom_max_depth and fvcom_dz (0-150 m every 5 m by default)
+        for comparisons with vertical=True. Point comparisons use a grid of fvcom_res
+        degrees (0.05 by default), and gridded comparisons use a grid at twice the
+        resolution of the observations.
         thickness is not needed, and lon_lim and lat_lim default to the extent of the mesh.
         The regridded files are deleted once the matchups are done.
+    fvcom_res : float
+        The lon-lat resolution, in degrees, of the grid FVCOM output is regridded to for point
+        comparisons. Default is 0.05. Only used if fvcom is True.
+    fvcom_min_depth : float
+        The shallowest depth (m, positive down) FVCOM output is interpolated to for comparisons
+        with vertical=True. Default is 0. Only used if fvcom is True.
+    fvcom_max_depth : float
+        The deepest depth (m) FVCOM output is interpolated to for comparisons with
+        vertical=True. Default is 150. Observations deeper than this are not matched.
+        Only used if fvcom is True.
+    fvcom_dz : float
+        The vertical spacing (m) of the depths between fvcom_min_depth and fvcom_max_depth.
+        Default is 5. Only used if fvcom is True.
     live_validation : bool or dict
         Build an interim validation report, HTML only, as the matchups are made: each matchup's
         page is added as soon as the matchup is made, and the summary is run again, so the
@@ -1414,6 +1438,9 @@ def matchup(
         raise TypeError("fvcom must be a boolean")
     session_info["fvcom"] = fvcom
     session_info["fvcom_files"] = dict()
+    session_info["fvcom_res"], session_info["fvcom_levels"] = check_fvcom_settings(
+        fvcom_res, fvcom_min_depth, fvcom_max_depth, fvcom_dz
+    )
     if fvcom:
         # regridded FVCOM output is on z-levels, so no thickness is needed
         if thickness is not None and thickness not in ["z_level", "z-level", "z level"]:
@@ -2285,19 +2312,24 @@ def matchup(
                                 )
                                 raise
                         else:
-                            paths = glob.glob(
-                                f"{comparison['obs_path']}/**.csv"
-                            )
+                            paths = point_files(comparison["obs_path"])
 
-                            for exc in exclude:
-                                paths = [
-                                    x
-                                    for x in paths
-                                    if f"{exc}" not in os.path.basename(x)
-                                ]
+                            # a file that was named is always used
+                            if not os.path.isfile(comparison["obs_path"]):
+                                for exc in exclude:
+                                    paths = [
+                                        x
+                                        for x in paths
+                                        if f"{exc}" not in os.path.basename(x)
+                                    ]
 
                             def read_csv_simyears(ff, layer = None):
                                 df = read_point(ff)
+                                # longitudes of 0 to 360 are made -180 to 180
+                                if "lon" in df.columns:
+                                    df = df.assign(
+                                        lon=lambda x: x.lon.where(x.lon <= 180, x.lon - 360)
+                                    )
                                 min_year = session_info["min_year"]
                                 max_year = session_info["max_year"]
                                 if "year" in df.columns:
@@ -2396,10 +2428,11 @@ def matchup(
                                 model_variable.split("+"),
                                 session_info["fvcom_dir"],
                                 vertical=(layer == "all"),
-                                res=0.05,
+                                res=session_info["fvcom_res"],
                                 lon_lim=lon_lim,
                                 lat_lim=lat_lim,
                                 cores=cores,
+                                levels=session_info["fvcom_levels"],
                             )
                             paths = [fvcom_paths[x] for x in paths]
                             df_times_new["path"] = [

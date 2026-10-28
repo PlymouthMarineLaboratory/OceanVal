@@ -7,7 +7,7 @@ import pytest
 import xarray as xr
 
 import oceanval
-from oceanval.fvcom import _sigma_to_z, default_levels
+from oceanval.fvcom import _sigma_to_z, default_levels, fvcom_matchup_files, matchup_depths
 from oceanval.gridded import _obs_resolution
 
 
@@ -326,6 +326,77 @@ def test_fvcom_matchup_closes_regridded_files(fvcom_matchups):
         except OSError:
             pass
     assert [x for x in open_files if x.startswith(fvcom_dir)] == []
+
+
+def test_matchup_depths():
+    assert matchup_depths() == list(range(0, 155, 5))
+    assert matchup_depths(10, 50, 20) == [10, 30, 50]
+    # the last depth is the last one within the maximum
+    assert matchup_depths(0, 100, 30) == [0, 30, 60, 90]
+    assert matchup_depths(0, 1, 0.1)[-1] == 1.0
+    assert len(matchup_depths(0, 1, 0.1)) == 11
+
+
+@pytest.mark.parametrize(
+    "arguments, error",
+    [
+        (dict(fvcom_res=0), ValueError),
+        (dict(fvcom_res=-1), ValueError),
+        (dict(fvcom_res="0.1"), TypeError),
+        (dict(fvcom_dz=0), ValueError),
+        (dict(fvcom_dz=True), TypeError),
+        (dict(fvcom_min_depth=-5), ValueError),
+        (dict(fvcom_min_depth=100, fvcom_max_depth=50), ValueError),
+        (dict(fvcom_max_depth=float("nan")), ValueError),
+    ],
+)
+def test_bad_fvcom_settings(arguments, error):
+    with pytest.raises(error):
+        oceanval.matchup(sim_dir=".", start=2012, end=2012, fvcom=True, **arguments)
+
+
+def test_fvcom_settings_of_your_own(fvcom_file, tmp_path):
+    """Depths and resolution can be chosen: deeper observations than the maximum are dropped"""
+    obs = tmp_path / "obs"
+    os.makedirs(obs)
+    date = {"year": 2012, "month": 1, "day": 2}
+    pd.DataFrame(PROFILE_POINTS, columns=["lon", "lat", "depth"]).assign(
+        observation=30.0, **date
+    ).to_csv(obs / "obs.csv", index=False)
+
+    oceanval.reset()
+    oceanval.add_point_comparison(
+        name="salinity", source="own", model_variable="salinity",
+        obs_path=str(obs), vertical=True,
+    )
+    out_dir = str(tmp_path / "out")
+    oceanval.matchup(
+        sim_dir=os.path.dirname(fvcom_file), start=2012, end=2012, n_dirs_down=0,
+        ask=False, cores=1, out_dir=out_dir, fvcom=True,
+        fvcom_res=0.1, fvcom_min_depth=0, fvcom_max_depth=60, fvcom_dz=10,
+    )
+    df = _read_point(out_dir, "all", "own")
+    oceanval.reset()
+    found = sorted(zip(df.lon.round(3), df.lat.round(3), df.depth))
+    assert found == sorted(x for x in PROFILE_POINTS if x[2] <= 60)
+    # a depth between the levels is interpolated, so only those on a level are exact
+    on_level = df.depth % 10 == 0
+    assert on_level.sum() == 2
+    np.testing.assert_allclose(
+        df.model[on_level], _salinity(df.lon, df.depth, 1)[on_level], atol=1e-3
+    )
+
+
+def test_the_cache_of_regridded_files_depends_on_the_depths(fvcom_file, tmp_path):
+    kwargs = dict(
+        paths=[fvcom_file], variables=["salinity"], out_dir=str(tmp_path), vertical=True,
+        res=0.1, lon_lim=[-5, -4], lat_lim=[50, 51],
+    )
+    first = fvcom_matchup_files(**kwargs, levels=[0, 10, 20])
+    second = fvcom_matchup_files(**kwargs, levels=[0, 10, 20, 30])
+    assert first != second
+    with xr.open_dataset(second[fvcom_file], decode_times=False) as ds:
+        assert list(ds.depth.values if "depth" in ds else ds.lev.values) == [0, 10, 20, 30]
 
 
 def test_bad_fvcom():

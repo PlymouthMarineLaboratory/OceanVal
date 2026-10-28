@@ -3,7 +3,7 @@
 The oceanval window uses this to check the data as a recipe is registered,
 opening it as matchup will: gridded data on disk with nctoolkit's open_data,
 on a THREDDS server with open_thredds, and from a web address by downloading
-it with open_url. Point data is a directory of csv files, read as
+it with open_url. Point data is a csv file or a directory of csv files, read as
 add_point_comparison reads it.
 
 Data on a server is looked at in a process of its own (see RemoteCheck), as
@@ -24,7 +24,7 @@ import threading
 
 import nctoolkit as nc
 
-from oceanval.parsers import read_point
+from oceanval.parsers import point_files, read_point
 
 LOCATIONS = ("disk", "thredds", "url")
 
@@ -230,14 +230,14 @@ def check_addresses(location, urls):
 
 
 def inspect_point(obs_path, cwd=None):
-    """Read point observations: a directory of csv files. Raises CheckFailed
+    """Read point observations: a csv file or a directory of csv files. Raises CheckFailed
     if they cannot be used. Otherwise returns {"obs_path", "files",
     "columns" (those found), "depth" (whether there is a depth column),
     "years" and the "lon" and "lat" ranges, from the first file, or None}."""
     path = resolve(obs_path, cwd)
-    if not os.path.isdir(path):
-        raise CheckFailed("There is no directory at this path.")
-    files = sorted(glob.glob(os.path.join(path, "*.csv")))
+    if not os.path.exists(path):
+        raise CheckFailed("There is no file or directory at this path.")
+    files = point_files(path)
     if not files:
         raise CheckFailed("There are no csv files in this directory.")
     columns = []
@@ -266,6 +266,8 @@ def inspect_point(obs_path, cwd=None):
         frame = read_point(files[0], nrows=200000)
         if "year" in frame.columns and len(frame):
             found["years"] = [int(frame.year.min()), int(frame.year.max())]
+        # as matchup reads them, longitudes of 0 to 360 are -180 to 180
+        frame = frame.assign(lon=frame.lon.where(frame.lon <= 180, frame.lon - 360))
         for name in ("lon", "lat"):
             found[name] = [round(float(frame[name].min()), 3), round(float(frame[name].max()), 3)]
     except Exception:

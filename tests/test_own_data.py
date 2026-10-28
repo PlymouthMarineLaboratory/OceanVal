@@ -125,6 +125,15 @@ class TestPoint:
             )
             assert set(errors) == {"obs_path"}
 
+    def test_a_csv_file_can_be_the_path(self, points):
+        csv = sorted(points.glob("*.csv"))[0]
+
+        arguments, errors = own_data.check_entry(
+            "point", dict(POINT, obs_path=str(csv))
+        )
+        assert errors == {}
+        assert arguments["obs_path"] == str(csv)
+
     def test_the_calls_own_checks_are_shown_with_the_box(self, points):
         (points / "bad.csv").write_text("lon,lat,observation,colour\n1,2,3,red\n")
 

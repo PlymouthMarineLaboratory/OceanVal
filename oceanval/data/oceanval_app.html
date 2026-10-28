@@ -1304,7 +1304,7 @@
       <button type="button" class="choice" id="register-point">
         <span class="choice__tag" hidden>Your answer before</span>
         <span class="choice__title">Point data</span>
-        <span class="choice__text">A directory of csv files on this machine, with lon, lat and observation columns, and any of year, month, day, depth and source.</span>
+        <span class="choice__text">A csv file, or a directory of csv files, on this machine, with lon, lat and observation columns, and any of year, month, day, depth and source.</span>
       </button>
       <button type="button" class="choice" id="register-gridded">
         <span class="choice__tag" hidden>Your answer before</span>
@@ -5395,7 +5395,7 @@
   const OWN_TEXT = {
     point: {
       noun: "point dataset",
-      lede: "Point data are csv files in one directory, with lon, lat and observation columns, and any of year, month, day, depth and source. Add each dataset in turn, then continue. Each is registered with add_point_comparison in the matchup script.",
+      lede: "Point data are one csv file, or csv files in one directory, with lon, lat and observation columns, and any of year, month, day, depth and source. Add each dataset in turn, then continue. Each is registered with add_point_comparison in the matchup script.",
     },
     gridded: {
       noun: "gridded dataset",
@@ -5665,7 +5665,7 @@
     const summary = [
       ["Variable", entry.name],
       ["Source", entry.source],
-      [gridded ? "The data" : "Observations directory", String(entry.obs_path), true],
+      [gridded ? "The data" : "Observations file or directory", String(entry.obs_path), true],
     ];
     if (gridded) summary.push(["Observation variable", entry.obs_variable, true], ["Climatology", entry.climatology ? "Yes" : "No"]);
     summary.push(["You will use it as", data.recipe, true]);
@@ -5843,7 +5843,7 @@
   const REGISTER_TEXT = {
     point: {
       noun: "point data recipe",
-      lede: "A point data recipe is a directory of csv files on this machine. Each needs lon, lat and observation columns, and can have year, month, day, depth and source. Describe the observations, and OceanVal checks the files as you do.",
+      lede: "A point data recipe is a csv file, or a directory of csv files, on this machine. Each needs lon, lat and observation columns, and can have year, month, day, depth and source. Describe the observations, and OceanVal checks the files as you do.",
     },
     gridded: {
       noun: "gridded data recipe",
@@ -5936,13 +5936,13 @@
     }
     const pathId = `r-${kind}-obs_path`;
     const single = regText(kind, "obs_path", { mono: true, list: `${pathId}-folders`,
-      placeholder: gridded ? "path/to/observations.nc" : "path/to/csv_directory" });
+      placeholder: gridded ? "path/to/observations.nc" : "path/to/data.csv or path/to/csv_directory" });
     const browseButton = el("button", { type: "button", class: "btn btn--ghost btn--field", "data-browse": pathId, text: "Browse…" });
     const many = el("textarea", { class: "s-input is-mono", id: `${pathId}_many`, rows: "3", hidden: true, spellcheck: "false",
       placeholder: "https://example.org/thredds/dodsC/obs/chl_2010.nc", "aria-label": "The addresses of the data" });
     const path = regField(kind, "obs_path", { required: true, wide: true,
-      label: gridded ? "The data" : "Observations directory",
-      help: gridded ? LOCATION_HELP.disk : "A directory of csv files. Each needs lon, lat and observation columns, and can have year, month, day, depth and source.",
+      label: gridded ? "The data" : "Observations file or directory",
+      help: gridded ? LOCATION_HELP.disk : "A csv file, or a directory of csv files. Each needs lon, lat and observation columns, and can have year, month, day, depth and source.",
       input: single,
       parts: [el("div", { class: "path-field", id: `${pathId}-field` }, single, browseButton), many,
         el("datalist", { id: `${pathId}-folders` })],
@@ -6232,7 +6232,7 @@
       const found = data.found;
       if (kind === "point") {
         lines.push(line(`${plural(found.files, "csv file")} found, with the columns ${found.columns.join(", ")}.`, "ok"));
-        if (found.years) lines.push(line(`The first file covers ${span(found.years)}.`));
+        if (found.years) lines.push(line(`${found.files === 1 ? "The file" : "The first file"} covers ${span(found.years)}.`));
         lines.push(line(found.depth ? "There is a depth column, so the data can be validated through the water column." : "There is no depth column, so the data is validated at the surface.", "ok"));
       } else {
         lines.push(line(`${plural(found.files, "file")} found${found.years ? `, covering ${span(found.years)}` : ""}. It holds ${plural(found.variables.length, "variable")}.`, "ok"));

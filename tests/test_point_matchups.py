@@ -211,6 +211,11 @@ def matchups(simulation, model, tmp_path_factory):
     _write_obs(f"{obs_root}/files", obs.iloc[2:], name="part2.csv", compression="gzip")
     _add("files", f"{obs_root}/files")
 
+    # the path can be one csv file, not a directory
+    expected["onefile"] = _average(surface, ["lon", "lat"])
+    _write_obs(f"{obs_root}/onefile", expected["onefile"], name="data.csv")
+    _add("onefile", f"{obs_root}/onefile/data.csv")
+
     # only 2001 is compared, and the observations need doubling. One observation is
     # repeated, one is outside the model grid and one is missing
     expected["rows"] = _average(surface.query("year == 2001"), daily)
@@ -285,6 +290,48 @@ class TestPointFiles:
         out_dir, expected = matchups
         df = _read(out_dir, "surface", "files")
         _check(df, expected["files"], ["lon", "lat"])
+
+
+    def test_one_file(self, matchups):
+        """Test that the path can be a csv file, not a directory"""
+        out_dir, expected = matchups
+        df = _read(out_dir, "surface", "onefile")
+        _check(df, expected["onefile"], ["lon", "lat"])
+
+
+class TestLongitudes:
+
+    def test_0_to_360(self, tmp_path):
+        """Test that observation longitudes above 180 are matched as the
+        negative longitudes they are"""
+        sim_dir = str(tmp_path / "sim")
+        paths = _make_simulation(sim_dir)
+        # move the model to negative longitudes
+        for ff in paths:
+            with xr.open_dataset(ff) as ds:
+                ds = ds.load().assign_coords(lon=ds.lon - 10)
+            ds.to_netcdf(ff)
+        surface = _model_values(paths).query("level == 0")
+        assert surface.lon.max() < 0
+        expected = _average(surface, ["lon", "lat"])
+        obs = expected.assign(lon=lambda x: x.lon + 360)
+
+        oceanval.reset()
+        _add("lon360", _write_obs(str(tmp_path / "obs"), obs))
+        out_dir = str(tmp_path / "out")
+        oceanval.matchup(
+            sim_dir=sim_dir,
+            start=2000,
+            end=2001,
+            thickness=THICKNESS,
+            ask=False,
+            cores=1,
+            out_dir=out_dir,
+        )
+        df = _read(out_dir, "surface", "lon360")
+        oceanval.reset()
+        assert df.lon.max() < 0
+        _check(df, expected, ["lon", "lat"])
 
 
 class TestPointRows:

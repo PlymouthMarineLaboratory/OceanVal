@@ -18,7 +18,7 @@ import threading
 import warnings
 
 from oceanval import session
-from oceanval.parsers import Validator
+from oceanval.parsers import Validator, point_files
 
 KINDS = ("point", "gridded")
 
@@ -124,11 +124,11 @@ POINT_FIELDS = [
     _MODEL_VARIABLE,
     _field(
         "obs_path",
-        "Observations directory",
+        "Observations file or directory",
         required=True,
-        help="A directory of csv files. Each needs lon, lat and observation "
-        "columns, and can have year, month, day, depth and source.",
-        placeholder="path/to/csv_directory",
+        help="A csv file, or a directory of csv files. Each needs lon, lat and "
+        "observation columns, and can have year, month, day, depth and source.",
+        placeholder="path/to/data.csv or path/to/csv_directory",
     ),
     *_LABELS,
     _field(
@@ -404,9 +404,9 @@ def check_entry(kind, form, existing=(), cwd=None):
                 os.path.join(cwd or os.getcwd(), os.path.expanduser(obs_path))
             )
             if kind == "point":
-                if not os.path.isdir(path):
-                    errors["obs_path"] = "There is no directory at this path."
-                elif not glob.glob(os.path.join(path, "*.csv")):
+                if not os.path.exists(path):
+                    errors["obs_path"] = "There is no file or directory at this path."
+                elif not point_files(path):
                     errors["obs_path"] = "There are no csv files in this directory."
                 else:
                     arguments["obs_path"] = path
