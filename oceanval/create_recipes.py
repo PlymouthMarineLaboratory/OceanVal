@@ -275,8 +275,67 @@ _GRIDDED_UNITS = {
     ("silicate", "nsbc"): "mmol/m^3",
     ("temperature", "nsbc"): "degC",
 }
+
+# The years each gridded recipe's observations cover, and the web page about
+# them, which the create_recipes window shows in the i beside each source. The
+# climatologies are averages over these years: NSBC's from its files' names and
+# ICDC's page, WOA23's and GLODAPv2.2016b's from their documentation (WOA23's
+# nutrients are from bottles alone, its oxygen from bottles, CTDs and floats).
+_WOA23_PAGE = "https://www.ncei.noaa.gov/products/world-ocean-atlas"
+_GLODAP_PAGE = "https://www.glodap.info/index.php/mapped-data-product/"
+_COVERAGE = {
+    "glodap": {
+        "years": "1972–2013",
+        "note": "A climatology of the data from these years, normalised to 2002.",
+        "url": _GLODAP_PAGE,
+    },
+    "occci": {
+        "years": "1997 to the present",
+        "note": "Monthly observations, not a climatology.",
+        "url": "https://www.oceancolour.org/",
+    },
+    "cobe2": {
+        "years": "1850 to the present",
+        "note": "Monthly observations, not a climatology.",
+        "url": "https://psl.noaa.gov/data/gridded/data.cobe2.html",
+    },
+    "woa23": {
+        "years": "1965–2022",
+        "note": "A climatology of all the data from these years.",
+        "url": _WOA23_PAGE,
+    },
+    "nsbc": {
+        "years": "1960–2014",
+        "note": "A climatology of the data from these years.",
+        "url": "https://www.geo.uni-hamburg.de/en/service/icdc/data/ocean/nsbc.html",
+    },
+}
+# the decadal periods WOA23 publishes temperature and salinity for, as
+# find_recipe() understands them
+_WOA23_PERIODS = (
+    (1955, 1964),
+    (1965, 1974),
+    (1975, 1984),
+    (1985, 1994),
+    (1995, 2004),
+    (2005, 2014),
+    (2015, 2022),
+)
+
+# WOA23's temperature and salinity are published for each decade
+_DECADAL_COVERAGE = {
+    "years": "1955–2022, as a climatology of each decade: "
+    + ", ".join(f"{first}–{last}" for first, last in _WOA23_PERIODS),
+    "note": "The decade used is the one the years given for it sit inside.",
+    "url": _WOA23_PAGE,
+}
+
 RECIPE_CATALOGUE = tuple(
-    dict(entry, units=_GRIDDED_UNITS[entry["variable"], entry["recipe"]])
+    dict(
+        entry,
+        units=_GRIDDED_UNITS[entry["variable"], entry["recipe"]],
+        coverage=_DECADAL_COVERAGE if entry.get("decadal") else _COVERAGE[entry["recipe"]],
+    )
     for entry in RECIPE_CATALOGUE
 )
 
@@ -406,18 +465,6 @@ def recipe_variables(cwd=None):
         if variable not in RECIPE_VARIABLES
     )
 
-
-# the decadal periods WOA23 publishes temperature and salinity for, as
-# find_recipe() understands them
-_WOA23_PERIODS = (
-    (1955, 1964),
-    (1965, 1974),
-    (1975, 1984),
-    (1985, 1994),
-    (1995, 2004),
-    (2005, 2014),
-    (2015, 2022),
-)
 
 # The matchup() and validate() arguments the create_recipes window can set, in
 # the order they are written into the script. Only ones changed from the

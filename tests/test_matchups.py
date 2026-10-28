@@ -6,6 +6,8 @@ import tempfile
 import shutil
 
 import nctoolkit as nc
+import numpy as np
+import xarray as xr
 
 from oceanval import matchall, prompts
 from oceanval.session import session_info
@@ -564,6 +566,57 @@ class TestMatchupsQuestion:
         assert session_info["out_dir"] == str(chosen) + "/"
         assert session_info["overwrite"] == ["temperature/foo"]
         assert session_info["cores"] == 1
+
+    def test_the_subset_and_missing_values_can_come_with_yes(self, tmp_path, monkeypatch):
+        """The oceanval window asks them with the cores, once the matchups are
+        confirmed: the thickness, read before, is set missing again."""
+        from oceanval.session import session_info
+
+        oceanval.reset()
+        oceanval.add_point_comparison(
+            name="temperature",
+            obs_path="data/evaldata/point/nws/all/temperature",
+            source="bar",
+            model_variable="votemper",
+            vertical=True,
+        )
+
+        class Stop(Exception):
+            pass
+
+        def index_times(paths, fvcom=False, times=None, progress=None):
+            raise Stop()
+
+        monkeypatch.setattr(matchall, "index_times", index_times)
+        # every thickness in the file is in the range, so the bathymetry is missing everywhere
+        settings = {"out_dir": str(tmp_path), "cores": 1, "lon_lim": [3, 4], "lat_lim": [54, 55],
+                    "as_missing": [-1, 1e9]}
+        with prompts.answered_by(lambda *asked: prompts.Answer("y", settings)):
+            with pytest.raises(Stop):
+                oceanval.matchup(
+                    sim_dir="data/example", start=2004, end=2004, cores=1, out_dir=str(tmp_path / "draft"),
+                    thickness="data/example/e3t.nc",
+                )
+        assert (session_info["lon_lim"], session_info["lat_lim"]) == ([3, 4], [54, 55])
+        assert session_info["as_missing"] == [-1, 1e9]
+        oceanval.reset()
+        with xr.open_dataset(tmp_path / "oceanval_matchups" / "model_bathymetry.nc") as bathymetry:
+            values = bathymetry[list(bathymetry.data_vars)[-1]].values
+        assert np.isnan(values).all()
+
+    def test_limits_and_missing_values_are_checked(self):
+        assert matchall._checked_limits(None, None) == (None, None)
+        assert matchall._checked_limits((1, 2), [3, 4]) == ([1, 2], [3, 4])
+        with pytest.raises(TypeError, match="lon_lim and lat_lim must be lists"):
+            matchall._checked_limits([1, 2], None)
+        with pytest.raises(ValueError, match="lists of two floats"):
+            matchall._checked_limits([1, 2, 3], [3, 4])
+        assert matchall._checked_missing(0) == 0
+        assert matchall._checked_missing([0, 1.5]) == [0, 1.5]
+        with pytest.raises(TypeError, match="as_missing must be"):
+            matchall._checked_missing("0")
+        with pytest.raises(TypeError, match="list elements"):
+            matchall._checked_missing([0, "1"])
 
 class TestPointTimeResCheck:
     """Point datasets matched by day against output coarser than daily are

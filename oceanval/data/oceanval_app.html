@@ -868,10 +868,12 @@
   .analyze-options .choice { aspect-ratio: auto; min-height: 200px; padding-top: 30px; }
   .analyze-area { max-width: 980px; margin: 28px 0 0; }
   .analyze-area .s-select { width: auto; min-width: 280px; }
-  .analyze-area .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
+  .analyze-area .group__line.is-ersem, .missing-field .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
   .analyze-area .group__line.is-found { color: var(--amber); font-weight: 600; }
   .analyze-area .s-input.is-found { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
-  .analyze-area .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
+  .analyze-area .s-input.is-ersem, .missing-field .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
+  /* the boxes matchup is given with its cores: as wide as the report options' subset */
+  .missing-field .span-row, #row-f-subset .span-row { max-width: 560px; }
   .analyze-code { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; }
   .analyze-code__help { margin: 10px 0 0; }
   .analyze-stations { margin: 22px 0 6px; }
@@ -1271,6 +1273,33 @@
         <!-- matchup alone's, which has no report options to ask it with -->
         <div class="g-row setup-box__script cores-field" id="row-f-cores" hidden><label class="g-label is-required" for="f-cores">How many cores do you want to use? <span class="own-req">Required</span></label><select class="s-select" id="f-cores"><option value="">Choose the number of cores</option></select></div>
         <p class="group__msg" id="m-cores"></p>
+        <!-- matchup alone's too, asked with the cores -->
+        <div class="setup-box__script missing-field" id="row-f-missing" hidden>
+          <div class="g-row"><span class="g-label">What should be treated as missing values?</span>
+          <div class="span-row">
+            <input class="s-input is-num" id="f-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+            <span class="dash">–</span>
+            <input class="s-input is-num" id="f-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+          </div>
+        </div>
+          <p class="group__msg" id="m-missing"></p>
+        </div>
+        <div class="setup-box__script" id="row-f-subset" hidden>
+          <p class="g-label">Do you want a spatial subset?</p>
+          <div class="g-row span-row">
+            <span class="span-row__label">Longitude</span>
+            <input class="s-input is-num" id="f-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false">
+            <span class="dash">–</span>
+            <input class="s-input is-num" id="f-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false">
+          </div>
+          <div class="g-row span-row">
+            <span class="span-row__label">Latitude</span>
+            <input class="s-input is-num" id="f-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false">
+            <span class="dash">–</span>
+            <input class="s-input is-num" id="f-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false">
+          </div>
+          <p class="group__msg" id="m-subset"></p>
+        </div>
       </fieldset>
       <button type="submit" hidden></button>
     </form>
@@ -1387,6 +1416,17 @@
         <div class="g-row"><label class="g-label is-required" for="v-cores">How many cores do you want to use? <span class="own-req">Required</span></label><select class="s-select" id="v-cores"><option value="">Choose the number of cores</option></select></div>
         <p class="group__msg" id="vm-cores"></p>
       </fieldset>
+      <!-- matchup's too, asked with the cores -->
+      <fieldset class="group form__wide missing-field" id="v-group-missing" hidden>
+        <div class="g-row"><span class="g-label">What should be treated as missing values?</span>
+          <div class="span-row">
+            <input class="s-input is-num" id="v-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+            <span class="dash">–</span>
+            <input class="s-input is-num" id="v-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+          </div>
+        </div>
+        <p class="group__msg" id="vm-missing"></p>
+      </fieldset>
       <!-- the options, shown once there are matchups to validate, and only those for the matchups ticked -->
       <div class="form__contents" id="v-options">
       <fieldset class="group form__wide" id="v-group-variables">
@@ -1416,7 +1456,7 @@
       </fieldset>
       <div class="form__wide form__stack">
         <fieldset class="group">
-          <legend>Do you only want to validate a subregion?</legend>
+          <legend id="v-subset-legend">Do you only want to validate a subregion?</legend>
           <div class="g-row span-row">
             <span class="span-row__label">Longitude</span>
             <input class="s-input is-num" id="v-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false">
@@ -3374,8 +3414,32 @@
     box.value = given;
   }
 
+  // ---- what matchup is given with its cores (see oceanval.app.check_matchup_boxes) ----
+  // the spatial subset and the missing values, asked on the output step for
+  // matchup alone and on the report options to validate as well
+  const SUBSET_BOXES = ["lon_min", "lon_max", "lat_min", "lat_max"];
+  const MISSING_BOXES = ["missing_from", "missing_to"];
+  const SUBSET_HINT = "Optional: only simulation output and observations inside this box are matched up. Empty: the whole domain.";
+  // 0 to 0 is assumed for a NEMO-ERSEM simulation, in its own colour, until it is changed
+  function assumeMissing(form) {
+    if (state.nemo_ersem && MISSING_BOXES.every((name) => !String(form[name] || "").trim())) {
+      for (const name of MISSING_BOXES) form[name] = "0";
+    }
+  }
+  const missingAssumed = (form) =>
+    Boolean(state.nemo_ersem) && MISSING_BOXES.every((name) => String(form[name] || "").trim() === "0");
+  // the lines under the missing values, and their boxes in the ERSEM colour if assumed
+  function missingLines(prefix, form) {
+    const assumed = missingAssumed(form);
+    for (const name of MISSING_BOXES) $(`${prefix}-${name}`).classList.toggle("is-ersem", assumed);
+    return [line("Treat as missing: one value, or everything in a range."),
+      ...(assumed ? [line("This appears to be an ERSEM simulation and the above values are assumed.", "ersem")] : [])];
+  }
+
   // ---- where the matchups are saved: once the matchups are confirmed (see oceanval.app.check_output) ----
   const OUTPUT_FIELDS = ["out_dir", "out"];
+  // matchup alone's, asked with its cores
+  const OUTPUT_MATCHUP = [...SUBSET_BOXES, ...MISSING_BOXES];
   // the boxes, what the server said of them, and the live check of the directory and the script's name
   const output = {};
   const matchupOutput = { errors: {}, probe: null, timer: null, number: 0 };
@@ -3487,6 +3551,13 @@
       refreshMatchupOutput();
     });
   }
+  for (const name of OUTPUT_MATCHUP) {
+    $(`f-${name}`).addEventListener("input", (event) => {
+      output[name] = event.target.value;
+      delete matchupOutput.errors[name];
+      refreshMatchupOutput();
+    });
+  }
   // matchup alone's cores, which it has no report options to ask with
   $("f-cores").addEventListener("change", (event) => {
     output.cores = event.target.value;
@@ -3504,6 +3575,13 @@
     }
     $("row-f-cores").hidden = state.action !== "matchup";
     coreOptions($("f-cores"), output.cores);
+    // the spatial subset and missing values, which matchup alone is given with its cores
+    $("row-f-subset").hidden = $("row-f-missing").hidden = state.action !== "matchup";
+    if (state.action === "matchup") assumeMissing(output);
+    for (const name of OUTPUT_MATCHUP) {
+      $(`f-${name}`).value = output[name] ?? "";
+      $(`f-${name}`).classList.remove("is-oceanval");
+    }
     $("f-out_dir").placeholder = state.cwd;
     $("f-out_dir-label").textContent = state.action === "matchup"
       ? "Where do you want matchups to be saved?"
@@ -3576,6 +3654,15 @@
     else message("m-out", []);
     $("f-cores").classList.toggle("is-invalid", Boolean(errors.cores));
     message("m-cores", errors.cores ? [line(errors.cores, "error")] : [], Boolean(errors.cores));
+    for (const [id, names, hints] of [
+      ["m-subset", SUBSET_BOXES, () => [line(SUBSET_HINT)]],
+      ["m-missing", MISSING_BOXES, () => missingLines("f", output)],
+    ]) {
+      for (const name of names) $(`f-${name}`).classList.toggle("is-invalid", Boolean(errors[name]));
+      const problems = [...new Set(names.filter((name) => errors[name]).map((name) => errors[name]))];
+      if (problems.length) message(id, problems.map((text) => line(text, "error")), true);
+      else message(id, hints());
+    }
     const blocked = Object.keys(errors).length > 0;
     const run = $("output-run");
     if (run) {
@@ -6423,13 +6510,14 @@
   // ---- 2: the report options ----
   // the transect's start and end, each longitude then latitude
   const TRANSECT_BOXES = ["transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat"];
-  const VALIDATE_TEXT = ["data_dir", "out_dir", "lon_min", "lon_max", "lat_min", "lat_max", "subregions", "subregions_file",
+  const VALIDATE_TEXT = ["data_dir", "out_dir", ...SUBSET_BOXES, ...MISSING_BOXES, "subregions", "subregions_file",
     ...TRANSECT_BOXES];
   const VALIDATE_TICKS = ["fixed_scale", "pdf", "word", "zip", "transect"];
   const VALIDATE_GROUPS = {
     "vm-data_dir": ["data_dir"],
     "vm-out_dir": ["out_dir"],
-    "vm-subset": ["lon_min", "lon_max", "lat_min", "lat_max"],
+    "vm-subset": SUBSET_BOXES,
+    "vm-missing": MISSING_BOXES,
     "vm-subregions": ["subregions", "subregions_file"],
     "vm-transect": ["transect", ...TRANSECT_BOXES],
     "vm-cores": ["cores"],
@@ -6682,6 +6770,8 @@
     // a copy, which the boxes change as they are typed in
     validateForm.depth_bins = (state.validate.form.depth_bins || []).map((pair) => [...pair]);
     validateForm.unticked = [...(state.validate.form.unticked || [])];
+    // matchup's missing values, asked with its cores, before anything is matched up
+    if (coresAsked()) assumeMissing(validateForm);
     renderDepthBins();
     for (const name of VALIDATE_TEXT) $(`v-${name}`).value = validateForm[name];
     for (const name of VALIDATE_TICKS) $(`v-${name}`).checked = Boolean(validateForm[name]);
@@ -6695,8 +6785,12 @@
     $("v-group-data_dir").hidden = before;
     $("v-group-out_dir").hidden = before;
     $("v-report-dir").hidden = !before;
-    // matchup's cores, asked for here before anything is matched up
+    // matchup's cores, missing values and spatial subset, asked for here
+    // before anything is matched up: the subset is then matchup's, not validate's
     $("v-group-cores").hidden = !coresAsked();
+    $("v-group-missing").hidden = !coresAsked();
+    $("v-subset-legend").textContent = coresAsked()
+      ? "Do you want a spatial subset?" : "Do you only want to validate a subregion?";
     if (coresAsked()) coreOptions($("v-cores"), validateForm.cores);
     if (before) {
       $("v-report-dir").replaceChildren(
@@ -6878,7 +6972,11 @@
     $("row-transect").hidden = !validateForm.transect;
     const transect = transectCheck();
     const depthBlocked = refreshDepthBins();
-    const hints = { "vm-data_dir": matchupsMessage() };
+    const hints = {
+      "vm-data_dir": matchupsMessage(),
+      "vm-subset": coresAsked() ? [line(SUBSET_HINT)] : [],
+      "vm-missing": coresAsked() ? missingLines("v", validateForm) : [],
+    };
     for (const [id, names] of Object.entries(VALIDATE_GROUPS)) {
       // the transect is checked as it is typed, as well as by the server
       const errors = id !== "vm-transect" ? validateErrors

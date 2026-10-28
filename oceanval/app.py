@@ -243,11 +243,16 @@ DEMO_MODELS = {
 DEMO_FOLDER = "oceanval_demo"
 DEMO_YEAR = 2010
 
-# what the demo fills in in the create_recipes window: its year, and the
-# limits the models' grids are matched up within
+# what the demo fills in in the create_recipes window: its year, for the
+# climatologies and, as each dataset starts with it (see show_recipes), the rest
 DEMO_RECIPE_SETTINGS = {
-    "start": str(DEMO_YEAR),
-    "end": str(DEMO_YEAR),
+    "clim_start": str(DEMO_YEAR),
+    "clim_end": str(DEMO_YEAR),
+}
+
+# the limits the demo's models' grids are matched up within, which matchup is
+# given with the cores, once the matchups are confirmed
+DEMO_LIMITS = {
     "lon_min": "-180",
     "lon_max": "180",
     "lat_min": "-90",
@@ -280,8 +285,15 @@ def default_output_form():
         "unused": [],
         "existing_confirmed": False,
         "out": "matchup.py",
-        # matchup alone's, which has no report options to ask it with; chosen every time
+        # matchup alone's, which has no report options to ask them with: the
+        # cores (chosen every time), the spatial subset and the missing values
         "cores": "",
+        "lon_min": "",
+        "lon_max": "",
+        "lat_min": "",
+        "lat_max": "",
+        "missing_from": "",
+        "missing_to": "",
     }
 
 
@@ -310,8 +322,12 @@ def default_validate_form():
         # the matchups listed whose ticks were taken off, by their
         # "variable/source": any others, as of matchups found later, are ticked
         "unticked": [],
-        # matchup's, asked with the report options before anything is matched up
+        # matchup's, asked with the report options before anything is matched
+        # up: the cores, the missing values, and the spatial subset (the
+        # lon/lat boxes, which are validate's only when nothing is to be matched up)
         "cores": "",
+        "missing_from": "",
+        "missing_to": "",
     }
 
 
@@ -348,6 +364,7 @@ def demo_output_form():
         default_output_form(),
         out_dir=DEMO_FOLDER,
         out=os.path.join(DEMO_FOLDER, "matchup.py"),
+        **DEMO_LIMITS,
     )
 
 
@@ -369,6 +386,7 @@ def demo_report_form(concise=True):
         pdf=not concise,
         word=not concise,
         transect=not concise,
+        **DEMO_LIMITS,
     )
     if not concise:
         (start_lon, start_lat), (end_lon, end_lat) = DEMO_TRANSECT["start"], DEMO_TRANSECT["end"]
@@ -384,9 +402,9 @@ def demo_report_form(concise=True):
 # the boxes the demo fills in, which the page marks as OceanVal's
 DEMO_PREFILLED = {
     "setup": ["simdir", "ndown", "require"],
-    "output": ["out_dir", "out"],
+    "output": ["out_dir", "out", *DEMO_LIMITS],
     "report": [
-        "subregions", "concise", "pdf", "word", "transect",
+        *DEMO_LIMITS, "subregions", "concise", "pdf", "word", "transect",
         "transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat",
     ],
 }
@@ -640,6 +658,26 @@ def check_cores(text):
     if count and cores > count:
         return None, f"This machine has {count} cores. Choose {count} or fewer."
     return cores, None
+
+
+def check_matchup_boxes(form):
+    """matchup's spatial subset (lon_lim and lat_lim) and missing values
+    (as_missing), from the boxes asked once the matchups are confirmed, with
+    the cores: the output step's, for matchup alone, or the report options'.
+    Returns (arguments, errors), as check_setup does: an argument is only
+    given when its boxes are filled in."""
+    errors, arguments = {}, {}
+
+    def text(name):
+        return str(form.get(name) or "").strip()
+
+    limits = recipes_gui.check_limits(text, errors)
+    if limits is not None:
+        arguments["lon_lim"], arguments["lat_lim"] = limits
+    missing = recipes_gui.check_missing(text, errors)
+    if missing is not None:
+        arguments["as_missing"] = missing
+    return arguments, errors
 
 
 def matchups_asked_about(out_dir, made=None, report=True):
@@ -997,8 +1035,8 @@ def _validate_call(arguments, cwd):
 # the recipes window's Global settings that the app shows, which it starts
 # with again as they were left; the rest are chosen in other steps
 RECIPES_KEPT = (
-    "start",
-    "end",
+    "point_start",
+    "point_end",
     "clim_start",
     "clim_end",
     "woa23_start",
@@ -1007,13 +1045,7 @@ RECIPES_KEPT = (
     "fvcom_min_depth",
     "fvcom_max_depth",
     "fvcom_dz",
-    "lon_min",
-    "lon_max",
-    "lat_min",
-    "lat_max",
     "thickness",
-    "missing_from",
-    "missing_to",
     "point_time_res",
     "cores",
 )
@@ -1048,6 +1080,9 @@ def _dataset_options(sent):
     }
     if "vertical" in sent:
         options["vertical"] = bool(sent["vertical"])
+    # the boxes the user typed in, which the window does not fill in again
+    typed = sent.get("typed")
+    options["typed"] = [name for name in typed if name in options] if isinstance(typed, list) else []
     return options
 
 
@@ -1055,9 +1090,11 @@ def recipes_choices(sent, rows, domain):
     """What the recipes window held when it was left, with its script
     written or with Back: sent is what its page sent then, and rows and
     domain what it was shown with. Keeps the Global settings in
-    RECIPES_KEPT and, for each row, its model variable, the datasets ticked
-    and their options, and whether the user edited any of that, rather than
-    leaving it as OceanVal found it."""
+    RECIPES_KEPT, the page of it shown and, for each row, its model
+    variable, the datasets ticked and their options, and whether the user
+    edited any of that, rather than leaving it as OceanVal found it (the
+    years and how point observations are matched it fills in are not the
+    user's, unless typed over)."""
     sent = sent if isinstance(sent, dict) else {}
     settings = sent.get("settings")
     settings = settings if isinstance(settings, dict) else {}
@@ -1069,6 +1106,7 @@ def recipes_choices(sent, rows, domain):
             for name in RECIPES_KEPT
             if name in settings
         },
+        "page": "point" if sent.get("page") == "point" else "gridded",
         "rows": {},
     }
     sent_rows = sent.get("rows")
@@ -1097,10 +1135,10 @@ def recipes_choices(sent, rows, domain):
         edited = (
             value != row["model_variable"]
             or set(selected) != ticked
-            # a dataset's own years, how it is matched, or Vertical
+            # a dataset's own years or how it is matched, typed in, or Vertical
             or any(
-                option for kind in options.values()
-                for opts in kind.values() for option in opts.values()
+                opts.get("typed") or opts.get("vertical")
+                for kind in options.values() for opts in kind.values()
             )
         )
         choices["rows"][item["variable"]] = dict(
@@ -1122,7 +1160,8 @@ def recipes_restore(choices, rows, available, domain, same=False):
     afresh for another. Returned as {"settings", "rows", "dropped",
     "retick"}: "dropped" holds the model variables chosen before that are
     not in the output, and "retick" whether edited rows were ticked afresh,
-    for the window to say so."""
+    for the window to say so, and "page", the page of it shown: as it was
+    left, in the window shown again, else the first."""
     if not choices:
         return None
     variables = {row["variable"] for row in rows}
@@ -1146,6 +1185,7 @@ def recipes_restore(choices, rows, available, domain, same=False):
         "rows": kept,
         "dropped": dropped,
         "retick": not ticks and any(row["edited"] for row in choices["rows"].values()),
+        "page": choices.get("page", "gridded") if same else "gridded",
     }
 
 
@@ -1888,6 +1928,10 @@ class App(AnalyzeSteps, SimCompareSteps):
                 "register": self._register_state(),
                 "units": {"rows": self.units_rows, "boxes": self._units_boxes_shown()},
                 "output": {"form": self.output_form},
+                # whether the simulation looks like NEMO-ERSEM, whose missing
+                # values are assumed to be 0 where they are asked, with the cores
+                "nemo_ersem": self._recipes is not None
+                and recipes_gui.is_likely_nemo_ersem(self._recipes.available),
                 # for the lists of how many cores to use
                 "cpu_count": os.cpu_count(),
                 "point_time_res": self._point_time_res_state(),
@@ -3627,6 +3671,9 @@ class App(AnalyzeSteps, SimCompareSteps):
         }
         page.form["start"] = ""
         page.form["end"] = ""
+        # each point dataset's are typed, or filled in from these
+        page.form["point_start"] = ""
+        page.form["point_end"] = ""
         # the draft script's: the cores are chosen once the matchups are confirmed
         # (see output_continue and report), so the window does not show the box
         page.form["cores"] = "1"
@@ -3636,6 +3683,8 @@ class App(AnalyzeSteps, SimCompareSteps):
             page.form.update(DEMO_RECIPE_SETTINGS)
             # marked as OceanVal's in the window
             page.context["app"]["prefilled"] = list(DEMO_RECIPE_SETTINGS)
+            # the years each dataset ticked starts with, in red and bold
+            page.context["app"]["initial_years"] = [DEMO_YEAR, DEMO_YEAR]
         with self._lock:
             self._recipes = page
             # not asked again, while the simulation is read from the same files
@@ -3993,7 +4042,8 @@ class App(AnalyzeSteps, SimCompareSteps):
     def output_continue(self, form):
         """Carry on from the output step, with its boxes (form): where the
         matchups are saved, what is done with those there already, the
-        script's name, and, for matchup alone, the cores. A matchup and
+        script's name, and, for matchup alone, the cores, the spatial subset
+        and the missing values (see check_matchup_boxes). A matchup and
         validate run goes on to the report options; matchup alone carries
         on. Returns the HTTP status and the reply for the page."""
         with self._lock:
@@ -4002,11 +4052,13 @@ class App(AnalyzeSteps, SimCompareSteps):
                 return 409, {"ok": False, "error": "That cannot be done now."}
             self.output_form = _form(form, default_output_form())
             arguments, errors = self._check_matchup_output(self.output_form)
-            cores = None
+            cores, matchup = None, {}
             if self.action == "matchup":
                 cores, error = check_cores(self.output_form["cores"])
                 if error is not None:
                     errors["cores"] = error
+                matchup, matchup_errors = check_matchup_boxes(self.output_form)
+                errors.update(matchup_errors)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
@@ -4026,8 +4078,8 @@ class App(AnalyzeSteps, SimCompareSteps):
             if report:
                 self.view = "report_options"
             else:
-                self._run_output["cores"] = cores
-                self._keep_in_script(cores=cores)
+                self._run_output.update(cores=cores, **matchup)
+                self._keep_in_script(cores=cores, **matchup)
                 self.view = "running"
                 self.question = None
             writer = self._script_writer
@@ -4412,9 +4464,10 @@ class App(AnalyzeSteps, SimCompareSteps):
 
     def _checked_report(self, form):
         """The validate() arguments the boxes of the report options step
-        give, the cores matchup is to use, which it asks for too, and the
-        errors in them, as (report, cores, errors). Called without the lock
-        held."""
+        give, the cores matchup is to use and its other arguments asked
+        there (see check_matchup_boxes), and the errors in them, as (report,
+        cores, matchup, errors). Before anything is matched up, the spatial
+        subset is matchup's, not validate's. Called without the lock held."""
         with self._lock:
             self.validate_form = _form(form, default_validate_form())
             form = dict(self.validate_form)
@@ -4433,20 +4486,26 @@ class App(AnalyzeSteps, SimCompareSteps):
         report, report_errors = check_report(form, self.cwd)
         errors.update(report_errors)
         # only before anything is matched up
-        cores = None
+        cores, matchup = None, {}
         with self._lock:
             matching = self._held_matchups() is not None
         if matching:
             cores, error = check_cores(form["cores"])
             if error is not None:
                 errors["cores"] = error
+            # the subset only applies to the matchups, which then hold nothing
+            # outside it, so validate is not given it too
+            report.pop("lon_lim", None)
+            report.pop("lat_lim", None)
+            matchup, matchup_errors = check_matchup_boxes(form)
+            errors.update(matchup_errors)
         if variables is not None and not errors:
             # the earlier matchups chosen for the report are not listed here,
             # so stay in it whatever is unticked
             report["variables"] = variables + self._earlier_in_report(matchups)
         if self.previous is not True:
             report["previous"] = self.previous
-        return report, cores, errors
+        return report, cores, matchup, errors
 
     def _earlier_in_report(self, listed):
         """The "variable/source" of the matchups there already, other than
@@ -4472,7 +4531,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             if self.view != "report_options" or self._held_matchups() is None:
                 return 409, {"ok": False, "error": "This step is over."}
-        report, cores, errors = self._checked_report(form)
+        report, cores, matchup, errors = self._checked_report(form)
         if errors:
             return 400, {"ok": False, "errors": errors}
         with self._lock:
@@ -4481,7 +4540,7 @@ class App(AnalyzeSteps, SimCompareSteps):
             self.view = "running"
             self.question = None
             self.matchup_script_saved = True
-            self._keep_in_script(cores=cores)
+            self._keep_in_script(cores=cores, **matchup)
             writer = self._script_writer
             self._notify()
         self._write_script(writer, report=report)
@@ -4497,7 +4556,7 @@ class App(AnalyzeSteps, SimCompareSteps):
         with self._lock:
             if self.view != "report_options":
                 return 409, {"ok": False, "error": "This step is over."}
-        report, cores, errors = self._checked_report(form)
+        report, cores, matchup, errors = self._checked_report(form)
         if errors:
             return 400, {"ok": False, "errors": errors}
         with self._lock:
@@ -4515,11 +4574,12 @@ class App(AnalyzeSteps, SimCompareSteps):
                 **report,
             }
             arguments = dict(self.report_arguments)
-            # matchup's cores, asked for here, unless it has run already
+            # matchup's cores, subset and missing values, asked for here,
+            # unless it has run already
             if cores is not None:
                 if self._run_output is not None:
-                    self._run_output["cores"] = cores
-                self._keep_in_script(cores=cores)
+                    self._run_output.update(cores=cores, **matchup)
+                self._keep_in_script(cores=cores, **matchup)
             writer = self._script_writer
             self._notify()
         self._write_script(writer, report=report)

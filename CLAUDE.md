@@ -124,10 +124,16 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   app's own (`App._draft_script`; `out_dir` = that folder, `cores=1`), and `matchup` writes nothing in `out_dir` before
   the answer to "Are you happy with these matchups?" (the `oceanval_matchups` folder and `model_bathymetry.nc` are made
   after it). Yes is held while view `output` (after `point_time_res`, if asked; `/api/output` → `output_continue`,
-  `check_output`; boxes `output_form`: `out_dir`, `unused`, `existing_confirmed`, `out`, and `cores` for Match up only)
-  and then, to validate too, `report_options` ("One last thing...", which asks the **cores**, `check_cores`, as the
-  recipes window no longer does) are answered; `App._yes` sends `out_dir`, `overwrite` and `cores` (`_run_output`)
-  with yes, which `matchup` applies (`_full_out_dir`, `_checked_overwrite`, `_checked_cores`). The script is written
+  `check_output`; boxes `output_form`: `out_dir`, `unused`, `existing_confirmed`, `out`, and for Match up only `cores`,
+  the missing values and the spatial subset) and then, to validate too, `report_options` ("One last thing...", which
+  asks the **cores**, `check_cores`, then the **missing values**, `#v-group-missing`, and its subset boxes are then
+  matchup's, not validate's: `_checked_report` pops `lon_lim`/`lat_lim` from the report) are answered: the recipes
+  window asks none of these in the app (`#settings-more` hidden). `app.check_matchup_boxes` checks the subset and
+  missing values (`recipes_gui.check_limits`/`check_missing`); a NEMO-ERSEM simulation (`state.nemo_ersem`) starts at
+  0–0 in `is-ersem` (`assumeMissing`). `App._yes` sends `out_dir`, `overwrite`, `cores`, `lon_lim`/`lat_lim` and
+  `as_missing` (`_run_output`) with yes, which `matchup` applies (`_full_out_dir`, `_checked_overwrite`,
+  `_checked_cores`, `_checked_limits`, `_checked_missing`; the thickness, read before the question, is worked out again
+  by `_thickness_and_depths` from `thickness_selected` when `as_missing` changes). The script is written
   under its chosen name from the output step on (`_keep_in_script(out=)`, `create_recipes`' `write(out=)`). Back:
   `report_options` → `output` → `point_time_res`/the matchups question → (Back from the run) the units step.
   The output step's grid, "What do you want to do with existing matchups?", has a row per "variable/source"
@@ -155,13 +161,22 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (`analysis_forms.check_output`, `sim_compare_forms.check_output`; the boxes are kept in `analyze_setup_form` / `sc_output_form` and shown in
   `state["analyze"]["output"]`). Validate and Matchup ask it once the matchups are confirmed (above).
 
-- **Years for climatologies** (recipes window, "What simulation years do you want to use for climatologies?", `clim_start`/`clim_end`
-  → `settings["clim_years"]`, only present when given): written as `start`/`end` on every gridded recipe that is a climatology
-  (`create_recipes._is_climatology`: `climatology=True` in its arguments, or a user recipe's flag), ticked or not, unless the dataset
-  has years of its own (`create_recipes.climatology_years`, `_climate_options`; `recipes_gui.check_gridded_options`). Blank = the validation
-  years. WOA23 temperature/salinity (`decadal`) need years inside one `_WOA23_PERIODS` decade: when the climatology (else validation) years
-  fit none, **Continue** opens `#woa-dialog` (`askWoaYears`) for `woa23_start`/`woa23_end` (`settings["woa_years"]`), which become that
-  recipe's `start`/`end`; the server refuses the write without them. These keys are not `matchup()` arguments and stay out of the footer.
+- **The recipes window is two pages** (`create_recipes_gui.html`, client-side, `showPage`; `page` is sent and kept for Back by
+  `app.recipes_choices`/`recipes_restore`, the first page in a window made afresh): **Gridded data selection** (`#page-gridded`, the
+  rows with gridded datasets, recipes or own) and **Point data selection** (`#page-point`, the rows with point ones, and a
+  last column "Gridded data selected", `chosenCell`). A row on both has a simulation variable box on each (`row.dom.views`).
+  No meta strip (the simulation path is not shown). The standalone `create_recipes()` window keeps its other settings
+  (subset, missing values, output, file filters, cores, report options) in `#settings-more` under page 2's table.
+  **Every ticked dataset needs its From/To** (`optionErrors`, `is-required` red); OceanVal fills the boxes not typed in
+  (`dataset.typed`, `fill`/`filledValue`, red and bold `is-oceanval`): point datasets from **What years do you want to
+  validate?** (`point_start`/`point_end`, required when a point dataset is ticked) and **Match point observations by**
+  (no "Global setting" option; written only when typed, `sentOptions`), climatologies from **What simulation years do you
+  want to use for climatologies?** (`clim_start`/`clim_end` → `settings["clim_years"]`), else the years create_recipes was
+  given (standalone) or the demo's (`app.initial_years`). Matchup's `start`/`end` are worked out by the page
+  (`matchupYears`: the span of the ticked datasets' years). WOA23 temperature/salinity (`decadal`) need years inside one
+  `_WOA23_PERIODS` decade: filled years that fit none are an error on the dataset (the `#woa-dialog` is gone; the server
+  still takes `woa23_start`/`woa23_end` → `settings["woa_years"]`). Each built-in gridded source has an **i**
+  (`coverageInfo`, from `create_recipes._COVERAGE` → the catalogue's `coverage`: years covered, a note and a link).
 
 ### Recipes of the user's own (`.oceanvalrc`)
 

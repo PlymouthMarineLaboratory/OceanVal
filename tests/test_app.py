@@ -140,33 +140,63 @@ def choose_domain(page, domain="global"):
     page.check(f'#f-domain input[value="{domain}"]')
 
 
-def fill_required_recipe_settings(page):
-    """Give what the recipes window has no default for in the app: the years,
-    which can be typed or chosen from the years the output's times cover. The
-    number of cores is asked once the matchups are confirmed, not here."""
-    red = "rgb(192, 57, 43)"
-    for name in ("start", "end"):
-        assert page.input_value(f"#s-{name}") == ""
-        assert page.locator(f"#s-{name}").evaluate("node => node.required")
-        label = page.locator(f"#s-{name}-label")
-        assert label.evaluate("node => getComputedStyle(node).color") == red
-        assert label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
-        assert page.is_visible(f"#s-{name}-required")
+def fill_gridded_years(page):
+    """Give each gridded dataset ticked in the recipes window its years, which
+    the app has no default for: the climatologies are filled in from the years
+    for climatologies, chosen with the arrow at the right of the box, which
+    lists the years the output's times cover, and the rest are typed."""
+    assert page.text_content("#page-title") == "Gridded data selection"
+    for name in ("clim_start", "clim_end"):
         assert page.locator(f"#s-{name}").evaluate("node => node.yearChoices") == [2011, 2012]
-    assert page.get_attribute("#s-start", "placeholder") == "2011"
-    assert page.get_attribute("#s-end", "placeholder") == "2012"
+    assert page.get_attribute("#s-clim_start", "placeholder") == "2011"
+    assert page.get_attribute("#s-clim_end", "placeholder") == "2012"
     assert page.text_content("#g-output-years") == "The simulation's output runs from 2011 to 2012, from the times in its files."
+    # the cores, missing values and subset are asked once the matchups are confirmed
     assert page.is_hidden("#s-cores")
-    assert page.is_disabled("#write")
-    # the first year chosen with the arrow at the right of its box
-    box = page.locator("#s-start").bounding_box()
+    assert page.is_hidden("#s-missing_from")
+    assert page.is_hidden("#s-lon_min")
+    box = page.locator("#s-clim_start").bounding_box()
     page.mouse.click(box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
     page.click(".year-list .combo__option >> text=2011")
-    assert page.input_value("#s-start") == "2011"
+    assert page.input_value("#s-clim_start") == "2011"
+    page.fill("#s-clim_end", "2012")
+    # each dataset ticked needs its years: those of the others are typed
+    for year in page.locator("#rows-gridded .opts:not([hidden]) input.is-num").all():
+        if not year.input_value():
+            year.fill("2011" if year.get_attribute("aria-label").startswith("First") else "2012")
+
+
+def fill_required_recipe_settings(page):
+    """Give what the recipes window has no default for in the app: the years
+    of the gridded datasets (see fill_gridded_years), and, on the point
+    datasets' page, the years to validate, which can be typed or chosen from
+    the years the output's times cover. The number of cores is asked once the
+    matchups are confirmed, not here."""
+    fill_gridded_years(page)
+    page.click("#write")
+    assert page.text_content("#page-title") == "Point data selection"
+    red = "rgb(192, 57, 43)"
+    for name in ("point_start", "point_end"):
+        assert page.input_value(f"#s-{name}") == ""
+        assert page.locator(f"#s-{name}").evaluate("node => node.yearChoices") == [2011, 2012]
+        if page.is_visible(f"#s-{name}-required"):
+            # a point dataset is ticked, so they are needed
+            assert page.locator(f"#s-{name}").evaluate("node => node.required")
+            label = page.locator(f"#s-{name}-label")
+            assert label.evaluate("node => getComputedStyle(node).color") == red
+            assert label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
+            assert page.is_disabled("#write")
+    assert page.get_attribute("#s-point_start", "placeholder") == "2011"
+    assert page.get_attribute("#s-point_end", "placeholder") == "2012"
+    # the first year chosen with the arrow at the right of its box
+    box = page.locator("#s-point_start").bounding_box()
+    page.mouse.click(box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+    page.click(".year-list .combo__option >> text=2011")
+    assert page.input_value("#s-point_start") == "2011"
     # the last typed: one beyond the years found is only warned about
-    page.fill("#s-end", "2015")
+    page.fill("#s-point_end", "2015")
     assert "These go beyond the 2011–2012 found in the simulation's files." in page.text_content("#g-years")
-    page.fill("#s-end", "2012")
+    page.fill("#s-point_end", "2012")
     assert "go beyond" not in page.text_content("#g-years")
 
 
@@ -2992,18 +3022,14 @@ class TestServer:
         assert "Are you happy with these matchups? (y/n) y\nanswer: y\nmatching up\n" in text
         [(args, label)] = validated
         assert args[0] == "validate"
+        # the subset was matchup's, given with yes, so the report has nothing outside it
         assert json.loads(args[1]) == {
             "data_dir": str(tmp_path),
             "out_dir": str(tmp_path),
-            "lon_lim": [-20, 10],
-            "lat_lim": [40, 65],
             "pdf": True,
             "concise": False,
         }
-        assert label == (
-            'oceanval.validate(data_dir=".", out_dir=".", lon_lim=[-20, 10], '
-            'lat_lim=[40, 65], pdf=True, concise=False)'
-        )
+        assert label == 'oceanval.validate(data_dir=".", out_dir=".", pdf=True, concise=False)'
 
     def test_the_report_options_step_can_store_the_script_instead(
         self, app, tmp_path, monkeypatch
@@ -3100,12 +3126,12 @@ class TestServer:
         text = app.console.since(0, None)["text"]
         # shown as typed at a terminal
         assert "Are you happy with these matchups? (y/n) y\nanswer: y\n" in text
-        assert (
-            '"live_validation": {"concise": false, '
-            '"lat_lim": [40.0, 65.0], "lon_lim": [-20.0, 10.0]}'
-        ) in text
-        # with where the matchups go, what is done with those there already, and the cores
+        # the subset is matchup's, so is not the interim report's
+        assert '"live_validation": {"concise": false}' in text
+        # with where the matchups go, what is done with those there already, the
+        # cores and the subset
         assert f'"cores": 1, ' in text and f'"out_dir": "{tmp_path}", "overwrite": true' in text
+        assert '"lat_lim": [40.0, 65.0], "live_validation"' in text and '"lon_lim": [-20.0, 10.0]' in text
         # the full report still has them all
         assert json.loads(validated[0][0][1])["pdf"] is True
 
@@ -4002,19 +4028,24 @@ class TestRecipesRestore:
         )
 
     def test_only_the_settings_the_app_shows_are_kept(self):
-        choices = self.left([], start="2011", end=2012, thickness=None, out_dir="elsewhere", pdf=True)
+        choices = self.left(
+            [], start="2011", end=2012, point_start="2011", point_end=2012, thickness=None, out_dir="elsewhere",
+            pdf=True, lon_min="-20", missing_from="0",
+        )
 
-        # the others are chosen in other steps
-        assert choices["settings"] == {"start": "2011", "end": "2012", "thickness": ""}
+        # the others are chosen in other steps, or worked out by the window, as
+        # matchup's start and end are, from the datasets' years
+        assert choices["settings"] == {"point_start": "2011", "point_end": "2012", "thickness": ""}
+        assert choices["page"] == "gridded"
 
     def test_the_years_for_climatologies_and_for_woa23_are_kept(self):
         choices = self.left(
-            [], start="1990", end="2020", clim_start="2000", clim_end=2010,
+            [], point_start="1990", point_end="2020", clim_start="2000", clim_end=2010,
             woa23_start="2005", woa23_end=None,
         )
 
         assert choices["settings"] == {
-            "start": "1990", "end": "2020", "clim_start": "2000", "clim_end": "2010",
+            "point_start": "1990", "point_end": "2020", "clim_start": "2000", "clim_end": "2010",
             "woa23_start": "2005", "woa23_end": "",
         }
 
@@ -4028,7 +4059,10 @@ class TestRecipesRestore:
             # another dataset ticked, one of its own years, another model variable, or none
             ({"variable": "temperature", "model_variable": "thetao", "selected": ["cobe2", "nsbc"]}, True),
             ({"variable": "temperature", "model_variable": "thetao", "selected": ["cobe2"],
-              "gridded": {"cobe2": {"start": "2012", "end": "", "vertical": False}}}, True),
+              "gridded": {"cobe2": {"start": "2012", "end": "", "vertical": False, "typed": ["start"]}}}, True),
+            # the years OceanVal filled in are not the user's
+            ({"variable": "temperature", "model_variable": "thetao", "selected": ["cobe2"],
+              "gridded": {"cobe2": {"start": "2012", "end": "2012", "vertical": False, "typed": []}}}, False),
             ({"variable": "temperature", "model_variable": " thetao+N3_n ", "selected": ["cobe2"]}, True),
             ({"variable": "temperature", "model_variable": "", "selected": []}, True),
         ],
@@ -4040,24 +4074,27 @@ class TestRecipesRestore:
         choices = self.left(
             [
                 {"variable": "temperature", "model_variable": "thetao", "selected": ["nsbc"],
-                 "gridded": {"nsbc": {"start": "2012", "end": "", "vertical": True}}},
+                 "gridded": {"nsbc": {"start": "2012", "end": "", "vertical": True, "typed": ["start"]}}},
                 # mistyped, which the window says is not in the output
                 {"variable": "nitrate", "model_variable": "N3_m", "selected": ["woa23"]},
                 {"variable": "salinity", "model_variable": "", "selected": []},
             ],
-            start="2011",
+            point_start="2011",
         )
+        # left from the point datasets' page, to which it goes back
+        choices["page"] = "point"
 
         restore = app_module.recipes_restore(choices, self.ROWS, self.AVAILABLE, "global", same=True)
 
         assert restore == {
-            "settings": {"start": "2011"},
+            "settings": {"point_start": "2011"},
+            "page": "point",
             # only the rows edited, as the rest start as they were found
             "rows": {
                 "temperature": {
                     "model_variable": "thetao",
                     "selected": ["nsbc"],
-                    "gridded": {"nsbc": {"start": "2012", "end": "", "vertical": True}},
+                    "gridded": {"nsbc": {"start": "2012", "end": "", "vertical": True, "typed": ["start"]}},
                     "point": {},
                 },
                 "nitrate": {"model_variable": "N3_m", "selected": ["woa23"], "gridded": {}, "point": {}},
@@ -4065,6 +4102,8 @@ class TestRecipesRestore:
             "dropped": {},
             "retick": False,
         }
+        # a window made afresh starts on its first page
+        assert app_module.recipes_restore(choices, self.ROWS, self.AVAILABLE, "global")["page"] == "gridded"
 
     def test_a_window_made_afresh_keeps_what_still_applies(self):
         choices = self.left(
@@ -4113,7 +4152,7 @@ class TestBack:
     # temperature with one of its own years, as edited, and nitrate as found
     ROWS = [
         {"variable": "temperature", "model_variable": "thetao", "selected": ["cobe2"],
-         "gridded": {"cobe2": {"start": "2012", "end": "", "vertical": False}}},
+         "gridded": {"cobe2": {"start": "2012", "end": "", "vertical": False, "typed": ["start"]}}},
         {"variable": "nitrate", "model_variable": "N3_n", "selected": ["woa23"]},
     ]
 
@@ -4159,7 +4198,7 @@ class TestBack:
         self, app, tmp_path, runs
     ):
         page = self.to_recipes(app, tmp_path)
-        self.write(app, lon_min="-20", lon_max="10", lat_min="40", lat_max="65")
+        self.write(app, point_start="2011", point_end="2012", clim_start="2005", clim_end="2010")
         conversions = {"recipe:nitrate:woa23": {"multiplier": "2", "adder": ""}}
 
         assert post(app, "/api/back", {"conversions": conversions})[0] == 200
@@ -4167,15 +4206,19 @@ class TestBack:
         # the same window, so the simulation is not read again
         assert app.recipes_page is page
         restore = page_state(get(app, "/recipes/")[1])["context"]["app"]["restore"]
-        assert {name: restore["settings"][name] for name in ("start", "end", "lon_min", "lat_max")} == {
-            "start": "2011", "end": "2012", "lon_min": "-20", "lat_max": "65",
+        assert {name: restore["settings"][name] for name in ("point_start", "point_end", "clim_start", "clim_end")} == {
+            "point_start": "2011", "point_end": "2012", "clim_start": "2005", "clim_end": "2010",
         }
+        # the subset is asked once the matchups are confirmed, not in the window
+        assert "lon_min" not in restore["settings"]
+        # on the page it was left from, which this request does not say, so the first
+        assert restore["page"] == "gridded"
         # the row edited, with its dataset's own year
         assert restore["rows"] == {
             "temperature": {
                 "model_variable": "thetao",
                 "selected": ["cobe2"],
-                "gridded": {"cobe2": {"start": "2012", "end": "", "vertical": False}},
+                "gridded": {"cobe2": {"start": "2012", "end": "", "vertical": False, "typed": ["start"]}},
                 "point": {},
             }
         }
@@ -4195,12 +4238,12 @@ class TestBack:
         page = self.to_recipes(app, tmp_path)
         rows = [{"variable": "temperature", "model_variable": "thetao", "selected": ["nsbc"]}]
 
-        assert post(app, "/recipes/cancel", {"rows": rows, "settings": {"start": "2005", "cores": "1"}})[0] == 200
+        assert post(app, "/recipes/cancel", {"rows": rows, "settings": {"point_start": "2005", "cores": "1"}})[0] == 200
         wait_for(lambda: app.view == "own_data")
         post(app, "/api/own_data", {"answer": False})
         wait_for(lambda: app.view == "recipes" and app.recipes_page is not page)
         restore = app.recipes_page.context["app"]["restore"]
-        assert restore["settings"] == {"start": "2005", "cores": "1"}
+        assert restore["settings"] == {"point_start": "2005", "cores": "1"}
         assert restore["rows"]["temperature"]["selected"] == ["nsbc"]
         assert (restore["dropped"], restore["retick"]) == ({}, False)
 
@@ -4379,6 +4422,71 @@ class TestBack:
         assert '"cores": 1' in console and f'"out_dir": "{tmp_path}"' in console
         text = open(tmp_path / "matchup.py").read()
         assert "    cores=1," in text
+
+    def test_the_report_options_give_matchup_its_subset_and_missing_values(self, app, tmp_path, monkeypatch):
+        """Asked with the cores, they go to matchup with yes and into its call
+        in the script: the subset is matchup's alone, not validate's too."""
+        stand_in = self.settings_stand_in(tmp_path)
+        start_run = app.start_run
+        validated = []
+        monkeypatch.setattr(
+            app, "start_run", lambda args, label: validated.append(args) if args[0] == "validate"
+            else start_run([args[0], str(stand_in)], label),
+        )
+        self.to_recipes(app, tmp_path, action="matchup_validate")
+        self.write(app)
+        units_match(app)
+        wait_for(lambda: app.question is not None)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        output_continue(app, out="run.py")
+        assert app.view == "report_options"
+
+        form = {"cores": "1", "lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65"}
+        status, reply = post(app, "/api/report", {"form": dict(form, lon_max="", missing_to="0")})
+        assert status == 400
+        assert reply["errors"] == {
+            "lon_max": "Fill in all four limits, or leave them all empty.",
+            "missing_from": "Fill in the value, or the start of a range.",
+        }
+        assert post(app, "/api/report", {"form": dict(form, missing_from="0", missing_to="1e-10")})[0] == 200
+        wait_for(lambda: validated)
+        console = app.console.since(0, None)["text"]
+        settings = json.loads(re.search(r"^settings: (\{.*\})$", console, re.M).group(1))
+        assert {name: settings[name] for name in ("lon_lim", "lat_lim", "as_missing", "cores")} == {
+            "lon_lim": [-20, 10], "lat_lim": [40, 65], "as_missing": [0, 1e-10], "cores": 1,
+        }
+        assert "lon_lim" not in settings["live_validation"]
+        assert "lon_lim" not in json.loads(validated[0][1])
+        text = open(tmp_path / "run.py").read()
+        call = text.split("oceanval.matchup(")[1].split(")\n")[0]
+        assert "    lon_lim=[-20, 10],\n    lat_lim=[40, 65],\n" in call
+        assert "    as_missing=[0, 1e-10]," in call
+        assert "lon_lim" not in text.split("oceanval.validate(")[1]
+
+    def test_matchup_alone_asks_for_the_subset_and_missing_values_with_the_cores(self, app, tmp_path, monkeypatch):
+        stand_in = self.settings_stand_in(tmp_path)
+        start_run = app.start_run
+        monkeypatch.setattr(app, "start_run", lambda args, label: start_run([args[0], str(stand_in)], label))
+        self.to_recipes(app, tmp_path)
+        self.write(app)
+        units_match(app)
+        wait_for(lambda: app.question is not None)
+        assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
+        assert app.view == "output"
+
+        status, reply = post(app, "/api/output", {"form": dict(OUTPUT_FORM, cores="1", lat_min="x", missing_from="nan?")})
+        assert status == 400
+        assert set(reply["errors"]) == {"lon_min", "lon_max", "lat_min", "lat_max", "missing_from"}
+        output_continue(app, lon_min="-20", lon_max="10", lat_min="40", lat_max="65", missing_from="0")
+        wait_for(lambda: app.view == "finished")
+        console = app.console.since(0, None)["text"]
+        settings = json.loads(re.search(r"^settings: (\{.*\})$", console, re.M).group(1))
+        assert {name: settings[name] for name in ("lon_lim", "lat_lim", "as_missing")} == {
+            "lon_lim": [-20, 10], "lat_lim": [40, 65], "as_missing": 0,
+        }
+        text = open(tmp_path / "matchup.py").read()
+        assert "    lon_lim=[-20, 10],\n    lat_lim=[40, 65],\n" in text
+        assert "    as_missing=0," in text
 
     def test_back_from_the_time_shift_question_keeps_the_choice(self, app, tmp_path, monkeypatch):
         """It is asked before the matchups, so nothing is matched up yet"""
@@ -4752,7 +4860,9 @@ class TestDemo:
         output = state["output"]["form"]
         assert (output["out_dir"], output["out"]) == (
             "oceanval_demo", os.path.join("oceanval_demo", "matchup.py"))
-        assert state["demo"]["prefilled"]["output"] == ["out_dir", "out"]
+        # with the subset the models' grids are matched up in, which matchup alone asks there
+        assert state["demo"]["prefilled"]["output"] == ["out_dir", "out", *app_module.DEMO_LIMITS]
+        assert {name: state["validate"]["form"][name] for name in app_module.DEMO_LIMITS} == app_module.DEMO_LIMITS
         # concise and fast, with no subregions, unless detailed is chosen on the instructions
         assert state["validate"]["form"]["subregions"] == ""
         assert state["validate"]["form"]["concise"] is True
@@ -4910,7 +5020,7 @@ class TestDemo:
 
         # the page only marks what still holds what the demo filled in
         prefilled = get_json(app, "/api/state")[1]["demo"]["prefilled"]
-        assert (prefilled["setup"], prefilled["output"]) == (["simdir", "require"], ["out_dir"])
+        assert (prefilled["setup"], prefilled["output"]) == (["simdir", "require"], ["out_dir", *app_module.DEMO_LIMITS])
         # and Continue on the demo's page, after Back, does not fill it in again
         post(app, "/api/back")
         assert app.view == "demo"
@@ -5102,22 +5212,20 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
         # the units and where the matchups are saved come next
+        assert page.text_content("#page-title") == "Gridded data selection"
         assert page.text_content("#write") == "Continue"
-        assert page.locator("#meta .meta__k").all_text_contents() == ["Simulation"]
-        # chosen with the simulation instead
-        assert page.is_hidden("#group-files")
-        assert page.is_hidden("#group-output")
-        # the report's options come once the matchups are checked, but
-        # matchup's own subset stays
-        assert page.is_hidden("#group-report")
-        assert page.is_hidden("#group-detail")
-        assert page.is_hidden("#group-regional")
-        assert page.is_visible("#group-subset")
+        # the simulation is not shown at the top
+        assert page.locator("#meta").count() == 0
+        # chosen with the simulation, or once the matchups are checked, instead:
+        # the file filters, the output, the report's options, the cores, the
+        # missing values and the spatial subset
+        assert page.is_hidden("#settings-more")
+        assert page.is_hidden("#group-subset")
         # the app always asks
         assert page.is_hidden("#s-ask")
-        fill_required_recipe_settings(page)
+        fill_gridded_years(page)
         # nothing is Vertical, so no thickness is asked for
-        assert page.is_hidden("#row-thickness")
+        assert page.is_hidden("#group-thickness")
         # a dataset through the water column cannot go ahead without a thickness
         nsbc = 'input[aria-label="NSBC, Northwest European Shelf, for Temperature"]'
         page.check(nsbc)
@@ -5125,16 +5233,20 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
             'input[aria-label="Validate NSBC observations for Temperature through the full water column"]'
         )
         assert page.is_disabled("#write")
-        assert page.is_visible("#row-thickness")
-        # the thickness box is between its hint and the missing-values label
-        assert "What should be treated as missing values?" in page.evaluate(
-            "document.getElementById('row-thickness').nextElementSibling.textContent"
-        )
+        assert page.is_visible("#page-gridded #group-thickness")
         assert "a thickness is needed" in page.text_content("#g-thickness")
         page.fill("#s-thickness", "z_level")
         assert page.is_enabled("#write")
         page.uncheck(nsbc)
-        assert page.is_hidden("#row-thickness")
+        assert page.is_hidden("#group-thickness")
+        # the point datasets' page, from which the units are next
+        page.click("#write")
+        assert page.text_content("#page-title") == "Point data selection"
+        assert page.text_content("#cancel") == "Back"
+        assert page.text_content("#write") == "Continue"
+        if page.is_disabled("#write"):
+            page.fill("#s-point_start", "2011")
+            page.fill("#s-point_end", "2012")
         page.click("#write")
         # the units have to be confirmed, once they have been read
         page.wait_for_selector("#units-body-gridded tr[data-units-row]")
@@ -5231,6 +5343,11 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_visible("#f-cores")
         assert page.input_value("#f-cores") == ""
         assert page.locator("#f-cores option").first.text_content() == "Choose the number of cores"
+        # matchup alone is asked its missing values and spatial subset here too, after the cores
+        assert page.is_visible("#f-missing_from") and page.is_visible("#f-lon_min")
+        cores_y = page.locator("#f-cores").bounding_box()["y"]
+        assert cores_y < page.locator("#f-missing_from").bounding_box()["y"] < page.locator("#f-lon_min").bounding_box()["y"]
+        assert "Empty: the whole domain." in page.text_content("#m-subset")
         assert [button.text_content() for button in page.locator("#actions button").all()] == ["Back", "Match up"]
         assert page.is_disabled("#output-run")
         page.select_option("#f-cores", "1")
@@ -6946,7 +7063,7 @@ def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc,
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
-        assert page.text_content("#page-title") == "Let's fine-tune what you want to matchup"
+        assert page.text_content("#page-title") == "Gridded data selection"
         assert page.locator(".masthead .brand #settings-open").count() == 1
         assert page.locator(".masthead .brand #info-open").count() == 1
 
@@ -7455,12 +7572,18 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
         fill_required_recipe_settings(page)
-        # carrying on from the fine-tune page, and a model variable box that is text only
+        # carrying on from the point datasets' page, and a model variable box that is text only
         assert page.text_content("#write") == "Continue"
         assert page.locator('input[aria-label^="Simulation variable for"]').first.get_attribute("list") is None
         assert page.locator("#model-variables").count() == 0
+        # Back to the gridded datasets' page, which keeps what was entered
+        page.click("#cancel")
+        assert page.text_content("#page-title") == "Gridded data selection"
+        assert page.input_value("#s-clim_start") == "2011"
         page.check(nsbc)
         page.fill(nsbc_start, "2012")
+        page.click("#write")
+        assert page.input_value("#s-point_start") == "2011"
         page.click("#write")
 
         # a conversion of the user's own, and OceanVal's for nitrate
@@ -7492,12 +7615,15 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert page.is_disabled("#units-continue")
         assert "matching up" not in page.text_content("#console-text")
 
-        # the recipes window, as it was left
+        # the recipes window, as it was left: on the point datasets' page
         bar("Back").click()
         page.wait_for_url("**/recipes/**", timeout=90000)
-        assert (page.input_value("#s-start"), page.input_value("#s-end")) == ("2011", "2012")
+        assert page.text_content("#page-title") == "Point data selection"
+        assert (page.input_value("#s-point_start"), page.input_value("#s-point_end")) == ("2011", "2012")
+        page.click("#cancel")
         assert page.is_checked(nsbc)
         assert page.input_value(nsbc_start) == "2012"
+        page.click("#write")
         page.click("#write")
         to_units()
         assert temperature.input_value() == "0.5"
@@ -7519,6 +7645,12 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert page.is_disabled("#build")
         page.select_option("#v-cores", "1")
         assert page.is_enabled("#build")
+        # then the missing values, matchup's too, and its spatial subset
+        assert page.is_visible("#v-missing_from")
+        assert page.locator("#v-cores").bounding_box()["y"] < page.locator("#v-missing_from").bounding_box()["y"]
+        assert page.text_content("#v-subset-legend") == "Do you want a spatial subset?"
+        assert "Empty: the whole domain." in page.text_content("#vm-subset")
+        page.fill("#v-missing_from", "0")
         page.check("#v-pdf")
         page.select_option("#v-subregions", "global")
         # Back keeps them, and where the matchups are saved
@@ -7535,6 +7667,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert page.is_checked("#v-pdf")
         assert page.input_value("#v-subregions") == "global"
         assert page.input_value("#v-cores") == "1"
+        assert page.input_value("#v-missing_from") == "0"
 
         # and back all the way to the simulation
         bar("Back").click()
@@ -7545,6 +7678,8 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         to_units()
         bar("Back").click()
         page.wait_for_url("**/recipes/**", timeout=90000)
+        # Back to the gridded datasets' page, and Back from it
+        page.click("#cancel")
         page.click("#cancel")
         page.wait_for_selector("#view-own:not([hidden])", timeout=60000)
         # the answer given before
@@ -7579,7 +7714,7 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
             {"variable": "nitrate", "model_variable": "N3_n+thetao", "selected": ["woa23"]},
             {"variable": "temperature", "model_variable": "thetao", "selected": ["nsbc"]},
         ]
-        post(app, "/recipes/cancel", {"rows": rows, "settings": {"start": "2011", "end": "2012"}})
+        post(app, "/recipes/cancel", {"rows": rows, "settings": {"point_start": "2011", "point_end": "2012"}})
         wait_for(lambda: app.view == "own_data")
         post(app, "/api/back")
         post(app, "/api/setup", {"form": dict(SETUP_FORM, simdir="other", domain="nwes")})
@@ -7589,19 +7724,19 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
         page = browser.new_page()
         page.goto(url)
         page.wait_for_url("**/recipes/**", timeout=90000)
-        lede = page.locator("#lede .oceanval-change")
+        lede = page.locator("#lede-gridded .oceanval-change")
         assert lede.text_content() == "As the domain has changed, OceanVal has ticked the datasets afresh for it."
         assert look(lede) == red_bold
-        dropped = page.locator("#message-nitrate .oceanval-change")
+        dropped = page.locator("#message-gridded-nitrate .oceanval-change")
         assert dropped.text_content() == "N3_n+thetao, chosen before, is not in this simulation's output."
         assert look(dropped) == red_bold
         # temperature is kept, with its datasets ticked as for the domain, and the years
         assert page.input_value('input[aria-label="Simulation variable for Temperature"]') == "thetao"
         assert page.is_checked('input[aria-label="NSBC, Northwest European Shelf, for Temperature"]')
-        assert (page.input_value("#s-start"), page.input_value("#s-end")) == ("2011", "2012")
+        assert (page.input_value("#s-point_start"), page.input_value("#s-point_end")) == ("2011", "2012")
         # once nitrate is filled in, it is the user's
-        page.fill('input[aria-label="Simulation variable for Nitrate"]', "thetao")
-        assert page.locator("#message-nitrate .oceanval-change").count() == 0
+        page.fill('#rows-gridded input[aria-label="Simulation variable for Nitrate"]', "thetao")
+        assert page.locator("#message-gridded-nitrate .oceanval-change").count() == 0
     finally:
         app.close()
 
@@ -7625,19 +7760,19 @@ def test_clearing_every_selection_in_a_browser(browser, tmp_path):
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
 
-        ticked = ".chip input:checked"
+        ticked = "#rows-gridded .chip input:checked"
         assert page.locator(ticked).count() > 0
-        assert page.is_enabled("#clear-selections")
-        page.click("#clear-selections")
+        assert page.is_enabled("#clear-gridded")
+        page.click("#clear-gridded")
 
         assert page.locator(ticked).count() == 0
         # the counts of variables matched and comparisons selected are not shown
         assert "matched" not in page.text_content("#summary")
         assert "selected" not in page.text_content("#summary")
-        assert page.is_disabled("#clear-selections")
+        assert page.is_disabled("#clear-gridded")
         # a dataset can be ticked again
-        page.locator(".chip input:not(:disabled)").first.check()
-        assert page.is_enabled("#clear-selections")
+        page.locator("#rows-gridded .chip input:not(:disabled)").first.check()
+        assert page.is_enabled("#clear-gridded")
     finally:
         app.close()
 

@@ -182,6 +182,32 @@ def _thickness_from_file(path):
     )
 
 
+def _thickness_and_depths(ds_selected, as_missing, invert):
+    """The model's cell thickness, from ds_selected, its selected variable,
+    with as_missing set missing, as (bathymetry, thickness, depths): the
+    thickness as it is in the files, for the bathymetry, the thickness with
+    the sea surface at the top (inverted, if invert), and the depth of the
+    middle of each cell. ds_selected is not changed."""
+    ds_thickness = ds_selected.copy()
+    if as_missing is not None:
+        ds_thickness.as_missing(as_missing)
+    ds_thickness.run()
+    bathymetry = ds_thickness.copy()
+    if invert:
+        ds_thickness.invert_levels()
+        ds_thickness.run()
+    ds_thickness_sim = ds_thickness.copy()
+
+    ds_depths = ds_thickness.copy()
+    ds_depths.vertical_cumsum()
+    ds_thickness / 2
+    ds_depths - ds_thickness
+    ds_depths.run()
+    ds_depths.rename({ds_depths.variables[0]: "depth"})
+    ds_depths.run()
+    return bathymetry, ds_thickness_sim, ds_depths
+
+
 def _thickness_levels(ds_thickness, thickness, label):
     """
     The selection of thickness from ds_thickness, as long as it has more
@@ -257,6 +283,33 @@ def _checked_cores(cores):
     if cores < 1:
         raise ValueError("cores must be a positive integer")
     return cores
+
+
+def _checked_limits(lon_lim, lat_lim):
+    """matchup's lon_lim and lat_lim, checked: both None, or both lists of
+    two numbers."""
+    if lon_lim is None and lat_lim is None:
+        return None, None
+    if lon_lim is None or lat_lim is None:
+        raise TypeError("lon_lim and lat_lim must be lists")
+    if len(lon_lim) != 2 or len(lat_lim) != 2:
+        raise ValueError(
+            "lon_lim and lat_lim must be lists of two floats, e.g. [-18, 9] and [42, 63]"
+        )
+    return list(lon_lim), list(lat_lim)
+
+
+def _checked_missing(as_missing):
+    """matchup's as_missing, checked: None, a number, or a list of them."""
+    if as_missing is None:
+        return None
+    if isinstance(as_missing, list):
+        for am in as_missing:
+            if not isinstance(am, (int, float)):
+                raise TypeError("as_missing list elements must be float or int")
+    elif not isinstance(as_missing, (int, float)):
+        raise TypeError("as_missing must be a float, int, list or None")
+    return as_missing
 
 
 def _checked_overwrite(overwrite):
@@ -1422,9 +1475,7 @@ def matchup(
         raise TypeError("End must be an integer")
 
     # check lon_lim and lat_lim are lists
-    if (lon_lim is None and lat_lim is None) is False:
-        if lon_lim is None or lat_lim is None:
-            raise TypeError("lon_lim and lat_lim must be lists")
+    lon_lim, lat_lim = _checked_limits(lon_lim, lat_lim)
 
     # add this info to session_info
     session_info["lon_lim"] = lon_lim
@@ -1534,16 +1585,7 @@ def matchup(
             raise ValueError("n_check must be a positive integer")
 
     # check as_missing is None, float or list
-    if as_missing is not None:
-        if not isinstance(as_missing, list):
-            if not isinstance(as_missing, (int, float)):
-                raise TypeError("as_missing must be a float, int, list or None")
-        # check list elements can be float
-        if isinstance(as_missing, list):
-            for am in as_missing:
-                if not isinstance(am, (int, float)):
-                    raise TypeError("as_missing list elements must be float or int")
-    session_info["as_missing"] = as_missing
+    session_info["as_missing"] = as_missing = _checked_missing(as_missing)
 
     # check strict_names is a boolean
     if not isinstance(strict_names, bool):
@@ -1714,6 +1756,8 @@ def matchup(
     # nothing is written in out_dir until the matchups are confirmed: the oceanval
     # window chooses out_dir along with yes. The thickness's bathymetry is kept until then
     bathymetry = None
+    # the thickness before its missing values are set, if it is needed
+    thickness_selected = None
 
     invert_thickness = False
     point_all = point["all"] + point["surface"]
@@ -1793,12 +1837,11 @@ def matchup(
             ds_thickness.run()
             var_sel = _thickness_levels(ds_thickness, thickness, thickness_label)
             ds_thickness.subset(variables=var_sel)
-            if session_info["as_missing"] is not None:
-                ds_thickness.as_missing(session_info["as_missing"])
             ds_thickness.run()
             print(f"Thickness variable is {ds_thickness.variables[0]} ({thickness_label})")
-            # the bathymetry, written in out_dir once the matchups are confirmed
-            bathymetry = ds_thickness.copy()
+            # as it is before its missing values are set, for the oceanval
+            # window, which gives them along with yes
+            thickness_selected = ds_thickness
 
             if invert_thickness:
                 if ask:
@@ -1816,20 +1859,10 @@ def matchup(
                     )
                     print("##########################################################################")
 
-            ds_thickness.run()
-            if invert_thickness:
-                ds_thickness.invert_levels()
-                ds_thickness.run()
-            ds_thickness_sim = ds_thickness.copy()
-
-            ds_depths = ds_thickness.copy()
-
-            ds_depths.vertical_cumsum()
-            ds_thickness / 2
-            ds_depths - ds_thickness
-            ds_depths.run()
-            ds_depths.rename({ds_depths.variables[0]: "depth"})
-            ds_depths.run()
+            # the bathymetry is written in out_dir once the matchups are confirmed
+            bathymetry, ds_thickness_sim, ds_depths = _thickness_and_depths(
+                thickness_selected, session_info["as_missing"], invert_thickness
+            )
 
         for ww in w:
             if str(ww.message) not in _session_warnings():
@@ -2054,6 +2087,21 @@ def matchup(
     if "cores" in given:
         cores = session_info["cores"] = _checked_cores(given["cores"])
         nc.options(cores=cores)
+    # the spatial subset and the missing values, which the window asks along
+    # with the cores: nothing before this has used them, but the thickness
+    if "lon_lim" in given or "lat_lim" in given:
+        lon_lim, lat_lim = _checked_limits(given.get("lon_lim"), given.get("lat_lim"))
+        session_info["lon_lim"], session_info["lat_lim"] = lon_lim, lat_lim
+    if "as_missing" in given:
+        as_missing = _checked_missing(given["as_missing"])
+        if as_missing != session_info["as_missing"]:
+            session_info["as_missing"] = as_missing
+            if thickness_selected is not None:
+                bathymetry, ds_thickness_sim, ds_depths = _thickness_and_depths(
+                    thickness_selected, as_missing, invert_thickness
+                )
+                session_info["ds_depths"] = ds_depths[0]
+                session_info["ds_thickness"] = ds_thickness_sim[0]
 
     os.makedirs(session_info["out_dir"] + "oceanval_matchups", exist_ok=True)
     ff_bath = session_info["out_dir"] + "oceanval_matchups/model_bathymetry.nc"

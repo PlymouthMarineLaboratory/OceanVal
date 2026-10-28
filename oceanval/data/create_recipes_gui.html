@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>Create recipes · OceanVal</title>
+<title>Gridded data selection · OceanVal</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%230f8f96'/%3E%3Cstop offset='1' stop-color='%23075c68'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M10 40c6-8 12-8 18 0s12 8 18 0s8-8 8-8' fill='none' stroke='%23fff' stroke-width='4.5' stroke-linecap='round' opacity='.55'/%3E%3Cpath d='M8 30c6-9 13-9 19 0s13 9 19 0s10-9 10-9' fill='none' stroke='%23fff' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   /*__OCEANVAL_GUI_CSS__*/
@@ -13,6 +13,7 @@
   col.c-obs { width: 156px; }
   col.c-model { width: 26.5%; }
   col.c-point { width: 220px; }
+  col.c-chosen { width: 22%; }
   thead th {
     position: sticky;
     top: 0;
@@ -99,41 +100,26 @@
   .own__model { display: block; padding-top: 8px; color: var(--ink); font: 500 13.5px/20px var(--font-mono); overflow-wrap: anywhere; }
   .none { display: inline-block; padding-top: 8px; color: var(--muted-light); }
 
-  /* ---- global settings ---- */
-  .settings > details > summary { list-style: none; }
-  .settings > details > summary::-webkit-details-marker { display: none; }
+  /* ---- each page's settings, above its table ---- */
   .settings__head {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 4px 14px;
+    margin: 0;
     padding: 16px 22px;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    user-select: none;
+    border-bottom: 1px solid var(--line);
   }
-  .settings__head:focus-visible { outline: none; box-shadow: var(--focus); }
-  details[open] > .settings__head { border-bottom: 1px solid var(--line); border-radius: var(--radius-md) var(--radius-md) 0 0; }
   .settings__title { font: 600 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
-  .settings__sub { color: var(--muted); font-size: 13.5px; }
-  .settings__sub code { color: var(--ink-soft); font-size: 12.5px; }
-  .settings__chevron {
-    align-self: center;
-    width: 9px;
-    height: 9px;
-    margin-left: auto;
-    border-right: 2px solid var(--muted-light);
-    border-bottom: 2px solid var(--muted-light);
-    transform: rotate(45deg);
-    transition: transform 0.15s;
-  }
-  details[open] .settings__chevron { transform: rotate(-135deg); }
   .settings__grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0 30px;
     padding: 20px 22px 24px;
   }
+  .settings--more { margin-top: 30px; }
+  .settings--more .settings__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .settings__column:empty { display: none; }
   .settings__column { display: grid; align-content: start; gap: 26px; min-width: 0; }
   .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
   .lede-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
@@ -149,7 +135,7 @@
   .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
   .s-input.is-ersem, .s-select.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
   /* what the oceanval app's demo filled in is red and bold, until it is typed over */
-  .s-input.is-oceanval, .lede .oceanval-change, .field__msg .oceanval-change { color: var(--red); font-weight: 700; }
+  .s-input.is-oceanval, .s-select.is-oceanval, .lede .oceanval-change, .field__msg .oceanval-change { color: var(--red); font-weight: 700; }
   .cores-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 10px; }
   .cores-row .g-label { margin: 0; }
   .cores-row.is-stacked { grid-template-columns: minmax(0, 1fr); gap: 6px; }
@@ -177,6 +163,12 @@
   .g-row.has-help .opts__help { position: static; margin-left: 0; }
   .g-row.has-help .opts__help-popover { top: 26px; left: 0; right: 0; width: auto; max-width: 360px; }
   .opts__help-popover dl { margin: 0 0 6px; }
+  .dataset__head { display: flex; align-items: center; gap: 6px; }
+  .dataset__head .opts__help { margin-left: 0; }
+  .dataset__head .opts__help > summary { width: 20px; height: 20px; font: italic 700 12px/1 var(--font-head); }
+  .opts__help-popover a { color: var(--teal-700); font-weight: 600; overflow-wrap: anywhere; }
+  .chosen { display: block; padding-top: 8px; color: var(--ink-soft); font-size: 13px; line-height: 1.45; }
+  .chosen.is-none { color: var(--muted-light); }
   .opts__help-popover dt { margin-top: 6px; font-weight: 700; }
   .opts__help-popover dd { margin: 0; color: var(--ink-soft); }
   .opts__years { display: flex; align-items: center; gap: 4px; }
@@ -190,7 +182,7 @@
 
 
   @media (max-width: 1000px) {
-    .settings__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .settings__grid, .settings--more .settings__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     col.c-obs { width: 150px; }
     col.c-model { width: 28%; }
     thead th, tbody td { padding-left: 14px; padding-right: 14px; }
@@ -213,7 +205,7 @@
       letter-spacing: 0.09em;
       text-transform: uppercase;
     }
-    .settings__grid { grid-template-columns: 1fr; padding: 18px 16px 20px; }
+    .settings__grid, .settings--more .settings__grid { grid-template-columns: 1fr; padding: 18px 16px 20px; }
     .settings__head { padding: 14px 16px; }
     .obs__title { padding-top: 0; }
     .obs__key { display: inline; margin-left: 8px; }
@@ -228,37 +220,27 @@
     <div class="brand">
       <span class="brand__word">Ocean<span>Val</span></span>
     </div>
-    <h1 id="page-title">Generate a script that will match up model with observations and then generate a validation report</h1>
-    <ul class="meta" id="meta" aria-label="Simulation"></ul>
+    <h1 id="page-title">Gridded data selection</h1>
   </div>
 </header>
 
 <main class="wrap">
-  <section class="settings card" aria-labelledby="settings-title">
-    <details id="settings" open>
-      <summary class="settings__head">
-        <span class="settings__title" id="settings-title">Global settings</span>
-        <span class="settings__chevron" aria-hidden="true"></span>
-      </summary>
-      <div class="settings__grid">
+  <!-- page 1 of 2: the gridded datasets -->
+  <section class="page" id="page-gridded" aria-labelledby="page-title">
+    <section class="settings card" aria-label="Settings for the gridded datasets">
+      <div class="settings__grid" id="settings-gridded">
         <div class="settings__column">
-          <fieldset class="group">
-            <legend>What years do you want to validate?</legend>
-            <div class="g-row pair">
-              <label><span class="g-label" id="s-start-label">First <span class="year-required" id="s-start-required" hidden>Required</span></span><input class="s-input is-num" id="s-start" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-              <label><span class="g-label" id="s-end-label">Last <span class="year-required" id="s-end-required" hidden>Required</span></span><input class="s-input is-num" id="s-end" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-            </div>
-            <p class="group__msg" id="g-output-years"></p>
-            <p class="group__msg" id="g-years"></p>
-          </fieldset>
           <fieldset class="group" id="group-climate">
             <legend>What simulation years do you want to use for climatologies?</legend>
             <div class="g-row pair">
               <label><span class="g-label">First year</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
               <label><span class="g-label">Last year</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
             </div>
+            <p class="group__msg" id="g-output-years"></p>
             <p class="group__msg" id="g-climate"></p>
           </fieldset>
+        </div>
+        <div class="settings__column">
           <fieldset class="group" id="group-fvcom" hidden>
             <legend>How do you want the FVCOM output regridded?</legend>
             <label class="g-row"><span class="g-label">Lon-lat resolution for point data (degrees)</span><input class="s-input is-num" id="s-fvcom_res" name="fvcom-resolution" inputmode="decimal" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
@@ -269,11 +251,115 @@
             <label class="g-row"><span class="g-label">Vertical spacing (m)</span><input class="s-input is-num" id="s-fvcom_dz" name="fvcom-vertical-spacing" inputmode="decimal" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
             <p class="group__msg" id="g-fvcom"></p>
           </fieldset>
-          <fieldset class="group">
-            <label class="g-row cores-row"><span class="g-label">How many cores do you want to use?</span><select class="s-select" id="s-cores"></select></label>
-            <p class="group__msg" id="g-matchup"></p>
+        </div>
+        <!-- moved to the page whose datasets need it (see placeThickness) -->
+        <div class="settings__column" id="thickness-gridded">
+          <fieldset class="group" id="group-thickness">
+            <legend>Model data info</legend>
+            <div id="row-thickness">
+            <label class="g-row"><span class="g-label">Is the simulation z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" list="thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <div id="thickness-picker"></div>
+            <p class="group__msg" id="g-thickness"></p>
+            </div>
           </fieldset>
         </div>
+      </div>
+    </section>
+
+    <div class="section-head">
+      <h2 class="section-title">What gridded datasets do you want to matchup?</h2>
+    </div>
+    <div class="lede-row">
+      <p class="lede" id="lede-gridded"></p>
+      <button type="button" class="btn btn--ghost btn--clear" id="clear-gridded">Clear all selections</button>
+    </div>
+    <div class="card">
+      <table>
+        <colgroup><col class="c-obs"><col class="c-model"><col class="c-gridded"></colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Environmental variable</th>
+            <th scope="col">What is the simulation variable name?</th>
+            <th scope="col">What gridded datasets do you want?</th>
+          </tr>
+        </thead>
+        <tbody id="rows-gridded"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- page 2 of 2: the point datasets -->
+  <section class="page" id="page-point" aria-labelledby="page-title" hidden>
+    <section class="settings card" aria-label="Settings for the point datasets">
+      <div class="settings__grid" id="settings-point">
+        <div class="settings__column">
+          <fieldset class="group" id="group-years">
+            <legend>What years do you want to validate?</legend>
+            <div class="g-row pair">
+              <label><span class="g-label" id="s-point_start-label">First <span class="year-required" id="s-point_start-required" hidden>Required</span></span><input class="s-input is-num" id="s-point_start" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label" id="s-point_end-label">Last <span class="year-required" id="s-point_end-required" hidden>Required</span></span><input class="s-input is-num" id="s-point_end" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            </div>
+            <p class="group__msg" id="g-years"></p>
+          </fieldset>
+        </div>
+        <div class="settings__column">
+          <fieldset class="group" id="group-point">
+            <div class="g-row has-help">
+              <div class="g-label-row">
+                <label class="g-label" for="s-point_time_res">Match point observations by</label>
+                <details class="opts__help" id="help-point_time_res">
+                  <summary aria-label="Explain how point observations are matched" title="How point observations are matched">?</summary>
+                  <div class="opts__help-popover" role="note">
+                    <p>Each observation has a date: a year, a month and a day. This chooses which of those are used to find the simulation output it is compared with. Anything a dataset does not have is simply not used, and only observations from each dataset's From to To years are used.</p>
+                    <dl>
+                      <dt>Year, month, day</dt>
+                      <dd>Exact dates. Each observation is compared with the simulation on the day it was made. Use this for daily, or finer, simulation output.</dd>
+                      <dt>Year, month</dt>
+                      <dd>Each observation is compared with the simulation's mean for that month of that year, and the day is ignored. Use this for monthly simulation output.</dd>
+                      <dt>Month, day</dt>
+                      <dd>Climatological: the year is ignored. Observations from any year are compared with the simulation's average for the same day of the year.</dd>
+                      <dt>Month</dt>
+                      <dd>Climatological, by month. Observations from any year are compared with the simulation's average for that calendar month.</dd>
+                    </dl>
+                    <p>This is filled in for each point dataset below, where it can be changed.</p>
+                  </div>
+                </details>
+              </div>
+              <select class="s-select" id="s-point_time_res"></select>
+            </div>
+            <p class="group__msg" id="g-point"></p>
+          </fieldset>
+        </div>
+        <div class="settings__column" id="thickness-point"></div>
+      </div>
+    </section>
+
+    <div class="section-head">
+      <h2 class="section-title">What point datasets do you want to matchup?</h2>
+    </div>
+    <div class="lede-row">
+      <p class="lede" id="lede-point"></p>
+      <button type="button" class="btn btn--ghost btn--clear" id="clear-point">Clear all selections</button>
+    </div>
+    <div class="card">
+      <table>
+        <colgroup><col class="c-obs"><col class="c-model"><col class="c-point-wide"><col class="c-chosen"></colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Environmental variable</th>
+            <th scope="col">What is the simulation variable name?</th>
+            <th scope="col">What point datasets do you want?</th>
+            <th scope="col">Gridded data selected</th>
+          </tr>
+        </thead>
+        <tbody id="rows-point"></tbody>
+      </table>
+    </div>
+
+    <!-- create_recipes on its own: what the oceanval app asks in its other steps -->
+    <section class="settings card settings--more" id="settings-more" aria-labelledby="settings-more-title">
+      <h2 class="settings__title settings__head" id="settings-more-title">Other settings</h2>
+      <div class="settings__grid">
         <div class="settings__column">
           <fieldset class="group" id="group-subset">
             <legend>Do you want a spatial subset?</legend>
@@ -291,28 +377,7 @@
             </div>
             <p class="group__msg" id="g-subset"></p>
           </fieldset>
-          <fieldset class="group form__wide" id="group-report">
-            <legend>Which additional validation report formats do you want?</legend>
-            <div class="g-row ticks report-formats">
-              <label class="tick-label"><input type="checkbox" class="tick" id="s-pdf">PDF</label>
-              <label class="tick-label"><input type="checkbox" class="tick" id="s-word">Word</label>
-            </div>
-            <p class="group__msg" id="g-report"></p>
-          </fieldset>
-        </div>
-        <div class="settings__column">
-          <fieldset class="group" id="group-output">
-            <legend>Output</legend>
-            <label class="g-row"><span class="g-label">Directory</span><input class="s-input is-mono" id="s-out_dir" placeholder="Where you run the script" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-            <p class="group__msg" id="g-output"></p>
-          </fieldset>
-          <fieldset class="group">
-            <legend>Model data info</legend>
-            <div id="row-thickness">
-            <label class="g-row"><span class="g-label">Is the simulation z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" list="thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-            <div id="thickness-picker"></div>
-            <p class="group__msg" id="g-thickness"></p>
-            </div>
+          <fieldset class="group" id="group-missing">
             <div class="g-row">
               <span class="g-label">What should be treated as missing values?</span>
               <div class="span-row">
@@ -323,6 +388,13 @@
             </div>
             <p class="group__msg" id="g-missing"></p>
           </fieldset>
+        </div>
+        <div class="settings__column">
+          <fieldset class="group" id="group-output">
+            <legend>Output</legend>
+            <label class="g-row"><span class="g-label">Directory</span><input class="s-input is-mono" id="s-out_dir" placeholder="Where you run the script" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <p class="group__msg" id="g-output"></p>
+          </fieldset>
           <fieldset class="group" id="group-files">
             <legend>File filters</legend>
             <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="s-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
@@ -331,32 +403,20 @@
           </fieldset>
         </div>
         <div class="settings__column">
-          <fieldset class="group" id="group-point">
-            <div class="g-row has-help">
-              <div class="g-label-row">
-                <label class="g-label" for="s-point_time_res">Match point observations by</label>
-                <details class="opts__help" id="help-point_time_res">
-                  <summary aria-label="Explain how point observations are matched" title="How point observations are matched">?</summary>
-                  <div class="opts__help-popover" role="note">
-                    <p>Each observation has a date: a year, a month and a day. This chooses which of those are used to find the simulation output it is compared with. Anything a dataset does not have is simply not used, and only observations from the First to Last years are used.</p>
-                    <dl>
-                      <dt>Year, month, day</dt>
-                      <dd>Exact dates. Each observation is compared with the simulation on the day it was made. Use this for daily, or finer, simulation output.</dd>
-                      <dt>Year, month</dt>
-                      <dd>Each observation is compared with the simulation's mean for that month of that year, and the day is ignored. Use this for monthly simulation output.</dd>
-                      <dt>Month, day</dt>
-                      <dd>Climatological: the year is ignored. Observations from any year are compared with the simulation's average for the same day of the year.</dd>
-                      <dt>Month</dt>
-                      <dd>Climatological, by month. Observations from any year are compared with the simulation's average for that calendar month.</dd>
-                    </dl>
-                    <p>Each point dataset below can override this with its own Match by.</p>
-                  </div>
-                </details>
-              </div>
-              <select class="s-select" id="s-point_time_res"></select>
-            </div>
-            <p class="group__msg" id="g-point"></p>
+          <fieldset class="group" id="group-matchup">
+            <label class="g-row cores-row"><span class="g-label">How many cores do you want to use?</span><select class="s-select" id="s-cores"></select></label>
+            <p class="group__msg" id="g-matchup"></p>
           </fieldset>
+          <fieldset class="group form__wide" id="group-report">
+            <legend>Which additional validation report formats do you want?</legend>
+            <div class="g-row ticks report-formats">
+              <label class="tick-label"><input type="checkbox" class="tick" id="s-pdf">PDF</label>
+              <label class="tick-label"><input type="checkbox" class="tick" id="s-word">Word</label>
+            </div>
+            <p class="group__msg" id="g-report"></p>
+          </fieldset>
+        </div>
+        <div class="settings__column">
           <fieldset class="group" id="group-detail">
             <label class="g-row"><span class="g-label">How detailed do you want the validation to be?</span>
               <select class="s-select" id="s-concise">
@@ -384,30 +444,8 @@
         <label class="tick-label"><input type="checkbox" class="tick" id="s-overwrite">Overwrite existing matchups</label>
         <label class="tick-label"><input type="checkbox" class="tick" id="s-ask">Ask before matching</label>
       </div>
-    </details>
+    </section>
   </section>
-
-  <div class="section-head">
-    <h2 class="section-title">What variables do you want to matchup?</h2>
-  </div>
-  <div class="lede-row">
-    <p class="lede" id="lede"></p>
-    <button type="button" class="btn btn--ghost btn--clear" id="clear-selections">Clear all selections</button>
-  </div>
-  <div class="card">
-    <table>
-      <colgroup><col class="c-obs"><col class="c-model"><col class="c-gridded"><col class="c-point"></colgroup>
-      <thead>
-        <tr>
-          <th scope="col">Environmental variable</th>
-          <th scope="col">What is the simulation variable name?</th>
-          <th scope="col">What gridded datasets do you want?</th>
-          <th scope="col">What point datasets do you want?</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </div>
 </main>
 
 <footer class="bar">
@@ -462,12 +500,12 @@
   // step or after going back before it (see app.recipes_restore)
   const restore = (app && app.restore) || null;
   // the first and last year of the simulation's output, read from its files'
-  // times (see oceanval.output_years): the arrow of First and Last lists the
+  // times (see oceanval.output_years): the arrow of each year box lists the
   // years between, and any year can still be typed, in case those are wrong
   const outputYears = Array.isArray(context.output_years) ? context.output_years : null;
   if (outputYears) {
     const years = Array.from({ length: outputYears[1] - outputYears[0] + 1 }, (_, number) => outputYears[0] + number);
-    for (const name of ["start", "end", "clim_start", "clim_end"]) {
+    for (const name of ["point_start", "point_end", "clim_start", "clim_end"]) {
       const box = $(`s-${name}`);
       box.classList.add("is-year");
       box.placeholder = String(outputYears[name.endsWith("start") ? 0 : 1]);
@@ -478,82 +516,54 @@
       : `The simulation's output runs from ${outputYears[0]} to ${outputYears[1]}, from the times in its files.`;
   }
 
-  // ---- header ----
+  // ---- the two pages: the gridded datasets, then the point datasets ----
+  const PAGE_TITLES = { gridded: "Gridded data selection", point: "Point data selection" };
+  const KINDS = ["gridded", "point"];
+  // the page shown: as it was left, for Back from the step after the window
+  let page = restore && restore.page === "point" ? "point" : "gridded";
   if (app) {
-    // chosen with the simulation, in the step before
-    $("group-files").hidden = true;
-    $("group-output").hidden = true;
-    // the app answers matchup's questions in its window, so it always asks them
-    $("s-ask").closest("label").hidden = true;
-    $("s-overwrite").closest("label").hidden = true;
-    for (const name of ["start", "end"]) {
-      $(`s-${name}-label`).classList.add("is-required");
-      $(`s-${name}-required`).hidden = false;
-      $(`s-${name}`).required = true;
-    }
-    // the number of cores is asked for once the matchups are confirmed
-    $("s-cores").closest("fieldset").hidden = true;
-    $("page-title").textContent = app.action === "matchup"
-      ? "Choose what to match up"
-      : "Let's fine-tune what you want to matchup";
-    // validate's settings are asked for once the matchups are checked, or
-    // when the report is built later
-    for (const id of ["group-report", "group-detail", "group-regional"]) $(id).hidden = true;
-  }
-  const meta = $("meta");
-  function metaItem(key, value, options = {}) {
-    meta.append(
-      el("li", { class: options.flag ? "is-flag" : null, title: options.title || value },
-        el("span", { class: "meta__k", text: key }),
-        el("span", { class: "meta__v" + (options.mono ? " is-mono" : ""), text: options.mono ? shorten(value) : value }))
-    );
-  }
-  metaItem("Simulation", context.simdir, { mono: true });
-  if (!app) {
-    metaItem("Files", context.ndown === 0 ? "in the directory itself"
-      : `${context.ndown} director${context.ndown === 1 ? "y" : "ies"} down`);
-    metaItem("Domain", context.region);
-    metaItem("Years", context.start === context.end ? String(context.start) : `${context.start}–${context.end}`);
-    if (context.fvcom) {
-      metaItem("Model", "Raw FVCOM", {
-        flag: true,
-        title: "Read with xarray, and the script's matchup call is given fvcom=True",
-      });
-    }
-    metaItem("Output", context.out, { mono: true });
+    // chosen in the steps after the matchups are confirmed: the spatial
+    // subset, the missing values, the cores, where the output goes and the
+    // report's options (and the file filters, with the simulation)
+    $("settings-more").hidden = true;
   }
 
-  $("lede").append(
-    "Check the simulation variable matched to each observational variable, and tick the datasets " +
-    "to validate it against. Each row starts with the datasets OceanVal would use for the ",
-    el("strong", { text: context.region }),
-    " domain ticked. Anything left unticked is still written to the script, commented out, " +
-    "so it can be switched on later."
-  );
-  // the user's own data, which the script registers whatever is ticked
+  function lede(kind) {
+    const parts = kind === "gridded"
+      ? ["Check the simulation variable matched to each observational variable, and tick the gridded datasets " +
+        "to validate it against. Each row starts with the datasets OceanVal would use for the ",
+        el("strong", { text: context.region }),
+        " domain ticked. Each dataset ticked needs the years to validate: climatologies are given the years " +
+        "for climatologies above. Anything left unticked is still written to the script, commented out, " +
+        "so it can be switched on later."]
+      : ["Tick the point datasets to validate each variable against. Each one ticked is given the years and " +
+        "the way observations are matched from the boxes above, and any of them can be changed for one dataset. " +
+        "The last column lists the gridded datasets chosen on the page before. Anything left unticked is still " +
+        "written to the script, commented out, so it can be switched on later."];
+    // the user's own data, which the script registers whatever is ticked
+    if (state.rows.some((row) => row.own.some((entry) => entry.kind === kind))) {
+      parts.push(" Your own data is always matched up, so is ticked in its row, marked ",
+        el("strong", { text: "Your data" }), ", with options like the other datasets'",
+        app ? "; to change anything else about it, or remove it, go back to the step where it was added." : ".");
+    }
+    if (app && app.prefilled && app.prefilled.length) {
+      parts.push(" For the demo, OceanVal has filled in the years, ",
+        el("strong", { class: "oceanval-change", text: "in red and bold" }), ".");
+    }
+    if (restore && restore.retick) {
+      // the rows edited before, whose datasets are ticked for the domain chosen since
+      parts.push(" ", el("strong", { class: "oceanval-change",
+        text: "As the domain has changed, OceanVal has ticked the datasets afresh for it." }));
+    }
+    return parts;
+  }
+  for (const kind of KINDS) $(`lede-${kind}`).append(...lede(kind));
   const hasOwnData = state.rows.some((row) => row.own.length);
-  if (hasOwnData) {
-    $("lede").append(" Your own data is always matched up, so is ticked in its row, marked ",
-      el("strong", { text: "Your data" }), ", with options like the other datasets'",
-      app ? "; go Back to change anything else about it, or remove it." : ".");
-  }
-  if (app && app.prefilled) {
-    $("lede").append(" For the demo, OceanVal has filled in the year and the longitude and latitude limits, ",
-      el("strong", { class: "oceanval-change", text: "in red and bold" }), ".");
-  }
-  if (restore && restore.retick) {
-    // the rows edited before, whose datasets are ticked for the domain chosen since
-    $("lede").append(" ", el("strong", { class: "oceanval-change",
-      text: "As the domain has changed, OceanVal has ticked the datasets afresh for it." }));
-  }
 
-  // ---- global settings ----
+  // ---- the settings above each page's table ----
   const form = { ...state.settings, concise: String(state.settings.concise) };
-  const ERSEM_DEFAULTS = state.nemo_ersem ? {
-    ...(available.has("e3t") ? { thickness: "e3t" } : {}),
-    missing_from: "0",
-    missing_to: "0",
-  } : {};
+  // what OceanVal assumes for a NEMO-ERSEM simulation, in amber until it is changed
+  const ERSEM_DEFAULTS = state.nemo_ersem && available.has("e3t") ? { thickness: "e3t" } : {};
   for (const [name, value] of Object.entries(ERSEM_DEFAULTS)) {
     if (!String(form[name] || "").trim()) form[name] = value;
   }
@@ -563,7 +573,7 @@
   // what create_recipes found wrong with the last Write, until the box changes
   const serverErrors = {};
   const GROUPS = {
-    years: ["start", "end"],
+    years: ["point_start", "point_end"],
     climate: ["clim_start", "clim_end"],
     fvcom: ["fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz"],
     subset: ["lon_min", "lon_max", "lat_min", "lat_max"],
@@ -577,6 +587,9 @@
     detail: ["concise"],
     regional: ["subregions", "subregions_file"],
   };
+  // the page each group is on: the thickness is on the page that needs it
+  // (see placeThickness), and the rest on the point page, the last
+  const GROUP_PAGES = { climate: "gridded", fvcom: "gridded" };
   const FIELDS = Object.values(GROUPS).flat();
   // after what OceanVal filled in is taken, so Reset still puts it back,
   // and the demo's values are only marked while they are unchanged
@@ -588,10 +601,11 @@
   // each setting as the boxes it is made of, so changes and problems are
   // counted per setting rather than per box
   const SETTINGS = [
-    ["start"], ["end"], ["clim_start"], ["clim_end"], ...GROUPS.fvcom.map((name) => [name]), GROUPS.subset, ["out_dir"], ["overwrite"], ["thickness"],
-    ["missing_from", "missing_to"], ["point_time_res"], ["cores"], ["ask"],
+    ["point_start"], ["point_end"], ["clim_start"], ["clim_end"], ...GROUPS.fvcom.map((name) => [name]), GROUPS.subset,
+    ["out_dir"], ["overwrite"], ["thickness"], ["missing_from", "missing_to"], ["point_time_res"], ["cores"], ["ask"],
     ["exclude"], ["require"], ["pdf"], ["word"], ["concise"], ["subregions", "subregions_file"],
   ];
+  const groupOf = (name) => Object.keys(GROUPS).find((group) => GROUPS[group].includes(name));
   const BOOLEANS = new Set(["overwrite", "ask", "pdf", "word"]);
   const timeRes = new Map(state.time_res_options.map((option) => [option.value, option]));
   const field = (name) => $(`s-${name}`);
@@ -662,74 +676,103 @@
     const value = Number(trimmed);
     return Number.isFinite(value) ? value : NaN;
   }
-  const knownYears = () =>
-    isInteger(form.start) && isInteger(form.end) && +form.start <= +form.end
-      ? [+form.start, +form.end] : null;
+  // a first and last year, if both are whole numbers in order
+  const yearPair = (first, last) =>
+    isInteger(first) && isInteger(last) && +first <= +last ? [+first, +last] : null;
+  // the years to validate the point datasets, as typed above them
+  const knownYears = () => yearPair(form.point_start, form.point_end);
+  // the years climatologies average the simulation over, as typed
+  const climYears = () => yearPair(form.clim_start, form.clim_end);
   // the WOA23 decade the years sit inside, if they sit inside one
   const woa23Period = (years) =>
     state.woa23_periods.find(([first, last]) => years[0] >= first && years[1] <= last);
-  const hasOwnYears = (dataset) => ["start", "end"].some((name) => String(dataset.opts[name]).trim());
-  // the years climatology datasets average the simulation over: the ones for
-  // climatologies when they are given, else the ones being validated
-  const climYears = () =>
-    isInteger(form.clim_start) && isInteger(form.clim_end) && +form.clim_start <= +form.clim_end
-      ? [+form.clim_start, +form.clim_end] : null;
-  const climateYears = () => climYears() || knownYears();
-  // the years asked for in the pop-out when those sit inside no WOA23 decade
-  const woaYears = { start: "", end: "" };
-  if (restore) {
-    for (const name of ["start", "end"]) woaYears[name] = String(restore.settings[`woa23_${name}`] || "");
-  }
-  const woaYearsGiven = () =>
-    isInteger(woaYears.start) && isInteger(woaYears.end) && +woaYears.start <= +woaYears.end
-      && Boolean(woa23Period([+woaYears.start, +woaYears.end]));
-  // the ticked WOA23 datasets published per decade that have no years of their own
-  const decadalDatasets = () => rows.filter((row) => row.status === "ok").flatMap((row) => row.datasets
-    .filter((dataset) => dataset.decadal && dataset.checked && !hasOwnYears(dataset))
-    .map((dataset) => ({ row, dataset })));
-  // whether those need years from the pop-out: the years sit inside no decade
-  const needsWoaYears = () => {
-    const years = climateYears();
-    return decadalDatasets().length > 0 && Boolean(years) && !woa23Period(years);
-  };
+  const WOA23_DECADES = state.woa23_periods.map(([first, last]) => `${first}–${last}`).join(", ");
+  // the years every ticked dataset starts with where nothing above gives
+  // them: those create_recipes was given, or the demo's, in red and bold as
+  // OceanVal filled them in. In the app, none: each dataset's are typed
+  const initialYears = app
+    ? (Array.isArray(app.initial_years) ? app.initial_years.map(String) : null)
+    : (yearPair(context.start, context.end) ? [String(context.start), String(context.end)] : null);
+
   // matchup needs a thickness to validate anything through the water column
   // the user's own data as the window has it, or else as the app says it is
   const ownVertical = () => ownChipList.length
     ? ownChipList.some(({ chip }) => chip.dataset.opts.vertical) : Boolean(app && app.own_vertical);
   const ownPoint = () => ownChipList.length
     ? ownChipList.some(({ chip }) => chip.dataset.kind === "point") : Boolean(app && app.own_point);
-  const needsThickness = () => !context.fvcom && (ownVertical()
+  const verticalTicked = (kind) =>
+    ownChipList.some(({ chip }) => chip.dataset.kind === kind && chip.dataset.opts.vertical)
     || rows.some((row) => row.status === "ok" && row.datasets.some(
-      (dataset) => dataset.checked && dataset.opts.vertical)));
-  // the point time resolution is only for point datasets: ticked ones, or the user's own
+      (dataset) => dataset.kind === kind && dataset.checked && dataset.opts.vertical));
+  const needsThickness = () => !context.fvcom && (ownVertical() || KINDS.some(verticalTicked));
+  // the point time resolution and years are only for point datasets: ticked ones, or the user's own
   const needsPointTimeRes = () => ownPoint()
     || rows.some((row) => row.status === "ok" && row.datasets.some(
       (dataset) => dataset.checked && dataset.kind === "point"));
   const THICKNESS_NEEDED = "A dataset is set to Vertical, so a thickness is needed: z_level, a cell thickness variable or a file.";
 
+  // the thickness is asked on the point datasets' page if only they are set
+  // to Vertical, else on the page of the gridded datasets. Returns that page
+  function placeThickness() {
+    const onlyPoint = verticalTicked("point") && !verticalTicked("gridded")
+      && !(ownChipList.length === 0 && app && app.own_vertical);
+    const where = onlyPoint ? "point" : "gridded";
+    const group = $("group-thickness");
+    if (group.parentNode !== $(`thickness-${where}`)) $(`thickness-${where}`).append(group);
+    group.hidden = !needsThickness();
+    return where;
+  }
+
+  // the datasets that are matched up: ticked ones of a variable that is
+  // filled in, and the user's own
+  const tickedDatasets = () => [
+    ...rows.filter((row) => row.status === "ok").flatMap((row) => row.datasets.filter((dataset) => dataset.checked)),
+    ...ownChipList.map(({ chip }) => chip.dataset),
+  ];
+
+  // the years matchup is given: from the first to the last year of any
+  // dataset matched up, else the point datasets' years, those OceanVal
+  // starts with, or the simulation's own
+  function matchupYears() {
+    const years = tickedDatasets().map((dataset) => yearPair(dataset.opts.start, dataset.opts.end)).filter(Boolean);
+    if (!years.length) {
+      const fallback = knownYears() || (initialYears && yearPair(...initialYears)) || (outputYears && yearPair(...outputYears));
+      if (fallback) years.push(fallback);
+    }
+    if (!years.length) return null;
+    return [Math.min(...years.map((pair) => pair[0])), Math.max(...years.map((pair) => pair[1]))];
+  }
+
   // the same rules create_recipes applies, so most problems show as you type
   function settingErrors() {
     const errors = {};
-    for (const name of ["start", "end"]) {
-      if (!isInteger(form[name])) {
-        errors[name] = outputYears ? `Type the ${name === "start" ? "first" : "last"} year, or choose it with the arrow.`
-          : `${name === "start" ? "First" : "Last"} must be a year, e.g. 2011.`;
+    // needed for the point datasets ticked, which are given them
+    const required = needsPointTimeRes();
+    for (const name of ["point_start", "point_end"]) {
+      const text = String(form[name]).trim();
+      if (text && !isInteger(text)) errors[name] = "Years must be whole numbers.";
+      else if (!text && required) {
+        errors[name] = outputYears ? `Type the ${name === "point_start" ? "first" : "last"} year, or choose it with the arrow.`
+          : `${name === "point_start" ? "First" : "Last"} must be a year, e.g. 2011.`;
       }
     }
-    if (!errors.start && !errors.end && +form.end < +form.start) errors.end = "Last year must not be before the first year.";
+    if (!errors.point_start && !errors.point_end && isInteger(form.point_start) && isInteger(form.point_end)
+        && +form.point_end < +form.point_start) {
+      errors.point_end = "Last year must not be before the first year.";
+    }
+    if (!required && !matchupYears() && !errors.point_start) {
+      errors.point_start = "Give the years to validate, here or for a dataset.";
+    }
 
-    // both or neither: empty is the years being validated
+    // both or neither
     const clim = ["clim_start", "clim_end"].filter((name) => String(form[name]).trim());
     for (const name of clim) {
       if (!isInteger(form[name])) errors[name] = "Years must be whole numbers.";
     }
     if (clim.length === 1) {
       errors[clim[0] === "clim_start" ? "clim_end" : "clim_start"] = "Give both years for climatologies, or leave them both empty.";
-    } else if (clim.length === 2 && !errors.clim_start && !errors.clim_end) {
-      if (+form.clim_end < +form.clim_start) errors.clim_end = "Last year must not be before the first year.";
-      else if (!errors.start && !errors.end && (+form.clim_start > +form.end || +form.clim_end < +form.start)) {
-        errors.clim_start = `These years miss the ${form.start}–${form.end} being matched up.`;
-      }
+    } else if (clim.length === 2 && !errors.clim_start && !errors.clim_end && +form.clim_end < +form.clim_start) {
+      errors.clim_end = "Last year must not be before the first year.";
     }
 
     if (context.fvcom) {
@@ -802,30 +845,16 @@
     return errors;
   }
 
-  // what is said, under the climatology years, of the WOA23 datasets published per decade
-  function woa23Hint() {
-    const names = decadalDatasets().map(({ row }) => row.title.toLowerCase());
-    const years = climateYears();
-    if (!names.length || !years) return null;
-    const list = `WOA23 ${names.join(" and ")}`;
-    const period = woa23Period(years);
-    if (period) {
-      return { text: `${list} use${names.length === 1 ? "s" : ""} its ${period[0]}–${period[1]} climatology.` };
-    }
-    if (woaYearsGiven()) {
-      return { text: `${list} use${names.length === 1 ? "s" : ""} the years ${woaYears.start}–${woaYears.end}, chosen for WOA23.` };
-    }
-    return {
-      text: `No WOA23 decade covers ${years[0]}–${years[1]}, so you will be asked for ${list} years inside one when you continue.`,
-      warn: true,
-    };
-  }
+  // the ticked WOA23 datasets published per decade
+  const decadalDatasets = () => rows.filter((row) => row.status === "ok").flatMap((row) => row.datasets
+    .filter((dataset) => dataset.decadal && dataset.checked)
+    .map((dataset) => ({ row, dataset })));
 
   // the lines shown under a group when nothing in it needs fixing
   function groupHints(group) {
     switch (group) {
       case "years": {
-        const hints = [{ text: "This can be overridden for each dataset below." }];
+        const hints = [{ text: "Filled in for each point dataset below, where they can be changed." }];
         // the years found can be wrong, so others can be given: they are only warned about
         const years = knownYears();
         if (outputYears && years && (years[0] < outputYears[0] || years[1] > outputYears[1])) {
@@ -838,10 +867,15 @@
           .filter((dataset) => dataset.climatology && dataset.checked)
           .map((dataset) => `${dataset.label} ${row.title.toLowerCase()}`));
         const hints = [{ text: used.length
-          ? `Used by ${used.join(", ")}. Empty: the years being validated.`
-          : "None of the ticked datasets are climatologies. Empty: the years being validated." }];
-        const warning = woa23Hint();
-        return warning ? [...hints, warning] : hints;
+          ? `Filled in for ${used.join(", ")} below, where they can be changed.`
+          : "Filled in for each climatology ticked below, where they can be changed." }];
+        const years = climYears();
+        const decadal = decadalDatasets().map(({ row }) => row.title.toLowerCase());
+        if (decadal.length && years && !woa23Period(years)) {
+          hints.push({ text: `WOA23 ${decadal.join(" and ")} ${decadal.length === 1 ? "is" : "are"} published per decade, so give `
+            + `${decadal.length === 1 ? "it" : "them"} years inside one: ${WOA23_DECADES}.`, warn: true });
+        }
+        return hints;
       }
       case "fvcom":
         return [{ text: "Point data is regridded to this resolution, and gridded data to twice the resolution of its observations. "
@@ -862,15 +896,10 @@
         return hints;
       }
       case "missing":
-        return [
-          { text: "Treat as missing: one value, or everything in a range." },
-          ...(app && state.nemo_ersem
-            ? [{ text: "This appears to be an ERSEM simulation and the above values are assumed.", ersem: true }]
-            : []),
-        ];
+        return [{ text: "Treat as missing: one value, or everything in a range." }];
       case "point": {
         const option = timeRes.get(form.point_time_res);
-        return [{ text: `${option ? option.hint + ". " : ""}Each point dataset below can override this.` }];
+        return [{ text: `${option ? option.hint + ". " : ""}Filled in for each point dataset below, where it can be changed.` }];
       }
       case "matchup":
         return app ? [] : [{ text: "Untick Ask to run the script as a batch job, e.g. with SLURM." }];
@@ -882,16 +911,21 @@
   }
 
   // marks each box and shows each group's error or hint; returns how many
-  // boxes need fixing
+  // settings need fixing on each page
   function refreshSettings() {
     const errors = { ...settingErrors(), ...serverErrors };
     // a box that is not needed is not shown, so nothing in it can be wrong
-    $("row-thickness").hidden = !needsThickness();
-    $("group-point").hidden = !needsPointTimeRes();
+    const thicknessPage = placeThickness();
     $("group-fvcom").hidden = !context.fvcom;
     if (!context.fvcom) for (const name of GROUPS.fvcom) delete errors[name];
     if (!needsThickness()) delete errors.thickness;
     $("row-subregions_file").hidden = form.subregions !== "file";
+    const required = needsPointTimeRes();
+    for (const name of ["point_start", "point_end"]) {
+      $(`s-${name}-label`).classList.toggle("is-required", required);
+      $(`s-${name}-required`).hidden = !required;
+      field(name).required = required;
+    }
     for (const [group, names] of Object.entries(GROUPS)) {
       for (const name of names) {
         field(name).classList.toggle("is-invalid", Boolean(errors[name]));
@@ -910,17 +944,26 @@
         el("span", { class: "group__line" + (hint.ersem ? " is-ersem" : hint.warn ? " is-warn" : "") },
           hint.warn || hint.ersem ? icon("warn") : null, el("span", { text: hint.text }))));
     }
-    return SETTINGS.filter((names) => names.some((name) => errors[name])).length;
+    const counts = { gridded: 0, point: 0 };
+    for (const names of SETTINGS) {
+      if (!names.some((name) => errors[name])) continue;
+      const group = groupOf(names[0]);
+      counts[group === "thickness" ? thicknessPage : GROUP_PAGES[group] || "point"] += 1;
+    }
+    return counts;
   }
 
   // ---- rows ----
-  // a dataset's options before anything is typed in them: the global settings,
-  // and surface-only
+  // a dataset's options before anything is typed in them, surface-only
   const blankOptions = (kind) => kind === "point"
     ? { point_time_res: "", start: "", end: "", vertical: false }
     : { start: "", end: "", vertical: false };
+  // the options OceanVal fills in for a dataset while they are not typed in
+  const FILLED = { point: ["point_time_res", "start", "end"], gridded: ["start", "end"] };
   // a row with datasets to tick; one with only the user's own data is only shown
   const hasDatasets = (row) => row.gridded.length + row.point.length > 0;
+  // whether a row is on a kind's page: it has datasets of that kind, its own or the user's
+  const hasKind = (row, kind) => row[kind].length > 0 || row.own.some((entry) => entry.kind === kind);
   // the user's own datasets' chips, as { row, chip }, built with the rows
   const ownChipList = [];
   const rows = state.rows.filter(hasDatasets).map((row) => ({
@@ -931,6 +974,8 @@
     message: "",
     // an unidentified row takes its default ticks once it is filled in
     needsDefaults: !row.model_variable,
+    // the sync of each pop-out of the model's variables, one on each page the row is on
+    syncs: [],
     datasets: [
       ...row.gridded.map((dataset) => ({ ...dataset, kind: "gridded" })),
       ...row.point.map((dataset) => ({ ...dataset, kind: "point" })),
@@ -938,9 +983,32 @@
       ...dataset,
       checked: dataset.ticked,
       opts: blankOptions(dataset.kind),
+      // the options the user typed in, which OceanVal no longer fills in
+      typed: {},
       serverErrors: {},
     })),
   }));
+
+  // what a dataset's box holds while it is not typed in: the point
+  // datasets' from the boxes above them, the climatologies' from the years
+  // for climatologies, and otherwise the years OceanVal starts with, if any
+  function filledValue(dataset, name) {
+    if (name === "point_time_res") return String(form.point_time_res);
+    let value = "";
+    if (dataset.kind === "point") value = String(form[`point_${name}`]).trim();
+    else if (dataset.climatology) value = String(form[`clim_${name}`]).trim();
+    if (!value && initialYears) value = initialYears[name === "start" ? 0 : 1];
+    return value;
+  }
+  function fill(dataset) {
+    for (const name of FILLED[dataset.kind]) {
+      if (!dataset.typed[name]) dataset.opts[name] = filledValue(dataset, name);
+    }
+  }
+  const fillAll = () => {
+    rows.forEach((row) => row.datasets.forEach(fill));
+    ownChipList.forEach(({ chip }) => fill(chip.dataset));
+  };
 
   function check(value) {
     const text = value.trim();
@@ -970,16 +1038,22 @@
     }
     update(row);
     summarise();
-    // the pop-out of variables, if it has been opened, ticks what the box holds
-    if (row.syncTicks) row.syncTicks();
+    // the pop-outs of variables, if they have been opened, tick what the box holds
+    row.syncs.forEach((sync) => sync());
   }
+
+  // the row's simulation variable box on the page shown, or on the other
+  const inputOf = (row) => {
+    const views = row.dom.views;
+    return (views.find((view) => view.kind === page) || views[0]).input;
+  };
 
   function undo(row) {
     return el("button", {
       type: "button",
       class: "link",
       text: "Undo",
-      onclick: () => { setValue(row, row.original); row.dom.input.focus(); },
+      onclick: () => { setValue(row, row.original); inputOf(row).focus(); },
     });
   }
 
@@ -1007,13 +1081,35 @@
     return dropped ? [icon("warn"), el("span", {}, dropped, " This is the one OceanVal found.")] : [];
   }
 
+  // the gridded datasets a row is validated against, for the point page's last column
+  function chosenGridded(row) {
+    const ticked = (row.datasets || []).filter((dataset) =>
+      dataset.kind === "gridded" && dataset.checked && row.status === "ok");
+    return [
+      ...ticked.map((dataset) => dataset.label),
+      ...row.own.filter((entry) => entry.kind === "gridded").map((entry) => `${entry.label} (your data)`),
+    ];
+  }
+  // the cells of that column, as { row, cell }
+  const chosenCells = [];
+  function refreshChosen() {
+    for (const { row, cell } of chosenCells) {
+      const names = chosenGridded(row);
+      cell.textContent = names.length ? `Yes: ${names.join(", ")}` : "None";
+      cell.classList.toggle("is-none", !names.length);
+    }
+  }
+
   function update(row) {
-    const { tr, input, msg, chips } = row.dom;
-    if (input.value !== row.value) input.value = row.value;
-    input.title = row.value;
-    tr.classList.toggle("is-empty", row.status === "empty");
-    tr.classList.toggle("is-invalid", row.status === "invalid");
-    input.setAttribute("aria-invalid", String(row.status === "invalid"));
+    const { views, chips } = row.dom;
+    for (const { tr, input, msg } of views) {
+      if (input.value !== row.value) input.value = row.value;
+      input.title = row.value;
+      tr.classList.toggle("is-empty", row.status === "empty");
+      tr.classList.toggle("is-invalid", row.status === "invalid");
+      input.setAttribute("aria-invalid", String(row.status === "invalid"));
+      msg.replaceChildren(...message(row));
+    }
     const locked = row.status !== "ok";
     for (const chip of chips) {
       chip.box.checked = chip.dataset.checked;
@@ -1022,30 +1118,22 @@
       chip.label.classList.toggle("is-disabled", locked);
       refreshOptions(row, chip);
     }
-    msg.replaceChildren(...message(row));
   }
 
   function optionErrors(dataset) {
     const errors = { ...dataset.serverErrors };
     const opts = dataset.opts;
+    const missing = dataset.decadal ? "Give both years, inside one WOA23 decade." : "Give both years.";
     for (const name of ["start", "end"]) {
-      if (String(opts[name]).trim() && !isInteger(opts[name])) errors[name] = "Years must be whole numbers.";
+      const text = String(opts[name]).trim();
+      // each dataset matched up needs its years
+      if (!text) errors[name] = errors[name] || missing;
+      else if (!isInteger(text)) errors[name] = "Years must be whole numbers.";
     }
     if (Object.keys(errors).length) return errors;
-    const start = String(opts.start).trim() ? +opts.start : null;
-    const end = String(opts.end).trim() ? +opts.end : null;
-    const years = knownYears();
-    const missed = years ? `These years miss the ${years[0]}–${years[1]} being matched up.` : "";
-    const both = "WOA23 publishes this per decade, so give both years.";
-    if (start !== null && end !== null && start > end) errors.end = "To must not be before From.";
-    else if (years && start !== null && start > years[1]) errors.start = missed;
-    else if (years && end !== null && end < years[0]) errors.end = missed;
-    else if (dataset.decadal && (start !== null || end !== null)) {
-      if (start === null) errors.start = both;
-      if (end === null) errors.end = both;
-      if (start !== null && end !== null && !woa23Period([start, end])) {
-        errors.end = "These years must sit inside one WOA23 decade, e.g. 2005–2014.";
-      }
+    if (+opts.start > +opts.end) errors.end = "To must not be before From.";
+    else if (dataset.decadal && !woa23Period([+opts.start, +opts.end])) {
+      errors.end = `WOA23 publishes this per decade, so these years must sit inside one: ${WOA23_DECADES}.`;
     }
     return errors;
   }
@@ -1059,39 +1147,30 @@
     for (const [name, control] of Object.entries(opts.controls)) {
       if (name === "vertical") control.checked = dataset.opts.vertical;
       else if (control.value !== dataset.opts[name]) control.value = dataset.opts[name];
+      // what OceanVal filled in is red and bold until it is typed over
+      if (name !== "vertical") {
+        control.classList.toggle("is-oceanval", !dataset.typed[name] && Boolean(String(dataset.opts[name]).trim()));
+      }
     }
     const select = opts.controls.point_time_res;
     if (select) {
-      const own = timeRes.get(dataset.opts.point_time_res);
-      const global = timeRes.get(form.point_time_res);
-      select.classList.toggle("is-default", !own);
-      select.title = own ? own.hint : `As in the global settings: ${global ? global.label : ""}`;
-    }
-    if (dataset.decadal) {
-      // with a matching global decade, the script can use that decade
-      const years = climateYears();
-      const period = years && woa23Period(years);
-      const required = shown && hasOwnYears(dataset);
-      opts.yearsRow.classList.toggle("is-required", required);
-      for (const name of ["start", "end"]) {
-        const missing = !String(dataset.opts[name]).trim();
-        opts.controls[name].required = required && missing;
-        opts.controls[name].setAttribute("aria-required", String(required && missing));
-      }
-      const given = climYears();
-      opts.controls.start.placeholder = period ? String(given ? given[0] : period[0]) : "from";
-      opts.controls.end.placeholder = period ? String(given ? given[1] : period[1]) : "to";
-      opts.years.title = period
-        ? (given ? `Empty: the years for climatologies, ${given[0]}–${given[1]}, which sit inside WOA23's ${period[0]}–${period[1]} decade.`
-          : `Empty: WOA23's ${period[0]}–${period[1]} decade, which covers the years being validated.`)
-        : "Empty: you are asked for WOA23 years when you continue. WOA23 publishes this per decade, so give years inside one.";
+      const option = timeRes.get(dataset.opts.point_time_res);
+      select.title = option ? option.hint : "";
     }
     const errors = shown ? optionErrors(dataset) : {};
+    // the years are required while either is missing
+    const missing = shown && ["start", "end"].some((name) => !String(dataset.opts[name]).trim());
+    opts.yearsRow.classList.toggle("is-required", missing);
+    for (const name of ["start", "end"]) {
+      const empty = missing && !String(dataset.opts[name]).trim();
+      opts.controls[name].required = empty;
+      opts.controls[name].setAttribute("aria-required", String(empty));
+    }
     for (const [name, control] of Object.entries(opts.controls)) {
       control.classList.toggle("is-invalid", Boolean(errors[name]));
       control.setAttribute("aria-invalid", String(Boolean(errors[name])));
     }
-    opts.msg.textContent = Object.values(errors)[0] || "";
+    opts.msg.textContent = Object.values(errors).find(Boolean) || "";
     return Object.keys(errors).length > 0;
   }
 
@@ -1103,7 +1182,6 @@
     const parts = [];
     if (dataset.kind === "point") {
       controls.point_time_res = el("select", { class: "s-select is-small", "aria-label": `Match ${name} by` },
-        el("option", { value: "", text: "Global setting" }),
         ...state.time_res_options.map((option) => el("option", { value: option.value, text: option.label })));
       const given = dataset.own ? dataset.opts.point_time_res : "";
       if (given && !timeRes.has(given)) {
@@ -1132,7 +1210,7 @@
         el("div", { class: "opts__help-popover", role: "note" },
           el("p", {}, el("strong", { text: "Available WOA23 periods" })),
           el("ul", {}, ...state.woa23_periods.map(([first, last]) => el("li", { text: `${first}–${last}` }))),
-          el("p", { text: "First and Last must fit within the same period." })));
+          el("p", { text: "From and To must fit within the same period." })));
       yearsLabel.append(help);
     }
     const yearsRow = el("div", { class: "opts__row" }, yearsLabel, years);
@@ -1152,6 +1230,8 @@
       const tick = key === "vertical";
       control.addEventListener(tick || control.tagName === "SELECT" ? "change" : "input", () => {
         dataset.opts[key] = tick ? control.checked : control.value;
+        // the user's own, which OceanVal no longer fills in
+        if (!tick) dataset.typed[key] = true;
         delete dataset.serverErrors[key];
         delete dataset.serverErrors[""];
         summarise();
@@ -1160,6 +1240,18 @@
     const msg = el("p", { class: "opts__msg" });
     const block = el("div", { class: "opts" }, ...parts, msg);
     return { block, controls, years, yearsRow, msg };
+  }
+
+  // the i beside a gridded source: the years its observations cover, and its page
+  function coverageInfo(dataset) {
+    const coverage = dataset.coverage;
+    if (!coverage || !coverage.url) return null;
+    return el("details", { class: "opts__help dataset__info" },
+      el("summary", { "aria-label": `About ${dataset.label}: the years it covers, and its web page`, title: `About ${dataset.label}` }, "i"),
+      el("div", { class: "opts__help-popover", role: "note" },
+        coverage.years ? el("p", {}, el("strong", { text: "Years covered: " }), coverage.years) : null,
+        coverage.note ? el("p", { text: coverage.note }) : null,
+        el("p", {}, el("a", { href: coverage.url, target: "_blank", rel: "noopener noreferrer", text: coverage.url }))));
   }
 
   function buildChip(row, dataset) {
@@ -1182,7 +1274,7 @@
         class: "chip__region" + (dataset.user ? " is-yours" : dataset.region_name === context.region ? " is-domain" : ""),
         text: dataset.region,
       }));
-    return { dataset, box, label, opts: buildOptions(row, dataset) };
+    return { dataset, box, label, info: coverageInfo(dataset), opts: buildOptions(row, dataset) };
   }
 
   // the user's own data, which the script registers whatever is ticked here,
@@ -1197,16 +1289,19 @@
       vertical_option: true,
       decadal: false,
       opts: { ...entry.opts },
+      // what the call gives is the user's, so it is not filled in
+      typed: Object.fromEntries(Object.entries(entry.opts).map(([name, value]) => [name, typeof value === "string" && Boolean(value.trim())])),
       // as the window was shown with them, for Reset
       initial: { ...entry.opts },
       serverErrors: {},
     };
+    dataset.initialTyped = { ...dataset.typed };
     const details = [
       `${entry.label}: your own ${entry.kind} data`,
       entry.path,
       entry.model_variable ? `Matched with the simulation's ${entry.model_variable}` : null,
       entry.saved ? "Saved as a recipe too, which later matchups offer" : null,
-      app ? "Added in the step before: go Back to change anything else about it, or remove it."
+      app ? "Added in an earlier step: go back to it to change anything else about it, or remove it."
         : "Given to create_recipes as own_data.",
     ];
     const label = el("label", { class: "chip is-own", title: details.filter(Boolean).join("\n") },
@@ -1218,7 +1313,7 @@
       }),
       el("span", { class: "chip__name", text: entry.label }),
       el("span", { class: "chip__region is-yours", text: "Your data" }));
-    const chip = { dataset, label, opts: buildOptions(row, dataset) };
+    const chip = { dataset, label, info: null, opts: buildOptions(row, dataset) };
     ownChipList.push({ row, chip });
     return chip;
   }
@@ -1227,7 +1322,7 @@
     return el("td", { "data-label": label },
       chips.length
         ? el("div", { class: "chips" }, ...chips.map((chip) =>
-          el("div", { class: "dataset" }, chip.label, chip.opts.block)))
+          el("div", { class: "dataset" }, el("div", { class: "dataset__head" }, chip.label, chip.info), chip.opts.block)))
         : el("span", { class: "none", title: emptyTitle, "aria-label": emptyTitle, text: "—" }));
   }
 
@@ -1240,15 +1335,24 @@
     return OceanValGUI.variablesPicker({ available: state.available, longNames: state.long_names || {}, ...options });
   }
 
-  // a recipe row's model variable: any number can be ticked
-  function variablesTable(row) {
-    const picker = variablesPicker({ get: () => row.value, set: (value) => setValue(row, value), multi: true });
-    if (!picker) return null;
-    row.syncTicks = picker.sync;
-    return picker.details;
+  const DATASET_HEADS = { gridded: "What gridded datasets do you want?", point: "What point datasets do you want?" };
+
+  function titleCell(row) {
+    return el("td", {},
+      el("span", { class: "obs__title", text: row.title }),
+      row.variable === row.title.toLowerCase() ? null : el("code", { class: "obs__key", text: row.variable }));
   }
 
-  function buildRow(row) {
+  // the point page's last column: the gridded datasets chosen for the row
+  function chosenCell(row) {
+    const cell = el("span", { class: "chosen" });
+    chosenCells.push({ row, cell });
+    return el("td", { "data-label": "Gridded data selected" }, cell);
+  }
+
+  // a recipe row on one page: its simulation variable box, which each page
+  // the row is on has a copy of, and the datasets of that page's kind
+  function buildRow(row, kind) {
     const input = el("input", {
       class: "field__input",
       type: "text",
@@ -1258,39 +1362,39 @@
       autocomplete: "off",
       autocapitalize: "off",
       "aria-label": `Simulation variable for ${row.title}`,
-      "aria-describedby": `message-${row.variable}`,
+      "aria-describedby": `message-${kind}-${row.variable}`,
     });
     input.addEventListener("input", () => setValue(row, input.value));
-    const msg = el("p", { class: "field__msg", id: `message-${row.variable}` });
-    const chips = row.datasets.map((dataset) => buildChip(row, dataset));
-    const tr = el("tr", {},
-      el("td", {},
-        el("span", { class: "obs__title", text: row.title }),
-        row.variable === row.title.toLowerCase() ? null : el("code", { class: "obs__key", text: row.variable })),
-      el("td", { "data-label": "What is the simulation variable name?" }, input, msg, variablesTable(row)),
-      datasetsCell("What gridded datasets do you want?",
-        [...chips.filter((chip) => chip.dataset.kind === "gridded"), ...ownChips(row, "gridded")],
-        `No gridded dataset for ${row.title}`),
-      datasetsCell("What point datasets do you want?",
-        [...chips.filter((chip) => chip.dataset.kind === "point"), ...ownChips(row, "point")],
-        `No point dataset for ${row.title}`));
-    row.dom = { tr, input, msg, chips };
+    const msg = el("p", { class: "field__msg", id: `message-${kind}-${row.variable}` });
+    // any number of the model's variables can be ticked
+    const picker = variablesPicker({ get: () => row.value, set: (value) => setValue(row, value), multi: true });
+    if (picker) row.syncs.push(picker.sync);
+    const cells = [
+      titleCell(row),
+      el("td", { "data-label": "What is the simulation variable name?" }, input, msg, picker ? picker.details : null),
+      datasetsCell(DATASET_HEADS[kind],
+        [...row.dom.chips.filter((chip) => chip.dataset.kind === kind), ...ownChips(row, kind)],
+        `No ${kind} dataset for ${row.title}`),
+    ];
+    if (kind === "point") cells.push(chosenCell(row));
+    const tr = el("tr", {}, ...cells);
+    row.dom.views.push({ kind, tr, input, msg });
     return tr;
   }
 
   // a row with only the user's own data, which has its own simulation
   // variable, so there is nothing in it to change
-  function buildOwnRow(row) {
+  function buildOwnRow(row, kind) {
     const names = [...new Set(row.own.map((entry) => entry.model_variable).filter(Boolean))];
-    return el("tr", { class: "is-own" },
-      el("td", {},
-        el("span", { class: "obs__title", text: row.title }),
-        row.variable === row.title.toLowerCase() ? null : el("code", { class: "obs__key", text: row.variable })),
+    const cells = [
+      titleCell(row),
       el("td", { "data-label": "What is the simulation variable name?" },
         el("span", { class: "own__model", text: names.join(", ") }),
         el("p", { class: "field__msg", text: "Given with your data." })),
-      datasetsCell("What gridded datasets do you want?", ownChips(row, "gridded"), `No gridded dataset for ${row.title}`),
-      datasetsCell("What point datasets do you want?", ownChips(row, "point"), `No point dataset for ${row.title}`));
+      datasetsCell(DATASET_HEADS[kind], ownChips(row, kind), `No ${kind} dataset for ${row.title}`),
+    ];
+    if (kind === "point") cells.push(chosenCell(row));
+    return el("tr", { class: "is-own" }, ...cells);
   }
 
   // a row as it was left: its model variable and, unless the domain has
@@ -1310,6 +1414,8 @@
           if (name in sent) opts[name] = typeof opts[name] === "boolean" ? Boolean(sent[name]) : String(sent[name]);
         }
         dataset.opts = opts;
+        // only what was typed stays as it was: the rest is filled in afresh
+        dataset.typed = Object.fromEntries((sent.typed || []).map((name) => [name, true]));
       }
     } else if (row.needsDefaults) {
       // ticked afresh, as for a variable filled in
@@ -1325,16 +1431,22 @@
     }
   }
 
-  const tbody = $("rows");
+  const tbodies = { gridded: $("rows-gridded"), point: $("rows-point") };
   for (const shown of state.rows) {
     const row = rows.find((candidate) => candidate.variable === shown.variable);
-    if (!row) {
-      tbody.append(buildOwnRow(shown));
-      continue;
+    if (row) row.dom = { views: [], chips: row.datasets.map((dataset) => buildChip(row, dataset)) };
+    for (const kind of KINDS) {
+      if (hasKind(shown, kind)) tbodies[kind].append(row ? buildRow(row, kind) : buildOwnRow(shown, kind));
     }
-    tbody.append(buildRow(row));
+    if (!row) continue;
     Object.assign(row, check(row.value));
     update(row);
+  }
+  for (const kind of KINDS) {
+    if (!tbodies[kind].children.length) {
+      tbodies[kind].append(el("tr", {}, el("td", { colspan: kind === "point" ? "4" : "3", class: "none",
+        text: `OceanVal has no ${kind} datasets for the variables in this simulation's output.` })));
+    }
   }
 
   // ---- pop-outs close when you click outside them, or press Escape ----
@@ -1357,40 +1469,63 @@
   let busy = false;
   // in the app, the units and where the matchups are saved come next
   const writeLabel = app ? "Continue" : "Write script";
-  writeButton.textContent = writeLabel;
-  if (app) cancelButton.textContent = "Back";
 
-  const ownChanged = ({ chip: { dataset } }) => Object.keys(dataset.opts).some((name) => dataset.opts[name] !== dataset.initial[name]);
+  const ownChanged = ({ chip: { dataset } }) => Object.keys(dataset.opts).some((name) =>
+    dataset.typed[name] !== dataset.initialTyped[name]
+    || (dataset.typed[name] && dataset.opts[name] !== dataset.initial[name]));
   const changed = () =>
     FIELDS.some((name) => form[name] !== initialForm[name])
     || ownChipList.some(ownChanged)
     || rows.some((row) => row.value.trim() !== row.original || row.datasets.some((dataset) =>
       dataset.checked !== dataset.ticked
-      || Object.values(dataset.opts).some(
-        (value) => value === true || (typeof value === "string" && value.trim()))));
+      || dataset.opts.vertical
+      || Object.values(dataset.typed).some(Boolean)));
 
-  function summarise() {
-    const comparisons = rows.filter((row) => row.status === "ok").reduce(
-      (count, row) => count + row.datasets.filter((dataset) => dataset.checked).length, 0);
-    const invalid = rows.filter((row) => row.status === "invalid").length;
-    $("clear-selections").disabled = !rows.some((row) => row.datasets.some((dataset) => dataset.checked));
-    let settingsToFix = refreshSettings();
+  // what needs fixing on each page: model variables, and settings and options
+  function problems() {
+    const found = { gridded: { variables: 0, settings: 0 }, point: { variables: 0, settings: 0 } };
+    const counts = refreshSettings();
+    for (const kind of KINDS) found[kind].settings = counts[kind];
     for (const row of rows) {
+      for (const kind of KINDS) {
+        if (row.status === "invalid" && hasKind(row, kind)) found[kind].variables += 1;
+      }
       for (const chip of row.dom.chips) {
-        if (refreshOptions(row, chip)) settingsToFix += 1;
+        if (refreshOptions(row, chip)) found[chip.dataset.kind].settings += 1;
       }
     }
     for (const { row, chip } of ownChipList) {
-      if (refreshOptions(row, chip)) settingsToFix += 1;
+      if (refreshOptions(row, chip)) found[chip.dataset.kind].settings += 1;
+    }
+    return found;
+  }
+
+  function summarise() {
+    fillAll();
+    const found = problems();
+    refreshChosen();
+    // a row on both pages is counted once
+    const invalidRows = rows.filter((row) => row.status === "invalid").length;
+    // the gridded page needs its own fixed to carry on; the point page, everything
+    const here = page === "gridded"
+      ? { invalid: found.gridded.variables, settings: found.gridded.settings }
+      : { invalid: invalidRows, settings: found.gridded.settings + found.point.settings };
+    const before = page === "point" ? found.gridded.settings : 0;
+    const comparisons = rows.filter((row) => row.status === "ok").reduce(
+      (count, row) => count + row.datasets.filter((dataset) => dataset.checked).length, 0);
+    for (const kind of KINDS) {
+      $(`clear-${kind}`).disabled = !rows.some((row) =>
+        row.datasets.some((dataset) => dataset.kind === kind && dataset.checked));
     }
     const parts = [];
-    if (invalid) {
-      parts.push(el("span", { class: "summary__warn", text: `${plural(invalid, "simulation variable")} to fix` }));
+    if (here.invalid) {
+      parts.push(el("span", { class: "summary__warn", text: `${plural(here.invalid, "simulation variable")} to fix` }));
     }
-    if (settingsToFix) {
-      parts.push(el("span", { class: "summary__warn", text: `${plural(settingsToFix, "setting")} to fix` }));
+    if (here.settings) {
+      parts.push(el("span", { class: "summary__warn", text: `${plural(here.settings, "setting")} to fix`
+        + (before ? `, ${before} on the page before` : "") }));
     }
-    if (!invalid && !settingsToFix && !comparisons) {
+    if (page === "point" && !here.invalid && !here.settings && !comparisons) {
       parts.push(el("span", { class: "summary__warn is-soft", text: hasOwnData
         ? "Only your own data is ticked, so every recipe will be commented out"
         : "Nothing ticked, so every recipe will be commented out" }));
@@ -1401,17 +1536,44 @@
       if (index) summary.append(el("span", { class: "summary__dot", "aria-hidden": "true", text: "•" }));
       summary.append(part);
     });
-    writeButton.disabled = busy || invalid > 0 || settingsToFix > 0;
-    $("fix-settings").hidden = invalid === 0 && settingsToFix === 0;
-    writeButton.title = invalid || settingsToFix ? "Fix what is marked in red first"
+    const blocked = here.invalid > 0 || here.settings > 0;
+    writeButton.disabled = busy || blocked;
+    $("fix-settings").hidden = !blocked;
+    $("fix-settings").textContent = before && before === here.settings && !here.invalid
+      ? "Fix settings on the page before" : "Fix settings above";
+    writeButton.title = blocked ? "Fix what is marked in red first"
+      : page === "gridded" ? "On to the point datasets"
       : app ? "" : `Write ${context.out}`;
     resetButton.hidden = busy || !changed();
+  }
+
+  // the labels of the buttons, for the page shown
+  function labelButtons() {
+    if (page === "gridded") {
+      writeButton.textContent = busy ? (app ? "Starting…" : "Writing…") : "Continue";
+      cancelButton.textContent = app ? "Back" : "Cancel";
+    } else {
+      writeButton.textContent = busy ? (app ? "Starting…" : "Writing…") : writeLabel;
+      cancelButton.textContent = "Back";
+    }
+  }
+
+  function showPage(kind, focus = null) {
+    page = kind;
+    $("page-gridded").hidden = kind !== "gridded";
+    $("page-point").hidden = kind !== "point";
+    $("page-title").textContent = PAGE_TITLES[kind];
+    document.title = `${PAGE_TITLES[kind]} · OceanVal`;
+    labelButtons();
+    summarise();
+    window.scrollTo(0, 0);
+    if (focus) focus.focus();
   }
 
   function setBusy(value) {
     busy = value;
     cancelButton.disabled = value;
-    writeButton.textContent = value ? (app ? "Starting…" : "Writing…") : writeLabel;
+    labelButtons();
     summarise();
   }
 
@@ -1463,22 +1625,33 @@
     $("done-title").focus();
   }
 
+  // a dataset's options as they are sent: with the names of those typed in,
+  // and, to write the script, how it is matched left to the setting above
+  // while that is what it holds, so the script gives it once
+  function sentOptions(dataset, write) {
+    const opts = { ...dataset.opts, typed: Object.keys(dataset.typed).filter((name) => dataset.typed[name]) };
+    if (write && "point_time_res" in opts && !dataset.typed.point_time_res) opts.point_time_res = "";
+    return opts;
+  }
+
   // what the window holds, to write the script with, or kept with Back for the
   // window to be shown with again. Write is disabled while a model variable
   // needs fixing, and an empty row has nothing ticked.
   function choices(write = false) {
+    const years = matchupYears();
     return {
       // a thickness that no dataset needs is left out of the script
       settings: {
         ...(write && !needsThickness() ? { ...form, thickness: "" } : form),
-        // only the WOA23 years asked for, and still needed
-        woa23_start: needsWoaYears() ? woaYears.start : "",
-        woa23_end: needsWoaYears() ? woaYears.end : "",
+        // matchup's years, from the years of the datasets matched up
+        start: years ? String(years[0]) : "",
+        end: years ? String(years[1]) : "",
       },
+      page,
       rows: rows.map((row) => {
         const options = { gridded: {}, point: {} };
         for (const dataset of row.datasets) {
-          if (dataset.checked) options[dataset.kind][dataset.recipe] = dataset.opts;
+          if (dataset.checked) options[dataset.kind][dataset.recipe] = sentOptions(dataset, write);
         }
         return {
           variable: row.variable,
@@ -1489,85 +1662,18 @@
       }),
       // the user's own data's options, by where it is in its list
       own: ownChipList.reduce((own, { chip }) => {
-        own[chip.dataset.kind][chip.dataset.index] = chip.dataset.opts;
+        own[chip.dataset.kind][chip.dataset.index] = sentOptions(chip.dataset, write);
         return own;
       }, { point: {}, gridded: {} }),
     };
   }
 
-  // the pop-out asking for the years of WOA23 temperature and salinity, which it
-  // publishes per decade, when the years for climatologies sit inside no decade;
-  // resolves to whether years were given (false: the user went back to the page)
-  function askWoaYears() {
-    const years = climateYears();
-    const names = decadalDatasets().map(({ row }) => row.title.toLowerCase()).join(" and ");
-    const boxes = ["start", "end"].map((key) => el("input", {
-      class: "s-input is-num",
-      id: `woa-${key}`,
-      name: `woa23-${key}-year`,
-      inputmode: "numeric",
-      placeholder: key === "start" ? "from" : "to",
-      spellcheck: "false",
-      autocomplete: "chrome-off",
-      value: woaYears[key],
-      "aria-label": `${key === "start" ? "First" : "Last"} year for WOA23`,
-    }));
-    const problem = el("p", { class: "group__msg is-error", id: "woa-problem", role: "alert" });
-    const cancel = el("button", { type: "button", class: "btn btn--ghost", id: "woa-cancel", text: "Cancel" });
-    const ok = el("button", { type: "button", class: "btn btn--primary", id: "woa-ok", text: "Continue" });
-    const dialog = el("div", { class: "picker", id: "woa-dialog", hidden: "" },
-      el("div", { class: "picker__card restart__card", role: "dialog", "aria-modal": "true", "aria-labelledby": "woa-title" },
-        el("div", { class: "restart__body" },
-          el("h2", { id: "woa-title", text: "Which years do you want to use for WOA23?" }),
-          el("p", { text: `WOA23 ${names} is published per decade, and no decade covers ${years[0]}–${years[1]}. `
-            + "Give the first and last year to use for it, inside one of these periods: "
-            + state.woa23_periods.map(([first, last]) => `${first}–${last}`).join(", ") + "." }),
-          el("div", { class: "g-row pair" },
-            el("label", {}, el("span", { class: "g-label", text: "First year" }), boxes[0]),
-            el("label", {}, el("span", { class: "g-label", text: "Last year" }), boxes[1])),
-          problem),
-        el("div", { class: "picker__foot" }, cancel, ok)));
-    document.body.append(dialog);
-    const behind = [document.querySelector(".masthead"), document.querySelector("main"), document.querySelector(".bar")];
-    return new Promise((resolve) => {
-      const close = (answer) => {
-        document.removeEventListener("keydown", onKey, true);
-        dialog.remove();
-        behind.forEach((node) => { node.inert = false; });
-        resolve(answer);
-      };
-      const onKey = (event) => {
-        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(false); }
-        else if (event.key === "Enter" && dialog.contains(document.activeElement) && document.activeElement !== cancel) {
-          event.preventDefault();
-          ok.click();
-        }
-      };
-      cancel.addEventListener("click", () => close(false));
-      dialog.addEventListener("click", (event) => { if (event.target === dialog) close(false); });
-      ok.addEventListener("click", () => {
-        const [first, last] = boxes.map((box) => box.value.trim());
-        let text = "";
-        if (!isInteger(first) || !isInteger(last)) text = "Give both years, as whole numbers, e.g. 2005 and 2014.";
-        else if (+last < +first) text = "Last year must not be before the first year.";
-        else if (!woa23Period([+first, +last])) text = "These years must sit inside one WOA23 decade, e.g. 2005–2014.";
-        problem.textContent = text;
-        boxes.forEach((box) => { box.classList.toggle("is-invalid", Boolean(text)); box.setAttribute("aria-invalid", String(Boolean(text))); });
-        if (text) return;
-        woaYears.start = first;
-        woaYears.end = last;
-        close(true);
-      });
-      document.addEventListener("keydown", onKey, true);
-      dialog.hidden = false;
-      behind.forEach((node) => { node.inert = true; });
-      boxes[woaYears.start ? 1 : 0].focus();
-    });
-  }
-
   writeButton.addEventListener("click", async () => {
     if (busy || writeButton.disabled) return;
-    if (needsWoaYears() && !(await askWoaYears())) return;
+    if (page === "gridded") {
+      showPage("point");
+      return;
+    }
     setBusy(true);
     let reply;
     try {
@@ -1584,14 +1690,22 @@
     }
     setBusy(false);
     const rowErrors = reply.errors || {};
-    const settingProblems = reply.setting_errors || {};
+    const settingProblems = { ...(reply.setting_errors || {}) };
+    // matchup's years are worked out from the point datasets' and the others'
+    for (const name of ["start", "end"]) {
+      if (settingProblems[name]) settingProblems[`point_${name}`] = settingProblems[name];
+      delete settingProblems[name];
+    }
     const optionProblems = { gridded: reply.gridded_errors || {}, point: reply.point_errors || {} };
     const ownProblems = reply.own_errors || {};
     if ([rowErrors, settingProblems, ...Object.values(optionProblems), ownProblems].some((errors) => Object.keys(errors).length)) {
+      // the first page with something to fix
+      let where = null;
       for (const [kind, byIndex] of Object.entries(ownProblems)) {
         for (const [index, problems] of Object.entries(byIndex)) {
           const found = ownChipList.find(({ chip }) => chip.dataset.kind === kind && String(chip.dataset.index) === index);
           if (found) found.chip.dataset.serverErrors = { ...problems };
+          if (kind === "gridded") where = "gridded";
         }
       }
       Object.assign(serverErrors, settingProblems);
@@ -1601,6 +1715,7 @@
           for (const [recipe, problems] of Object.entries(byRecipe)) {
             const dataset = row && row.datasets.find((item) => item.kind === kind && item.recipe === recipe);
             if (dataset) dataset.serverErrors = { ...problems };
+            if (kind === "gridded") where = "gridded";
           }
         }
       }
@@ -1610,14 +1725,16 @@
         if (!row) continue;
         Object.assign(row, { status: "invalid", message: text });
         update(row);
-        first = first || row.dom.input;
+        if (!row.dom.views.some((view) => view.kind === "point")) where = "gridded";
       }
       const setting = Object.keys(settingProblems)[0];
-      if (setting) {
-        $("settings").open = true;
-        first = first || field(setting);
+      if (setting && GROUP_PAGES[groupOf(setting)] === "gridded") where = "gridded";
+      showPage(where || "point");
+      for (const [variable] of Object.entries(rowErrors)) {
+        const row = rows.find((candidate) => candidate.variable === variable);
+        if (row && !first) first = inputOf(row);
       }
-      summarise();
+      first = first || (setting && field(setting));
       if (first) first.focus();
       toast("Some boxes need fixing before the script can be written.");
     } else {
@@ -1627,6 +1744,10 @@
 
   cancelButton.addEventListener("click", async () => {
     if (busy) return;
+    if (page === "point") {
+      showPage("gridded");
+      return;
+    }
     setBusy(true);
     try {
       await post("cancel", choices());
@@ -1639,13 +1760,15 @@
     else finish("cancelled");
   });
 
-  $("clear-selections").addEventListener("click", () => {
-    for (const row of rows) {
-      row.datasets.forEach((dataset) => { dataset.checked = false; });
-      update(row);
-    }
-    summarise();
-  });
+  for (const kind of KINDS) {
+    $(`clear-${kind}`).addEventListener("click", () => {
+      for (const row of rows) {
+        row.datasets.forEach((dataset) => { if (dataset.kind === kind) dataset.checked = false; });
+        update(row);
+      }
+      summarise();
+    });
+  }
 
   resetButton.addEventListener("click", () => {
     Object.assign(form, initialForm);
@@ -1653,12 +1776,14 @@
     FIELDS.forEach(setControl);
     for (const { chip } of ownChipList) {
       chip.dataset.opts = { ...chip.dataset.initial };
+      chip.dataset.typed = { ...chip.dataset.initialTyped };
       chip.dataset.serverErrors = {};
     }
     for (const row of rows) {
       row.datasets.forEach((dataset) => {
         dataset.checked = dataset.ticked;
         dataset.opts = blankOptions(dataset.kind);
+        dataset.typed = {};
         dataset.serverErrors = {};
       });
       row.needsDefaults = !row.original;
@@ -1686,7 +1811,7 @@
       },
     } : null,
   });
-  summarise();
+  showPage(page);
 })();
 </script>
 </body>

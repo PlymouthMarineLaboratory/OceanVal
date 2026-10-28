@@ -124,6 +124,10 @@ def default_form(start, end, exclude=None, require=None):
     return {
         "start": str(start),
         "end": str(end),
+        # the years of the point datasets, which the page fills each in with;
+        # matchup's start and end are worked out from every dataset's
+        "point_start": "" if start is None else str(start),
+        "point_end": "" if end is None else str(end),
         "clim_start": "",
         "clim_end": "",
         # what FVCOM output is regridded to, which only an FVCOM simulation is asked
@@ -195,17 +199,12 @@ def check_settings(form, available, fvcom=False):
 
     # the years climatology datasets average the simulation over, if not the
     # years being validated, and the WOA23 years asked for when those do not
-    # sit inside one decade (not matchup() arguments, so not in the footer)
+    # sit inside one decade (not matchup() arguments, so not in the footer).
+    # The window fills each climatology's own years in with them, and works
+    # out start and end from every dataset's, so they need not overlap those
     clim_years = _check_pair(text, errors, "clim_start", "clim_end", "climatologies")
     if clim_years:
         settings["clim_years"] = clim_years
-    if clim_years and "start" not in errors and "end" not in errors:
-        first, last = clim_years
-        if first > settings["end"] or last < settings["start"]:
-            errors["clim_start"] = (
-                f"These years miss the {settings['start']}–{settings['end']} "
-                "being matched up."
-            )
     woa_years = _check_pair(text, errors, "woa23_start", "woa23_end", "WOA23")
     if woa_years:
         settings["woa_years"] = woa_years
@@ -245,21 +244,9 @@ def check_settings(form, available, fvcom=False):
                 "Not a variable in the simulation output, or a file that exists."
             )
 
-    low, high = text("missing_from"), text("missing_to")
-    if low or high:
-        first, last = _number(low), _number(high)
-        if not low:
-            errors["missing_from"] = "Fill in the value, or the start of a range."
-        elif first is None:
-            errors["missing_from"] = "This must be a number."
-        elif high and last is None:
-            errors["missing_to"] = "This must be a number."
-        elif high and last < first:
-            errors["missing_to"] = (
-                "The end of the range must not be less than its start."
-            )
-        else:
-            settings["as_missing"] = first if not high else [first, last]
+    missing = check_missing(text, errors)
+    if missing is not None:
+        settings["as_missing"] = missing
 
     if text("point_time_res") in _TIME_RES:
         settings["point_time_res"] = list(_TIME_RES[text("point_time_res")])
@@ -384,6 +371,30 @@ def check_limits(text, errors):
                 [limits["lon_min"], limits["lon_max"]],
                 [limits["lat_min"], limits["lat_max"]],
             )
+    return None
+
+
+def check_missing(text, errors):
+    """matchup's as_missing from the missing_from and missing_to boxes: one
+    value, or [first, last] for everything in a range.
+
+    text(name) is what a box holds. None if the boxes are empty, or cannot
+    be used, in which case errors says why.
+    """
+    low, high = text("missing_from"), text("missing_to")
+    if not (low or high):
+        return None
+    first, last = _number(low), _number(high)
+    if not low:
+        errors["missing_from"] = "Fill in the value, or the start of a range."
+    elif first is None:
+        errors["missing_from"] = "This must be a number."
+    elif high and last is None:
+        errors["missing_to"] = "This must be a number."
+    elif high and last < first:
+        errors["missing_to"] = "The end of the range must not be less than its start."
+    else:
+        return first if not high else [first, last]
     return None
 
 
@@ -639,6 +650,8 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
                     # saved as a recipe too, which it takes the place of
                     "saved": (variable, user_recipes.key_of(source)) in replaced,
                     "opts": own_options(kind, arguments),
+                    # given the window's years for climatologies, as a recipe's
+                    "climatology": kind == "gridded" and bool(arguments.get("climatology")),
                     "arguments": arguments,
                 }
             )
@@ -671,6 +684,8 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
             # averaged over the simulation's years: given the window's
             # climatology years
             "climatology": _is_climatology(entry),
+            # the years its observations cover, and its web page, for the i beside it
+            "coverage": entry.get("coverage"),
         }
 
     rows = [
