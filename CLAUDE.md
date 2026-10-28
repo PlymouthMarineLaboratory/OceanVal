@@ -487,6 +487,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   helper) opens; **over SSH nothing else does**, as `DISPLAY` is then an X11 forward (MobaXterm sets one) and the browser would open on the
   remote machine; else a display, macOS or Windows. `oceanval --no-browser` sets `OCEANVAL_BROWSER=0` in `os.environ`, so `app_child`
   (which reads the same function for the reports it opens) obeys it. When none is opened the link and `remote_hint` (`ssh -L`) are printed.
+- **Files are never left out unasked.** No code drops a file for having "restart" in its name: `create_recipes.simulation_paths`
+  (Analyze, Compare, the window's live check and the output years), `_has_nc`, `model_check` and `matchall` leave that to `exclude`/`require`.
+  The window starts the **Skip file names containing** box with `create_recipes.DEFAULT_EXCLUDE` (`"restart"`; Validate, Analyze and each
+  Compare row: `default_setup_form`, `sim_compare_forms.blank_sim`, sent as `state.default_exclude`) in amber (`is-detected`, `isDefaultExclude`
+  in the page) with a line saying so, until it is changed. A Compare row holding only that is unused (`sim_compare_forms.row_is_blank`,
+  `scRowEmpty`). The Python defaults (`matchup(exclude=[])`, `analyze(exclude=None)`) are unchanged.
 - **The live file check shows "Finding files"** (a spinner, `.is-finding`) from the edit of the directory, depth or filter boxes until the
   `/api/probe` answer is in: `probePending` in `askProbe` (the badge `#ndown-found`, Validate/Matchup/Analyze) and `scSims.pending[n]` in
   `scAskProbe` (`#sc-m-n`). The check's number is taken at the edit, so an earlier answer still on its way is dropped, and the last count is not

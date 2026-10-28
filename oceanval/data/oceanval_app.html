@@ -2110,7 +2110,7 @@
     <div class="how__body">
       <p><strong>Where it looks.</strong> OceanVal searches the directory you give, and the number of directories below it that you say, for netCDF files. Once you have told it the names of your simulation variables, it works out which files contain each one.</p>
       <p><strong>Which files it uses.</strong> Where a variable is held at more than one time resolution, for example in both daily and monthly files, OceanVal uses the files with the highest temporal resolution, so your matchups are as detailed as your output allows.</p>
-      <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Put words from the names of the files to leave out in <strong>Skip file names containing</strong> (for example <code>restart 5d</code>), or words that the files you want share in <strong>Only include file names containing</strong> (for example <code>grid_T</code>).</p>
+      <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Put words from the names of the files to leave out in <strong>Skip file names containing</strong> (for example <code>restart 5d</code>; OceanVal starts it with <code>restart</code>, so restart files are left out, and nothing is left out that you have not asked for: remove <code>restart</code> to include them), or words that the files you want share in <strong>Only include file names containing</strong> (for example <code>grid_T</code>).</p>
       <p>Only file names are checked, not directory names. To choose words, look at the names of the files in your simulation with &ldquo;Click here to view the files&rdquo;.</p>
     </div>
     <div class="picker__foot">
@@ -3102,6 +3102,11 @@
   }
 
   // ---- 2: the simulation ----
+  // the files skipped start with what OceanVal skips (see oceanval.create_recipes.DEFAULT_EXCLUDE):
+  // OceanVal's own, so amber, until it is changed, and not something the user has filled in
+  const isDefaultExclude = (text) => Boolean(state.default_exclude) && String(text).trim() === state.default_exclude;
+  const defaultExcludeLine = () =>
+    `Files with ${state.default_exclude} in their names are skipped. Remove ${state.default_exclude} to include them.`;
   const SETUP_FIELDS = ["simdir", "ndown", "exclude", "require", "start", "end"];
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require"]);
@@ -3364,7 +3369,10 @@
         simulation.push(line(`No netCDF files ${depthText(depth)}.`, "nofiles"));
       }
     }
-    if (String(setup.exclude).trim() || String(setup.require).trim()) {
+    const skippingByDefault = isDefaultExclude(setup.exclude);
+    $("f-exclude").classList.toggle("is-detected", skippingByDefault);
+    if (skippingByDefault) simulation.push(line(defaultExcludeLine(), "detected"));
+    if (String(setup.require).trim() || (String(setup.exclude).trim() && !skippingByDefault)) {
       simulation.push(line(`Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
     // the depth was filled in from the layout of the folders: amber, as an assumption to check
@@ -8999,7 +9007,8 @@
 
   function scWriteSims(form) {
     for (let n = 1; n <= SC_MOST; n++) {
-      const row = form.rows[n - 1] || {};
+      // a row the form has none for starts as any other does
+      const row = form.rows[n - 1] || { exclude: state.default_exclude };
       for (const [field, id] of Object.entries(SC_BOXES)) $(`sc-${id}_${n}`).value = row[field] || "";
       $(`sc-swatch-${n}`).style.background = scColour(n - 1);
     }
@@ -9009,7 +9018,11 @@
     const form = scState().form;
     // the rows that have something in them are shown, and at least two
     let shown = 2;
-    form.rows.forEach((row, index) => { if (Object.values(row).some((box) => String(box).trim())) shown = Math.max(shown, index + 1); });
+    form.rows.forEach((row, index) => {
+      // the files skipped, as they start, are not something put in the row
+      const filled = Object.entries(row).some(([field, box]) => String(box).trim() && !(field === "exclude" && isDefaultExclude(box)));
+      if (filled) shown = Math.max(shown, index + 1);
+    });
     scSims.shown = Math.min(SC_MOST, Math.max(shown, form.rows.length > 2 ? form.rows.length : 2));
     scWriteSims(form);
     scSims.errors = {};
@@ -9024,7 +9037,10 @@
   }
 
   function scRowEmpty(n) {
-    return Object.values(SC_BOXES).every((id) => !$(`sc-${id}_${n}`).value.trim());
+    return Object.entries(SC_BOXES).every(([field, id]) => {
+      const text = $(`sc-${id}_${n}`).value.trim();
+      return !text || (field === "exclude" && isDefaultExclude(text));
+    });
   }
 
   function scAskProbe(n, delay) {
@@ -9107,6 +9123,8 @@
       const probe = scSims.probes[n];
       const detected = Boolean(scSims.auto[n] && probe && probe.layout && probe.directory === "found" && !scSims.pending[n]);
       $(`sc-ndown_${n}`).classList.toggle("is-detected", detected);
+      const skippingByDefault = isDefaultExclude($(`sc-exclude_${n}`).value);
+      $(`sc-exclude_${n}`).classList.toggle("is-detected", skippingByDefault);
       for (const field of ["name", "simdir", "ndown"]) {
         if (shownErrors[field] && field !== "name") lines.push(line(shownErrors[field], "error"));
       }
@@ -9134,6 +9152,8 @@
         if (last && last.classList.contains("is-ok")) lines[lines.length - 1] = el("span", { class: "group__pair" }, last, layoutLine);
         else lines.push(layoutLine);
       }
+      // the files skipped are in a part of the row that starts closed, so are said here, once the row is in use
+      if (skippingByDefault && !scRowEmpty(n)) lines.push(line(defaultExcludeLine(), "detected"));
       message(`sc-m-${n}`, lines, false);
     }
     const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);
@@ -9165,7 +9185,7 @@
     $(`sc-remove-${n}`).addEventListener("click", () => {
       const form = scReadSims();
       form.rows.splice(n - 1, 1);
-      while (form.rows.length < SC_MOST) form.rows.push({ name: "", simdir: "", ndown: "", exclude: "", require: "" });
+      while (form.rows.length < SC_MOST) form.rows.push({ name: "", simdir: "", ndown: "", exclude: state.default_exclude || "", require: "" });
       scWriteSims(form);
       scSims.shown = Math.max(2, scSims.shown - 1);
       scSims.errors = {};

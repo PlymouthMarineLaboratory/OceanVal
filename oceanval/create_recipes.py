@@ -764,6 +764,12 @@ def _passes_filters(path, exclude=None, require=None):
     )
 
 
+# What the oceanval window's Skip file names containing box starts with. Restart
+# files are never left out without being asked: only the file filters leave
+# files out, and the window starts them with this, for the user to remove.
+DEFAULT_EXCLUDE = "restart"
+
+
 def simulation_paths(simdir, ndown, exclude=None, require=None):
     """Every output file ndown directories below simdir, leaving out those
     matchup() would, given its exclude and require."""
@@ -771,8 +777,7 @@ def simulation_paths(simdir, ndown, exclude=None, require=None):
     return [
         path
         for path in sorted(glob.glob(pattern))
-        if "restart" not in os.path.basename(path)
-        and _passes_filters(path, exclude, require)
+        if _passes_filters(path, exclude, require)
     ]
 
 
@@ -781,13 +786,9 @@ _MONTH_DIRS = [f"{month:02d}" for month in range(1, 13)]
 
 
 def _has_nc(directory):
-    """Whether directory holds an output file (restart files do not count)."""
+    """Whether directory holds an output file."""
     with os.scandir(directory) as entries:
-        return any(
-            entry.name.endswith(".nc") and "restart" not in entry.name
-            for entry in entries
-            if entry.is_file()
-        )
+        return any(entry.name.endswith(".nc") for entry in entries if entry.is_file())
 
 
 def folder_layout(simdir):

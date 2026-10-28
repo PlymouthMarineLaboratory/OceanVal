@@ -67,7 +67,7 @@ class TestIndexTimes:
         assert len(times[files[1]]) == 28
         assert found == [(1, 2), (2, 2)]
 
-    def test_files_known_and_restart_files_are_not_read(self, monkeypatch):
+    def test_files_known_are_not_read_but_restart_files_are(self, monkeypatch, tmp_path):
         files = example_files("2003/01", "2003/02")
         known = {files[0]: monthly(2003, [1])}
         opened = []
@@ -76,12 +76,15 @@ class TestIndexTimes:
             matchall.xr, "open_dataset", lambda path, **kwargs: opened.append(path) or open_dataset(path, **kwargs)
         )
 
-        times = matchall.index_times(files + ["/sim/restart_2003.nc"], times=known)
+        restart = str(tmp_path / "x_restart_2003.nc")
+        shutil.copy(files[1], restart)
+        times = matchall.index_times(files + [restart], times=known)
 
         assert times is known
-        assert list(times) == files
+        # left out only by the file filters, never by name
+        assert list(times) == files + [restart]
         assert times[files[0]] is not None and len(times[files[0]]) == 1
-        assert set(opened) == {files[1]}
+        assert set(opened) == {files[1], restart}
         # and nothing at all to read is not an error
         assert matchall.index_times([]) == {}
 
@@ -215,7 +218,7 @@ class TestIndexTimesInWorkers:
         files = example_files("2003/01", "2003/02", "2003/03", "2003/04")
         known = {files[2]: monthly(2003, [3])}
 
-        times = matchall.index_times(files + ["/sim/restart_2003.nc"], times=known, workers=2)
+        times = matchall.index_times(files, times=known, workers=2)
 
         assert shared_out["shared"] == [([files[1], files[3]], 2)]
         assert times is known and list(times) == [files[2], files[0], files[1], files[3]]

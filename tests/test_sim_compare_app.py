@@ -147,6 +147,23 @@ class TestSimulations:
         status, reply = post(app, "/api/simcompare_sims", {"form": form})
         assert status == 400 and "same name" in reply["errors"]["rows"]["1"]["name"]
 
+    def test_the_files_skipped_start_with_restart_and_a_row_of_only_that_is_unused(self, app, sims, tmp_path):
+        assert sim_compare_forms.blank_sim()["exclude"] == "restart"
+        assert state(app)["default_exclude"] == "restart"
+        # the rows as they start are no simulations, and nothing is wrong with them
+        assert sim_compare_forms.check_sims(sim_compare_forms.default_sims_form(str(tmp_path)), str(tmp_path)) == (
+            None, {"simulations": "Give at least two simulations to compare."})
+        to_sims(app)
+        # a third row left as it starts is not a simulation to name
+        form = sims_form()
+        form["rows"].append(sim_compare_forms.blank_sim())
+        assert post(app, "/api/simcompare_sims", {"form": form}) == (200, {"ok": True})
+        # but anything else in it is
+        form["rows"][2]["name"] = "Third"
+        wait_for(lambda: app._sc_all_read())
+        sims_found, errors = sim_compare_forms.check_sims(sim_compare_forms.clean_sims_form(form, str(tmp_path)), str(tmp_path))
+        assert errors["rows"]["2"]["simdir"]
+
     def test_the_simulations_are_read(self, app, sims):
         shown = to_variables(app)
         assert app.view == "simcompare_variables"
@@ -772,6 +789,39 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
         # a directory without the layout empties what OceanVal filled in
         page.fill("#sc-dir_2", "base")
         page.wait_for_function("document.querySelector('#sc-ndown_2').value === ''")
+    finally:
+        app.close()
+
+
+def test_a_simulation_row_starts_skipping_restart_files_in_amber(browser, tmp_path):
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    amber = lambda n: page.locator(f"#sc-exclude_{n}").evaluate("node => node.classList.contains('is-detected')")
+    try:
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-simcompare")
+        page.wait_for_selector("#view-simcompare-sims:not([hidden])")
+        # every row starts with it, in amber, but an unused row is not a simulation to name
+        assert [page.input_value(f"#sc-exclude_{n}") for n in (1, 2)] == ["restart", "restart"]
+        assert amber(1) and amber(2)
+        assert page.is_hidden("#sc-row-3")
+        assert "skipped" not in page.inner_text("#sc-m-1")
+        assert "Give this simulation a name" not in page.inner_text("#sc-m-1")
+        page.fill("#sc-dir_1", "base")
+        page.wait_for_function("document.querySelector('#sc-m-1').innerText.includes('Files with restart in their names are skipped. Remove restart to include them.')")
+        # a row added starts the same way
+        page.click("#sc-add")
+        assert page.input_value("#sc-exclude_3") == "restart" and amber(3)
+        # changing it makes it the user's, and the line goes
+        page.click("#sc-row-1 summary")
+        page.fill("#sc-exclude_1", "restart 5d")
+        assert not amber(1)
+        assert "skipped" not in page.inner_text("#sc-m-1")
+        page.fill("#sc-exclude_1", "")
+        assert not amber(1)
     finally:
         app.close()
 

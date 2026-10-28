@@ -7,6 +7,7 @@ import xarray as xr
 
 import oceanval
 from oceanval.create_recipes import (
+    DEFAULT_EXCLUDE,
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
     RECIPE_VARIABLES,
@@ -484,14 +485,19 @@ class TestVariableIdentification:
             "ptrc",
         ]
 
-    def test_restart_files_are_ignored(self, simulation, tmp_path):
+    def test_restart_files_are_left_to_the_user(self, simulation, tmp_path):
         write_netcdf(
             str(tmp_path / "sim" / "2011" / "01" / "nemo_restart.nc"),
             {"junk": "sea water salinity"},
         )
 
+        # nothing is left out unasked: a restart file is a stream like any other
         names = [os.path.basename(f) for f in simulation_files(simulation, 2)]
+        assert "nemo_restart.nc" in names
+        # until the file filters leave it out, as the window starts them
+        names = [os.path.basename(f) for f in simulation_files(simulation, 2, exclude=["restart"])]
         assert not [name for name in names if "restart" in name]
+        assert DEFAULT_EXCLUDE == "restart"
 
 
 class TestGeneratedScript:

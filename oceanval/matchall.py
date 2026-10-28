@@ -1030,7 +1030,7 @@ def index_times(paths, fvcom=False, times=None, progress=None, workers=None):
     paths, as {path: DataFrame with year, month and day columns}.
 
     Files already in times (a dict of the same, which is added to and
-    returned) are not read again, nor are restart files. The name of the
+    returned) are not read again. The name of the
     time dimension comes from the first file read. progress(done, total) is
     called as each file is read, if given; otherwise a bar is shown.
 
@@ -1038,7 +1038,7 @@ def index_times(paths, fvcom=False, times=None, progress=None, workers=None):
     process may use, or workers if given (0 or 1 reads them all here).
     """
     times = dict() if times is None else times
-    #todo = [ff for ff in dict.fromkeys(paths) if ff not in times and "restart" not in ff]
+    todo = [ff for ff in dict.fromkeys(paths) if ff not in times]
     if len(todo) == 0:
         return times
 
@@ -1131,10 +1131,6 @@ def extract_variable_mapping(folder, exclude=[], n_check=None):
         A DataFrame containing the paths to the netCDF files
     """
 
-    # add restart to exclude, in a list of its own: appending to the one given
-    # changed matchup()'s default, so each matchup in a session excluded
-    # "restart" once more, and the window (which reads the defaults) saw it
-    #exclude = [*(exclude or []), "restart"]
     # the files of this simulation only: kept from an earlier matchup in the
     # session, its files were searched for the cell thickness too, and one of
     # another simulation holding it could be used
@@ -1165,8 +1161,6 @@ def extract_variable_mapping(folder, exclude=[], n_check=None):
         # if n_check is not None and an integer, limit options to n_check
         if n_check is not None and isinstance(n_check, int):
             options = random.sample(options, min(n_check, len(options)))
-        #if True:
-            #options = [x for x in options if "restart" not in os.path.basename(x)]
 
         if len([x for x in options if ".nc" in x]) > 0:
             break

@@ -166,7 +166,7 @@ The following optional parameters can also be specified:
 - `overwrite`: Whether to make again any matchup this run makes that is in `out_dir` already. This defaults to True. False keeps and uses those already there, and a list overwrites only the ones it picks, each entry a variable or `"variable/source"`, e.g. `["temperature/COBE2"]`. Matchups of variables or sources a run does not match up are left in `out_dir` either way: see "Matchups from earlier runs" below.
 - `ask`: A boolean indicating whether to ask for confirmation before overwriting existing matchup files. This defaults to True.
 - `cache`: A boolean indicating whether to cache intermediate results. This defaults to False.
-- `exclude`: A list of strings that should not appear in any simulation files paths.
+- `exclude`: A list of strings that should not appear in any simulation files paths. Nothing is left out unless you say so: restart files, for example, are used unless `exclude` has `"restart"` in it. (The `oceanval` command starts its **Skip file names containing** box with `restart`, for you to remove if you want those files.)
 - `out_dir`: The path to the directory where matchup files should be saved. If not specified, matchup files will be saved in the execution directory.
 - `point_time_res`: The time resolution for the point (in-situ) observation matchup. This defaults ["year", "month", "day"] for totally precise matchups. Set to ["month", "day"], if you want to compare climatological simulation output with observations.
 - `n_check`: The number of files to check when identifying the file naming convention. OceanVal checks all files in a random subdirectory. Set n_check for a random subset in cases where all simulation files are in a single directory.

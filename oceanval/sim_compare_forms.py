@@ -7,6 +7,7 @@ step Analyze has (see oceanval.analysis_forms)."""
 import os
 
 from oceanval import analysis, analysis_forms, sim_compare, sim_unify
+from oceanval.create_recipes import DEFAULT_EXCLUDE
 
 MOST_SIMULATIONS = sim_compare.MOST_SIMULATIONS
 # the simulation rows the step starts with
@@ -18,7 +19,16 @@ MOST_ROWS = analysis_forms.MOST_ROWS
 
 
 def blank_sim():
-    return {"name": "", "simdir": "", "ndown": "", "exclude": "", "require": ""}
+    # the window starts the files skipped with restart, which the user can remove
+    return {"name": "", "simdir": "", "ndown": "", "exclude": DEFAULT_EXCLUDE, "require": ""}
+
+
+def row_is_blank(row):
+    """Whether a simulation's boxes are all empty, or as they start: the
+    files skipped are not the user's until they are changed."""
+    return not any(
+        value for box, value in row.items() if not (box == "exclude" and value == DEFAULT_EXCLUDE)
+    )
 
 
 def default_sims_form(cwd):
@@ -82,7 +92,7 @@ def check_sims(form, cwd):
     errors = {}
     keys = {}
     for index, row in enumerate(form["rows"]):
-        if not any(row.values()):
+        if row_is_blank(row):
             continue
         here = {}
         arguments, found = analysis_forms.check_setup(

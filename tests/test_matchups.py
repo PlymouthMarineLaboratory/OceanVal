@@ -358,7 +358,8 @@ class TestMatchupsQuestion:
         names = [
             "2011/x_2011_grid_T.nc",
             "2012/x_2012_grid_T.nc",
-            # a longer name than the example's, a skipped word, and a restart directory
+            # a longer name than the example's, a skipped word, and a restart directory,
+            # which, like any other, is left out only by the file filters
             "2012/x_20121_grid_T.nc",
             "2012/x_2012_bad_grid_T.nc",
             "restart/x_2013_grid_T.nc",
@@ -372,7 +373,8 @@ class TestMatchupsQuestion:
         monkeypatch.setitem(matchall.example_files, pattern, str(tmp_path / names[0]))
 
         found = matchall._files_found(str(tmp_path), [pattern], ["bad"], ["grid_T"], True)
-        assert found == {pattern: [str(tmp_path / names[0]), str(tmp_path / names[1])]}
+        # a restart directory is not left out unless the file filters say so
+        assert found == {pattern: [str(tmp_path / names[0]), str(tmp_path / names[1]), str(tmp_path / names[4])]}
         found = matchall._files_found(str(tmp_path), [pattern], ["bad"], ["nothing"], False)
         assert found == {pattern: []}
 

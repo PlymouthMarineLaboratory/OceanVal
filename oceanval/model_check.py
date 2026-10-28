@@ -400,7 +400,7 @@ def check(request, emit):
     listed = []
     for paths in files.values():
         for path in paths:
-            if path not in listed and "restart" not in path:
+            if path not in listed:
                 listed.append(path)
     total = len(listed)
     times = {}

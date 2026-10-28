@@ -5100,6 +5100,51 @@ def test_the_command_runs():
     assert "--port" in result.stdout
 
 
+def test_the_files_skipped_start_with_restart(app, tmp_path):
+    """Restart files are not left out unasked: the window starts the files
+    skipped with them, for the user to remove."""
+    from oceanval import analysis_forms
+
+    assert app_module.default_setup_form()["exclude"] == "restart"
+    assert analysis_forms.default_setup_form(str(tmp_path))["exclude"] == "restart"
+    assert get_json(app, "/api/state")[1]["default_exclude"] == "restart"
+    arguments, errors = check_setup(dict(SETUP_FORM, exclude="restart"), str(tmp_path))
+    assert arguments["exclude"] == ["restart"]
+    # removed, nothing is skipped
+    assert check_setup(dict(SETUP_FORM, exclude=""), str(tmp_path))[0]["exclude"] is None
+
+
+@pytest.mark.parametrize("tile", ["#home-analyze", "#home-validate"])
+def test_the_files_skipped_start_in_amber_in_a_browser(browser, tmp_path, tile):
+    """Validate and Analyze share the box: it starts with restart, said in
+    amber, until it is changed."""
+    write_simulation(tmp_path / "sim", tracers=True)
+    app = App(cwd=str(tmp_path))
+    app.leftovers_asked = True
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click(tile)
+        if tile == "#home-validate":
+            page.click('button.choice[data-action="matchup_validate"]')
+        amber = lambda: page.locator("#f-exclude").evaluate("node => node.classList.contains('is-detected')")
+        page.wait_for_selector("#view-setup:not([hidden])")
+        page.wait_for_function("document.getElementById('f-exclude').value === 'restart'")
+        assert amber()
+        assert "Files with restart in their names are skipped. Remove restart to include them." in page.inner_text("#m-simulation")
+        page.fill("#f-exclude", "restart 5d")
+        assert not amber()
+        assert "skipped. Remove restart" not in page.inner_text("#m-simulation")
+        assert "Only file names are checked" in page.inner_text("#m-simulation")
+        page.fill("#f-exclude", "")
+        assert not amber()
+        page.fill("#f-exclude", "restart")
+        assert amber()
+    finally:
+        app.close()
+
+
 def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
     """The whole of matching up only, driven as a user would, with a stand-in
     for the script, which would otherwise download observations."""

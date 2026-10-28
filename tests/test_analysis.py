@@ -8,6 +8,7 @@ import glob
 import json
 import os
 import re
+import shutil
 
 import cftime
 import numpy as np
@@ -448,6 +449,18 @@ class TestFiles:
         grid = found[0]["variables"]
         assert grid["thetao"] == {"long_name": "sea water potential temperature", "units": "degC", "levels": 3}
         assert found[1]["variables"]["P1_Chl"]["levels"] == 1
+
+    def test_restart_files_are_left_to_the_file_filters(self, tmp_path):
+        root = tmp_path / "sim"
+        write_analysis_simulation(str(root), daily=False)
+        first = sorted(root.glob("*/*grid_T.nc"))[0]
+        shutil.copy(first, first.with_name("sim_restart_2013.nc"))
+
+        # nothing is left out unasked, so it is a stream of its own, to be skipped or not
+        found = analysis.streams(str(root), 1)
+        assert [stream["pattern"] for stream in found if "restart" in stream["pattern"]] == ["sim_restart_**.nc"]
+        found = analysis.streams(str(root), 1, exclude=["restart"])
+        assert not [stream for stream in found if "restart" in stream["pattern"]]
 
     def test_a_variable_is_read_from_the_stream_holding_it(self, daily):
         found = analysis.streams(daily, 1)
