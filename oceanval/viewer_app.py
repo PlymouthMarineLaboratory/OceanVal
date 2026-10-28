@@ -58,10 +58,16 @@ def check_setup(form, cwd):
     error on the directories down."""
     from oceanval.app import _form
     from oceanval.app import check_setup as check
-    from oceanval.create_recipes import simulation_paths
+    from oceanval.app import _path
 
     form = _form(form, default_setup_form())
-    arguments, errors = check(dict(form, domain="global", start="0", end="0"), cwd)
+    # a file is used as it is: checked as its directory, with no directories down
+    path = _path(form["simdir"], cwd) if form["simdir"] else ""
+    is_file = bool(path) and os.path.isfile(path)
+    shared = dict(form, simdir=os.path.dirname(path), ndown="0") if is_file else form
+    arguments, errors = check(dict(shared, domain="global", start="0", end="0"), cwd)
+    if is_file:
+        arguments["simdir"] = path
     for name in ("domain", "start", "end"):
         arguments.pop(name, None)
         errors.pop(name, None)
@@ -69,7 +75,7 @@ def check_setup(form, cwd):
         arguments["missing"] = parse_missing(form["missing"])
     except ValueError as error:
         errors["missing"] = str(error)
-    if not errors and not simulation_paths(
+    if not errors and not viewer_catalogue.viewer_paths(
         arguments["simdir"], arguments["ndown"], arguments["exclude"], arguments["require"]
     ):
         errors["ndown"] = "There are no netCDF files there to look at."
@@ -343,12 +349,14 @@ class ViewerSteps:
         from oceanval import viewer_missing
         from oceanval.app import _path
 
+        simdir = _path(query["simdir"].strip(), self.cwd) if query.get("simdir", "").strip() else ""
         try:
-            ndown = int(query.get("ndown", ""))
-            assert ndown >= 0 and query.get("simdir", "").strip()
+            # a file has no directories down
+            ndown = 0 if os.path.isfile(simdir) else int(query.get("ndown", ""))
+            assert ndown >= 0 and simdir
         except (ValueError, AssertionError):
             return {"value": None, "ersem": False}
-        key = (_path(query["simdir"].strip(), self.cwd), ndown, query.get("exclude", ""), query.get("require", ""))
+        key = (simdir, ndown, query.get("exclude", ""), query.get("require", ""))
         with self._lock:
             if self._viewer_guessed is not None and self._viewer_guessed[0] == key:
                 return self._viewer_guessed[1]

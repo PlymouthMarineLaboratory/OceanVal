@@ -346,3 +346,55 @@ def test_the_page_says_how_to_open_it(app):
     body = urllib.request.urlopen(app.url).read().decode()
     assert '"viewer":' in body and "renderViewer" in body
     assert json.loads(get(app, "/api/state")[1])["viewer"]["coast_mesh"] in (True, False)
+
+
+class TestOneFile:
+    """The setup page takes the path of one file as well as a directory: used as it is, whatever its name,
+    with no directories down and no file name filters."""
+
+    @pytest.fixture
+    def one_file(self, tmp_path):
+        from viewer_simulations import land_simulation
+
+        import xarray as xr
+
+        root = land_simulation(str(tmp_path / "land"), land=-999.0)
+        # the three files' times in one file, named as a file that the filters would leave out
+        with xr.open_mfdataset(os.path.join(root, "land_*.nc"), combine="by_coords") as ds:
+            path = str(tmp_path / "restart_all.nc")
+            ds.load().to_netcdf(path, encoding={"thetao": {"_FillValue": None}})
+        return path
+
+    def test_check_setup_keeps_the_file_and_asks_no_depth(self, one_file, tmp_path):
+        arguments, errors = viewer_app.check_setup(
+            {"simdir": one_file, "ndown": "", "exclude": "restart", "require": "nothing", "missing": ""}, str(tmp_path)
+        )
+        assert errors == {}
+        assert arguments["simdir"] == one_file
+
+    def test_a_directory_still_needs_its_depth(self, one_file, tmp_path):
+        _, errors = viewer_app.check_setup(
+            {"simdir": os.path.dirname(one_file), "ndown": "", "exclude": "", "require": "", "missing": ""}, str(tmp_path)
+        )
+        assert "ndown" in errors
+
+    def test_scan_gives_the_one_file(self, one_file):
+        from oceanval import viewer_catalogue
+
+        found = viewer_catalogue.scan(one_file, 0, exclude="restart", require="nothing", wait=False)
+        try:
+            assert [stream["files"] for stream in found.streams] == [[one_file]]
+            assert found.simdir == os.path.dirname(one_file)
+        finally:
+            found.close()
+
+    def test_probe_calls_it_found_for_viewing_only(self, one_file, app):
+        app.action = viewer_app.VIEWER
+        found = app.probe(one_file, "", "")
+        assert (found["directory"], found["file"], found["files"], found["all_files"]) == ("found", True, 1, 1)
+        app.action = "matchup_validate"
+        assert app.probe(one_file, "0", "")["directory"] == "missing"
+
+    def test_the_missing_value_is_looked_for_without_a_depth(self, one_file, app):
+        answer = app.viewer_missing_guess({"simdir": one_file, "ndown": "", "exclude": "restart", "require": ""})
+        assert answer["value"] == "-999"

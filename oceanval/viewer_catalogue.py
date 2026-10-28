@@ -386,16 +386,25 @@ def resolution(times):
     return "daily" if step == 1 else f"{step}-daily"
 
 
+def viewer_paths(simdir, ndown, exclude=None, require=None):
+    """The output files to look at: simdir itself if it is a file, used as it
+    is (whatever its name, not filtered, with no directories down), else those
+    ndown directories below it that pass the file filters."""
+    if os.path.isfile(simdir):
+        return [simdir]
+    return simulation_paths(simdir, ndown, exclude, require)
+
+
 def scan(simdir, ndown, exclude="", require="", progress=lambda **_: None, stopped=lambda: False, wait=True):
-    """The Catalogue of the output files ndown directories below simdir that
-    pass the file filters. progress(phase=, done=, total=) is told how far it
+    """The Catalogue of the output files ndown directories below simdir (or
+    simdir, if it is a file) that pass the file filters. progress(phase=, done=, total=) is told how far it
     has got, and stopped() is asked whether to give up (raising Stopped).
     With wait, the times of every file are read first. Without, only those of
     the first file of each file type are (and any the cache has), so that
     the Catalogue is there at once: each stream says how many of its files
     are "pending", and Catalogue.read_times reads the rest."""
     simdir = os.path.abspath(os.path.expanduser(simdir.strip()))
-    paths = simulation_paths(simdir, int(ndown), exclude.split() or None, require.split() or None)
+    paths = viewer_paths(simdir, int(ndown or 0), exclude.split() or None, require.split() or None)
     if not paths:
         raise ValueError("No netCDF files were found.")
     groups = OrderedDict()
@@ -421,7 +430,9 @@ def scan(simdir, ndown, exclude="", require="", progress=lambda **_: None, stopp
                 read[members[0]] = file_times.file_times(members[0])
         streams.append(_stream(number, pattern, members, read))
         progress(phase="variables", done=number + 1, total=len(groups))
-    return Catalogue(simdir, int(ndown), streams, read)
+    # the files are named relative to the directory they are in
+    root = os.path.dirname(simdir) if os.path.isfile(simdir) else simdir
+    return Catalogue(root, int(ndown or 0), streams, read)
 
 
 def _stream(number, pattern, members, read):

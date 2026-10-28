@@ -1319,7 +1319,7 @@
     <div class="banner" id="setup-error" role="alert" hidden></div>
     <form class="setup-form" id="setup-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box">
-        <div class="g-row"><label class="g-label is-required" for="f-simdir">Which directory stores your simulation data? <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
         <div class="ndown-row">
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
           <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required>
@@ -4325,6 +4325,9 @@
     $("setup-domain").hidden = simulationOnly();
     // the numbers to treat as missing are asked here only for viewing (an analysis asks them with its options)
     $("setup-missing").hidden = state.action !== "viewer";
+    // viewing can also be given the path of one file
+    $("simdir-question").textContent = state.action === "viewer"
+      ? "Which directory or file path stores your simulation data?" : "Which directory stores your simulation data?";
     fillMissingRows();
     setupErrors = {};
     // the demo's one year is not to be widened to the years its file covers
@@ -4342,12 +4345,29 @@
       delete setupErrors[name];
       if (name === "start" || name === "end") autoYears = false;
       if (name === "ndown") autoNdown = false;
+      if (name === "simdir" && state.action === "viewer") newSimulationForViewer();
       if (PROBED.has(name)) askProbe(400);
       refreshSetup();
     });
   }
 
   $("setup-form").addEventListener("submit", (event) => { event.preventDefault(); submitSetup(); });
+
+  // a different directory to view: its files are searched for afresh, so the directories down are
+  // blank for the folders' layout to fill and the missing values are looked for again
+  function newSimulationForViewer() {
+    setup.ndown = $("f-ndown").value = "";
+    autoNdown = false;
+    $("f-ndown").classList.remove("is-oceanval");
+    delete setupErrors.ndown;
+    missingRows = [];
+    missingTouched = false;
+    missingGuess = null;
+    missingKey = null;
+    missingNumber++;
+    missingLooking = false;
+    renderMissingRows();
+  }
 
   function askProbe(delay) {
     clearTimeout(probeTimer);
@@ -4536,7 +4556,9 @@
     const text = (name) => String(setup[name]).trim();
     if (!text("simdir")) errors.simdir = errors.simdir || "";
     else if (probe && probe.directory === "missing") errors.simdir = "There is no directory at this path.";
-    if (!isInteger(setup.ndown) || +setup.ndown < 0) errors.ndown = errors.ndown || (text("ndown") ? "This must be a whole number, 0 or more." : "");
+    const oneFile = Boolean(probe && probe.file);
+    if (oneFile) delete errors.ndown;
+    else if (!isInteger(setup.ndown) || +setup.ndown < 0) errors.ndown = errors.ndown || (text("ndown") ? "This must be a whole number, 0 or more." : "");
     else if (probe && probe.directory === "found" && probe.files === 0) errors.ndown = errors.ndown || "";
     // an analysis chooses its years later, for each variable, and has no domain; nor has viewing
     const analyzing = simulationOnly();
@@ -4595,6 +4617,13 @@
       } else if (depth !== null) {
         simulation.push(line(`No netCDF files ${depthText(depth)}.`, "nofiles"));
       }
+    }
+    // one file is used as it is, so the depth and the file name filters are not used
+    const oneFile = !finding && Boolean(probe && probe.file) && probe.directory === "found";
+    $("f-ndown").disabled = oneFile;
+    if (oneFile) {
+      counted = "1 netCDF file found";
+      simulation.push(line("A single file is used as it is: directories down and the file name filters do not apply."));
     }
     const skippingByDefault = isDefaultExclude(setup.exclude);
     $("f-exclude").classList.toggle("is-detected", skippingByDefault);

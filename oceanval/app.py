@@ -1910,7 +1910,10 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                         else self.setup_form
                     ),
                     "error": self.setup_error,
-                    "recent": [d for d in user_cache.recent_sim_dirs() if os.path.isdir(d)],
+                    "recent": [
+                        d for d in user_cache.recent_sim_dirs()
+                        if os.path.isdir(d) or (self.action == VIEWER and os.path.isfile(d))
+                    ],
                     "output_years": self._output_years_state(),
                 },
                 "validate": {
@@ -4690,6 +4693,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "all_files": None,
             "years": None,
             "layout": None,
+            "file": False,
         }
         found["out_exists"] = bool(out.strip()) and os.path.isfile(
             _path(out.strip(), self.cwd)
@@ -4720,6 +4724,10 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         if not simdir.strip():
             return found
         path = _path(simdir.strip(), self.cwd)
+        if self.action == VIEWER and os.path.isfile(path):
+            # one file, used as it is: no directories down, not filtered
+            found.update(directory="found", file=True, files=1, all_files=1)
+            return found
         if not os.path.isdir(path):
             found["directory"] = "missing"
             return found

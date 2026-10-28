@@ -488,6 +488,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `is-found` / `is-ersem` with Analyze's wording, "Attempting to identify missing value range" and a spinner while it runs. Typing in or
   removing a row (`missingEdited`) makes the rows the user's for good; rows OceanVal filled are emptied when the simulation or
   filters change. A simulation viewed is recorded in `.oceanvalcache` (`record_sim_dir`).
+  **Editing the simulation directory searches afresh** (`newSimulationForViewer`): the directories down are blanked for the folders' layout to
+  fill again, and the missing-value rows (even typed ones) are emptied and looked for again. Viewer only: Validate/Analyze keep a typed depth.
+  **The simulation box also takes the path of one file** (`viewer_catalogue.viewer_paths`, the viewer's `check_setup`, `probe()["file"]`): used as it is, whatever its name, not filtered by exclude/require, with no directories down (the box is disabled; the label says "directory or file path"). Browse… stays a folder picker.
 - `viewer_catalogue.scan(wait=False)` reads the variables of each file type's first file; `Catalogue.read_times` then reads
   every file's times **in a process of its own**: `viewer_times.py` is run as a script by path (`python -I`), imports nothing
   of OceanVal (a test checks), and has its own spawn pool (half the cores); `Reading.cancel` kills it, which Back and Restart

@@ -183,6 +183,49 @@ def test_the_rows_are_taken_back_when_the_simulation_changes(page, tmp_path):
     assert tab.is_hidden("#missing-found")
 
 
+def test_a_new_directory_is_searched_afresh(page, simulation, tmp_path):
+    from viewer_simulations import land_simulation
+
+    tab, app = page
+    tab.fill("#f-simdir", simulation)
+    tab.wait_for_function("() => document.querySelector('#f-ndown').value === '2'")
+    tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
+    # the depth and the missing value are the user's own
+    tab.fill("#f-ndown", "2")
+    tab.fill("#missing-from-0", "-9")
+    assert "is-detected" not in tab.get_attribute("#f-ndown", "class")
+    # another directory: both are looked for again
+    tab.fill("#f-simdir", land_simulation(str(tmp_path / "land"), land=-999.0))
+    tab.wait_for_function("() => document.querySelector('#f-ndown').value === '0'")
+    tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
+    assert "is-detected" in tab.get_attribute("#f-ndown", "class")
+    tab.wait_for_function("() => document.querySelector('#missing-from-0').value === '-999'")
+    assert "is-found" in tab.get_attribute("#missing-from-0", "class")
+
+
+def test_the_path_of_one_file_can_be_given(page, tmp_path):
+    from viewer_simulations import land_simulation
+
+    tab, app = page
+    assert tab.text_content("#simdir-question") == "Which directory or file path stores your simulation data?"
+    root = land_simulation(str(tmp_path / "land"), land=-999.0)
+    tab.fill("#f-simdir", root)
+    tab.wait_for_function("() => document.querySelector('#f-ndown').value === '0'")
+    tab.fill("#f-simdir", os.path.join(root, "land_01.nc"))
+    tab.wait_for_function("() => document.querySelector('#f-ndown').disabled")
+    tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
+    assert tab.text_content("#ndown-found") == "1 netCDF file found"
+    assert tab.is_enabled("#continue")
+    tab.click("#continue")
+    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    assert [len(stream["files"]) for stream in app.viewer_catalogue.streams] == [1]
+    # back to a directory: the depth is asked and found again
+    tab.click("#vw-back")
+    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.fill("#f-simdir", root)
+    tab.wait_for_function("() => !document.querySelector('#f-ndown').disabled && document.querySelector('#f-ndown').value === '0'")
+
+
 def test_an_ersem_simulation_has_zeros_assumed_to_be_missing(page, simulation, monkeypatch):
     from oceanval import recipes_gui
 
