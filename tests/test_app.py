@@ -3466,6 +3466,32 @@ class TestServer:
         assert post(app, "/api/visibility", {"page": "a", "hidden": True})[0] == 200
         assert app.closed.wait(5)
 
+    def test_a_page_that_is_closing_is_not_given_the_hidden_time(self, app):
+        # a closing tab says it is hidden, then that it is being unloaded
+        app.page_timeout = 30
+        app.closing_page_timeout = 1
+        assert post(app, "/api/visibility", {"page": "a", "hidden": True}) == (200, {"ok": True})
+        assert post(app, "/api/visibility", {"page": "a", "hidden": True, "closing": True})[0] == 200
+        assert app.closed.wait(6)
+        assert app.closed_reason == "The browser window was closed."
+
+    def test_a_page_closing_is_still_closing_if_told_hidden_after(self, app):
+        app.page_timeout = 30
+        app.closing_page_timeout = 1
+        assert get_json(app, "/api/state", page="a")[0] == 200
+        assert post(app, "/api/visibility", {"page": "a", "hidden": True, "closing": True})[0] == 200
+        assert post(app, "/api/visibility", {"page": "a", "hidden": True})[0] == 200
+        assert app.closed.wait(6)
+
+    def test_a_reloaded_page_keeps_the_app_open(self, app):
+        app.page_timeout = 30
+        app.closing_page_timeout = 1
+        assert get_json(app, "/api/state", page="old")[0] == 200
+        assert post(app, "/api/visibility", {"page": "old", "hidden": False, "closing": True})[0] == 200
+        # the new page is heard from at once
+        assert get_json(app, "/api/state", page="new")[0] == 200
+        assert not app.closed.wait(3)
+
     def test_saying_a_page_is_hidden_needs_the_token(self, app):
         assert post(app, "/api/visibility", {"page": "a", "hidden": True}, token="wrong")[0] == 403
         assert "a" not in app._pages

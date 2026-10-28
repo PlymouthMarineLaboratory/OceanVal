@@ -76,18 +76,22 @@ const OceanValGUI = (() => {
   // tells the app when this page's tab is not looked at, and when it is
   // again, as a browser may then slow the page's requests or freeze it
   // (Safari does), which the app would otherwise take for a closed window
-  // (see App.page_visibility). keepalive, so that it is sent as the tab goes
+  // (see App.page_visibility). keepalive, so that it is sent as the tab goes.
+  // A tab being closed says it is hidden first, which would look like one left
+  // in the background, so a page being unloaded says so too (pagehide; one
+  // kept to go Back to, persisted, is not)
   function tellVisibility(token, root) {
-    const tell = () => {
+    const tell = (closing) => {
       fetch(`${root}api/visibility`, {
         method: "POST",
         cache: "no-store",
         keepalive: true,
         headers: { "Content-Type": "application/json", "X-OceanVal-Token": token },
-        body: JSON.stringify({ page: pageId, hidden: document.hidden }),
+        body: JSON.stringify({ page: pageId, hidden: document.hidden, closing: closing === true }),
       }).catch(() => {});
     };
-    document.addEventListener("visibilitychange", tell);
+    document.addEventListener("visibilitychange", () => tell());
+    window.addEventListener("pagehide", (event) => { if (!event.persisted) tell(true); });
     if (document.hidden) tell();
   }
 

@@ -398,3 +398,33 @@ class TestOneFile:
     def test_the_missing_value_is_looked_for_without_a_depth(self, one_file, app):
         answer = app.viewer_missing_guess({"simdir": one_file, "ndown": "", "exclude": "restart", "require": ""})
         assert answer["value"] == "-999"
+
+
+# ---- closing the browser ----
+
+def test_closing_the_browser_quits_while_viewing(app, simulation):
+    """The viewer is open and its times are being read: the page going quiet
+    quits the command and lets go of what it was reading."""
+    app.page_timeout = 2
+    _view(app, simulation)
+    catalogue = app.viewer_catalogue
+    assert get_json(app, "/api/state", page="a")[0] == 200
+    assert app.closed.wait(15)
+    assert app.closed_reason == "The browser window was closed."
+    assert app.viewer_catalogue is None and catalogue._stop.is_set()
+
+
+def test_closing_the_browser_quits_while_the_files_are_read(app, simulation, monkeypatch):
+    """A file read that never ends, as on a stalled network drive, does not
+    hold the quitting up."""
+    app.page_timeout = 2
+    release = threading.Event()
+    monkeypatch.setattr(viewer_app.viewer_catalogue, "scan", lambda *args, **kwargs: release.wait(30) and None)
+    assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
+    assert post(app, "/api/setup", {"form": _form(simulation)}) == (200, {"ok": True})
+    assert get_json(app, "/api/state", page="a")[0] == 200
+    try:
+        assert app.closed.wait(15)
+        assert app.closed_reason == "The browser window was closed."
+    finally:
+        release.set()

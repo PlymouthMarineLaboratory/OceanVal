@@ -540,7 +540,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - **Closing the browser quits the command, but a quiet window never stops a run** (the user's rule, 2026-10-25: Safari froze
   a tab in the background and the Analyze run was killed). `App._watch` drops a page silent for `PAGE_TIMEOUT` (15 s), or
   `HIDDEN_PAGE_TIMEOUT` (30 min) for one that said its tab is hidden (`OceanValGUI.tellVisibility`, a keepalive POST to
-  `/api/visibility` on `visibilitychange` → `App.page_visibility`); with every page gone it quits only when not `_busy()`
+  `/api/visibility` on `visibilitychange` → `App.page_visibility`); **a closing tab says it is hidden first** (Chromium), so `tellVisibility` also posts `closing` on `pagehide`
+  (not when `persisted`), which `page_visibility` gives only `CLOSING_PAGE_TIMEOUT` (4 s) and which a later "hidden" does not undo
+  (without it, closing the browser left the command running for 30 min); with every page gone it quits only when not `_busy()`
   (status `starting`/`running`, which `_run_finished` keeps through a matchup's hand-over to its report run), otherwise it
   prints the window's link to the terminal once and quits when the run is over. `poll()` skips its 150 ms wait while hidden.
 - create_recipes runs in a thread of the app; `recipes_gui.hosted_by(app)` makes its window

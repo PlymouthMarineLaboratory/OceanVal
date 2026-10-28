@@ -4,6 +4,7 @@ step Analyze shares, which ends in the run."""
 
 import ast
 import os
+import threading
 
 import numpy as np
 import pytest
@@ -953,3 +954,25 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert errors == []
     finally:
         app.close()
+
+
+class TestClosingTheBrowser:
+    def test_it_quits_at_the_options_step(self, app, sims):
+        app.page_timeout = 2
+        to_options(app)
+        assert get_json(app, "/api/state", page="a")[0] == 200
+        assert app.closed.wait(15)
+        assert app.closed_reason == "The browser window was closed."
+
+    def test_it_quits_while_the_simulations_are_read(self, app, sims, monkeypatch):
+        app.page_timeout = 2
+        release = threading.Event()
+        monkeypatch.setattr(app, "_sc_read_streams", lambda *args, **kwargs: release.wait(30))
+        to_sims(app)
+        assert post(app, "/api/simcompare_sims", {"form": sims_form()}) == (200, {"ok": True})
+        assert get_json(app, "/api/state", page="a")[0] == 200
+        try:
+            assert app.closed.wait(15)
+            assert app.closed_reason == "The browser window was closed."
+        finally:
+            release.set()

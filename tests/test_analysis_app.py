@@ -5,6 +5,7 @@ gaps in them, the climatology and phenology pop-outs, and the run."""
 import ast
 import os
 import shlex
+import threading
 
 import numpy as np
 import pytest
@@ -2125,3 +2126,40 @@ def test_each_transect_has_an_i_beside_its_four_options(browser, tmp_path):
     finally:
         page.close()
         app.close()
+
+
+class TestClosingTheBrowser:
+    def test_it_quits_at_the_options_step(self, app, sim):
+        app.page_timeout = 2
+        to_options(app)
+        assert get_json(app, "/api/state", page="a")[0] == 200
+        assert app.closed.wait(15)
+        assert app.closed_reason == "The browser window was closed."
+        assert app.analyze_check is None
+
+    def test_it_quits_while_the_variables_are_read(self, app, sim, monkeypatch):
+        app.page_timeout = 2
+        release = threading.Event()
+        monkeypatch.setattr(app, "_read_streams", lambda *args, **kwargs: release.wait(30))
+        assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
+        assert post(app, "/api/setup", {"form": setup_form(app)}) == (200, {"ok": True})
+        assert get_json(app, "/api/state", page="a")[0] == 200
+        try:
+            assert app.closed.wait(15)
+            assert app.closed_reason == "The browser window was closed."
+        finally:
+            release.set()
+
+    def test_a_run_started_is_left_to_go_on(self, app, sim, runs, capsys):
+        app.page_timeout = 1
+        to_options(app)
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        assert get_json(app, "/api/state", page="a")[0] == 200
+        assert post(app, "/api/analyze_run") == (200, {"ok": True})
+        # starting, the run itself recorded and not started: never quit
+        assert app.status == "starting"
+        assert not app.closed.wait(3)
+        assert capsys.readouterr().out.count("The OceanVal window has gone quiet") == 1

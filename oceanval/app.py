@@ -148,6 +148,9 @@ VALIDATE_MENU = "validate_menu"
 HEARTBEAT_HOLD = 10
 PAGE_TIMEOUT = 15
 HIDDEN_PAGE_TIMEOUT = 30 * 60
+# a page that said it is being unloaded (tab or browser closed, or reloaded: the
+# new page is heard from at once), though a closing tab says it is hidden first
+CLOSING_PAGE_TIMEOUT = 4
 
 # how many simulations the compare step has rows for
 COMPARE_ROWS = 5
@@ -1618,11 +1621,13 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # closed, which is longer than the state request it waits on
         self.page_timeout = PAGE_TIMEOUT
         self.hidden_page_timeout = HIDDEN_PAGE_TIMEOUT
+        self.closing_page_timeout = CLOSING_PAGE_TIMEOUT
         self._pages = {}
         self._page_seen = False
         # the pages in a tab not looked at, and whether the terminal has been
         # told that the pages have all gone quiet while a run goes on
         self._hidden = set()
+        self._closing = set()
         self._quiet_told = False
         self._lock = threading.RLock()
         self._changed = threading.Condition(self._lock)
@@ -1781,14 +1786,24 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._page_seen = True
             self._quiet_told = False
 
-    def page_visibility(self, page, hidden):
+    def page_visibility(self, page, hidden, closing=False):
         """Note that the page with this id is in a tab not looked at (hidden),
         or is looked at again. A browser may slow or freeze such a page, so it
-        is given longer to be heard from (see _watch)."""
+        is given longer to be heard from (see _watch). A page that is closing
+        (it is being unloaded) is given only a moment: a browser says a tab it
+        closes is hidden first, which must not count as a tab left in the
+        background."""
         if not page:
             return
         page = str(page)[:64]
         with self._lock:
+            if closing:
+                self._hidden.discard(page)
+                self._closing.add(page)
+                return
+            if page in self._closing:
+                # said to be hidden as it closed, and heard after saying so
+                return
             if hidden:
                 self._hidden.add(page)
             else:
@@ -1828,10 +1843,16 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             with self._lock:
                 now = time.monotonic()
                 for page, seen in list(self._pages.items()):
-                    timeout = self.hidden_page_timeout if page in self._hidden else self.page_timeout
+                    if page in self._closing:
+                        timeout = self.closing_page_timeout
+                    elif page in self._hidden:
+                        timeout = self.hidden_page_timeout
+                    else:
+                        timeout = self.page_timeout
                     if now - seen > timeout:
                         del self._pages[page]
                         self._hidden.discard(page)
+                        self._closing.discard(page)
                 gone = self._page_seen and not self._pages
                 busy = gone and self._busy()
                 if busy and not self._quiet_told:
@@ -5471,7 +5492,9 @@ class _Handler(recipes_gui._Handler):
             return
         app = self.app
         if path == "/api/visibility":
-            app.page_visibility(payload.get("page"), bool(payload.get("hidden")))
+            app.page_visibility(
+                payload.get("page"), bool(payload.get("hidden")), bool(payload.get("closing"))
+            )
             self._reply_json(200, {"ok": True})
             return
         if path == "/api/setup":
