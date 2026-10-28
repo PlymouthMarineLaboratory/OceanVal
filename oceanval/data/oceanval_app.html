@@ -885,12 +885,14 @@
   .vw-years-note { margin: 0; color: var(--muted); font-size: 12.5px; }
   .vw-years-note.is-error { color: var(--red); font-weight: 600; }
   #vw-c-years .vw-meter { margin-top: 0; }
-  /* the map (a Bokeh figure that fills its box) is given the stage's height. Two are stacked: the next
-     frame of an animation is drawn in the one behind, then shown, so there is no blank between frames */
+  /* the map is given the stage's height. Two are stacked: the next frame of an animation is drawn in the
+     one behind, then shown, so there is no blank between frames. A map whose x and y are distances is
+     sized to keep them on one scale (fitFigure) and centred; one of grid indices fills its box */
   .vw-stage { display: flex; flex-direction: column; min-height: calc(100vh - 170px); padding: 12px; }
   .vw-plot { position: relative; flex: 1; min-height: 420px; }
-  #vw-plot, #vw-plot-b { position: absolute; inset: 0; }
-  #vw-plot > div, #vw-plot-b > div { width: 100%; height: 100%; }
+  #vw-plot, #vw-plot-b { position: absolute; inset: 0; display: grid; place-items: center; }
+  #vw-plot.is-stretch > div, #vw-plot-b.is-stretch > div { width: 100%; height: 100%; }
+  #vw-plot.is-stretch, #vw-plot-b.is-stretch { display: block; }
   .vw-plot .is-back { visibility: hidden; }
   .vw-busy { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--overlay); border-radius: var(--radius-sm); }
   .vw-busy[hidden] { display: none; }
@@ -3740,11 +3742,50 @@
   let front = "vw-plot";
   let drawn = null;
   const figures = { "vw-plot": [], "vw-plot-b": [] };
+  // each figure's frame height / width (viewer_plots._render), or null to fill the box
+  const aspects = { "vw-plot": null, "vw-plot-b": null };
   function release(id) {
     for (const view of figures[id]) { try { view.remove(); } catch (error) { /* already gone */ } }
     figures[id] = [];
+    aspects[id] = null;
     $(id).replaceChildren();
   }
+  // The frame is made as large as fits its box at its aspect, so the map fills the box's width or its height:
+  // what is round the frame (axes, colour bar, toolbar) is the figure's size less the frame's, as last laid out
+  function fitFigure(id, view) {
+    const holder = $(id), aspect = aspects[id];
+    if (!view || !view.model || !view.frame || !view.el || !aspect) {
+      holder.classList.add("is-stretch");
+      return false;
+    }
+    const box = holder.getBoundingClientRect(), outer = view.el.getBoundingClientRect(), frame = view.frame.bbox;
+    if (!box.width || !box.height || !frame.width || !frame.height) return false;
+    const aroundW = outer.width - frame.width, aroundH = outer.height - frame.height;
+    const width = Math.max(40, Math.floor(Math.min(box.width - aroundW, (box.height - aroundH) / aspect)));
+    const height = Math.max(40, Math.floor(width * aspect));
+    const model = view.model;
+    if (model.sizing_mode === "fixed" && model.frame_width === width && model.frame_height === height) return false;
+    holder.classList.remove("is-stretch");
+    model.setv({ sizing_mode: "fixed", width: null, height: null, frame_width: width, frame_height: height });
+    // a new frame size alone is not laid out until asked (a new sizing_mode is)
+    if (view.invalidate_layout) view.invalidate_layout();
+    return true;
+  }
+  // fitted again once laid out at its size, as the axes' labels can take a little more or less room then
+  async function fitAndSettle(id, view) {
+    for (let pass = 0; pass < 3 && fitFigure(id, view); pass++) {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+  }
+  let fitQueued = false;
+  new ResizeObserver(() => {
+    if (fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(() => {
+      fitQueued = false;
+      if (figures[front].length) fitAndSettle(front, figures[front][0]);
+    });
+  }).observe($("vw-plot-wrap"));
   function disposeFigures() {
     release("vw-plot");
     release("vw-plot-b");
@@ -3762,16 +3803,20 @@
     const first = figures[front].length === 0;
     const back = first ? front : (front === "vw-plot" ? "vw-plot-b" : "vw-plot");
     release(back);
+    // drawn filling its box, out of sight until its frame is fitted
+    $(back).classList.add("is-stretch", "is-back");
+    aspects[back] = item.aspect || null;
     // embed_item gives a manager of the views it made: the figure is its root
     const made = await Bokeh.embed.embed_item(item, back);
     const views = Array.from(made.roots || made);
     const key = JSON.stringify([pick.names, pick.stream]);
     const old = figures[front][0], next = views[0];
-    // Bokeh sets a figure's ranges once it has drawn it: wait for that (the figure is out of sight meanwhile),
-    // or the zoom set below is undone
-    if (!first && next && next.has_finished) {
+    // Bokeh sets a figure's ranges (and its frame) once it has drawn it: wait for that, or the zoom set below
+    // is undone and there is no frame to fit
+    if (next && next.has_finished) {
       for (let waited = 0; waited < 1500 && !next.has_finished(); waited += 16) await sleep(16);
     }
+    await fitAndSettle(back, next);
     if (old && next && drawn === key && old.model && next.model && old.model.x_range && next.model.x_range) {
       for (const axis of ["x_range", "y_range"]) {
         const range = next.model[axis];
@@ -3782,8 +3827,8 @@
       }
     }
     figures[back] = views;
+    $(back).classList.remove("is-back");
     if (!first) {
-      $(back).classList.remove("is-back");
       $(front).classList.add("is-back");
       release(front);
     }

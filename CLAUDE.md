@@ -492,7 +492,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - Maps: `viewer_plots.map_plot` (hvplot → Bokeh json_item; holoviews/hvplot/bokeh imported only when a map is drawn, a test
   checks) and `viewer_mesh` (FVCOM Mesh/Raster, numpy only, apart from `oceanval/fvcom.py`). GET `/api/viewer/catalogue`,
   `/api/viewer/plot`, `/api/viewer/limits`, `/bokeh.min.js` (the installed BokehJS, loaded by the page only once the viewer
-  opens, `ensureBokeh`). The page's JS block "View simulation output" uses `vw-` ids/classes throughout. A thread setting
+  opens, `ensureBokeh`). **A map keeps its true proportions**: `viewer_plots._render` adds `item["aspect"]`
+  (`frame_aspect`: the frame's height/width from the figure's ranges, a degree of longitude being cos(mid latitude) of
+  one of latitude; metres as they are; None for grid indices, which fill the box), and the page's `fitFigure` sets the
+  figure `fixed` with `frame_width`/`frame_height` as large as fit `#vw-plot-wrap` (what is round the frame measured from
+  the laid-out figure; `invalidate_layout`, as a new frame size alone is not laid out), again on resize
+  (`ResizeObserver`); box zoom has `match_aspect`. The page's JS block "View simulation output" uses `vw-` ids/classes throughout. A thread setting
   `view` checks `_viewer_number` (bumped by `_viewer_drop`: Back, Restart, quit, a new Continue).
 - Tests: `tests/test_viewer_*.py` (simulations in `tests/viewer_simulations.py`, fixture `viewer_simulation`), CI group 3.
 

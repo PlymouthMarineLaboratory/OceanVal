@@ -154,6 +154,63 @@ def test_viewer(page, simulation):
     tab.wait_for_selector("#view-setup:not([hidden])")
 
 
+_FRAME = """() => {
+  const index = Bokeh.index;
+  const views = index.roots ? [...index.roots] : (index[Symbol.iterator] ? [...index] : Object.values(index));
+  const shown = views.find((view) => view.el.isConnected && !view.el.closest(".is-back"));
+  const box = document.getElementById("vw-plot-wrap").getBoundingClientRect();
+  const outer = shown.el.getBoundingClientRect();
+  return {frame: [shown.frame.bbox.width, shown.frame.bbox.height], outer: [outer.width, outer.height],
+          box: [box.width, box.height], centre: [outer.left + outer.width / 2 - box.left - box.width / 2,
+                                                   outer.top + outer.height / 2 - box.top - box.height / 2]};
+}"""
+
+
+def _fits(tab, aspect):
+    """The map's frame is aspect high for its width, and the figure fills the
+    width or the height of its box, centred in the other."""
+    tab.wait_for_timeout(300)
+    got = tab.evaluate(_FRAME)
+    (width, height), (outer_w, outer_h), (box_w, box_h) = got["frame"], got["outer"], got["box"]
+    assert height / width == pytest.approx(aspect, rel=0.03), got
+    assert abs(outer_w - box_w) <= 3 or abs(outer_h - box_h) <= 3, got
+    assert outer_w <= box_w + 1 and outer_h <= box_h + 1, got
+    assert abs(got["centre"][0]) <= 2 and abs(got["centre"][1]) <= 2, got
+
+
+def test_the_map_keeps_distances_on_one_scale(page, tmp_path):
+    """A lon-lat map's frame is as tall for its width as the area is north to
+    south for its width east to west, as large as fits, whatever the window."""
+    import numpy as np
+    from viewer_simulations import regular_file
+
+    root = tmp_path / "regular"
+    root.mkdir()
+    regular_file(str(root / "r.nc"))
+    tab, app = page
+    tab.fill("#f-simdir", str(root))
+    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
+    tab.click("#continue")
+    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    _times_in(tab, app)
+    tab.fill("#vw-search", "sst")
+    tab.keyboard.press("Enter")
+    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
+    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    # 40-65N by 20W-10E, cells of a degree, reaching half a cell past the outer points
+    aspect = 26 / (31 * np.cos(np.radians(52.5)))
+    _fits(tab, aspect)
+    # the next time step, drawn behind and then shown, is fitted too
+    tab.click("#vw-next")
+    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    _fits(tab, aspect)
+    # a narrower window: the map is fitted again
+    tab.set_viewport_size({"width": 900, "height": 900})
+    _fits(tab, aspect)
+    tab.set_viewport_size({"width": 1600, "height": 700})
+    _fits(tab, aspect)
+
+
 def test_another_simulation_is_drawn_after_back(page, simulation, tmp_path):
     """The maps of a simulation viewed before are not shown for another with
     the same variables: the page asks for the new simulation's map."""

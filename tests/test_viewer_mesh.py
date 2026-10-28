@@ -115,6 +115,9 @@ def test_a_mesh_in_metres(tmp_path):
         data, _ = found.field(0, ["temp"], 0, 0)
         item, notes, clim = plotting.map_plot(data, found.combined(0, ["temp"]), "temp", coast=True, mesh=mesh)
         assert "x (m)" in str(item)
+        # metres east and north are drawn on one scale
+        span = (mesh.y.max() - mesh.y.min()) / (mesh.x.max() - mesh.x.min())
+        assert item["aspect"] == pytest.approx(span, rel=0.05)
         # Natural Earth's coastline cannot be placed on metres
         assert any("no coastline" in note for note in notes)
         assert _lines(item) == 0

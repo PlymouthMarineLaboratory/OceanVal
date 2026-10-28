@@ -77,6 +77,40 @@ def test_uneven_latitudes_are_a_quadmesh():
     assert "QuadMesh" in _kinds(item)
 
 
+def _box(lat0, lat1, lon0, lon1, n=(11, 21)):
+    lat, lon = np.linspace(lat0, lat1, n[0]), np.linspace(lon0, lon1, n[1])
+    data = xr.DataArray(np.random.default_rng(0).random(n), dims=("lat", "lon"), coords={"lat": lat, "lon": lon})
+    about = {"horizontal": ["lat", "lon"], "lon": "lon", "lat": "lat", "units": "", "long_name": ""}
+    return data, about
+
+
+@pytest.mark.parametrize("coast", [False, True])
+def test_the_frame_keeps_distances_on_one_scale(coast):
+    """A map's frame is as tall for its width as the area's north-south
+    distance is for its east-west one: 10 degrees of latitude by 20 of
+    longitude about 55N is nearly as tall as it is wide."""
+    if coast and not plotting.has_geoviews():
+        pytest.skip("geoviews is not installed")
+    data, about = _box(50, 60, -10, 10)
+    item, _, _ = plotting.map_plot(data, about, "v", coast=coast)
+    # the image's cells reach half a cell past the outer points
+    yspan, xspan = 10 + 1, 20 + 1
+    assert item["aspect"] == pytest.approx(yspan / (xspan * np.cos(np.radians(55))), rel=1e-6)
+
+
+def test_a_map_of_indices_fills_its_box(found):
+    data, _ = found.field(0, "votemper", 0, 0)
+    item, _, _ = plotting.map_plot(data, found.about(0, "votemper"), "votemper")
+    assert item["aspect"] is None
+
+
+def test_frame_aspect():
+    assert plotting.frame_aspect((0, 2), (0, 1), "metres") == 0.5
+    assert plotting.frame_aspect((0, 2), (59, 61), "lonlat") == pytest.approx(2 / (2 * 0.5), rel=1e-3)
+    assert plotting.frame_aspect((0, 2), (0, 1), None) is None
+    assert plotting.frame_aspect((0, 0), (0, 1), "lonlat") is None
+
+
 def test_colour_limits():
     assert plotting.colour_limits([-1, 3]) == ((-3, 3), True)
     assert plotting.colour_limits([1, 3]) == ((1, 3), False)

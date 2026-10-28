@@ -103,14 +103,46 @@ def mesh_coastline(mesh, x, y):
     return hv.Path((coast_x, coast_y), kdims=[x, y]).opts(color="#111827", line_width=1.2), []
 
 
-def _render(plot):
+def frame_aspect(x_range, y_range, axes):
+    """The height / width the map's frame needs for its x and y distances to
+    be on one scale: axes "lonlat" (a degree of longitude is cos(latitude) of
+    a degree of latitude, at the map's middle latitude), "metres", or
+    anything else (the grid's indices), which have no distances: None."""
+    if axes not in ("lonlat", "metres"):
+        return None
+    (x0, x1), (y0, y1) = x_range, y_range
+    xspan, yspan = abs(float(x1) - float(x0)), abs(float(y1) - float(y0))
+    if not (np.isfinite(xspan) and np.isfinite(yspan)) or xspan == 0 or yspan == 0:
+        return None
+    if axes == "lonlat":
+        middle = np.clip((float(y0) + float(y1)) / 2, -89, 89)
+        xspan *= np.cos(np.radians(middle))
+    return yspan / xspan
+
+
+def _render(plot, axes=None):
+    """The figure as a json_item, with "aspect": its frame's height / width
+    (frame_aspect), which the page sizes the frame by, or None to fill the
+    space."""
     import holoviews as hv
     from bokeh.embed import json_item
+    from bokeh.models import BoxZoomTool
 
     figure = hv.render(plot, backend="bokeh")
     figure.sizing_mode = "stretch_both"
     figure.toolbar.logo = None
-    return json_item(figure)
+    aspect = None
+    try:
+        aspect = frame_aspect((figure.x_range.start, figure.x_range.end), (figure.y_range.start, figure.y_range.end), axes)
+    except (AttributeError, TypeError, ValueError):
+        pass
+    if aspect is not None:
+        # a zoomed box keeps the frame's proportions
+        for tool in figure.select(type=BoxZoomTool):
+            tool.match_aspect = True
+    item = json_item(figure)
+    item["aspect"] = aspect
+    return item
 
 
 def colour_limits(values, vmin=None, vmax=None, log=False):
@@ -194,8 +226,8 @@ def mesh_image(data, about, mesh):
 
 
 def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coast=False, mesh=None):
-    """The map of a 2-D slice (see viewer_catalogue.Catalogue.field), as (json_item, notes,
-    the colour scale's limits). A slice of a variable on an FVCOM mesh is
+    """The map of a 2-D slice (see viewer_catalogue.Catalogue.field), as (json_item, with
+    its frame's "aspect" (see _render), notes, the colour scale's limits). A slice of a variable on an FVCOM mesh is
     drawn as an image of the mesh (mesh_image), and needs its mesh."""
     import hvplot.xarray  # noqa: F401 - registers .hvplot
 
@@ -276,4 +308,5 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
             if line is not None:
                 plot = (plot * line).opts(responsive=True)
             notes += coast_notes
-    return _render(plot), notes, [float(low), float(high)]
+    axes = None if lon is None else "metres" if cartesian else "lonlat"
+    return _render(plot, axes), notes, [float(low), float(high)]
