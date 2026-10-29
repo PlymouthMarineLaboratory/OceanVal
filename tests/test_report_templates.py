@@ -226,6 +226,10 @@ def _map_calls(code):
     return [code[m.start():] for m in re.finditer(r"\b(pub_plot|panel_plot)\(", code)]
 
 
+# the validate notebook's own maps
+LAND_ASKED_FOR = {"chunk_bias.pytemplate", "chunk_seasonal.pytemplate", "chunk_clim.pytemplate", "summary.ipynb", "gridded_template.ipynb"}
+
+
 @pytest.mark.parametrize("path", sorted(
     x for x in Path("oceanval/data").iterdir()
     if x.suffix in (".ipynb", ".pytemplate") and re.search(r"\b(pub_plot|panel_plot)\(", x.read_text())
@@ -246,6 +250,9 @@ def test_every_map_puts_the_land_beneath_the_data(path):
             if character == ")" and depth == 0:
                 break
         assert call[end + 1:].lstrip().startswith("land_below("), (path.name, call[:80])
+        # nctoolkit draws no land of its own unless asked, and land_below leaves such a map alone
+        if path.name in LAND_ASKED_FOR:
+            assert "land =" in call[:end], (path.name, call[:80])
 
 
 def test_land_below_is_imported_where_the_notebooks_start():

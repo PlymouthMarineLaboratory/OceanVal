@@ -30,10 +30,10 @@ df_cor = ds_cor.to_dataframe().reset_index()
 if fix_grid:
     ds_cor_plot = ds_cor.copy()
     ds_cor_plot.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
-    ds_cor_plot.pub_plot("cor")
+    ds_cor_plot.pub_plot("cor", land = "lightgrey")
     land_below()
 else:
-    ds_cor.pub_plot("cor")
+    ds_cor.pub_plot("cor", land = "lightgrey")
     land_below()
 
 

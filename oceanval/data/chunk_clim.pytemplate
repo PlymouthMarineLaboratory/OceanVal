@@ -139,6 +139,7 @@ def plot_clim():
         var = ["model", "observation"],
         limits = [z_min, z_max],
         norm = transformation,
+        land = "lightgrey",
         grid_labels = False,
     )
     land_below()
