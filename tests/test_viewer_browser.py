@@ -254,6 +254,11 @@ def test_viewer(page, simulation):
     _times_in(tab, app)
     tab.fill("#vw-search", "chloro")
     assert tab.locator("#vw-list li").count() == 1
+    # * and ? stand for characters, and are matched within the name, the long name or the units
+    tab.fill("#vw-search", "ch*phyll")
+    assert tab.locator("#vw-list li").count() == 1
+    tab.fill("#vw-search", "*")
+    assert tab.locator("#vw-list li").count() > 1
     tab.fill("#vw-search", "temp")
     tab.keyboard.press("Enter")
     # in two file types: nothing is plotted until one is chosen

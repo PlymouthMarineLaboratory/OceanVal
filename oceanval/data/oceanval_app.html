@@ -1372,7 +1372,7 @@
       <aside class="vw-side card" aria-label="What to plot">
         <div>
           <h2 class="vw-head"><label for="vw-search">Variable</label></h2>
-          <input class="s-input" id="vw-search" type="search" placeholder="Search by name or description" spellcheck="false" autocapitalize="off" autocomplete="off" aria-controls="vw-list">
+          <input class="s-input" id="vw-search" type="search" placeholder="Search by name or description, e.g. P*_Chl" spellcheck="false" autocapitalize="off" autocomplete="off" aria-controls="vw-list">
           <p class="vw-sum"><span>Click a variable to map it. Tick boxes to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" id="vw-clear" hidden>Clear</button></p>
           <ul class="vw-list" id="vw-list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
         </div>
@@ -2401,7 +2401,7 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">Click the variables of the simulation's output files to add. Those already in the list are marked and cannot be picked again.</p>
-      <input type="search" class="s-input multi-search" id="multi-search" placeholder="Search by name or description" aria-label="Search the variables" autocomplete="off">
+      <input type="search" class="s-input multi-search" id="multi-search" placeholder="Search by name or description, e.g. P*_Chl" aria-label="Search the variables" autocomplete="off">
       <div class="multi-grid" id="multi-grid"></div>
       <p class="analyze-msg" id="multi-count" role="status" aria-live="polite"></p>
     </div>
@@ -3088,14 +3088,10 @@
     toastUnreadable();
   }
 
-  const searchWords = (text) => String(text || "").toLowerCase().split(/\s+/).filter(Boolean);
   let listActive = -1;
   function matching() {
-    const wanted = searchWords($("vw-search").value);
-    return Object.entries(catalogue.variables).filter(([name, about]) => {
-      const text = `${name} ${about.long_name} ${about.units}`.toLowerCase();
-      return wanted.every((word) => text.includes(word));
-    });
+    const wanted = OceanValGUI.searchMatcher($("vw-search").value);
+    return Object.entries(catalogue.variables).filter(([name, about]) => wanted.test([name, about.long_name, about.units]));
   }
   function renderList() {
     if (!catalogue) return;
@@ -5211,7 +5207,7 @@
         title: held.has(variable) ? "Already in the list" : null },
         el("b", {}, variable, el("em", { text: isThreeD(variable) ? "3D" : "2D" })),
         longName ? el("small", { text: longName }) : null);
-      cell.dataset.search = `${variable} ${longName}`.toLowerCase();
+      cell.dataset.search = JSON.stringify([variable, longName]);
       cell.addEventListener("click", () => {
         if (multiple.chosen.has(variable)) multiple.chosen.delete(variable); else multiple.chosen.add(variable);
         cell.setAttribute("aria-pressed", String(multiple.chosen.has(variable)));
@@ -5243,8 +5239,8 @@
     addVariableRows((variable) => chosen.has(variable));
   });
   $("multi-search").addEventListener("input", () => {
-    const words = $("multi-search").value.toLowerCase().split(/\s+/).filter(Boolean);
-    for (const cell of Object.values(multiple.cells)) cell.hidden = !words.every((word) => cell.dataset.search.includes(word));
+    const wanted = OceanValGUI.searchMatcher($("multi-search").value);
+    for (const cell of Object.values(multiple.cells)) cell.hidden = !wanted.test(JSON.parse(cell.dataset.search));
   });
   $("multi-dialog").addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;

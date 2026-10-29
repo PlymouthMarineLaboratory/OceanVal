@@ -216,6 +216,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (`App.own_inspect` → `recipe_checks.inspect_gridded("disk")`: a file, a directory or an `.nc` pattern, the first file's variables), asked
   500 ms after `obs_path` stops changing (token-guarded `lookAtObservations`); never for a URL or the THREDDS tick, and its errors are notes,
   not refusals. A new box that offers the simulation's or observations' variables goes through these slots (`setPick`/`setBox`).
+  **Every search of variables (the pop-out picker, the viewer's `#vw-search`, Analyze's Add multiple variables) goes through
+  `OceanValGUI.searchMatcher`**: words are all required; a plain word is a substring of the fields joined, a word with `*`/`?` is
+  a wildcard matched within one field (never from a name into its long_name), unanchored, all else literal. A new search must use it.
 - The own data step can save an entry as a recipe too ("Add this data for use now and in
   future"): view `own_future` (`App.own_future`/`own_future_save`), built from the entry by
   `recipe_forms.from_own_data`/`missing_boxes`/`with_boxes`, assumptions shown in amber.

@@ -467,6 +467,29 @@ const OceanValGUI = (() => {
     });
   }
 
+  // ---- searching variables by name, long_name (and units) ----
+  // The words typed are all required. A word is a plain substring of the
+  // fields joined by a space, unless it has * (any characters) or ? (one
+  // character): that is matched within one field, so it never runs from a
+  // name into its long_name. Case is ignored and nothing is anchored, so
+  // P*_Chl finds P1_Chl, P2_Chl and P10_Chl. Anything else typed is literal.
+  // Returns {active, test(fields)}, active being whether anything was typed.
+  function searchMatcher(query) {
+    const terms = String(query || "").toLowerCase().split(/\s+/).filter(Boolean).map((term) => {
+      if (!/[*?]/.test(term)) return { plain: term };
+      const source = term.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*+/g, ".*").replace(/\?/g, ".");
+      return { pattern: new RegExp(source) };
+    });
+    return {
+      active: terms.length > 0,
+      test(fields) {
+        const lowered = fields.map((field) => String(field || "").toLowerCase());
+        const joined = lowered.join(" ");
+        return terms.every((term) => term.pattern ? lowered.some((field) => term.pattern.test(field)) : joined.includes(term.plain));
+      },
+    };
+  }
+
   // the model's variables (available, their names) and their long_names
   // (longNames, by name), in a pop-out under a box that can be searched;
   // the table is only built when it is first opened, as a model can have
@@ -482,11 +505,11 @@ const OceanValGUI = (() => {
     const search = el("input", {
       class: "vars__search",
       type: "search",
-      placeholder: "Search variables",
+      placeholder: "Search variables, e.g. P*_Chl",
       spellcheck: "false",
       autocomplete: "off",
       autocapitalize: "off",
-      "aria-label": `Search the ${what} and their long names`,
+      "aria-label": `Search the ${what} and their long names; * stands for any characters and ? for one`,
     });
     const count = el("span", { class: "vars__count vars__shown", "aria-live": "polite" });
     const ticked = el("span", { class: "vars__count vars__ticked" });
@@ -531,16 +554,16 @@ const OceanValGUI = (() => {
           remove);
       }));
     };
-    // every word typed must be in the variable's name or its long_name
+    // every word typed must be in the variable's name or its long_name (* and ? are wildcards)
     const filter = () => {
-      const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+      const wanted = searchMatcher(search.value);
       let shown = 0;
-      for (const { tr, text } of rows) {
-        tr.hidden = !words.every((word) => text.includes(word));
+      for (const { tr, fields } of rows) {
+        tr.hidden = !wanted.test(fields);
         if (!tr.hidden) shown += 1;
       }
       none.hidden = shown > 0;
-      count.textContent = words.length ? `${shown} of ${rows.length}` : `${rows.length}`;
+      count.textContent = wanted.active ? `${shown} of ${rows.length}` : `${rows.length}`;
     };
     search.addEventListener("input", filter);
     search.addEventListener("keydown", (event) => {
@@ -573,7 +596,7 @@ const OceanValGUI = (() => {
             if (String(window.getSelection() || "")) return;
             box.click();
           });
-          return { name, box, text: `${name} ${longName}`.toLowerCase(), tr };
+          return { name, box, fields: [name, longName], tr };
         });
         scroll.append(
           el("table", {},
@@ -713,7 +736,7 @@ const OceanValGUI = (() => {
   window.addEventListener("resize", closeChoices);
 
   return {
-    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variablesPicker,
+    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variablesPicker, searchMatcher,
     withChoices, choicesOpen, closeChoices,
   };
 })();

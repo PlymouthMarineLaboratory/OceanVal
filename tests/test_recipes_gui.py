@@ -1203,6 +1203,48 @@ class TestModelVariablesTable:
         finally:
             recipe_page.close()
 
+    def test_the_pop_out_search_takes_wildcards(self, browser):
+        recipe_page = self.page(
+            {"P1_Chl": "Diatom chlorophyll", "P2_Chl": "Flagellate chlorophyll", "Chl_total": "Total chlorophyll", "so": "Sea water salinity"},
+            available=("P1_Chl", "P2_Chl", "Chl_total", "so"),
+        )
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            first = page.locator("#rows-gridded details.vars").first
+            first.locator("summary").click()
+            search = first.locator(".vars__search")
+            visible = lambda: first.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents()
+
+            search.fill("P*_Chl")
+            assert visible() == ["P1_Chl", "P2_Chl"]
+            assert first.locator(".vars__shown").text_content() == "2 of 4"
+            # case is ignored; ? is one character
+            search.fill("p?_chl")
+            assert visible() == ["P1_Chl", "P2_Chl"]
+            search.fill("p1_c?l")
+            assert visible() == ["P1_Chl"]
+            search.fill("chl_*")
+            assert visible() == ["Chl_total"]
+            search.fill("*")
+            assert len(visible()) == 4
+            # a wildcard looks in the long_name too, and combines with other words
+            search.fill("flag*phyll")
+            assert visible() == ["P2_Chl"]
+            search.fill("P*_Chl diatom")
+            assert visible() == ["P1_Chl"]
+            # but it does not run from a name into its long_name
+            search.fill("P1*Diatom")
+            assert visible() == []
+            # anything else typed is literal
+            for text in ("P(1*", "[*", "\\*", "P+*"):
+                search.fill(text)
+                assert visible() == []
+                assert first.locator(".vars__none").is_visible()
+        finally:
+            recipe_page.close()
+
     def test_the_pop_out_closes_on_a_click_outside_it_but_not_inside(self, browser):
         recipe_page = self.page({"thetao": "Sea water temperature", "so": "Sea water salinity"})
         url = recipe_page.start()

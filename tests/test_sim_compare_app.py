@@ -838,7 +838,7 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        assert page.locator("#view-home .choice").count() == 3
+        assert page.locator("#view-home .choice").count() == 4
         page.click("#home-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         # two simulations to start, a third can be added
@@ -868,6 +868,13 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.locator("#scv-rows > tr").count() == 1
         cells = page.locator("#scv-rows > tr").first.locator("input.s-input")
         assert cells.count() == 3
+        # a simulation's pop-out is searched with wildcards
+        pop_out = page.locator("#scv-rows > tr").first.locator("details.vars").first
+        pop_out.locator("summary").click()
+        page.wait_for_function("() => document.activeElement && document.activeElement.classList.contains('vars__search')")
+        pop_out.locator(".vars__search").fill("P*_Chl")
+        assert pop_out.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents() == ["P1_Chl", "P2_Chl"]
+        pop_out.locator("summary").click()
         cells.nth(0).fill("Temperature")
         cells.nth(1).fill("thetao")
         cells.nth(2).fill("thetao")

@@ -1374,6 +1374,40 @@ def open_analyze_variables_in_browser(browser, tmp_path):
     return page, app
 
 
+def test_the_variable_searches_take_wildcards_in_a_browser(browser, tmp_path):
+    """P*_Chl finds P1_Chl and P2_Chl in a row's pop-out and in Add multiple variables."""
+    page, app = open_analyze_variables_in_browser(browser, tmp_path)
+    try:
+        pop_out = page.locator("#av-rows > tr").first.locator("details.vars")
+        pop_out.locator("summary").click()
+        # the box is cleared and focused as the pop-out opens
+        page.wait_for_function("() => document.activeElement && document.activeElement.classList.contains('vars__search')")
+        search = pop_out.locator(".vars__search")
+        shown = lambda: pop_out.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents()
+        search.fill("P*_Chl")
+        assert shown() == ["P1_Chl", "P2_Chl"]
+        search.fill("e3?")
+        assert shown() == ["e3t"]
+        search.fill("P*_Chl e3t")
+        assert shown() == []
+
+        page.click("#av-add-multiple")
+        page.wait_for_selector("#multi-dialog:not([hidden])")
+        cells = lambda: page.locator("#multi-grid .multi-cell:not([hidden])").evaluate_all("nodes => nodes.map(n => n.dataset.variable)")
+        assert len(cells()) == 4
+        page.fill("#multi-search", "P*_Chl")
+        assert cells() == ["P1_Chl", "P2_Chl"]
+        page.fill("#multi-search", "p?_chl")
+        assert cells() == ["P1_Chl", "P2_Chl"]
+        page.fill("#multi-search", "thetao")
+        assert cells() == ["thetao"]
+        page.fill("#multi-search", "P(*")
+        assert cells() == []
+    finally:
+        page.close()
+        app.close()
+
+
 def variable_rows_of(page):
     rows = page.locator("#av-rows > tr")
     return [rows.nth(i).locator("td").nth(1).locator("input").first.input_value() for i in range(rows.count())]
