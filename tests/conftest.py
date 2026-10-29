@@ -47,6 +47,35 @@ def no_report(monkeypatch):
     return built
 
 
+HOME_FILES = (".oceanvalcache", ".oceanvaltimes", ".oceanvalrc")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def home_files_untouched(tmp_path_factory):
+    """The per-test fixtures below only cover function-scoped setup: a
+    module-scoped fixture that runs analyze() or matchup() is set up before
+    them and used to write the user's own ~/.oceanvalcache (20 pytest paths
+    pushed out the real simulations). These paths hold for the whole session,
+    and a session that left its own temporary folder in the user's files
+    fails."""
+    folder = tmp_path_factory.mktemp("oceanval_home_files")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("OCEANVALCACHE", str(folder / ".oceanvalcache"))
+        patch.setenv("OCEANVALTIMES", str(folder / ".oceanvaltimes"))
+        patch.setenv("OCEANVALRC", str(folder / ".oceanvalrc"))
+        yield
+    mine = str(tmp_path_factory.getbasetemp())
+    left = []
+    for name in HOME_FILES:
+        try:
+            with open(os.path.join(os.path.expanduser("~"), name)) as file:
+                if mine in file.read():
+                    left.append("~/" + name)
+        except OSError:
+            pass
+    assert not left, f"the tests wrote to your own {', '.join(left)}"
+
+
 @pytest.fixture(autouse=True)
 def oceanvalrc(tmp_path_factory, monkeypatch):
     """Keep the user's own ~/.oceanvalrc out of the tests, and the tests out of
