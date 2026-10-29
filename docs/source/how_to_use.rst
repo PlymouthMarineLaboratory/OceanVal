@@ -132,7 +132,7 @@ You will get an error if you are inconsistent.
     3. A climatological annual average for each grid cell
 
     If you provide multi-year observational data, OceanVal will calculate a multi-year observational average, which is compared with the model in a like-for-like manner.
-    Any observation year without data for all 12 months is ignored, and so is the model for that year, as it would not give a correct annual average. The years ignored are listed when the matchups finish.
+    Only the years and months that both the model and the observations have are matched up, so observations that start or end part way through a year, or have months missing, are fine. The months left out are listed when the matchups finish. Annual averages are the mean of the monthly climatology, so a year with months missing does not skew them.
 
     If you provide single-year observational data with monthly resolution, OceanVal will generate a comparable climatological monthly average from the model simulation output for comparison.
     This will be based on the year range you have specified.

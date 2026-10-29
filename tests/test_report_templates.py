@@ -184,13 +184,14 @@ def test_the_detailed_map_is_the_same_in_every_cell():
     assert len(blocks) == 1
 
 
-def test_the_gridded_notebook_ignores_years_without_every_month_in_annual_means():
+def test_the_gridded_notebook_makes_annual_means_from_the_monthly_climatology():
     cells = ["".join(cell["source"]) for cell in json.loads(Path("oceanval/data/gridded_template.ipynb").read_text())["cells"]]
     code = "\n".join(cells)
-    assert "from oceanval.gridded import keep_complete_years" in code
-    # every matchup file read for the page is cut to its complete years before it is averaged
-    for opened in ["ds_model = nc.open_data(ff)", "ds_obs = nc.open_data(ff)", "ds_cor = nc.open_data(ff)", "ds_verticals = nc.open_data(ff_vertical"]:
-        assert opened in code
-    assert code.count("keep_complete_years(ds_cor, matchup_months)") == 2
-    for name in ["ds_model", "ds_obs", "ds_verticals"]:
-        assert f"keep_complete_years({name}, matchup_months)" in code
+    # every month matched up is used: a year with months missing is not dropped,
+    # as the annual means are those of the monthly climatology
+    assert "keep_complete_years" not in code
+    assert "ds_verticals.tmean(\"month\")\n    ds_verticals.tmean()" in code
+    assert "annual_note = " in code
+    # every caption about annual means says which months they cover, when not all
+    chunks = code + Path("oceanval/data/chunk_clim.pytemplate").read_text() + Path("oceanval/data/chunk_bias.pytemplate").read_text()
+    assert chunks.count("{annual_note}") == 5

@@ -247,21 +247,25 @@ class TestFinal:
 
 
 class TestIncompleteObservationYears:
-    """A year of observations without every month cannot give a correct annual
-    average, so it is dropped, and the model's with it."""
+    """Against a time series of observations only the years and months both the model
+    and the observations have are matched up; the rest are dropped from both."""
 
     @staticmethod
-    def obs_without(tmp_path, drop):
-        """data/example_temperature's 2000 and 2001 without the (year, month)s in drop."""
-        obs = tmp_path / "obs"
-        for year in ["2000", "2001"]:
-            shutil.copytree(f"data/example_temperature/{year}", obs / year)
+    def without(tmp_path, name, drop, years=("2000", "2001")):
+        """data/example_temperature's years without the (year, month)s in drop."""
+        out = tmp_path / name
+        for year in years:
+            shutil.copytree(f"data/example_temperature/{year}", out / year)
         for year, month in drop:
-            shutil.rmtree(obs / str(year) / f"{month:02d}")
-        return str(obs)
+            shutil.rmtree(out / str(year) / f"{month:02d}")
+        return str(out)
+
+    @classmethod
+    def obs_without(cls, tmp_path, drop):
+        return cls.without(tmp_path, "obs", drop)
 
     @staticmethod
-    def run(obs_path):
+    def run(obs_path, sim_dir="data/example_temperature"):
         shutil.rmtree("oceanval_matchups", ignore_errors=True)
         oceanval.reset()
         session_info["end_messages"] = []
@@ -276,24 +280,55 @@ class TestIncompleteObservationYears:
             end = 2001,
         )
         oceanval.matchup(
-            sim_dir = "data/example_temperature",
+            sim_dir = sim_dir,
             exclude = "ptrc",
             start = 2000,
             end = 2001,
             ask = False,
             cores = 1)
 
-    def test_the_year_is_dropped_from_both(self, tmp_path):
+    @staticmethod
+    def year_months():
+        ds = nc.open_data("oceanval_matchups/gridded/temperature/foo_temperature_surface.nc")
+        assert set(ds.variables) == {"model", "observation"}
+        return [(x.year, x.month) for x in ds.times]
+
+    def test_the_months_missing_are_dropped_from_both(self, tmp_path):
         try:
             self.run(self.obs_without(tmp_path, [(2001, m) for m in range(7, 13)]))
-            ds = nc.open_data("oceanval_matchups/gridded/temperature/foo_temperature_surface.nc")
-            assert ds.years == [2000]
-            assert len(ds.times) == 12
+            assert self.year_months() == [(2000, m) for m in range(1, 13)] + [(2001, m) for m in range(1, 7)]
             with open("oceanval_matchups/gridded/temperature/foo_matchup_dict.pkl", "rb") as f:
                 the_dict = pickle.load(f)
-            assert the_dict["end"] == 2000
+            assert the_dict["end"] == 2001
             assert list(the_dict["months"]) == list(range(1, 13))
-            assert any("2001 (6 of 12 months)" in x for x in session_info["end_messages"])
+            assert any("no observations for the same month" in x and "2001 (Jul-Dec)" in x for x in session_info["end_messages"])
+        finally:
+            shutil.rmtree("oceanval_matchups", ignore_errors=True)
+            oceanval.reset()
+
+    def test_no_complete_year_is_still_matched_up(self, tmp_path):
+        try:
+            self.run(self.obs_without(tmp_path, [(2000, 1), (2001, 12)]))
+            assert len(self.year_months()) == 22
+            assert (2000, 1) not in self.year_months() and (2001, 12) not in self.year_months()
+        finally:
+            shutil.rmtree("oceanval_matchups", ignore_errors=True)
+            oceanval.reset()
+
+    def test_a_simulation_starting_mid_year_keeps_that_year(self, tmp_path):
+        try:
+            sim = self.without(tmp_path, "sim", [(2000, m) for m in range(1, 5)])
+            self.run(self.obs_without(tmp_path, []), sim_dir=sim)
+            assert self.year_months() == [(2000, m) for m in range(5, 13)] + [(2001, m) for m in range(1, 13)]
+            assert any("no model output for the same month" in x and "2000 (Jan-Apr)" in x for x in session_info["end_messages"])
+        finally:
+            shutil.rmtree("oceanval_matchups", ignore_errors=True)
+            oceanval.reset()
+
+    def test_twelve_months_over_two_years_keep_their_years(self, tmp_path):
+        try:
+            self.run(self.obs_without(tmp_path, [(2000, m) for m in range(1, 7)] + [(2001, m) for m in range(7, 13)]))
+            assert self.year_months() == [(2000, m) for m in range(7, 13)] + [(2001, m) for m in range(1, 7)]
         finally:
             shutil.rmtree("oceanval_matchups", ignore_errors=True)
             oceanval.reset()
@@ -303,18 +338,19 @@ class TestIncompleteObservationYears:
             self.run(self.obs_without(tmp_path, []))
             ds = nc.open_data("oceanval_matchups/gridded/temperature/foo_temperature_surface.nc")
             assert ds.years == [2000, 2001]
-            assert not any("do not have data for every month" in x for x in session_info["end_messages"])
+            assert not any("for the same month" in x for x in session_info["end_messages"])
         finally:
             shutil.rmtree("oceanval_matchups", ignore_errors=True)
             oceanval.reset()
 
-    def test_no_complete_year_is_an_error_that_says_why(self, tmp_path):
-        try:
-            with pytest.raises(ValueError, match="No observation year has data for every month"):
-                self.run(self.obs_without(tmp_path, [(2000, 1), (2001, 12)]))
-        finally:
-            shutil.rmtree("oceanval_matchups", ignore_errors=True)
-            oceanval.reset()
+    def test_which_months_both_have(self):
+        model = pd.to_datetime(["2000-01-15", "2000-02-15", "2000-03-15"]).to_pydatetime()
+        obs = ["2000-02-01T00:00", "2000-03-01T00:00", "2000-04-01T00:00"]
+        assert gridded.common_times(model, obs) == ([0], [2], [(2000, 4)], [(2000, 1)])
+
+    def test_months_are_described_by_year(self):
+        pairs = [(2015, m) for m in range(5, 13)] + [(2016, 1), (2016, 3)] + [(2017, m) for m in range(1, 13)]
+        assert gridded.describe_months(pairs) == "2015 (May-Dec), 2016 (Jan, Mar), 2017"
 
     def test_which_years_are_complete(self):
         times = pd.to_datetime(["2000-01-15", "2000-02-15", "2001-01-15"]).to_pydatetime()

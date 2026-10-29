@@ -1,3 +1,4 @@
+import calendar
 import contextlib
 import glob
 import copy
@@ -53,19 +54,68 @@ def _open_obs(path, thredds):
     return nc.open_data(path, checks=False)
 
 
+def _year_months(times):
+    """(year, month) of each time step, in order, whether the times are datetimes or strings."""
+    try:
+        return [(x.year, x.month) for x in times]
+    except AttributeError:
+        return [
+            (int(str(x).split("T")[0].split("-")[0]), int(str(x).split("T")[0].split("-")[1]))
+            for x in times
+        ]
+
+
+def common_times(model_times, obs_times):
+    """The time steps of the model and of the observations whose year and month the other lacks.
+
+    Returns (model indices, observation indices, the (year, month)s of the observations
+    with no model match, those of the model with no observation match).
+    """
+    model_pairs = _year_months(model_times)
+    obs_pairs = _year_months(obs_times)
+    model_set = set(model_pairs)
+    obs_set = set(obs_pairs)
+    model_drop = [i for i, x in enumerate(model_pairs) if x not in obs_set]
+    obs_drop = [i for i, x in enumerate(obs_pairs) if x not in model_set]
+    return (
+        model_drop,
+        obs_drop,
+        sorted({obs_pairs[i] for i in obs_drop}),
+        sorted({model_pairs[i] for i in model_drop}),
+    )
+
+
+def describe_months(pairs):
+    """Year/months condensed by year for a message, e.g. "2015 (May-Dec), 2016 (Jan, Mar)"."""
+    by_year = {}
+    for year, month in sorted(pairs):
+        by_year.setdefault(year, []).append(month)
+    out = []
+    for year, months in by_year.items():
+        if len(months) == 12:
+            out.append(str(year))
+            continue
+        runs = []
+        for month in months:
+            if runs and month == runs[-1][1] + 1:
+                runs[-1][1] = month
+            else:
+                runs.append([month, month])
+        names = [
+            calendar.month_abbr[a] if a == b else f"{calendar.month_abbr[a]}-{calendar.month_abbr[b]}"
+            for a, b in runs
+        ]
+        out.append(f"{year} ({', '.join(names)})")
+    return ", ".join(out)
+
+
 def complete_years(times, months):
     """Split the years of a dataset's time steps by whether they have every month in `months`.
 
     Returns ({year: how many of the months it has} for the years that do not,
     [the years that do]). A year without every month cannot give a correct annual average.
     """
-    try:
-        pairs = {(x.year, x.month) for x in times}
-    except AttributeError:
-        pairs = {
-            (int(str(x).split("T")[0].split("-")[0]), int(str(x).split("T")[0].split("-")[1]))
-            for x in times
-        }
+    pairs = set(_year_months(times))
     months = set(months)
     found = {}
     for year, month in pairs:
@@ -572,8 +622,11 @@ def gridded_matchup(
                 )
                 old_years = sim_years
                 n_years = len(sim_years)
-                sim_years = [x for x in sim_years if x in year_options]
                 month_sel = range(1, 13)
+                # against a time series of observations a year with only some months is kept:
+                # the years and months both have are matched up further down
+                if climatology is True or len(year_options) == 0:
+                    sim_years = [x for x in sim_years if x in year_options]
                 if len(sim_years) == 0:
                     sim_years = old_years
                     month_sel = list(
@@ -885,76 +938,39 @@ def gridded_matchup(
                     ds_obs.run()
                     ds_model.run()
 
-                    if climatology is False and n_times > 1:
-                        # a year of observations without every month cannot give a
-                        # correct annual average: it is dropped, and so is the model's
-                        incomplete, complete = complete_years(ds_obs.times, month_sel)
-                        if len(incomplete) > 0:
-                            found = ", ".join(f"{y} ({n} of {len(month_sel)} months)" for y, n in incomplete.items())
-                            if len(complete) == 0:
-                                raise ValueError(
-                                    f"No observation year has data for every month for gridded {vv} ({vv_source}); "
-                                    "years without all months are ignored as they would not give correct annual averages. "
-                                    f"Years found: {found}."
-                                )
-                            ds_obs.drop(year=list(incomplete))
-                            ds_model.drop(year=list(incomplete))
-                            ds_obs.run()
+                    # a time series of observations is matched up month by month: only the
+                    # years and months both have are kept (the report makes its annual means
+                    # from the monthly climatology, so a year with months missing does no harm)
+                    paired = climatology is False and n_times > 1
+                    if paired:
+                        model_drop, obs_drop, obs_only, model_only = common_times(ds_model.times, ds_obs.times)
+                        if len(model_drop) == len(ds_model.times) or len(obs_drop) == len(ds_obs.times):
+                            raise ValueError(
+                                f"There are no years and months in common between model and observations for gridded {vv} ({vv_source})!"
+                            )
+                        if len(model_drop) > 0:
+                            ds_model.drop(time=model_drop)
                             ds_model.run()
-                            sim_years = [x for x in sim_years if x in complete]
-                            min_year = min(complete)
-                            max_year = max(complete)
+                        if len(obs_drop) > 0:
+                            ds_obs.drop(time=obs_drop)
+                            ds_obs.run()
+                        kept = sorted(set(ds_model.years))
+                        sim_years = [x for x in sim_years if x in kept]
+                        min_year = min(kept)
+                        max_year = max(kept)
+                        if len(obs_only) > 0:
                             session_info["end_messages"] += [
-                                f"Observation years ignored for gridded {vv} ({vv_source}) as they do not have data for every month, "
-                                f"so would not give correct annual averages: {found}"
+                                f"Observations for gridded {vv} ({vv_source}) with no model output for the same month were not used: {describe_months(obs_only)}"
+                            ]
+                        if len(model_only) > 0:
+                            session_info["end_messages"] += [
+                                f"Model output with no observations for the same month was not used for gridded {vv} ({vv_source}): {describe_months(model_only)}"
                             ]
 
-                    ds2 = ds_model.copy()
-                    if len(ds_model.times) == 12:
+                    if len(ds_model.times) == 12 and not paired:
                         ds_model.set_year(2000)
 
-                    if len(ds_model.times) > 12:
-                        # at this point, we need to identify the years that are common to both
-                        ds_times = ds_model.times
-                        try:
-                            ds_years = [x.year for x in ds_times]
-                            ds_months = [x.month for x in ds_times]
-                        except:
-                            ds_years = [int(str(x).split("T")[0].split("-")[0]) for x in ds_times ]
-                            ds_months = [int(str(x).split("T")[0].split("-")[1]) for x in ds_times]
-
-                        df_surface = pd.DataFrame(
-                            {"year": ds_years, "month": ds_months}
-                        )
-
-                        ds_times = ds_obs.times
-                        try:
-                            ds_years = [x.year for x in ds_times]
-                            ds_months = [x.month for x in ds_times]
-                        except:
-                            ds_years = [int(str(x).split("T")[0].split("-")[0]) for x in ds_times ]
-                            ds_months = [int(str(x).split("T")[0].split("-")[1]) for x in ds_times]
-                        df_obs = pd.DataFrame(
-                            {"year": ds_years, "month": ds_months}
-                        )
-                        sel_years = list(
-                            df_surface.merge(df_obs)
-                            .groupby("year")
-                            .count()
-                            # only 12
-                            .query("month == 12")
-                            .reset_index()
-                            .year.values
-                        )
-                        if len(sel_years) == 0:
-                            raise ValueError(
-                                f"There are no years with data for every month in common between model and observations for gridded {vv} ({vv_source})!"
-                            )
-                        ds_model.subset(years=sel_years)
-                        if n_years > 1: 
-                            ds_obs.subset(years=sel_years)
-
-                    if len(ds_model.times) < 12:
+                    if len(ds_model.times) < 12 and not paired:
                         sel_months = list(set(ds_model.months))
                         sel_months.sort()
                         if n_times > 1: 
@@ -978,7 +994,7 @@ def gridded_matchup(
                         ds_model_surface.tmean()
                     ds_obs_surface.append(ds_model_surface)
 
-                    if len(ds_model_surface.times) > 12:
+                    if paired or len(ds_model_surface.times) > 12:
                         ds_obs_surface.merge("variable", match=["year", "month"])
                     else:
                         # run both
@@ -1081,7 +1097,7 @@ def gridded_matchup(
                         if n_obs_times <= 1:
                                 ds_obs.merge("variable")
                         else:
-                            if len(ds_model.times) > 12:
+                            if paired or len(ds_model.times) > 12:
                                 ds_obs.merge("variable", match=["year", "month"])
                             else:
                                 ds_obs.merge("variable", match="month")

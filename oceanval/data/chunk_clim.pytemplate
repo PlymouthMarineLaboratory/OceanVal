@@ -152,5 +152,5 @@ except:
     plot_clim()
 
 # %% tags=["remove-input"]
-md(f"**Figure {i_figure}**: Annual average {layer} {vv_name} from the model {clim_range} and observations. Data is limited to the 2nd and 98th percentile of the combined model and observational data. Arrows indicate that values can exceed the colorbar limits.") 
+md(f"**Figure {i_figure}**: Annual average {layer} {vv_name} from the model {clim_range} and observations. Data is limited to the 2nd and 98th percentile of the combined model and observational data. Arrows indicate that values can exceed the colorbar limits.{annual_note}")
 i_figure += 1
