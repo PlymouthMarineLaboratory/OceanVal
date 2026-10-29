@@ -252,8 +252,10 @@ def plot_seasonal_months(months, divider = False):
     fig = plt.gcf()
     axes = fig.axes[:3 * len(months)]
 
+    row_groups = [axes[i * len(months):(i + 1) * len(months)] for i in range(3)]
+    colour_bars = []
     for i, (title, ds, row_colours, (lo, hi), df, column) in enumerate(rows):
-        row_axes = axes[i * len(months):(i + 1) * len(months)]
+        row_axes = row_groups[i]
         for ax in row_axes:
             ax.set_title("")
         # the full month names are only given once, above the model maps
@@ -280,24 +282,30 @@ def plot_seasonal_months(months, divider = False):
             pad = 0.05,
         )
         cb.ax.set_ylabel(unit_text)
+        colour_bars.append(cb)
 
-    # the maps keep their shape, so when the width limits them there are gaps between the rows.
-    # The height without them comes from two layouts, taking the height of the rows to follow
-    # the figure's in a straight line. The layout is then kept fixed so the lines below stay put
-    def row_height():
-        return axes[0].get_position(original = True).height * fig.get_size_inches()[1]
-
+    # panel_plot leaves white space round maps that keep their shape, so the axes are placed by
+    # hand: each map is as wide as its column allows and the figure is as tall as the maps need
     fig.canvas.draw()
-    maps_high = axes[0].get_position().height * height
-    gap = row_height() - maps_high
-    if gap > 0.01:
-        trial = height - 3 * gap
-        fig.set_size_inches(width, trial)
-        fig.canvas.draw()
-        slope = (gap + maps_high - row_height()) / (height - trial)
-        fig.set_size_inches(width, height - gap / slope + 0.02 if slope > 0 else height)
-        fig.canvas.draw()
+    x_range, y_range = axes[0].get_xlim(), axes[0].get_ylim()
+    ratio = abs((y_range[1] - y_range[0]) / (x_range[1] - x_range[0]))
+    margin_left, margin_right, margin_top, margin_bottom = 0.65, 1.0, 0.3, 0.1
+    gap_x, gap_y = 0.05, 0.08
+    map_width = (width - margin_left - margin_right - (len(months) - 1) * gap_x) / len(months)
+    map_height = map_width * ratio
+    height = margin_top + margin_bottom + 3 * map_height + 2 * gap_y
     fig.set_layout_engine("none")
+    fig.set_size_inches(width, height)
+    for i, (row_axes, cb) in enumerate(zip(row_groups, colour_bars)):
+        y0 = height - margin_top - i * (map_height + gap_y) - map_height
+        for j, ax in enumerate(row_axes):
+            x0 = margin_left + j * (map_width + gap_x)
+            ax.set_position([x0 / width, y0 / height, map_width / width, map_height / height])
+        cb.ax.set_position([
+            (width - margin_right + 0.15) / width, (y0 + 0.1 * map_height) / height,
+            0.12 / width, 0.8 * map_height / height,
+        ])
+    fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     inverse = fig.transFigure.inverted()
     fig_width, fig_height = fig.get_size_inches()
