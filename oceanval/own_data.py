@@ -115,7 +115,8 @@ _MODEL_VARIABLE = _field(
     "model_variable",
     "Simulation variable",
     required=True,
-    help="The simulation variable to compare with. Use a+b+c to add variables together.",
+    help="The simulation variable to compare with: choose from the simulation's variables, or "
+    "use a+b+c to add variables together.",
 )
 
 POINT_FIELDS = [

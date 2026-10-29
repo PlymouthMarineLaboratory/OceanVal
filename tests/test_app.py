@@ -2326,6 +2326,84 @@ class TestServer:
         )
         assert text.index("add_point_comparison") < text.index("oceanval.matchup(")
 
+    def test_own_data_picks_from_the_simulations_variables(self, app, tmp_path):
+        """The simulation's variables are read once the setup is answered, for
+        the own data steps' pickers, and a name that is not one is refused."""
+        write_simulation(tmp_path / "sim")
+        points = tmp_path / "points"
+        points.mkdir()
+        (points / "obs.csv").write_text("lon,lat,observation\n1,2,3\n")
+        app.choose("matchup")
+        post(app, "/api/setup", {"form": SETUP_FORM})
+        post(app, "/api/own_data", {"answer": True})
+        wait_for(lambda: get_json(app, "/api/state")[1]["own"]["simulation"]["status"] == "done")
+        found = get_json(app, "/api/state")[1]["own"]["simulation"]
+        assert "thetao" in found["available"]
+        assert found["long_names"]["thetao"] == "sea water potential temperature"
+
+        form = {"name": "chl", "source": "cruise", "model_variable": "nonsense", "obs_path": "points"}
+        status, reply = post(app, "/api/own_add", {"kind": "point", "form": form})
+        assert status == 400
+        assert reply["errors"] == {"model_variable": "nonsense is not in the simulation output."}
+        # every name of a sum is looked at
+        reply = post(app, "/api/own_add", {"kind": "point", "form": dict(form, model_variable="thetao+a+b")})[1]
+        assert reply["errors"] == {"model_variable": "a, b are not in the simulation output."}
+        assert post(app, "/api/own_add", {"kind": "point", "form": dict(form, model_variable="thetao")})[0] == 200
+        # the variables are only sent while the own data steps are shown
+        post(app, "/api/own_next")
+        post(app, "/api/own_next")
+        wait_for(lambda: app.view == "recipes")
+        assert get_json(app, "/api/state")[1]["own"]["simulation"]["available"] == []
+
+    def test_own_data_does_not_refuse_while_the_simulation_is_unread(self, app, tmp_path):
+        """A read that is slow or has failed never stops an entry being added."""
+        write_simulation(tmp_path / "sim")
+        points = tmp_path / "points"
+        points.mkdir()
+        (points / "obs.csv").write_text("lon,lat,observation\n1,2,3\n")
+        app.choose("matchup")
+        post(app, "/api/setup", {"form": SETUP_FORM})
+        post(app, "/api/own_data", {"answer": True})
+        wait_for(lambda: get_json(app, "/api/state")[1]["own"]["simulation"]["status"] != "reading")
+        with app._lock:
+            app._own_sim = dict(app._own_sim, status="failed", long_names={})
+        form = {"name": "chl", "source": "cruise", "model_variable": "nonsense", "obs_path": "points"}
+        assert post(app, "/api/own_add", {"kind": "point", "form": form})[0] == 200
+
+    def test_the_variables_of_gridded_observations_are_looked_at(self, app, tmp_path):
+        """The first file of a netCDF file, a directory or a pattern says
+        what the Observation variable can be."""
+        write_simulation(tmp_path / "sim")
+        folder = tmp_path / "obs"
+        folder.mkdir()
+        for year in (2011, 2012):
+            xr.Dataset(
+                {"chl": (("lat", "lon"), np.random.rand(2, 2), {"long_name": "chlorophyll", "units": "mg m-3"})},
+                coords={"lat": [50.0, 51.0], "lon": [0.0, 1.0]},
+            ).to_netcdf(folder / f"chl_{year}.nc")
+        app.choose("matchup")
+        post(app, "/api/setup", {"form": SETUP_FORM})
+        post(app, "/api/own_data", {"answer": True})
+        # only on the gridded data step
+        assert post(app, "/api/own_inspect", {"obs_path": "obs"})[0] == 409
+        post(app, "/api/own_next")
+        assert app.view == "gridded_data"
+
+        for path in ("obs/chl_2011.nc", "obs", "obs/chl_*.nc"):
+            status, reply = post(app, "/api/own_inspect", {"obs_path": path})
+            assert status == 200 and reply["ok"], path
+            by_name = {variable["name"]: variable for variable in reply["variables"]}
+            assert by_name["chl"]["long_name"] == "chlorophyll"
+            assert by_name["chl"]["units"] == "mg m-3"
+            assert reply["sample"].endswith("chl_2011.nc")
+        assert reply["files"] == 2
+
+        reply = post(app, "/api/own_inspect", {"obs_path": "nothing/here"})[1]
+        assert not reply["ok"] and reply["error"] == "There is no file or directory at this path."
+        # nothing to say about a blank box or an address
+        for path in ("", "  ", "https://example.org/data.nc", None):
+            assert post(app, "/api/own_inspect", {"obs_path": path})[1] == {"ok": False, "error": ""}
+
     def test_back_through_the_own_data_steps(self, app, tmp_path, runs):
         write_simulation(tmp_path / "sim")
         app.choose("matchup")
@@ -7917,6 +7995,73 @@ def test_adding_your_own_data_in_a_browser(browser, tmp_path):
         assert page.get_attribute("#o-gridded-name", "list") == "own-variable-options"
         assert page.is_visible("#o-gridded-climatology")
         assert app.own_data["point"][0]["name"] == "chl"
+    finally:
+        app.close()
+
+
+def test_picking_the_variables_of_your_own_data_in_a_browser(browser, tmp_path):
+    """The simulation variable is picked from the simulation's variables, and
+    the observation variable from those in the first file of the observations."""
+    write_simulation(tmp_path / "sim")
+    (tmp_path / "obs").mkdir()
+    for year in (2011, 2012):
+        xr.Dataset(
+            {
+                "chl": (("lat", "lon"), np.random.rand(2, 2), {"long_name": "chlorophyll", "units": "mg m-3"}),
+                "kd490": (("lat", "lon"), np.random.rand(2, 2), {"long_name": "light attenuation"}),
+            },
+            coords={"lat": [50.0, 51.0], "lon": [0.0, 1.0]},
+        ).to_netcdf(tmp_path / "obs" / f"obs_{year}.nc")
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click('button.choice[data-action="matchup"]')
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        choose_domain(page)
+        page.click("#continue")
+        page.click("#own-yes")
+        page.wait_for_selector("#own-form-point")
+
+        # the simulation's variables, searched by name or long_name
+        pick = page.locator("#o-point-model_variable-pick")
+        pick.locator("summary").wait_for()
+        pick.locator("summary").click()
+        page.fill("#o-point-model_variable-pick .vars__search", "potential temp")
+        pick.locator('input[aria-label="Use thetao"]').check()
+        assert page.input_value("#o-point-model_variable") == "thetao"
+        page.click("#own-next")
+        page.wait_for_selector("#own-form-gridded")
+
+        # the same picker on the gridded step, where the box is typed in too
+        page.locator("#o-gridded-model_variable-pick summary").click()
+        page.locator('#o-gridded-model_variable-pick input[aria-label="Use thetao"]').check()
+        assert page.input_value("#o-gridded-model_variable") == "thetao"
+        page.fill("#o-gridded-model_variable", "")
+        page.wait_for_function("!document.querySelector('#o-gridded-model_variable-pick input[aria-label=\"Use thetao\"]').checked")
+
+        # nothing to pick from until there are observations
+        assert page.locator("#o-gridded-obs_variable-pick").inner_text() == ""
+        page.fill("#o-gridded-obs_path", "obs")
+        picker = page.locator("#o-gridded-obs_variable-pick")
+        picker.locator("summary").wait_for()
+        assert "variables in obs_2011.nc, the first of 2 files" in picker.inner_text()
+        picker.locator("summary").click()
+        page.fill("#o-gridded-obs_variable-pick .vars__search", "attenuation")
+        picker.locator('input[aria-label="Use kd490"]').check()
+        assert page.input_value("#o-gridded-obs_variable") == "kd490"
+        # one is chosen, and the list closes
+        assert not picker.locator("details").evaluate("node => node.open")
+
+        # a path with no data says so, and an address is not looked at
+        page.fill("#o-gridded-obs_path", "nowhere")
+        page.wait_for_function("document.querySelector('#o-gridded-obs_variable-pick').innerText.includes('no file or directory')")
+        page.fill("#o-gridded-obs_path", "https://example.org/data.nc")
+        page.wait_for_function("document.querySelector('#o-gridded-obs_variable-pick').innerText === ''")
     finally:
         app.close()
 

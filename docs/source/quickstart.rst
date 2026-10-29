@@ -44,7 +44,10 @@ output to a validation report:
    (never their names) while you carry on, in a few seconds, for the next
    steps.
 3. **Own data**: add observations of your own, if you have any, for this
-   matchup only or saved as a recipe for later ones too.
+   matchup only or saved as a recipe for later ones too. The simulation
+   variable is picked from the simulation's variables, which OceanVal reads
+   while you answer, and the observation variable of gridded data from those
+   in the first netCDF file of the observations.
 4. **Recipes**: check the model variables found, give the first and last
    years to validate (type them, or pick them from the list of the years the
    output covers that the arrow in each box opens), choose how many cores to

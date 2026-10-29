@@ -140,6 +140,9 @@
   .own-help { display: block; margin: 4px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
   .own-err { display: block; margin: 4px 0 0; color: var(--red); font-size: 12.5px; font-weight: 500; }
   .own-err:empty { display: none; }
+  /* under the simulation and observation variable boxes: a note on what is being read, and the pop-out of variables */
+  .own-pick { min-width: 0; }
+  .own-pick .vars { margin-top: 4px; }
   .own-optional { grid-column: 1 / -1; }
   .own-optional > summary { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--teal-700); font-weight: 600; cursor: pointer; }
   .own-optional > summary:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus); }
@@ -6765,7 +6768,7 @@
     const help = field.help ? el("span", { class: "own-help", id: `${id}-help`, text: field.help }) : null;
     const described = `${id}-help ${id}-err`;
     const wrapper = el("div", { class: "own-field" + (field.required ? " is-required" : "") });
-    let input, read, reset, mark = () => {};
+    let input, read, reset, mark = () => {}, slot = null;
     const label = () => el("label", { class: "g-label", for: id },
       field.label, field.required ? el("span", { class: "own-req", text: "Required" }) : null);
 
@@ -6801,15 +6804,21 @@
       reset = () => { input.value = ""; };
       mark = (bad) => { input.classList.toggle("is-invalid", bad); input.setAttribute("aria-invalid", String(bad)); };
       wrapper.append(label(), input);
+      // the pick-list of variables goes under these two boxes (see setPick)
+      if (field.name === "model_variable" || field.name === "obs_variable") {
+        slot = el("div", { class: "own-pick", id: `${id}-pick` });
+        input.addEventListener("input", () => { if (own[kind][field.name].pickSync) own[kind][field.name].pickSync(); });
+      }
     }
     wrapper.append(help, error);
+    if (slot) wrapper.append(slot);
     if (field.name === "obs_path") wrapper.classList.add("is-wide");
     reset();
     const clear = () => { error.textContent = ""; mark(false); };
     wrapper.addEventListener("input", clear);
     wrapper.addEventListener("change", clear);
     own[kind][field.name] = {
-      field, wrapper, input, read, reset, clear,
+      field, wrapper, input, read, reset, clear, slot, pickSync: null, pickSignature: null,
       show(text) { error.textContent = text; mark(true); },
       optional: !field.required,
     };
@@ -6858,7 +6867,92 @@
           { "aria-label": `Remove ${entry.name} from ${entry.source}`,
             title: saved[index] ? "Takes it out of this run only: the recipe stays saved." : null })))));
     $(`own-count-${kind}`).textContent = entries.length ? "Add as many as you have, then continue." : "";
+    refreshSimulationPick(kind);
+    if (kind === "gridded") lookAtObservations();
   }
+
+  // ---- the pick-lists under the variable boxes ----
+  // Simulation variable: the simulation's variables, which are read in the
+  // background once the simulation step is answered (state.own.simulation) and
+  // picked as in the recipes window, several summed as a+b. Observation
+  // variable: the variables of the first file of gridded observations on this
+  // machine, looked at once the path is typed. The boxes can still be typed in:
+  // what is wrong is said when the data is added.
+  const note = (text) => el("span", { class: "own-help", text });
+
+  function setPick(control, ...children) {
+    control.pickSync = null;
+    control.slot.replaceChildren(...children);
+  }
+
+  // puts a value in a box as if it was typed, so its error goes
+  function setBox(control, value) {
+    control.input.value = value;
+    control.input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function refreshSimulationPick(kind) {
+    const control = own[kind].model_variable;
+    const found = state.own.simulation;
+    const signature = `${found.status}:${found.read}`;
+    if (control.pickSignature === signature) {
+      if (control.pickSync) control.pickSync();
+      return;
+    }
+    control.pickSignature = signature;
+    if (found.status === "reading") return setPick(control, note("Reading the simulation's variables…"));
+    if (found.status === "failed") {
+      return setPick(control, note("The simulation's variables could not be read, so type the name."));
+    }
+    const picker = found.status === "done" ? OceanValGUI.variablesPicker({
+      available: found.available, longNames: found.long_names, multi: true,
+      label: "Select from the simulation's variables", what: "simulation's variables",
+      get: () => control.input.value,
+      set: (value) => setBox(control, value),
+    }) : null;
+    setPick(control, ...(picker ? [picker.details] : []));
+    if (picker) control.pickSync = picker.sync;
+  }
+
+  const observed = { path: null, token: 0, timer: null };
+
+  function lookAtObservations() {
+    const control = own.gridded.obs_variable;
+    const path = own.gridded.obs_path.read().trim();
+    const remote = own.gridded.thredds.read() || /^(https?|ftp):\/\//i.test(path);
+    clearTimeout(observed.timer);
+    if (!path || remote) {
+      if (observed.path !== null) setPick(control);
+      observed.path = null;
+      observed.token += 1;
+      return;
+    }
+    if (observed.path === path) return;
+    observed.path = path;
+    const token = ++observed.token;
+    setPick(control, note("Reading the observations…"));
+    observed.timer = setTimeout(async () => {
+      const reply = await post("api/own_inspect", { obs_path: path });
+      if (token !== observed.token) return;
+      if (!reply.ok) return setPick(control, ...(reply.error ? [note(reply.error)] : []));
+      const longNames = Object.fromEntries(reply.variables.map((variable) => [variable.name, variable.long_name || ""]));
+      const picker = OceanValGUI.variablesPicker({
+        available: reply.variables.map((variable) => variable.name), longNames, multi: false,
+        label: "Select from the observations' variables", what: "observations' variables",
+        get: () => control.input.value,
+        set: (value) => { setBox(control, value); picker.details.open = false; },
+      });
+      const file = reply.sample.split("/").pop();
+      const count = reply.variables.length;
+      setPick(control,
+        note(`${plural(count, "variable")} in ${file}${reply.files > 1 ? `, the first of ${reply.files} files` : ""}`),
+        picker.details);
+      control.pickSync = picker.sync;
+    }, 500);
+  }
+
+  own.gridded.obs_path.input.addEventListener("input", lookAtObservations);
+  own.gridded.thredds.input.addEventListener("change", lookAtObservations);
 
   // future is whether it is to be saved as a recipe as well, which the
   // own_future step asks more for first, while the form is kept for Back

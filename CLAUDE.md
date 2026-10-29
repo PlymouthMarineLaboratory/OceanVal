@@ -197,6 +197,16 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   future"): view `own_future` (`App.own_future`/`own_future_save`), built from the entry by
   `recipe_forms.from_own_data`/`missing_boxes`/`with_boxes`, assumptions shown in amber.
   `create_recipes.replaced_recipes` leaves a user recipe with the same variable and source as
+- **The own data steps pick variables rather than asking for them typed** (`point_data`/`gridded_data`, `ownField` in `oceanval_app.html`):
+  the setup answer starts `App._read_own_simulation`, a thread (`netcdf_lock.LOCK`, `create_recipes._variable_long_names`, keyed by
+  `_simulation(arguments)`, dropped by `_own_sim_number`/`_reset_count`) whose answer is `state.own.simulation`
+  (`status` reading/done/failed, `read`, and `available`/`long_names` only while an own data view is shown). **Simulation variable** (both
+  kinds) gets `OceanValGUI.variablesPicker(multi)` in `#o-<kind>-model_variable-pick`; `add_own_data`/`own_future` refuse a name not in
+  `available` (`_unknown_simulation_variable`), but only once status is `done`, so a slow or failed read never blocks. `own_data.check_entry`
+  itself knows nothing of the simulation. **Observation variable** (gridded) gets a single-select picker over `POST /api/own_inspect`
+  (`App.own_inspect` → `recipe_checks.inspect_gridded("disk")`: a file, a directory or an `.nc` pattern, the first file's variables), asked
+  500 ms after `obs_path` stops changing (token-guarded `lookAtObservations`); never for a URL or the THREDDS tick, and its errors are notes,
+  not refusals. A new box that offers the simulation's or observations' variables goes through these slots (`setPick`/`setBox`).
   an own data entry out of that run's recipes window, so it is not registered twice.
 - The window's settings (`oceanval/user_settings.py`: colour theme, whether the demo is offered)
   live under `"settings"` in the *global* rc only, beside `"recipes"`; `load()` never raises.

@@ -65,7 +65,7 @@ import traceback
 import urllib.parse
 
 import oceanval
-from oceanval import leftovers, live, prompts, recipes_gui
+from oceanval import leftovers, live, netcdf_lock, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
@@ -84,6 +84,7 @@ from oceanval.create_recipes import (
     _create_recipes,
     _literal,
     _unknown_variables,
+    _variable_long_names,
     recipe_variables,
     folder_layout,
     simulation_paths,
@@ -1713,6 +1714,10 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         self.recipes_choices = None
         self._choices_from = None
         self.units_boxes = {}
+        # the simulation's variables, read while the own data steps are answered
+        # (see _read_own_simulation), for their variable pickers
+        self._own_sim = None
+        self._own_sim_number = 0
         # the recipes window for the simulation, kept to be shown again for
         # Back from the steps after it; the units last read, as (what the
         # window chose, rows); the user's own data as given, before the
@@ -1956,6 +1961,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     "saved": self._own_saved_state(),
                     "fields": own_data.FIELDS,
                     "recipe_variables": sorted(recipe_variables(self.cwd)),
+                    "simulation": self._own_simulation_state(),
                     "answer": self.own_answer,
                     "future": self._own_future_state(),
                 },
@@ -3012,6 +3018,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             run, self.run = self.run, None
             page, self.recipes_page = self.recipes_page, None
             reading, self._output_years = self._output_years, None
+            self._own_sim = None
+            self._own_sim_number += 1
             draft, self._draft_dir = self._draft_dir, None
             self._cancel_register_check()
             self._drop_model_check()
@@ -3120,6 +3128,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             arguments["out"] = self._draft_script()
             self.setup_arguments = arguments
             self.view = "own_data"
+            if self.demo is None:
+                self._read_own_simulation(arguments)
             self._notify()
             demo = self.demo is not None
         if demo:
@@ -3365,6 +3375,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             ]
         # outside the lock: it can open files
         arguments, errors = own_data.check_entry(kind, form, existing, self.cwd)
+        errors.update(self._unknown_simulation_variable(arguments, errors))
         if errors:
             return 400, {"ok": False, "errors": errors}
         with self._lock:
@@ -3374,6 +3385,98 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._forget_own_boxes()
             self._notify()
         return 200, {"ok": True}
+
+    def own_inspect(self, obs_path):
+        """What is in gridded observations of your own, for the Observation
+        variable's pick-list: the variables of the first file of a netCDF file,
+        a directory of them or a pattern, as recipe_checks.inspect_gridded
+        finds them. A reply of {"ok": False, "error": text} says why they could
+        not be looked at; it never stops an entry being added, which is
+        checked as it is added. Data on a server is not looked at here."""
+        with self._lock:
+            if self.view != "gridded_data":
+                return 409, {"ok": False, "error": "This step is over."}
+        text = obs_path.strip() if isinstance(obs_path, str) else ""
+        if not text:
+            return 200, {"ok": False, "error": ""}
+        if text.lower().startswith(("http://", "https://", "ftp://")):
+            return 200, {"ok": False, "error": ""}
+        try:
+            found = recipe_checks.inspect_gridded("disk", text, self.cwd)
+        except recipe_checks.CheckFailed as error:
+            return 200, {"ok": False, "error": str(error)}
+        except Exception as error:
+            return 200, {"ok": False, "error": recipe_checks._short(error)}
+        return 200, {
+            "ok": True,
+            "sample": found["sample"],
+            "files": found["files"],
+            "variables": found["variables"],
+        }
+
+    def _read_own_simulation(self, arguments):
+        """Start reading the simulation's variables for the own data steps'
+        pickers, unless that is done or being done for these files. Called
+        with the lock held."""
+        key = _simulation(arguments)
+        if self._own_sim is not None and self._own_sim["key"] == key:
+            return
+        self._own_sim_number += 1
+        self._own_sim = {"key": key, "status": "reading", "long_names": {}}
+        threading.Thread(
+            target=self._own_simulation_variables,
+            args=(self._own_sim_number, self._reset_count, key),
+            name="oceanval-own-variables",
+            daemon=True,
+        ).start()
+
+    def _own_simulation_variables(self, number, reset, key):
+        try:
+            with netcdf_lock.LOCK:
+                names = _variable_long_names(
+                    key[0], key[1], list(key[2]) or None, list(key[3]) or None
+                )
+        except Exception:
+            names = {}
+        with self._lock:
+            if number != self._own_sim_number or reset != self._reset_count:
+                return
+            self._own_sim = dict(
+                self._own_sim, status="done" if names else "failed", long_names=names
+            )
+            self._notify()
+
+    def _own_simulation_state(self):
+        """The simulation's variables for the own data steps' pickers. Called
+        with the lock held."""
+        found = self._own_sim
+        if found is None:
+            return {"status": "none", "read": 0, "available": [], "long_names": {}}
+        shown = self.view in ("own_data", "point_data", "gridded_data", "own_future")
+        names = found["long_names"] if shown else {}
+        return {
+            "status": found["status"],
+            "read": self._own_sim_number,
+            "available": sorted(names, key=lambda name: (name.lower(), name)),
+            "long_names": names,
+        }
+
+    def _unknown_simulation_variable(self, arguments, errors):
+        """The error for a simulation variable that is not in the simulation's
+        output, as {"model_variable": text}, or {}. Only once the simulation's
+        variables are read: a slow or failed read never stops an entry."""
+        with self._lock:
+            found = self._own_sim
+            available = found["long_names"] if found and found["status"] == "done" else None
+        if available is None or "model_variable" in errors:
+            return {}
+        unknown = _unknown_variables(str(arguments.get("model_variable", "")), available)
+        if not unknown:
+            return {}
+        return {
+            "model_variable": f"{', '.join(unknown)} {'is' if len(unknown) == 1 else 'are'} "
+            "not in the simulation output."
+        }
 
     def remove_own_data(self, kind, index):
         with self._lock:
@@ -3434,6 +3537,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             ]
         # outside the lock: it opens the data
         arguments, errors = own_data.check_entry(kind, form, existing, self.cwd)
+        errors.update(self._unknown_simulation_variable(arguments, errors))
         errors.update(_future_problems(kind, arguments, errors))
         if errors:
             return 400, {"ok": False, "errors": errors}
@@ -5560,6 +5664,9 @@ class _Handler(recipes_gui._Handler):
             self._reply_json(
                 *app.add_own_data(payload.get("kind"), payload.get("form"))
             )
+            return
+        if path == "/api/own_inspect":
+            self._reply_json(*app.own_inspect(payload.get("obs_path")))
             return
         if path == "/api/own_future":
             self._reply_json(*app.own_future(payload.get("kind"), payload.get("form")))

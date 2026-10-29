@@ -473,9 +473,11 @@ const OceanValGUI = (() => {
   // hundreds of variables. get() is what the box holds and set(text) puts a
   // new value in it. With multi, several can be ticked and are summed as
   // var1+var2; without, one at most. Returns the pop-out and sync(), which
-  // ticks what the box holds, or null if there are no variables. Shared by
-  // the create_recipes window and the oceanval window's Analyze steps.
-  function variablesPicker({ available, longNames = {}, get, set, multi, className = "" }) {
+  // ticks what the box holds, or null if there are no variables. label and
+  // what word the pop-out's link and search box for variables that are not
+  // the model's. Shared by the create_recipes window and the oceanval
+  // window's Analyze and own data steps.
+  function variablesPicker({ available, longNames = {}, get, set, multi, className = "", label = "Select from the model's variables", what = "model's variables" }) {
     if (!available.length) return null;
     const search = el("input", {
       class: "vars__search",
@@ -484,7 +486,7 @@ const OceanValGUI = (() => {
       spellcheck: "false",
       autocomplete: "off",
       autocapitalize: "off",
-      "aria-label": "Search the model's variables and their long names",
+      "aria-label": `Search the ${what} and their long names`,
     });
     const count = el("span", { class: "vars__count vars__shown", "aria-live": "polite" });
     const ticked = el("span", { class: "vars__count vars__ticked" });
@@ -497,7 +499,7 @@ const OceanValGUI = (() => {
     const body = el("div", { class: "vars__popover" },
       el("div", { class: "vars__bar" }, search, count, ticked), picked, scroll);
     const details = el("details", { class: `vars ${className}`.trim() },
-      el("summary", { text: "Select from the model's variables" }), body);
+      el("summary", { text: label }), body);
     let rows = [];
     // the names in the box, which may include ones the model does not have;
     // a single box may also hold z_level or a file, which are not variables
