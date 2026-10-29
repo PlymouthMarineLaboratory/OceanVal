@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import json
 import re
 from pathlib import Path
@@ -20,9 +21,18 @@ def test_seasonal_template_shows_global_maps_four_months_at_a_time():
     exec(code, {"global_grid": True}, periods)
     assert [list(x) for x in periods["seasonal_periods"]] == [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]
 
-    periods = dict()
-    exec(code, {"global_grid": False}, periods)
-    assert [list(x) for x in periods["seasonal_periods"]] == [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]]
+    # regional maps: half of the months available in each figure, one figure for 5 or fewer
+    for months, expected in [
+        (range(1, 13), [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]]),
+        (range(5, 13), [[5, 6, 7, 8], [9, 10, 11, 12]]),
+        (range(1, 8), [[1, 2, 3, 4], [5, 6, 7]]),
+        (range(6, 12), [[6, 7, 8], [9, 10, 11]]),
+        (range(8, 13), [[8, 9, 10, 11, 12]]),
+        ([3], [[3]]),
+    ]:
+        periods = dict()
+        exec(code, {"global_grid": False, "df_model": SimpleNamespace(month=list(months) * 2)}, periods)
+        assert [list(x) for x in periods["seasonal_periods"]] == expected
 
 
 def test_the_maps_are_drawn_by_panel_plot_alone():

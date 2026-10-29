@@ -265,7 +265,7 @@ def plot_seasonal_months(months, divider = False):
         # each row is labelled on its left, rotated to run up the side of the maps
         row_axes[0].text(
             -0.04, 0.5, title.replace(" - ", " -\n"), transform = row_axes[0].transAxes,
-            rotation = 90, ha = "right", va = "center", multialignment = "center", fontsize = 12,
+            rotation = 90, ha = "right", va = "center", multialignment = "center", fontsize = 11,
         )
 
         # arrows on the colour bar show values beyond its limits in the months shown
@@ -332,7 +332,10 @@ def plot_seasonal_months(months, divider = False):
 if global_grid:
     seasonal_periods = [range(1, 5), range(5, 9), range(9, 13)]
 else:
-    seasonal_periods = [range(1, 7), range(7, 13)]
+    # half of the months available in each figure, or one figure for 5 or fewer
+    available = sorted({int(month) for month in df_model.month})
+    half = (len(available) + 1) // 2
+    seasonal_periods = [available] if len(available) <= 5 else [available[:half], available[half:]]
 
 if not concise:
     # a line separates each group of months from the next, but none follows the last group
