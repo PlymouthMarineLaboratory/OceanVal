@@ -107,6 +107,8 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   only some months are kept, the model's too (`year_options` narrows the model's years only for a climatology). The report makes every annual
   mean from the monthly climatology (`tmean("month")` then `tmean()`, the vertical profiles too), so a year with months missing does not skew
   it; when a month of `matchup_dict.pkl`'s `months` never matched, `gridded_template.ipynb`'s `annual_note` names the months in each annual caption.
+  The seasonal and regional sections need only more than one month (`_gridded_seasonal`, the template's `n_times < 2`; they go together, as the
+  regional cells use `chunk_seasonal`'s `ds_ts`), and with fewer than 12 their captions say which months (`months_note`, `cor_note`).
 - **FVCOM output** is regridded by `fvcom_matchup_files`, to `matchup(fvcom_res=0.05)` degrees for point matchups (gridded ones keep
   half the observations' resolution) and, for vertical ones, the depths `fvcom.matchup_depths(fvcom_min_depth=0, fvcom_max_depth=150, fvcom_dz=5)`
   (`session_info["fvcom_res"]`/`["fvcom_levels"]`, also read by `gridded.py`); the levels are in the cache key of the regridded files. The
@@ -116,6 +118,11 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   points above it. A lon or lat range of more than 50 degrees (or no R `mapdata`) keeps `map_data("world")`; a smaller one uses
   `map_data("worldHires")` from `r-mapdata`, limited to the data's extent, without the "Great Lakes" region (the lakes are water; open
   ocean with no land falls back to `world`). The same block is in every cell (`tests/test_report_templates.py` checks that), so change them together.
+- **The land of the gridded maps** (nctoolkit `pub_plot`/`panel_plot`) is Natural Earth's, which takes in the lakes and which
+  nctoolkit draws over the data, so a model of Lake Erie came out all land. `oceanval/map_land.land_below()` puts the land
+  beneath the data and draws Natural Earth's lakes over it as water (no lakes, if cartopy cannot download them). Every
+  map call in the templates is followed by `land_below()` (imported in `chunk_start`; `tests/test_report_templates.py` checks),
+  and every Analyze/Compare script that draws one writes it out (`map_land.LAND_CODE`) and calls it last (`analysis_plots._code`).
 - `oceanval/create_recipes.py` scans model output directories, maps model variables to
   observational variables via netCDF `long_name` matching, and writes out a matchup script with
   live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, ...).

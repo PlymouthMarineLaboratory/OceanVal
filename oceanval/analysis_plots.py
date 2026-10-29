@@ -36,6 +36,7 @@ import xarray as xr
 from matplotlib.colors import to_hex
 
 from oceanval.analysis import PEAK_DAY, PEAK_VALUE, load
+from oceanval.map_land import LAND_CODE
 from oceanval.tidiers import fix_unit
 
 
@@ -133,8 +134,17 @@ def _listing(name, rows, comment):
 
 def _code(*blocks):
     """The blocks of a script, each a line or lines, as one script. Empty
-    blocks are left out."""
-    return "\n".join(block for block in blocks if block) + "\n"
+    blocks are left out. A script drawing nctoolkit maps ends by putting their
+    land beneath the data, with the lakes as water (see oceanval.map_land)."""
+    blocks = [block for block in blocks if block]
+    if any(re.search(r"\b(pub_plot|panel_plot)\(", block) for block in blocks):
+        blocks += [
+            "# nctoolkit draws the land over the maps, lakes too: put it beneath them,\n"
+            "# with the lakes drawn as water",
+            LAND_CODE,
+            "land_below()",
+        ]
+    return "\n".join(blocks) + "\n"
 
 
 def _about(info):

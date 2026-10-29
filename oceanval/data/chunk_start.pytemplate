@@ -18,6 +18,7 @@ from IPython.display import Markdown as md_markdown
 from tqdm import tqdm
 from IPython.core.interactiveshell import InteractiveShell
 from oceanval.tidiers import tidy_info
+from oceanval.map_land import land_below
 InteractiveShell.ast_node_interactivity = "all"
 
 try:

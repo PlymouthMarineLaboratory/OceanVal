@@ -141,6 +141,7 @@ def plot_clim():
         norm = transformation,
         grid_labels = False,
     )
+    land_below()
 try:
     plot_clim()
 except:

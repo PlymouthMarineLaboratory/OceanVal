@@ -31,13 +31,15 @@ if fix_grid:
     ds_cor_plot = ds_cor.copy()
     ds_cor_plot.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
     ds_cor_plot.pub_plot("cor")
+    land_below()
 else:
     ds_cor.pub_plot("cor")
+    land_below()
 
 
 
 # %% tags=["remove-input"]
-md(f"**Figure {i_figure}**: Seasonal temporal correlation between model and observations for {layer} {vv_name}. This is the Pearson correlation coefficient between climatological monthly mean values in the model and observations.")
+md(f"**Figure {i_figure}**: Seasonal temporal correlation between model and observations for {layer} {vv_name}. This is the Pearson correlation coefficient between climatological monthly mean values in the model and observations.{cor_note}")
 i_figure += 1
 
 # %% tags=["remove-cell"]
@@ -246,6 +248,7 @@ def plot_seasonal_months(months, divider = False):
         land = "#bebebe",
         grid_labels = False,
     )
+    land_below()
     fig = plt.gcf()
     axes = fig.axes[:3 * len(months)]
 
@@ -335,7 +338,7 @@ if not concise:
     fixed_scale = "fixed_scale_value"
     arrows = " Arrows on the colorbars indicate values beyond the colorbar limits."
     if fixed_scale == "False":
-        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum values are capped to the 98th percentiles.{arrows}") 
+        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum values are capped to the 98th percentiles.{arrows}{months_note}") 
     else:
-        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum and minimum values are capped to cover the 98th and 2nd percentiles of both model and observations.{arrows}")
+        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum and minimum values are capped to cover the 98th and 2nd percentiles of both model and observations.{arrows}{months_note}")
     i_figure += 1

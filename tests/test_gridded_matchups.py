@@ -379,6 +379,33 @@ class TestIncompleteObservationYears:
         assert len(ds.times) == 12
 
 
+class TestSeasonalSection:
+    """The gridded page's seasonal section is shown from two months on."""
+
+    @staticmethod
+    def matchup_of(tmp_path, months):
+        times = pd.date_range("2000-01-01", periods=months, freq="MS")
+        ds_xr = xr.Dataset(
+            {
+                "model": (("time", "lat", "lon"), np.ones((months, 2, 2), dtype="float32")),
+                "observation": (("time", "lat", "lon"), np.ones((months, 2, 2), dtype="float32")),
+            },
+            coords={"time": times, "lat": [50.0, 51.0], "lon": [0.0, 1.0]},
+        )
+        ds_xr.lon.attrs = {"units": "degrees_east", "standard_name": "longitude"}
+        ds_xr.lat.attrs = {"units": "degrees_north", "standard_name": "latitude"}
+        folder = tmp_path / "oceanval_matchups" / "gridded" / "temperature"
+        folder.mkdir(parents=True)
+        ds_xr.to_netcdf(folder / "foo_temperature_surface.nc")
+        return str(tmp_path)
+
+    def test_two_months_have_a_seasonal_section(self, tmp_path):
+        assert oceanval._gridded_seasonal(self.matchup_of(tmp_path, 2), "temperature", "foo")
+
+    def test_one_month_has_none(self, tmp_path):
+        assert not oceanval._gridded_seasonal(self.matchup_of(tmp_path, 1), "temperature", "foo")
+
+
 class TestMultipleSources:
 
     def test_each_source_is_matched_up(self):

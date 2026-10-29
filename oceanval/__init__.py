@@ -1296,8 +1296,8 @@ def _point_notebook_text(source, layer, variable, title, n_levels, data_dir, out
 
 
 def _gridded_seasonal(data_dir, variable, source):
-    """Whether the gridded matchup of variable with source has a full year of
-    months, for the notebook's seasonal section."""
+    """Whether the gridded matchup of variable with source has more than one
+    month, for the notebook's seasonal section."""
     ff_nc = glob.glob(
         f"{data_dir}/oceanval_matchups/gridded/{variable}/{source}_*surface*.nc"
     )[0]
@@ -1306,7 +1306,7 @@ def _gridded_seasonal(data_dir, variable, source):
         n_months = len(ds.months)
     except:
         n_months = 12
-    return n_months >= 12
+    return n_months > 1
 
 
 def _gridded_notebook_text(

@@ -50,10 +50,12 @@ if fix_grid:
     # change the name
     ds_bias_1.set_longnames({ds_bias_1.variables[0]: "Model bias"})
     ds_bias_1.pub_plot(robust = True)
+    land_below()
 else:
     # change the name
     ds_bias.set_longnames({ds_bias.variables[0]: "Model bias"})
     ds_bias.pub_plot(robust = True)
+    land_below()
 
 
 # %% tags=["remove-input"]

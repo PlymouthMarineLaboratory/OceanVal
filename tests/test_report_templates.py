@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -195,3 +196,47 @@ def test_the_gridded_notebook_makes_annual_means_from_the_monthly_climatology():
     # every caption about annual means says which months they cover, when not all
     chunks = code + Path("oceanval/data/chunk_clim.pytemplate").read_text() + Path("oceanval/data/chunk_bias.pytemplate").read_text()
     assert chunks.count("{annual_note}") == 5
+
+
+def test_the_gridded_seasonal_sections_need_only_two_months():
+    cells = ["".join(cell["source"]) for cell in json.loads(Path("oceanval/data/gridded_template.ipynb").read_text())["cells"]]
+    code = "\n".join(cells)
+    assert "if n_times > 1:\n    md(f\"## Can the model reproduce seasonality" in code
+    assert "if n_times < 2:\n    regional = False" in code
+    assert "n_times < 12" not in code
+    # the captions say which months there are, when not all 12
+    seasonal = Path("oceanval/data/chunk_seasonal.pytemplate").read_text()
+    assert seasonal.count("{months_note}") == 2
+    assert seasonal.count("{cor_note}") == 1
+    assert "The spatial average is taken over the region.{months_note}" in code
+
+
+def _map_calls(code):
+    """Each nctoolkit map call in code, with the code that follows it."""
+    return [code[m.start():] for m in re.finditer(r"\b(pub_plot|panel_plot)\(", code)]
+
+
+@pytest.mark.parametrize("path", sorted(
+    x for x in Path("oceanval/data").iterdir()
+    if x.suffix in (".ipynb", ".pytemplate") and re.search(r"\b(pub_plot|panel_plot)\(", x.read_text())
+), ids=lambda x: x.name)
+def test_every_map_puts_the_land_beneath_the_data(path):
+    # nctoolkit draws Natural Earth's land, lakes too, over the data: Lake Erie came out all land
+    if path.suffix == ".ipynb":
+        codes = ["".join(cell["source"]) for cell in json.loads(path.read_text())["cells"] if cell["cell_type"] == "code"]
+    else:
+        codes = [path.read_text()]
+    calls = [call for code in codes for call in _map_calls(code)]
+    assert calls
+    for call in calls:
+        # the call's closing bracket, then the next line
+        depth = 0
+        for end, character in enumerate(call):
+            depth += {"(": 1, ")": -1}.get(character, 0)
+            if character == ")" and depth == 0:
+                break
+        assert call[end + 1:].lstrip().startswith("land_below("), (path.name, call[:80])
+
+
+def test_land_below_is_imported_where_the_notebooks_start():
+    assert "from oceanval.map_land import land_below\n" in Path("oceanval/data/chunk_start.pytemplate").read_text()
