@@ -193,10 +193,6 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   in a killable subprocess (`RemoteCheck`). `recipe_forms.py` is the window's form logic.
 - A variable only the user's recipes are for is identified by name or whole-phrase `long_name`,
   only if exactly one model variable matches; otherwise its model variable is left blank.
-- The own data step can save an entry as a recipe too ("Add this data for use now and in
-  future"): view `own_future` (`App.own_future`/`own_future_save`), built from the entry by
-  `recipe_forms.from_own_data`/`missing_boxes`/`with_boxes`, assumptions shown in amber.
-  `create_recipes.replaced_recipes` leaves a user recipe with the same variable and source as
 - **The own data steps pick variables rather than asking for them typed** (`point_data`/`gridded_data`, `ownField` in `oceanval_app.html`):
   the setup answer starts `App._read_own_simulation`, a thread (`netcdf_lock.LOCK`, `create_recipes._variable_long_names`, keyed by
   `_simulation(arguments)`, dropped by `_own_sim_number`/`_reset_count`) whose answer is `state.own.simulation`
@@ -207,6 +203,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (`App.own_inspect` → `recipe_checks.inspect_gridded("disk")`: a file, a directory or an `.nc` pattern, the first file's variables), asked
   500 ms after `obs_path` stops changing (token-guarded `lookAtObservations`); never for a URL or the THREDDS tick, and its errors are notes,
   not refusals. A new box that offers the simulation's or observations' variables goes through these slots (`setPick`/`setBox`).
+- The own data step can save an entry as a recipe too ("Add this data for use now and in
+  future"): view `own_future` (`App.own_future`/`own_future_save`), built from the entry by
+  `recipe_forms.from_own_data`/`missing_boxes`/`with_boxes`, assumptions shown in amber.
+  `create_recipes.replaced_recipes` leaves a user recipe with the same variable and source as
   an own data entry out of that run's recipes window, so it is not registered twice.
 - The window's settings (`oceanval/user_settings.py`: colour theme, whether the demo is offered)
   live under `"settings"` in the *global* rc only, beside `"recipes"`; `load()` never raises.
