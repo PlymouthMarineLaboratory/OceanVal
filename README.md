@@ -62,27 +62,27 @@ Now, install the package.
 
 ```sh
 pip install .
-
-```sh
-conda activate oceanval
 ```
 
-
-Now, install the package.
-
-```sh
-pip install .
-
-```
 OceanVal needs jupyter-book 2 or later, which `pip install .` installs.
 
 Alternatively, install the conda environment and package using the following commands:
 
 ```sh
     conda env create --name oceanval -f https://raw.githubusercontent.com/PlymouthMarineLaboratory/oceanval/main/oceanval.yml
-    conda activate oceanval​
-    pip install git+https://github.com/PlymouthMarineLaboratory/oceanval.git​
+    conda activate oceanval
+    pip install git+https://github.com/PlymouthMarineLaboratory/oceanval.git
 ```
+
+## Updating the development version
+
+To update an installed development version to the latest code on GitHub, activate the same conda environment and run:
+
+```sh
+pip install --force-reinstall git+https://github.com/PlymouthMarineLaboratory/oceanval.git
+```
+
+`--force-reinstall` installs the latest code even when pip thinks the installed version is up to date. It also reinstalls the dependencies, so the update can take a few minutes.
 
 
 
