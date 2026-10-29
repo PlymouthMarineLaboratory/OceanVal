@@ -3,6 +3,7 @@ from ncviewer's tests): the landing page's tile, the setup page it shares with
 Validate and Analyze (the same directories-down logic), the viewer's maps and
 colour scales over HTTP, the times read in the background, Back and Restart."""
 
+import glob
 import json
 import os
 import threading
@@ -360,9 +361,14 @@ class TestOneFile:
 
         root = land_simulation(str(tmp_path / "land"), land=-999.0)
         # the three files' times in one file, named as a file that the filters would leave out
-        with xr.open_mfdataset(os.path.join(root, "land_*.nc"), combine="by_coords") as ds:
+        parts = [xr.open_dataset(name) for name in sorted(glob.glob(os.path.join(root, "land_*.nc")))]
+        try:
+            ds = xr.concat(parts, dim="time")
             path = str(tmp_path / "restart_all.nc")
             ds.load().to_netcdf(path, encoding={"thetao": {"_FillValue": None}})
+        finally:
+            for part in parts:
+                part.close()
         return path
 
     def test_check_setup_keeps_the_file_and_asks_no_depth(self, one_file, tmp_path):

@@ -276,7 +276,8 @@ class ViewerSteps:
                 }
                 self._notify()
         if not kept:
-            found.close()
+            if found is not None:
+                found.close()
             return
         # listed in the simulation box's "Used before" from now on, as an analysed or matched up one is
         user_cache.record_sim_dir(arguments["simdir"])
