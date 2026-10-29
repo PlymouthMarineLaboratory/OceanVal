@@ -1,9 +1,12 @@
 
 import oceanval
+import oceanval.gridded as gridded
+from oceanval.session import session_info
 import nctoolkit as nc
 import pickle
 
 import numpy as np
+import xarray as xr
 import pandas as pd
 import glob
 import os
@@ -241,6 +244,103 @@ class TestFinal:
         assert np.abs(df['diff']).max() < 1e-5 
 
 
+
+
+class TestIncompleteObservationYears:
+    """A year of observations without every month cannot give a correct annual
+    average, so it is dropped, and the model's with it."""
+
+    @staticmethod
+    def obs_without(tmp_path, drop):
+        """data/example_temperature's 2000 and 2001 without the (year, month)s in drop."""
+        obs = tmp_path / "obs"
+        for year in ["2000", "2001"]:
+            shutil.copytree(f"data/example_temperature/{year}", obs / year)
+        for year, month in drop:
+            shutil.rmtree(obs / str(year) / f"{month:02d}")
+        return str(obs)
+
+    @staticmethod
+    def run(obs_path):
+        shutil.rmtree("oceanval_matchups", ignore_errors=True)
+        oceanval.reset()
+        session_info["end_messages"] = []
+        oceanval.add_gridded_comparison(
+            name = "temperature",
+            obs_path = obs_path,
+            source = "foo",
+            model_variable = "votemper",
+            obs_variable = "votemper",
+            climatology = False,
+            start = 2000,
+            end = 2001,
+        )
+        oceanval.matchup(
+            sim_dir = "data/example_temperature",
+            exclude = "ptrc",
+            start = 2000,
+            end = 2001,
+            ask = False,
+            cores = 1)
+
+    def test_the_year_is_dropped_from_both(self, tmp_path):
+        try:
+            self.run(self.obs_without(tmp_path, [(2001, m) for m in range(7, 13)]))
+            ds = nc.open_data("oceanval_matchups/gridded/temperature/foo_temperature_surface.nc")
+            assert ds.years == [2000]
+            assert len(ds.times) == 12
+            with open("oceanval_matchups/gridded/temperature/foo_matchup_dict.pkl", "rb") as f:
+                the_dict = pickle.load(f)
+            assert the_dict["end"] == 2000
+            assert list(the_dict["months"]) == list(range(1, 13))
+            assert any("2001 (6 of 12 months)" in x for x in session_info["end_messages"])
+        finally:
+            shutil.rmtree("oceanval_matchups", ignore_errors=True)
+            oceanval.reset()
+
+    def test_complete_years_are_untouched(self, tmp_path):
+        try:
+            self.run(self.obs_without(tmp_path, []))
+            ds = nc.open_data("oceanval_matchups/gridded/temperature/foo_temperature_surface.nc")
+            assert ds.years == [2000, 2001]
+            assert not any("do not have data for every month" in x for x in session_info["end_messages"])
+        finally:
+            shutil.rmtree("oceanval_matchups", ignore_errors=True)
+            oceanval.reset()
+
+    def test_no_complete_year_is_an_error_that_says_why(self, tmp_path):
+        try:
+            with pytest.raises(ValueError, match="No observation year has data for every month"):
+                self.run(self.obs_without(tmp_path, [(2000, 1), (2001, 12)]))
+        finally:
+            shutil.rmtree("oceanval_matchups", ignore_errors=True)
+            oceanval.reset()
+
+    def test_which_years_are_complete(self):
+        times = pd.to_datetime(["2000-01-15", "2000-02-15", "2001-01-15"]).to_pydatetime()
+        assert gridded.complete_years(times, range(1, 3)) == ({2001: 1}, [2000])
+        assert gridded.complete_years(["2000-01-15T00:00", "2000-02-15T00:00"], [1, 2]) == ({}, [2000])
+
+    def test_a_dataset_keeps_only_its_complete_years(self, tmp_path):
+        months = pd.date_range("2000-01-01", "2002-12-01", freq="MS")
+        months = months[~((months.year == 2001) & (months.month > 9))]
+        ds_xr = xr.Dataset(
+            {"model": (("time", "lat", "lon"), np.ones((len(months), 2, 2), dtype="float32"))},
+            coords={"time": months, "lat": [50.0, 51.0], "lon": [0.0, 1.0]},
+        )
+        ds_xr.lon.attrs = {"units": "degrees_east", "standard_name": "longitude"}
+        ds_xr.lat.attrs = {"units": "degrees_north", "standard_name": "latitude"}
+        path = str(tmp_path / "matched.nc")
+        ds_xr.to_netcdf(path)
+        ds = nc.open_data(path, checks=False)
+        gridded.keep_complete_years(ds)
+        assert ds.years == [2000, 2002]
+        assert len(ds.times) == 24
+        # a climatology is left alone
+        ds = nc.open_data(path, checks=False)
+        ds.subset(years=2000)
+        gridded.keep_complete_years(ds)
+        assert len(ds.times) == 12
 
 
 class TestMultipleSources:

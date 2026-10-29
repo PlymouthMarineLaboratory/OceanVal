@@ -101,6 +101,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `matchall.point_match`, `recipe_checks.inspect_point`, `own_data.check_entry` and the window's wording all use it, so a new place that
   reads `obs_path` must too. **Longitudes above 180 in the csv are made `lon - 360` as the files are read** (`read_csv_simyears`, and the range
   `inspect_point` reports), before `lon_lim` and the matching: nctoolkit's `match_points` does not wrap.
+- **Incomplete years of gridded observations** (`climatology=False`): once `ds_obs` is set up, `gridded.complete_years` finds the years without every
+  month of `month_sel` (all 12, or the model's months for a short simulation) and `ds_obs`/`ds_model` `drop(year=...)` them (listed in
+  `end_messages`; none left is an error). `matchup_dict.pkl` keeps `months`, and `gridded_template.ipynb` cuts every matchup file it opens with
+  `gridded.keep_complete_years` before averaging, so older matchups reused with `validate(previous=)` are safe too.
 - **FVCOM output** is regridded by `fvcom_matchup_files`, to `matchup(fvcom_res=0.05)` degrees for point matchups (gridded ones keep
   half the observations' resolution) and, for vertical ones, the depths `fvcom.matchup_depths(fvcom_min_depth=0, fvcom_max_depth=150, fvcom_dz=5)`
   (`session_info["fvcom_res"]`/`["fvcom_levels"]`, also read by `gridded.py`); the levels are in the cache key of the regridded files. The

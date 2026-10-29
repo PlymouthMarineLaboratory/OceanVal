@@ -177,7 +177,7 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()<
       <div class="callout-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>How does OceanVal handle gridded data?</div>
       <p>Gridded data is converted to one of: a time series of multi-year monthly averages, a climatological monthly average, or a climatological annual average per grid cell.</p>
       <ul style="margin-top:.6em;">
-        <li>Multi-year observational data → OceanVal computes a multi-year observational average for a like-for-like comparison.</li>
+        <li>Multi-year observational data → OceanVal computes a multi-year observational average for a like-for-like comparison. Any observation year without data for all 12 months is ignored, along with the model for that year, as it would not give a correct annual average; the years ignored are listed when the matchups finish.</li>
         <li>Single-year monthly data → OceanVal generates a comparable climatological monthly average from the simulation, based on the year range you specify.</li>
         <li>Single-year, single-timestep data → treated as a climatological annual average, matched against a model climatological annual average.</li>
       </ul>

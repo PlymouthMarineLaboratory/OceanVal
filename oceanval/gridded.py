@@ -53,6 +53,44 @@ def _open_obs(path, thredds):
     return nc.open_data(path, checks=False)
 
 
+def complete_years(times, months):
+    """Split the years of a dataset's time steps by whether they have every month in `months`.
+
+    Returns ({year: how many of the months it has} for the years that do not,
+    [the years that do]). A year without every month cannot give a correct annual average.
+    """
+    try:
+        pairs = {(x.year, x.month) for x in times}
+    except AttributeError:
+        pairs = {
+            (int(str(x).split("T")[0].split("-")[0]), int(str(x).split("T")[0].split("-")[1]))
+            for x in times
+        }
+    months = set(months)
+    found = {}
+    for year, month in pairs:
+        if month in months:
+            found[year] = found.get(year, 0) + 1
+    years = sorted({year for year, _ in pairs})
+    complete = [y for y in years if found.get(y, 0) == len(months)]
+    incomplete = {y: found.get(y, 0) for y in years if y not in complete}
+    return incomplete, complete
+
+
+def keep_complete_years(ds, months=range(1, 13)):
+    """Drop the years of a matched up dataset that lack some of `months`, so annual means are right.
+
+    Does nothing for a dataset of one year or less (a climatology), or when every year is complete.
+    """
+    times = ds.times
+    if len(times) <= 12:
+        return
+    incomplete, _ = complete_years(times, months)
+    if len(incomplete) > 0:
+        ds.drop(year=list(incomplete))
+        ds.run()
+
+
 def _occci_year_month(path):
     """(year, month) of an OCCCI file, read from its path rather than its contents.
 
@@ -846,6 +884,31 @@ def gridded_matchup(
 
                     ds_obs.run()
                     ds_model.run()
+
+                    if climatology is False and n_times > 1:
+                        # a year of observations without every month cannot give a
+                        # correct annual average: it is dropped, and so is the model's
+                        incomplete, complete = complete_years(ds_obs.times, month_sel)
+                        if len(incomplete) > 0:
+                            found = ", ".join(f"{y} ({n} of {len(month_sel)} months)" for y, n in incomplete.items())
+                            if len(complete) == 0:
+                                raise ValueError(
+                                    f"No observation year has data for every month for gridded {vv} ({vv_source}); "
+                                    "years without all months are ignored as they would not give correct annual averages. "
+                                    f"Years found: {found}."
+                                )
+                            ds_obs.drop(year=list(incomplete))
+                            ds_model.drop(year=list(incomplete))
+                            ds_obs.run()
+                            ds_model.run()
+                            sim_years = [x for x in sim_years if x in complete]
+                            min_year = min(complete)
+                            max_year = max(complete)
+                            session_info["end_messages"] += [
+                                f"Observation years ignored for gridded {vv} ({vv_source}) as they do not have data for every month, "
+                                f"so would not give correct annual averages: {found}"
+                            ]
+
                     ds2 = ds_model.copy()
                     if len(ds_model.times) == 12:
                         ds_model.set_year(2000)
@@ -883,6 +946,10 @@ def gridded_matchup(
                             .reset_index()
                             .year.values
                         )
+                        if len(sel_years) == 0:
+                            raise ValueError(
+                                f"There are no years with data for every month in common between model and observations for gridded {vv} ({vv_source})!"
+                            )
                         ds_model.subset(years=sel_years)
                         if n_years > 1: 
                             ds_obs.subset(years=sel_years)
@@ -957,6 +1024,7 @@ def gridded_matchup(
                         "start": min_year,
                         "end": max_year,
                         "time_shift": session_info.get("time_shift", 0),
+                        "months": list(month_sel),
                     }
                     # write to pickle
                     with open(out1, "wb") as f:
@@ -1051,6 +1119,7 @@ def gridded_matchup(
                             "start": min_year,
                             "end": max_year,
                             "time_shift": session_info.get("time_shift", 0),
+                            "months": list(month_sel),
                         }
                         # write to pickle
                         with open(out1, "wb") as f:

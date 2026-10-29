@@ -182,3 +182,15 @@ def test_the_detailed_map_is_the_same_in_every_cell():
         # only the data frame it is for differs
         blocks.add(re.sub(r"\b(df_locs|df_mapped|df_map|df)\b", "DF", block))
     assert len(blocks) == 1
+
+
+def test_the_gridded_notebook_ignores_years_without_every_month_in_annual_means():
+    cells = ["".join(cell["source"]) for cell in json.loads(Path("oceanval/data/gridded_template.ipynb").read_text())["cells"]]
+    code = "\n".join(cells)
+    assert "from oceanval.gridded import keep_complete_years" in code
+    # every matchup file read for the page is cut to its complete years before it is averaged
+    for opened in ["ds_model = nc.open_data(ff)", "ds_obs = nc.open_data(ff)", "ds_cor = nc.open_data(ff)", "ds_verticals = nc.open_data(ff_vertical"]:
+        assert opened in code
+    assert code.count("keep_complete_years(ds_cor, matchup_months)") == 2
+    for name in ["ds_model", "ds_obs", "ds_verticals"]:
+        assert f"keep_complete_years({name}, matchup_months)" in code
