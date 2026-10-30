@@ -65,7 +65,7 @@ import traceback
 import urllib.parse
 
 import oceanval
-from oceanval import leftovers, live, netcdf_lock, prompts, recipes_gui
+from oceanval import domain_mask, leftovers, live, netcdf_lock, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.grid_align_app import GridAlignSteps
@@ -299,6 +299,9 @@ def default_output_form():
         # and whether the simulation's grid is to be aligned with other
         # simulations' (see oceanval.grid_align_app)
         "align_grids": "",
+        # and whether part of the domain is masked out, by a file (see check_domain_mask)
+        "domain_mask": "no",
+        "domain_mask_path": "",
     }
 
 
@@ -312,6 +315,30 @@ def check_align_grids(form, errors):
     if form.get("align_grids") not in ("yes", "no"):
         errors["align_grids"] = ALIGN_GRIDS_ERROR
     return form.get("align_grids") == "yes"
+
+
+def inspect_domain_mask(text, cwd):
+    """The domain mask in the file typed (see oceanval.domain_mask.inspect),
+    relative to cwd: (absolute path, mask, error in words for the user)."""
+    if not text:
+        return None, None, "Give the path of the netCDF file."
+    path = _path(text, cwd)
+    with netcdf_lock.LOCK:
+        mask, error = domain_mask.inspect(path)
+    return path, mask, error
+
+
+def check_domain_mask(form, cwd, errors):
+    """matchup's domain_mask, from form's domain_mask ("yes" or "no", No to
+    start) and domain_mask_path: the absolute path of the file, or None, with
+    an error in errors if Yes has no file that is a mask."""
+    if form.get("domain_mask") != "yes":
+        return None
+    path, _, error = inspect_domain_mask(form.get("domain_mask_path", ""), cwd)
+    if error is not None:
+        errors["domain_mask_path"] = error
+        return None
+    return path
 
 
 def default_validate_form():
@@ -349,6 +376,9 @@ def default_validate_form():
         # simulation's grid is to be aligned with other simulations' (see
         # oceanval.grid_align_app)
         "align_grids": "",
+        # and whether part of the domain is masked out, by a file (see check_domain_mask)
+        "domain_mask": "no",
+        "domain_mask_path": "",
     }
 
 
@@ -4240,6 +4270,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps, GridAlignSteps):
                 matchup, matchup_errors = check_matchup_boxes(self.output_form)
                 errors.update(matchup_errors)
                 align = check_align_grids(self.output_form, errors)
+                matchup["domain_mask"] = check_domain_mask(self.output_form, self.cwd, errors)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
@@ -4276,6 +4307,31 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps, GridAlignSteps):
         self.console.write("y\n")
         question.respond(self._yes({}, question))
         return 200, {"ok": True}
+
+    def domain_mask_map(self, text):
+        """The map of the domain mask in the file typed (see
+        check_domain_mask), for the output step or the report options:
+        {"ok", "item" (a Bokeh json_item), "notes", "kept", "total"} (the
+        cells kept, of all), or {"ok": False, "error"}. Returns the HTTP
+        status and the reply."""
+        from oceanval import grid_align, viewer_plots
+
+        with self._lock:
+            if self.view not in ("output", "report_options") or self._held_matchups() is None:
+                return 409, {"ok": False, "error": "This step is over."}
+        _, mask, error = inspect_domain_mask(str(text or "").strip(), self.cwd)
+        if error is not None:
+            return 200, {"ok": False, "error": error}
+        try:
+            kept, total = domain_mask.cells(mask)
+            item, notes, _ = viewer_plots.map_plot(
+                mask, grid_align.about(mask), "Domain mask",
+                cmap="Blues", vmin=0, vmax=1, coast=viewer_plots.has_geoviews(),
+            )
+        except Exception as problem:  # noqa: BLE001 - told to the page
+            traceback.print_exc()
+            return 200, {"ok": False, "error": f"The file could not be drawn: {type(problem).__name__}: {problem}"}
+        return 200, {"ok": True, "item": item, "notes": notes, "kept": kept, "total": total}
 
     def _match_up_now(self, cores, matchup, unified=None):
         """Matchup alone carries on, with the cores, the spatial subset and
@@ -4695,6 +4751,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps, GridAlignSteps):
             report.pop("lat_lim", None)
             matchup, matchup_errors = check_matchup_boxes(form)
             errors.update(matchup_errors)
+            matchup["domain_mask"] = check_domain_mask(form, self.cwd, errors)
         if variables is not None and not errors:
             # the earlier matchups chosen for the report are not listed here,
             # so stay in it whatever is unticked
@@ -5693,6 +5750,9 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/simcompare_generate":
             self._reply_json(*app.simcompare_generate(payload.get("form")))
+            return
+        if path == "/api/domain_mask":
+            self._reply_json(*app.domain_mask_map(payload.get("path")))
             return
         if path == "/api/align_panel":
             self._reply_json(*app.align_panel(payload))

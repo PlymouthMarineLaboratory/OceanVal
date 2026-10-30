@@ -748,6 +748,8 @@ def gridded_matchup(
 
                     # the monthly means, on the unified grid and with its mask, if there is one
                     unified_grid.mask_gridded(ds_model, session_info.get("unified_grid"), fvcom=session_info.get("fvcom", False))
+                    # then on the domain mask's grid, only its cells of 1
+                    unified_grid.mask_gridded(ds_model, session_info.get("domain_mask"), fvcom=session_info.get("fvcom", False))
 
                 tidy_warnings(w)
 

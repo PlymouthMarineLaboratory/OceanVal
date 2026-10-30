@@ -622,6 +622,15 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (`_inside_mesh`, a trifinder), before `sim_unify.prepare`, which then finds it already on the baseline's grid. An FVCOM panel is never the
   baseline and a Cartesian mesh (no lon/lat) is refused. The page offers no FVCOM panel as baseline, sets the method to Nearest neighbour,
   disabled and red (`NN_ONLY_NOTE` in `#ag-msg`) while one is drawn; `align_generate` checks both too.
+- **Masking part of the domain** (`oceanval/domain_mask.py`): `matchup(domain_mask=path)` (in `MATCHUP_SETTINGS`), a netCDF file of
+  one variable at one time step (and level), 1 in the cells wanted, 0 or missing elsewhere (`inspect` refuses anything else, before any
+  work). Once the matchups are confirmed `keep` writes it cleaned (1 and missing, explicit `_FillValue`) as
+  `oceanval_matchups/domain_mask.nc` → `session_info["domain_mask"] = {"path", "method": "nn", "multiply": True}`, applied by
+  `unified_grid.mask_gridded` (`multiply`: `ds * mask` rather than the unified grid's `+ mask`) **after** the unified grid's, so the
+  matchups end on the file's grid, and `unified_grid.mask_points` after the unified grid's. In the window it is asked with the align
+  question (`#v-group-domain-mask`, `#row-f-domain-mask`; boxes `domain_mask` "yes"/"no", **No to start**, and `domain_mask_path`),
+  checked and drawn as it is typed (`domainMaskQuestion` in the page, `POST /api/domain_mask` → `App.domain_mask_map`), and
+  `check_domain_mask` puts the user's own file into `matchup` (so into `_run_output` and the script; None for No).
 - create_recipes runs in a thread of the app; `recipes_gui.hosted_by(app)` makes its window
   one of the app's pages (`/recipes/`) instead of a server of its own. Matchup/validate run in a
   separate process (`oceanval/app_child.py`) whose stdout is the console.

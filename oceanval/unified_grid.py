@@ -77,19 +77,24 @@ def mask_gridded(ds, info, fvcom=False):
     grid by info's method, unless it is on it already (regridding would only
     spread its missing cells), and the mask is added. Before it is regridded
     it is cropped to the mask's extent (see sim_unify.padded_box), unless it is
-    FVCOM output (fvcom), which is left as it is. Changes ds."""
+    FVCOM output (fvcom), which is left as it is. A mask of 1 and missing (a
+    domain mask, see oceanval.domain_mask, whose info says "multiply") is
+    multiplied by instead. Changes ds."""
     if info is None:
         return ds
     with warnings.catch_warnings(record=True):
         ds.run()
         if not sim_unify.same_lonlat(_lonlat_of(ds[0]), _lonlat_of(info["path"])):
-            # the extent of the mask's cells with values (0), not of its whole grid
+            # the extent of the mask's cells with values, not of its whole grid
             with xr.open_dataset(info["path"], decode_times=False) as data:
                 target = extent.valid_lonlat(data)
             if not fvcom and target is not None:
                 sim_unify.crop_to(ds, sim_unify.padded_box(*target))
             ds.regrid(info["path"], method=info["method"])
-        ds + nc.open_data(info["path"], checks=False)
+        if info.get("multiply"):
+            ds * nc.open_data(info["path"], checks=False)
+        else:
+            ds + nc.open_data(info["path"], checks=False)
         ds.run()
     return ds
 
@@ -120,7 +125,8 @@ def mask_points(df, info):
     """The rows of df, point matchups with lon and lat columns, whose location
     has a value in the unified grid info (session_info["unified_grid"]): the
     mask is put on the locations by nearest neighbour, and those it leaves
-    missing, or that are beyond its grid, are dropped."""
+    missing, or that are beyond its grid, are dropped. A domain mask (see
+    oceanval.domain_mask) is applied the same way."""
     if info is None or len(df) == 0:
         return df
     places = df[["lon", "lat"]].drop_duplicates().reset_index(drop=True)

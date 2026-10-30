@@ -951,6 +951,9 @@
   .ag-card .group__msg { margin: 0; }
   .ag-map { position: relative; height: 260px; margin-top: auto; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: var(--radius-sm); }
   .ag-map.is-drawn { border-color: transparent; }
+  .dm-detail { margin-top: 10px; }
+  .dm-detail__about { margin: 0 0 10px; color: var(--muted); font-size: 13px; max-width: 70ch; }
+  .dm-map { height: 320px; margin-top: 8px; }
   .ag-map.is-stretch { display: block; }
   .ag-map.is-stretch > div { width: 100%; height: 100%; }
   .sc-grid-controls { margin-top: 14px; }
@@ -1534,6 +1537,25 @@
           </div>
           <p class="group__msg" id="m-align_grids"></p>
         </div>
+        <!-- matchup alone's too: a file masking out part of the domain (see oceanval.domain_mask) -->
+        <div class="setup-box__script" id="row-f-domain-mask" hidden>
+          <div class="g-row">
+            <span class="g-label" id="f-dm-question">Do you want to mask part of the domain?</span>
+            <div class="analyze-code" role="radiogroup" aria-labelledby="f-dm-question">
+              <label class="ptr-mode"><input type="radio" name="f-dm" value="yes" id="f-dm-yes">Yes</label>
+              <label class="ptr-mode"><input type="radio" name="f-dm" value="no" id="f-dm-no">No</label>
+            </div>
+          </div>
+          <div class="dm-detail" id="f-dm-detail" hidden>
+            <p class="dm-detail__about">You must supply a netCDF file with a single variable and a single time step. Values of 1 mark the cells you want; other cells should be 0 or missing. The simulation will be regridded to this file using nearest neighbour.</p>
+            <div class="g-row">
+              <label class="g-label" for="f-domain_mask_path">NetCDF file</label>
+              <input class="s-input is-mono" id="f-domain_mask_path" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="mask.nc">
+            </div>
+            <p class="group__msg" id="m-domain_mask_path"></p>
+            <div class="ag-map dm-map" id="dm-map-f"></div>
+          </div>
+        </div>
       </fieldset>
       <button type="submit" hidden></button>
     </form>
@@ -1793,6 +1815,25 @@
           </div>
         </div>
         <p class="group__msg" id="vm-align_grids"></p>
+      </fieldset>
+      <!-- matchup's, a file masking out part of the domain (see oceanval.domain_mask) -->
+      <fieldset class="group form__wide" id="v-group-domain-mask" hidden>
+        <div class="g-row">
+          <span class="g-label" id="v-dm-question">Do you want to mask part of the domain?</span>
+          <div class="analyze-code" role="radiogroup" aria-labelledby="v-dm-question">
+            <label class="ptr-mode"><input type="radio" name="v-dm" value="yes" id="v-dm-yes">Yes</label>
+            <label class="ptr-mode"><input type="radio" name="v-dm" value="no" id="v-dm-no">No</label>
+          </div>
+        </div>
+        <div class="dm-detail" id="v-dm-detail" hidden>
+          <p class="dm-detail__about">You must supply a netCDF file with a single variable and a single time step. Values of 1 mark the cells you want; other cells should be 0 or missing. The simulation will be regridded to this file using nearest neighbour.</p>
+          <div class="g-row">
+            <label class="g-label" for="v-domain_mask_path">NetCDF file</label>
+            <input class="s-input is-mono" id="v-domain_mask_path" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="mask.nc">
+          </div>
+          <p class="group__msg" id="vm-domain_mask_path"></p>
+          <div class="ag-map dm-map" id="dm-map-v"></div>
+        </div>
       </fieldset>
       <button type="submit" hidden></button>
     </form>
@@ -3832,6 +3873,8 @@
   const figures = { "vw-plot": [], "vw-plot-b": [] };
   // each figure's frame height / width (viewer_plots._render), or null to fill the box
   const aspects = { "vw-plot": null, "vw-plot-b": null };
+  // the domain mask questions (see domainMaskQuestion), whose maps are let go of on leaving their step
+  const domainMasks = [];
   function release(id) {
     for (const view of figures[id]) { try { view.remove(); } catch (error) { /* already gone */ } }
     figures[id] = [];
@@ -3941,6 +3984,7 @@
     for (const id of new Set(Object.values(VIEWS))) $(id).hidden = id !== VIEWS[view];
     // the maps of the grids are let go of once they are out of sight
     if (view !== "align_grids") releaseAlignMaps();
+    for (const question of domainMasks) if (view !== question.view) question.release();
     if (view !== "simcompare_grids") releaseScMaps();
     if (view === "setup") {
       fillSetup();
@@ -4913,6 +4957,92 @@
     delete matchupOutput.errors.cores;
     refreshMatchupOutput();
   });
+  // Whether part of the domain is masked out, by a netCDF file (see oceanval.domain_mask): asked, No to start,
+  // on the output step (matchup alone, prefix "f") and the report options ("v"). Yes shows the file's box; the
+  // file is checked and drawn by the server as it is typed (/api/domain_mask), the last ask being the one shown.
+  // form() is the step's boxes, msg the message's id and refresh the step's own refresh.
+  function domainMaskQuestion(prefix, view, form, msg, refresh) {
+    const id = `dm-map-${prefix}`;
+    figures[id] = [];
+    aspects[id] = null;
+    const mask = { number: 0, timer: null, ok: false, error: null, pending: false };
+    const box = $(`${prefix}-domain_mask_path`);
+
+    function show() {
+      const yes = form().domain_mask === "yes";
+      $(`${prefix}-dm-detail`).hidden = !yes;
+      for (const value of ["yes", "no"]) $(`${prefix}-dm-${value}`).checked = (form().domain_mask || "no") === value;
+      if (!yes && figures[id].length) release(id);
+    }
+
+    function ask(delay) {
+      clearTimeout(mask.timer);
+      const number = ++mask.number;
+      mask.ok = false;
+      mask.error = null;
+      const path = String(form().domain_mask_path || "").trim();
+      if (form().domain_mask !== "yes") return;
+      if (!path) {
+        mask.pending = false;
+        message(msg, [line("Give the path of the netCDF file.")]);
+        emptyMap(id, "The mask is drawn here once the file is given.");
+        return;
+      }
+      mask.pending = true;
+      message(msg, [line("Checking the file…")]);
+      emptyMap(id, "Reading the file…", true);
+      mask.timer = setTimeout(async () => {
+        const reply = await post("api/domain_mask", { path });
+        // a later ask has been made since, or the step is over
+        if (number !== mask.number || form().domain_mask !== "yes") return;
+        mask.pending = false;
+        if (!reply.ok) {
+          mask.error = reply.error || "The file could not be checked.";
+          message(msg, [line(mask.error, "error")], true);
+          emptyMap(id, "Nothing to show.");
+        } else {
+          mask.ok = true;
+          const lines = [line(`${reply.kept.toLocaleString()} of ${reply.total.toLocaleString()} cells will be matched up.`, "ok"),
+            ...(reply.notes || []).map((note) => line(note))];
+          message(msg, lines);
+          await drawMap(id, reply.item);
+        }
+        refresh();
+      }, delay);
+    }
+
+    for (const value of ["yes", "no"]) {
+      $(`${prefix}-dm-${value}`).addEventListener("change", () => {
+        form().domain_mask = value;
+        show();
+        ask(0);
+        refresh();
+        renderBar();
+      });
+    }
+    box.addEventListener("input", () => {
+      form().domain_mask_path = box.value;
+      ask(500);
+      refresh();
+    });
+    const question = {
+      view,
+      // the boxes as the server last had them
+      fill() {
+        box.value = form().domain_mask_path || "";
+        show();
+        ask(0);
+      },
+      // what stops the step carrying on: Yes with no file that is a mask (the server says why on submitting too)
+      blocked: () => form().domain_mask === "yes" && !mask.ok,
+      error: () => mask.error,
+      release: () => { if (figures[id].length) release(id); },
+    };
+    domainMasks.push(question);
+    return question;
+  }
+  const outputMask = domainMaskQuestion("f", "output", () => output, "m-domain_mask_path", () => refreshMatchupOutput());
+
   // and whether its grid is to be aligned with other simulations' (see oceanval.grid_align_app)
   for (const value of ["yes", "no"]) {
     $(`f-align-${value}`).addEventListener("change", () => {
@@ -4935,7 +5065,9 @@
     coreOptions($("f-cores"), output.cores);
     // the spatial subset and missing values, which matchup alone is given with its cores
     $("row-f-subset").hidden = $("row-f-missing").hidden = $("row-f-align").hidden = state.action !== "matchup";
+    $("row-f-domain-mask").hidden = state.action !== "matchup";
     for (const value of ["yes", "no"]) $(`f-align-${value}`).checked = output.align_grids === value;
+    if (state.action === "matchup") outputMask.fill();
     if (state.action === "matchup") assumeMissing(output);
     for (const name of OUTPUT_MATCHUP) {
       $(`f-${name}`).value = output[name] ?? "";
@@ -4978,6 +5110,7 @@
     if (!String(output.out).trim()) errors.out = errors.out || "";
     if (state.action === "matchup" && !String(output.cores || "").trim()) errors.cores = errors.cores || "";
     if (state.action === "matchup" && !output.align_grids) errors.align_grids = errors.align_grids || "";
+    if (state.action === "matchup" && outputMask.blocked()) errors.domain_mask_path = errors.domain_mask_path || "";
     // what is done with the matchups there already has to be confirmed, as each starts on Use
     if (existingRows().length && !output.existing_confirmed) errors.existing_confirmed = "";
     // until the directory is looked at, what is there is not known
@@ -5015,6 +5148,11 @@
     $("f-cores").classList.toggle("is-invalid", Boolean(errors.cores));
     message("m-cores", errors.cores ? [line(errors.cores, "error")] : [], Boolean(errors.cores));
     message("m-align_grids", errors.align_grids ? [line(errors.align_grids, "error")] : [], Boolean(errors.align_grids));
+    $("f-domain_mask_path").classList.toggle("is-invalid", Boolean(errors.domain_mask_path || outputMask.error()));
+    // the server's refusal, on submitting, if the live check has not said so already
+    if (matchupOutput.errors.domain_mask_path && !outputMask.error()) {
+      message("m-domain_mask_path", [line(matchupOutput.errors.domain_mask_path, "error")], true);
+    }
     for (const [id, names, hints] of [
       ["m-subset", SUBSET_BOXES, () => [line(SUBSET_HINT)]],
       ["m-missing", MISSING_BOXES, () => missingLines("f", output)],
@@ -8243,6 +8381,8 @@
     $("v-group-missing").hidden = !coresAsked();
     $("v-group-align").hidden = !coresAsked();
     for (const value of ["yes", "no"]) $(`v-align-${value}`).checked = validateForm.align_grids === value;
+    $("v-group-domain-mask").hidden = !coresAsked();
+    if (coresAsked()) reportMask.fill();
     $("v-subset-legend").textContent = coresAsked()
       ? "Do you want a spatial subset?" : "Do you only want to validate a subregion?";
     if (coresAsked()) coreOptions($("v-cores"), validateForm.cores);
@@ -8421,6 +8561,9 @@
   // and whether the simulation's grid is to be aligned with others' (see oceanval.grid_align_app),
   // which a script stored for later does not need
   const alignMissing = () => coresAsked() && !validateForm.align_grids;
+  // and the domain mask's file, if one is to be given
+  const reportMask = domainMaskQuestion("v", "report_options", () => validateForm, "vm-domain_mask_path", () => refreshValidate());
+  const maskBlocked = () => coresAsked() && reportMask.blocked();
   for (const value of ["yes", "no"]) {
     $(`v-align-${value}`).addEventListener("change", () => {
       validateForm.align_grids = value;
@@ -8455,19 +8598,24 @@
     }
     message("vm-align_grids", validateErrors.align_grids ? [line(validateErrors.align_grids, "error")] : [],
       Boolean(validateErrors.align_grids));
+    $("v-domain_mask_path").classList.toggle("is-invalid", Boolean(validateErrors.domain_mask_path || reportMask.error()));
+    if (validateErrors.domain_mask_path && !reportMask.error()) {
+      message("vm-domain_mask_path", [line(validateErrors.domain_mask_path, "error")], true);
+    }
     // the report is not built along a transect that cannot be used
     const build = $("build");
     if (build) {
       // there is nothing to build until there are matchups to validate
       const noMatchups = state.view === "validate" && !validateMatchups();
       const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing();
-      build.disabled = blocked || alignMissing();
+      build.disabled = blocked || alignMissing() || maskBlocked();
       const why = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
         : coresMissing() ? "Choose the number of cores"
         : noneTicked ? NONE_TICKED
         : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
         : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
-      build.title = why || (alignMissing() ? "Say whether the grid needs aligning with other simulations" : "");
+      build.title = why || (alignMissing() ? "Say whether the grid needs aligning with other simulations"
+        : maskBlocked() ? "Give a domain mask file that can be used, or answer No" : "");
       const save = $("save-script");
       if (save) {
         save.disabled = blocked;
