@@ -91,10 +91,11 @@ def test_missing_values_on_the_files_page(page, simulation):
     tab.click("#missing-add")
     tab.click("[aria-label='Remove missing value 3']")
     assert tab.locator("#missing-rows .missing-rows__row").count() == 2
-    # removing the last one leaves an empty row to fill in
+    # the first row has no button; removing the others leaves it to fill in
+    assert tab.locator("[aria-label='Remove missing value 1']").count() == 0
     tab.click("[aria-label='Remove missing value 2']")
-    tab.click("[aria-label='Remove missing value 1']")
     assert tab.locator("#missing-rows .missing-rows__row").count() == 1
+    tab.fill("#missing-from-0", "")
     assert tab.input_value("#missing-from-0") == ""
     tab.fill("#missing-from-0", "-999")
     tab.click("#missing-add")
@@ -236,8 +237,10 @@ def test_an_ersem_simulation_has_zeros_assumed_to_be_missing(page, simulation, m
     assert tab.input_value("#missing-to-0") == "0"
     assert "is-ersem" in tab.get_attribute("#missing-from-0", "class")
     assert tab.is_visible("#missing-ersem") and tab.is_hidden("#missing-found")
-    # a row removed is the user's doing, and stays removed
-    tab.click("[aria-label='Remove missing value 1']")
+    # a row emptied is the user's doing, and stays empty
+    assert tab.locator("[aria-label='Remove missing value 1']").count() == 0
+    tab.fill("#missing-from-0", "")
+    tab.fill("#missing-to-0", "")
     assert tab.input_value("#missing-from-0") == ""
     assert "is-ersem" not in tab.get_attribute("#missing-from-0", "class")
 

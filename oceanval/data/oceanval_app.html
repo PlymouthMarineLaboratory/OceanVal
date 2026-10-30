@@ -4680,8 +4680,9 @@
       return el("div", { class: "missing-rows__row" },
         el("label", { for: `missing-from-${index}`, text: "From" }), box(0, `missing-from-${index}`, "e.g. -999"),
         el("label", { for: `missing-to-${index}`, text: "To" }), box(1, `missing-to-${index}`, "optional"),
-        el("button", { type: "button", class: "missing-rows__remove", "aria-label": `Remove missing value ${index + 1}`, title: "Remove",
-          html: ICONS.cross, onclick: () => { missingEdited(); missingRows.splice(index, 1); renderMissingRows(); refreshSetup(); } }),
+        // the first row has no ×: it is always there, and is emptied by clearing its boxes
+        index > 0 ? el("button", { type: "button", class: "missing-rows__remove", "aria-label": `Remove missing value ${index + 1}`, title: "Remove",
+          html: ICONS.cross, onclick: () => { missingEdited(); missingRows.splice(index, 1); renderMissingRows(); refreshSetup(); } }) : null,
       );
     }));
     markMissingGuess();
