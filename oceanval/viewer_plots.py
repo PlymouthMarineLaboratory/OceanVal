@@ -220,6 +220,12 @@ def _without_grid_mapping(data):
     data = data.copy()
     data.attrs = {key: value for key, value in data.attrs.items() if key != "grid_mapping"}
     data.encoding = {key: value for key, value in data.encoding.items() if key != "grid_mapping"}
+    # rioxarray (newer versions look in more places) must find no crs: a coordinate's attributes
+    # (crs_wkt, spatial_ref, grid_mapping) and encoding go too
+    for name in data.coords:
+        data[name].attrs = {key: value for key, value in data[name].attrs.items()
+                            if key not in ("grid_mapping", "crs_wkt", "spatial_ref", "crs")}
+        data[name].encoding = {key: value for key, value in data[name].encoding.items() if key != "grid_mapping"}
     return data
 
 
@@ -323,10 +329,19 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
             options.update(xlabel="Longitude", ylabel="Latitude")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        if kind == "quadmesh":
-            plot = data.hvplot.quadmesh(**options)
-        else:
-            plot = data.hvplot.image(**options)
+        draw = data.hvplot.quadmesh if kind == "quadmesh" else data.hvplot.image
+        try:
+            plot = draw(**options)
+        except ValueError as problem:
+            # geoviews refusing a crs that is not its coastline's: draw the map without the coastline
+            if not (geographic and "coordinate reference system" in str(problem)):
+                raise
+            for key in ("geo", "crs", "coastline"):
+                options.pop(key)
+            options.update(xlabel="Longitude", ylabel="Latitude")
+            notes.append("The coastline could not be drawn over this map.")
+            geographic = False
+            plot = draw(**options)
         if coast and on_mesh:
             line, coast_notes = mesh_coastline(mesh, x, y)
             if line is not None:
