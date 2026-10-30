@@ -829,14 +829,9 @@
   /* ---- View simulation output (see oceanval.viewer_app) ---- */
   /* the setup page's missing values, asked there for viewing only */
   .missing-rows { display: grid; gap: 8px; margin-bottom: 8px; }
-  .missing-rows__row { display: grid; grid-template-columns: max-content 140px max-content 140px max-content; gap: 8px; align-items: center; }
+  .missing-rows__row { display: grid; grid-template-columns: max-content 140px max-content 140px; gap: 8px; align-items: center; }
   .missing-rows__row label { color: var(--ink-soft); font-size: 12.5px; font-weight: 500; }
-  .missing-rows__more { display: grid; grid-template-columns: max-content 140px; gap: 8px; align-items: center; }
-  .missing-rows__spacer { visibility: hidden; font-size: 12.5px; font-weight: 500; }
-  .missing-rows__remove, .missing-rows__add { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-soft); cursor: pointer; }
-  .missing-rows__remove:hover, .missing-rows__add:hover { border-color: var(--line-strong); background: var(--bg-alt); }
-  .missing-rows__remove svg, .missing-rows__add svg { width: 14px; height: 14px; }
-  @media (max-width: 640px) { .missing-rows__row { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr) max-content; } .missing-rows__more { grid-template-columns: max-content minmax(0, 1fr); } }
+  @media (max-width: 640px) { .missing-rows__row { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); } }
   /* reading the files */
   .vw-meter { width: 100%; height: 8px; margin-top: 26px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
   .vw-meter > span { display: block; height: 100%; width: 0; background: var(--teal-500); transition: width 0.2s; }
@@ -4573,7 +4568,7 @@
   const isInteger = (text) => /^[+-]?\d+$/.test(String(text).trim());
 
   // ---- the numbers to treat as missing, asked on this page for viewing the output ----
-  // rows of [from, to] as typed, kept as text; to empty is a single number, and empty rows are not sent
+  // the one row of [from, to] as typed, kept as text; to empty is a single number, and an empty row is not sent
   let missingRows = [];
   // what OceanVal put in the rows from the files (see askMissingGuess): null, "found" or "ersem"; whether the
   // user has typed in or removed a row, after which nothing is put there; and the simulation last asked about
@@ -4582,11 +4577,12 @@
   const missingRowOk = (row) => (row[0].trim() === "" ? row[1].trim() === "" : isNumber(row[0]) && (row[1].trim() === "" || isNumber(row[1])));
   function fillMissingRows() {
     try {
-      missingRows = JSON.parse(setup.missing || "[]").map((row) => [String(row[0] || ""), String(row[1] || "")]);
+      // only the first row is kept: there is one From and one To
+      missingRows = JSON.parse(setup.missing || "[]").slice(0, 1).map((row) => [String(row[0] || ""), String(row[1] || "")]);
     } catch (error) {
       missingRows = [];
     }
-    // rows that are filled in, coming back from the viewer, are the user's to keep
+    // a row that is filled in, coming back from the viewer, is the user's to keep
     missingTouched = missingRows.some((row) => row[0].trim() !== "" || row[1].trim() !== "");
     missingGuess = null;
     missingKey = null;
@@ -4594,7 +4590,7 @@
     missingLooking = false;
     renderMissingRows();
   }
-  // the first row's boxes and the lines under them say what OceanVal filled in
+  // the boxes and the lines under them say what OceanVal filled in
   function markMissingGuess() {
     for (const id of ["missing-from-0", "missing-to-0"]) {
       $(id).classList.toggle("is-found", missingGuess === "found");
@@ -4604,7 +4600,7 @@
     $("missing-found").hidden = missingGuess !== "found";
     $("missing-ersem").hidden = missingGuess !== "ersem";
   }
-  // what the user does to the rows makes them theirs
+  // what the user types in the boxes makes them theirs
   function missingEdited() {
     missingTouched = true;
     missingGuess = null;
@@ -4652,12 +4648,13 @@
     refreshSetup();
   }
   function renderMissingRows() {
-    // the boxes are always there: an empty row if there is none
+    // the boxes are always there: an empty row if there is none, and there is never more than the one
     if (!missingRows.length) missingRows.push(["", ""]);
+    missingRows.length = 1;
     $("missing-rows").replaceChildren(...missingRows.map((row, index) => {
       const box = (position, id, placeholder) => {
         const input = el("input", { class: "s-input is-num", id, inputmode: "decimal", placeholder, spellcheck: "false", autocomplete: "off",
-          "aria-label": `Missing value ${index + 1}, ${position === 0 ? "from" : "to"}` });
+          "aria-label": `Missing value, ${position === 0 ? "from" : "to"}` });
         input.value = row[position];
         input.classList.toggle("is-invalid", input.value.trim() !== "" && !isNumber(input.value));
         input.addEventListener("input", () => {
@@ -4672,28 +4669,14 @@
       return el("div", { class: "missing-rows__row" },
         el("label", { for: `missing-from-${index}`, text: "From" }), box(0, `missing-from-${index}`, "e.g. -999"),
         el("label", { for: `missing-to-${index}`, text: "To" }), box(1, `missing-to-${index}`, "optional"),
-        // the first row has no ×: it is always there, and is emptied by clearing its boxes
-        index > 0 ? el("button", { type: "button", class: "missing-rows__remove", "aria-label": `Remove missing value ${index + 1}`, title: "Remove",
-          html: ICONS.cross, onclick: () => { missingEdited(); missingRows.splice(index, 1); renderMissingRows(); refreshSetup(); } }) : null,
       );
-    }).concat([
-      // one +, just below the From box of the last row, adds a row at the end
-      el("div", { class: "missing-rows__more" },
-        el("span", { class: "missing-rows__spacer", "aria-hidden": "true", text: "From" }),
-        el("button", { type: "button", class: "missing-rows__add", id: "missing-add", "aria-label": "Add a missing value", title: "Add a missing value",
-          html: ICONS.plus, onclick: () => {
-            missingRows.push(["", ""]);
-            renderMissingRows();
-            $(`missing-from-${missingRows.length - 1}`).focus();
-            refreshSetup();
-          } })),
-    ]));
+    }));
     markMissingGuess();
   }
-  // what the setup page sends: for viewing, with the missing values as JSON rows (empty rows left out)
+  // what the setup page sends: for viewing, with the missing value as a JSON row (an empty row left out)
   function setupForm() {
     if (state.action !== "viewer") return setup;
-    const rows = missingRows.filter((row) => row[0].trim() !== "" || row[1].trim() !== "");
+    const rows = missingRows.slice(0, 1).filter((row) => row[0].trim() !== "" || row[1].trim() !== "");
     setup.missing = rows.length ? JSON.stringify(rows) : "";
     return setup;
   }
@@ -4716,7 +4699,7 @@
     if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
     if (state.action === "viewer") {
       const bad = missingRows.findIndex((row) => !missingRowOk(row));
-      if (bad >= 0) errors.missing = `Missing value ${bad + 1}: ${missingRows[bad][0].trim() === "" ? "fill in From" : "that is not a number"}.`;
+      if (bad >= 0) errors.missing = `Missing value: ${missingRows[bad][0].trim() === "" ? "fill in From" : "that is not a number"}.`;
     }
     return errors;
   }

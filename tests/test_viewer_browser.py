@@ -82,36 +82,28 @@ def test_missing_values_on_the_files_page(page, simulation):
     assert "is-invalid" in tab.get_attribute("#missing-from-0", "class")
     assert tab.is_disabled("#continue")
     assert "not a number" in tab.text_content("#m-missing-rows")
+    # there is one From and one To, with no way to add another
     tab.fill("#missing-from-0", "-999")
-    # one +, below the last row's From box, adds a row at the end
-    assert tab.locator(".missing-rows__add").count() == 1
-    assert tab.locator("#missing-add").bounding_box()["y"] > tab.locator("#missing-from-0").bounding_box()["y"]
-    tab.click("#missing-add")
-    tab.fill("#missing-from-1", "10")
-    tab.fill("#missing-to-1", "12.5")
-    assert tab.is_enabled("#continue")
-    # a row is removed by its button
-    tab.click("#missing-add")
-    assert tab.locator("#missing-add").bounding_box()["y"] > tab.locator("#missing-from-2").bounding_box()["y"]
-    tab.click("[aria-label='Remove missing value 3']")
-    assert tab.locator("#missing-rows .missing-rows__row").count() == 2
-    # the first row has no button; removing the others leaves it to fill in
-    assert tab.locator("[aria-label='Remove missing value 1']").count() == 0
-    tab.click("[aria-label='Remove missing value 2']")
+    assert tab.locator("#missing-add").count() == 0
+    assert tab.locator(".missing-rows__add, .missing-rows__remove").count() == 0
     assert tab.locator("#missing-rows .missing-rows__row").count() == 1
+    tab.fill("#missing-to-0", "-900")
+    assert tab.is_enabled("#continue")
+    # clearing the From box leaves it to fill in again
     tab.fill("#missing-from-0", "")
     assert tab.input_value("#missing-from-0") == ""
-    tab.fill("#missing-from-0", "-999")
-    tab.click("#missing-add")
-    tab.fill("#missing-from-1", "10")
-    tab.fill("#missing-to-1", "12.5")
+    tab.fill("#missing-to-0", "")
+    tab.fill("#missing-from-0", "10")
+    tab.fill("#missing-to-0", "12.5")
     tab.click("#continue")
     tab.wait_for_function("() => document.querySelector('#view-viewer:not([hidden])')", timeout=60000)
-    assert app.viewer_missing == [(-999.0, -999.0), (10.0, 12.5)]
-    # going back shows them again
+    assert app.viewer_missing == [(10.0, 12.5)]
+    # going back shows it again
     tab.click("#vw-back")
     tab.wait_for_selector("#view-setup:not([hidden])")
-    assert tab.input_value("#missing-from-1") == "10"
+    assert tab.input_value("#missing-from-0") == "10"
+    assert tab.input_value("#missing-to-0") == "12.5"
+    assert tab.locator("#missing-rows .missing-rows__row").count() == 1
 
 
 def _land_files_page(tab, root):

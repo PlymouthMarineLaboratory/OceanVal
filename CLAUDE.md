@@ -588,15 +588,15 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
   (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
   logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own; only
-  the multi-row **Missing values** fieldset (`#setup-missing`, `missingRows`; one **+** below the last row's From box adds a row at the end (a row after the first has a ×); sent as JSON `missing` by `setupForm()`,
-  `viewer_app.parse_missing`) is the viewer's. **Its rows start filled in from the files** (`viewer_missing.guess` via
+  the **Missing values** fieldset (`#setup-missing`, `missingRows`; **one From and one optional To only, the user's rule, 2026-10-30: no + or ×, and `fillMissingRows`/`setupForm` keep only the first row**; sent as JSON `missing` by `setupForm()`,
+  `viewer_app.parse_missing`, which still takes a list of ranges) is the viewer's. **Its row starts filled in from the files** (`viewer_missing.guess` via
   `/api/viewer/missing`, asked by `askMissingGuess` after each `/api/probe` answer with files; `scan(wait=False)`, then
   `missing_probe.probe` on the first mappable variable of the first file type, else 0 for `is_likely_nemo_ersem` names): amber
-  `is-found` / `is-ersem` with Analyze's wording, "Attempting to identify missing value range" and a spinner while it runs. Typing in or
-  removing a row (`missingEdited`) makes the rows the user's for good; rows OceanVal filled are emptied when the simulation or
+  `is-found` / `is-ersem` with Analyze's wording, "Attempting to identify missing value range" and a spinner while it runs. Typing in
+  the boxes (`missingEdited`) makes them the user's for good; a value OceanVal filled is emptied when the simulation or
   filters change. A simulation viewed is recorded in `.oceanvalcache` (`record_sim_dir`).
   **Editing the simulation directory searches afresh** (`newSimulationForViewer`): the directories down are blanked for the folders' layout to
-  fill again, and the missing-value rows (even typed ones) are emptied and looked for again. Viewer only: Validate/Analyze keep a typed depth.
+  fill again, and the missing-value boxes (even typed ones) are emptied and looked for again. Viewer only: Validate/Analyze keep a typed depth.
   **The simulation box also takes the path of one file** (`viewer_catalogue.viewer_paths`, the viewer's `check_setup`, `probe()["file"]`): used as it is, whatever its name, not filtered by exclude/require, with no directories down (the box is disabled; the label says "directory or file path"). Browse… stays a folder picker.
 - `viewer_catalogue.scan(wait=False)` reads the variables of each file type's first file; `Catalogue.read_times` then reads
   every file's times **in a process of its own**: `viewer_times.py` is run as a script by path (`python -I`), imports nothing
