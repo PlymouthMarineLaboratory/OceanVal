@@ -290,7 +290,10 @@ def in_kelvin(folder):
         with xr.open_dataset(path) as ds:
             ds = ds.load()
         ds["thetao"] = (ds["thetao"] + 273.15).assign_attrs(ds["thetao"].attrs, units="K")
-        ds.to_netcdf(path)
+        # replaced, not written over: HDF5 refuses to open for writing a file this process still holds open
+        # (the window's reads can leave one), which comes out as a PermissionError
+        ds.to_netcdf(path + ".tmp")
+        os.replace(path + ".tmp", path)
 
 
 # the boxes of the units step for the one row of TestUnits: OceanVal's suggestion
