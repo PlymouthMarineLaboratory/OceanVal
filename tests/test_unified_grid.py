@@ -106,8 +106,8 @@ class TestGridded:
         monkeypatch.setattr(sim_unify, "crop_to", lambda ds, box: cropped.append(box) or real(ds, box))
         ds = nc.open_data(path)
         unified_grid.mask_gridded(ds, {"path": mask, "method": method})
-        # the mask's extent, a degree wider each way
-        assert cropped == [([-11.0, 1.0], [49.0, 61.0])]
+        # the extent of the mask's cells with values, a degree wider each way
+        assert cropped == [([-8.0, 1.0], [49.0, 61.0])]
         with_crop = masked_values(ds)
         monkeypatch.setattr(sim_unify, "crop_to", lambda ds, box: cropped.append(box) or False)
         ds = nc.open_data(path)

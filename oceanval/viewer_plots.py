@@ -213,6 +213,16 @@ def coastline_scale(lon, lat, values=None):
     return "110m"
 
 
+def _without_grid_mapping(data):
+    """data without what rioxarray reads a crs from: a grid_mapping attribute
+    or encoding, and the coordinates of a crs (spatial_ref, crs)."""
+    data = data.drop_vars([key for key in data.coords if key in ("spatial_ref", "crs")])
+    data = data.copy()
+    data.attrs = {key: value for key, value in data.attrs.items() if key != "grid_mapping"}
+    data.encoding = {key: value for key, value in data.encoding.items() if key != "grid_mapping"}
+    return data
+
+
 def mesh_image(data, about, mesh):
     """A slice of a variable on an FVCOM mesh (one value for each node or
     element) as a 2-D DataArray on the mesh's Raster (see oceanval.viewer_mesh),
@@ -299,7 +309,12 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
         # the extent of the cells with values: a grid can have cells far from the domain (NEMO's at -1, -1)
         lon_cells = data[x].broadcast_like(data).transpose(*data.dims).values
         lat_cells = data[y].broadcast_like(data).transpose(*data.dims).values
-        options.update(geo=True, coastline=coastline_scale(lon_cells, lat_cells, data.values))
+        # the axes are longitudes and latitudes: say so, and hide any grid mapping from rioxarray, whose
+        # crs hvplot would use instead of this one (and geoviews refuses a crs unlike its coastline's)
+        import cartopy.crs as ccrs
+
+        data = _without_grid_mapping(data)
+        options.update(geo=True, crs=ccrs.PlateCarree(), coastline=coastline_scale(lon_cells, lat_cells, data.values))
     else:
         options.update(xlabel=x, ylabel=y)
         if cartesian:

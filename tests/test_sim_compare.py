@@ -308,7 +308,15 @@ class TestSameGridIsLookedAtLightly:
             return original(self)
 
         monkeypatch.setattr(xr.DataArray, "values", property(values))
-        monkeypatch.setattr(xr.Dataset, "load", lambda self, **kwargs: pytest.fail("a whole file was loaded"))
+        original_load = xr.Dataset.load
+
+        def load(self, **kwargs):
+            # the small file CDO writes of one level and time step is loaded; the model's own file never is
+            if str(self.encoding.get("source", "")).endswith("_grid_T.nc"):
+                pytest.fail("a whole file was loaded")
+            return original_load(self, **kwargs)
+
+        monkeypatch.setattr(xr.Dataset, "load", load)
         return read
 
     def rows(self, sims):
