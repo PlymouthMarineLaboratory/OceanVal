@@ -172,6 +172,21 @@ def fill_gridded_years(page):
     for year in page.locator("#rows-gridded .opts:not([hidden]) input.is-num").all():
         if not year.input_value():
             year.fill("2011" if year.get_attribute("aria-label").startswith("First") else "2012")
+    # years outside the output (2011-2012) are said so at the dataset: warned
+    # about when partly outside, refused when none are in it
+    block = page.locator("#rows-gridded .opts:not([hidden])").first
+    first, last = block.locator("input.is-num").nth(0), block.locator("input.is-num").nth(1)
+    message = block.locator(".opts__msg")
+    first.fill("2009")
+    assert "These go beyond the 2011–2012" in message.text_content()
+    assert not page.is_disabled("#write")
+    first.fill("2005")
+    last.fill("2008")
+    assert "not in the simulation's output" in message.text_content()
+    assert page.is_disabled("#write")
+    first.fill("2011")
+    last.fill("2012")
+    assert message.text_content() == ""
 
 
 def fill_required_recipe_settings(page):
@@ -206,6 +221,12 @@ def fill_required_recipe_settings(page):
     assert "These go beyond the 2011–2012 found in the simulation's files." in page.text_content("#g-years")
     page.fill("#s-point_end", "2012")
     assert "go beyond" not in page.text_content("#g-years")
+    # none of the years in the output: refused
+    page.fill("#s-point_start", "2000")
+    page.fill("#s-point_end", "2005")
+    assert page.is_disabled("#write")
+    page.fill("#s-point_start", "2011")
+    page.fill("#s-point_end", "2012")
 
 
 def through_output(page):

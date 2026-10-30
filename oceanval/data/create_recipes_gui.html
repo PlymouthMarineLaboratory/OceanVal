@@ -176,6 +176,8 @@
   .s-select.is-small { padding-right: 22px; background-position: right 7px center; }
   .opts__vertical { font-size: 12.5px; }
   .opts__msg { margin: 0; color: var(--red); font-size: 12px; line-height: 1.35; }
+  .opts__msg.is-warn { color: var(--coral-dark); }
+  .s-input.is-outside { border-color: var(--coral-dark); }
   .opts__msg:empty { display: none; }
   .fix-settings { margin: 0; color: var(--red); font-size: 12.5px; font-weight: 700; text-align: center; }
   .write-action { display: grid; gap: 4px; }
@@ -676,6 +678,23 @@
   const knownYears = () => yearPair(form.point_start, form.point_end);
   // the years climatologies average the simulation over, as typed
   const climYears = () => yearPair(form.clim_start, form.clim_end);
+  // how years sit against the output found in the simulation's files: null
+  // when inside (or not known), a warning when partly outside, an error when
+  // none of them is in it, as nothing would be matched up
+  function outsideOutput(first, last) {
+    const years = yearPair(first, last);
+    if (!outputYears || !years) return null;
+    const [low, high] = outputYears;
+    const found = low === high ? `all in ${low}` : `from ${low} to ${high}`;
+    const range = years[0] === years[1] ? `${years[0]}` : `${years[0]}–${years[1]}`;
+    if (years[1] < low || years[0] > high) {
+      return { level: "error", text: `${range} is not in the simulation's output, which is ${found}, so nothing would be matched up.` };
+    }
+    if (years[0] < low || years[1] > high) {
+      return { level: "warn", text: `These go beyond the ${low}–${high} found in the simulation's files. Check they are right: years with no output are not matched up.` };
+    }
+    return null;
+  }
   // the WOA23 decade the years sit inside, if they sit inside one
   const woa23Period = (years) =>
     state.woa23_periods.find(([first, last]) => years[0] >= first && years[1] <= last);
@@ -753,6 +772,8 @@
         && +form.point_end < +form.point_start) {
       errors.point_end = "Last year must not be before the first year.";
     }
+    const pointOutside = !errors.point_start && !errors.point_end ? outsideOutput(form.point_start, form.point_end) : null;
+    if (pointOutside && pointOutside.level === "error") errors.point_end = pointOutside.text;
     if (!required && !matchupYears() && !errors.point_start) {
       errors.point_start = "Give the years to validate, here or for a dataset.";
     }
@@ -767,6 +788,8 @@
     } else if (clim.length === 2 && !errors.clim_start && !errors.clim_end && +form.clim_end < +form.clim_start) {
       errors.clim_end = "Last year must not be before the first year.";
     }
+    const climOutside = clim.length === 2 && !errors.clim_start && !errors.clim_end ? outsideOutput(form.clim_start, form.clim_end) : null;
+    if (climOutside && climOutside.level === "error") errors.clim_end = climOutside.text;
 
     if (context.fvcom) {
       const numbers = {};
@@ -849,10 +872,8 @@
       case "years": {
         const hints = [{ text: "Filled in for each point dataset below, where they can be changed." }];
         // the years found can be wrong, so others can be given: they are only warned about
-        const years = knownYears();
-        if (outputYears && years && (years[0] < outputYears[0] || years[1] > outputYears[1])) {
-          hints.push({ text: `These go beyond the ${outputYears[0]}–${outputYears[1]} found in the simulation's files. Check they are right: years with no output are not matched up.`, warn: true });
-        }
+        const outside = outsideOutput(form.point_start, form.point_end);
+        if (outside) hints.push({ text: outside.text, warn: true });
         return hints;
       }
       case "climate": {
@@ -863,6 +884,8 @@
           ? `Filled in for ${used.join(", ")} below, where they can be changed.`
           : "Filled in for each climatology ticked below, where they can be changed." }];
         const years = climYears();
+        const climOutside = outsideOutput(form.clim_start, form.clim_end);
+        if (climOutside) hints.push({ text: climOutside.text, warn: true });
         const decadal = decadalDatasets().map(({ row }) => row.title.toLowerCase());
         if (decadal.length && years && !woa23Period(years)) {
           hints.push({ text: `WOA23 ${decadal.join(" and ")} ${decadal.length === 1 ? "is" : "are"} published per decade, so give `
@@ -1128,6 +1151,8 @@
     else if (dataset.decadal && !woa23Period([+opts.start, +opts.end])) {
       errors.end = `WOA23 publishes this per decade, so these years must sit inside one: ${WOA23_DECADES}.`;
     }
+    const outside = outsideOutput(opts.start, opts.end);
+    if (outside && outside.level === "error") errors.end = outside.text;
     return errors;
   }
 
@@ -1163,7 +1188,11 @@
       control.classList.toggle("is-invalid", Boolean(errors[name]));
       control.setAttribute("aria-invalid", String(Boolean(errors[name])));
     }
-    opts.msg.textContent = Object.values(errors).find(Boolean) || "";
+    // years partly outside the output are only warned about, in amber
+    const outside = shown && !Object.keys(errors).length ? outsideOutput(dataset.opts.start, dataset.opts.end) : null;
+    opts.msg.textContent = Object.values(errors).find(Boolean) || (outside ? outside.text : "");
+    opts.msg.classList.toggle("is-warn", Boolean(outside) && !Object.keys(errors).length);
+    for (const name of ["start", "end"]) opts.controls[name].classList.toggle("is-outside", Boolean(outside));
     return Object.keys(errors).length > 0;
   }
 

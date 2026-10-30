@@ -180,7 +180,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   last column "Gridded data selected", `chosenCell`). A row on both has a simulation variable box on each (`row.dom.views`).
   No meta strip (the simulation path is not shown). The standalone `create_recipes()` window keeps its other settings
   (subset, missing values, output, file filters, cores, report options) in `#settings-more` under page 2's table.
-  **Every ticked dataset needs its From/To** (`optionErrors`, `is-required` red); OceanVal fills the boxes not typed in
+  **Every ticked dataset needs its From/To** (`optionErrors`, `is-required` red; `outsideOutput` compares any years with the output's: partly outside is an amber warning on the dataset and in the years groups, none in the output is an error that blocks Continue); OceanVal fills the boxes not typed in
   (`dataset.typed`, `fill`/`filledValue`, red and bold `is-oceanval`): point datasets from **What years do you want to
   validate?** (`point_start`/`point_end`, required when a point dataset is ticked) and **Match point observations by**
   (no "Global setting" option; written only when typed, `sentOptions`), climatologies from **What simulation years do you
