@@ -242,11 +242,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `recipe_forms.from_own_data`/`missing_boxes`/`with_boxes`, assumptions shown in amber.
   `create_recipes.replaced_recipes` leaves a user recipe with the same variable and source as
   an own data entry out of that run's recipes window, so it is not registered twice.
-- The window's settings (`oceanval/user_settings.py`: colour theme, whether the demo is offered)
+- The window's settings (`oceanval/user_settings.py`: whether the demo is offered, the data store)
   live under `"settings"` in the *global* rc only, beside `"recipes"`; `load()` never raises.
-  `recipes_gui.render_page` puts `data-theme` on each page's `<html>`; the themes are token
-  overrides in `data/gui.css` (`[data-theme="dark"]` etc.), so colours in the pages must be
-  tokens, never hex, and the default theme must stay pixel-identical.
+  There are no colour themes (removed on request, as a burden to maintain); a `"theme"` left in an rc is ignored.
+  Colours in the pages are tokens (`:root` in `data/gui.css`), never hex.
 
 ### What OceanVal remembers (`.oceanvalcache`)
 
@@ -744,8 +743,8 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   and `focusin`). Never `chrome-off`, which Chrome ignores. Only the simulation directories are remembered, by OceanVal
   itself (`.oceanvalcache`). `tests/test_no_browser_memory.py` checks both windows.
 - **A choice among boxes must be unmistakable**: the chosen one is filled with the accent colour (or tinted, with a thick
-  accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.demo-detail__option`, `.prefs__use`, `.reg-where label`) and
-  the theme cards are styled together at the end of `data/gui.css`; `.segmented` (the domain picker), `.choice.is-chosen` and the
+  accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.demo-detail__option`, `.prefs__use`, `.reg-where label`) are
+  styled together at the end of `data/gui.css`; `.segmented` (the domain picker), `.choice.is-chosen` and the
   existing matchups' ticks are in `oceanval_app.html`. A new pick-one control must use or extend these, with tokens only.
 - **The "directories down" boxes** (`#f-ndown`, shared by Matchup, Validate and Analyze, and `#sc-ndown_1`..`5` of Compare
   simulations) are `depthBox`es: `withChoices` boxes whose arrow lists 0 to 5 ("0 in the directory itself", "1 directory

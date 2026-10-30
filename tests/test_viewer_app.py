@@ -78,8 +78,8 @@ def test_the_tile_goes_to_the_setup_page_and_back(app, simulation):
     assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
     shown = get_json(app, "/api/state")[1]
     assert shown["view"] == "setup" and shown["action"] == "viewer"
-    # the setup page's boxes, with the files skipped starting as OceanVal's own
-    assert shown["setup"]["form"]["exclude"] == "restart" and shown["setup"]["form"]["missing"] == ""
+    # the setup page's boxes, with the files skipped left to the user
+    assert shown["setup"]["form"]["exclude"] == "" and shown["setup"]["form"]["missing"] == ""
     # Back keeps what was typed, for when the tile is chosen again
     form = _form(simulation, missing='[["-999", ""]]')
     assert post(app, "/api/back", {"form": form}) == (200, {"ok": True})

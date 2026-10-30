@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from oceanval import recipes_gui, user_recipes, user_settings
+from oceanval import user_recipes, user_settings
 from test_user_recipes import gridded
 
 # the data store settings, as they are without a data store
@@ -16,53 +16,52 @@ def test_the_settings_are_in_the_home_oceanvalrc(oceanvalrc):
 
 
 def test_the_defaults_without_a_file(oceanvalrc):
-    assert user_settings.load() == {"theme": "default", "show_demo": True, **NO_STORE}
+    assert user_settings.load() == {"show_demo": True, **NO_STORE}
     assert not oceanvalrc.exists()
 
 
 def test_settings_saved_are_loaded(oceanvalrc):
-    assert user_settings.save({"theme": "dark", "show_demo": False}) == {
-        "theme": "dark",
+    assert user_settings.save({"show_demo": False, "data_store_use": "fallback"}) == {
         "show_demo": False,
-        **NO_STORE,
+        "data_store": "",
+        "data_store_use": "fallback",
     }
-    assert user_settings.load() == {"theme": "dark", "show_demo": False, **NO_STORE}
+    assert user_settings.load() == {"show_demo": False, "data_store": "", "data_store_use": "fallback"}
     data = json.loads(oceanvalrc.read_text())
-    assert data["settings"] == {"theme": "dark", "show_demo": False}
+    assert data["settings"] == {"show_demo": False, "data_store_use": "fallback"}
     assert data["version"] == user_recipes.VERSION
 
 
 def test_one_setting_can_be_saved_on_its_own(oceanvalrc):
-    user_settings.save({"theme": "blue", "show_demo": False})
-    user_settings.save({"theme": "silver"})
-    assert user_settings.load() == {"theme": "silver", "show_demo": False, **NO_STORE}
+    user_settings.save({"show_demo": False})
+    user_settings.save({"data_store_use": "fallback"})
+    assert user_settings.load() == {"show_demo": False, "data_store": "", "data_store_use": "fallback"}
 
 
 def test_saving_the_settings_keeps_the_recipes(oceanvalrc):
     recipes = {"nitrate": {"mysat": {"source": "MySat", "kind": "gridded"}}}
     oceanvalrc.write_text(json.dumps({"version": 1, "recipes": recipes, "other": [1, 2]}))
-    user_settings.save({"theme": "dark"})
+    user_settings.save({"show_demo": False})
     data = json.loads(oceanvalrc.read_text())
     assert data["recipes"] == recipes
     assert data["other"] == [1, 2]
 
 
 def test_saving_a_recipe_keeps_the_settings(oceanvalrc, tmp_path):
-    user_settings.save({"theme": "silver", "show_demo": False})
+    user_settings.save({"show_demo": False})
     user_recipes.save(gridded(), "global", str(tmp_path))
-    assert user_settings.load() == {"theme": "silver", "show_demo": False, **NO_STORE}
+    assert user_settings.load() == {"show_demo": False, **NO_STORE}
     assert user_recipes.get("nitrate", "mysat", str(tmp_path)) is not None
 
 
 @pytest.mark.parametrize(
     "settings",
     [
-        {"theme": "purple"},
-        {"theme": None},
+        {"theme": "dark"},
         {"show_demo": "no"},
         {"show_demo": 0},
         {"colour": "dark"},
-        ["theme", "dark"],
+        ["show_demo", False],
         {"data_store_use": "sometimes"},
         {"data_store": 3},
     ],
@@ -76,7 +75,7 @@ def test_settings_that_cannot_be_used_are_refused(oceanvalrc, settings):
 def test_a_file_that_cannot_be_read_is_not_written_over(oceanvalrc):
     oceanvalrc.write_text("{ not json")
     with pytest.raises(ValueError, match="could not be read"):
-        user_settings.save({"theme": "dark"})
+        user_settings.save({"show_demo": False})
     assert oceanvalrc.read_text() == "{ not json"
 
 
@@ -86,7 +85,7 @@ def test_a_file_that_cannot_be_read_is_not_written_over(oceanvalrc):
         "{ not json",
         "[1, 2]",
         json.dumps({"settings": "dark"}),
-        json.dumps({"settings": {"theme": "purple", "show_demo": "no"}}),
+        json.dumps({"settings": {"show_demo": "no"}}),
     ],
 )
 def test_settings_that_cannot_be_read_are_left_at_their_defaults(oceanvalrc, content):
@@ -95,21 +94,14 @@ def test_settings_that_cannot_be_read_are_left_at_their_defaults(oceanvalrc, con
 
 
 def test_only_the_settings_that_cannot_be_used_are_left_at_their_defaults(oceanvalrc):
-    oceanvalrc.write_text(json.dumps({"settings": {"theme": "blue", "show_demo": "no"}}))
-    assert user_settings.load() == {"theme": "blue", "show_demo": True, **NO_STORE}
+    oceanvalrc.write_text(json.dumps({"settings": {"data_store_use": "fallback", "show_demo": "no"}}))
+    assert user_settings.load() == {"show_demo": True, "data_store": "", "data_store_use": "fallback"}
 
 
-@pytest.mark.parametrize("theme", sorted(user_settings.THEMES))
-def test_a_page_is_in_the_colours_of_the_settings(oceanvalrc, theme):
-    user_settings.save({"theme": theme})
-    page = recipes_gui.render_page("oceanval_app.html", {})
-    if theme == "default":
-        assert '<html lang="en">' in page
-        assert "data-theme=" not in page.split("<head>")[0]
-    else:
-        assert f'<html lang="en" data-theme="{theme}">' in page
-        # and the stylesheet has its colours
-        assert f'[data-theme="{theme}"] {{' in page
+def test_a_colour_theme_left_in_the_file_is_ignored(oceanvalrc):
+    # the window once had colour themes: a file that still names one is read as before
+    oceanvalrc.write_text(json.dumps({"settings": {"theme": "dark", "show_demo": False}}))
+    assert user_settings.load() == {"show_demo": False, **NO_STORE}
 
 
 class TestDataStoreFolder:
@@ -171,8 +163,8 @@ class TestDataStoreFolder:
         (folder / "oceanval_datastore" / ".oceanval_datastore").unlink()
         (folder / "oceanval_datastore").rmdir()
         folder.rmdir()
-        saved = user_settings.save({"theme": "dark", "data_store": str(folder)})
-        assert saved["theme"] == "dark"
+        saved = user_settings.save({"show_demo": False, "data_store": str(folder)})
+        assert saved["show_demo"] is False
         assert saved["data_store"] == str(folder)
         assert not folder.exists()
 

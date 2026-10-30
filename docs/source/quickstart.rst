@@ -110,7 +110,7 @@ again, and ``oceanval`` quits once the run is over. **Stop**, **Quit** and
 Ctrl+C stop a run at once.
 
 The cog beside the OceanVal name at the top left of every page of the window
-(**Preferences**) sets how the window looks (Default, Dark, Silver or Blue), whether the first
+(**Preferences**) sets whether the first
 page offers **Try a demo**, and the **data store** (below). Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
 your home directory (or the file ``OCEANVALRC`` names), and read each time the
 window opens. The **i** beside it shows the version of OceanVal, links to the website and

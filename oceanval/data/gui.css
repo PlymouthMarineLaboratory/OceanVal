@@ -3,10 +3,8 @@
    header, form controls, buttons, action bar and dialogs. Inlined into each
    page, which loads nothing from anywhere else. */
 
-/* OceanVal design tokens, as on PlymouthMarineLaboratory.github.io/OceanVal. Anything
-   with a data-theme, as the settings' previews of each theme are, starts from
-   them too, so that it shows that theme whatever the page's is */
-:root, [data-theme] {
+/* OceanVal design tokens, as on PlymouthMarineLaboratory.github.io/OceanVal */
+:root {
   --ink: #0b2530;
   --ink-soft: #123044;
   --muted: #56717d;
@@ -36,7 +34,7 @@
   --font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Roboto, "Noto Sans", "Liberation Sans", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
   --focus: 0 0 0 3px rgba(15, 143, 150, 0.28);
-  /* the colours that only some parts use, which the themes below change too */
+  /* the colours that only some parts use */
   --masthead-bg: linear-gradient(160deg, #08222a 0%, #0a3f49 45%, #0e6b74 100%);
   --brand-accent: #7fd6db;
   --brand-accent-soft: rgba(127, 214, 219, 0.22);
@@ -70,131 +68,6 @@
   --ersem: #8a5a00;
   --ersem-line: #d7a83e;
   --ersem-bg: #fff8df;
-}
-
-/* the colours chosen in the window's settings, on the page's <html> (see
-   recipes_gui.render_page); the --teal-* scale is each theme's accent,
-   whatever its colour */
-[data-theme="dark"] {
-  color-scheme: dark;
-  --ink: #e2eef0;
-  --ink-soft: #c3d6da;
-  --muted: #93abb3;
-  --muted-light: #6f8a94;
-  --teal-50: #12343a;
-  --teal-100: #174249;
-  --teal-200: #22606a;
-  --teal-400: #2fb8c1;
-  --teal-500: #26a9b2;
-  --teal-600: #1b8f99;
-  --teal-700: #7fd6db;
-  --teal-900: #b5ecef;
-  --coral: #d9714c;
-  --coral-dark: #f0a07f;
-  --red: #ff8a7d;
-  --amber: #f0b44c;
-  --line: #284149;
-  --line-soft: #1d3138;
-  --bg: #15262d;
-  --bg-alt: #0d1a1f;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
-  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.45);
-  --focus: 0 0 0 3px rgba(47, 184, 193, 0.38);
-  --accent-soft: rgba(47, 184, 193, 0.16);
-  --masthead-bg: linear-gradient(160deg, #040d10 0%, #08232a 45%, #0c4149 100%);
-  --accent-hover: #167a83;
-  --line-strong: #3a5761;
-  --tick-line: #5b7780;
-  --dashed-line: #3f5d66;
-  --bar-bg: rgba(21, 38, 45, 0.94);
-  --btn-disabled: #34494f;
-  --overlay: rgba(8, 18, 22, 0.82);
-  --backdrop: rgba(0, 0, 0, 0.55);
-  --toast-bg: #2b4650;
-  --danger: #c0392b;
-  --danger-hover: #d24a3b;
-  --danger-disabled: #5b3430;
-  --red-bg: #3a1f1c;
-  --red-line: #6e3530;
-  --red-field-line: #8a4038;
-  --coral-bg: #31221b;
-  --coral-line: #5e3a2a;
-  --warn-bg: #3a2419;
-  --amber-bg: #3a2d12;
-  --surface-soft: #182b32;
-  --row-hover: #1a3037;
-  --chip-hover: #1a3036;
-  --empty-row: #221f1c;
-  --empty-line: #7a4a36;
-  --empty-bg: #2a211c;
-  --ersem: #f0b44c;
-  --ersem-line: #a07a2a;
-  --ersem-bg: #33290f;
-}
-[data-theme="silver"] {
-  --ink: #1d2329;
-  --ink-soft: #2c343c;
-  --muted: #5b6671;
-  --muted-light: #87919b;
-  --teal-50: #eef1f4;
-  --teal-100: #dfe4ea;
-  --teal-200: #bcc5cf;
-  --teal-400: #7a8a9a;
-  --teal-500: #607080;
-  --teal-600: #4e5d6c;
-  --teal-700: #3b4753;
-  --teal-900: #1f272f;
-  --line: #d9dde2;
-  --line-soft: #eceef1;
-  --bg-alt: #f1f2f4;
-  --focus: 0 0 0 3px rgba(96, 112, 128, 0.3);
-  --accent-soft: rgba(96, 112, 128, 0.14);
-  --masthead-bg: linear-gradient(160deg, #343c45 0%, #5a6570 55%, #8a949e 100%);
-  --brand-accent: #dfe5ea;
-  --brand-accent-soft: rgba(223, 229, 234, 0.24);
-  --on-brand-accent: #2c343c;
-  --line-strong: #c3c9d0;
-  --tick-line: #a2abb4;
-  --dashed-line: #bac2ca;
-  --btn-disabled: #b6bec6;
-  --overlay: rgba(240, 242, 244, 0.82);
-  --backdrop: rgba(30, 36, 42, 0.42);
-  --surface-soft: #fbfbfc;
-  --row-hover: #fafbfc;
-  --chip-hover: #f7f8f9;
-}
-[data-theme="blue"] {
-  --ink: #0c1f3a;
-  --ink-soft: #15294a;
-  --muted: #52637d;
-  --muted-light: #7a8aa3;
-  --teal-50: #ebf3ff;
-  --teal-100: #d6e6fd;
-  --teal-200: #a8c8f5;
-  --teal-400: #3b82e0;
-  --teal-500: #2a6fd0;
-  --teal-600: #1f5fbf;
-  --teal-700: #184a96;
-  --teal-900: #0d2a5a;
-  --line: #d9e3f0;
-  --line-soft: #ebf1f8;
-  --bg-alt: #f3f7fc;
-  --focus: 0 0 0 3px rgba(42, 111, 208, 0.28);
-  --accent-soft: rgba(42, 111, 208, 0.13);
-  --masthead-bg: linear-gradient(160deg, #071a3a 0%, #0b3170 45%, #1557b0 100%);
-  --brand-accent: #8cc2ff;
-  --brand-accent-soft: rgba(140, 194, 255, 0.22);
-  --on-brand-accent: #071a3a;
-  --line-strong: #c3d1e3;
-  --tick-line: #9daec4;
-  --dashed-line: #b6c7dd;
-  --btn-disabled: #a9bad3;
-  --overlay: rgba(235, 242, 250, 0.82);
-  --backdrop: rgba(7, 26, 58, 0.42);
-  --surface-soft: #fbfcfe;
-  --row-hover: #f9fbfe;
-  --chip-hover: #f5f9ff;
 }
 
 * { box-sizing: border-box; }
@@ -578,32 +451,6 @@ input.tick { cursor: pointer; }
 .prefs__group:last-of-type { border-bottom: 0; }
 .prefs__legend { padding: 0; font: 600 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
 .prefs__hint { margin: 4px 0 16px; color: var(--muted); font-size: 14px; }
-.prefs__themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
-.theme-option {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1.5px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.theme-option:hover { border-color: var(--teal-200); }
-.theme-option.is-chosen { border-color: var(--teal-600); box-shadow: var(--focus); }
-.theme-option__name { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 600; }
-.theme-option__name input { width: 17px; height: 17px; margin: 0; accent-color: var(--teal-600); cursor: pointer; }
-.theme-option__name small { color: var(--muted); font-size: 12.5px; font-weight: 500; }
-/* a small picture of the window in a theme: its header, and a card on the page */
-.swatch { display: grid; grid-template-rows: 30px 1fr; height: 112px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-alt); }
-.swatch__mast { display: flex; align-items: center; gap: 4px; padding: 0 10px; background: var(--masthead-bg); }
-.swatch__mast i { width: 26px; height: 7px; border-radius: 4px; background: #fff; }
-.swatch__mast i + i { width: 16px; background: var(--brand-accent); }
-.swatch__page { padding: 10px; }
-.swatch__card { display: grid; gap: 6px; align-content: start; height: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
-.swatch__card i { width: 70%; height: 6px; border-radius: 3px; background: var(--ink-soft); }
-.swatch__card i + i { width: 90%; background: var(--muted-light); }
-.swatch__card b { justify-self: end; width: 36px; height: 12px; margin-top: 2px; border-radius: 4px; background: var(--teal-600); }
 .prefs__check { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 15px; cursor: pointer; }
 .prefs__hint code, .prefs__status code { font-size: 13px; overflow-wrap: anywhere; }
 .prefs__path { max-width: 640px; }
@@ -723,7 +570,7 @@ input.tick { cursor: pointer; }
    The segmented buttons, the big tiles and the existing matchups' ticks do the
    same in the app's own stylesheet. */
 .ptr-mode input[type="radio"], .demo-detail__option input[type="radio"], .prefs__use input[type="radio"],
-.theme-option__name input[type="radio"], .reg-where input[type="radio"] {
+.reg-where input[type="radio"] {
   -webkit-appearance: none;
   appearance: none;
   display: grid;
@@ -739,7 +586,7 @@ input.tick { cursor: pointer; }
   transition: background-color 0.12s, border-color 0.12s, transform 0.12s;
 }
 .ptr-mode input[type="radio"]::after, .demo-detail__option input[type="radio"]::after, .prefs__use input[type="radio"]::after,
-.theme-option__name input[type="radio"]::after, .reg-where input[type="radio"]::after {
+.reg-where input[type="radio"]::after {
   content: "";
   width: 8px;
   height: 8px;
@@ -749,15 +596,15 @@ input.tick { cursor: pointer; }
   transition: transform 0.12s ease-in-out;
 }
 .ptr-mode input[type="radio"]:checked, .demo-detail__option input[type="radio"]:checked, .prefs__use input[type="radio"]:checked,
-.theme-option__name input[type="radio"]:checked, .reg-where input[type="radio"]:checked {
+.reg-where input[type="radio"]:checked {
   border-color: var(--teal-600);
   background: var(--teal-600);
   transform: scale(1.1);
 }
 .ptr-mode input[type="radio"]:checked::after, .demo-detail__option input[type="radio"]:checked::after, .prefs__use input[type="radio"]:checked::after,
-.theme-option__name input[type="radio"]:checked::after, .reg-where input[type="radio"]:checked::after { transform: scale(1); }
+.reg-where input[type="radio"]:checked::after { transform: scale(1); }
 .ptr-mode input[type="radio"]:focus-visible, .demo-detail__option input[type="radio"]:focus-visible, .prefs__use input[type="radio"]:focus-visible,
-.theme-option__name input[type="radio"]:focus-visible, .reg-where input[type="radio"]:focus-visible { outline: none; box-shadow: var(--focus); }
+.reg-where input[type="radio"]:focus-visible { outline: none; box-shadow: var(--focus); }
 
 /* each answer is a box of its own, and the chosen one is filled, bold and bigger */
 .ptr-mode, .demo-detail__option, .prefs__use, .reg-where label {
@@ -790,16 +637,6 @@ input.tick { cursor: pointer; }
 .prefs__choices.is-disabled .prefs__use input[type="radio"]:checked { border-color: var(--tick-line); background: var(--bg); transform: none; }
 .prefs__choices.is-disabled .prefs__use input[type="radio"]:checked::after { background: var(--tick-line); }
 
-/* the theme cards: the chosen one is ringed in the accent colour, filled and bigger */
-.theme-option.is-chosen {
-  border-color: var(--teal-600);
-  background: var(--teal-50);
-  box-shadow: 0 0 0 2px var(--teal-600), var(--shadow-md);
-  transform: scale(1.03);
-}
-.theme-option { transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s, transform 0.15s; }
-.theme-option.is-chosen .theme-option__name { font-weight: 700; }
-
 @media (prefers-reduced-motion: reduce) {
-  .ptr-mode, .demo-detail__option, .prefs__use, .reg-where label, .theme-option { transition: none; }
+  .ptr-mode, .demo-detail__option, .prefs__use, .reg-where label { transition: none; }
 }

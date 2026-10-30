@@ -735,10 +735,7 @@ def render_page(template, state):
         .replace(">", "\\u003e")
         .replace("&", "\\u0026")
     )
-    theme = user_settings.load()["theme"]
     html = read(template)
-    if theme != user_settings.DEFAULTS["theme"]:
-        html = html.replace('<html lang="en">', f'<html lang="en" data-theme="{theme}">', 1)
     return (
         html
         .replace("/*__OCEANVAL_GUI_CSS__*/", read("gui.css"))
@@ -998,7 +995,6 @@ class RecipePage:
             "datasets": app.BUILTIN_DATASETS,
             "user_settings": {
                 "values": user_settings.load(),
-                "themes": [[key, label] for key, label in user_settings.THEMES.items()],
                 "path": user_settings.path(),
                 "data_store": data_store.panel(user_settings.load()),
             },

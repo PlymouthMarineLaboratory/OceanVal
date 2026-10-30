@@ -105,7 +105,7 @@ const OceanValGUI = (() => {
   // left beside the wordmark. Every page calls this once, after its own
   // script has what the panels need:
   //   state()        the page's state, with oceanval_version, datasets and
-  //                  user_settings ({ values, themes, path })
+  //                  user_settings ({ values, path })
   //   post(path, b)  the page's own POST, which answers with the reply's JSON
   //   settingsPath   where post sends the preferences, from the page's address
   //   behind         the parts of the page that cannot be reached while a panel is open
@@ -122,11 +122,6 @@ const OceanValGUI = (() => {
       <p class="prefs__where" id="settings-where"></p>
     </div>
     <div class="prefs__body">
-      <fieldset class="prefs__group">
-        <legend class="prefs__legend">Colour</legend>
-        <p class="prefs__hint">How the OceanVal window looks.</p>
-        <div class="prefs__themes" id="settings-themes"></div>
-      </fieldset>
       <fieldset class="prefs__group">
         <legend class="prefs__legend">Demo</legend>
         <p class="prefs__hint">Should the first page offer the demo?</p>
@@ -201,17 +196,6 @@ const OceanValGUI = (() => {
         el("span", { class: "restart-open__icon", "aria-hidden": "true", html: RESTART })) : null,
     ].filter(Boolean));
     document.body.insertAdjacentHTML("beforeend", CHROME_HTML);
-
-    function applyTheme(theme) {
-      if (theme === "default") delete document.documentElement.dataset.theme;
-      else document.documentElement.dataset.theme = theme;
-    }
-
-    function chooseTheme(theme) {
-      $("settings-themes").querySelectorAll(".theme-option").forEach((option) => {
-        option.classList.toggle("is-chosen", option.querySelector("input").value === theme);
-      });
-    }
 
     const hideBehind = (hidden) => { behind().forEach((node) => { node.inert = hidden; }); };
 
@@ -297,19 +281,9 @@ const OceanValGUI = (() => {
 
     // what is saved, each time it is opened: Cancel leaves it as it was
     function openSettings() {
-      const { values, themes, path } = state().user_settings;
+      const { values, path } = state().user_settings;
       $("settings-where").replaceChildren("Saved in ", el("code", { text: path }),
         ", and used each time OceanVal's window opens.");
-      $("settings-themes").replaceChildren(...themes.map(([key, label]) => el("label", { class: "theme-option" },
-        el("span", { class: "swatch", "data-theme": key, "aria-hidden": "true" },
-          el("span", { class: "swatch__mast" }, el("i"), el("i")),
-          el("span", { class: "swatch__page" }, el("span", { class: "swatch__card" }, el("i"), el("i"), el("b")))),
-        el("span", { class: "theme-option__name" },
-          el("input", { type: "radio", name: "settings-theme", value: key, checked: key === values.theme,
-            onchange: () => chooseTheme(key) }),
-          label,
-          key === "default" ? el("small", { text: "OceanVal's own" }) : null))));
-      chooseTheme(values.theme);
       $("settings-show-demo").checked = values.show_demo !== false;
       $("settings-data-store").value = values.data_store || "";
       const uses = (state().user_settings.data_store || {}).uses || [];
@@ -323,7 +297,7 @@ const OceanValGUI = (() => {
       $("settings-apply").disabled = false;
       $("preferences").hidden = false;
       hideBehind(true);
-      $("settings-themes").querySelector("input:checked").focus();
+      $("settings-show-demo").focus();
     }
 
     function closeSettings() {
@@ -334,7 +308,6 @@ const OceanValGUI = (() => {
 
     async function applySettings() {
       const settings = {
-        theme: $("settings-themes").querySelector("input:checked").value,
         show_demo: $("settings-show-demo").checked,
         data_store: $("settings-data-store").value.trim(),
       };
@@ -350,7 +323,6 @@ const OceanValGUI = (() => {
       }
       state().user_settings.values = reply.settings;
       if (reply.data_store) state().user_settings.data_store = reply.data_store;
-      applyTheme(reply.settings.theme);
       closeSettings();
       onSaved();
       toast("Preferences saved.");

@@ -7320,13 +7320,12 @@ def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc,
 
         page.click("#settings-open")
         assert page.is_visible("#preferences")
-        page.click('label.theme-option:has(input[value="dark"])')
+        page.uncheck("#settings-show-demo")
         page.click("#settings-apply")
         page.wait_for_selector("#preferences", state="hidden")
-        assert page.get_attribute("html", "data-theme") == "dark"
         # saved through the app, which keeps it for its other pages
-        assert app.state()["user_settings"]["values"]["theme"] == "dark"
-        assert json.loads(oceanvalrc.read_text())["settings"]["theme"] == "dark"
+        assert app.state()["user_settings"]["values"]["show_demo"] is False
+        assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
 
         page.click("#info-open")
         assert page.is_visible("#info")
@@ -7491,10 +7490,10 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         assert tops() == ["replace"]
         assert page.is_disabled("#output-run")
 
+        # one option a row, and one at the top chooses it for every row that has it
         page.check("#existing-all-use")
         assert choices() == [["use"]] * len(rows)
         assert tops() == ["use"]
-        # one option a row, and one at the top chooses it for every row that has it
         page.check("#existing-all-replace")
         assert choices() == [["replace" if key in made_keys else "use"] for key in rows]
         assert "replace" in tops()
@@ -8681,35 +8680,33 @@ class TestSettings:
     """The window's settings, saved in the home .oceanvalrc from its panel."""
 
     def test_the_settings_are_read_as_the_window_opens(self, oceanvalrc, tmp_path):
-        oceanvalrc.write_text(json.dumps({"settings": {"theme": "blue", "show_demo": False}}))
+        oceanvalrc.write_text(json.dumps({"settings": {"show_demo": False}}))
         app = App(cwd=str(tmp_path))
         settings = app.state()["user_settings"]
-        assert settings["values"] == {"theme": "blue", "show_demo": False, **NO_STORE}
+        assert settings["values"] == {"show_demo": False, **NO_STORE}
         assert settings["path"] == str(oceanvalrc)
-        assert [key for key, _label in settings["themes"]] == ["default", "dark", "silver", "blue"]
+        assert "themes" not in settings
 
     def test_applying_saves_them(self, app, oceanvalrc):
         version = app.version
-        status, reply = post(app, "/api/settings", {"settings": {"theme": "dark", "show_demo": False}})
+        status, reply = post(app, "/api/settings", {"settings": {"show_demo": False}})
         assert status == 200
         assert reply["ok"] is True
-        assert reply["settings"] == {"theme": "dark", "show_demo": False, **NO_STORE}
+        assert reply["settings"] == {"show_demo": False, **NO_STORE}
         assert reply["data_store"]["root"] is None
-        assert app.state()["user_settings"]["values"] == {"theme": "dark", "show_demo": False, **NO_STORE}
+        assert app.state()["user_settings"]["values"] == {"show_demo": False, **NO_STORE}
         assert app.version > version
-        assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False}
-        # and the page is in its colours from then on
-        assert '<html lang="en" data-theme="dark">' in get(app, "/")[1]
+        assert json.loads(oceanvalrc.read_text())["settings"] == {"show_demo": False}
 
     def test_settings_that_cannot_be_used_are_refused(self, app, oceanvalrc):
-        status, reply = post(app, "/api/settings", {"settings": {"theme": "purple"}})
+        status, reply = post(app, "/api/settings", {"settings": {"show_demo": "purple"}})
         assert status == 400
         assert not reply["ok"] and "purple" in reply["error"]
-        assert app.state()["user_settings"]["values"] == {"theme": "default", "show_demo": True, **NO_STORE}
+        assert app.state()["user_settings"]["values"] == {"show_demo": True, **NO_STORE}
         assert not oceanvalrc.exists()
 
     def test_applying_needs_the_token(self, app, oceanvalrc):
-        assert post(app, "/api/settings", {"settings": {"theme": "dark"}}, token="wrong")[0] == 403
+        assert post(app, "/api/settings", {"settings": {"show_demo": False}}, token="wrong")[0] == 403
         assert not oceanvalrc.exists()
 
     def test_the_settings_panel_in_a_browser(self, browser, oceanvalrc, tmp_path):
@@ -8720,55 +8717,42 @@ class TestSettings:
             page = browser.new_page()
             page.goto(url)
             page.wait_for_selector("#view-start:not([hidden])")
-            assert page.get_attribute("html", "data-theme") is None
             assert page.is_visible("#choice-demo")
 
             # Cancel leaves everything as it was
             page.click("#settings-open")
             assert page.is_visible("#preferences")
             assert page.is_checked("#settings-show-demo")
-            assert page.is_checked('input[name="settings-theme"][value="default"]')
-            page.check('input[name="settings-theme"][value="dark"]')
             page.uncheck("#settings-show-demo")
             page.click("#settings-cancel")
             assert page.is_hidden("#preferences")
-            assert page.get_attribute("html", "data-theme") is None
             assert page.is_visible("#choice-demo")
             assert not oceanvalrc.exists()
             assert page.evaluate("document.activeElement.id") == "settings-open"
 
             # opened again, it shows what is saved, not what was cancelled
             page.click("#settings-open")
-            assert page.is_checked('input[name="settings-theme"][value="default"]')
             assert page.is_checked("#settings-show-demo")
             page.keyboard.press("Escape")
             assert page.is_hidden("#preferences")
 
             page.click("#settings-open")
-            page.click('label.theme-option:has(input[value="dark"])')
-            assert page.is_checked('input[name="settings-theme"][value="dark"]')
             page.uncheck("#settings-show-demo")
             page.click("#settings-apply")
             page.wait_for_selector("#preferences", state="hidden")
-            assert page.get_attribute("html", "data-theme") == "dark"
             assert page.is_hidden("#choice-demo")
-            assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "dark", "show_demo": False, **NO_STORE}
-            # the page's own colours follow
-            assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(13, 26, 31)"
+            assert json.loads(oceanvalrc.read_text())["settings"] == {"show_demo": False}
 
             # and are there when the page is opened again
             page.reload()
             page.wait_for_selector("#view-start:not([hidden])")
-            assert page.get_attribute("html", "data-theme") == "dark"
             assert page.is_hidden("#choice-demo")
 
             # back to the default
             page.click("#settings-open")
-            page.check('input[name="settings-theme"][value="default"]')
             page.check("#settings-show-demo")
             page.click("#settings-apply")
             page.wait_for_selector("#preferences", state="hidden")
-            assert page.get_attribute("html", "data-theme") is None
             assert page.is_visible("#choice-demo")
             assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(244, 250, 250)"
         finally:
@@ -8951,12 +8935,11 @@ class TestSettings:
             # a file that cannot be read is not written over
             oceanvalrc.write_text("{ not json")
             page.click("#settings-open")
-            page.check('input[name="settings-theme"][value="blue"]')
+            page.uncheck("#settings-show-demo")
             page.click("#settings-apply")
             page.wait_for_selector("#settings-error:not([hidden])")
             assert "could not be read" in page.text_content("#settings-error")
             assert page.is_visible("#preferences")
-            assert page.get_attribute("html", "data-theme") is None
             assert oceanvalrc.read_text() == "{ not json"
         finally:
             app.close()

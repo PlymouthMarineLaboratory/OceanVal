@@ -3,7 +3,7 @@
 They sit beside your recipes, under ``"settings"``::
 
     {"version": 1, "recipes": {...},
-     "settings": {"theme": "dark", "show_demo": false,
+     "settings": {"show_demo": false,
                   "data_store": "/data/me", "data_store_use": "always"}}
 
 ``data_store`` is the folder the data store is kept in (see
@@ -26,21 +26,13 @@ import os
 from oceanval import user_recipes
 from oceanval.utils import loud_warning
 
-# the window's colours, in the order the settings show them, with their names
-THEMES = {
-    "default": "Default",
-    "dark": "Dark",
-    "silver": "Silver",
-    "blue": "Blue",
-}
-
 # how matchup uses the data store, in the order the settings show them
 DATA_STORE_USES = {
     "always": "Always use data from your data store, if available",
     "fallback": "Only use the data store when download fails",
 }
 
-DEFAULTS = {"theme": "default", "show_demo": True, "data_store": "", "data_store_use": "always"}
+DEFAULTS = {"show_demo": True, "data_store": "", "data_store_use": "always"}
 
 # a file that is unreadable is said so once, not on every look
 _warned = set()
@@ -52,8 +44,6 @@ def path():
 
 
 def _valid(name, value):
-    if name == "theme":
-        return value in THEMES
     if name == "show_demo":
         return isinstance(value, bool)
     if name == "data_store":

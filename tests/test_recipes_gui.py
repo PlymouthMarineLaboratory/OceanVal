@@ -264,9 +264,9 @@ class TestErsemDetection:
                 assert "recipe:" not in dataset["details"]
 
 
-def _panels_work(page, oceanvalrc, theme):
+def _panels_work(page, oceanvalrc):
     """The cog and the i beside the wordmark open their panels on this page,
-    and Apply saves the theme."""
+    and Apply saves the settings."""
     assert page.locator(".masthead .brand #settings-open").count() == 1
     assert page.locator(".masthead .brand #info-open").count() == 1
     assert page.is_hidden("#preferences")
@@ -277,11 +277,11 @@ def _panels_work(page, oceanvalrc, theme):
     assert page.locator('input[name="settings-data-store-use"]').count() == 2
     assert "reasonable amount of free space" in page.text_content("#settings-data-store-note")
     assert page.text_content("#settings-data-store-check") == "Run a check on the data store"
-    page.click(f'label.theme-option:has(input[value="{theme}"])')
+    assert page.locator("#settings-themes").count() == 0
+    page.uncheck("#settings-show-demo")
     page.click("#settings-apply")
     page.wait_for_selector("#preferences", state="hidden")
-    assert page.get_attribute("html", "data-theme") == theme
-    assert json.loads(oceanvalrc.read_text())["settings"]["theme"] == theme
+    assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
     assert page.evaluate("document.activeElement.id") == "settings-open"
 
     page.click("#info-open")
@@ -306,7 +306,7 @@ def test_the_preferences_and_info_are_in_the_window_too(browser, oceanvalrc):
     try:
         page = browser.new_page()
         page.goto(url)
-        _panels_work(page, oceanvalrc, "dark")
+        _panels_work(page, oceanvalrc)
     finally:
         recipe_page.close()
 
