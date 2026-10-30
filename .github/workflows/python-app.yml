@@ -66,7 +66,7 @@ jobs:
           # is every other test file, so a new test file is always picked up.
           # macos-app.yml runs the same groups: change both together.
           GROUP1="tests/test_gridded_matchups.py tests/test_point_matchups.py tests/test_matchup_formula.py tests/test_transect_report.py"
-          GROUP2="tests/test_matchups.py tests/test_gridded_failures.py tests/test_matchup_order.py tests/test_calendars.py tests/test_short_simulations.py tests/test_unified_grid.py tests/test_domain_mask.py tests/test_extent.py"
+          GROUP2="tests/test_matchups.py tests/test_gridded_failures.py tests/test_matchup_order.py tests/test_calendars.py tests/test_short_simulations.py tests/test_domain_mask.py tests/test_extent.py"
           GROUP3="tests/test_data_store.py tests/test_live_validation.py tests/test_analysis_report.py tests/test_fvcom.py tests/test_own_data.py tests/test_user_recipes.py tests/test_model_check.py tests/test_transects.py tests/test_viewer_app.py tests/test_viewer_browser.py tests/test_viewer_catalogue.py tests/test_viewer_mesh.py tests/test_viewer_plots.py tests/test_viewer_times.py"
           GROUP4="tests/test_analysis_plots.py tests/test_analysis_changes.py tests/test_analysis_transects.py tests/test_sim_plots.py"
           GROUP5="tests/test_analysis.py tests/test_analysis_series.py tests/test_analysis_app.py tests/test_sim_unify.py tests/test_sim_compare.py tests/test_sim_compare_app.py"

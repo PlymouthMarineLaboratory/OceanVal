@@ -33,7 +33,6 @@ from oceanval.session import session_info
 from oceanval.parsers import Validator, definitions, point_files
 from tqdm import tqdm
 from oceanval.utils import extension_of_directory
-from oceanval import unified_grid as unified_grid_mod
 from oceanval import domain_mask as domain_mask_mod
 from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
@@ -1356,7 +1355,6 @@ def matchup(
     fvcom_min_depth = fvcom_default_min_depth,
     fvcom_max_depth = fvcom_default_max_depth,
     fvcom_dz = fvcom_default_dz,
-    unified_grid = None,
     domain_mask = None,
 ):
     """
@@ -1462,22 +1460,11 @@ def matchup(
         where the built-in observational data downloaded (WOA23, OCCCI, NSBC, COBE2, GLODAP and
         ICES) is kept for later matchups, used as the Preferences say. Your own data is never
         kept in it. Default is None, to use it if one is set; False does not use it for this run.
-    unified_grid : dict
-        Mask the matchups by a grid this simulation shares with others, so that they are
-        validated over the same cells: {"path": mask file, "method": regrid method}, the method
-        one of "bil", "nn", "dis" and "con" (nctoolkit's). The mask file is missing where any
-        simulation has no value and 0 elsewhere, as the oceanval window's step for aligning
-        the grid with other simulations makes it, and is copied to
-        oceanval_matchups/unified_grid.nc. Gridded matchups put the model's monthly means on the
-        mask's grid with the method (unless they are on it already) and add the mask; point
-        matchups keep only the locations that have a value in the mask, by nearest neighbour.
-        Default is None, no mask.
     domain_mask : str
         Match up only part of the domain: the path of a netCDF file with a single variable at a
         single time step, 1 in the cells wanted and 0 or missing elsewhere. It is copied, as 1
         and missing, to oceanval_matchups/domain_mask.nc. Gridded matchups put the model's monthly
-        means on the file's grid by nearest neighbour (after the unified grid's mask, if there is
-        one) and keep only the cells of 1; point matchups keep only the locations that are in a
+        means on the file's grid by nearest neighbour and keep only the cells of 1; point matchups keep only the locations that are in a
         cell of 1, by nearest neighbour. Default is None, the whole domain.
 
     Returns
@@ -1517,8 +1504,6 @@ def matchup(
     session_info["cores"] = cores
 
     # kept in the matchups folder, and said so in session_info, once the matchups are confirmed
-    unified_grid = unified_grid_mod.check(unified_grid)
-    session_info["unified_grid"] = None
     domain_mask = domain_mask_mod.check(domain_mask)
     session_info["domain_mask"] = None
 
@@ -2129,9 +2114,6 @@ def matchup(
     if "lon_lim" in given or "lat_lim" in given:
         lon_lim, lat_lim = _checked_limits(given.get("lon_lim"), given.get("lat_lim"))
         session_info["lon_lim"], session_info["lat_lim"] = lon_lim, lat_lim
-    if "unified_grid" in given:
-        # the window's unified grid (see oceanval.grid_align_app)
-        unified_grid = unified_grid_mod.check(given["unified_grid"])
     if "domain_mask" in given:
         # the window's domain mask (see oceanval.app.check_domain_mask)
         domain_mask = domain_mask_mod.check(given["domain_mask"])
@@ -2147,7 +2129,6 @@ def matchup(
                 session_info["ds_thickness"] = ds_thickness_sim[0]
 
     os.makedirs(session_info["out_dir"] + "oceanval_matchups", exist_ok=True)
-    session_info["unified_grid"] = unified_grid_mod.keep(unified_grid, session_info["out_dir"] + "oceanval_matchups")
     session_info["domain_mask"] = domain_mask_mod.keep(domain_mask, session_info["out_dir"] + "oceanval_matchups")
     ff_bath = session_info["out_dir"] + "oceanval_matchups/model_bathymetry.nc"
     if bathymetry is not None and not os.path.exists(ff_bath):
@@ -2710,10 +2691,8 @@ def matchup(
                             df_all = df_all.query(
                                 f"lat > {lat_lim[0]} and lat < {lat_lim[1]}"
                             )
-                        # only the locations the unified grid has a value at
-                        df_all = unified_grid_mod.mask_points(df_all, session_info["unified_grid"])
-                        # and only those in the domain mask's cells of 1
-                        df_all = unified_grid_mod.mask_points(df_all, session_info["domain_mask"])
+                        # only those in the domain mask's cells of 1
+                        df_all = domain_mask_mod.mask_points(df_all, session_info["domain_mask"])
 
                         if len(df_all) > 0:
 

@@ -5,18 +5,21 @@ others.
 matchup(domain_mask=path) checks the file (inspect) before anything is done,
 and once the matchups are confirmed writes it, cleaned, into its
 oceanval_matchups folder (keep): the one variable, 1 where wanted and missing
-elsewhere, with an explicit _FillValue. It is then applied as the unified grid
-is (see oceanval.unified_grid), always by nearest neighbour: gridded matchups
-put the model's monthly means on the file's grid and multiply them by it, and
-point matchups keep only the locations it has a 1 at.
+elsewhere, with an explicit _FillValue. It is then applied always by nearest
+neighbour: gridded matchups put the model's monthly means on the file's grid
+(mask_gridded) and multiply them by it, and point matchups keep only the
+locations it has a 1 at (mask_points).
 """
 
+import contextlib
 import os
+import warnings
 
+import nctoolkit as nc
 import numpy as np
 import xarray as xr
 
-from oceanval import extent
+from oceanval import extent, sim_unify
 
 # what the mask is called in the oceanval_matchups folder
 FILE = "domain_mask.nc"
@@ -24,6 +27,9 @@ FILE = "domain_mask.nc"
 METHOD = "nn"
 # the missing value of the mask kept
 FILL = -9999.0
+# the matchups' locations are merged with the mask's by these many decimals of
+# lon and lat: nctoolkit writes the points to a text grid for CDO
+DECIMALS = 5
 
 
 def _field(data):
@@ -105,8 +111,8 @@ def keep(domain_mask, folder):
     """Write the mask of domain_mask (as check gives it) into folder as FILE:
     1 where wanted, missing elsewhere, with an explicit _FillValue, as CDO
     needs to carry missing values through arithmetic. Returns what
-    session_info keeps: {"path": the file, "method", "multiply"} (see
-    oceanval.unified_grid.mask_gridded), or None for no domain_mask."""
+    session_info keeps: {"path": the file, "method"}, or None for no
+    domain_mask."""
     if domain_mask is None:
         return None
     mask, error = inspect(domain_mask)
@@ -118,9 +124,81 @@ def keep(domain_mask, folder):
     written = kept + ".part"
     mask.to_dataset().to_netcdf(written, encoding=encoding)
     os.replace(written, kept)
-    return {"path": kept, "method": METHOD, "multiply": True}
+    return {"path": kept, "method": METHOD}
 
 
 def cells(mask):
     """How many cells of mask (as inspect gives it) are wanted, of how many."""
     return int(mask.notnull().sum()), int(mask.size)
+
+
+def _lonlat_of(path):
+    """The longitudes and latitudes of a netCDF file (see sim_unify._lonlat):
+    only the coordinates are read."""
+    with xr.open_dataset(path, decode_times=False) as data:
+        return sim_unify._lonlat(data)
+
+
+def mask_gridded(ds, info, fvcom=False):
+    """Multiply ds, an nctoolkit dataset of the model's monthly means, by the
+    domain mask info (session_info["domain_mask"]): ds is put on the mask's
+    grid by info's method, unless it is on it already (regridding would only
+    spread its missing cells). Before it is regridded it is cropped to the
+    mask's extent (see sim_unify.padded_box), unless it is FVCOM output
+    (fvcom), which is left as it is. Changes ds."""
+    if info is None:
+        return ds
+    with warnings.catch_warnings(record=True):
+        ds.run()
+        if not sim_unify.same_lonlat(_lonlat_of(ds[0]), _lonlat_of(info["path"])):
+            # the extent of the mask's cells with values, not of its whole grid
+            with xr.open_dataset(info["path"], decode_times=False) as data:
+                target = extent.valid_lonlat(data)
+            if not fvcom and target is not None:
+                sim_unify.crop_to(ds, sim_unify.padded_box(*target))
+            ds.regrid(info["path"], method=info["method"])
+        ds * nc.open_data(info["path"], checks=False)
+        ds.run()
+    return ds
+
+
+@contextlib.contextmanager
+def _no_extrapolation():
+    """CDO does not give a point beyond the mask's grid the nearest cell's
+    value while this lasts."""
+    before = os.environ.get("REMAP_EXTRAPOLATE")
+    os.environ["REMAP_EXTRAPOLATE"] = "off"
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop("REMAP_EXTRAPOLATE", None)
+        else:
+            os.environ["REMAP_EXTRAPOLATE"] = before
+
+
+KEYS = ["_mask_lon", "_mask_lat"]
+
+
+def _keyed(df):
+    return df.assign(**{KEYS[0]: df.lon.round(DECIMALS), KEYS[1]: df.lat.round(DECIMALS)})
+
+
+def mask_points(df, info):
+    """The rows of df, point matchups with lon and lat columns, whose location
+    has a value in the domain mask info (session_info["domain_mask"]): the
+    mask is put on the locations by nearest neighbour (a set of points has no
+    cell bounds, and bilinear would lose a point if any of the four cells
+    around it is missing), and those it leaves missing, or that are beyond its
+    grid, are dropped."""
+    if info is None or len(df) == 0:
+        return df
+    places = df[["lon", "lat"]].drop_duplicates().reset_index(drop=True)
+    with warnings.catch_warnings(record=True), _no_extrapolation():
+        ds_mask = nc.open_data(info["path"], checks=False)
+        ds_mask.regrid(places, method=METHOD)
+        ds_mask.run()
+        found = ds_mask.to_dataframe().reset_index()
+    name = ds_mask.variables[0]
+    valid = _keyed(found.dropna(subset=[name]))[KEYS].drop_duplicates()
+    return _keyed(df).merge(valid, on=KEYS).drop(columns=KEYS)[list(df.columns)]

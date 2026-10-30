@@ -258,7 +258,7 @@ def _target_box(unify, key, layer):
 
 
 def _regrid(ds, unify, key, layer):
-    # bilinear, unless unify says otherwise (the window's grid alignment, see oceanval.grid_align)
+    # bilinear, unless unify says otherwise (Compare simulations' choice)
     method = unify.get("regrid", "bil")
     progress = unify.get("progress") or (lambda stage: None)
     if unify["method"] == "box" or (not unify["is_baseline"] and not unify.get("same_grid")):

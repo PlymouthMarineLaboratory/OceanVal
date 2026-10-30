@@ -355,7 +355,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - **A model's extent is that of its cells with values, never of its whole coordinate arrays** (`oceanval/extent.py`: `valid_lonlat`
   of a field's first time and top level, `first_slice`/`of_file` for a model file, read through CDO first). NEMO puts the cells of
   the land processors it leaves out at lon -1, lat -1 (36 k of AMM7's 111 k cells), so a whole grid's min/max can be lat -1 to 65.
-  The unifier's crop box (`sim_unify.prepare`, `unified_grid.mask_gridded`; on a curvilinear grid CDO keeps the index box of the
+  The unifier's crop box (`sim_unify.prepare`, `domain_mask.mask_gridded`; on a curvilinear grid CDO keeps the index box of the
   cells inside, which for a global ORCA025 and the whole-grid box was all 1.74 M cells), `gridded._lonlat_bounds` (the obs crop and
   the data store's download box), `matchall._model_box` (ICES), `analysis_plots._plot_grid`/`_panel_size`,
   `analysis_series.estimate_grid`, Compare's "The simulations cover" and `viewer_plots.coastline_scale` use it. FVCOM's extents
@@ -488,11 +488,11 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `chunk_sim*.pytemplate`: chunk names are letters only).
 - **Grid unification** (`oceanval/sim_unify.py`): `unify={"lon","lat","res"}` (nctoolkit `to_latlon`) or `{"baseline": name}`,
   either with an optional `"regrid"` (`sim_unify.METHODS`: bil, nn, dis, con; kept in the dict only when given, bilinear if not;
-  `sim_unify.METHODS` is the one list, `unified_grid`/`grid_align` use it) (`regrid`, the baseline itself untouched;
+  `sim_unify.METHODS` is the one list, `grid_align` uses it) (`regrid`, the baseline itself untouched;
   **every grid is cropped before it is regridded** to the target's extent a degree wider each way, `PAD`: `sim_unify.padded_box`, None for
   a target round the globe or across the dateline, and `crop_to`, which leaves the dataset as it was if CDO cannot crop it, so cropping only
-  ever saves time; the baseline's box is kept by `prepare` in `box_path` JSON; `unified_grid.mask_gridded` crops to the mask's extent too, but
-  never FVCOM output, `fvcom=`; Validate's FVCOM panels are put on the baseline's grid by `_fvcom_regridded`, so `_regrid` never crops them; a simulation already on the baseline's grid is not regridded, as bilinear
+  ever saves time; the baseline's box is kept by `prepare` in `box_path` JSON; `domain_mask.mask_gridded` crops to the mask's extent too, but
+  never FVCOM output, `fvcom=`; a simulation already on the baseline's grid is not regridded, as bilinear
   remapping spreads missing cells). It is applied through `row["unify"]` in `analysis.monthly_means_of`,
   `daily_climatology_of` and the transects' thickness: **after the vertical reduction** (surface/bottom/column mean) of each
   layer, so all analyses see the same cells. A cell missing in any simulation is missing in all: the mask is made in
@@ -502,11 +502,11 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   turn a real 0 into missing. Vertical transects need the same number of levels in every simulation.
 - The window: the landing page's third tile, views `simcompare_sims` / `_variables` / `_files` / `_grids` (mixin
   `oceanval/sim_compare_app.py`, boxes in `sim_compare_forms.py`, JS block "Compare simulations" in `oceanval_app.html`). **The grids step
-  has the align page's maps** (one `.ag-card` for each simulation, its first variable's first file at the surface and first time, `POST /api/simcompare_panel`;
+  has maps** (one `.ag-card` for each simulation, its first variable's first file at the surface and first time, `POST /api/simcompare_panel`;
   the unified grid card; the missing value `missing_probe` finds is used for the map): Yes shows them, then the method radios (box/baseline), the
   **Regridding method** select (`unify_form["regrid"]`, blank = bilinear) and **Generate unified grid** (`POST /api/simcompare_generate`,
   `grid_align.unified(box=)` or baseline), **an optional preview only**: Continue never waits for it, and the run still works the masks out per
-  variable and layer. The maps are drawn by `drawMap(id, item)`/`emptyMap(id, text, busy)` (busy: a spinner beside the text, while the unified grid is generated, on both pages, which says what is being done: **Cropping / Regridding <simulation>…, Unifying the simulations…**, from `sim_unify.prepare(progress=)` through `grid_align.unified(progress=)` to `App.align_stage`/`sc_stage` in the states, which `showGenerateStage` writes into the placeholder's text in place), which the align page's `drawAlignMap` also calls; there is no plus (the simulations are given). Then
+  variable and layer. The maps are drawn by `drawMap(id, item)`/`emptyMap(id, text, busy)` (busy: a spinner beside the text, while the unified grid is generated, which says what is being done: **Cropping / Regridding <simulation>…, Unifying the simulations…**, from `sim_unify.prepare(progress=)` through `grid_align.unified(progress=)` to `App.sc_stage` in the states, which `showGenerateStage` writes into the placeholder's text in place); there is no plus (the simulations are given). Then
   **Analyze's own options step** (`analyze_options`, `state.analyze`) with the variables as they are in all the simulations:
   `analyze_placed` is `sim_compare_forms.combined` (the fewest levels), the dates check is `_sc_check_rows` (the years every
   simulation has, the coarsest time resolution), the thickness name must be in every simulation's output (or a file, or
@@ -589,46 +589,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (without it, closing the browser left the command running for 30 min); with every page gone it quits only when not `_busy()`
   (status `starting`/`running`, which `_run_finished` keeps through a matchup's hand-over to its report run), otherwise it
   prints the window's link to the terminal once and quits when the run is over. `poll()` skips its 150 ms wait while hidden.
-- **Aligning the grid with other simulations** (`oceanval/grid_align_app.py`, mixin `GridAlignSteps`; `oceanval/grid_align.py`):
-  a matchup run asks last, required with no default, "Do you need to align the simulation grid with other simulations?"
-  (`align_grids` in `default_validate_form` on "One last thing...", `#v-group-align`, and for Match up only in
-  `default_output_form`, `#row-f-align`; `check_align_grids`; not needed by "Stop and store Python script"). Yes shows view
-  `align_grids` while the matchups question is still held (`answer()` refuses there): panels in a grid three across, the simulation's
-  own (`first_of` the question's `details`: first row's model variable and first file) and Simulation 2's to start, a + tile after
-  the last shown (`#ag-add`) adding the next, up to four others (a panel with anything in its boxes is shown again on coming back; the form
-  always holds all five, and the unified grid is always the last card, `ag-card-6`/`ag-map-6`); each other: file, variable via
-  `variablesPicker`, missing from/to; `POST /api/align_panel` → `viewer_catalogue.scan(file)` + `viewer_plots.map_plot`
-  at the surface level of the first time), and the unified grid (`POST /api/align_generate`: `grid_align.field_for_cdo`
-  then `sim_unify.prepare` with `unify["regrid"]`, one of `REGRID_METHODS`, drawn as 1 and missing). The maps reuse the
-  viewer's `fitFigure`/`release` (`figures`/`aspects` keyed `ag-map-N`). Back returns to the step that asked
-  (`align_from`). **Match up and validate** (from the report options) / **Match up** (from the output step), `#ag-continue`,
-  `POST /api/align_continue` → `align_continue`, is enabled only once a grid has been generated with the boxes as they are
-  (`align.madeFor` in the page, `_align_made_for` in the app): it carries on as the asking step would have
-  (`App._match_up_and_validate` / `App._match_up_now`, with what `_show_align` kept in `align_pending`). Generate copies
-  `sim_unify.prepare`'s mask (0 / missing, explicit `_FillValue`) into the app's draft folder (`grid_align.unified(keep=)`),
-  as nothing goes in `out_dir` before yes; `_use_unified` sends `unified_grid` with yes and writes the script's
-  `unified_grid` as `<out_dir>/oceanval_matchups/unified_grid.nc`. **`matchup(unified_grid={"path", "method"})`**
-  (`oceanval/unified_grid.py`, in `MATCHUP_SETTINGS`) copies the mask there once the matchups are confirmed (`keep`) and sets
-  `session_info["unified_grid"]`: gridded matchups mask the model's monthly means (`mask_gridded`, after the `+` sums:
-  `regrid` to the mask with the method, skipped if already on its grid, then `+` the mask); point matchups keep only the
-  locations the mask has a value at (`mask_points`, just before the csv: nearest neighbour always, `REMAP_EXTRAPOLATE=off`
-  so a point beyond the mask's grid is dropped, then merged on lon/lat rounded to 5 decimals). **Panels 2-5 take a directory or one file** (`grid_align_app.panel_files`, `viewer_catalogue.viewer_paths`: a file is used as it is, a directory
-  gives its `.nc` files `ndown` directories down, no exclude/require), **a `depthBox` for the depth** (disabled for a file) and **a file picked from the
-  list found** (`OceanValGUI.variablesPicker` with `searchHint`/`noneText`; the form's `file` is a name relative to the directory and must be one of the
-  files found; the only file is used without choosing; `align_panel` replies with `files`, `files_total`, `is_file`, `file`; Browse… opens the folder
-  picker, `DESCRIBE["ag-N-path"]`). The listing is made outside `App._lock`. **FVCOM panels** (found by `about["mesh"]`, `align_panel`'s `fvcom`) are not read by CDO: `grid_align.fvcom_field` takes the
-  viewer's surface values at the nodes (or element centres) as a point grid (`fvcom_regrid`'s `generate_grid` + `setgrid`), and `unified(fvcom=
-  {name: Mesh})` regrids each onto the baseline's grid by **nearest neighbour only** (`FVCOM_METHOD`), with the cells outside the mesh made missing
-  (`_inside_mesh`, a trifinder), before `sim_unify.prepare`, which then finds it already on the baseline's grid. An FVCOM panel is never the
-  baseline and a Cartesian mesh (no lon/lat) is refused. The page offers no FVCOM panel as baseline, sets the method to Nearest neighbour,
-  disabled and red (`NN_ONLY_NOTE` in `#ag-msg`) while one is drawn; `align_generate` checks both too.
 - **Masking part of the domain** (`oceanval/domain_mask.py`): `matchup(domain_mask=path)` (in `MATCHUP_SETTINGS`), a netCDF file of
   one variable at one time step (and level), 1 in the cells wanted, 0 or missing elsewhere (`inspect` refuses anything else, before any
   work). Once the matchups are confirmed `keep` writes it cleaned (1 and missing, explicit `_FillValue`) as
-  `oceanval_matchups/domain_mask.nc` → `session_info["domain_mask"] = {"path", "method": "nn", "multiply": True}`, applied by
-  `unified_grid.mask_gridded` (`multiply`: `ds * mask` rather than the unified grid's `+ mask`) **after** the unified grid's, so the
-  matchups end on the file's grid, and `unified_grid.mask_points` after the unified grid's. In the window it is asked with the align
-  question (`#v-group-domain-mask`, `#row-f-domain-mask`; boxes `domain_mask` "yes"/"no", **No to start**, and `domain_mask_path`),
+  `oceanval_matchups/domain_mask.nc` → `session_info["domain_mask"] = {"path", "method": "nn"}`, applied by
+  `domain_mask.mask_gridded` (`ds * mask`, after regridding to the mask with crop to its cells, skipped if already on its grid) so the
+  matchups end on the file's grid, and `domain_mask.mask_points` (nearest neighbour always, `REMAP_EXTRAPOLATE=off` so a point beyond the mask's grid is dropped, then merged on lon/lat rounded to 5 decimals). In the window it is asked with the other matchup boxes (`#v-group-domain-mask`, `#row-f-domain-mask`; boxes `domain_mask` "yes"/"no", **No to start**, and `domain_mask_path`),
   checked and drawn as it is typed (`domainMaskQuestion` in the page, `POST /api/domain_mask` → `App.domain_mask_map`), and
   `check_domain_mask` puts the user's own file into `matchup` (so into `_run_output` and the script; None for No).
 - create_recipes runs in a thread of the app; `recipes_gui.hosted_by(app)` makes its window

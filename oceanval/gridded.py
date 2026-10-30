@@ -22,7 +22,7 @@ from oceanval import prompts
 from oceanval import server_trouble
 from oceanval import surface
 from oceanval import time_res
-from oceanval import unified_grid
+from oceanval import domain_mask
 from oceanval.fixers import tidy_warnings
 from oceanval.fvcom import fvcom_matchup_files
 from oceanval.utils import extension_of_directory, loud_warning
@@ -746,10 +746,8 @@ def gridded_matchup(
 
                             ds_model.run()
 
-                    # the monthly means, on the unified grid and with its mask, if there is one
-                    unified_grid.mask_gridded(ds_model, session_info.get("unified_grid"), fvcom=session_info.get("fvcom", False))
-                    # then on the domain mask's grid, only its cells of 1
-                    unified_grid.mask_gridded(ds_model, session_info.get("domain_mask"), fvcom=session_info.get("fvcom", False))
+                    # the monthly means on the domain mask's grid, only its cells of 1
+                    domain_mask.mask_gridded(ds_model, session_info.get("domain_mask"), fvcom=session_info.get("fvcom", False))
 
                 tidy_warnings(w)
 

@@ -487,7 +487,6 @@ MATCHUP_SETTINGS = (
     "fvcom_min_depth",
     "fvcom_max_depth",
     "fvcom_dz",
-    "unified_grid",
     "domain_mask",
 )
 VALIDATE_SETTINGS = ("subregions", "pdf", "word", "concise")

@@ -56,8 +56,6 @@ OUTPUT_FORM = {
     "unused": [],
     "existing_confirmed": False,
     "out": "matchup.py",
-    # matchup alone asks there whether the grid is to be aligned with other simulations'
-    "align_grids": "no",
 }
 
 # a matchup as matchup lists it with its question of whether the matchups are right
@@ -135,12 +133,6 @@ def output_continue(app, **output):
     wait_for(lambda: app.view == "output")
     status, reply = post(app, "/api/output", {"form": {**OUTPUT_FORM, "cores": "1", **output}})
     assert status == 200, reply
-
-
-def answered(form):
-    """The report options' boxes, form, with whether the grid is to be aligned
-    with other simulations' answered: no, unless form says."""
-    return dict(form, align_grids=form.get("align_grids") or "no")
 
 
 def choose_domain(page, domain="global"):
@@ -235,20 +227,14 @@ def through_output(page):
     page.wait_for_selector("#view-output:not([hidden])")
     if page.is_visible("#f-cores"):
         page.select_option("#f-cores", "1")
-    # matchup alone asks there too whether the grid is to be aligned with others'
-    if page.is_visible("#f-align-no"):
-        page.check("#f-align-no")
     page.wait_for_function("!document.getElementById('output-run').disabled")
     page.click("#output-run")
 
 
 def pick_cores(page):
-    """Choose a core on the report options, which matchup is given with them,
-    and say the grid is not to be aligned with other simulations', asked with them."""
+    """Choose a core on the report options, which matchup is given with them."""
     if page.is_visible("#v-cores"):
         page.select_option("#v-cores", "1")
-    if page.is_visible("#v-align-no"):
-        page.check("#v-align-no")
 
 
 def recipe_settings(app, **changes):
@@ -1342,12 +1328,12 @@ class TestChoosingMatchups:
 
         # none ticked
         form = {"unticked": ["temperature/COBE2", "temperature/ICES"], "cores": "1"}
-        status, reply = post(app, "/api/report", {"form": answered(form)})
+        status, reply = post(app, "/api/report", {"form": form})
         assert (status, reply["errors"]) == (400, {"variables": "Tick at least one dataset to validate."})
 
         # the gridded one unticked, so its options are not used
         form = {"unticked": ["temperature/COBE2"], "subregions": "global", "fixed_scale": True, "cores": "1"}
-        assert post(app, "/api/report", {"form": answered(dict(form, **DEPTH_FORM))})[0] == 200
+        assert post(app, "/api/report", {"form": dict(form, **DEPTH_FORM)})[0] == 200
         assert app.report_arguments == {
             "data_dir": str(tmp_path),
             "out_dir": str(tmp_path),
@@ -1410,7 +1396,7 @@ class TestChoosingMatchups:
                   else [key for key in MIXED_KEYS if key not in previous])
         output_continue(app, existing_confirmed=True, unused=unused)
         assert app.previous == previous
-        assert post(app, "/api/report", {"form": answered({"unticked": ["temperature/COBE2"], "cores": "1"})})[0] == 200
+        assert post(app, "/api/report", {"form": {"unticked": ["temperature/COBE2"], "cores": "1"}})[0] == 200
         expected = {"data_dir": str(tmp_path), "out_dir": str(tmp_path), "variables": variables}
         if previous is not True:
             expected["previous"] = previous
@@ -1901,7 +1887,7 @@ class TestServer:
         assert get_json(app, "/api/state")[1]["report"]["gridded"] is True
         form = {"lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65",
                 "pdf": True, "concise": False}
-        assert post(app, "/api/report", {"form": answered(form)})[0] == 200
+        assert post(app, "/api/report", {"form": form})[0] == 200
         text = open(tmp_path / "matchup.py").read()
 
         # so it can be run again from a terminal, as the window ran it
@@ -1947,7 +1933,7 @@ class TestServer:
         self.report_step(app, tmp_path, runs, ["cobe2"])
         diagonal = dict(TRANSECT_FORM, transect_end_lon="-20")
 
-        status, reply = post(app, "/api/report", {"form": answered(diagonal)})
+        status, reply = post(app, "/api/report", {"form": diagonal})
 
         assert status == 400
         assert set(reply["errors"]) == {
@@ -1967,7 +1953,7 @@ class TestServer:
         assert get_json(app, "/api/state")[1]["report"]["gridded"] is False
 
         # the page does not send one, but if it did, there is nothing to draw it for
-        assert post(app, "/api/report", {"form": answered(TRANSECT_FORM)})[0] == 200
+        assert post(app, "/api/report", {"form": TRANSECT_FORM})[0] == 200
         assert "transect=" not in open(tmp_path / "matchup.py").read()
         assert '"transect"' not in runs[-1][0][1]
 
@@ -1996,7 +1982,7 @@ class TestServer:
         self.vertical_report_step(app, tmp_path, runs)
         assert get_json(app, "/api/state")[1]["report"]["vertical"] is True
 
-        assert post(app, "/api/report", {"form": answered(DEPTH_FORM)})[0] == 200
+        assert post(app, "/api/report", {"form": DEPTH_FORM})[0] == 200
         text = open(tmp_path / "matchup.py").read()
 
         # so it can be run again from a terminal, as the window ran it
@@ -2009,7 +1995,7 @@ class TestServer:
     def test_the_default_depth_bins_are_not_written(self, app, tmp_path, runs):
         self.vertical_report_step(app, tmp_path, runs)
 
-        assert post(app, "/api/report", {"form": answered(default_validate_form())})[0] == 200
+        assert post(app, "/api/report", {"form": default_validate_form()})[0] == 200
         assert "depth_bins=" not in open(tmp_path / "matchup.py").read()
 
     def test_depth_bins_are_not_asked_for_without_vertical_point_matchups(
@@ -2019,7 +2005,7 @@ class TestServer:
         assert get_json(app, "/api/state")[1]["report"]["vertical"] is False
 
         # the page does not send them, but if it did, there is nothing to bin
-        assert post(app, "/api/report", {"form": answered(DEPTH_FORM)})[0] == 200
+        assert post(app, "/api/report", {"form": DEPTH_FORM})[0] == 200
         assert "depth_bins=" not in open(tmp_path / "matchup.py").read()
         assert '"depth_bins"' not in runs[-1][0][1]
 
@@ -3118,7 +3104,7 @@ class TestServer:
         output_continue(app)
         assert app.view == "report_options"
 
-        status, reply = post(app, "/api/report", {"form": answered({"lon_min": "x"})})
+        status, reply = post(app, "/api/report", {"form": {"lon_min": "x"}})
         assert status == 400
         assert reply["errors"]["lon_min"] == "Limits must be numbers."
         # the cores are asked for here too, with no default
@@ -3127,7 +3113,7 @@ class TestServer:
 
         form = {"lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65",
                 "pdf": True, "concise": False, "cores": "1"}
-        assert post(app, "/api/report", {"form": answered(form)})[0] == 200
+        assert post(app, "/api/report", {"form": form})[0] == 200
         assert get_json(app, "/api/state")[1]["report"]["given"] is True
         # then matchup carries on, and the report is built once it has run
         wait_for(lambda: validated)
@@ -3188,7 +3174,7 @@ class TestServer:
 
         # the matchups are made, so there is nothing to go back to
         assert post(app, "/api/back")[0] == 409
-        assert post(app, "/api/report", {"form": answered({})})[0] == 200
+        assert post(app, "/api/report", {"form": {}})[0] == 200
         assert validated == [
             (
                 ["validate", json.dumps({"data_dir": str(tmp_path), "out_dir": str(tmp_path)})],
@@ -3227,7 +3213,7 @@ class TestServer:
 
         form = {"lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65",
                 "pdf": True, "zip": True, "concise": False, "cores": "1"}
-        assert post(app, "/api/report", {"form": answered(form)})[0] == 200
+        assert post(app, "/api/report", {"form": form})[0] == 200
         # until matchup's builder says how far it has got, the page says it is coming
         assert get_json(app, "/api/state")[1]["interim"] == {
             "state": "waiting", "pages": 0, "expected": None, "what": "validation", "href": None,
@@ -3702,7 +3688,7 @@ class TestPointTimeResStep:
         assert post(app, "/api/point_time_res", {"form": form})[0] == 200
         output_continue(app)
 
-        assert post(app, "/api/report", {"form": answered({"cores": "1"})})[0] == 200
+        assert post(app, "/api/report", {"form": {"cores": "1"}})[0] == 200
         wait_for(lambda: validated)
         text = app.console.since(0, None)["text"]
         # only what is changed goes with yes
@@ -4075,7 +4061,7 @@ class TestDatesOfTheFiles:
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
         output_continue(app)
         if action == "matchup_validate":
-            assert post(app, "/api/report", {"form": answered({"cores": "1"})})[0] == 200
+            assert post(app, "/api/report", {"form": {"cores": "1"}})[0] == 200
             wait_for(lambda: validated)
         else:
             wait_for(lambda: app.view == "finished")
@@ -4525,9 +4511,9 @@ class TestBack:
                         unused=["temperature/cobe2"])
 
         # the cores are asked for with the report options
-        status, reply = post(app, "/api/report", {"form": answered({"pdf": True})})
+        status, reply = post(app, "/api/report", {"form": {"pdf": True}})
         assert (status, reply["errors"]) == (400, {"cores": "Choose the number of cores."})
-        assert post(app, "/api/report", {"form": answered({"pdf": True, "cores": "2"})})[0] == 200
+        assert post(app, "/api/report", {"form": {"pdf": True, "cores": "2"}})[0] == 200
         wait_for(lambda: validated)
         console = app.console.since(0, None)["text"]
         settings = json.loads(re.search(r"^settings: (\{.*\})$", console, re.M).group(1))
@@ -4581,13 +4567,13 @@ class TestBack:
         assert app.view == "report_options"
 
         form = {"cores": "1", "lon_min": "-20", "lon_max": "10", "lat_min": "40", "lat_max": "65"}
-        status, reply = post(app, "/api/report", {"form": answered(dict(form, lon_max="", missing_to="0"))})
+        status, reply = post(app, "/api/report", {"form": dict(form, lon_max="", missing_to="0")})
         assert status == 400
         assert reply["errors"] == {
             "lon_max": "Fill in all four limits, or leave them all empty.",
             "missing_from": "Fill in the value, or the start of a range.",
         }
-        assert post(app, "/api/report", {"form": answered(dict(form, missing_from="0", missing_to="1e-10"))})[0] == 200
+        assert post(app, "/api/report", {"form": dict(form, missing_from="0", missing_to="1e-10")})[0] == 200
         wait_for(lambda: validated)
         console = app.console.since(0, None)["text"]
         settings = json.loads(re.search(r"^settings: (\{.*\})$", console, re.M).group(1))
@@ -7394,8 +7380,6 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         assert page.text_content("#actions button.btn--primary") == ("Continue" if report else "Match up")
         if not report:
             page.select_option("#f-cores", "1")
-            # asked with them, with no default
-            page.check("#f-align-no")
         page.wait_for_function("!document.getElementById('output-run').disabled")
         assert page.is_hidden("#row-existing")
         # with no report, those the run does not make are left as they are, unasked about
@@ -7831,9 +7815,6 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert page.input_value("#v-cores") == ""
         assert page.is_disabled("#build")
         page.select_option("#v-cores", "1")
-        # whether the grid is aligned with other simulations' is asked too, with no default
-        assert page.is_disabled("#build")
-        page.check("#v-align-no")
         assert page.is_enabled("#build")
         # then the missing values, matchup's too, and its spatial subset
         assert page.is_visible("#v-missing_from")

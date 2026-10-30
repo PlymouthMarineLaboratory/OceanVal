@@ -1,9 +1,11 @@
 """Masking the matchups to part of the domain (oceanval.domain_mask): the
-user's file checked, kept cleaned in the matchups folder, and applied as the
-unified grid is, by nearest neighbour."""
+user's file checked, kept cleaned in the matchups folder, and applied by
+nearest neighbour."""
 
+import glob
 import json
 import os
+import textwrap
 
 import nctoolkit as nc
 import numpy as np
@@ -12,12 +14,115 @@ import pytest
 import xarray as xr
 
 import oceanval
-from oceanval import domain_mask, unified_grid
+from oceanval import domain_mask, sim_unify
+from oceanval.app import App
 from oceanval.session import session_info
 
 from test_app import get_json, leftover_dir, output_continue, post, through_output, wait_for  # noqa: F401 (leftover_dir is autouse)
-from test_grid_align import REPORT, app, at_the_question, grids, matchups_script  # noqa: F401 (fixtures)
-from test_unified_grid import LAT, LON, SIM_DIR, example_grid, lonlat, masked_values, write_mask, write_model
+
+
+def lonlat(lon, lat):
+    return {
+        "lat": ("lat", lat, {"units": "degrees_north", "standard_name": "latitude"}),
+        "lon": ("lon", lon, {"units": "degrees_east", "standard_name": "longitude"}),
+    }
+
+
+def write_mask(path, lon, lat, missing):
+    """A mask as sim_unify.prepare writes it: 0, but missing at the
+    longitudes missing(lon) is True for, with an explicit _FillValue."""
+    values = np.zeros((lat.size, lon.size), "f4")
+    values[:, missing(lon)] = np.nan
+    mask = xr.DataArray(values, coords=lonlat(lon, lat), dims=("lat", "lon"), name="grid")
+    mask.to_dataset().to_netcdf(path, encoding={"grid": {"_FillValue": np.float32(sim_unify.FILL)}})
+    return str(path)
+
+
+def write_model(path, lon, lat, levels=1):
+    """Two monthly means of a model's temperature, 5 everywhere, with
+    levels depths."""
+    times = pd.date_range("2000-01-01", periods=2, freq="MS")
+    coords = {"time": times, **lonlat(lon, lat)}
+    dims = ("time", "lat", "lon")
+    shape = (2, lat.size, lon.size)
+    if levels > 1:
+        coords["depth"] = ("depth", np.arange(levels) * 10.0, {"units": "m", "positive": "down"})
+        dims = ("time", "depth", "lat", "lon")
+        shape = (2, levels, lat.size, lon.size)
+    data = xr.DataArray(np.full(shape, 5.0, "f4"), coords=coords, dims=dims, name="model")
+    data.to_dataset().to_netcdf(path, encoding={"model": {"_FillValue": np.float32(-1e20)}})
+    return str(path)
+
+
+LON = np.arange(-10, 0.01, 1.0)
+LAT = np.arange(50, 60.01, 1.0)
+
+
+def masked_values(ds):
+    return ds.to_xarray()["model"].values
+
+
+SIM_DIR = "data/example_temperature"
+
+
+def example_grid():
+    """The longitudes and latitudes of the example simulation's grid."""
+    with xr.open_dataset(sorted(glob.glob(f"{SIM_DIR}/2000/01/*.nc"))[0]) as data:
+        return data.lon.values, data.lat.values
+
+
+def matchups_script(tmp_path, first):
+    """A stand-in for matchup, asking whether the matchups are right, of a
+    simulation whose first file is first."""
+    details = {
+        "kind": "matchups",
+        "sim_dir": str(tmp_path),
+        "years": [2000, 2000],
+        "rows": [{"variable": "temperature", "title": "Temperature", "model_variable": "temp",
+                  "pattern": "*.nc", "observations": ["COBE2"], "files": 1}],
+        "files": {"*.nc": [first]},
+    }
+    script = tmp_path / "run.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            import json
+            from oceanval import prompts
+            question = "Are you happy with these matchups? (y/n) "
+            answer = prompts.ask(question, ("y", "n"), details={details!r})
+            print("answer:", answer)
+            print("settings:", json.dumps(getattr(answer, "settings", {{}})))
+            print("matching up")
+            """
+        )
+    )
+    return script
+
+
+def at_the_question(app, tmp_path, action):
+    """Start a run of action, and carry on past the matchups question's
+    first answer, which the window holds."""
+    app.action = action
+    app.start_run(["matchup", str(matchups_script(tmp_path, "a.nc"))], "python run.py")
+    wait_for(lambda: app.question is not None)
+    number = app.question.id
+    assert post(app, "/api/answer", {"id": number, "answer": "y"})[0] == 200
+    return number
+
+
+@pytest.fixture
+def app(tmp_path, monkeypatch):
+    app = App(cwd=str(tmp_path))
+    app.start()
+    # the validate run, which is not started
+    started = app.start_run
+    monkeypatch.setattr(app, "start_run", lambda args, label: None if args[0] == "validate" else started(args, label))
+    yield app
+    app.close()
+
+
+REPORT = {"cores": "1", "missing_from": "-1e20"}
+
 
 
 def write_user_mask(path, lon, lat, wanted, outside=0.0, name="region", times=None, extra=None):
@@ -85,7 +190,7 @@ class TestKeep:
         folder = tmp_path / "oceanval_matchups"
         folder.mkdir()
         kept = domain_mask.keep(user_mask, str(folder))
-        assert kept == {"path": str(folder / domain_mask.FILE), "method": "nn", "multiply": True}
+        assert kept == {"path": str(folder / domain_mask.FILE), "method": "nn"}
         with xr.open_dataset(kept["path"], mask_and_scale=False) as data:
             assert data.region.attrs["_FillValue"] == np.float32(domain_mask.FILL)
             raw = data.region.values
@@ -105,7 +210,7 @@ def kept(user_mask, tmp_path):
 class TestGridded:
     def test_on_another_grid_it_is_regridded_and_masked(self, kept, tmp_path):
         ds = nc.open_data(write_model(tmp_path / "model.nc", np.arange(-12, 2.01, 0.5), np.arange(48, 62.01, 0.5)))
-        unified_grid.mask_gridded(ds, kept)
+        domain_mask.mask_gridded(ds, kept)
         values = masked_values(ds)
         assert values.shape == (2, LAT.size, LON.size)
         assert np.isnan(values[:, :, ~EAST(LON)]).all()
@@ -113,27 +218,70 @@ class TestGridded:
 
     def test_on_its_grid_only_the_cells_of_1_are_kept(self, kept, tmp_path):
         ds = nc.open_data(write_model(tmp_path / "model.nc", LON, LAT, levels=3))
-        unified_grid.mask_gridded(ds, kept)
+        domain_mask.mask_gridded(ds, kept)
         values = masked_values(ds)
         assert np.isnan(values[..., ~EAST(LON)]).all()
         assert (values[..., EAST(LON)] == 5).all()
 
-    def test_after_a_unified_grid(self, kept, tmp_path):
-        # the unified grid leaves out the east of 2.5W, the domain mask the west of 7.5W
-        unified = write_mask(tmp_path / "unified.nc", LON, LAT, lambda lon: lon > -2.5)
+    @pytest.mark.parametrize("method", ["nn"])
+    def test_it_is_cropped_to_the_mask_first_unless_it_is_fvcom(self, kept, tmp_path, monkeypatch, method):
+        path = write_model(tmp_path / "model.nc", np.arange(-40, 30.01, 0.5), np.arange(30, 75.01, 0.5))
+        cropped = []
+        real = sim_unify.crop_to
+        monkeypatch.setattr(sim_unify, "crop_to", lambda ds, box: cropped.append(box) or real(ds, box))
+        ds = nc.open_data(path)
+        domain_mask.mask_gridded(ds, kept)
+        # the extent of the mask's cells of 1, a degree wider each way
+        assert cropped == [([-8.0, 1.0], [49.0, 61.0])]
+        with_crop = masked_values(ds)
+        monkeypatch.setattr(sim_unify, "crop_to", lambda ds, box: cropped.append(box) or False)
+        ds = nc.open_data(path)
+        domain_mask.mask_gridded(ds, kept, fvcom=True)
+        # FVCOM output is left as it is
+        assert len(cropped) == 1
+        assert np.allclose(with_crop, masked_values(ds), equal_nan=True)
+
+    def test_on_its_grid_it_is_not_regridded(self, kept, tmp_path, monkeypatch):
         ds = nc.open_data(write_model(tmp_path / "model.nc", LON, LAT))
-        unified_grid.mask_gridded(ds, {"path": unified, "method": "bil"})
-        unified_grid.mask_gridded(ds, kept)
-        values = masked_values(ds)
-        both = EAST(LON) & (LON < -2.5)
-        assert (values[:, :, both] == 5).all()
-        assert np.isnan(values[:, :, ~both]).all()
+        asked = []
+        monkeypatch.setattr(type(ds), "regrid", lambda self, *args, **kwargs: asked.append(args))
+        domain_mask.mask_gridded(ds, kept)
+        assert asked == []
+
+    def test_no_mask_changes_nothing(self, tmp_path):
+        ds = nc.open_data(write_model(tmp_path / "model.nc", LON, LAT))
+        assert domain_mask.mask_gridded(ds, None) is ds
+        assert (masked_values(ds) == 5).all()
 
 
 class TestPoints:
     def test_only_locations_in_cells_of_1_are_kept(self, kept):
         df = pd.DataFrame({"lon": [-9.2, -5.1, -1.3], "lat": [52.2, 55.4, 58.1], "observation": [1.0, 2.0, 3.0]})
-        assert list(unified_grid.mask_points(df, kept).observation) == [2.0, 3.0]
+        assert list(domain_mask.mask_points(df, kept).observation) == [2.0, 3.0]
+
+    def test_a_global_mask_from_0_to_360(self, tmp_path):
+        lon = np.arange(0.5, 360, 1.0)
+        lat = np.arange(-89.5, 90, 1.0)
+        # missing from 350E to 360E, which is 10W to 0
+        path = write_mask(tmp_path / "global.nc", lon, lat, lambda lon: lon > 350)
+        df = pd.DataFrame({"lon": [-5.2, 20.3, -15.7], "lat": [50.1, 50.1, 50.1], "observation": [1.0, 2.0, 3.0]})
+        kept = domain_mask.mask_points(df, {"path": path, "method": "nn"})
+        assert list(kept.lon) == [20.3, -15.7]
+
+    def test_no_mask_or_no_rows_changes_nothing(self, kept):
+        df = pd.DataFrame({"lon": [-5.1], "lat": [55.4], "observation": [2.0]})
+        assert domain_mask.mask_points(df, None) is df
+        empty = df.iloc[:0]
+        assert domain_mask.mask_points(empty, kept) is empty
+
+    def test_the_extrapolation_setting_is_put_back(self, kept, monkeypatch):
+        df = pd.DataFrame({"lon": [-5.1], "lat": [55.4], "observation": [2.0]})
+        monkeypatch.setenv("REMAP_EXTRAPOLATE", "on")
+        domain_mask.mask_points(df, kept)
+        assert os.environ["REMAP_EXTRAPOLATE"] == "on"
+        monkeypatch.delenv("REMAP_EXTRAPOLATE")
+        domain_mask.mask_points(df, kept)
+        assert "REMAP_EXTRAPOLATE" not in os.environ
 
 
 class TestMatchup:
@@ -154,7 +302,7 @@ class TestMatchup:
         out_dir = str(tmp_path / "out")
         oceanval.matchup(sim_dir=SIM_DIR, start=2000, end=2000, ask=False, cores=1, out_dir=out_dir, domain_mask=path)
         kept = os.path.join(out_dir, "oceanval_matchups", domain_mask.FILE)
-        assert session_info["domain_mask"] == {"path": kept, "method": "nn", "multiply": True}
+        assert session_info["domain_mask"] == {"path": kept, "method": "nn"}
         with xr.open_dataset(f"{out_dir}/oceanval_matchups/gridded/temperature/foo_temperature_surface.nc") as data:
             model, model_lon = data.model.values, data.lon.values
         west = model_lon < lon[2]
@@ -195,7 +343,7 @@ def sent_settings(app):
 
 
 class TestTheWindow:
-    """The question, asked with the align question: No to start, a file for Yes,
+    """The question, asked with the other matchup boxes: No to start, a file for Yes,
     checked and drawn, and sent along with yes."""
 
     def test_no_to_start(self):
@@ -223,7 +371,7 @@ class TestTheWindow:
         bad = write_user_mask(tmp_path / "two.nc", LON, LAT, EAST, times=2)
         if action == "matchup":
             wait_for(lambda: app.view == "output")
-            form = {"out": "matchup.py", "cores": "1", "align_grids": "no", "domain_mask": "yes"}
+            form = {"out": "matchup.py", "cores": "1", "domain_mask": "yes"}
             status, reply = post(app, "/api/output", {"form": form})
             assert status == 400 and reply["errors"] == {"domain_mask_path": "Give the path of the netCDF file."}
             status, reply = post(app, "/api/output", {"form": dict(form, domain_mask_path=bad)})
@@ -232,7 +380,7 @@ class TestTheWindow:
             output_continue(app, domain_mask="yes", domain_mask_path=os.path.basename(user_mask))
         else:
             output_continue(app)
-            form = dict(REPORT, align_grids="no", domain_mask="yes")
+            form = dict(REPORT, domain_mask="yes")
             status, reply = post(app, "/api/report", {"form": form})
             assert status == 400 and reply["errors"] == {"domain_mask_path": "Give the path of the netCDF file."}
             assert post(app, "/api/report", {"form": dict(form, domain_mask_path=user_mask)})[0] == 200
@@ -245,16 +393,14 @@ class TestTheWindow:
         at_the_question(app, tmp_path, "matchup_validate")
         output_continue(app)
         # a file typed, then No
-        form = dict(REPORT, align_grids="no", domain_mask="no", domain_mask_path=user_mask)
+        form = dict(REPORT, domain_mask="no", domain_mask_path=user_mask)
         assert post(app, "/api/report", {"form": form})[0] == 200
         assert sent_settings(app)["domain_mask"] is None
 
 
-def test_the_question_in_a_browser(browser, tmp_path, grids, user_mask, monkeypatch):  # noqa: F811
+def test_the_question_in_a_browser(browser, tmp_path, user_mask, monkeypatch):
     """No to start; Yes shows the file's box, and the mask is drawn once it is
     given, the report blocked until then."""
-    from oceanval.app import App
-
     app = App(cwd=str(tmp_path))
     started = app.start_run
     monkeypatch.setattr(app, "start_run", lambda args, label: None if args[0] == "validate" else started(args, label))
@@ -270,7 +416,6 @@ def test_the_question_in_a_browser(browser, tmp_path, grids, user_mask, monkeypa
         page.wait_for_selector("#view-validate:not([hidden])")
         page.select_option("#v-cores", "1")
         page.fill("#v-missing_from", "-1e20")
-        page.check("#v-align-no")
         assert page.is_visible("#v-group-domain-mask")
         assert page.is_checked("#v-dm-no") and page.is_hidden("#v-dm-detail")
         page.wait_for_function("() => !document.getElementById('build').disabled")
