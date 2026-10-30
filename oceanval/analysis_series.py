@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from oceanval import extent
 from oceanval.analysis import (
     BOTTOM,
     SHOW_ABSOLUTE,
@@ -293,12 +294,17 @@ def estimate_grid(path, key):
     The resolution is the usual distance between neighbouring cells, in
     longitude and in latitude (the larger over the two directions of the grid,
     which is right for a regular grid and for a curvilinear one); the extent is
-    that of the cells, with two cells of extra space around it. A grid across
+    that of the cells with values, with two cells of extra space around it. A grid across
     the whole of the globe, or over the dateline, is all of the longitudes."""
     lon, lat, shape = grid_geometry(path, key)
     finite = np.isfinite(lon) & np.isfinite(lat)
-    lon_min, lon_max = float(np.nanmin(lon[finite])), float(np.nanmax(lon[finite]))
-    lat_min, lat_max = float(np.nanmin(lat[finite])), float(np.nanmax(lat[finite]))
+    # the extent of the cells with values, not of the whole grid (see oceanval.extent)
+    with xr.open_dataset(path, decode_times=False) as ds_xr:
+        found = extent.valid_lonlat(ds_xr, key)
+    valid_lon, valid_lat = found if found is not None else (lon[finite], lat[finite])
+    valid_lon = (np.asarray(valid_lon, dtype="float64") + 180) % 360 - 180
+    lon_min, lon_max = float(np.nanmin(valid_lon)), float(np.nanmax(valid_lon))
+    lat_min, lat_max = float(np.nanmin(valid_lat)), float(np.nanmax(valid_lat))
     res_lon = res_lat = 0.0
     if shape is not None:
         for axis in (0, 1):

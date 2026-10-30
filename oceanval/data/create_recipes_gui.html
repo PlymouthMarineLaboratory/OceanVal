@@ -546,10 +546,6 @@
         el("strong", { text: "Your data" }), ", with options like the other datasets'",
         app ? "; to change anything else about it, or remove it, go back to the step where it was added." : ".");
     }
-    if (app && app.prefilled && app.prefilled.length) {
-      parts.push(" For the demo, OceanVal has filled in the years, ",
-        el("strong", { class: "oceanval-change", text: "in red and bold" }), ".");
-    }
     if (restore && restore.retick) {
       // the rows edited before, whose datasets are ticked for the domain chosen since
       parts.push(" ", el("strong", { class: "oceanval-change",
@@ -568,8 +564,6 @@
     if (!String(form[name] || "").trim()) form[name] = value;
   }
   const initialForm = { ...form };
-  // what the oceanval app's demo filled in, which stays marked while it is unchanged
-  const DEMO_VALUES = Object.fromEntries(((app && app.prefilled) || []).map((name) => [name, String(form[name])]));
   // what create_recipes found wrong with the last Write, until the box changes
   const serverErrors = {};
   const GROUPS = {
@@ -651,7 +645,6 @@
       "is-ersem",
       ERSEM_DEFAULTS[name] !== undefined && String(form[name]) === ERSEM_DEFAULTS[name],
     );
-    control.classList.toggle("is-oceanval", DEMO_VALUES[name] !== undefined && String(form[name]) === DEMO_VALUES[name]);
     // a long path can be wider than its box
     if (control.tagName === "INPUT" && !BOOLEANS.has(name)) control.title = control.value;
     if (name === "thickness" && thicknessPicker) thicknessPicker.sync();
@@ -688,10 +681,10 @@
     state.woa23_periods.find(([first, last]) => years[0] >= first && years[1] <= last);
   const WOA23_DECADES = state.woa23_periods.map(([first, last]) => `${first}–${last}`).join(", ");
   // the years every ticked dataset starts with where nothing above gives
-  // them: those create_recipes was given, or the demo's, in red and bold as
-  // OceanVal filled them in. In the app, none: each dataset's are typed
+  // them: those create_recipes was given, in red and bold as OceanVal filled
+  // them in. In the app, none: each dataset's are typed
   const initialYears = app
-    ? (Array.isArray(app.initial_years) ? app.initial_years.map(String) : null)
+    ? null
     : (yearPair(context.start, context.end) ? [String(context.start), String(context.end)] : null);
 
   // matchup needs a thickness to validate anything through the water column

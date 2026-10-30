@@ -240,7 +240,7 @@ UNIFY_BOXES = ("lon_min", "lon_max", "lat_min", "lat_max", "res")
 
 def default_unify_form():
     """The grids step's boxes, as they start: nothing is chosen for the user."""
-    return {"need": "", "method": "", "baseline": "", **{box: "" for box in UNIFY_BOXES}}
+    return {"need": "", "method": "", "baseline": "", "regrid": "", **{box: "" for box in UNIFY_BOXES}}
 
 
 def clean_unify(form):
@@ -248,6 +248,8 @@ def clean_unify(form):
     clean = {box: str(form.get(box) or "").strip()[:60] for box in default_unify_form()}
     clean["need"] = clean["need"].lower() if clean["need"].lower() in ("yes", "no") else ""
     clean["method"] = clean["method"].lower() if clean["method"].lower() in ("box", "baseline") else ""
+    # how they are regridded; blank is bilinear
+    clean["regrid"] = clean["regrid"].lower() if clean["regrid"].lower() in sim_unify.METHODS else ""
     return clean
 
 
@@ -263,6 +265,7 @@ def check_unify(form, names):
     (unify, errors). unify is None for "no", and errors maps the boxes that cannot
     be used to the reason, "need" to the question's, and "method" to the second's."""
     errors = {}
+    regrid = {"regrid": form["regrid"]} if form.get("regrid") else {}
     if not form["need"]:
         return None, {"need": "Say whether the simulations' grids need to be put on one grid."}
     if form["need"] == "no":
@@ -274,7 +277,7 @@ def check_unify(form, names):
             return None, {"baseline": "Choose the simulation whose grid the others are put on."}
         if form["baseline"] not in names:
             return None, {"baseline": "This is not one of the simulations."}
-        return {"baseline": form["baseline"]}, {}
+        return {"baseline": form["baseline"], **regrid}, {}
     values = {}
     for box in UNIFY_BOXES:
         values[box] = _number(form[box])
@@ -288,6 +291,7 @@ def check_unify(form, names):
         "lon": [values["lon_min"], values["lon_max"]],
         "lat": [values["lat_min"], values["lat_max"]],
         "res": values["res"],
+        **regrid,
     }
     try:
         sim_unify.check_unify(unify, names)

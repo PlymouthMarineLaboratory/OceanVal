@@ -33,6 +33,7 @@ from oceanval.session import session_info
 from oceanval.parsers import Validator, definitions, point_files
 from tqdm import tqdm
 from oceanval.utils import extension_of_directory
+from oceanval import unified_grid as unified_grid_mod
 from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
 from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
@@ -43,6 +44,7 @@ from oceanval.fvcom import default_max_depth as fvcom_default_max_depth
 from oceanval.fvcom import default_dz as fvcom_default_dz
 from oceanval import data_store as obs_store
 from oceanval import cdo_watch
+from oceanval import extent
 from oceanval import ices
 from oceanval import live
 from oceanval import surface
@@ -310,6 +312,21 @@ def _checked_missing(as_missing):
     elif not isinstance(as_missing, (int, float)):
         raise TypeError("as_missing must be a float, int, list or None")
     return as_missing
+
+
+def _model_box(path, model_variable):
+    """The model's extent, ([lon_min, lon_max], [lat_min, lat_max]), from the
+    cells of its first file that have values (see oceanval.extent): NEMO puts
+    the cells of the land processors it leaves out at lon -1, lat -1, so the
+    whole grid can be far larger than its domain. The whole grid if they can
+    not be told."""
+    name = re.split(r"[+,]", str(model_variable))[0].strip() or None
+    found = extent.of_file(path, name, session_info.get("as_missing"))
+    if found is None:
+        lon_min, lon_max, lat_min, lat_max = _lonlat_bounds(nc.open_data(path, checks=False))
+        return [lon_min, lon_max], [lat_min, lat_max]
+    lons = ((found[0] + 180) % 360) - 180
+    return [float(lons.min()), float(lons.max())], [float(found[1].min()), float(found[1].max())]
 
 
 def _checked_overwrite(overwrite):
@@ -1338,6 +1355,7 @@ def matchup(
     fvcom_min_depth = fvcom_default_min_depth,
     fvcom_max_depth = fvcom_default_max_depth,
     fvcom_dz = fvcom_default_dz,
+    unified_grid = None,
 ):
     """
     Match up model with observational data
@@ -1442,6 +1460,16 @@ def matchup(
         where the built-in observational data downloaded (WOA23, OCCCI, NSBC, COBE2, GLODAP and
         ICES) is kept for later matchups, used as the Preferences say. Your own data is never
         kept in it. Default is None, to use it if one is set; False does not use it for this run.
+    unified_grid : dict
+        Mask the matchups by a grid this simulation shares with others, so that they are
+        validated over the same cells: {"path": mask file, "method": regrid method}, the method
+        one of "bil", "nn", "dis" and "con" (nctoolkit's). The mask file is missing where any
+        simulation has no value and 0 elsewhere, as the oceanval window's step for aligning
+        the grid with other simulations makes it, and is copied to
+        oceanval_matchups/unified_grid.nc. Gridded matchups put the model's monthly means on the
+        mask's grid with the method (unless they are on it already) and add the mask; point
+        matchups keep only the locations that have a value in the mask, by nearest neighbour.
+        Default is None, no mask.
 
     Returns
     -------------
@@ -1478,6 +1506,10 @@ def matchup(
     cores = _checked_cores(cores)
     nc.options(cores=cores)
     session_info["cores"] = cores
+
+    # kept in the matchups folder, and said so in session_info, once the matchups are confirmed
+    unified_grid = unified_grid_mod.check(unified_grid)
+    session_info["unified_grid"] = None
 
     if not isinstance(fvcom, bool):
         raise TypeError("fvcom must be a boolean")
@@ -2086,6 +2118,9 @@ def matchup(
     if "lon_lim" in given or "lat_lim" in given:
         lon_lim, lat_lim = _checked_limits(given.get("lon_lim"), given.get("lat_lim"))
         session_info["lon_lim"], session_info["lat_lim"] = lon_lim, lat_lim
+    if "unified_grid" in given:
+        # the window's unified grid (see oceanval.grid_align_app)
+        unified_grid = unified_grid_mod.check(given["unified_grid"])
     if "as_missing" in given:
         as_missing = _checked_missing(given["as_missing"])
         if as_missing != session_info["as_missing"]:
@@ -2098,6 +2133,7 @@ def matchup(
                 session_info["ds_thickness"] = ds_thickness_sim[0]
 
     os.makedirs(session_info["out_dir"] + "oceanval_matchups", exist_ok=True)
+    session_info["unified_grid"] = unified_grid_mod.keep(unified_grid, session_info["out_dir"] + "oceanval_matchups")
     ff_bath = session_info["out_dir"] + "oceanval_matchups/model_bathymetry.nc"
     if bathymetry is not None and not os.path.exists(ff_bath):
         bathymetry.vertical_sum()
@@ -2332,10 +2368,7 @@ def matchup(
                             if lon_lim is not None:
                                 recipe_lon, recipe_lat = lon_lim, lat_lim
                             else:
-                                lon_min, lon_max, lat_min, lat_max = _lonlat_bounds(
-                                    nc.open_data(sim_paths[0], checks=False)
-                                )
-                                recipe_lon, recipe_lat = [lon_min, lon_max], [lat_min, lat_max]
+                                recipe_lon, recipe_lat = _model_box(sim_paths[0], model_variable)
                             try:
                                 df = ices.download_point_data(
                                     comparison["recipe"],
@@ -2662,6 +2695,8 @@ def matchup(
                             df_all = df_all.query(
                                 f"lat > {lat_lim[0]} and lat < {lat_lim[1]}"
                             )
+                        # only the locations the unified grid has a value at
+                        df_all = unified_grid_mod.mask_points(df_all, session_info["unified_grid"])
 
                         if len(df_all) > 0:
 

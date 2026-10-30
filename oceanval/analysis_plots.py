@@ -35,6 +35,7 @@ import pandas as pd
 import xarray as xr
 from matplotlib.colors import to_hex
 
+from oceanval import extent
 from oceanval.analysis import PEAK_DAY, PEAK_VALUE, load
 from oceanval.map_land import LAND_CODE
 from oceanval.tidiers import fix_unit
@@ -192,14 +193,25 @@ def _lon_lat(path):
         return np.asarray(ds[lon].values, dtype="float64"), np.asarray(ds[lat].values, dtype="float64")
 
 
+def _valid_lon_lat(path):
+    """The longitudes and latitudes of the cells of the field in path that have
+    values (see oceanval.extent), or of the whole grid if they can not be told:
+    a grid can have cells far from the model's domain (NEMO's at lon -1, lat -1)."""
+    with xr.open_dataset(path, decode_times=False) as ds:
+        found = extent.valid_lonlat(ds)
+    return found if found is not None else _lon_lat(path)
+
+
 def _plot_grid(path):
     """The regular lon-lat grid to draw the grid in path on, as to_latlon's
-    lon, lat and res: covering it, at about its own resolution, but no finer
-    than 1/20 degree or more than 1440 cells across."""
+    lon, lat and res: covering its cells with values, at about its own
+    resolution, but no finer than 1/20 degree or more than 1440 cells across."""
     lon, lat = _lon_lat(path)
     lon = np.where(lon > 180, lon - 360, lon)
-    lon_min, lon_max = float(np.nanmin(lon)), float(np.nanmax(lon))
-    lat_min, lat_max = float(np.nanmin(lat)), float(np.nanmax(lat))
+    valid_lon, valid_lat = _valid_lon_lat(path)
+    valid_lon = np.where(valid_lon > 180, valid_lon - 360, valid_lon)
+    lon_min, lon_max = float(np.nanmin(valid_lon)), float(np.nanmax(valid_lon))
+    lat_min, lat_max = float(np.nanmin(valid_lat)), float(np.nanmax(valid_lat))
     if lon.ndim == 2 and lon.shape[1] > 1:
         spacing = np.nanmedian(np.abs(np.diff(lon, axis=1)))
     elif lon.size > 1:
@@ -306,7 +318,7 @@ def _panel_size(path, panels, ncol=None, bar_rows=0):
     for all the maps, or, with bar_rows, one below each of that many rows."""
     ncol = ncol or (4 if panels > 3 else panels)
     nrow = int(np.ceil(panels / ncol))
-    lon, lat = _lon_lat(path)
+    lon, lat = _valid_lon_lat(path)
     lon = np.where(lon > 180, lon - 360, lon)
     lon_span, lat_span = float(np.nanmax(lon) - np.nanmin(lon)), float(np.nanmax(lat) - np.nanmin(lat))
     if lon_span > 340 and lat_span > 160:

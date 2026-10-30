@@ -14,7 +14,9 @@ through these views:
                             of the period each mean covers, whether to shift them
     "simcompare_grids"      whether the simulations' grids need putting on one grid,
                             and how: a lon/lat box and resolution, or the grid of
-                            one of the simulations
+                            one of the simulations, and by what regridding method;
+                            a map of each simulation and, once Generate unified grid
+                            is pressed, of the cells they all have (a preview only)
     "analyze_options"       the analyses, which are Analyze's own step (see
                             oceanval.analysis_app), with the variables as they are
                             in all the simulations: the years are those every
@@ -34,11 +36,24 @@ import os
 import shutil
 import tempfile
 import threading
+import traceback
 
 import numpy as np
 import pandas as pd
 
-from oceanval import analysis, analysis_forms, model_check, sim_compare, sim_compare_forms, sim_unify, time_stamps
+from oceanval import (
+    analysis,
+    analysis_forms,
+    extent,
+    grid_align,
+    missing_probe,
+    model_check,
+    sim_compare,
+    sim_compare_forms,
+    sim_unify,
+    time_stamps,
+    viewer_catalogue,
+)
 from oceanval import time_res as time_resolution
 
 # the id the check of the dates of a simulation's files is made for (see model_check.ModelCheck)
@@ -99,6 +114,8 @@ class SimCompareSteps:
         # what is known of the simulations' grids: {"status": "reading" or "done", "same", "extents"}
         self.sc_grids = None
         self._sc_grids_number = 0
+        # what generating the unified grid is doing, as words for the page, or None
+        self.sc_stage = None
 
     # ---- the simulations ----
 
@@ -491,11 +508,13 @@ class SimCompareSteps:
         try:
             for name, (path, variable) in parts.items():
                 # a model file can be many GB: only one level of one time step is read
-                lonlat = sim_compare.grid_of(path, variable)
+                data = extent.first_slice(path, variable)
+                lonlat = None if data is None else extent.lonlat(data)
                 if lonlat is None:
                     same = None
                     continue
-                lon, lat = lonlat
+                # where the simulation has values, not its whole grid (NEMO's left-out land is at -1, -1)
+                lon, lat = extent.valid_lonlat(data, variable) or lonlat
                 extents[name] = {
                     "lon": [float(np.nanmin(lon)), float(np.nanmax(lon))],
                     "lat": [float(np.nanmin(lat)), float(np.nanmax(lat))],
@@ -528,6 +547,127 @@ class SimCompareSteps:
             self._enter_analyze_options()
             self._notify()
         return 200, {"ok": True}
+
+    def _sc_field_source(self, name):
+        """What the grids step draws of simulation name: (the first file of its
+        first variable, the model variable read from it, that variable's
+        files). Called with the lock held."""
+        row = self.sc_placed[name][0]
+        files = list(row["files"])
+        variable = (row.get("parts") or [None])[0]
+        return files[0], variable, files
+
+    @staticmethod
+    def _sc_missing(files, variable):
+        """The preview's missing values for the first variable of a simulation: the
+        value the files hold in most of their cells (see missing_probe), as viewer
+        ranges, and a note saying so, or none and no note. The values chosen later,
+        on the options step, are the run's own."""
+        value = missing_probe.probe(files, variable)
+        if value is None:
+            return [], None
+        return [(float(value), float(value))], f"{value} is taken as missing here, as it is in most of the cells of the files that do not change."
+
+    def simcompare_panel(self, number):
+        """The map of simulation number's (counted from 1) first variable, at the
+        surface and the first time, for the grids step: {"ok", "item", "notes",
+        "variable", "file"} or {"ok": False, "error"}. Returns the HTTP status and
+        the reply."""
+        from oceanval import viewer_plots
+
+        with self._lock:
+            if self.view != "simcompare_grids":
+                return 409, {"ok": False, "error": "This step is over."}
+            names = [sim["name"] for sim in self.sc_sims or []]
+            try:
+                name = names[int(number) - 1]
+                assert int(number) >= 1
+                path, variable, files = self._sc_field_source(name)
+            except (TypeError, ValueError, AssertionError, IndexError, KeyError):
+                return 400, {"ok": False, "error": "There is no such simulation."}
+        if variable is None:
+            return 200, {"ok": False, "error": "The model variable of this simulation could not be told."}
+        found = None
+        try:
+            missing, note = self._sc_missing(files, variable)
+            found = viewer_catalogue.scan(path, 0, wait=False)
+            about = found.combined(0, [variable])
+            data, _ = found.field(0, [variable], 0, about.get("surface_level", 0), missing)
+            item, notes, _ = viewer_plots.map_plot(data, about, about["name"], coast=viewer_plots.has_geoviews())
+            if not data.notnull().any():
+                notes.append("Every cell is missing, so there is nothing to show.")
+            if note:
+                notes.append(note)
+            return 200, {"ok": True, "item": item, "notes": notes, "variable": variable, "file": os.path.basename(path)}
+        except ValueError as problem:
+            return 200, {"ok": False, "error": str(problem)}
+        except Exception as problem:  # noqa: BLE001 - told to the page
+            traceback.print_exc()
+            return 200, {"ok": False, "error": f"{type(problem).__name__}: {problem}"}
+        finally:
+            if found is not None:
+                found.close()
+
+    def _sc_progress(self, stage, simulation=None):
+        """Say what generating the unified grid is doing, to the page (see sim_unify.stage_text)."""
+        with self._lock:
+            self.sc_stage = sim_unify.stage_text(stage, simulation)
+            self._notify()
+
+    def simcompare_generate(self, form):
+        """The cells every simulation has a value in once they are on one grid, as
+        the grids step's boxes say (baseline or box, and how they are regridded),
+        judged from the first variable of each at the surface and the first time:
+        a preview of what the run makes for every variable and layer. Returns the
+        HTTP status and the reply, {"ok", "item", "notes", "shared", "total"}, or
+        {"ok": False, "errors"} by box, or "error"."""
+        from oceanval import viewer_plots
+
+        form = sim_compare_forms.clean_unify(form)
+        with self._lock:
+            if self.view != "simcompare_grids":
+                return 409, {"ok": False, "error": "This step is over."}
+            names = [sim["name"] for sim in self.sc_sims or []]
+            sources = {name: self._sc_field_source(name) for name in names}
+        unify, errors = sim_compare_forms.check_unify(form, names)
+        if unify is None and not errors:
+            errors = {"need": "Say yes to put the simulations on one grid."}
+        if errors:
+            return 400, {"ok": False, "errors": errors}
+        if any(variable is None for _, variable, _ in sources.values()):
+            return 400, {"ok": False, "error": "The model variable of a simulation could not be told."}
+        # the same checks the run makes, which add how the grid is made
+        unify = sim_unify.check_unify(unify, names)
+        fields = {}
+        try:
+            for name, (path, variable, files) in sources.items():
+                missing, _ = self._sc_missing(files, variable)
+                found = viewer_catalogue.scan(path, 0, wait=False)
+                try:
+                    about = found.combined(0, [variable])
+                finally:
+                    found.close()
+                fields[name] = grid_align.field_for_cdo(path, variable, about.get("surface_level", 0), missing)
+            method = form["regrid"] or sim_unify.DEFAULT_METHOD
+            try:
+                if unify["method"] == "box":
+                    mask, shared, total = grid_align.unified(fields, None, method, box=unify, progress=self._sc_progress)
+                else:
+                    mask, shared, total = grid_align.unified(fields, unify["baseline"], method, progress=self._sc_progress)
+            finally:
+                with self._lock:
+                    self.sc_stage = None
+                    self._notify()
+            item, notes, _ = viewer_plots.map_plot(
+                mask, grid_align.about(mask), "Unified grid",
+                cmap="Blues", vmin=0, vmax=1, coast=viewer_plots.has_geoviews(),
+            )
+        except ValueError as problem:
+            return 400, {"ok": False, "error": str(problem)}
+        except Exception as problem:  # noqa: BLE001 - told to the page
+            traceback.print_exc()
+            return 400, {"ok": False, "error": f"{type(problem).__name__}: {problem}"}
+        return 200, {"ok": True, "item": item, "notes": notes, "shared": shared, "total": total}
 
     def _sc_make_analyze_found(self):
         """Make what the options step takes the simulation's streams to be, from
@@ -676,5 +816,16 @@ class SimCompareSteps:
             "suggested_shift": time_stamps.describe(time_stamps.SUGGESTED),
             "unify_form": self.sc_unify_form,
             "grids": self.sc_grids,
+            "stage": self.sc_stage,
+            "regrid_methods": sim_unify.METHODS,
+            # what the grids step draws of each simulation: its first variable's first file
+            "grid_fields": (
+                [
+                    dict(zip(("file", "variable"), (os.path.basename(source[0]), source[1])))
+                    for source in (self._sc_field_source(sim["name"]) for sim in sims)
+                ]
+                if self.view == "simcompare_grids" and self.sc_placed
+                else []
+            ),
             "form_rows": len(form_rows),
         }

@@ -752,7 +752,7 @@
   .lede .oceanval-change, .units .s-input.is-oceanval, .units .group__line.is-oceanval,
   .form .s-input.is-oceanval, .form .s-select.is-oceanval, .setup-form .s-input.is-oceanval,
   .setup-form .s-select.is-oceanval, .demo-about .oceanval-change,
-  .ptr-mode .oceanval-change { color: var(--red); font-weight: 700; }
+  .ptr-mode .oceanval-change, .ag-controls .s-select.is-oceanval, .ag-controls .group__line.is-oceanval { color: var(--red); font-weight: 700; }
   /* a box ticked for the user, which has no text of its own to colour: its label's */
   .form .tick-label:has(.tick.is-oceanval), .setup-form .tick-label:has(.tick.is-oceanval) { color: var(--red); font-weight: 700; }
   /* the units always have to be confirmed, beside Back and Continue */
@@ -932,6 +932,37 @@
   .sc-grid-card .form__row { max-width: 780px; }
   .sc-grid-note { max-width: 980px; margin: 18px 0 0; padding: 14px 18px; border: 1px solid var(--amber-line, var(--line)); border-left: 4px solid var(--amber); border-radius: var(--radius-sm); background: var(--amber-bg); color: var(--ink); font-size: 14.5px; line-height: 1.5; }
   .sc-grid-note strong { color: var(--amber); }
+  /* aligning the simulation's grid with others': the choices, then the panels of the simulations shown (two to start, a plus adds more) and the unified grid, three across */
+  .ag-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 260px)) max-content; gap: 12px 20px; align-items: end; padding: 16px 20px; }
+  .ag-controls .g-row { margin: 0; }
+  .ag-controls__msg { grid-column: 1 / -1; margin: 0; }
+  .ag-controls__msg:empty { display: none; }
+  .ag-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+  .ag-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 14px 16px 16px; }
+  .ag-card__title { margin: 0; font-size: 15px; }
+  .ag-card__line { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+  .ag-card__file { font-size: 13px; overflow-wrap: anywhere; }
+  .ag-card .path-field { min-width: 0; }
+  .ag-card .group__msg:empty { display: none; }
+  .ag-card .g-row { margin: 0; }
+  .ag-card .span-row { display: flex; align-items: center; gap: 6px; }
+  .ag-card .span-row .s-input { min-width: 0; flex: 1; }
+  .ag-card .vars { margin-top: 4px; }
+  .ag-card .group__msg { margin: 0; }
+  .ag-map { position: relative; height: 260px; margin-top: auto; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: var(--radius-sm); }
+  .ag-map.is-drawn { border-color: transparent; }
+  .ag-map.is-stretch { display: block; }
+  .ag-map.is-stretch > div { width: 100%; height: 100%; }
+  .sc-grid-controls { margin-top: 14px; }
+  .ag-add { display: grid; place-items: center; min-height: 160px; padding: 14px; border-style: dashed; background: transparent; box-shadow: none; }
+  .ag-add__button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 22px; border: 0; border-radius: var(--radius-md); background: none; color: var(--teal-700); font: inherit; font-weight: 600; cursor: pointer; }
+  .ag-add__button:hover, .ag-add__button:focus-visible { background: var(--teal-50); }
+  .ag-add__plus { display: grid; place-items: center; width: 44px; height: 44px; border: 2px solid currentColor; border-radius: 50%; font-size: 28px; line-height: 1; }
+  .ag-map__empty.is-busy { display: inline-flex; align-items: center; gap: 10px; }
+  .ag-map__empty .identify__spinner { width: 18px; height: 18px; border-width: 3px; }
+  .ag-map__empty { margin: 0; padding: 0 12px; color: var(--muted); font-size: 13px; text-align: center; }
+  @media (max-width: 860px) { .ag-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ag-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  @media (max-width: 640px) { .ag-grid, .ag-controls { grid-template-columns: minmax(0, 1fr); } }
   .sc-analyze-note { max-width: 980px; margin: 0 0 18px; color: var(--ink-soft); font-size: 14.5px; }
   .analyze-table .sc-model-cell + .sc-model-cell { border-left: 0; }
 
@@ -1492,6 +1523,17 @@
           </div>
           <p class="group__msg" id="m-subset"></p>
         </div>
+        <!-- matchup alone's too, asked last (see oceanval.grid_align_app) -->
+        <div class="setup-box__script" id="row-f-align" hidden>
+          <div class="g-row">
+            <span class="g-label is-required" id="f-align-question">Do you need to align the simulation grid with other simulations? <span class="own-req">Required</span></span>
+            <div class="analyze-code" role="radiogroup" aria-labelledby="f-align-question">
+              <label class="ptr-mode"><input type="radio" name="f-align" value="yes" id="f-align-yes">Yes</label>
+              <label class="ptr-mode"><input type="radio" name="f-align" value="no" id="f-align-no">No</label>
+            </div>
+          </div>
+          <p class="group__msg" id="m-align_grids"></p>
+        </div>
       </fieldset>
       <button type="submit" hidden></button>
     </form>
@@ -1741,6 +1783,17 @@
         <p class="group__msg" id="vm-depth_bins"></p>
       </fieldset>
       </div>
+      <!-- matchup's, asked last, before anything is matched up (see oceanval.grid_align_app) -->
+      <fieldset class="group form__wide" id="v-group-align" hidden>
+        <div class="g-row">
+          <span class="g-label is-required" id="v-align-question">Do you need to align the simulation grid with other simulations? <span class="own-req">Required</span></span>
+          <div class="analyze-code" role="radiogroup" aria-labelledby="v-align-question">
+            <label class="ptr-mode"><input type="radio" name="v-align" value="yes" id="v-align-yes">Yes</label>
+            <label class="ptr-mode"><input type="radio" name="v-align" value="no" id="v-align-no">No</label>
+          </div>
+        </div>
+        <p class="group__msg" id="vm-align_grids"></p>
+      </fieldset>
       <button type="submit" hidden></button>
     </form>
   </section>
@@ -2114,7 +2167,7 @@
       </fieldset>
       <div class="card sc-grid-card" id="scg-box" hidden>
         <h3 class="sc-grid-card__title">A lon/lat box and resolution</h3>
-        <p class="group__intro">Every simulation is put on a regular lon-lat grid of this box and resolution, with nctoolkit's <code>to_latlon</code>.<span id="scg-extents"></span></p>
+        <p class="group__intro">Every simulation is put on a regular lon-lat grid of this box and resolution, with nctoolkit's <code>to_latlon</code>, by the method chosen below.<span id="scg-extents"></span></p>
         <div class="form__row is-pair">
           <label class="g-row"><span class="g-label is-required">Longitude, from <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_min" placeholder="e.g. -20" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
           <label class="g-row"><span class="g-label is-required">Longitude, to <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_max" placeholder="e.g. 10" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
@@ -2130,12 +2183,29 @@
       </div>
       <div class="card sc-grid-card" id="scg-baseline" hidden>
         <h3 class="sc-grid-card__title">The grid of a baseline simulation</h3>
-        <p class="group__intro">The baseline's grid is the one the comparisons are made on. Each of the other simulations is regridded to it, with nctoolkit's <code>regrid</code>. The baseline itself is not regridded.</p>
+        <p class="group__intro">The baseline's grid is the one the comparisons are made on. Each of the other simulations is regridded to it, with nctoolkit's <code>regrid</code>, by the method chosen below. The baseline itself is not regridded.</p>
         <div class="g-row"><label class="g-label is-required" for="scg-baseline-select">Which simulation is the baseline? <span class="own-req">Required</span></label><select class="s-select" id="scg-baseline-select"></select></div>
         <p class="group__msg" id="scg-baseline-msg"></p>
       </div>
+      <div class="card ag-controls sc-grid-controls" id="scg-controls">
+        <div class="g-row"><label class="g-label" for="scg-regrid-select">Regridding method</label><select class="s-select" id="scg-regrid-select"></select></div>
+        <button type="button" class="btn btn--primary ag-controls__go" id="scg-generate" disabled>Generate unified grid</button>
+        <p class="group__msg ag-controls__msg" id="scg-gen-msg"></p>
+      </div>
+      <div class="ag-grid" id="scg-grid"></div>
     </div>
     <p class="group__msg" id="scg-no" hidden></p>
+  </section>
+
+  <!-- asked last by a matchup run (see oceanval.grid_align_app): the matchups are masked by the grid generated -->
+  <section id="view-align-grids" hidden>
+    <div class="card ag-controls">
+      <div class="g-row"><label class="g-label is-required" for="ag-baseline">Baseline grid <span class="own-req">Required</span></label><select class="s-select" id="ag-baseline"></select></div>
+      <div class="g-row"><label class="g-label is-required" for="ag-method">Regridding method <span class="own-req">Required</span></label><select class="s-select" id="ag-method"></select></div>
+      <button type="button" class="btn btn--primary ag-controls__go" id="ag-generate" disabled>Generate unified grid</button>
+      <p class="group__msg ag-controls__msg" id="ag-msg"></p>
+    </div>
+    <div class="ag-grid" id="ag-grid"></div>
   </section>
 
   <section id="view-run" hidden>
@@ -2708,6 +2778,7 @@
       case "compare": return "Which validations do you want to compare?";
       case "report_options": return "One last thing... How would you like your validation report?";
       case "point_time_res": return "Some point observations may not match the model's output";
+      case "align_grids": return "Align the simulation grid with other simulations";
       case "running":
         // asked before the matchups, so that they show the dates matched up
         if (state.question && state.question.details && state.question.details.kind === "time_shift") {
@@ -2753,7 +2824,8 @@
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
       state.demo && state.demo.status, demoKey(), Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
-      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number, viewerFvcom()].join("|");
+      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number, viewerFvcom(),
+      alignAnswer()].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
       if (view === "output") refreshMatchupOutput();
@@ -2857,8 +2929,9 @@
       // with the boxes, which are shown again as they are
       if (waiting) actions.push(button("Back", "ghost", () => post("api/back", { form: validateForm })),
         button("Stop and store Python script for later", "ghost", submitSaveScript, { id: "save-script" }));
-      actions.push(button(waiting ? "Match up and validate" : "Build the report", "primary",
-        submitValidate, { id: "build" }));
+      // with the grid to align, the step for it comes first
+      actions.push(button(!waiting ? "Build the report" : alignAnswer() === "yes" ? "Continue" : "Match up and validate",
+        "primary", submitValidate, { id: "build" }));
     } else if (view === "point_time_res") {
       // to the matchups, whose question is still being asked, with the boxes
       actions.push(button("Back", "ghost", () => post("api/back", { form: readPointTimeRes() })),
@@ -2880,8 +2953,13 @@
       // to the matchups, with the boxes, which are shown again as they are; to validate too,
       // the report options come next, and matchup alone carries on from here
       actions.push(button("Back", "ghost", () => post("api/back", { form: output })),
-        button(state.action === "matchup" ? "Match up" : "Continue", "primary", submitMatchupOutput,
+        button(state.action === "matchup" && alignAnswer() !== "yes" ? "Match up" : "Continue", "primary", submitMatchupOutput,
           { id: "output-run", disabled: true }));
+    } else if (view === "align_grids") {
+      // back to the step it was asked on, with the boxes, or on as that step would have, with the grid
+      actions.push(button("Back", "ghost", () => post("api/back", { form: alignForm() }), { id: "ag-back" }),
+        button(state.align.from === "output" ? "Match up" : "Match up and validate", "primary", submitAlign,
+          { id: "ag-continue", disabled: !alignMade(), title: alignMade() ? "" : "Generate the unified grid first" }));
     } else if (view === "running") {
       // while the matchup is still finding the files, or asking about them, it
       // has matched nothing up, so can be stopped to go back to the units
@@ -3849,7 +3927,7 @@
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
-    simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
+    simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", align_grids: "view-align-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
     own_future: "view-own-future",
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
@@ -3861,6 +3939,9 @@
 
   function enterView(view) {
     for (const id of new Set(Object.values(VIEWS))) $(id).hidden = id !== VIEWS[view];
+    // the maps of the grids are let go of once they are out of sight
+    if (view !== "align_grids") releaseAlignMaps();
+    if (view !== "simcompare_grids") releaseScMaps();
     if (view === "setup") {
       fillSetup();
       $("f-simdir").focus();
@@ -3898,6 +3979,8 @@
       scFiles.shift = null;
     } else if (view === "simcompare_grids") {
       fillScGrids();
+    } else if (view === "align_grids") {
+      fillAlign();
     } else if (view === "demo") {
       $("demo-choose").scrollIntoView({ block: "start" });
     } else if (view === "units_table") {
@@ -4027,6 +4110,7 @@
     if (state.view === "simcompare_variables") renderScVariables();
     if (state.view === "simcompare_files") renderScFiles();
     if (state.view === "simcompare_grids") renderScGrids();
+    showGenerateStage();
     if (VIEWS[state.view] === "view-run") renderRun();
     if (state.view === "script_saved") renderSavedScript();
     if (state.view === "viewer_scanning") renderViewerScan();
@@ -4829,6 +4913,15 @@
     delete matchupOutput.errors.cores;
     refreshMatchupOutput();
   });
+  // and whether its grid is to be aligned with other simulations' (see oceanval.grid_align_app)
+  for (const value of ["yes", "no"]) {
+    $(`f-align-${value}`).addEventListener("change", () => {
+      output.align_grids = value;
+      delete matchupOutput.errors.align_grids;
+      refreshMatchupOutput();
+      renderBar();
+    });
+  }
   $("output-form").addEventListener("submit", (event) => { event.preventDefault(); submitMatchupOutput(); });
 
   function fillMatchupOutput() {
@@ -4841,7 +4934,8 @@
     $("row-f-cores").hidden = state.action !== "matchup";
     coreOptions($("f-cores"), output.cores);
     // the spatial subset and missing values, which matchup alone is given with its cores
-    $("row-f-subset").hidden = $("row-f-missing").hidden = state.action !== "matchup";
+    $("row-f-subset").hidden = $("row-f-missing").hidden = $("row-f-align").hidden = state.action !== "matchup";
+    for (const value of ["yes", "no"]) $(`f-align-${value}`).checked = output.align_grids === value;
     if (state.action === "matchup") assumeMissing(output);
     for (const name of OUTPUT_MATCHUP) {
       $(`f-${name}`).value = output[name] ?? "";
@@ -4883,6 +4977,7 @@
     if (!errors.out_dir && found && found.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
     if (!String(output.out).trim()) errors.out = errors.out || "";
     if (state.action === "matchup" && !String(output.cores || "").trim()) errors.cores = errors.cores || "";
+    if (state.action === "matchup" && !output.align_grids) errors.align_grids = errors.align_grids || "";
     // what is done with the matchups there already has to be confirmed, as each starts on Use
     if (existingRows().length && !output.existing_confirmed) errors.existing_confirmed = "";
     // until the directory is looked at, what is there is not known
@@ -4919,6 +5014,7 @@
     else message("m-out", []);
     $("f-cores").classList.toggle("is-invalid", Boolean(errors.cores));
     message("m-cores", errors.cores ? [line(errors.cores, "error")] : [], Boolean(errors.cores));
+    message("m-align_grids", errors.align_grids ? [line(errors.align_grids, "error")] : [], Boolean(errors.align_grids));
     for (const [id, names, hints] of [
       ["m-subset", SUBSET_BOXES, () => [line(SUBSET_HINT)]],
       ["m-missing", MISSING_BOXES, () => missingLines("f", output)],
@@ -8145,6 +8241,8 @@
     // before anything is matched up: the subset is then matchup's, not validate's
     $("v-group-cores").hidden = !coresAsked();
     $("v-group-missing").hidden = !coresAsked();
+    $("v-group-align").hidden = !coresAsked();
+    for (const value of ["yes", "no"]) $(`v-align-${value}`).checked = validateForm.align_grids === value;
     $("v-subset-legend").textContent = coresAsked()
       ? "Do you want a spatial subset?" : "Do you only want to validate a subregion?";
     if (coresAsked()) coreOptions($("v-cores"), validateForm.cores);
@@ -8320,6 +8418,17 @@
   // whether the report options ask for matchup's cores: before anything is matched up
   const coresAsked = () => state.view === "report_options" && Boolean(state.question);
   const coresMissing = () => coresAsked() && !String(validateForm.cores || "").trim();
+  // and whether the simulation's grid is to be aligned with others' (see oceanval.grid_align_app),
+  // which a script stored for later does not need
+  const alignMissing = () => coresAsked() && !validateForm.align_grids;
+  for (const value of ["yes", "no"]) {
+    $(`v-align-${value}`).addEventListener("change", () => {
+      validateForm.align_grids = value;
+      delete validateErrors.align_grids;
+      refreshValidate();
+      renderBar();
+    });
+  }
   $("validate-form").addEventListener("submit", (event) => { event.preventDefault(); submitValidate(); });
 
   function refreshValidate() {
@@ -8344,28 +8453,32 @@
       else if (id === "vm-transect" && transect.block === "empty") message(id, [line(TRANSECT_EMPTY)]);
       else message(id, hints[id] || []);
     }
+    message("vm-align_grids", validateErrors.align_grids ? [line(validateErrors.align_grids, "error")] : [],
+      Boolean(validateErrors.align_grids));
     // the report is not built along a transect that cannot be used
     const build = $("build");
     if (build) {
       // there is nothing to build until there are matchups to validate
       const noMatchups = state.view === "validate" && !validateMatchups();
-      build.disabled = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing();
-      build.title = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
+      const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing();
+      build.disabled = blocked || alignMissing();
+      const why = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
         : coresMissing() ? "Choose the number of cores"
         : noneTicked ? NONE_TICKED
         : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
         : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
+      build.title = why || (alignMissing() ? "Say whether the grid needs aligning with other simulations" : "");
       const save = $("save-script");
       if (save) {
-        save.disabled = build.disabled;
-        save.title = build.title || "Stop before anything is matched up, and keep the script to run later";
+        save.disabled = blocked;
+        save.title = why || "Stop before anything is matched up, and keep the script to run later";
       }
     }
   }
 
   async function submitValidate() {
     // Enter in a box sends the form too, past the disabled button
-    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing()) return;
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || alignMissing()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
     validateBusy = true;
@@ -10887,12 +11000,32 @@
   }
 
   // ---- the grids: whether to put the simulations on one, and how ----
-  const scGrids = { form: null, errors: {}, busy: false };
+  // Yes shows a map of each simulation's first variable (at the surface and the first time) and, when
+  // Generate unified grid is pressed, the cells they all have a value in on the grid chosen. It is only a
+  // preview: Continue does not wait for it, and the run works the cells out for every variable and layer.
+  const scGrids = { form: null, errors: {}, busy: false, asked: {}, mapsAsked: false, generation: 0, generating: false, drawn: false };
   const SC_GRID_BOXES = ["lon_min", "lon_max", "lat_min", "lat_max", "res"];
+  const SC_MAPS = [1, 2, 3, 4, 5].map((number) => `scg-map-${number}`).concat("scg-map-unified");
+  for (const id of SC_MAPS) {
+    figures[id] = [];
+    aspects[id] = null;
+  }
+
+  function releaseScMaps() {
+    for (const id of SC_MAPS) if (figures[id].length) release(id);
+    scGrids.mapsAsked = false;
+  }
+
+  const scResized = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const id = entry.target.id;
+      if (figures[id] && figures[id].length) fitAndSettle(id, figures[id][0]);
+    }
+  });
 
   function scReadGrids() {
     const checked = (name) => { const radio = document.querySelector(`input[name="${name}"]:checked`); return radio ? radio.value : ""; };
-    const form = { need: checked("scg-need"), method: checked("scg-method"), baseline: $("scg-baseline-select").value };
+    const form = { need: checked("scg-need"), method: checked("scg-method"), baseline: $("scg-baseline-select").value, regrid: $("scg-regrid-select").value };
     for (const box of SC_GRID_BOXES) form[box] = $(`scg-${box}`).value;
     return form;
   }
@@ -10908,7 +11041,74 @@
     $("scg-baseline-select").replaceChildren(el("option", { value: "", text: "Choose a simulation…" }),
       ...sims.map((sim) => el("option", { value: sim.name, text: sim.name })));
     $("scg-baseline-select").value = form.baseline || "";
+    $("scg-regrid-select").replaceChildren(el("option", { value: "", text: "Bilinear (default)" }),
+      ...Object.entries(scState().regrid_methods || {}).filter(([value]) => value !== "bil").map(([value, text]) => el("option", { value, text })));
+    $("scg-regrid-select").value = form.regrid || "";
     for (const box of SC_GRID_BOXES) $(`scg-${box}`).value = form[box] || "";
+    releaseScMaps();
+    scGrids.generation += 1;
+    scGrids.generating = false;
+    scGrids.drawn = false;
+    $("scg-grid").replaceChildren();
+    $("scg-gen-msg").replaceChildren();
+    refreshScGrids();
+  }
+
+  // the cards, a map for each simulation and the unified grid, made once Yes is chosen
+  function buildScMaps() {
+    scGrids.mapsAsked = true;
+    scResized.disconnect();
+    const sims = scState().sims;
+    const fields = scState().grid_fields || [];
+    const cards = sims.map((sim, index) => {
+      const field = fields[index];
+      return el("section", { class: "card ag-card", id: `scg-card-${index + 1}`, "aria-labelledby": `scg-title-${index + 1}` },
+        el("h3", { class: "ag-card__title", id: `scg-title-${index + 1}` }, scNamed(sim.name, scColour(index))),
+        el("p", { class: "ag-card__line" }, "File: ", field ? el("code", { text: field.file }) : "not known"),
+        el("p", { class: "ag-card__line" }, "Variable: ", field && field.variable ? el("code", { text: field.variable }) : "not known"),
+        el("p", { class: "group__msg", id: `scg-${index + 1}-msg`, role: "status" }),
+        el("div", { class: "ag-map", id: `scg-map-${index + 1}` }));
+    });
+    cards.push(el("section", { class: "card ag-card", id: "scg-card-unified", "aria-labelledby": "scg-title-unified" },
+      el("h3", { class: "ag-card__title", id: "scg-title-unified", text: "Unified grid" }),
+      el("p", { class: "ag-card__line", text: "The cells every simulation has a value in once they are on one grid. This is of each simulation's first variable at the surface; the run works it out for every variable and layer." }),
+      el("p", { class: "group__msg", id: "scg-unified-msg", role: "status" }),
+      el("div", { class: "ag-map", id: "scg-map-unified" })));
+    $("scg-grid").replaceChildren(...cards);
+    for (let number = 1; number <= sims.length; number++) scResized.observe($(`scg-map-${number}`));
+    scResized.observe($("scg-map-unified"));
+    emptyMap("scg-map-unified", "Choose how to put the simulations on one grid, then Generate unified grid.");
+    sims.forEach((sim, index) => askScPanel(index + 1));
+  }
+
+  async function askScPanel(number) {
+    const asked = scGrids.asked[number] = (scGrids.asked[number] || 0) + 1;
+    emptyMap(`scg-map-${number}`, "Reading the file…");
+    const reply = await post("api/simcompare_panel", { number });
+    if (asked !== scGrids.asked[number] || state.view !== "simcompare_grids") return;
+    if (!reply.ok) {
+      message(`scg-${number}-msg`, [line(reply.error || "The map could not be drawn.", "error")], true);
+      emptyMap(`scg-map-${number}`, "Nothing to show.");
+      return;
+    }
+    message(`scg-${number}-msg`, (reply.notes || []).map((text) => line(text)));
+    await drawMap(`scg-map-${number}`, reply.item);
+  }
+
+  // the choices are not those the unified grid shown was made with
+  function scGridsChanged() {
+    scGrids.errors = {};
+    scPreviewOutOfDate();
+  }
+
+  function scPreviewOutOfDate() {
+    if (scGrids.generating || scGrids.drawn) {
+      scGrids.generation += 1;
+      scGrids.generating = false;
+      scGrids.drawn = false;
+      emptyMap("scg-map-unified", "The choices have changed: Generate unified grid again.");
+      message("scg-unified-msg", []);
+    }
     refreshScGrids();
   }
 
@@ -10959,6 +11159,11 @@
     $("scg-how").hidden = form.need !== "yes";
     $("scg-box").hidden = !(form.need === "yes" && form.method === "box");
     $("scg-baseline").hidden = !(form.need === "yes" && form.method === "baseline");
+    if (form.need === "yes" && !scGrids.mapsAsked) buildScMaps();
+    $("scg-controls").hidden = !form.method;
+    const go = $("scg-generate");
+    go.disabled = scGrids.generating || !form.method || Object.keys(errors).length > 0;
+    go.textContent = scGrids.generating ? "Generating…" : "Generate unified grid";
     const grids = scState().grids || {};
     const no = $("scg-no");
     no.hidden = form.need !== "no";
@@ -10981,9 +11186,35 @@
   }
 
   document.querySelectorAll("input[name=scg-need], input[name=scg-method]").forEach((radio) =>
-    radio.addEventListener("change", () => { scGrids.errors = {}; refreshScGrids(); }));
-  $("scg-baseline-select").addEventListener("change", () => { scGrids.errors = {}; refreshScGrids(); });
-  for (const box of SC_GRID_BOXES) $(`scg-${box}`).addEventListener("input", () => { delete scGrids.errors[box]; refreshScGrids(); });
+    radio.addEventListener("change", scGridsChanged));
+  $("scg-baseline-select").addEventListener("change", scGridsChanged);
+  $("scg-regrid-select").addEventListener("change", scGridsChanged);
+  for (const box of SC_GRID_BOXES) $(`scg-${box}`).addEventListener("input", () => { delete scGrids.errors[box]; scPreviewOutOfDate(); });
+
+  $("scg-generate").addEventListener("click", async () => {
+    if (scGrids.generating) return;
+    const generation = ++scGrids.generation;
+    scGrids.generating = true;
+    scGrids.drawn = false;
+    scGrids.errors = {};
+    refreshScGrids();
+    emptyMap("scg-map-unified", "Putting the simulations on one grid…", true);
+    message("scg-unified-msg", []);
+    const reply = await post("api/simcompare_generate", { form: scReadGrids() });
+    if (state.view !== "simcompare_grids" || generation !== scGrids.generation) return;
+    scGrids.generating = false;
+    if (!reply.ok) {
+      scGrids.errors = reply.errors || {};
+      emptyMap("scg-map-unified", "Nothing to show.");
+      if (reply.error) message("scg-unified-msg", [line(reply.error, "error")], true);
+    } else {
+      scGrids.drawn = true;
+      message("scg-unified-msg", [line(`${reply.shared} of ${reply.total} cells have a value in every simulation.`, "ok"),
+        ...(reply.notes || []).map((text) => line(text))]);
+      await drawMap("scg-map-unified", reply.item);
+    }
+    refreshScGrids();
+  });
 
   async function submitScGrids() {
     scGrids.busy = true;
@@ -10996,6 +11227,403 @@
     }
     refreshScGrids();
   }
+
+  // ---- aligning the simulation's grid with other simulations' (see oceanval.grid_align_app) ----
+  // Asked last by a matchup run, which waits meanwhile. Panel 1 is the simulation's own grid, 2-5 other
+  // simulations' (a file, a variable in it and its missing values), each drawn as the viewer draws a map;
+  // panel 6 is the grid they share, which Generate unified grid draws on the baseline's grid. Only two
+  // simulations are needed, so panels 1 and 2 are shown to start and a plus after the last one shown adds
+  // the next (the form always holds all five, a panel not shown being empty). Match up and validate / Match
+  // up carries on once the unified grid is generated.
+  const ALIGN_PANELS = 5;
+  const ALIGN_SHOWN_AT_START = 2;
+  const ALIGN_MAPS = Array.from({ length: ALIGN_PANELS + 1 }, (_, index) => `ag-map-${index + 1}`);
+  for (const id of ALIGN_MAPS) {
+    figures[id] = [];
+    aspects[id] = null;
+  }
+  // the boxes, each panel's number of the last ask (a later answer is the one shown), whether it is
+  // drawn, the variables its file has, the number of the last Generate (edits make it out of date)
+  // and the boxes the unified grid shown was generated with
+  const align = { form: null, shown: ALIGN_SHOWN_AT_START, asked: {}, timers: {}, drawn: {}, fvcom: {}, variables: {}, pickers: {}, generation: 0, generating: false, errors: {}, madeFor: null };
+
+  // whether the unified grid shown is of the boxes as they are, so the matchups can be masked by it
+  function alignMade() {
+    return Boolean(align.form && !align.generating && align.madeFor && align.madeFor === JSON.stringify(alignForm()));
+  }
+
+  // while the unified grid is generated, what is being done to the simulations (cropping, regridding,
+  // unifying), from the window's state; the text is changed in place so the spinner keeps turning
+  function showGenerateStage() {
+    const here = state.view === "align_grids" ? [align.generating, "ag-map-6", state.align && state.align.stage]
+      : state.view === "simcompare_grids" ? [scGrids.generating, "scg-map-unified", state.simcompare && state.simcompare.stage] : null;
+    if (!here || !here[0] || !here[2]) return;
+    const busy = document.getElementById(`${here[1]}-busy`);
+    if (busy && busy.textContent !== here[2]) busy.textContent = here[2];
+  }
+
+  async function submitAlign() {
+    if (!alignMade()) return;
+    $("ag-continue").disabled = true;
+    const reply = await post("api/align_continue", { form: alignForm() });
+    if (!reply.ok) {
+      align.errors = reply.errors || {};
+      if (reply.error) toast(reply.error);
+      refreshAlign();
+    }
+  }
+
+  // whether the step asking it has the grid to align: "yes", "no" or ""
+  function alignAnswer() {
+    if (state.view === "output") return output.align_grids || "";
+    if (state.view === "report_options") return validateForm.align_grids || "";
+    return "";
+  }
+
+  function alignForm() {
+    if (!align.form) return {};
+    return { baseline: align.form.baseline, method: align.form.method, panels: align.form.panels.map((panel) => ({ ...panel })) };
+  }
+
+  function releaseAlignMaps() {
+    for (const id of ALIGN_MAPS) if (figures[id].length) release(id);
+  }
+
+  // the maps of the grids' pages, by the id of the box they are in (the align page's and Compare's)
+  // busy: something is being worked out, which a turning spinner beside the text says
+  function emptyMap(id, text, busy = false) {
+    if (figures[id].length) release(id);
+    $(id).classList.remove("is-drawn", "is-stretch");
+    $(id).replaceChildren(busy
+      ? el("p", { class: "ag-map__empty is-busy", role: "status" }, el("span", { class: "identify__spinner", "aria-hidden": "true" }), el("span", { id: `${id}-busy`, text }))
+      : el("p", { class: "ag-map__empty", text }));
+  }
+
+  const emptyAlignMap = (number, text, busy = false) => emptyMap(`ag-map-${number}`, text, busy);
+  const drawAlignMap = (number, item) => drawMap(`ag-map-${number}`, item);
+
+  async function drawMap(id, item) {
+    if (!(await ensureBokeh())) {
+      emptyMap(id, "Bokeh could not be loaded, so nothing can be drawn.");
+      return;
+    }
+    release(id);
+    $(id).classList.add("is-drawn", "is-stretch");
+    aspects[id] = item.aspect || null;
+    const made = await Bokeh.embed.embed_item(item, id);
+    figures[id] = Array.from(made.roots || made);
+    const view = figures[id][0];
+    // the frame is there to fit once Bokeh has drawn the figure
+    if (view && view.has_finished) {
+      for (let waited = 0; waited < 1500 && !view.has_finished(); waited += 16) await sleep(16);
+    }
+    await fitAndSettle(id, view);
+  }
+
+  const alignResized = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const id = entry.target.id;
+      if (figures[id] && figures[id].length) fitAndSettle(id, figures[id][0]);
+    }
+  });
+
+  function alignBox(number, name, label, props = {}) {
+    const box = el("input", { class: `s-input ${props.mono ? "is-mono" : "is-num"}`, id: `ag-${number}-${name}`, spellcheck: "false",
+      autocomplete: "off", autocapitalize: "off", "aria-label": label, placeholder: props.placeholder || "" });
+    box.value = align.form.panels[number - 1][name];
+    box.addEventListener("input", () => {
+      align.form.panels[number - 1][name] = box.value;
+      // another directory or depth has other files
+      if (name === "path" || name === "ndown") align.form.panels[number - 1].file = "";
+      askAlignPanel(number, 500);
+    });
+    return box;
+  }
+
+  // the Choose-a-directory window's title for the panel's box
+  function describeAlignPath(number) {
+    DESCRIBE[`ag-${number}-path`] = {
+      title: `Choose the directory with the output of ${state.align.titles[number - 1].toLowerCase()}`,
+      describe: DESCRIBE["f-simdir"].describe,
+    };
+  }
+
+  // how many panels to show for the boxes: those up to the last simulation with anything in its boxes, and
+  // at least the two that are needed
+  function alignShownFor(panels) {
+    let shown = ALIGN_SHOWN_AT_START;
+    panels.forEach((panel, index) => {
+      if (index > 0 && Object.values(panel).some((value) => String(value).trim())) shown = Math.max(shown, index + 1);
+    });
+    return shown;
+  }
+
+  // the tile with the plus, after the last simulation shown, which adds the next one
+  function alignAddTile() {
+    const next = align.shown + 1;
+    const button = el("button", { type: "button", class: "ag-add__button", id: "ag-add", "aria-label": `Add ${state.align.titles[next - 1]}` },
+      el("span", { class: "ag-add__plus", "aria-hidden": "true", text: "+" }),
+      el("span", { class: "ag-add__text", text: `Add ${state.align.titles[next - 1].toLowerCase()}` }));
+    button.addEventListener("click", addAlignPanel);
+    return el("section", { class: "card ag-add", id: "ag-add-tile" }, button);
+  }
+
+  function addAlignPanel() {
+    if (align.shown >= ALIGN_PANELS) return;
+    const number = ++align.shown;
+    const tile = $("ag-add-tile");
+    const card = alignCard(number);
+    tile.before(card);
+    alignResized.observe($(`ag-map-${number}`));
+    emptyAlignMap(number, "Give the directory with the simulation's output, or one of its netCDF files.");
+    if (align.shown >= ALIGN_PANELS) tile.remove();
+    else tile.replaceWith(alignAddTile());
+    $(`ag-${number}-path`).focus();
+  }
+
+  function alignCard(number) {
+    const titles = state.align.titles;
+    const card = el("section", { class: "card ag-card", id: `ag-card-${number}`, "aria-labelledby": `ag-title-${number}` },
+      el("h3", { class: "ag-card__title", id: `ag-title-${number}`, text: number <= ALIGN_PANELS ? titles[number - 1] : "Unified grid" }));
+    if (number === 1) {
+      const first = state.align.first;
+      card.append(
+        el("p", { class: "ag-card__line" }, "File: ", first ? el("code", { text: first.file, title: first.path }) : "not known"),
+        el("p", { class: "ag-card__line" }, "Variable: ", first ? el("code", { text: first.variable }) : "not known"));
+    } else if (number <= ALIGN_PANELS) {
+      const variable = alignBox(number, "variable", `${titles[number - 1]}: the variable`, { mono: true, placeholder: "variable name" });
+      const path = alignBox(number, "path", `${titles[number - 1]}: the directory with its output, or one of its netCDF files`,
+        { mono: true, placeholder: "/path/to/output or a netCDF file" });
+      describeAlignPath(number);
+      const browse = el("button", { type: "button", class: "btn btn--ghost btn--field", "data-browse": path.id, text: "Browse…" });
+      browse.addEventListener("click", () => openPicker(path, browse));
+      const depth = depthBox(alignBox(number, "ndown", `${titles[number - 1]}: how many directories down its netCDF files are`, { placeholder: "e.g. 1" }));
+      card.append(
+        el("div", { class: "g-row" }, el("label", { class: "g-label", for: path.id, text: "Directory or file" }),
+          el("div", { class: "path-field" }, path, browse)),
+        el("div", { class: "g-row" }, el("label", { class: "g-label", for: depth.id, text: "Directories down" }), depth),
+        el("div", { class: "g-row", id: `ag-${number}-file-row`, hidden: true }, el("span", { class: "g-label", text: "File" }),
+          el("code", { class: "ag-card__file", id: `ag-${number}-file`, text: "" }), el("span", { id: `ag-${number}-files` })),
+        el("p", { class: "group__msg", id: `ag-${number}-found`, role: "status" }),
+        el("div", { class: "g-row" }, el("label", { class: "g-label", for: variable.id, text: "Variable" }), variable,
+          el("span", { id: `ag-${number}-pick` })));
+    }
+    if (number <= ALIGN_PANELS) {
+      card.append(el("div", { class: "g-row" }, el("span", { class: "g-label", text: "Missing values" }),
+        el("div", { class: "span-row" },
+          alignBox(number, "missing_from", `${titles[number - 1]}: the missing value, or the start of a range`, { placeholder: "value" }),
+          el("span", { class: "dash", text: "–" }),
+          alignBox(number, "missing_to", `${titles[number - 1]}: the end of a range of missing values`, { placeholder: "to" }))));
+    }
+    card.append(el("p", { class: "group__msg", id: `ag-${number}-msg`, role: "status" }),
+      el("div", { class: "ag-map", id: `ag-map-${number}` }));
+    return card;
+  }
+
+  // the picker of the variables the panel's file has, which is replaced as the file is
+  function alignPicker(number) {
+    const slot = $(`ag-${number}-pick`);
+    if (!slot) return;
+    const found = align.variables[number] || { names: [], long_names: {} };
+    const picker = OceanValGUI.variablesPicker({
+      available: found.names, longNames: found.long_names, multi: false, label: "Select from the file's variables", what: "file's variables",
+      get: () => align.form.panels[number - 1].variable,
+      set: (value) => {
+        align.form.panels[number - 1].variable = $(`ag-${number}-variable`).value = value;
+        if (align.pickers[number]) align.pickers[number]();
+        askAlignPanel(number, 0);
+      },
+    });
+    align.pickers[number] = picker ? picker.sync : null;
+    slot.replaceChildren(...(picker ? [picker.details] : []));
+  }
+
+  // the picker of the files found in the panel's directory, which is replaced as the directory is; what the
+  // panel holds (the files, how many there were, the one used) is shown beside it
+  function alignFiles(number, reply) {
+    const panel = align.form.panels[number - 1];
+    panel.file = reply.file || "";
+    const files = reply.files || [];
+    const row = $(`ag-${number}-file-row`);
+    // a path that is one file, or a directory with files in, has nothing to choose from
+    row.hidden = !files.length;
+    $(`ag-${number}-file`).textContent = panel.file || "none chosen";
+    $(`ag-${number}-file`).title = panel.file;
+    $(`ag-${number}-ndown`).disabled = Boolean(reply.is_file);
+    const found = [];
+    if (files.length) {
+      found.push(line(`${plural(reply.files_total, "netCDF file")} ${depthText(Number(panel.ndown))}.`
+        + (reply.files_total > files.length ? ` The first ${files.length} are listed.` : ""), "ok"));
+    }
+    message(`ag-${number}-found`, found);
+    const picker = OceanValGUI.variablesPicker({
+      available: files, multi: false, label: "Select from the files found", what: "files found",
+      searchHint: "Search the files, e.g. *grid_T*", noneText: "No files match.",
+      get: () => align.form.panels[number - 1].file,
+      set: (value) => {
+        align.form.panels[number - 1].file = value;
+        askAlignPanel(number, 0);
+      },
+    });
+    $(`ag-${number}-files`).replaceChildren(...(picker ? [picker.details] : []));
+  }
+
+  function fillAlign() {
+    const kept = state.align.form;
+    align.form = { baseline: kept.baseline, method: kept.method, panels: kept.panels.map((panel) => ({ ...panel })) };
+    align.drawn = {};
+    align.fvcom = {};
+    align.variables = {};
+    align.errors = {};
+    align.generation += 1;
+    align.madeFor = null;
+    alignResized.disconnect();
+    releaseAlignMaps();
+    align.shown = alignShownFor(align.form.panels);
+    $("ag-grid").replaceChildren(...Array.from({ length: align.shown }, (_, index) => alignCard(index + 1)),
+      ...(align.shown < ALIGN_PANELS ? [alignAddTile()] : []), alignCard(ALIGN_PANELS + 1));
+    for (const number of [...Array(align.shown).keys()].map((index) => index + 1).concat(ALIGN_PANELS + 1)) alignResized.observe($(`ag-map-${number}`));
+    $("ag-method").replaceChildren(el("option", { value: "", text: "Choose a method" }),
+      ...Object.entries(state.align.methods).map(([value, text]) => el("option", { value, text })));
+    $("ag-method").value = align.form.method;
+    emptyAlignMap(ALIGN_PANELS + 1, "Choose the baseline grid and the regridding method, then Generate unified grid.");
+    for (let number = 1; number <= align.shown; number++) askAlignPanel(number, 0);
+    refreshAlign();
+  }
+
+  // the panel's map, asked delay ms after its boxes stop changing; the number is taken now, so an
+  // answer to an earlier ask is dropped
+  function askAlignPanel(number, delay) {
+    clearTimeout(align.timers[number]);
+    const asked = align.asked[number] = (align.asked[number] || 0) + 1;
+    // the unified grid is of the panels as they were
+    if (align.generating || figures[`ag-map-${ALIGN_PANELS + 1}`].length) {
+      align.generation += 1;
+      align.madeFor = null;
+      emptyAlignMap(ALIGN_PANELS + 1, "The simulations have changed: Generate unified grid again.");
+      message(`ag-${ALIGN_PANELS + 1}-msg`, []);
+    }
+    delete align.drawn[number];
+    delete align.fvcom[number];
+    delete align.errors.panels;
+    refreshAlign();
+    align.timers[number] = setTimeout(async () => {
+      const panel = { ...align.form.panels[number - 1] };
+      if (number > 1 && !panel.path.trim()) {
+        align.variables[number] = null;
+        alignPicker(number);
+        alignFiles(number, {});
+        message(`ag-${number}-msg`, []);
+        emptyAlignMap(number, "Give the directory with the simulation's output, or one of its netCDF files.");
+        return;
+      }
+      message(`ag-${number}-msg`, [line(number > 1 ? "Looking for the files…" : "Reading the file…")]);
+      const reply = await post("api/align_panel", { number, panel });
+      if (asked !== align.asked[number] || state.view !== "align_grids") return;
+      if (number > 1) alignFiles(number, reply);
+      if (reply.variables) {
+        align.variables[number] = { names: Object.keys(reply.variables), long_names: reply.variables };
+        alignPicker(number);
+      }
+      if (!reply.ok) {
+        message(`ag-${number}-msg`, [line(reply.error || "The map could not be drawn.", "error")], true);
+        emptyAlignMap(number, "Nothing to show.");
+      } else if (!reply.item) {
+        message(`ag-${number}-msg`, []);
+        emptyAlignMap(number, number > 1 && !reply.file && !reply.is_file ? "Choose the file to draw." : "Choose the variable to draw.");
+      } else {
+        message(`ag-${number}-msg`, (reply.notes || []).map((text) => line(text)));
+        await drawAlignMap(number, reply.item);
+        if (asked !== align.asked[number]) return;
+        align.drawn[number] = true;
+        if (reply.fvcom) align.fvcom[number] = true;
+      }
+      refreshAlign();
+    }, delay);
+  }
+
+  function alignReady() {
+    const drawn = Object.keys(align.drawn).length;
+    return !align.generating && drawn >= 2 && align.drawn[align.form.baseline] && !align.fvcom[align.form.baseline] && align.form.method;
+  }
+
+  function refreshAlign() {
+    if (!align.form || state.view !== "align_grids") return;
+    // the baseline is one of the grids drawn
+    const choice = $("ag-baseline");
+    // FVCOM output cannot be the baseline, and can only be regridded by nearest neighbour
+    const drawn = Object.keys(align.drawn).filter((number) => !align.fvcom[number]).sort();
+    const anyFvcom = Object.keys(align.fvcom).length > 0;
+    const options = ["", ...drawn];
+    if (Array.from(choice.options).map((option) => option.value).join("|") !== options.join("|")) {
+      choice.replaceChildren(el("option", { value: "", text: drawn.length ? "Choose the baseline" : "Draw the grids first" }),
+        ...drawn.map((number) => el("option", { value: number, text: state.align.titles[Number(number) - 1] })));
+    }
+    if (!drawn.includes(align.form.baseline)) align.form.baseline = "";
+    choice.value = align.form.baseline;
+    const methodBox = $("ag-method");
+    if (anyFvcom && align.form.method !== "nn") { align.form.method = "nn"; delete align.errors.method; }
+    methodBox.value = align.form.method;
+    methodBox.disabled = anyFvcom;
+    methodBox.classList.toggle("is-oceanval", anyFvcom);
+    for (const name of ["baseline", "method"]) $(`ag-${name}`).classList.toggle("is-invalid", Boolean(align.errors[name]));
+    const problems = ["baseline", "method", "panels"].filter((name) => align.errors[name]).map((name) => line(align.errors[name], "error"));
+    const notes = anyFvcom ? [line(state.align.fvcom_note, "oceanval")] : [];
+    message("ag-msg", [...problems, ...notes], problems.length > 0);
+    const go = $("ag-generate");
+    go.disabled = !alignReady();
+    go.textContent = align.generating ? "Generating…" : "Generate unified grid";
+    go.title = align.generating ? "" : Object.keys(align.drawn).length < 2 ? "Draw at least one other simulation's grid first"
+      : !align.form.baseline ? "Choose the baseline grid" : !align.form.method ? "Choose a regridding method" : "";
+    // the matchups are masked by the grid generated, so a change to the boxes needs Generate again
+    const run = $("ag-continue");
+    if (run) {
+      run.disabled = !alignMade();
+      run.title = alignMade() ? "" : "Generate the unified grid first";
+    }
+  }
+
+  $("ag-baseline").addEventListener("change", (event) => {
+    align.form.baseline = event.target.value;
+    delete align.errors.baseline;
+    refreshAlign();
+  });
+  $("ag-method").addEventListener("change", (event) => {
+    align.form.method = event.target.value;
+    delete align.errors.method;
+    refreshAlign();
+  });
+
+  $("ag-generate").addEventListener("click", async () => {
+    if (!alignReady()) return;
+    const generation = ++align.generation;
+    const six = ALIGN_PANELS + 1;
+    align.generating = true;
+    align.errors = {};
+    refreshAlign();
+    emptyAlignMap(six, "Putting the grids on the baseline's grid…", true);
+    message(`ag-${six}-msg`, []);
+    align.madeFor = null;
+    const sent = alignForm();
+    const reply = await post("api/align_generate", { form: sent });
+    align.generating = false;
+    if (state.view !== "align_grids") return;
+    if (generation !== align.generation) {
+      refreshAlign();
+      return;
+    }
+    if (!reply.ok) {
+      align.errors = reply.errors || {};
+      emptyAlignMap(six, "Nothing to show.");
+      if (reply.error) message(`ag-${six}-msg`, [line(reply.error, "error")], true);
+    } else {
+      align.madeFor = JSON.stringify(sent);
+      message(`ag-${six}-msg`, [line(`${reply.shared} of ${reply.total} cells have a value in every simulation.`, "ok"),
+        ...(reply.notes || []).map((text) => line(text))]);
+      await drawAlignMap(six, reply.item);
+    }
+    refreshAlign();
+  });
 
   // ---- keeping up with oceanval ----
   let version = null;

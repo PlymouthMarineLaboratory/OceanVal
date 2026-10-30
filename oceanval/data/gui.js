@@ -415,7 +415,7 @@ const OceanValGUI = (() => {
     const stopping = el("p", { class: "restart__stopping", id: "restart-stopping", hidden: "",
       text: "The run in progress will be stopped." });
     const cancel = el("button", { type: "button", class: "btn btn--ghost", id: "restart-cancel", text: "Cancel" });
-    const confirm = el("button", { type: "button", class: "btn btn--danger", id: "restart-go", text: "Restart" });
+    const confirm = el("button", { type: "button", class: "btn btn--primary", id: "restart-go", text: "Restart" });
     const dialog = el("div", { class: "picker", id: "restart-confirm", hidden: "" },
       el("div", { class: "picker__card restart__card", role: "dialog", "aria-modal": "true", "aria-labelledby": "restart-title" },
         el("div", { class: "restart__body" },
@@ -500,12 +500,12 @@ const OceanValGUI = (() => {
   // what word the pop-out's link and search box for variables that are not
   // the model's. Shared by the create_recipes window and the oceanval
   // window's Analyze and own data steps.
-  function variablesPicker({ available, longNames = {}, get, set, multi, className = "", label = "Select from the model's variables", what = "model's variables" }) {
+  function variablesPicker({ available, longNames = {}, get, set, multi, className = "", label = "Select from the model's variables", what = "model's variables", searchHint = "Search variables, e.g. P*_Chl", noneText = "No variables match." }) {
     if (!available.length) return null;
     const search = el("input", {
       class: "vars__search",
       type: "search",
-      placeholder: "Search variables, e.g. P*_Chl",
+      placeholder: searchHint,
       spellcheck: "false",
       autocomplete: "off",
       autocapitalize: "off",
@@ -513,7 +513,7 @@ const OceanValGUI = (() => {
     });
     const count = el("span", { class: "vars__count vars__shown", "aria-live": "polite" });
     const ticked = el("span", { class: "vars__count vars__ticked" });
-    const none = el("p", { class: "vars__none", text: "No variables match.", hidden: "" });
+    const none = el("p", { class: "vars__none", text: noneText, hidden: "" });
     const scroll = el("div", { class: "vars__scroll" });
     // what the box holds, with long_names, pinned above the table
     const pickedList = el("ul");

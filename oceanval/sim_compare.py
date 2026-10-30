@@ -31,9 +31,8 @@ import webbrowser
 
 import nctoolkit as nc
 import numpy as np
-import xarray as xr
 
-from oceanval import netcdf_lock, sim_unify
+from oceanval import extent, sim_unify
 from oceanval.analysis import (
     BOTTOM,
     KINDS,
@@ -255,20 +254,8 @@ def grid_of(path, name=None):
     so CDO first writes one level of one time step of variable name (of every
     variable, if None) to a small file, and only that is opened: select reads
     only what it chooses."""
-    chosen = f"name={name}," if name else ""
-    # a variable with no times has no first time step to choose
-    for choice in (f"-select,{chosen}levidx=1,timestep=1", f"-select,{chosen}levidx=1"):
-        try:
-            with warnings.catch_warnings(record=True):
-                ds = nc.open_data(path, checks=False)
-                ds.cdo_command(choice)
-                ds.run()
-            # the window looks at the grids in a thread of its own
-            with netcdf_lock.LOCK, xr.open_dataset(ds.current[0], decode_times=False) as data:
-                return sim_unify._lonlat(data)
-        except Exception:
-            continue
-    return None
+    data = extent.first_slice(path, name)
+    return None if data is None else extent.lonlat(data)
 
 
 def first_parts(rows_by_sim, sims):
@@ -354,10 +341,13 @@ def compare_simulations(
         each on its own. {"lon": [west, east], "lat": [south, north], "res":
         degrees} puts all of them on a lon-lat grid of that box and
         resolution (with nctoolkit's to_latlon). {"baseline": name} puts the
-        others on the grid of simulation name (with nctoolkit's regrid). In
-        both, a cell with no value in any one simulation is missing in all of
-        them (judged from each one's first time step), so every simulation is
-        compared over exactly the same cells.
+        others on the grid of simulation name (with nctoolkit's regrid). Either
+        can also have "regrid": how they are regridded, one of "bil"
+        (bilinear, the default), "nn" (nearest neighbour), "dis"
+        (distance-weighted) or "con" (conservative), e.g. {"baseline": "Base",
+        "regrid": "nn"}. In both, a cell with no value in any one simulation is
+        missing in all of them (judged from each one's first time step), so
+        every simulation is compared over exactly the same cells.
     thickness, time_shift, as_missing :
         As in analyze(), for the simulations that do not give their own.
     out_dir : str

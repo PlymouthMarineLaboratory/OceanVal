@@ -197,8 +197,14 @@ def _thin(data, limit):
     return data.isel({dim: slice(None, None, stride) for dim in data.dims}), stride
 
 
-def coastline_scale(lon, lat):
-    """ncplot's get_coastline: the resolution of the coastline for an extent."""
+def coastline_scale(lon, lat, values=None):
+    """ncplot's get_coastline: the resolution of the coastline for an extent:
+    that of the cells with values, if values (of the same shape) are given."""
+    lon, lat = np.asarray(lon, dtype="float64"), np.asarray(lat, dtype="float64")
+    if values is not None:
+        valid = np.isfinite(np.asarray(values, dtype="float64"))
+        if valid.shape == lon.shape == lat.shape and valid.any():
+            lon, lat = lon[valid], lat[valid]
     area = (np.nanmax(lon) - np.nanmin(lon)) * (np.nanmax(lat) - np.nanmin(lat)) / 360**2
     if area < 0.0016:
         return "10m"
@@ -290,7 +296,10 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
     if coast and lon is not None and not on_mesh and not geographic:
         notes.append("Coastlines need cartopy and geoviews installed.")
     if geographic:
-        options.update(geo=True, coastline=coastline_scale(data[x].values, data[y].values))
+        # the extent of the cells with values: a grid can have cells far from the domain (NEMO's at -1, -1)
+        lon_cells = data[x].broadcast_like(data).transpose(*data.dims).values
+        lat_cells = data[y].broadcast_like(data).transpose(*data.dims).values
+        options.update(geo=True, coastline=coastline_scale(lon_cells, lat_cells, data.values))
     else:
         options.update(xlabel=x, ylabel=y)
         if cartesian:

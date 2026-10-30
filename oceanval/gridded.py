@@ -16,11 +16,13 @@ import nctoolkit as nc
 import xarray as xr
 
 from oceanval import data_store
+from oceanval import extent
 from oceanval import live
 from oceanval import prompts
 from oceanval import server_trouble
 from oceanval import surface
 from oceanval import time_res
+from oceanval import unified_grid
 from oceanval.fixers import tidy_warnings
 from oceanval.fvcom import fvcom_matchup_files
 from oceanval.utils import extension_of_directory, loud_warning
@@ -247,19 +249,26 @@ def record_gridded_failure(vv, source, error):
 
 
 def _lonlat_bounds(ds):
-    """(lon_min, lon_max, lat_min, lat_max) of a dataset's grid.
+    """(lon_min, lon_max, lat_min, lat_max) of a dataset's cells with values
+    (at its first time and top level, see oceanval.extent), or of its whole
+    grid if they cannot be told.
 
-    Reads the coordinate arrays directly rather than converting the whole
-    dataset to a dataframe, since this is only used to size a target grid.
+    The whole grid can be far larger than the model's domain: NEMO puts the
+    cells of the land processors it leaves out at lon -1, lat -1. Only one
+    slice of the field is read, as this is only used to size a target grid.
     """
     ds_xr = ds.to_xarray()
-    lon_name = [x for x in ds_xr.coords if "lon" in x][0]
-    lat_name = [x for x in ds_xr.coords if "lat" in x][0]
-    lons = ds_xr[lon_name].values
-    lats = ds_xr[lat_name].values
+    found = extent.valid_lonlat(ds_xr)
+    if found is not None:
+        lons, lats = found
+    else:
+        lon_name = [x for x in ds_xr.coords if "lon" in x][0]
+        lat_name = [x for x in ds_xr.coords if "lat" in x][0]
+        lons = ds_xr[lon_name].values
+        lats = ds_xr[lat_name].values
     # handle lon > 180 properly, same convention used elsewhere in this module
     lons = ((lons + 180) % 360) - 180
-    return float(lons.min()), float(lons.max()), float(lats.min()), float(lats.max())
+    return float(np.nanmin(lons)), float(np.nanmax(lons)), float(np.nanmin(lats)), float(np.nanmax(lats))
 
 
 def _obs_resolution(comparison, downloaded=None):
@@ -736,6 +745,9 @@ def gridded_matchup(
                                 )
 
                             ds_model.run()
+
+                    # the monthly means, on the unified grid and with its mask, if there is one
+                    unified_grid.mask_gridded(ds_model, session_info.get("unified_grid"), fvcom=session_info.get("fvcom", False))
 
                 tidy_warnings(w)
 

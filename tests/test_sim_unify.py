@@ -108,6 +108,23 @@ class TestCheck:
         with pytest.raises(ValueError):
             sim_unify.check_unify(unify, ["A", "B"])
 
+    def test_how_they_are_regridded(self):
+        # not said: nothing added, so what is kept is as it was, and it is bilinear
+        assert "regrid" not in sim_unify.check_unify({"baseline": "A"}, ["A", "B"])
+        assert "bilinear" in sim_unify.describe(sim_unify.check_unify({"baseline": "A"}, ["A", "B"]))
+        assert sim_unify.check_unify({"baseline": "A", "regrid": "nn"}, ["A", "B"]) == {
+            "method": "baseline", "baseline": "A", "regrid": "nn"}
+        box = sim_unify.check_unify({"lon": [-4, 0], "lat": [50, 53], "res": 1, "regrid": "con"}, ["A"])
+        assert box["regrid"] == "con" and box["method"] == "box"
+        assert "conservative regridding" in sim_unify.describe(box)
+        assert "nearest neighbour regridding" in sim_unify.describe(
+            sim_unify.check_unify({"baseline": "A", "regrid": "nn"}, ["A", "B"]))
+        with pytest.raises(ValueError, match="regrid must be one of"):
+            sim_unify.check_unify({"baseline": "A", "regrid": "best"}, ["A", "B"])
+        # a baseline with a method has nothing else
+        with pytest.raises(ValueError):
+            sim_unify.check_unify({"baseline": "A", "regrid": "nn", "res": 1}, ["A", "B"])
+
     def test_it_says_that_cells_are_missing_in_all(self):
         for unify in ({"baseline": "A"}, {"lon": [-4, 0], "lat": [50, 53], "res": 1}):
             text = sim_unify.describe(sim_unify.check_unify(unify, ["A", "B"]))
@@ -174,6 +191,133 @@ class TestBox:
         assert np.isnan(a[:, 3, 4]).all()
         assert np.isnan(a[:, 1, 2]).all()
         assert np.isfinite(a[:, 2, 1]).all()
+
+
+def lonlat_field(lon, lat, name="temp"):
+    """A dataset of one time of a smooth field on a lon-lat grid."""
+    import nctoolkit as nc
+
+    values = np.add.outer(np.asarray(lat) * 0.3, np.asarray(lon) * 0.2).astype("f4")[np.newaxis]
+    data = xr.Dataset(
+        {name: (("time", "lat", "lon"), values)},
+        coords={"time": [np.datetime64("2000-01-01")], "lat": lat, "lon": lon},
+    )
+    data.lon.attrs.update(units="degrees_east", standard_name="longitude")
+    data.lat.attrs.update(units="degrees_north", standard_name="latitude")
+    return nc.from_xarray(data)
+
+
+class TestCrop:
+    """Each simulation is cropped to the target grid, a degree wider each way,
+    before it is regridded: only time is saved."""
+
+    @pytest.mark.parametrize(
+        "lon, lat, box",
+        [
+            ([-5, 5], [50, 55], ([-6, 6], [49, 56])),
+            # a grid of 0 to 360
+            ([350, 359.5], [50, 55], ([-11, 0.5], [49, 56])),
+            # at the poles and the dateline's edge
+            ([179.5, 179.9], [89.5, 89.9], ([178.5, 180], [88.5, 90])),
+            # round the globe, or across the dateline: no crop
+            (list(np.arange(0.5, 360, 1)), [0, 1], None),
+            ([170, 190], [0, 1], None),
+            ([-179, 179], [0, 1], None),
+        ],
+    )
+    def test_the_box(self, lon, lat, box):
+        assert sim_unify.padded_box(np.array(lon), np.array(lat)) == box
+
+    def test_a_box_that_misses_the_grid_leaves_it_as_it_was(self):
+        ds = lonlat_field(np.arange(-10, 10.1, 1.0), np.arange(40, 60.1, 1.0))
+        before = values(ds)
+        assert sim_unify.crop_to(ds, ([100, 120], [-10, 0])) is False
+        assert sim_unify.crop_to(ds, None) is False
+        assert np.array_equal(values(ds), before)
+
+    @pytest.mark.parametrize("method", ["bil", "nn", "con"])
+    @pytest.mark.parametrize("unify", [{"baseline": "small"}, {"lon": [-4, 4], "lat": [49, 55], "res": 0.5}])
+    def test_the_values_are_those_without_a_crop(self, tmp_path, monkeypatch, method, unify):
+        sims = {
+            "small": lonlat_field(np.arange(-5, 5.1, 1.0), np.arange(48, 56.1, 1.0)),
+            "wide": lonlat_field(np.arange(-40.25, 40, 0.5), np.arange(20.25, 75, 0.5)),
+        }
+        unify = sim_unify.check_unify({**unify, "regrid": method}, list(sims))
+        cropped = []
+        real = sim_unify.crop_to
+        monkeypatch.setattr(sim_unify, "crop_to", lambda ds, box: cropped.append(real(ds, box)) or cropped[-1])
+
+        def wide(folder):
+            sim_unify.prepare(str(folder), unify, "temp", "surface", sims)
+            ds = sims["wide"].copy()
+            sim_unify.apply(ds, sim_unify.row_unify(unify, str(folder), "wide"), "temp", "surface")
+            return values(ds)
+
+        with_crop = wide(tmp_path / "cropped")
+        # in prepare() and in apply(): for a baseline, the wide simulation only, as the baseline is not
+        # regridded; for a box, both simulations in prepare()
+        assert cropped == [True] * (3 if unify["method"] == "box" else 2)
+        monkeypatch.setattr(sim_unify, "crop_to", lambda ds, box: False)
+        without = wide(tmp_path / "whole")
+        assert with_crop.shape == without.shape
+        assert np.allclose(with_crop, without, equal_nan=True)
+        assert np.isfinite(with_crop).all()
+
+
+def test_the_baselines_box_is_of_its_cells_with_values(tmp_path):
+    """NEMO puts the cells of the land processors it leaves out at -1, -1: the
+    crop box is the extent of the cells with values, not of the whole grid."""
+    import json
+
+    import nctoolkit as nc
+    from test_extent import curvilinear
+
+    field = nc.from_xarray(curvilinear(times=1, levels=1))
+    unify = sim_unify.check_unify({"baseline": "amm7"}, ["amm7", "other"])
+    sim_unify.prepare(str(tmp_path), unify, "thetao", "surface", {"amm7": field, "other": field.copy()})
+    with open(sim_unify.box_path(str(tmp_path), "thetao", "surface")) as f:
+        assert json.load(f) == {"lon": [-21.0, 14.0], "lat": [39.0, 66.0]}
+
+
+class TestProgress:
+    """prepare() says what it is doing, for the window."""
+
+    def told(self, unify, sims, tmp_path):
+        said = []
+        unify = sim_unify.check_unify(unify, list(sims))
+        sim_unify.prepare(str(tmp_path), unify, "temp", "surface", sims, progress=lambda *args: said.append(args))
+        return said
+
+    def test_a_baseline(self, tmp_path):
+        sims = {
+            "small": lonlat_field(np.arange(-5, 5.1, 1.0), np.arange(48, 56.1, 1.0)),
+            "wide": lonlat_field(np.arange(-40.25, 40, 0.5), np.arange(20.25, 75, 0.5)),
+        }
+        # the baseline itself is neither cropped nor regridded
+        assert self.told({"baseline": "small"}, sims, tmp_path) == [
+            ("cropping", "wide"), ("regridding", "wide"), ("unifying", None)]
+
+    def test_a_simulation_already_on_the_grid_is_not_touched(self, tmp_path):
+        grid = (np.arange(-5, 5.1, 1.0), np.arange(48, 56.1, 1.0))
+        sims = {"a": lonlat_field(*grid), "b": lonlat_field(*grid)}
+        assert self.told({"baseline": "a"}, sims, tmp_path) == [("unifying", None)]
+
+    def test_a_box(self, tmp_path):
+        sims = {"a": lonlat_field(np.arange(-10, 10.1, 1.0), np.arange(40, 60.1, 1.0)),
+                "b": lonlat_field(np.arange(-8, 8.1, 1.0), np.arange(42, 58.1, 1.0))}
+        said = self.told({"lon": [-4, 4], "lat": [49, 55], "res": 1}, sims, tmp_path)
+        assert said == [("cropping", "a"), ("regridding", "a"), ("cropping", "b"), ("regridding", "b"), ("unifying", None)]
+
+    def test_a_target_round_the_globe_is_not_cropped(self, tmp_path):
+        sims = {"a": lonlat_field(np.arange(0.5, 360, 1.0), np.arange(-60, 60.1, 1.0)),
+                "b": lonlat_field(np.arange(0.25, 360, 0.5), np.arange(-60, 60.1, 0.5))}
+        said = self.told({"baseline": "a"}, sims, tmp_path)
+        assert said == [("regridding", "b"), ("unifying", None)]
+
+    def test_the_words(self):
+        assert sim_unify.stage_text("cropping", "Simulation 2") == "Cropping Simulation 2…"
+        assert sim_unify.stage_text("regridding", "Fine run") == "Regridding Fine run…"
+        assert sim_unify.stage_text("unifying") == "Unifying the simulations…"
 
 
 class TestLayers:

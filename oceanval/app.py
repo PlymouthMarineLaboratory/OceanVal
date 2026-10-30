@@ -68,6 +68,7 @@ import oceanval
 from oceanval import leftovers, live, netcdf_lock, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
+from oceanval.grid_align_app import GridAlignSteps
 from oceanval.sim_compare_app import SimCompareSteps
 from oceanval.viewer_app import VIEWER, ViewerSteps
 from oceanval import viewer_app
@@ -250,13 +251,6 @@ DEMO_MODELS = {
 DEMO_FOLDER = "oceanval_demo"
 DEMO_YEAR = 2010
 
-# what the demo fills in in the create_recipes window: its year, for the
-# climatologies and, as each dataset starts with it (see show_recipes), the rest
-DEMO_RECIPE_SETTINGS = {
-    "clim_start": str(DEMO_YEAR),
-    "clim_end": str(DEMO_YEAR),
-}
-
 # the limits the demo's models' grids are matched up within, which matchup is
 # given with the cores, once the matchups are confirmed
 DEMO_LIMITS = {
@@ -302,7 +296,22 @@ def default_output_form():
         "lat_max": "",
         "missing_from": "",
         "missing_to": "",
+        # and whether the simulation's grid is to be aligned with other
+        # simulations' (see oceanval.grid_align_app)
+        "align_grids": "",
     }
+
+
+# the error of an unanswered align_grids
+ALIGN_GRIDS_ERROR = "Say whether the grid needs aligning with other simulations."
+
+
+def check_align_grids(form, errors):
+    """Whether form's align_grids is "yes", with an error in errors if it is
+    neither yes nor no."""
+    if form.get("align_grids") not in ("yes", "no"):
+        errors["align_grids"] = ALIGN_GRIDS_ERROR
+    return form.get("align_grids") == "yes"
 
 
 def default_validate_form():
@@ -336,6 +345,10 @@ def default_validate_form():
         "cores": "",
         "missing_from": "",
         "missing_to": "",
+        # "yes" or "no", asked before anything is matched up: whether the
+        # simulation's grid is to be aligned with other simulations' (see
+        # oceanval.grid_align_app)
+        "align_grids": "",
     }
 
 
@@ -1579,7 +1592,7 @@ class Run:
                 self.process.wait(timeout=timeout)
 
 
-class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
+class App(AnalyzeSteps, SimCompareSteps, ViewerSteps, GridAlignSteps):
     """What the oceanval window shows, and the server showing it.
 
     view is the step the page is on: "home", the landing page, whose View
@@ -1769,6 +1782,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         self._init_analyze()
         self._init_simcompare()
         self._init_viewer()
+        self._init_align()
         # whose steps the state Analyze's options step keeps is
         self._analyze_owner = ANALYZE
         # how many times the window has been restarted (see reset), which the
@@ -1982,6 +1996,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "analyze": self._analyze_state(),
                 "simcompare": self._simcompare_state(),
                 "viewer": self._viewer_state(),
+                "align": self._align_state(),
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -2691,6 +2706,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             went = self._simcompare_back(sent)
             if went is not None:
                 return went
+        if self.view == "align_grids" and self._held_matchups():
+            return self._align_back(sent)
         earlier = {
             "start": "home",
             "setup": "demo_instructions" if self.demo is not None else "start",
@@ -3084,6 +3101,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             sims_read = dict(self._sc_reading)
             self._init_analyze()
             self._init_simcompare()
+            self._init_align()
             self._analyze_owner = ANALYZE
             (
                 self._analyze_reading,
@@ -3846,12 +3864,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         page.form["cores"] = "1"
         # the years to choose from, read from the output's times
         page.context["output_years"] = self.output_years_of(_simulation(page.context))
-        if self.demo is not None:
-            page.form.update(DEMO_RECIPE_SETTINGS)
-            # marked as OceanVal's in the window
-            page.context["app"]["prefilled"] = list(DEMO_RECIPE_SETTINGS)
-            # the years each dataset ticked starts with, in red and bold
-            page.context["app"]["initial_years"] = [DEMO_YEAR, DEMO_YEAR]
         with self._lock:
             self._recipes = page
             # not asked again, while the simulation is read from the same files
@@ -4220,12 +4232,14 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self.output_form = _form(form, default_output_form())
             arguments, errors = self._check_matchup_output(self.output_form)
             cores, matchup = None, {}
+            align = False
             if self.action == "matchup":
                 cores, error = check_cores(self.output_form["cores"])
                 if error is not None:
                     errors["cores"] = error
                 matchup, matchup_errors = check_matchup_boxes(self.output_form)
                 errors.update(matchup_errors)
+                align = check_align_grids(self.output_form, errors)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
@@ -4244,20 +4258,35 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             report = self.action == "matchup_validate"
             if report:
                 self.view = "report_options"
+            elif align:
+                # the matchups question is still held, until the step's Match up
+                self._show_align(
+                    "output", question,
+                    (self.output_form["missing_from"], self.output_form["missing_to"]),
+                    {"cores": cores, "matchup": matchup},
+                )
             else:
-                self._run_output.update(cores=cores, **matchup)
-                self._keep_in_script(cores=cores, **matchup)
-                self.view = "running"
-                self.question = None
+                self._match_up_now(cores, matchup)
             writer = self._script_writer
             self._notify()
         # where the user said, now that it is named
         self._write_script(writer)
-        if report:
+        if report or align:
             return 200, {"ok": True}
         self.console.write("y\n")
         question.respond(self._yes({}, question))
         return 200, {"ok": True}
+
+    def _match_up_now(self, cores, matchup, unified=None):
+        """Matchup alone carries on, with the cores, the spatial subset and
+        the missing values (see check_matchup_boxes) and the unified grid, if
+        any (see GridAlignSteps._use_unified), sent along with yes, which the
+        caller then answers. Called with the lock held."""
+        self._use_unified(unified)
+        self._run_output.update(cores=cores, **matchup)
+        self._keep_in_script(cores=cores, **matchup)
+        self.view = "running"
+        self.question = None
 
     def validate(self, form):
         """Build the report, from the report options step's boxes."""
@@ -4724,11 +4753,36 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if self.view != "report_options":
                 return 409, {"ok": False, "error": "This step is over."}
         report, cores, matchup, errors = self._checked_report(form)
+        with self._lock:
+            # asked only before anything is matched up
+            align = self._held_matchups() is not None and check_align_grids(self.validate_form, errors)
         if errors:
             return 400, {"ok": False, "errors": errors}
         with self._lock:
             if self.view != "report_options":
                 return 409, {"ok": False, "error": "This step is over."}
+            if align and self._held_matchups() is not None:
+                # the matchups question is still held, until the step's Match up and validate
+                self._show_align(
+                    "report_options", self._held_matchups(),
+                    (self.validate_form["missing_from"], self.validate_form["missing_to"]),
+                    {"report": report, "cores": cores, "matchup": matchup},
+                )
+                return 200, {"ok": True}
+        return self._match_up_and_validate("report_options", report, cores, matchup)
+
+    def _match_up_and_validate(self, view, report, cores, matchup, unified=None):
+        """Carry on from view (the report options, or the step for aligning
+        the grid) with the report options (see _checked_report): matchup
+        carries on, with the unified grid, if any (see
+        GridAlignSteps._use_unified), and builds the interim report - or, if
+        it has run already, the report is built. Returns the HTTP status and
+        the reply for the page."""
+        with self._lock:
+            if self.view != view:
+                return 409, {"ok": False, "error": "This step is over."}
+            if self._held_matchups() is not None:
+                self._use_unified(unified)
             # so that a second click does nothing more
             self.view = "running"
             question = self._held_matchups()
@@ -5255,7 +5309,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if (
                 question is None
                 or question.id != number
-                or self.view in ("report_options", "point_time_res", "output")
+                or self.view in ("report_options", "point_time_res", "output", "align_grids")
             ):
                 return False
             answer = text.strip().lower()
@@ -5633,6 +5687,21 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/simcompare_grids":
             self._reply_json(*app.simcompare_grids(payload.get("form")))
+            return
+        if path == "/api/simcompare_panel":
+            self._reply_json(*app.simcompare_panel(payload.get("number")))
+            return
+        if path == "/api/simcompare_generate":
+            self._reply_json(*app.simcompare_generate(payload.get("form")))
+            return
+        if path == "/api/align_panel":
+            self._reply_json(*app.align_panel(payload))
+            return
+        if path == "/api/align_generate":
+            self._reply_json(*app.align_generate(payload.get("form")))
+            return
+        if path == "/api/align_continue":
+            self._reply_json(*app.align_continue(payload.get("form")))
             return
         if path == "/api/analyze_option":
             self._reply_json(*app.analyze_option(payload.get("kind"), payload.get("form")))

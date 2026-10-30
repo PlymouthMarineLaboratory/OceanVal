@@ -5,11 +5,12 @@ step Analyze shares, which ends in the run."""
 import ast
 import os
 import threading
+import time
 
 import numpy as np
 import pytest
 
-from oceanval import analysis, sim_compare, sim_compare_forms
+from oceanval import analysis, sim_compare, sim_compare_forms, sim_unify
 from oceanval.app import App
 from simulations import write_analysis_simulation, write_folders
 from test_app import get, get_json, leftover_dir, post, wait_for  # noqa: F401 (leftover_dir is autouse)
@@ -454,6 +455,104 @@ class TestGrids:
         box = {"need": "yes", "method": "box", "lon_min": "-4", "lon_max": "0", "lat_min": "50", "lat_max": "53", "res": "0.5"}
         to_options(app, box)
         assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5}
+
+    def test_how_they_are_regridded(self, app, sims):
+        to_options(app, {"need": "yes", "method": "baseline", "baseline": "Fine run", "regrid": "nn"})
+        assert app.sc_unify == {"baseline": "Fine run", "regrid": "nn"}
+
+    def test_a_box_regridded(self, app, sims):
+        box = {"need": "yes", "method": "box", "lon_min": "-4", "lon_max": "0", "lat_min": "50", "lat_max": "53",
+               "res": "0.5", "regrid": "dis"}
+        to_options(app, box)
+        assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5, "regrid": "dis"}
+
+    def test_a_method_that_is_not_one_is_bilinear(self, app, sims):
+        to_options(app, {"need": "yes", "method": "baseline", "baseline": "Fine run", "regrid": "best"})
+        assert app.sc_unify == {"baseline": "Fine run"}
+
+    def test_the_methods_and_what_is_drawn_of_each_simulation_are_sent(self, app, sims):
+        shown = to_grids(app)
+        assert list(shown["regrid_methods"]) == ["bil", "nn", "dis", "con"]
+        # the first variable's first file, and the model variable read from it (the first of a sum)
+        assert [field["variable"] for field in shown["grid_fields"]] == ["P1_Chl", "P1_Chl"]
+        assert all(field["file"].endswith(".nc") for field in shown["grid_fields"])
+
+    def test_each_simulation_is_drawn(self, app, sims):
+        to_grids(app)
+        status, reply = post(app, "/api/simcompare_panel", {"number": 2})
+        assert status == 200 and reply["ok"], reply
+        assert reply["variable"] == "P1_Chl" and reply["item"]
+        assert post(app, "/api/simcompare_panel", {"number": 3})[0] == 400
+        assert post(app, "/api/simcompare_panel", {"number": 0})[0] == 400
+
+    def test_the_unified_grid_is_a_preview_on_a_baseline(self, app, sims):
+        to_grids(app)
+        form = {"need": "yes", "method": "baseline", "baseline": "Fine run", "regrid": "nn"}
+        status, reply = post(app, "/api/simcompare_generate", {"form": form})
+        assert status == 200 and reply["ok"], reply
+        assert 0 < reply["shared"] <= reply["total"] and reply["item"]
+        # the grid of the baseline: the half degree one
+        assert reply["total"] == len(B_LATS) * len(B_LONS)
+        # a preview: nothing is chosen by it
+        assert app.sc_unify is None and app.view == "simcompare_grids"
+
+    def test_the_state_says_what_generating_is_doing(self, app, sims, monkeypatch):
+        to_grids(app)
+        assert state(app)["simcompare"]["stage"] is None
+        entered, release = threading.Event(), threading.Event()
+        real = sim_unify.crop_to
+        said = []
+
+        def held(ds, box):
+            entered.set()
+            assert release.wait(60)
+            return real(ds, box)
+
+        monkeypatch.setattr(sim_unify, "crop_to", held)
+        progress = app._sc_progress
+        monkeypatch.setattr(app, "_sc_progress", lambda *args: said.append(sim_unify.stage_text(*args)) or progress(*args))
+        form = {"need": "yes", "method": "baseline", "baseline": "Fine run"}
+        done = []
+        thread = threading.Thread(target=lambda: done.append(post(app, "/api/simcompare_generate", {"form": form})))
+        thread.start()
+        try:
+            assert entered.wait(60)
+            assert state(app)["simcompare"]["stage"] == "Cropping Base run…"
+        finally:
+            release.set()
+            thread.join(120)
+        assert done[0][0] == 200 and done[0][1]["ok"], done
+        # cropping, regridding and unifying, in that order, each said once
+        assert said == ["Cropping Base run…", "Regridding Base run…", "Unifying the simulations…"]
+        assert state(app)["simcompare"]["stage"] is None
+
+    def test_the_unified_grid_is_a_preview_on_a_box(self, app, sims):
+        to_grids(app)
+        box = {"need": "yes", "method": "box", "lon_min": "-4", "lon_max": "0", "lat_min": "50", "lat_max": "53", "res": "0.5"}
+        status, reply = post(app, "/api/simcompare_generate", {"form": box})
+        assert status == 200 and reply["ok"], reply
+        # nctoolkit's to_latlon has cells on both edges of the box
+        assert reply["total"] == 9 * 7 and 0 < reply["shared"] <= reply["total"]
+
+    @pytest.mark.parametrize(
+        "form, boxes",
+        [
+            ({}, {"need"}),
+            ({"need": "no"}, {"need"}),
+            ({"need": "yes"}, {"method"}),
+            ({"need": "yes", "method": "baseline"}, {"baseline"}),
+            ({"need": "yes", "method": "box", "lon_min": "x"}, {"lon_min", "lon_max", "lat_min", "lat_max", "res"}),
+        ],
+    )
+    def test_the_preview_is_checked_as_continue_is(self, app, sims, form, boxes):
+        to_grids(app)
+        status, reply = post(app, "/api/simcompare_generate", {"form": form})
+        assert status == 400 and set(reply["errors"]) == boxes
+
+    def test_the_preview_and_the_maps_are_for_the_grids_step_only(self, app, sims):
+        to_options(app)
+        assert post(app, "/api/simcompare_panel", {"number": 1})[0] == 409
+        assert post(app, "/api/simcompare_generate", {"form": {"need": "yes", "method": "baseline", "baseline": "Fine run"}})[0] == 409
 
     def test_back_keeps_the_boxes(self, app, sims):
         to_grids(app)
@@ -983,3 +1082,67 @@ class TestClosingTheBrowser:
             assert app.closed_reason == "The browser window was closed."
         finally:
             release.set()
+
+
+def test_the_grids_step_shows_each_simulation_and_a_preview_in_a_browser(browser, app, sims, monkeypatch):
+    """Yes shows a map of each simulation and, after Generate unified grid, the
+    cells they share on the grid chosen, none of which Continue waits for."""
+    to_grids(app)
+    # each stage of generating is held for a moment, as it may be over before the page is told of it
+    said_progress = app._sc_progress
+    monkeypatch.setattr(app, "_sc_progress", lambda *args: said_progress(*args) or time.sleep(0.8))
+    page = browser.new_page(viewport={"width": 1400, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.goto(app.url)
+        page.wait_for_selector("#view-simcompare-grids:not([hidden])")
+        # nothing is drawn, or asked of the files, until Yes
+        assert page.locator("#scg-grid .ag-card").count() == 0
+        page.check("#scg-need-no")
+        assert page.locator("#scg-grid .ag-card").count() == 0
+        page.check("#scg-need-yes")
+        page.wait_for_selector("#scg-map-1.is-drawn", timeout=60000)
+        page.wait_for_selector("#scg-map-2.is-drawn", timeout=60000)
+        # a card for each simulation, then the unified grid, and no plus: the simulations are given
+        assert page.locator("#scg-grid .ag-card").count() == 3
+        assert page.locator("#scg-add, #ag-add").count() == 0
+        assert "Base run" in page.text_content("#scg-title-1") and "Fine run" in page.text_content("#scg-title-2")
+        assert page.text_content("#scg-card-1 .ag-card__line:nth-of-type(2)").strip() == "Variable: P1_Chl"
+        # the choices, then Generate
+        assert page.is_hidden("#scg-controls") and page.is_disabled("#scg-continue")
+        page.check("#scg-method-baseline")
+        assert page.is_visible("#scg-controls") and page.is_disabled("#scg-generate")
+        page.select_option("#scg-baseline-select", "Fine run")
+        page.wait_for_function("() => !document.getElementById('scg-generate').disabled")
+        assert page.locator("#scg-regrid-select option").all_text_contents() == [
+            "Bilinear (default)", "Nearest neighbour", "Distance-weighted", "Conservative"]
+        page.select_option("#scg-regrid-select", "nn")
+        # the spinner beside the text while it is generated, which may be over in a moment, so it is watched for,
+        # with each thing said to be done
+        page.evaluate("""(id) => { window.sawSpinner = []; new MutationObserver(() => {
+            const busy = document.querySelector(`#${id} .ag-map__empty.is-busy`);
+            if (busy && busy.querySelector('.identify__spinner') && !window.sawSpinner.includes(busy.textContent)) window.sawSpinner.push(busy.textContent); })
+            .observe(document.getElementById(id), { childList: true, subtree: true }); }""", "scg-map-unified")
+        page.click("#scg-generate")
+        page.wait_for_selector("#scg-map-unified.is-drawn", timeout=60000)
+        said = page.evaluate("() => window.sawSpinner")
+        assert said[0] == "Putting the simulations on one grid…"
+        assert said[1:] == ["Cropping Base run…", "Regridding Base run…", "Unifying the simulations…"]
+        assert "have a value in every simulation" in page.text_content("#scg-unified-msg")
+        # a change makes it out of date, but does not stop Continue
+        page.select_option("#scg-regrid-select", "")
+        assert "Generate unified grid again" in page.text_content("#scg-map-unified")
+        assert page.is_enabled("#scg-continue")
+        # the box has the same maps and the same preview
+        page.check("#scg-method-box")
+        for box, text in (("lon_min", "-4"), ("lon_max", "0"), ("lat_min", "50"), ("lat_max", "53"), ("res", "0.5")):
+            page.fill(f"#scg-{box}", text)
+        page.click("#scg-generate")
+        page.wait_for_selector("#scg-map-unified.is-drawn", timeout=60000)
+        page.click("#scg-continue")
+        page.wait_for_selector("#view-analyze-options:not([hidden])")
+        assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5}
+        assert errors == []
+    finally:
+        page.close()
