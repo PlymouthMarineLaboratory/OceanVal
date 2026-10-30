@@ -472,7 +472,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `analysis.py` and runs it as `app_child analyze <path>`, with `times_index=` the files' times the check read (`_analyze_keep_times`, a temporary copy; not in a saved script), so `analyze()` does not read them again. **Save Python script to run later** (`#ao-save`, beside Run, enabled as it is; `/api/analyze_save_script` → `analyze_run(save=True)`) writes
   the same script, runs nothing, and shows view `script_saved` (`_script_saved`, shared with Compare simulations, whose saved script has no `times_index`,
   those files being temporary; the page's words by `savedScriptWords`).
-  The variables page's buttons (Add a variable, Add multiple variables, `#av-remove-all`) work in the page from `state.analyze.picker`:
+  The variables page's buttons (one **+** under the table's first column adds a row at the end (`#av-add`, and Compare's `#scv-add`; each row keeps its ×), not a per-row button; Add multiple variables, `#av-remove-all`) work in the page from `state.analyze.picker`:
   Add multiple variables (`addVariableRows`) adds the variables no row holds yet, tagging each 3D (`picker.levels > 1`, nctoolkit's `nlevels`, the rule
   Analyze's Vertical analyses use) or 2D; Remove all leaves one blank row. Tests read the picker with `picker_of(app)`: the page's own `state` is inside a
   closure, so `page.evaluate("() => state")` finds the `<script id="state">` element.
@@ -571,7 +571,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
   (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
   logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own; only
-  the multi-row **Missing values** fieldset (`#setup-missing`, `missingRows`, sent as JSON `missing` by `setupForm()`,
+  the multi-row **Missing values** fieldset (`#setup-missing`, `missingRows`; one **+** below the last row's From box adds a row at the end (a row after the first has a ×); sent as JSON `missing` by `setupForm()`,
   `viewer_app.parse_missing`) is the viewer's. **Its rows start filled in from the files** (`viewer_missing.guess` via
   `/api/viewer/missing`, asked by `askMissingGuess` after each `/api/probe` answer with files; `scan(wait=False)`, then
   `missing_probe.probe` on the first mappable variable of the first file type, else 0 for `is_likely_nemo_ersem` names): amber
@@ -619,10 +619,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (which reads the same function for the reports it opens) obeys it. When none is opened the link and `remote_hint` (`ssh -L`) are printed.
 - **Files are never left out unasked.** No code drops a file for having "restart" in its name: `create_recipes.simulation_paths`
   (Analyze, Compare, the window's live check and the output years), `_has_nc`, `model_check` and `matchall` leave that to `exclude`/`require`.
-  The window starts the **Skip file names containing** box with `create_recipes.DEFAULT_EXCLUDE` (`"restart"`; Validate, Analyze and each
-  Compare row: `default_setup_form`, `sim_compare_forms.blank_sim`, sent as `state.default_exclude`), in the normal colours and with no line saying so (the user's rule,
-  2026-10-30; `isDefaultExclude` in the page tells it from a value typed). A Compare row holding only that is unused (`sim_compare_forms.row_is_blank`,
-  `scRowEmpty`). The Python defaults (`matchup(exclude=[])`, `analyze(exclude=None)`) are unchanged.
+  **The window's Skip file names containing boxes start empty** (Validate, Analyze and each Compare row: `default_setup_form`,
+  `sim_compare_forms.blank_sim`; the user's rule, 2026-10-30, reversing an earlier start with `restart`): what is skipped is left to the user,
+  and `"restart"` must never be added to an `exclude` by default, in the window or the Python API (`matchup(exclude=[])`, `analyze(exclude=None)`;
+  `tests/test_app.py::test_the_files_skipped_start_empty` checks). A Compare row is unused when all its boxes are empty (`sim_compare_forms.row_is_blank`, `scRowEmpty`).
 - **The live file check shows "Finding files"** (a spinner, `.is-finding`) from the edit of the directory, depth or filter boxes until the
   `/api/probe` answer is in: `probePending` in `askProbe` (the badge `#ndown-found`, Validate/Matchup/Analyze) and `scSims.pending[n]` in
   `scAskProbe` (`#sc-m-n`). The check's number is taken at the edit, so an earlier answer still on its way is dropped, and the last count is not

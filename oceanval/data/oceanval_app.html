@@ -832,10 +832,12 @@
   .missing-rows { display: grid; gap: 8px; margin-bottom: 8px; }
   .missing-rows__row { display: grid; grid-template-columns: max-content 140px max-content 140px max-content; gap: 8px; align-items: center; }
   .missing-rows__row label { color: var(--ink-soft); font-size: 12.5px; font-weight: 500; }
-  .missing-rows__remove { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-soft); cursor: pointer; }
-  .missing-rows__remove:hover { border-color: var(--line-strong); background: var(--bg-alt); }
-  .missing-rows__remove svg { width: 14px; height: 14px; }
-  @media (max-width: 640px) { .missing-rows__row { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr) max-content; } }
+  .missing-rows__more { display: grid; grid-template-columns: max-content 140px; gap: 8px; align-items: center; }
+  .missing-rows__spacer { visibility: hidden; font-size: 12.5px; font-weight: 500; }
+  .missing-rows__remove, .missing-rows__add { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-soft); cursor: pointer; }
+  .missing-rows__remove:hover, .missing-rows__add:hover { border-color: var(--line-strong); background: var(--bg-alt); }
+  .missing-rows__remove svg, .missing-rows__add svg { width: 14px; height: 14px; }
+  @media (max-width: 640px) { .missing-rows__row { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr) max-content; } .missing-rows__more { grid-template-columns: max-content minmax(0, 1fr); } }
   /* reading the files */
   .vw-meter { width: 100%; height: 8px; margin-top: 26px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
   .vw-meter > span { display: block; height: 100%; width: 0; background: var(--teal-500); transition: width 0.2s; }
@@ -987,9 +989,11 @@
   .analyze-msg { margin: 6px 0 0; color: var(--ink); font-size: 12.5px; line-height: 1.4; }
   .analyze-msg.is-warn { color: var(--amber); }
   .analyze-msg:empty { display: none; }
-  .analyze-remove { padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); font: 600 18px/1 var(--font-body); cursor: pointer; }
-  .analyze-remove:hover { background: var(--line); color: var(--ink); }
-  .analyze-remove:focus-visible { outline: none; box-shadow: var(--focus); }
+  .analyze-remove, .analyze-add { padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); font: 600 18px/1 var(--font-body); cursor: pointer; }
+  .analyze-remove:hover, .analyze-add:hover { background: var(--line); color: var(--ink); }
+  .analyze-add-row { padding: 8px 22px 12px; border-top: 1px solid var(--line); }
+  .analyze-add-row .analyze-add { border: 1px solid var(--line); background: var(--bg); }
+  .analyze-remove:focus-visible, .analyze-add:focus-visible { outline: none; box-shadow: var(--focus); }
   .analyze-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 14px 0 0; }
   .analyze-foot .group__msg { margin: 0; }
   .analyze-foot__end { margin-left: auto; }
@@ -1379,7 +1383,6 @@
         <legend>Missing values <span class="g-note">(optional)</span></legend>
         <p class="group__intro">Numbers in the files that mean there is no data, such as 0 or -999, and are not marked as missing in them. Give one number, or fill in To as well for a range (both ends are included). They apply to every variable.</p>
         <div class="missing-rows" id="missing-rows"></div>
-        <button type="button" class="link" id="missing-add">Add a missing value</button>
         <p class="group__line is-finding" id="missing-identifying" hidden><span class="identify__spinner" aria-hidden="true"></span>Attempting to identify missing value range</p>
         <p class="group__line is-found" id="missing-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data before you continue.</p>
         <p class="group__line is-ersem" id="missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
@@ -1864,9 +1867,9 @@
         <colgroup><col style="width:34%"><col><col style="width:56px"></colgroup>
         <thead><tr><th scope="col">Environmental variable</th><th scope="col">Variable name in the simulation</th><th scope="col" aria-label="Remove"></th></tr></thead>
         <tbody id="av-rows"></tbody>
-      </table></div>
+      </table>
+      <div class="analyze-add-row"><button type="button" class="analyze-add" id="av-add" title="Add a variable" aria-label="Add a variable">+</button></div></div>
       <div class="analyze-foot">
-        <button type="button" class="btn btn--ghost" id="av-add">Add a variable</button>
         <button type="button" class="btn btn--ghost" id="av-add-multiple">Add multiple variables</button>
         <p class="group__msg is-error" id="av-msg" role="status" aria-live="polite"></p>
         <button type="button" class="btn btn--ghost analyze-foot__end" id="av-remove-all">Remove all variables</button>
@@ -2118,9 +2121,9 @@
       <div class="card analyze-table"><table id="scv-table">
         <thead id="scv-head"></thead>
         <tbody id="scv-rows"></tbody>
-      </table></div>
+      </table>
+      <div class="analyze-add-row"><button type="button" class="analyze-add" id="scv-add" title="Add a variable" aria-label="Add a variable">+</button></div></div>
       <div class="analyze-foot">
-        <button type="button" class="btn btn--ghost" id="scv-add">Add a variable</button>
         <p class="group__msg is-error" id="scv-msg" role="status" aria-live="polite"></p>
       </div>
     </div>
@@ -2402,7 +2405,7 @@
     <div class="how__body">
       <p><strong>Where it looks.</strong> OceanVal searches the directory you give, and the number of directories below it that you say, for netCDF files. Once you have told it the names of your simulation variables, it works out which files contain each one.</p>
       <p><strong>Which files it uses.</strong> Where a variable is held at more than one time resolution, for example in both daily and monthly files, OceanVal uses the files with the highest temporal resolution, so your matchups are as detailed as your output allows.</p>
-      <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Put words from the names of the files to leave out in <strong>Skip file names containing</strong> (for example <code>restart 5d</code>; OceanVal starts it with <code>restart</code>, so restart files are left out, and nothing is left out that you have not asked for: remove <code>restart</code> to include them), or words that the files you want share in <strong>Only include file names containing</strong> (for example <code>grid_T</code>).</p>
+      <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Put words from the names of the files to leave out in <strong>Skip file names containing</strong> (for example <code>restart 5d</code>; nothing is left out that you have not asked for), or words that the files you want share in <strong>Only include file names containing</strong> (for example <code>grid_T</code>).</p>
       <p>Only file names are checked, not directory names. To choose words, look at the names of the files in your simulation with &ldquo;Click here to view the files&rdquo;.</p>
     </div>
     <div class="picker__foot">
@@ -4345,9 +4348,6 @@
   }
 
   // ---- 2: the simulation ----
-  // the files skipped start with what OceanVal skips (see oceanval.create_recipes.DEFAULT_EXCLUDE):
-  // OceanVal's own, which is not something the user has filled in
-  const isDefaultExclude = (text) => Boolean(state.default_exclude) && String(text).trim() === state.default_exclude;
   const SETUP_FIELDS = ["simdir", "ndown", "exclude", "require", "start", "end"];
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require"]);
@@ -4684,15 +4684,20 @@
         index > 0 ? el("button", { type: "button", class: "missing-rows__remove", "aria-label": `Remove missing value ${index + 1}`, title: "Remove",
           html: ICONS.cross, onclick: () => { missingEdited(); missingRows.splice(index, 1); renderMissingRows(); refreshSetup(); } }) : null,
       );
-    }));
+    }).concat([
+      // one +, just below the From box of the last row, adds a row at the end
+      el("div", { class: "missing-rows__more" },
+        el("span", { class: "missing-rows__spacer", "aria-hidden": "true", text: "From" }),
+        el("button", { type: "button", class: "missing-rows__add", id: "missing-add", "aria-label": "Add a missing value", title: "Add a missing value",
+          html: ICONS.plus, onclick: () => {
+            missingRows.push(["", ""]);
+            renderMissingRows();
+            $(`missing-from-${missingRows.length - 1}`).focus();
+            refreshSetup();
+          } })),
+    ]));
     markMissingGuess();
   }
-  $("missing-add").addEventListener("click", () => {
-    missingRows.push(["", ""]);
-    renderMissingRows();
-    $(`missing-from-${missingRows.length - 1}`).focus();
-    refreshSetup();
-  });
   // what the setup page sends: for viewing, with the missing values as JSON rows (empty rows left out)
   function setupForm() {
     if (state.action !== "viewer") return setup;
@@ -4725,7 +4730,7 @@
   }
 
   function line(text, kind, ...extra) {
-    const pictures = { ok: "check", warn: "warn", error: "error", oceanval: "warn", nofiles: "warn", detected: "warn" };
+    const pictures = { ok: "check", warn: "warn", error: "error", oceanval: "info", nofiles: "warn", detected: "info" };
     return el("span", { class: "group__line" + (kind ? ` is-${kind}` : "") },
       pictures[kind] ? icon(pictures[kind]) : null, el("span", {}, text, ...extra));
   }
@@ -4775,8 +4780,7 @@
       counted = "1 netCDF file found";
       simulation.push(line("A single file is used as it is: directories down and the file name filters do not apply."));
     }
-    const skippingByDefault = isDefaultExclude(setup.exclude);
-    if (String(setup.require).trim() || (String(setup.exclude).trim() && !skippingByDefault)) {
+    if (String(setup.require).trim() || String(setup.exclude).trim()) {
       simulation.push(line(state.action === "viewer" ? "Only file names are checked, not directories."
         : `Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
@@ -10650,7 +10654,7 @@
   function scWriteSims(form) {
     for (let n = 1; n <= SC_MOST; n++) {
       // a row the form has none for starts as any other does
-      const row = form.rows[n - 1] || { exclude: state.default_exclude };
+      const row = form.rows[n - 1] || {};
       for (const [field, id] of Object.entries(SC_BOXES)) $(`sc-${id}_${n}`).value = row[field] || "";
       $(`sc-swatch-${n}`).style.background = scColour(n - 1);
     }
@@ -10661,8 +10665,7 @@
     // the rows that have something in them are shown, and at least two
     let shown = 2;
     form.rows.forEach((row, index) => {
-      // the files skipped, as they start, are not something put in the row
-      const filled = Object.entries(row).some(([field, box]) => String(box).trim() && !(field === "exclude" && isDefaultExclude(box)));
+      const filled = Object.values(row).some((box) => String(box).trim());
       if (filled) shown = Math.max(shown, index + 1);
     });
     scSims.shown = Math.min(SC_MOST, Math.max(shown, form.rows.length > 2 ? form.rows.length : 2));
@@ -10679,10 +10682,7 @@
   }
 
   function scRowEmpty(n) {
-    return Object.entries(SC_BOXES).every(([field, id]) => {
-      const text = $(`sc-${id}_${n}`).value.trim();
-      return !text || (field === "exclude" && isDefaultExclude(text));
-    });
+    return Object.values(SC_BOXES).every((id) => !$(`sc-${id}_${n}`).value.trim());
   }
 
   function scAskProbe(n, delay) {
@@ -10823,7 +10823,7 @@
     $(`sc-remove-${n}`).addEventListener("click", () => {
       const form = scReadSims();
       form.rows.splice(n - 1, 1);
-      while (form.rows.length < SC_MOST) form.rows.push({ name: "", simdir: "", ndown: "", exclude: state.default_exclude || "", require: "" });
+      while (form.rows.length < SC_MOST) form.rows.push({ name: "", simdir: "", ndown: "", exclude: "", require: "" });
       scWriteSims(form);
       scSims.shown = Math.max(2, scSims.shown - 1);
       scSims.errors = {};

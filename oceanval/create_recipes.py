@@ -765,12 +765,6 @@ def _passes_filters(path, exclude=None, require=None):
     )
 
 
-# What the oceanval window's Skip file names containing box starts with. Restart
-# files are never left out without being asked: only the file filters leave
-# files out, and the window starts them with this, for the user to remove.
-DEFAULT_EXCLUDE = "restart"
-
-
 def simulation_paths(simdir, ndown, exclude=None, require=None):
     """Every output file ndown directories below simdir, leaving out those
     matchup() would, given its exclude and require."""

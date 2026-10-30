@@ -149,9 +149,9 @@ class TestSimulations:
         status, reply = post(app, "/api/simcompare_sims", {"form": form})
         assert status == 400 and "same name" in reply["errors"]["rows"]["1"]["name"]
 
-    def test_the_files_skipped_start_with_restart_and_a_row_of_only_that_is_unused(self, app, sims, tmp_path):
-        assert sim_compare_forms.blank_sim()["exclude"] == "restart"
-        assert state(app)["default_exclude"] == "restart"
+    def test_the_files_skipped_start_empty_and_a_row_of_nothing_is_unused(self, app, sims, tmp_path):
+        assert sim_compare_forms.blank_sim()["exclude"] == ""
+        assert "default_exclude" not in state(app)
         # the rows as they start are no simulations, and nothing is wrong with them
         assert sim_compare_forms.check_sims(sim_compare_forms.default_sims_form(str(tmp_path)), str(tmp_path)) == (
             None, {"simulations": "Give at least two simulations to compare."})
@@ -1200,6 +1200,12 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.locator("#scv-rows > tr").count() == 1
         cells = page.locator("#scv-rows > tr").first.locator("input.s-input")
         assert cells.count() == 3
+        # one +, under the first column, adds a row at the end; each row keeps its ×
+        page.click("#scv-add")
+        assert page.locator("#scv-rows > tr").count() == 2
+        assert page.locator("#scv-add").bounding_box()["y"] > page.locator("#scv-rows > tr").last.bounding_box()["y"]
+        page.locator("#scv-rows > tr").last.locator(".analyze-remove").click()
+        assert page.locator("#scv-rows > tr").count() == 1
         # a simulation's pop-out is searched with wildcards
         pop_out = page.locator("#scv-rows > tr").first.locator("details.vars").first
         pop_out.locator("summary").click()

@@ -5288,14 +5288,21 @@ def test_the_command_runs():
     assert "--port" in result.stdout
 
 
-def test_the_files_skipped_start_with_restart(app, tmp_path):
-    """Restart files are not left out unasked: the window starts the files
-    skipped with them, for the user to remove."""
-    from oceanval import analysis_forms
+def test_the_files_skipped_start_empty(app, tmp_path):
+    """Nothing is left out unasked: the window starts the files skipped
+    empty, restart files included, and no default of OceanVal adds them."""
+    import inspect
 
-    assert app_module.default_setup_form()["exclude"] == "restart"
-    assert analysis_forms.default_setup_form(str(tmp_path))["exclude"] == "restart"
-    assert get_json(app, "/api/state")[1]["default_exclude"] == "restart"
+    from oceanval import analysis_forms, sim_compare_forms
+
+    assert app_module.default_setup_form()["exclude"] == ""
+    assert analysis_forms.default_setup_form(str(tmp_path))["exclude"] == ""
+    assert sim_compare_forms.blank_sim()["exclude"] == ""
+    assert "default_exclude" not in get_json(app, "/api/state")[1]
+    assert not hasattr(oceanval.create_recipes, "DEFAULT_EXCLUDE")
+    # nor do the Python functions start excluding anything
+    assert not inspect.signature(oceanval.matchup).parameters["exclude"].default
+    assert inspect.signature(oceanval.analyze).parameters["exclude"].default is None
     arguments, errors = check_setup(dict(SETUP_FORM, exclude="restart"), str(tmp_path))
     assert arguments["exclude"] == ["restart"]
     # removed, nothing is skipped

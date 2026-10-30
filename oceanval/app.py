@@ -77,7 +77,6 @@ from oceanval import analysis_report
 from oceanval import data_store
 from oceanval import cdo_check, depths, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
-    DEFAULT_EXCLUDE,
     DOMAIN_REGIONS,
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
@@ -268,8 +267,7 @@ def default_setup_form():
         "domain": "",
         "start": "",
         "end": "",
-        # restart files are not left out unless asked, so the window starts by asking
-        "exclude": DEFAULT_EXCLUDE,
+        "exclude": "",
         "require": "",
     }
 
@@ -2006,8 +2004,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 # values are assumed to be 0 where they are asked, with the cores
                 "nemo_ersem": self._recipes is not None
                 and recipes_gui.is_likely_nemo_ersem(self._recipes.available),
-                # what the boxes of the files to skip start with, shown as OceanVal's own until changed
-                "default_exclude": DEFAULT_EXCLUDE,
                 # for the lists of how many cores to use
                 "cpu_count": os.cpu_count(),
                 "point_time_res": self._point_time_res_state(),
@@ -2029,7 +2025,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "datasets": BUILTIN_DATASETS,
                 "user_settings": {
                     "values": dict(self.settings),
-                    "themes": [[key, label] for key, label in user_settings.THEMES.items()],
                     "path": user_settings.path(),
                     "data_store": data_store.panel(self.settings),
                 },

@@ -401,8 +401,8 @@ def test_limits_of_some_of_the_steps(found):
 
 
 def test_restart_files_are_left_out_only_by_the_filters(tmp_path):
-    """Files are never left out unasked: the window's Skip box starts with
-    restart (create_recipes.DEFAULT_EXCLUDE), which leaves them out."""
+    """Files are never left out unasked: only the Skip box's words leave
+    restart files out."""
     root = nemo_simulation(str(tmp_path / "sim"), years=(2000,), layout="flat")
     regular_file(os.path.join(root, "model_restart.nc"))
     every = catalogue.scan(root, 0)

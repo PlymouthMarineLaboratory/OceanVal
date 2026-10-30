@@ -7,7 +7,6 @@ import xarray as xr
 
 import oceanval
 from oceanval.create_recipes import (
-    DEFAULT_EXCLUDE,
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
     RECIPE_VARIABLES,
@@ -494,10 +493,11 @@ class TestVariableIdentification:
         # nothing is left out unasked: a restart file is a stream like any other
         names = [os.path.basename(f) for f in simulation_files(simulation, 2)]
         assert "nemo_restart.nc" in names
-        # until the file filters leave it out, as the window starts them
+        # until the file filters leave it out
         names = [os.path.basename(f) for f in simulation_files(simulation, 2, exclude=["restart"])]
         assert not [name for name in names if "restart" in name]
-        assert DEFAULT_EXCLUDE == "restart"
+        # and no default of OceanVal's leaves it out
+        assert not hasattr(oceanval.create_recipes, "DEFAULT_EXCLUDE")
 
 
 class TestGeneratedScript:

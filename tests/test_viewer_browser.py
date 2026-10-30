@@ -83,12 +83,16 @@ def test_missing_values_on_the_files_page(page, simulation):
     assert tab.is_disabled("#continue")
     assert "not a number" in tab.text_content("#m-missing-rows")
     tab.fill("#missing-from-0", "-999")
+    # one +, below the last row's From box, adds a row at the end
+    assert tab.locator(".missing-rows__add").count() == 1
+    assert tab.locator("#missing-add").bounding_box()["y"] > tab.locator("#missing-from-0").bounding_box()["y"]
     tab.click("#missing-add")
     tab.fill("#missing-from-1", "10")
     tab.fill("#missing-to-1", "12.5")
     assert tab.is_enabled("#continue")
     # a row is removed by its button
     tab.click("#missing-add")
+    assert tab.locator("#missing-add").bounding_box()["y"] > tab.locator("#missing-from-2").bounding_box()["y"]
     tab.click("[aria-label='Remove missing value 3']")
     assert tab.locator("#missing-rows .missing-rows__row").count() == 2
     # the first row has no button; removing the others leaves it to fill in
