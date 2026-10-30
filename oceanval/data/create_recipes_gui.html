@@ -124,9 +124,7 @@
   .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
   .lede-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
   .lede-row .lede { margin: 0; }
-  .btn--clear { flex: none; height: 44px; margin-bottom: -3px; padding: 0 20px; border: 1.5px solid var(--line-strong); background: var(--bg-alt); color: var(--ink-soft); font-size: 15px; white-space: nowrap; }
-  .btn--clear:hover:not(:disabled) { border-color: var(--btn-disabled); background: var(--teal-100); }
-  .btn--clear:disabled { border-color: var(--line); background: var(--bg); color: var(--muted-light); }
+  .btn--clear { flex: none; height: 44px; margin-bottom: -3px; padding: 0 20px; font-size: 15px; white-space: nowrap; }
   .settings__ticks { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 24px; padding: 0 22px 20px; }
   .g-label.is-required { font-weight: 500; }
   .year-required { margin-left: 6px; color: var(--red); font-size: 10.5px; font-weight: 700; text-transform: uppercase; }
@@ -272,7 +270,7 @@
     </div>
     <div class="lede-row">
       <p class="lede" id="lede-gridded"></p>
-      <button type="button" class="btn btn--ghost btn--clear" id="clear-gridded">Clear all selections</button>
+      <button type="button" class="btn btn--primary btn--clear" id="clear-gridded">Clear all selections</button>
     </div>
     <div class="card">
       <table>
@@ -340,7 +338,7 @@
     </div>
     <div class="lede-row">
       <p class="lede" id="lede-point"></p>
-      <button type="button" class="btn btn--ghost btn--clear" id="clear-point">Clear all selections</button>
+      <button type="button" class="btn btn--primary btn--clear" id="clear-point">Clear all selections</button>
     </div>
     <div class="card">
       <table>
@@ -503,13 +501,15 @@
   // times (see oceanval.output_years): the arrow of each year box lists the
   // years between, and any year can still be typed, in case those are wrong
   const outputYears = Array.isArray(context.output_years) ? context.output_years : null;
+  const outputYearList = outputYears
+    ? Array.from({ length: outputYears[1] - outputYears[0] + 1 }, (_, number) => outputYears[0] + number)
+    : null;
   if (outputYears) {
-    const years = Array.from({ length: outputYears[1] - outputYears[0] + 1 }, (_, number) => outputYears[0] + number);
     for (const name of ["point_start", "point_end", "clim_start", "clim_end"]) {
       const box = $(`s-${name}`);
       box.classList.add("is-year");
       box.placeholder = String(outputYears[name.endsWith("start") ? 0 : 1]);
-      withChoices(box, years);
+      withChoices(box, outputYearList);
     }
     $("g-output-years").textContent = outputYears[0] === outputYears[1]
       ? `The simulation's output is all in ${outputYears[0]}, from the times in its files.`
@@ -692,18 +692,19 @@
   // the user's own data as the window has it, or else as the app says it is
   const ownVertical = () => ownChipList.length
     ? ownChipList.some(({ chip }) => chip.dataset.opts.vertical) : Boolean(app && app.own_vertical);
-  const ownPoint = () => ownChipList.length
-    ? ownChipList.some(({ chip }) => chip.dataset.kind === "point") : Boolean(app && app.own_point);
   const verticalTicked = (kind) =>
     ownChipList.some(({ chip }) => chip.dataset.kind === kind && chip.dataset.opts.vertical)
     || rows.some((row) => row.status === "ok" && row.datasets.some(
       (dataset) => dataset.kind === kind && dataset.checked && dataset.opts.vertical));
   const needsThickness = () => !context.fvcom && (ownVertical() || KINDS.some(verticalTicked));
-  // the point time resolution and years are only for point datasets: ticked ones, or the user's own
-  const needsPointTimeRes = () => ownPoint()
+  // the years above are needed only by a point dataset without a first and last of its own
+  const lacksOwnYears = (dataset) => !dataset.typed.start || !dataset.typed.end;
+  const needsPointYears = () => (ownChipList.length
+    ? ownChipList.some(({ chip }) => chip.dataset.kind === "point" && lacksOwnYears(chip.dataset))
+    : Boolean(app && app.own_point))
     || rows.some((row) => row.status === "ok" && row.datasets.some(
-      (dataset) => dataset.checked && dataset.kind === "point"));
-  const THICKNESS_NEEDED = "A dataset is set to Vertical, so a thickness is needed: z_level, a cell thickness variable or a file.";
+      (dataset) => dataset.checked && dataset.kind === "point" && lacksOwnYears(dataset)));
+  const THICKNESS_NEEDED ="A dataset is set to Vertical, so a thickness is needed: z_level, a cell thickness variable or a file.";
 
   // the thickness is asked on the point datasets' page if only they are set
   // to Vertical, else on the page of the gridded datasets. Returns that page
@@ -740,8 +741,8 @@
   // the same rules create_recipes applies, so most problems show as you type
   function settingErrors() {
     const errors = {};
-    // needed for the point datasets ticked, which are given them
-    const required = needsPointTimeRes();
+    // needed by the point datasets ticked that have no years of their own
+    const required = needsPointYears();
     for (const name of ["point_start", "point_end"]) {
       const text = String(form[name]).trim();
       if (text && !isInteger(text)) errors[name] = "Years must be whole numbers.";
@@ -918,7 +919,7 @@
     if (!context.fvcom) for (const name of GROUPS.fvcom) delete errors[name];
     if (!needsThickness()) delete errors.thickness;
     $("row-subregions_file").hidden = form.subregions !== "file";
-    const required = needsPointTimeRes();
+    const required = needsPointYears();
     for (const name of ["point_start", "point_end"]) {
       $(`s-${name}-label`).classList.toggle("is-required", required);
       $(`s-${name}-required`).hidden = !required;
@@ -1201,6 +1202,13 @@
       autocomplete: "off",
       "aria-label": `${key === "start" ? "First" : "Last"} year of ${name}`,
     }));
+    if (outputYears) {
+      // the arrow lists the years of the simulation's output; any year can still be typed
+      for (const box of [controls.start, controls.end]) {
+        box.classList.add("is-year");
+        withChoices(box, outputYearList);
+      }
+    }
     const years = el("span", { class: "opts__years" },
       controls.start, el("span", { class: "dash", text: "–" }), controls.end);
     const yearsLabel = el("span", { class: "opts__label" }, "Years");
