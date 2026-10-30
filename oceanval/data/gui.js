@@ -494,128 +494,238 @@ const OceanValGUI = (() => {
     };
   }
 
-  // the model's variables (available, their names) and their long_names
-  // (longNames, by name), in a pop-out under a box that can be searched;
-  // the table is only built when it is first opened, as a model can have
-  // hundreds of variables. get() is what the box holds and set(text) puts a
-  // new value in it. With multi, several can be ticked and are summed as
-  // var1+var2; without, one at most. Returns the pop-out and sync(), which
-  // ticks what the box holds, or null if there are no variables. label and
-  // what word the pop-out's link and search box for variables that are not
-  // the model's. Shared by the create_recipes window and the oceanval
-  // window's Analyze and own data steps.
-  function variablesPicker({ available, longNames = {}, get, set, multi, className = "", label = "Select from the model's variables", what = "model's variables", searchHint = "Search variables, e.g. P*_Chl", noneText = "No variables match." }) {
-    if (!available.length) return null;
-    const search = el("input", {
-      class: "vars__search",
-      type: "search",
-      placeholder: searchHint,
-      spellcheck: "false",
-      autocomplete: "off",
-      autocapitalize: "off",
-      "aria-label": `Search the ${what} and their long names; * stands for any characters and ? for one`,
-    });
+  // ---- a box for variables' names, with the model's variables in a pop-out under it ----
+  // available are the variables' names and longNames their long_names, by
+  // name. Anything can be typed in input. Once it has the focus, a pop-out
+  // under it lists the variables, a tick, the name and the long_name, with
+  // those the box holds ticked and listed at the top (Selected). The box is
+  // the pop-out's search: the rows shown are those matching the part being
+  // typed (searchMatcher, so P*_Chl finds P1_Chl and P2_Chl): with multi, the
+  // part between the +s the caret is in, so "P1_Chl+" ticks P1_Chl and shows
+  // every row again; without, the whole box. A click on a row ticks it and
+  // adds it to the box (multi: summed with +, replacing a half-typed search;
+  // single: it is the box's value), a click on a ticked row or its x in
+  // Selected takes it out; every row is shown again after a click. extra
+  // (such as z_level) are rows at the top. Every change is an input event,
+  // as if it had been typed. Returns update(), for variables that are known
+  // later, and close(). The table is built when it is first shown, as a model
+  // can have hundreds of variables. Shared by the create_recipes window and
+  // the oceanval window's Analyze, Compare simulations and own data steps.
+  let openVariables = null;
+
+  function variableBox(input, { available = [], longNames = {}, multi = false, extra = [], what = "simulation output" } = {}) {
+    let names = available.slice();
+    let longs = { ...longNames };
+    let rows = [];
+    let built = false;
+    let active = -1;
+    // after a click every row is shown, until the box is typed in again
+    let showAll = false;
+    input.classList.add("has-vars");
+    input.setAttribute("aria-haspopup", "dialog");
+    input.setAttribute("aria-expanded", "false");
+
     const count = el("span", { class: "vars__count vars__shown", "aria-live": "polite" });
     const ticked = el("span", { class: "vars__count vars__ticked" });
-    const none = el("p", { class: "vars__none", text: noneText, hidden: "" });
+    const none = el("p", { class: "vars__none", text: "No variables match.", hidden: "" });
     const scroll = el("div", { class: "vars__scroll" });
-    // what the box holds, with long_names, pinned above the table
     const pickedList = el("ul");
     const picked = el("div", { class: "vars__picked", hidden: "" },
       el("p", { class: "vars__picked-title", text: "Selected" }), pickedList);
-    const body = el("div", { class: "vars__popover" },
-      el("div", { class: "vars__bar" }, search, count, ticked), picked, scroll);
-    const details = el("details", { class: `vars ${className}`.trim() },
-      el("summary", { text: label }), body);
-    let rows = [];
-    // the names in the box, which may include ones the model does not have;
-    // a single box may also hold z_level or a file, which are not variables
-    const named = () => multi
-      ? get().split("+").map((name) => name.trim()).filter(Boolean)
-      : [get().trim()].filter((name) => available.includes(name));
-    // the ticks show what the box holds, wherever it was changed
-    const syncTicks = () => {
-      const names = new Set(named());
-      for (const item of rows) item.box.checked = names.has(item.name);
-      ticked.textContent = multi && names.size > 1 ? `${names.size} ticked, summed` : "";
-      const used = named();
-      picked.hidden = !used.length;
-      pickedList.replaceChildren(...used.map((name) => {
-        const longName = longNames[name] || "";
-        const known = available.includes(name);
-        const remove = el("button", {
-          type: "button",
-          class: "vars__picked-remove",
-          title: `Remove ${name}`,
-          "aria-label": `Remove ${name}`,
-          text: "×",
-        });
-        remove.addEventListener("click", () => set(named().filter((other) => other !== name).join("+")));
-        return el("li", {},
-          el("span", { class: "vars__picked-text" },
-            el("span", { class: "vars__picked-name", text: name }),
-            known ? (longName ? ` ${longName}` : "") : el("span", { class: "vars__picked-note", text: " not in the simulation output" })),
-          remove);
-      }));
+    const popover = el("div", { class: "vars__popover", hidden: "" },
+      el("div", { class: "vars__bar" }, count, ticked), picked, scroll);
+    // a click in the pop-out (a row, an x, its scroll bar) leaves the focus in the box
+    popover.addEventListener("mousedown", (event) => event.preventDefault());
+
+    const everyName = () => [...extra.filter((name) => !names.includes(name)), ...names];
+    const isName = (name) => names.includes(name) || extra.includes(name);
+    // the names in the box: with multi, those between the +s (any, the model's or not); without, the box if it is a variable's
+    const inBox = () => multi
+      ? input.value.split("+").map((name) => name.trim()).filter(Boolean)
+      : [input.value.trim()].filter(isName);
+    // where the part searched starts and ends in the box, and what it is
+    const part = () => {
+      const text = input.value;
+      if (!multi) return { start: 0, end: text.length, text: text.trim() };
+      const caret = input.selectionStart === null ? text.length : input.selectionStart;
+      const start = caret > 0 ? text.lastIndexOf("+", caret - 1) + 1 : 0;
+      const next = text.indexOf("+", caret);
+      return { start, end: next < 0 ? text.length : next, text: text.slice(start, next < 0 ? text.length : next).trim() };
     };
-    // every word typed must be in the variable's name or its long_name (* and ? are wildcards)
-    const filter = () => {
-      const wanted = searchMatcher(search.value);
+    const isOpen = () => !popover.hidden;
+
+    // puts text in the box, as if typed, with the caret at its end
+    function setBox(text) {
+      input.value = text;
+      input.setSelectionRange(text.length, text.length);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    function choose(name) {
+      const used = inBox();
+      if (used.includes(name)) {
+        setBox(multi ? used.filter((other) => other !== name).join("+") : "");
+      } else if (!multi) {
+        setBox(name);
+        close();
+        return;
+      } else {
+        const { start, end, text } = part();
+        // a half-typed search is replaced; otherwise the name is added at the end
+        if (text && !isName(text)) {
+          const value = input.value;
+          setBox((value.slice(0, start) + name + value.slice(end)).split("+").map((one) => one.trim()).filter(Boolean).join("+"));
+        } else {
+          setBox([...used, name].join("+"));
+        }
+      }
+      showAll = true;
+      refresh();
+    }
+
+    function build() {
+      rows = everyName().map((name) => {
+        const longName = longs[name] || "";
+        const box = el("input", { type: "checkbox", class: "tick", tabindex: "-1", "aria-label": `Use ${name}` });
+        box.addEventListener("click", (event) => { event.preventDefault(); choose(name); });
+        const tr = el("tr", {}, el("td", {}, box), el("td", { text: name }), el("td", { text: longName }));
+        // a click anywhere on the row ticks it
+        tr.addEventListener("click", (event) => { if (event.target !== box) choose(name); });
+        return { name, box, fields: [name, longName], tr };
+      });
+      scroll.replaceChildren(
+        el("table", {},
+          el("thead", {}, el("tr", {}, el("th", { scope: "col", "aria-label": "Use" }),
+            el("th", { scope: "col", text: "Variable" }), el("th", { scope: "col", text: "long_name" }))),
+          el("tbody", {}, ...rows.map((row) => row.tr))),
+        none);
+      built = true;
+    }
+
+    function mark(index) {
+      const shown = rows.filter((row) => !row.tr.hidden);
+      rows.forEach((row) => row.tr.classList.remove("is-active"));
+      if (!shown.length) { active = -1; return; }
+      active = (index + shown.length) % shown.length;
+      const tr = shown[active].tr;
+      tr.classList.add("is-active");
+      // scrolled within the pop-out only, never the page
+      if (tr.offsetTop < scroll.scrollTop + 30) scroll.scrollTop = Math.max(0, tr.offsetTop - 30);
+      else if (tr.offsetTop + tr.offsetHeight > scroll.scrollTop + scroll.clientHeight) scroll.scrollTop = tr.offsetTop + tr.offsetHeight - scroll.clientHeight;
+    }
+
+    // the rows shown, the ticks and Selected, as the box is now
+    function refresh() {
+      if (!isOpen()) return;
+      // the part being typed is a search, not a choice, until it is a variable's name
+      const typing = part().text;
+      const used = inBox().filter((name) => isName(name) || showAll || name !== typing);
+      const usedSet = new Set(used);
+      const searched = showAll ? "" : typing;
+      // a single box holding a variable's name shows every row, with it ticked
+      const wanted = searchMatcher(!multi && isName(searched) ? "" : searched);
       let shown = 0;
-      for (const { tr, fields } of rows) {
-        tr.hidden = !wanted.test(fields);
-        if (!tr.hidden) shown += 1;
+      for (const row of rows) {
+        row.box.checked = usedSet.has(row.name);
+        row.tr.hidden = !wanted.test(row.fields);
+        if (!row.tr.hidden) shown += 1;
       }
       none.hidden = shown > 0;
       count.textContent = wanted.active ? `${shown} of ${rows.length}` : `${rows.length}`;
+      ticked.textContent = multi && usedSet.size > 1 ? `${usedSet.size} ticked, summed` : "";
+      picked.hidden = !used.length;
+      pickedList.replaceChildren(...used.map((name) => {
+        const remove = el("button", { type: "button", class: "vars__picked-remove", title: `Remove ${name}`, "aria-label": `Remove ${name}`, text: "×" });
+        remove.addEventListener("click", () => choose(name));
+        return el("li", {},
+          el("span", { class: "vars__picked-text" },
+            el("span", { class: "vars__picked-name", text: name }),
+            isName(name) ? (longs[name] ? ` ${longs[name]}` : "") : el("span", { class: "vars__picked-note", text: ` not in the ${what}` })),
+          remove);
+      }));
+      active = -1;
+      rows.forEach((row) => row.tr.classList.remove("is-active"));
+      placeList(popover, input);
+    }
+
+    function open() {
+      if (input.disabled || !everyName().length) return;
+      if (openVariables && openVariables !== close) openVariables();
+      if (!popover.isConnected) document.body.append(popover);
+      if (!built) build();
+      popover.hidden = false;
+      openVariables = close;
+      input.setAttribute("aria-expanded", "true");
+      scroll.scrollTop = 0;
+      refresh();
+    }
+
+    function close() {
+      if (popover.hidden) return;
+      popover.hidden = true;
+      showAll = false;
+      if (openVariables === close) openVariables = null;
+      input.setAttribute("aria-expanded", "false");
+    }
+
+    input.addEventListener("focus", open);
+    input.addEventListener("click", () => { if (isOpen()) refresh(); else open(); });
+    input.addEventListener("input", (event) => {
+      // typed: the search is what is typed again
+      if (event.isTrusted) showAll = false;
+      if (document.activeElement !== input) return;
+      if (isOpen()) refresh(); else open();
+    });
+    input.addEventListener("blur", close);
+    // the caret moved to another part
+    input.addEventListener("keyup", (event) => {
+      if (isOpen() && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { showAll = false; refresh(); }
+    });
+    input.addEventListener("keydown", (event) => {
+      if (!isOpen()) {
+        if (event.key === "ArrowDown") { event.preventDefault(); open(); }
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        mark(event.key === "ArrowDown" ? active + 1 : active < 0 ? -1 : active - 1);
+      } else if (event.key === "Enter" && active >= 0) {
+        event.preventDefault();
+        const shown = rows.filter((row) => !row.tr.hidden);
+        choose(shown[active].name);
+      } else if (event.key === "Escape") {
+        // the pop-out closes first, not the pop-out the box is in
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      } else if (event.key === "Tab") {
+        close();
+      }
+    });
+
+    return {
+      update({ available: newNames = [], longNames: newLongs = {} } = {}) {
+        names = newNames.slice();
+        longs = { ...newLongs };
+        built = false;
+        if (isOpen()) { build(); refresh(); }
+        if (!everyName().length) close();
+      },
+      close,
     };
-    search.addEventListener("input", filter);
-    search.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      if (search.value) {
-        search.value = "";
-        filter();
-      } else {
-        details.open = false;
-        details.querySelector("summary").focus();
-      }
-    });
-    details.addEventListener("toggle", () => {
-      if (!details.open) return;
-      if (!rows.length) {
-        rows = available.map((name) => {
-          const longName = longNames[name] || "";
-          const box = el("input", { type: "checkbox", class: "tick", "aria-label": `Use ${name}` });
-          // ticking several gives their sum, as var1+var2+var3
-          box.addEventListener("change", () => {
-            const names = multi ? named().filter((used) => used !== name) : [];
-            if (box.checked) names.push(name);
-            set(names.join("+"));
-          });
-          const tr = el("tr", {}, el("td", {}, box), el("td", { text: name }), el("td", { text: longName }));
-          // a click anywhere on the row ticks it, unless text is being selected
-          tr.addEventListener("click", (event) => {
-            if (event.target === box) return;
-            if (String(window.getSelection() || "")) return;
-            box.click();
-          });
-          return { name, box, fields: [name, longName], tr };
-        });
-        scroll.append(
-          el("table", {},
-            el("thead", {}, el("tr", {}, el("th", { scope: "col", "aria-label": "Use" }),
-              el("th", { scope: "col", text: "Variable" }), el("th", { scope: "col", text: "long_name" }))),
-            el("tbody", {}, ...rows.map((row) => row.tr))),
-          none);
-      }
-      search.value = "";
-      filter();
-      syncTicks();
-      search.focus();
-    });
-    return { details, sync: syncTicks };
   }
+
+  // a pop-out left behind when its box moves follows it; a scroll anywhere
+  // else on the page (such as a log the window writes to) leaves it alone
+  document.addEventListener("scroll", (event) => {
+    const popover = document.querySelector(".vars__popover:not([hidden])");
+    if (!popover || popover.contains(event.target)) return;
+    const box = document.querySelector('input.has-vars[aria-expanded="true"]');
+    if (!box) return;
+    const scrolled = event.target === document ? document.documentElement : event.target;
+    if (scrolled !== box && scrolled.contains && scrolled.contains(box)) placeList(popover, box);
+  }, true);
+  window.addEventListener("resize", () => { if (openVariables) openVariables(); });
 
   // ---- a box with a list of choices, opened by the arrow at its right-hand end ----
   // A box with yearChoices (years, or names: see withChoices) has a list of
@@ -627,6 +737,20 @@ const OceanValGUI = (() => {
   let choiceList = null;
   let choiceOwner = null;
   let choiceActive = -1;
+
+  // a fixed list put under its box (or over it, if there is more room there),
+  // and moved in from the window's edge if it is wider than the box
+  function placeList(list, input) {
+    const box = input.getBoundingClientRect();
+    const below = window.innerHeight - box.bottom;
+    list.style.minWidth = `${box.width}px`;
+    list.style.left = `${box.left}px`;
+    list.style.top = below >= 200 || below >= box.top ? `${box.bottom + 4}px` : "auto";
+    list.style.bottom = below >= 200 || below >= box.top ? "auto" : `${window.innerHeight - box.top + 4}px`;
+    list.hidden = false;
+    const wide = list.getBoundingClientRect().width;
+    list.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - wide - 8))}px`;
+  }
 
   function withChoices(input, choices) {
     input.yearChoices = choices;
@@ -682,16 +806,7 @@ const OceanValGUI = (() => {
       // mousedown, so the box keeps its focus
       onmousedown: (event) => { event.preventDefault(); pickChoice(choice); },
     }, (input.choiceHints || {})[choice] ? el("span", { class: "combo__hint", text: input.choiceHints[choice] }) : null)));
-    const box = input.getBoundingClientRect();
-    const below = window.innerHeight - box.bottom;
-    choiceList.style.minWidth = `${box.width}px`;
-    choiceList.style.left = `${box.left}px`;
-    choiceList.style.top = below >= 200 || below >= box.top ? `${box.bottom + 4}px` : "auto";
-    choiceList.style.bottom = below >= 200 || below >= box.top ? "auto" : `${window.innerHeight - box.top + 4}px`;
-    choiceList.hidden = false;
-    // a list wider than its box, beside the window's edge, is moved in
-    const wide = choiceList.getBoundingClientRect().width;
-    choiceList.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - wide - 8))}px`;
+    placeList(choiceList, input);
     // a blank box has none chosen (Number("") is 0, a choice of a depth's)
     const typed = input.value.trim();
     const at = typed === "" ? -1 : input.yearChoices.indexOf(input.onPick ? typed : Number(typed));
@@ -762,7 +877,7 @@ const OceanValGUI = (() => {
   document.addEventListener("focusin", (event) => forget(event.target), true);
 
   return {
-    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variablesPicker, searchMatcher,
+    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variableBox, searchMatcher,
     withChoices, choicesOpen, closeChoices,
   };
 })();

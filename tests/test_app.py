@@ -5310,9 +5310,9 @@ def test_the_files_skipped_start_empty(app, tmp_path):
 
 
 @pytest.mark.parametrize("tile", ["#home-viewer", "#home-analyze", "#home-validate"])
-def test_the_files_skipped_start_uncoloured_in_a_browser(browser, tmp_path, tile):
-    """Validate, Analyze and View simulation output share the box: it starts with restart, in no
-    colour and with no line about it."""
+def test_the_files_skipped_start_empty_in_a_browser(browser, tmp_path, tile):
+    """Validate, Analyze and View simulation output share the box: it starts
+    empty, so nothing is skipped unless the user types it."""
     write_simulation(tmp_path / "sim", tracers=True)
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
@@ -5325,16 +5325,14 @@ def test_the_files_skipped_start_uncoloured_in_a_browser(browser, tmp_path, tile
             page.click('button.choice[data-action="matchup_validate"]')
         amber = lambda: page.locator("#f-exclude").evaluate("node => node.classList.contains('is-detected')")
         page.wait_for_selector("#view-setup:not([hidden])")
-        page.wait_for_function("document.getElementById('f-exclude').value === 'restart'")
+        assert page.input_value("#f-exclude") == ""
         assert not amber()
-        assert "are skipped. Remove restart" not in page.inner_text("#m-simulation")
+        assert "Only file names are checked" not in page.inner_text("#m-simulation")
         page.fill("#f-exclude", "restart 5d")
         assert not amber()
         assert "skipped. Remove restart" not in page.inner_text("#m-simulation")
         assert "Only file names are checked" in page.inner_text("#m-simulation")
         page.fill("#f-exclude", "")
-        assert not amber()
-        page.fill("#f-exclude", "restart")
         assert not amber()
     finally:
         app.close()
@@ -8122,34 +8120,33 @@ def test_picking_the_variables_of_your_own_data_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#own-form-point")
 
         # the simulation's variables, searched by name or long_name
-        pick = page.locator("#o-point-model_variable-pick")
-        pick.locator("summary").wait_for()
-        pick.locator("summary").click()
-        page.fill("#o-point-model_variable-pick .vars__search", "potential temp")
-        pick.locator('input[aria-label="Use thetao"]').check()
+        shown = lambda: page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)")
+        page.wait_for_function("document.querySelector('#o-point-model_variable-pick').innerText.includes('Click in the box')")
+        page.fill("#o-point-model_variable", "potential temp")
+        assert shown() == ["thetao"]
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])").first.click()
         assert page.input_value("#o-point-model_variable") == "thetao"
         page.click("#own-next")
         page.wait_for_selector("#own-form-gridded")
 
-        # the same picker on the gridded step, where the box is typed in too
-        page.locator("#o-gridded-model_variable-pick summary").click()
-        page.locator('#o-gridded-model_variable-pick input[aria-label="Use thetao"]').check()
-        assert page.input_value("#o-gridded-model_variable") == "thetao"
+        # the same on the gridded step, where several are summed with +
+        page.wait_for_function("document.querySelector('#o-gridded-model_variable-pick').innerText.includes('Click in the box')")
+        page.fill("#o-gridded-model_variable", "thetao+")
+        assert "thetao" in shown()
         page.fill("#o-gridded-model_variable", "")
-        page.wait_for_function("!document.querySelector('#o-gridded-model_variable-pick input[aria-label=\"Use thetao\"]').checked")
 
         # nothing to pick from until there are observations
         assert page.locator("#o-gridded-obs_variable-pick").inner_text() == ""
         page.fill("#o-gridded-obs_path", "obs")
         picker = page.locator("#o-gridded-obs_variable-pick")
-        picker.locator("summary").wait_for()
+        page.wait_for_function("document.querySelector('#o-gridded-obs_variable-pick').innerText.includes('click in the box')")
         assert "variables in obs_2011.nc, the first of 2 files" in picker.inner_text()
-        picker.locator("summary").click()
-        page.fill("#o-gridded-obs_variable-pick .vars__search", "attenuation")
-        picker.locator('input[aria-label="Use kd490"]').check()
+        page.fill("#o-gridded-obs_variable", "attenuation")
+        assert shown() == ["kd490"]
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])").first.click()
         assert page.input_value("#o-gridded-obs_variable") == "kd490"
         # one is chosen, and the list closes
-        assert not picker.locator("details").evaluate("node => node.open")
+        assert shown() == []
 
         # a path with no data says so, and an address is not looked at
         page.fill("#o-gridded-obs_path", "nowhere")

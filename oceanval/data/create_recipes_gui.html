@@ -259,8 +259,7 @@
           <fieldset class="group" id="group-thickness">
             <legend>Model data info</legend>
             <div id="row-thickness">
-            <label class="g-row"><span class="g-label">Is the simulation z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" list="thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-            <div id="thickness-picker"></div>
+            <label class="g-row"><span class="g-label">Is the simulation z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
             <p class="group__msg" id="g-thickness"></p>
             </div>
           </fieldset>
@@ -474,7 +473,6 @@
 </div>
 
 <div class="toast" id="toast" role="status" hidden></div>
-<datalist id="thickness-options"></datalist>
 
 <script type="application/json" id="state">__OCEANVAL_STATE__</script>
 <script>
@@ -605,17 +603,12 @@
   const BOOLEANS = new Set(["overwrite", "ask", "pdf", "word"]);
   const timeRes = new Map(state.time_res_options.map((option) => [option.value, option]));
   const field = (name) => $(`s-${name}`);
-  // the pop-out of variables under the thickness box, whose ticks follow the box
-  let thicknessPicker = null;
-
   field("point_time_res").append(...state.time_res_options.map((option) =>
     el("option", { value: option.value, text: option.label })));
   // 1 to the machine's cores; a kept value beyond them is still shown, with its error
   const coreChoices = Array.from({ length: state.cpu_count || 0 }, (_, number) => String(number + 1));
   if (String(form.cores).trim() && !coreChoices.includes(String(form.cores))) coreChoices.push(String(form.cores));
   field("cores").append(...coreChoices.map((number) => el("option", { value: number, text: number })));
-  $("thickness-options").append(
-    el("option", { value: "z_level" }), ...state.available.map((name) => el("option", { value: name })));
   if (context.fvcom) {
     // matchup regrids FVCOM output onto z-levels, over the mesh's extent
     field("thickness").disabled = true;
@@ -624,19 +617,9 @@
       field(name).placeholder = name.endsWith("min") ? "mesh min" : "mesh max";
     }
   } else {
-    // a variable of the model's can be picked as the thickness, one only
-    thicknessPicker = variablesPicker({
-      get: () => String(form.thickness),
-      set: (value) => {
-        form.thickness = value;
-        setControl("thickness");
-        delete serverErrors.thickness;
-        summarise();
-      },
-      multi: false,
-      className: "vars--thickness",
-    });
-    if (thicknessPicker) $("thickness-picker").append(thicknessPicker.details);
+    // z_level and the model's variables are listed as the thickness is typed in, one only (a pick is an input event)
+    OceanValGUI.variableBox(field("thickness"), {
+      available: ["z_level", ...state.available.filter((name) => name !== "z_level")], longNames: state.long_names || {}, multi: false });
   }
 
   function setControl(name) {
@@ -649,7 +632,6 @@
     );
     // a long path can be wider than its box
     if (control.tagName === "INPUT" && !BOOLEANS.has(name)) control.title = control.value;
-    if (name === "thickness" && thicknessPicker) thicknessPicker.sync();
   }
 
   for (const name of FIELDS) {
@@ -990,8 +972,6 @@
     message: "",
     // an unidentified row takes its default ticks once it is filled in
     needsDefaults: !row.model_variable,
-    // the sync of each pop-out of the model's variables, one on each page the row is on
-    syncs: [],
     datasets: [
       ...row.gridded.map((dataset) => ({ ...dataset, kind: "gridded" })),
       ...row.point.map((dataset) => ({ ...dataset, kind: "point" })),
@@ -1054,8 +1034,6 @@
     }
     update(row);
     summarise();
-    // the pop-outs of variables, if they have been opened, tick what the box holds
-    row.syncs.forEach((sync) => sync());
   }
 
   // the row's simulation variable box on the page shown, or on the other
@@ -1352,9 +1330,9 @@
   const ownChips = (row, kind) =>
     row.own.filter((entry) => entry.kind === kind).map((entry) => ownChip(row, entry));
 
-  // the model's variables, in a pop-out under a box (see OceanValGUI.variablesPicker)
-  function variablesPicker(options) {
-    return OceanValGUI.variablesPicker({ available: state.available, longNames: state.long_names || {}, ...options });
+  // the model's variables, listed as a box is typed in (see OceanValGUI.variableBox)
+  function variableBox(input, options) {
+    return OceanValGUI.variableBox(input, { available: state.available, longNames: state.long_names || {}, ...options });
   }
 
   const DATASET_HEADS = { gridded: "What gridded datasets do you want?", point: "What point datasets do you want?" };
@@ -1388,12 +1366,11 @@
     });
     input.addEventListener("input", () => setValue(row, input.value));
     const msg = el("p", { class: "field__msg", id: `message-${kind}-${row.variable}` });
-    // any number of the model's variables can be ticked
-    const picker = variablesPicker({ get: () => row.value, set: (value) => setValue(row, value), multi: true });
-    if (picker) row.syncs.push(picker.sync);
+    // any number of the model's variables can be summed, as a+b (a pick is an input event, so setValue takes it)
+    variableBox(input, { multi: true });
     const cells = [
       titleCell(row),
-      el("td", { "data-label": "What is the simulation variable name?" }, input, msg, picker ? picker.details : null),
+      el("td", { "data-label": "What is the simulation variable name?" }, input, msg),
       datasetsCell(DATASET_HEADS[kind],
         [...row.dom.chips.filter((chip) => chip.dataset.kind === kind), ...ownChips(row, kind)],
         `No ${kind} dataset for ${row.title}`),
@@ -1472,7 +1449,7 @@
   }
 
   // ---- pop-outs close when you click outside them, or press Escape ----
-  const POPOVERS = "details.vars[open], details.opts__help[open]";
+  const POPOVERS = "details.opts__help[open]";
   document.addEventListener("click", (event) => {
     const path = event.composedPath();
     for (const details of document.querySelectorAll(POPOVERS)) {

@@ -1347,21 +1347,26 @@ def open_analyze_variables_in_browser(browser, tmp_path):
 
 
 def test_the_variable_searches_take_wildcards_in_a_browser(browser, tmp_path):
-    """P*_Chl finds P1_Chl and P2_Chl in a row's pop-out and in Add multiple variables."""
+    """P*_Chl finds P1_Chl and P2_Chl as a row's box is typed in and in Add multiple variables."""
     page, app = open_analyze_variables_in_browser(browser, tmp_path)
     try:
-        pop_out = page.locator("#av-rows > tr").first.locator("details.vars")
-        pop_out.locator("summary").click()
-        # the box is cleared and focused as the pop-out opens
-        page.wait_for_function("() => document.activeElement && document.activeElement.classList.contains('vars__search')")
-        search = pop_out.locator(".vars__search")
-        shown = lambda: pop_out.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents()
-        search.fill("P*_Chl")
+        box = page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input")
+        assert page.locator("details.vars").count() == 0
+        shown = lambda: page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)")
+        box.fill("P*_Chl")
         assert shown() == ["P1_Chl", "P2_Chl"]
-        search.fill("e3?")
+        box.fill("e3?")
         assert shown() == ["e3t"]
-        search.fill("P*_Chl e3t")
+        box.fill("P*_Chl e3t")
         assert shown() == []
+        # after a + every row is shown, with P1_Chl ticked, and the next part is searched
+        box.fill("P1_Chl+")
+        assert len(shown()) == 4
+        assert page.locator('.vars__popover:not([hidden]) input[aria-label="Use P1_Chl"]').is_checked()
+        box.press_sequentially("P2")
+        assert shown() == ["P2_Chl"]
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])").first.click()
+        assert box.input_value() == "P1_Chl+P2_Chl"
 
         page.click("#av-add-multiple")
         page.wait_for_selector("#multi-dialog:not([hidden])")

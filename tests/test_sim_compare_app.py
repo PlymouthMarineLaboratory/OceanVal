@@ -1125,7 +1125,7 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
         app.close()
 
 
-def test_a_simulation_row_starts_skipping_restart_files_uncoloured(browser, tmp_path):
+def test_a_simulation_row_starts_skipping_nothing(browser, tmp_path):
     write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
     app = App(cwd=str(tmp_path))
     url = app.start()
@@ -1136,8 +1136,8 @@ def test_a_simulation_row_starts_skipping_restart_files_uncoloured(browser, tmp_
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
-        # every row starts with it, in no colour, but an unused row is not a simulation to name
-        assert [page.input_value(f"#sc-exclude_{n}") for n in (1, 2)] == ["restart", "restart"]
+        # every row starts with nothing skipped, and an unused row is not a simulation to name
+        assert [page.input_value(f"#sc-exclude_{n}") for n in (1, 2)] == ["", ""]
         assert not amber(1) and not amber(2)
         assert page.is_hidden("#sc-row-3")
         assert "skipped" not in page.inner_text("#sc-m-1")
@@ -1147,7 +1147,7 @@ def test_a_simulation_row_starts_skipping_restart_files_uncoloured(browser, tmp_
         assert "skipped" not in page.inner_text("#sc-m-1")
         # a row added starts the same way
         page.click("#sc-add")
-        assert page.input_value("#sc-exclude_3") == "restart" and not amber(3)
+        assert page.input_value("#sc-exclude_3") == "" and not amber(3)
         # changing it
         page.click("#sc-row-1 summary")
         page.fill("#sc-exclude_1", "restart 5d")
@@ -1206,13 +1206,11 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.locator("#scv-add").bounding_box()["y"] > page.locator("#scv-rows > tr").last.bounding_box()["y"]
         page.locator("#scv-rows > tr").last.locator(".analyze-remove").click()
         assert page.locator("#scv-rows > tr").count() == 1
-        # a simulation's pop-out is searched with wildcards
-        pop_out = page.locator("#scv-rows > tr").first.locator("details.vars").first
-        pop_out.locator("summary").click()
-        page.wait_for_function("() => document.activeElement && document.activeElement.classList.contains('vars__search')")
-        pop_out.locator(".vars__search").fill("P*_Chl")
-        assert pop_out.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents() == ["P1_Chl", "P2_Chl"]
-        pop_out.locator("summary").click()
+        # a simulation's box lists its variables as it is typed in, with wildcards
+        assert page.locator("details.vars").count() == 0
+        cells.nth(1).fill("P*_Chl")
+        assert page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)") == ["P1_Chl", "P2_Chl"]
+        cells.nth(1).press("Escape")
         cells.nth(0).fill("Temperature")
         cells.nth(1).fill("thetao")
         cells.nth(2).fill("thetao")

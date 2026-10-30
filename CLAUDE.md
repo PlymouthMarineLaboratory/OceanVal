@@ -210,15 +210,25 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   the setup answer starts `App._read_own_simulation`, a thread (`netcdf_lock.LOCK`, `create_recipes._variable_long_names`, keyed by
   `_simulation(arguments)`, dropped by `_own_sim_number`/`_reset_count`) whose answer is `state.own.simulation`
   (`status` reading/done/failed, `read`, and `available`/`long_names` only while an own data view is shown). **Simulation variable** (both
-  kinds) gets `OceanValGUI.variablesPicker(multi)` in `#o-<kind>-model_variable-pick`; `add_own_data`/`own_future` refuse a name not in
+  kinds) is an `OceanValGUI.variableBox(multi)` (`listIn`; the note under it in `#o-<kind>-model_variable-pick`); `add_own_data`/`own_future` refuse a name not in
   `available` (`_unknown_simulation_variable`), but only once status is `done`, so a slow or failed read never blocks. `own_data.check_entry`
-  itself knows nothing of the simulation. **Observation variable** (gridded) gets a single-select picker over `POST /api/own_inspect`
+  itself knows nothing of the simulation. **Observation variable** (gridded) is a single `variableBox` over `POST /api/own_inspect`
   (`App.own_inspect` → `recipe_checks.inspect_gridded("disk")`: a file, a directory or an `.nc` pattern, the first file's variables), asked
   500 ms after `obs_path` stops changing (token-guarded `lookAtObservations`); never for a URL or the THREDDS tick, and its errors are notes,
-  not refusals. A new box that offers the simulation's or observations' variables goes through these slots (`setPick`/`setBox`).
-  **Every search of variables (the pop-out picker, the viewer's `#vw-search`, Analyze's Add multiple variables) goes through
+  not refusals. A new box that offers the simulation's or observations' variables goes through `listIn`/`setPick`.
+  **Every search of variables (the variable boxes, the viewer's `#vw-search`, Analyze's Add multiple variables) goes through
   `OceanValGUI.searchMatcher`**: words are all required; a plain word is a substring of the fields joined, a word with `*`/`?` is
   a wildcard matched within one field (never from a name into its long_name), unanchored, all else literal. A new search must use it.
+- **A variable is asked for in one box, `OceanValGUI.variableBox(input, {available, longNames, multi, extra})`** (`data/gui.js`; the user's
+  rule, 2026-10-30: no "Select from the model's variables" link any more): the box opens the old pop-out (`.vars__popover`, fixed, placed
+  under the box: a tick, Variable, long_name, Selected at the top, the counts) on focus, and **the box is its search**: the rows shown match the
+  part being typed (`searchMatcher`; with `multi`, the part between the `+`s the caret is in). Names in the box are ticked, so `P1_Chl+` typed
+  ticks P1_Chl and shows every row; `+` is just typed (never completed). A click on a row ticks it and adds it (replacing a half-typed search,
+  else `+name` at the end; single: the value, and the pop-out closes); on a ticked row or its × it is taken out; every row is shown after a
+  click. The pop-out's `mousedown` is prevented so the focus stays in the box; blur and Escape close it. Every change is an `input` event, so
+  the caller's input handler takes it. A scroll elsewhere on the page never closes it; an ancestor's scroll moves it with the box. Used by
+  the Analyze/Compare variable rows, the Analyze and recipes thickness (single, z_level first), the own data steps and the recipes window's
+  rows; a new variable box must use it.
 - The own data step can save an entry as a recipe too ("Add this data for use now and in
   future"): view `own_future` (`App.own_future`/`own_future_save`), built from the entry by
   `recipe_forms.from_own_data`/`missing_boxes`/`with_boxes`, assumptions shown in amber.
@@ -740,9 +750,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   Compare); typing or picking sets the flag off and the value is the user's for good, and a directory without a layout empties a
   value OceanVal filled. The probe is asked again once it fills, to count the files.
 - Both windows inline `data/gui.css` and `data/gui.js` (shared look and helpers, including
-  `OceanValGUI.variablesPicker`, the pop-out of the model's variables) via
+  `OceanValGUI.variableBox`, the box that opens the pop-out of the model's variables) via
   `recipes_gui.render_page`. The browser tests (`browser` fixture in `tests/conftest.py`) skip
-  where playwright/Chromium is missing, as in CI.
+  where playwright/Chromium is missing, as in CI (`pip install playwright && python -m playwright install chromium` runs them).
 
 ### Network dependency for gridded recipes
 

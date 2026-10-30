@@ -142,7 +142,6 @@
   .own-err:empty { display: none; }
   /* under the simulation and observation variable boxes: a note on what is being read, and the pop-out of variables */
   .own-pick { min-width: 0; }
-  .own-pick .vars { margin-top: 4px; }
   .own-optional { grid-column: 1 / -1; }
   .own-optional > summary { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--teal-700); font-weight: 600; cursor: pointer; }
   .own-optional > summary:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus); }
@@ -953,7 +952,6 @@
   .ag-card .g-row { margin: 0; }
   .ag-card .span-row { display: flex; align-items: center; gap: 6px; }
   .ag-card .span-row .s-input { min-width: 0; flex: 1; }
-  .ag-card .vars { margin-top: 4px; }
   .ag-card .group__msg { margin: 0; }
   .ag-map { position: relative; height: 260px; margin-top: auto; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: var(--radius-sm); }
   .ag-map.is-drawn { border-color: transparent; }
@@ -2446,10 +2444,8 @@
         <tbody id="clim-body"></tbody>
       </table>
       <div class="analyze-thickness" id="clim-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" list="clim-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-        <div id="clim-thickness-picker"></div>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
         <p class="analyze-msg" id="clim-thickness-msg"></p>
-        <datalist id="clim-thickness-options"></datalist>
       </div>
       <div class="analyze-stations" id="clim-area" hidden>
         <h3>Regional subdomains and area <span class="own-opt">Optional</span></h3>
@@ -2557,10 +2553,8 @@
         <tbody id="chg-body"></tbody>
       </table>
       <div class="analyze-thickness" id="chg-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" list="chg-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-        <div id="chg-thickness-picker"></div>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
         <p class="analyze-msg" id="chg-thickness-msg"></p>
-        <datalist id="chg-thickness-options"></datalist>
       </div>
     </div>
     <div class="picker__foot">
@@ -2582,10 +2576,8 @@
       <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
       <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years as a map of position along the line by year, of the annual means or of their change from the first year (or the first rolling mean), with an optional rolling mean.</p>
       <div class="analyze-thickness" id="trans-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" list="trans-thickness-options" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-        <div id="trans-thickness-picker"></div>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
         <p class="analyze-msg" id="trans-thickness-msg"></p>
-        <datalist id="trans-thickness-options"></datalist>
         <p class="analyze-dialog__intro">A vertical section needs to know where each cell is. With <code>z_level</code> the model's levels are the depths. With a thickness, each cell is placed at its depth, from the top of the water column, and the section is put on evenly spaced depths.</p>
       </div>
       <div class="transect-vars" id="trans-body"></div>
@@ -5235,19 +5227,9 @@
       item.filled = false;
       [name, model].forEach((box) => box.classList.remove("is-oceanval"));
     };
+    // the simulation's variables are listed as the box is typed in (a pick is an input event, so the handler below takes it)
     const picked = analyzePicker();
-    const picker = OceanValGUI.variablesPicker({
-      available: picked.available, longNames: picked.long_names, multi: true,
-      get: () => item.model_variable,
-      set: (value) => {
-        item.model_variable = model.value = value;
-        item.auto = false;
-        yours();
-        if (item.sync) item.sync();
-        refreshAnalyzeVariables();
-      },
-    });
-    item.sync = picker ? picker.sync : null;
+    OceanValGUI.variableBox(model, { available: picked.available, longNames: picked.long_names, multi: true });
     // the arrow of the name box lists the preset names; one that is chosen fills in the model variable the matchups would use for it
     const presets = state.analyze.presets || [];
     if (presets.length) {
@@ -5266,9 +5248,8 @@
           // the model name the last choice filled in is not this one's
           if (item.auto) item.model_variable = model.value = "";
           item.auto = false;
-          item.hint = `OceanVal could not tell which model variable holds ${value}: choose it below.`;
+          item.hint = `OceanVal could not tell which model variable holds ${value}: type its name in the box.`;
         }
-        if (item.sync) item.sync();
         refreshAnalyzeVariables();
       };
     }
@@ -5277,7 +5258,6 @@
       item.model_variable = model.value;
       item.auto = false;
       yours();
-      if (item.sync) item.sync();
       refreshAnalyzeVariables();
     });
     const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: "Remove this variable", "aria-label": "Remove this variable" });
@@ -5292,7 +5272,7 @@
     item.modelBox = model;
     item.tr = el("tr", {},
       el("td", { "data-label": "Environmental variable" }, name, item.nameMsg),
-      el("td", { "data-label": "Variable name in the simulation" }, model, item.modelMsg, picker ? picker.details : null),
+      el("td", { "data-label": "Variable name in the simulation" }, model, item.modelMsg),
       el("td", {}, remove));
     return item;
   }
@@ -6430,7 +6410,9 @@
     return "";
   }
 
-  let thicknessPicker = null;
+  // the thickness boxes list z_level, then the simulation's variables that look like thicknesses, then the rest, as they are typed in
+  const thicknessBoxes = Object.fromEntries(["clim", "chg", "trans"].map((prefix) =>
+    [prefix, OceanValGUI.variableBox($(`${prefix}-thickness`), { multi: false })]));
   function fillThickness(form, kind) {
     const prefix = dialogPrefix(kind);
     const box = $(`${prefix}-thickness`);
@@ -6439,24 +6421,12 @@
     // what it might be is only a hint: nothing is chosen for the user
     box.placeholder = `e.g. ${suggested || "e3t"}, or ${state.analyze.z_level}`;
     const picked = analyzePicker();
-    $(`${prefix}-thickness-options`).replaceChildren(el("option", { value: state.analyze.z_level }),
-      ...picked.available.filter((name) => /e3|thick/i.test(name)).map((name) => el("option", { value: name })));
-    thicknessPicker = OceanValGUI.variablesPicker({
-      available: picked.available, longNames: picked.long_names, multi: false,
-      get: () => box.value,
-      set: (value) => {
-        box.value = value;
-        if (thicknessPicker) thicknessPicker.sync();
-      },
+    const thick = picked.available.filter((name) => /e3|thick/i.test(name));
+    thicknessBoxes[prefix].update({
+      available: [state.analyze.z_level, ...thick, ...picked.available.filter((name) => !thick.includes(name))],
+      longNames: picked.long_names,
     });
-    $(`${prefix}-thickness-picker`).replaceChildren(...(thicknessPicker ? [thicknessPicker.details] : []));
     $(`${prefix}-thickness-msg`).textContent = "";
-  }
-
-  for (const prefix of ["clim", "chg", "trans"]) {
-    $(`${prefix}-thickness`).addEventListener("input", () => {
-      if (thicknessPicker) thicknessPicker.sync();
-    });
   }
 
   // ---- the stations of the time series ----
@@ -6907,21 +6877,12 @@
     $(`${prefix}-confirm`).addEventListener("click", confirmAnalyzeDialog);
     $(`${prefix}-dialog`).addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      // a pop-out of variables inside it closes first
-      if (event.target.closest && event.target.closest("details.vars[open]")) return;
       event.preventDefault();
       // a list of years closes first
       if (choicesOpen()) { closeChoices(); return; }
       closeAnalyzeDialog();
     });
   }
-
-  // a pop-out of the model's variables closes when anything else is clicked
-  document.addEventListener("mousedown", (event) => {
-    document.querySelectorAll("details.vars[open]").forEach((details) => {
-      if (!details.contains(event.target)) details.open = false;
-    });
-  });
 
   async function runAnalysis() {
     await startAnalysis("api/analyze_run", "The analysis could not be started.");
@@ -7032,10 +6993,9 @@
       reset = () => { input.value = ""; };
       mark = (bad) => { input.classList.toggle("is-invalid", bad); input.setAttribute("aria-invalid", String(bad)); };
       wrapper.append(label(), input);
-      // the pick-list of variables goes under these two boxes (see setPick)
+      // what these two boxes list as they are typed in is said under them (see setPick)
       if (field.name === "model_variable" || field.name === "obs_variable") {
         slot = el("div", { class: "own-pick", id: `${id}-pick` });
-        input.addEventListener("input", () => { if (own[kind][field.name].pickSync) own[kind][field.name].pickSync(); });
       }
     }
     wrapper.append(help, error);
@@ -7046,7 +7006,7 @@
     wrapper.addEventListener("input", clear);
     wrapper.addEventListener("change", clear);
     own[kind][field.name] = {
-      field, wrapper, input, read, reset, clear, slot, pickSync: null, pickSignature: null,
+      field, wrapper, input, read, reset, clear, slot, variables: null, pickSignature: null,
       show(text) { error.textContent = text; mark(true); },
       optional: !field.required,
     };
@@ -7099,47 +7059,39 @@
     if (kind === "gridded") lookAtObservations();
   }
 
-  // ---- the pick-lists under the variable boxes ----
+  // ---- the variables listed as the variable boxes are typed in ----
   // Simulation variable: the simulation's variables, which are read in the
-  // background once the simulation step is answered (state.own.simulation) and
-  // picked as in the recipes window, several summed as a+b. Observation
-  // variable: the variables of the first file of gridded observations on this
-  // machine, looked at once the path is typed. The boxes can still be typed in:
-  // what is wrong is said when the data is added.
+  // background once the simulation step is answered (state.own.simulation),
+  // several summed as a+b. Observation variable: the variables of the first
+  // file of gridded observations on this machine, looked at once the path is
+  // typed. Anything can still be typed: what is wrong is said when the data
+  // is added. The slot under the box says what is listed, or why nothing is.
   const note = (text) => el("span", { class: "own-help", text });
 
   function setPick(control, ...children) {
-    control.pickSync = null;
     control.slot.replaceChildren(...children);
   }
 
-  // puts a value in a box as if it was typed, so its error goes
-  function setBox(control, value) {
-    control.input.value = value;
-    control.input.dispatchEvent(new Event("input", { bubbles: true }));
+  // the box's list of variables (OceanValGUI.variableBox), made once
+  function listIn(control, multi, available = [], longNames = {}) {
+    if (!control.variables) control.variables = OceanValGUI.variableBox(control.input, { multi });
+    control.variables.update({ available, longNames });
   }
 
   function refreshSimulationPick(kind) {
     const control = own[kind].model_variable;
     const found = state.own.simulation;
     const signature = `${found.status}:${found.read}`;
-    if (control.pickSignature === signature) {
-      if (control.pickSync) control.pickSync();
-      return;
-    }
+    if (control.pickSignature === signature) return;
     control.pickSignature = signature;
+    const done = found.status === "done";
+    listIn(control, true, done ? found.available : [], done ? found.long_names : {});
     if (found.status === "reading") return setPick(control, note("Reading the simulation's variables…"));
     if (found.status === "failed") {
       return setPick(control, note("The simulation's variables could not be read, so type the name."));
     }
-    const picker = found.status === "done" ? OceanValGUI.variablesPicker({
-      available: found.available, longNames: found.long_names, multi: true,
-      label: "Select from the simulation's variables", what: "simulation's variables",
-      get: () => control.input.value,
-      set: (value) => setBox(control, value),
-    }) : null;
-    setPick(control, ...(picker ? [picker.details] : []));
-    if (picker) control.pickSync = picker.sync;
+    setPick(control, ...(done && found.available.length
+      ? [note(`Click in the box to choose from the simulation's ${plural(found.available.length, "variable")}; several are summed with +.`)] : []));
   }
 
   const observed = { path: null, token: 0, timer: null };
@@ -7150,7 +7102,7 @@
     const remote = own.gridded.thredds.read() || /^(https?|ftp):\/\//i.test(path);
     clearTimeout(observed.timer);
     if (!path || remote) {
-      if (observed.path !== null) setPick(control);
+      if (observed.path !== null) { setPick(control); listIn(control, false); }
       observed.path = null;
       observed.token += 1;
       return;
@@ -7159,23 +7111,17 @@
     observed.path = path;
     const token = ++observed.token;
     setPick(control, note("Reading the observations…"));
+    listIn(control, false);
     observed.timer = setTimeout(async () => {
       const reply = await post("api/own_inspect", { obs_path: path });
       if (token !== observed.token) return;
       if (!reply.ok) return setPick(control, ...(reply.error ? [note(reply.error)] : []));
       const longNames = Object.fromEntries(reply.variables.map((variable) => [variable.name, variable.long_name || ""]));
-      const picker = OceanValGUI.variablesPicker({
-        available: reply.variables.map((variable) => variable.name), longNames, multi: false,
-        label: "Select from the observations' variables", what: "observations' variables",
-        get: () => control.input.value,
-        set: (value) => { setBox(control, value); picker.details.open = false; },
-      });
+      listIn(control, false, reply.variables.map((variable) => variable.name), longNames);
       const file = reply.sample.split("/").pop();
       const count = reply.variables.length;
       setPick(control,
-        note(`${plural(count, "variable")} in ${file}${reply.files > 1 ? `, the first of ${reply.files} files` : ""}`),
-        picker.details);
-      control.pickSync = picker.sync;
+        note(`${plural(count, "variable")} in ${file}${reply.files > 1 ? `, the first of ${reply.files} files` : ""}: click in the box to choose one.`));
     }, 500);
   }
 
@@ -10870,7 +10816,7 @@
 
   function scVariableRow(row) {
     const sims = scState().sims;
-    const item = { name: row.name || "", models: { ...(row.models || {}) }, filled: Boolean(row.filled), server: {}, hint: "", auto: {}, boxes: {}, msgs: {}, syncs: {} };
+    const item = { name: row.name || "", models: { ...(row.models || {}) }, filled: Boolean(row.filled), server: {}, hint: "", auto: {}, boxes: {}, msgs: {} };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Temperature",
       spellcheck: "false", autocomplete: "off", "aria-label": "Environmental variable" });
     if (item.filled) name.classList.add("is-oceanval");
@@ -10881,31 +10827,19 @@
       const box = el("input", { class: "s-input is-mono", type: "text", value: item.models[sim.name] || "", placeholder: "e.g. thetao",
         spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": `The model variable holding it in ${sim.name}` });
       if (item.filled && item.models[sim.name]) box.classList.add("is-oceanval");
+      // the simulation's variables are listed as the box is typed in (a pick is an input event, taken below)
       const picked = scPicked(sim);
-      const picker = OceanValGUI.variablesPicker({
-        available: picked.available, longNames: picked.long_names, multi: true,
-        get: () => item.models[sim.name] || "",
-        set: (value) => {
-          item.models[sim.name] = box.value = value;
-          item.auto[sim.name] = false;
-          box.classList.remove("is-oceanval");
-          yours();
-          if (picker && picker.sync) picker.sync();
-          refreshScVariables();
-        },
-      });
+      OceanValGUI.variableBox(box, { available: picked.available, longNames: picked.long_names, multi: true });
       item.boxes[sim.name] = box;
-      item.syncs[sim.name] = picker ? picker.sync : null;
       item.msgs[sim.name] = el("p", { class: "analyze-msg" });
       box.addEventListener("input", () => {
         item.models[sim.name] = box.value;
         item.auto[sim.name] = false;
         box.classList.remove("is-oceanval");
         yours();
-        if (item.syncs[sim.name]) item.syncs[sim.name]();
         refreshScVariables();
       });
-      return el("td", { class: "sc-model-cell", "data-label": sim.name }, box, item.msgs[sim.name], picker ? picker.details : null);
+      return el("td", { class: "sc-model-cell", "data-label": sim.name }, box, item.msgs[sim.name]);
     });
     // the arrow of the name box lists the names recipes know; choosing one fills in each simulation's model variable, where it is empty
     const first = sims[0];
@@ -10927,9 +10861,8 @@
             item.auto[sim.name] = false;
             missing.push(sim.name);
           }
-          if (item.syncs[sim.name]) item.syncs[sim.name]();
         });
-        item.hint = missing.length ? `OceanVal could not tell which model variable holds ${value} in ${missing.join(", ")}: choose it there.` : "";
+        item.hint = missing.length ? `OceanVal could not tell which model variable holds ${value} in ${missing.join(", ")}: type its name there.` : "";
         refreshScVariables();
       };
     }

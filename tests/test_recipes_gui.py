@@ -1121,7 +1121,33 @@ class TestHosting:
     # test_the_window_in_a_browser
 
 
-class TestModelVariablesTable:
+# the pop-out of the model's variables under the box that has the focus (OceanValGUI.variableBox)
+SHOWN = """() => {
+    const popover = document.querySelector(".vars__popover:not([hidden])");
+    if (!popover) return null;
+    return [...popover.querySelectorAll("tbody tr:not([hidden])")].map((row) => [...row.cells].slice(1).map((cell) => cell.textContent));
+}"""
+TICKED = """() => [...document.querySelectorAll(".vars__popover:not([hidden]) tbody input:checked")]
+    .map((box) => box.closest("tr").cells[1].textContent)"""
+SELECTED = """() => [...document.querySelectorAll(".vars__popover:not([hidden]) .vars__picked:not([hidden]) li")]
+    .map((item) => item.firstChild.textContent)"""
+
+
+def shown(page):
+    """The names of the rows shown in the open pop-out, or None if none is open."""
+    rows = page.evaluate(SHOWN)
+    return None if rows is None else [name for name, _long_name in rows]
+
+
+def row(page, name):
+    return page.locator(".vars__popover:not([hidden]) tbody tr", has=page.locator(f'input[aria-label="Use {name}"]'))
+
+
+class TestModelVariablesBox:
+    """Each simulation variable box opens the old pop-out of the model's
+    variables, which it is the search for: the part being typed, after the
+    last + before the caret."""
+
     def page(self, long_names, available=("thetao", "so", "time")):
         return RecipePage(
             recipe_rows({"temperature": "thetao"}, "global"),
@@ -1130,80 +1156,54 @@ class TestModelVariablesTable:
             lambda *chosen: "/out/matchup.py",
         )
 
-    def test_each_model_variable_box_has_a_pop_out_of_names_and_long_names(self, browser):
+    def test_the_box_opens_a_table_of_names_and_long_names(self, browser):
         recipe_page = self.page({"thetao": "Sea water temperature", "so": "Sea water salinity"})
         url = recipe_page.start()
         try:
             page = browser.new_page()
             page.goto(url)
-
-            first = page.locator("#rows-gridded details.vars").first
-            # a box on each page the row is on: those with datasets of that kind
+            # one box on each page the row is on, and no link to a pop-out beside it
             rows = recipe_rows({"temperature": "thetao"}, "global")
-            for kind in ("gridded", "point"):
-                assert page.locator(f"#rows-{kind} details.vars").count() == sum(bool(row[kind]) for row in rows)
-            assert first.locator(".vars__popover").is_hidden()
-            first.locator("summary").click()
-            cells = first.locator(".vars__popover tbody tr").evaluate_all(
-                "rows => rows.map(r => [...r.cells].slice(1).map(c => c.textContent))"
-            )
-            assert cells == [
-                ["so", "Sea water salinity"],
-                ["thetao", "Sea water temperature"],
-                ["time", ""],
-            ]
-            assert first.locator(".vars__popover").is_visible()
+            assert page.locator("#rows-gridded .field__input").count() == sum(bool(r["gridded"]) for r in rows)
+            assert page.locator("details.vars").count() == 0
+            assert page.evaluate(SHOWN) is None
+            box = page.locator("#rows-gridded .field__input").first
+            box.fill("")
+            box.click()
+            assert page.evaluate(SHOWN) == [["so", "Sea water salinity"], ["thetao", "Sea water temperature"], ["time", ""]]
+            assert page.locator(".vars__popover:not([hidden]) .vars__shown").text_content() == "3"
+            # it sits under the box (or over it, where there is more room), never on it
+            pop, under = page.locator(".vars__popover:not([hidden])").bounding_box(), box.bounding_box()
+            assert pop["y"] >= under["y"] + under["height"] or pop["y"] + pop["height"] <= under["y"]
+            # and closes when the box loses the focus, or on Escape
+            page.locator("h1").first.click()
+            assert page.evaluate(SHOWN) is None
+            box.click()
+            box.press("Escape")
+            assert page.evaluate(SHOWN) is None
         finally:
             recipe_page.close()
 
-    def test_the_pop_out_is_alphabetical_whatever_the_case(self, browser):
-        recipe_page = self.page({}, available=("thetao", "Chl", "so", "O2"))
-        url = recipe_page.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            first.locator("summary").click()
-            names = first.locator("tbody tr td:nth-child(2)").all_text_contents()
-            assert names == ["Chl", "O2", "so", "thetao"]
-        finally:
-            recipe_page.close()
-
-    def test_the_pop_out_can_be_searched_by_name_or_long_name(self, browser):
+    def test_what_is_typed_searches_the_names_and_long_names(self, browser):
         recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
         url = recipe_page.start()
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            first.locator("summary").click()
-            search = first.locator(".vars__search")
-            visible = lambda: first.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents()
-
-            assert search.evaluate("node => node === document.activeElement")
-            assert visible() == ["so", "thetao", "time"]
-            assert first.locator(".vars__shown").text_content() == "3"
-
-            search.fill("SALINITY")
-            assert visible() == ["so"]
-            assert first.locator(".vars__shown").text_content() == "1 of 3"
+            box = page.locator("#rows-gridded .field__input").first
+            box.fill("SALINITY")
+            assert shown(page) == ["so"]
+            assert page.locator(".vars__popover:not([hidden]) .vars__shown").text_content() == "1 of 3"
             # every word has to match, in either column
-            search.fill("sea temp")
-            assert visible() == ["thetao"]
-            search.fill("theta")
-            assert visible() == ["thetao"]
-            search.fill("nonsense")
-            assert visible() == []
-            assert first.locator(".vars__none").is_visible()
-
-            search.press("Escape")
-            assert search.input_value() == ""
-            assert visible() == ["so", "thetao", "time"]
-            assert first.locator(".vars__none").is_hidden()
+            box.fill("sea temp")
+            assert shown(page) == ["thetao"]
+            box.fill("nonsense")
+            assert shown(page) == []
+            assert page.locator(".vars__popover:not([hidden]) .vars__none").is_visible()
         finally:
             recipe_page.close()
 
-    def test_the_pop_out_search_takes_wildcards(self, browser):
+    def test_the_search_takes_wildcards(self, browser):
         recipe_page = self.page(
             {"P1_Chl": "Diatom chlorophyll", "P2_Chl": "Flagellate chlorophyll", "Chl_total": "Total chlorophyll", "so": "Sea water salinity"},
             available=("P1_Chl", "P2_Chl", "Chl_total", "so"),
@@ -1212,207 +1212,111 @@ class TestModelVariablesTable:
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            first.locator("summary").click()
-            search = first.locator(".vars__search")
-            visible = lambda: first.locator("tbody tr:not([hidden]) td:nth-child(2)").all_text_contents()
-
-            search.fill("P*_Chl")
-            assert visible() == ["P1_Chl", "P2_Chl"]
-            assert first.locator(".vars__shown").text_content() == "2 of 4"
-            # case is ignored; ? is one character
-            search.fill("p?_chl")
-            assert visible() == ["P1_Chl", "P2_Chl"]
-            search.fill("p1_c?l")
-            assert visible() == ["P1_Chl"]
-            search.fill("chl_*")
-            assert visible() == ["Chl_total"]
-            search.fill("*")
-            assert len(visible()) == 4
-            # a wildcard looks in the long_name too, and combines with other words
-            search.fill("flag*phyll")
-            assert visible() == ["P2_Chl"]
-            search.fill("P*_Chl diatom")
-            assert visible() == ["P1_Chl"]
-            # but it does not run from a name into its long_name
-            search.fill("P1*Diatom")
-            assert visible() == []
-            # anything else typed is literal
-            for text in ("P(1*", "[*", "\\*", "P+*"):
-                search.fill(text)
-                assert visible() == []
-                assert first.locator(".vars__none").is_visible()
+            box = page.locator("#rows-gridded .field__input").first
+            for text, names in [
+                ("P*_Chl", ["P1_Chl", "P2_Chl"]),
+                ("p?_chl", ["P1_Chl", "P2_Chl"]),
+                ("chl_*", ["Chl_total"]),
+                ("flag*phyll", ["P2_Chl"]),
+                ("P*_Chl diatom", ["P1_Chl"]),
+                # a wildcard does not run from a name into its long_name
+                ("P1*Diatom", []),
+                ("P(1*", []),
+            ]:
+                box.fill(text)
+                assert shown(page) == names, text
         finally:
             recipe_page.close()
 
-    def test_the_pop_out_closes_on_a_click_outside_it_but_not_inside(self, browser):
+    def test_names_typed_are_ticked_and_a_plus_starts_a_new_search(self, browser):
+        recipe_page = self.page(
+            {"P1_Chl": "Diatom chlorophyll", "P2_Chl": "Flagellate chlorophyll", "so": "Sea water salinity"},
+            available=("P1_Chl", "P2_Chl", "so"),
+        )
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            box = page.locator("#rows-gridded .field__input").first
+            box.fill("")
+            box.press_sequentially("P1_Chl+")
+            # the + is typed as it is, P1_Chl is ticked, and every row is shown for the next
+            assert box.input_value() == "P1_Chl+"
+            assert page.evaluate(TICKED) == ["P1_Chl"]
+            assert shown(page) == ["P1_Chl", "P2_Chl", "so"]
+            assert page.evaluate(SELECTED) == ["P1_Chl Diatom chlorophyll"]
+            box.press_sequentially("fla")
+            assert shown(page) == ["P2_Chl"]
+            # a click replaces the half-typed search, and every row is shown again
+            row(page, "P2_Chl").locator("td").nth(2).click()
+            assert box.input_value() == "P1_Chl+P2_Chl"
+            assert page.evaluate(TICKED) == ["P1_Chl", "P2_Chl"]
+            assert shown(page) == ["P1_Chl", "P2_Chl", "so"]
+            assert page.locator(".vars__popover:not([hidden]) .vars__ticked").text_content() == "2 ticked, summed"
+            # the focus stays in the box, so the pop-out stays open
+            assert box.evaluate("node => node === document.activeElement")
+        finally:
+            recipe_page.close()
+
+    def test_clicks_tick_and_untick(self, browser):
+        recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            box = page.locator("#rows-gridded .field__input").first
+            box.fill("")
+            box.click()
+            row(page, "so").locator("td").nth(1).click()
+            row(page, "thetao").locator('input[type="checkbox"]').click()
+            assert box.input_value() == "so+thetao"
+            # a ticked row is unticked by a click, and taken out of the box
+            row(page, "so").click()
+            assert box.input_value() == "thetao"
+            assert page.evaluate(TICKED) == ["thetao"]
+            # and by its x in Selected
+            page.locator(".vars__popover:not([hidden])").get_by_role("button", name="Remove thetao").click()
+            assert box.input_value() == ""
+            assert page.locator(".vars__popover:not([hidden]) .vars__picked").is_hidden()
+        finally:
+            recipe_page.close()
+
+    def test_selected_lists_the_box_and_flags_names_not_in_the_output(self, browser):
+        recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            box = page.locator("#rows-gridded .field__input").first
+            box.fill("time+missing+")
+            assert page.evaluate(SELECTED) == ["time", "missing not in the simulation output"]
+            picked = page.locator(".vars__popover:not([hidden]) .vars__picked")
+            assert picked.bounding_box()["y"] < page.locator(".vars__popover:not([hidden]) .vars__scroll").bounding_box()["y"]
+        finally:
+            recipe_page.close()
+
+    def test_keys_move_through_the_rows(self, browser):
         recipe_page = self.page({"thetao": "Sea water temperature", "so": "Sea water salinity"})
         url = recipe_page.start()
         try:
             page = browser.new_page()
             page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            first.locator("summary").click()
-            first.locator(".vars__search").click()
-            first.locator('input[aria-label="Use so"]').check()
-            assert first.evaluate("node => node.open") is True
-
-            page.locator("h1").first.click()
-            assert first.evaluate("node => node.open") is False
-            assert first.locator(".vars__popover").is_hidden()
-        finally:
-            recipe_page.close()
-
-    def test_opening_one_pop_out_closes_the_others(self, browser):
-        recipe_page = self.page({"thetao": "Sea water temperature"})
-        url = recipe_page.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            pop_outs = page.locator("#rows-gridded details.vars")
-            pop_outs.nth(0).locator("summary").click()
-            # the first pop-out covers the rows just below it, so use the last
-            pop_outs.last.locator("summary").click()
-            assert page.locator("details.vars[open]").count() == 1
-            assert pop_outs.last.evaluate("node => node.open") is True
-        finally:
-            recipe_page.close()
-
-    def test_escape_closes_a_pop_out_wherever_the_focus_is(self, browser):
-        recipe_page = self.page({"thetao": "Sea water temperature"})
-        url = recipe_page.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            first.locator("summary").click()
-            page.wait_for_function("document.activeElement.classList.contains('vars__search')")
-            first.locator(".vars__search").fill("theta")
-            # Escape in the search box clears it first, then closes
-            first.locator(".vars__search").press("Escape")
-            assert first.evaluate("node => node.open") is True
-            first.locator(".vars__search").press("Escape")
-            assert first.evaluate("node => node.open") is False
-
-            first.locator("summary").click()
-            page.locator("body").press("Escape")
-            assert first.evaluate("node => node.open") is False
-        finally:
-            recipe_page.close()
-
-
-    def test_ticking_variables_in_the_pop_out_sums_them_in_the_box(self, browser):
-        recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
-        url = recipe_page.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            box = page.locator(".field__input").first
-            first.locator("summary").click()
-            tick = lambda name: first.locator(f'input[aria-label="Use {name}"]')
-
-            tick("so").check()
-            tick("thetao").check()
-            assert box.input_value() == "so+thetao"
-            assert page.locator("#rows-gridded tr.is-invalid").count() == 0
-            assert first.locator(".vars__ticked").text_content() == "2 ticked, summed"
-
-            # a tick on a row the search has hidden still counts
-            first.locator(".vars__search").fill("temp")
-            tick("thetao").uncheck()
-            assert box.input_value() == "so"
-            first.locator(".vars__search").fill("")
-            assert tick("so").is_checked()
-            assert not tick("thetao").is_checked()
-
-            # the ticks follow the box when it is typed in, and a name the
-            # model does not have is left alone
-            box.fill("thetao+time+missing")
-            assert tick("thetao").is_checked() and tick("time").is_checked()
-            assert not tick("so").is_checked()
-            tick("so").check()
-            assert box.input_value() == "thetao+time+missing+so"
-            assert page.locator("#rows-gridded tr.is-invalid").count() == 1
-            tick("time").uncheck()
-            assert box.input_value() == "thetao+missing+so"
-        finally:
-            recipe_page.close()
-
-    def test_a_click_anywhere_on_a_variables_row_ticks_it(self, browser):
-        recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
-        url = recipe_page.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            box = page.locator(".field__input").first
+            box = page.locator("#rows-gridded .field__input").first
             box.fill("")
-            first.locator("summary").click()
-            tick = lambda name: first.locator(f'input[aria-label="Use {name}"]')
-            row = lambda name: first.locator(".vars__popover tbody tr", has=page.locator(f'input[aria-label="Use {name}"]'))
-
-            row("so").locator("td").nth(1).click()
-            row("thetao").locator("td").nth(2).click()
-            assert box.input_value() == "so+thetao"
-            assert tick("so").is_checked() and tick("thetao").is_checked()
-
-            # the box itself still toggles once, and a second click unticks
-            tick("so").click()
+            box.click()
+            # nothing is highlighted to start, so Enter changes nothing
+            box.press("Enter")
+            assert box.input_value() == ""
+            box.press("ArrowDown")
+            box.press("ArrowDown")
+            box.press("Enter")
             assert box.input_value() == "thetao"
-            row("thetao").locator("td").nth(1).click()
-            assert box.input_value() == ""
-        finally:
-            recipe_page.close()
-
-    def test_the_selected_variables_and_their_long_names_are_listed_at_the_top(self, browser):
-        recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
-        url = recipe_page.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            first = page.locator("#rows-gridded details.vars").first
-            box = page.locator(".field__input").first
-            box.fill("")
-            first.locator("summary").click()
-            picked = first.locator(".vars__picked")
-            entries = lambda: picked.locator("li").evaluate_all("items => items.map(i => i.firstChild.textContent)")
-            tick = lambda name: first.locator(f'input[aria-label="Use {name}"]')
-
-            # nothing selected, nothing shown
-            assert picked.is_hidden()
-
-            # it sits above the table, and lists the selection in box order
-            tick("so").check()
-            tick("thetao").check()
-            assert picked.is_visible()
-            assert entries() == ["so Sea water salinity", "thetao Sea water potential temperature"]
-            assert picked.bounding_box()["y"] < first.locator(".vars__scroll").bounding_box()["y"]
-
-            # a search that hides their rows does not hide them here
-            first.locator(".vars__search").fill("zzz")
-            assert entries() == ["so Sea water salinity", "thetao Sea water potential temperature"]
-            first.locator(".vars__search").fill("")
-
-            # typing in the box is followed, and a name the model lacks is flagged
-            box.fill("time+missing")
-            assert entries() == ["time", "missing not in the simulation output"]
-
-            # the x unticks, as the tick box does
-            picked.get_by_role("button", name="Remove time").click()
-            assert box.input_value() == "missing"
-            assert not tick("time").is_checked()
-            assert entries() == ["missing not in the simulation output"]
-            picked.get_by_role("button", name="Remove missing").click()
-            assert box.input_value() == ""
-            assert picked.is_hidden()
         finally:
             recipe_page.close()
 
 
-class TestThicknessPopOut:
-    """The Global settings' thickness box has a pop-out of the model's variables,
-    from which one can be picked"""
+class TestThicknessBox:
+    """The thickness box opens the same pop-out, with z_level first, and takes one only."""
 
     def page(self, fvcom=False):
         long_names = {"e3t": "Cell thickness", "thetao": "Sea water temperature", "so": "Sea water salinity"}
@@ -1424,65 +1328,31 @@ class TestThicknessPopOut:
             lambda *chosen: "/out/matchup.py",
         )
 
-    def test_it_lists_names_and_long_names_and_ticks_one_only(self, browser):
+    def test_it_lists_z_level_and_the_variables_and_takes_one(self, browser):
         recipe_page = self.page()
         url = recipe_page.start()
         try:
             page = browser.new_page()
             page.goto(url)
-            pop_out = page.locator("details.vars--thickness")
             box = page.locator("#s-thickness")
-            assert page.locator("#thickness-picker details.vars").count() == 1
-            pop_out.locator("summary").click()
-            cells = pop_out.locator(".vars__popover tbody tr").evaluate_all(
-                "rows => rows.map(r => [...r.cells].slice(1).map(c => c.textContent))"
-            )
-            assert cells == [
-                ["e3t", "Cell thickness"],
-                ["so", "Sea water salinity"],
-                ["thetao", "Sea water temperature"],
-            ]
-            tick = lambda name: pop_out.locator(f'input[aria-label="Use {name}"]')
-
-            tick("e3t").check()
+            box.click()
+            assert page.evaluate(SHOWN) == [
+                ["z_level", ""], ["e3t", "Cell thickness"], ["so", "Sea water salinity"], ["thetao", "Sea water temperature"]]
+            box.fill("thick")
+            assert shown(page) == ["e3t"]
+            row(page, "e3t").click()
             assert box.input_value() == "e3t"
-            assert pop_out.locator(".vars__picked li").evaluate_all(
-                "items => items.map(i => i.firstChild.textContent)"
-            ) == ["e3t Cell thickness"]
-            # one only: ticking another moves the tick
-            tick("so").check()
+            # one only: the pop-out closes on a pick
+            assert page.evaluate(SHOWN) is None
+            # opened again, every row is shown, with the box's ticked; another replaces it
+            box.click()
+            assert page.evaluate(TICKED) == ["e3t"]
+            assert len(shown(page)) == 4
+            row(page, "so").click()
             assert box.input_value() == "so"
-            assert not tick("e3t").is_checked()
-            assert pop_out.locator(".vars__ticked").text_content() == ""
-            tick("so").uncheck()
-            assert box.input_value() == ""
-            assert pop_out.locator(".vars__picked").is_hidden()
-        finally:
-            recipe_page.close()
-
-    def test_the_ticks_follow_the_box(self, browser):
-        recipe_page = self.page()
-        url = recipe_page.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            pop_out = page.locator("details.vars--thickness")
-            box = page.locator("#s-thickness")
-            pop_out.locator("summary").click()
-            tick = lambda name: pop_out.locator(f'input[aria-label="Use {name}"]')
-
-            box.fill("e3t")
-            assert tick("e3t").is_checked()
-            # z_level and files are not variables, so nothing is ticked or listed
-            box.fill("z_level")
-            assert not tick("e3t").is_checked()
-            assert pop_out.locator(".vars__picked").is_hidden()
-            box.fill("/some/e3t.nc")
-            assert pop_out.locator(".vars__picked").is_hidden()
-            # the x clears the box
-            box.fill("thetao")
-            pop_out.get_by_role("button", name="Remove thetao").click()
-            assert box.input_value() == ""
+            # a + is not a sum here
+            box.fill("e3t+so")
+            assert shown(page) == []
         finally:
             recipe_page.close()
 
@@ -1512,7 +1382,7 @@ class TestThicknessPopOut:
         try:
             page = browser.new_page()
             page.goto(url)
-            assert page.locator("details.vars--thickness").count() == 0
+            assert page.locator("#s-thickness").is_disabled()
         finally:
             recipe_page.close()
 

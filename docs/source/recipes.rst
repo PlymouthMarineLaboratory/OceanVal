@@ -277,14 +277,16 @@ or for everywhere, and OceanVal refuses a source name that is one of its own
 recipes, or is already in the file, and warns if the other file has a recipe of
 the same name.
 
-In the **Own data** step the **Simulation variable** is picked as in the recipes
-window: **Select from the simulation's variables** opens a list of the variables
-in the simulation's output that can be searched by name or ``long_name``, and
-ticking several sums them (``a+b``). A name can still be typed, but one that is
-not in the simulation's output is refused. For gridded data on this machine
-(a netCDF file, a directory of them or a pattern such as ``obs/*.nc``), the
-**Observation variable** is picked in the same way, from the variables in the
-first file, once its path has been typed. Data on a server is not looked at.
+In the **Own data** step the **Simulation variable** is chosen as in the recipes
+window: clicking in the box opens the list of the variables in the
+simulation's output, with their ``long_name``, and what you type in the box
+searches it. Clicking a variable ticks it and adds it to the box, and ticking
+several sums them (``a+b``); a name typed in the box is ticked too. Any name can
+still be typed, but one that is not in the simulation's output is refused. For
+gridded data on this machine (a netCDF file, a directory of them or a pattern
+such as ``obs/*.nc``), the **Observation variable** box lists the variables in
+the first file in the same way (one only), once its path has been typed. Data on
+a server is not looked at.
 
 Data you add in the **Own data** step of a matchup can be saved as a recipe
 there too: **Add this data for use now and in future** adds it to the matchup,
