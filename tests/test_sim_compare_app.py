@@ -845,7 +845,7 @@ class TestOptionsAndRun:
         status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": "", "out": "somewhere"}})
         assert status == 400 and set(reply["errors"]) == {"out"}
         # what was sent is kept for the page, and the script goes where it says
-        assert state(app)["analyze"]["output"] == {"out_dir": "", "out": "somewhere", "replace_analysis": False}
+        assert state(app)["analyze"]["output"] == {"out_dir": "", "out": "somewhere", "out_typed": False, "replace_analysis": False}
         assert post(app, "/api/analyze_save_script", {"form": {"out_dir": "", "out": "mine.py"}}) == (200, {"ok": True})
         assert os.path.exists(os.path.join(app.cwd, "mine.py"))
 
