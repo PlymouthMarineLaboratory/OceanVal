@@ -154,7 +154,7 @@ model. It shows how OceanVal works, not how to validate a climate model, which n
 of output rather than one. It creates a directory called ``oceanval_demo``,
 with the data, matchups and report in it: remove it when you have finished.
 
-The script it runs is written first, to ``matchup.py``, so you can read it
+The script it runs is written first, to ``matchup.py`` (``matchup1.py``, ``matchup2.py`` and so on if that file exists already), so you can read it
 and run it again later. Every step is described on the website, in
 `Validating from your browser
 <https://plymouthmarinelaboratory.github.io/OceanVal/browser.html>`_, including how to

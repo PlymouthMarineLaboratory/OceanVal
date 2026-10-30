@@ -35,8 +35,17 @@ def default_output_form(cwd):
     """The last page's boxes, as they start. replace_analysis is whether the
     user has ticked to replace the comparison the output directory has
     already, which it must have if it does (the box Analyze has, on the same
-    page)."""
-    return {"out_dir": cwd, "out": "simulation_comparison.py", "replace_analysis": False}
+    page). out is simulation_comparison.py, or the first of
+    simulation_comparison1.py... that is free in cwd, and out_typed whether
+    the user typed it (the only name warned of if the file exists)."""
+    from oceanval.app import free_name
+
+    return {
+        "out_dir": cwd,
+        "out": free_name(cwd, "simulation_comparison"),
+        "out_typed": False,
+        "replace_analysis": False,
+    }
 
 
 def clean_output_form(form, cwd):
@@ -45,6 +54,7 @@ def clean_output_form(form, cwd):
     return {
         "out_dir": str(form.get("out_dir") if form.get("out_dir") is not None else cwd).strip(),
         "out": str(form.get("out") or "").strip(),
+        "out_typed": bool(form.get("out_typed")),
         "replace_analysis": bool(form.get("replace_analysis")),
     }
 

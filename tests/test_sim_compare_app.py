@@ -838,7 +838,7 @@ class TestOptionsAndRun:
         assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
         # the boxes of the last page are not the first page's: it starts with them
         assert state(app)["analyze"]["output"] == {
-            "out_dir": app.cwd, "out": "simulation_comparison.py", "replace_analysis": False}
+            "out_dir": app.cwd, "out": "simulation_comparison.py", "out_typed": False, "replace_analysis": False}
         status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": "", "out": ""}})
         assert status == 400 and set(reply["errors"]) == {"out"} and runs == []
         os.makedirs(os.path.join(app.cwd, "somewhere"))

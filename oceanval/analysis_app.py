@@ -766,7 +766,7 @@ class AnalyzeSteps:
         if isinstance(form, dict):
             kept = _form(form, analysis_forms.default_setup_form(self.cwd))
             self.analyze_setup_form = dict(
-                self.analyze_setup_form, **{name: kept[name] for name in ("out_dir", "out", "replace_analysis")}
+                self.analyze_setup_form, **{name: kept[name] for name in ("out_dir", "out", "out_typed", "replace_analysis")}
             )
         return analysis_forms.check_output(self.analyze_setup_form, self.cwd)
 
@@ -838,7 +838,7 @@ class AnalyzeSteps:
             "output": (
                 self.sc_output_form
                 if self.action == SIMCOMPARE
-                else {name: self.analyze_setup_form[name] for name in ("out_dir", "out", "replace_analysis")}
+                else {name: self.analyze_setup_form[name] for name in ("out_dir", "out", "out_typed", "replace_analysis")}
             ),
             "rows": self.analyze_rows,
             "refilled": self.analyze_refilled,

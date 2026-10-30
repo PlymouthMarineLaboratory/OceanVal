@@ -272,18 +272,25 @@ def default_setup_form():
     }
 
 
-def default_output_form():
+def default_output_form(cwd=None):
     """The output step's boxes, the last before a matchup starts, as they
-    start: where the matchups (and the report) are saved, and the script."""
+    start: where the matchups (and the report) are saved, and the script,
+    named matchup.py, or the first of matchup1.py... that is free in cwd."""
     return {
         "out_dir": "",
         # asked only if out_dir has matchups already (see check_output): the
         # "variable/source" of those not used, replaced if this run makes them
-        # and ignored if not (the others are used, as each is to start with),
-        # and whether the user has confirmed what is done with them
+        # and ignored if not (the others are used), and whether the user has
+        # confirmed what is done with them. Until the user chooses in the grid
+        # (existing_chosen) unused is not looked at: the matchups this run makes
+        # are replaced to start with, and the others used
         "unused": [],
+        "existing_chosen": False,
         "existing_confirmed": False,
-        "out": "matchup.py",
+        "out": free_name(cwd, "matchup"),
+        # whether the user typed the script's name, the only one that is warned
+        # of when the file exists already
+        "out_typed": False,
         # matchup alone's, which has no report options to ask them with: the
         # cores (chosen every time), the spatial subset and the missing values
         "cores": "",
@@ -491,6 +498,17 @@ def _path(text, cwd):
     """A path typed into the page, which is relative to the directory the
     app works in."""
     return os.path.normpath(os.path.join(cwd, os.path.expanduser(text)))
+
+
+def free_name(cwd, stem, extension=".py"):
+    """The first of stem.py, stem1.py, stem2.py... that does not exist in cwd:
+    the name a script starts with, so an earlier one is not written over
+    unless the user types its name."""
+    name, number = stem + extension, 0
+    while os.path.lexists(os.path.join(cwd or ".", name)):
+        number += 1
+        name = f"{stem}{number}{extension}"
+    return name
 
 
 def _shown(path, cwd):
@@ -730,11 +748,13 @@ def check_output(form, cwd, report=True, demo_dir=None, made=None):
     the script, and matchup's overwrite and validate's previous.
 
     If out_dir has matchups already, the user says of each whether it is used
-    (as each is to start with), or not (unused): one this run makes (see
-    matchups_asked_about) is then replaced (matchup's overwrite), and one it
-    does not make is ignored, left out of the report (validate's previous).
+    or not (unused): one this run makes (see matchups_asked_about) is then
+    replaced (matchup's overwrite), and one it does not make is ignored, left
+    out of the report (validate's previous). Until the user has chosen
+    (existing_chosen) those this run makes are replaced and the others used.
     Only one used is kept as it is, and validated if a report follows
-    (report). The user must tick to confirm it, as each starts on use.
+    (report). The user must tick to confirm it, as they may not notice what
+    each starts on.
     Without matchups to ask about, overwrite and previous are True. In
     demo_dir, the demo's own, where every model tried keeps its matchups,
     nothing is asked: this run's are made again and no others are in the
@@ -753,13 +773,13 @@ def check_output(form, cwd, report=True, demo_dir=None, made=None):
         # each "variable/source" the page has a row for
         rows = matchups_asked_about(out_dir, made, report)
         keys = [row["key"] for row in rows]
-        unused = set(form["unused"])
+        again = [row["key"] for row in rows if row["made"]]
+        unused = set(form["unused"] if form["existing_chosen"] else again)
         if not keys:
             arguments["overwrite"] = arguments["previous"] = True
         elif out_dir == demo_dir:
             arguments["overwrite"], arguments["previous"] = True, not report
         else:
-            again = [row["key"] for row in rows if row["made"]]
             arguments["overwrite"] = _ticked_of(unused, again)
             # with a report, only those used are in it as they are
             arguments["previous"] = (
@@ -1669,7 +1689,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # "variable/source" (lower case) of the matchups the run makes, and
         # what matchup is given along with yes (see _yes): out_dir, overwrite
         # and cores, or None until it is carried on from
-        self.output_form = dict(default_output_form(), out_dir=self.cwd)
+        self.output_form = dict(default_output_form(self.cwd), out_dir=self.cwd)
         self.output_made = None
         self._run_output = None
         # where the recipes window writes its script, which the output step
@@ -2855,7 +2875,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         self.demo = None
         self._demo_cancel.set()
         self.setup_form = default_setup_form()
-        self.output_form = dict(default_output_form(), out_dir=self.cwd)
+        self.output_form = dict(default_output_form(self.cwd), out_dir=self.cwd)
         self.validate_form = default_validate_form()
 
     def demo_download(self, model=None, variables=None):
@@ -3087,7 +3107,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self.out_dir = self.cwd
             self.overwrite = True
             self.previous = True
-            self.output_form = dict(default_output_form(), out_dir=self.cwd)
+            self.output_form = dict(default_output_form(self.cwd), out_dir=self.cwd)
             self.output_made = None
             self._run_output = None
             self.own_data = {"point": [], "gridded": []}

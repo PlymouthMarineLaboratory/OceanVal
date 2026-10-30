@@ -29,11 +29,19 @@ _NOT_ANALYZED = ("domain", "start", "end")
 def default_setup_form(cwd):
     """The simulation step's boxes for an analysis, as they start. Its out_dir,
     out and replace_analysis are the last page's, which starts with them."""
-    from oceanval.app import default_setup_form as setup_form
+    from oceanval.app import default_setup_form as setup_form, free_name
 
     # replace_analysis: whether the user has ticked to replace the analysis
     # the output directory has already, which it must have if it does
-    return dict(setup_form(), out_dir=cwd, out="analysis.py", replace_analysis=False)
+    # out is analysis.py, or the first of analysis1.py... that is free in cwd; out_typed
+    # is whether the user typed it, the only name warned of if the file exists
+    return dict(
+        setup_form(),
+        out_dir=cwd,
+        out=free_name(cwd, "analysis"),
+        out_typed=False,
+        replace_analysis=False,
+    )
 
 
 def check_setup(form, cwd):

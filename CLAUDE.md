@@ -149,15 +149,23 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   by `_thickness_and_depths` from `thickness_selected` when `as_missing` changes). The script is written
   under its chosen name from the output step on (`_keep_in_script(out=)`, `create_recipes`' `write(out=)`). Back:
   `report_options` → `output` → `point_time_res`/the matchups question → (Back from the run) the units step.
+  **The script's name starts as the first free one in the directory worked in**: `matchup.py`, else `matchup1.py`,
+  `matchup2.py`... (`app.free_name(cwd, stem)`, used by `default_output_form(cwd)`, `analysis_forms.default_setup_form` for
+  `analysis.py`, `sim_compare_forms.default_output_form` for `simulation_comparison.py`; made with the form, so Restart sees a script
+  an earlier run wrote). "This file already exists, and will be replaced" is shown only for a name the user typed (form `out_typed`,
+  set by the box's input event, kept for Back, in `analyze`'s `analyzeOutput.typed`). The old "There are matchups here already"
+  line under the directory box is gone, as the grid says it (the folder browser's still says `has_matchups`).
   The output step's grid, "What do you want to do with existing matchups?", has a row per "variable/source"
   (`app.matchups_asked_about`, each with `made`: whether this run matches it up, from the question's
   `details["matchups"]`, kept in `output_made`; the probe marks the rows while the view is `output`): per row one of
-  two, Use (to start with) and Replace if the run makes it, or Ignore if not (left out of the report); a row the run
-  does not make is listed only with a report to follow. Radios with the tick look; a column only for an option some
+  two, Use and Replace if the run makes it, or Ignore if not (left out of the report); **a row the run makes starts on
+  Replace and any other on Use** (the user's rule, 2026-10-30; until the user picks something, form `existing_chosen` is False and
+  `unused` is not looked at, in `check_output` and the page's `existingChoice`; `chooseExisting` makes `unused` the user's own
+  and sets it); a row the run does not make is listed only with a report to follow. Radios with the tick look; a column only for an option some
   row has; a lone radio at the top of each column chooses it for every row that has it. **Only a used matchup is kept
   as it is** (form `unused`; `check_output` gives overwrite = those replaced, of those made, previous = those used,
   all → True, none → False). A confirmation tick under the grid (`existing_confirmed`) is required, as users may not
-  notice every row starts on Use; it is reset when the list shown changes. The demo's own folder
+  notice what every row starts on; it is reset when the list shown changes. The demo's own folder
   (`check_output(demo_dir=)`, `out_dir_is_demo`), where every model tried keeps its matchups, has no grid:
   overwrite=True, previous=False.
   `previous` is never passed to the interim report

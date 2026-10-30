@@ -522,7 +522,7 @@ class TestOptions:
         assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
         assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
         assert get_json(app, "/api/state")[1]["analyze"]["output"] == {
-            "out_dir": app.cwd, "out": "analysis.py", "replace_analysis": False}
+            "out_dir": app.cwd, "out": "analysis.py", "out_typed": False, "replace_analysis": False}
         os.makedirs(os.path.join(app.cwd, analysis.FOLDER))
         # which the user must tick to replace, having named the directory
         status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": app.cwd, "out": "analysis.py"}})
@@ -1086,6 +1086,14 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#ao-page-2:not([hidden])")
         page.click("#ao-next")
         assert page.input_value("#ao-out") == "mine.py"
+        # a file that exists is warned of only when its name is typed
+        assert page.locator("#ao-m-out .group__line.is-warn").count() == 0
+        open(os.path.join(app.cwd, "taken.py"), "w").close()
+        page.fill("#ao-out", "taken.py")
+        page.wait_for_selector("#ao-m-out .group__line.is-warn")
+        assert "already exists" in page.inner_text("#ao-m-out")
+        page.fill("#ao-out", "mine.py")
+        page.wait_for_function("document.querySelector('#ao-m-out .group__line.is-warn') === null")
         # Back goes to the tiles, which keep what was chosen
         page.click("#actions button:has-text('Back')")
         page.click("#actions button:has-text('Back')")

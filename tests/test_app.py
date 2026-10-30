@@ -54,8 +54,11 @@ SETUP_FORM = {
 OUTPUT_FORM = {
     "out_dir": "",
     "unused": [],
+    # the choices in `unused` are the user's own, as when the grid has been used
+    "existing_chosen": True,
     "existing_confirmed": False,
     "out": "matchup.py",
+    "out_typed": False,
 }
 
 # a matchup as matchup lists it with its question of whether the matchups are right
@@ -833,10 +836,17 @@ class TestOutputChecks:
                 dict(OUTPUT_FORM, out_dir="old", **changes), str(tmp_path), report=report, made=made
             )
 
-        # each is used as it is, to start with, which must be confirmed
-        arguments, errors = check()
+        # until the user chooses, those the run makes are replaced and the others used,
+        # which must be confirmed
+        arguments, errors = check(existing_chosen=False)
         assert errors == {"existing_confirmed": ""}
-        assert (arguments["overwrite"], arguments["previous"]) == (False, True)
+        assert (arguments["overwrite"], arguments["previous"]) == (True, ["temperature/WOA23", "nitrate/glodap"])
+        arguments, errors = check(existing_chosen=False, existing_confirmed=True, unused=MIXED_KEYS)
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, ["temperature/WOA23", "nitrate/glodap"])
+        # with no report, only those the run makes are asked about, and replaced
+        arguments = check(report=False, existing_chosen=False, existing_confirmed=True)[0]
+        assert (arguments["overwrite"], arguments["previous"]) == (True, True)
+        # once chosen, none unused is each used as it is
         arguments, errors = check(existing_confirmed=True)
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (False, True)
         # every one unused: those the run makes are replaced, the others ignored
@@ -7384,11 +7394,11 @@ def test_finding_key_information_in_a_browser(browser, tmp_path):
 @pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
 def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, monkeypatch, action):
     """In the output step, once the matchups are confirmed, a grid of the
-    matchups there already: each to be used (as each is to start with), or
-    replaced, if this run matches it up, or ignored, left out of the report,
-    if it does not (asked about only if a report follows), with a tick at the
-    top of each column to choose it for every row that has it; what is chosen
-    must be confirmed, as each starts on use."""
+    matchups there already: each to be replaced, if this run matches it up
+    (to start with), used, or ignored, left out of the report, if it does not
+    (asked about only if a report follows; used to start with), with a tick at
+    the top of each column to choose it for every row that has it; what is
+    chosen must be confirmed, as they may not notice what each starts on."""
     write_simulation(tmp_path / "sim")
     write_mixed_matchups(tmp_path / "old")
     # a stand-in for the script, which makes the gridded COBE2 temperature only
@@ -7457,9 +7467,8 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
 
         page.fill("#f-out_dir", "old")
         page.wait_for_selector("#row-existing:not([hidden])")
-        warning = page.locator("#m-out_dir .group__line.is-warn")
-        assert warning.text_content() == "There are matchups here already, from an earlier run. Choose another directory if you need to keep them apart."
-        assert warning.evaluate("node => getComputedStyle(node).color") == "rgb(184, 83, 47)"
+        # the grid says it; the directory box has no warning of its own
+        assert page.locator("#m-out_dir .group__line.is-warn").count() == 0
         assert page.text_content("#existing-title") == "What do you want to do with existing matchups? Required"
         # confirming what is chosen is required, report or not
         assert page.is_visible("#existing-required")
@@ -7477,11 +7486,14 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         assert offered() == [["use", "replace" if key in made_keys else "ignore"] for key in rows]
         intro = page.text_content("#existing-intro")
         assert ("Replace: it is one this run matches up" in intro) and (("Ignore:" in intro) == report)
-        # each is used to start with
-        assert choices() == [["use"]] * len(rows)
-        assert tops() == ["use"]
+        # those the run makes are replaced to start with, the others used
+        assert choices() == [["replace" if key in made_keys else "use"] for key in rows]
+        assert tops() == ["replace"]
         assert page.is_disabled("#output-run")
 
+        page.check("#existing-all-use")
+        assert choices() == [["use"]] * len(rows)
+        assert tops() == ["use"]
         # one option a row, and one at the top chooses it for every row that has it
         page.check("#existing-all-replace")
         assert choices() == [["replace" if key in made_keys else "use"] for key in rows]

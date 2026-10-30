@@ -4871,14 +4871,21 @@
   // the list shown, so that a different one is answered afresh
   let existingShown = null;
 
-  // what is done with a row: "use", "replace" or "ignore"
+  // what is done with a row: "use", "replace" or "ignore". Until the user chooses
+  // (output.existing_chosen) a row this run makes is replaced and any other used
   function existingChoice(row) {
+    if (!output.existing_chosen) return row.made ? "replace" : "use";
     if (!(output.unused || []).includes(row.key)) return "use";
     return row.made ? "replace" : "ignore";
   }
 
   // option for each of rows that has it
   function chooseExisting(rows, option) {
+    if (!output.existing_chosen) {
+      // what each row started on, now the user's own list
+      output.unused = existingRows().filter((row) => row.made).map((row) => row.key);
+      output.existing_chosen = true;
+    }
     const chosen = new Set(rows.filter((row) => existingOptions(row).includes(option)).map((row) => row.key));
     output.unused = (output.unused || []).filter((key) => !chosen.has(key));
     if (option !== "use") output.unused.push(...chosen);
@@ -4907,7 +4914,7 @@
     }
     if (shown.has("replace")) parts.push("Replace: it is one this run matches up, and is made again.");
     if (shown.has("ignore")) parts.push("Ignore: it is not one this run matches up, and is left out of the report.");
-    parts.push("Each is used to start with, so check them and tick to confirm below.",
+    parts.push("Those this run matches up are replaced to start with, and the others used, so check them and tick to confirm below.",
       "Tick an option at the top of its column to choose it for every row that has it. Nothing is removed from this directory.");
     return parts.join(" ");
   }
@@ -4956,6 +4963,8 @@
   for (const name of OUTPUT_FIELDS) {
     $(`f-${name}`).addEventListener("input", (event) => {
       output[name] = event.target.value;
+      // only a name the user typed is warned of if the file exists already
+      if (name === "out") output.out_typed = true;
       delete matchupOutput.errors[name];
       askMatchupOutputProbe(400);
       refreshMatchupOutput();
@@ -5117,7 +5126,7 @@
     if (!String(output.out).trim()) errors.out = errors.out || "";
     if (state.action === "matchup" && !String(output.cores || "").trim()) errors.cores = errors.cores || "";
     if (state.action === "matchup" && outputMask.blocked()) errors.domain_mask_path = errors.domain_mask_path || "";
-    // what is done with the matchups there already has to be confirmed, as each starts on Use
+    // what is done with the matchups there already has to be confirmed, as they may not have noticed what each starts on
     if (existingRows().length && !output.existing_confirmed) errors.existing_confirmed = "";
     // until the directory is looked at, what is there is not known
     if (!found) errors.probe = "";
@@ -5143,13 +5152,11 @@
       if (found && found.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
       if (found && found.out_dir_has_matchups && found.out_dir_is_demo) {
         lines.push(line("The demo's matchups of models tried before are here. This run's are made again, and the others are left out of the report."));
-      } else if (found && found.out_dir_has_matchups) {
-        lines.push(line("There are matchups here already, from an earlier run. Choose another directory if you need to keep them apart.", "warn"));
       }
       message("m-out_dir", lines);
     }
     if (errors.out) message("m-out", [line(errors.out, "error")], true);
-    else if (found && found.out_exists) message("m-out", [line("This file already exists, and will be replaced. Unless you plan to run this matchup file yourself, there is no need to worry about the name.", "warn")]);
+    else if (found && found.out_exists && output.out_typed) message("m-out", [line("This file already exists, and will be replaced. Unless you plan to run this matchup file yourself, there is no need to worry about the name.", "warn")]);
     else message("m-out", []);
     $("f-cores").classList.toggle("is-invalid", Boolean(errors.cores));
     message("m-cores", errors.cores ? [line(errors.cores, "error")] : [], Boolean(errors.cores));
@@ -5754,7 +5761,7 @@
   const analyzeOutput = { filled: false, probe: null, errors: {}, timer: null, number: 0 };
 
   function readOutput() {
-    return { out_dir: $("ao-out_dir").value, out: $("ao-out").value, replace_analysis: $("ao-replace_analysis").checked };
+    return { out_dir: $("ao-out_dir").value, out: $("ao-out").value, out_typed: Boolean(analyzeOutput.typed), replace_analysis: $("ao-replace_analysis").checked };
   }
 
   // filled once from what the server holds, so that going back and on keeps what was typed
@@ -5764,6 +5771,7 @@
       const comparing = state.action === "simcompare";
       $("ao-out_dir").value = kept.out_dir;
       $("ao-out").value = kept.out;
+      analyzeOutput.typed = Boolean(kept.out_typed);
       $("ao-replace_analysis").checked = Boolean(kept.replace_analysis);
       $("ao-out_dir").placeholder = state.cwd;
       $("ao-out-label").textContent = comparing ? "What do you want the comparison script to be called"
@@ -5833,7 +5841,7 @@
     $("ao-out_dir").classList.toggle("is-invalid", Boolean(errors.out_dir));
     $("ao-out").classList.toggle("is-invalid", Boolean(errors.out));
     if (errors.out) message("ao-m-out", [line(errors.out, "error")], true);
-    else if (found.out_exists) message("ao-m-out", [line(`This file already exists, and will be replaced. Unless you plan to run this ${comparing ? "comparison" : "analysis"} file yourself, there is no need to worry about the name.`, "warn")]);
+    else if (found.out_exists && analyzeOutput.typed) message("ao-m-out", [line(`This file already exists, and will be replaced. Unless you plan to run this ${comparing ? "comparison" : "analysis"} file yourself, there is no need to worry about the name.`, "warn")]);
     else message("ao-m-out", []);
     updateRun();
   }
@@ -5847,6 +5855,8 @@
     refreshOutput();
   });
   $("ao-out").addEventListener("input", () => {
+    // only a name the user typed is warned of if the file exists already
+    analyzeOutput.typed = true;
     delete analyzeOutput.errors.out;
     askOutputProbe(400);
     refreshOutput();
