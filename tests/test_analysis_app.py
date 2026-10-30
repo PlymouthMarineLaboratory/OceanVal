@@ -1327,34 +1327,6 @@ def picker_of(app):
     return get_json(app, "/api/state")[1]["analyze"]["picker"]
 
 
-def test_add_all_variables_fills_the_rows_from_the_files(browser, tmp_path):
-    """Add all variables makes a row per variable in the output (long name,
-    variable name), and a second click adds nothing."""
-    write_analysis_simulation(str(tmp_path / "sim"), years=(2011, 2012))
-    app = App(cwd=str(tmp_path))
-    url = app.start()
-    page = browser.new_page(viewport={"width": 1280, "height": 1000})
-    page.goto(url)
-    page.wait_for_selector("#view-home:not([hidden])")
-    page.click("#home-analyze")
-    page.wait_for_selector("#view-setup:not([hidden])")
-    page.fill("#f-simdir", "sim")
-    page.fill("#f-ndown", "1")
-    page.wait_for_function("() => !document.querySelector('#continue').disabled")
-    page.click("#continue")
-    page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
-    available = picker_of(app)["available"]
-    page.click("#av-add-all")
-    rows = page.locator("#av-rows > tr")
-    assert rows.count() == len(available)
-    models = [rows.nth(i).locator("td").nth(1).locator("input").first.input_value() for i in range(rows.count())]
-    assert sorted(models) == sorted(available)
-    page.click("#av-add-all")
-    assert page.locator("#av-rows > tr").count() == len(available)
-    assert not page.locator("#av-continue").is_disabled()
-    page.close()
-
-
 def open_analyze_variables_in_browser(browser, tmp_path):
     """The Analyze variables step of the analysis simulation, opened in a browser:
     (the page, the app)."""
@@ -1413,41 +1385,22 @@ def variable_rows_of(page):
     return [rows.nth(i).locator("td").nth(1).locator("input").first.input_value() for i in range(rows.count())]
 
 
-def test_add_3d_and_2d_variables_split_the_variables_by_their_levels(browser, tmp_path):
-    """Add 3D variables adds those whose vertical axis has more than one level
-    (nctoolkit's contents), Add 2D variables the rest, and clicking again adds nothing."""
-    page, app = open_analyze_variables_in_browser(browser, tmp_path)
-    levels = picker_of(app)["levels"]
-    available = picker_of(app)["available"]
-    three = sorted(v for v in available if levels.get(v, 1) > 1)
-    two = sorted(v for v in available if levels.get(v, 1) <= 1)
-    assert "thetao" in three and "P1_Chl" in two
-    page.click("#av-add-3d")
-    assert sorted(variable_rows_of(page)) == three
-    assert not page.locator("#av-continue").is_disabled()
-    page.click("#av-add-3d")
-    assert sorted(variable_rows_of(page)) == three
-    page.click("#av-add-2d")
-    assert sorted(variable_rows_of(page)) == sorted(available)
-    page.click("#av-add-all")
-    assert len(variable_rows_of(page)) == len(available)
-    page.close()
-
-
-def test_add_2d_variables_alone_adds_no_3d_variable(browser, tmp_path):
-    page, app = open_analyze_variables_in_browser(browser, tmp_path)
-    levels = picker_of(app)["levels"]
-    page.click("#av-add-2d")
-    models = variable_rows_of(page)
-    assert models and all(levels.get(v, 1) <= 1 for v in models)
-    page.close()
+def add_every_variable(page):
+    page.click("#av-add-multiple")
+    page.wait_for_selector("#multi-dialog:not([hidden])")
+    cells = page.locator("#multi-grid .multi-cell:not([disabled])")
+    for i in range(cells.count()):
+        cells.nth(i).click()
+    page.click("#multi-confirm")
 
 
 def test_remove_all_variables_leaves_one_blank_row(browser, tmp_path):
     page, app = open_analyze_variables_in_browser(browser, tmp_path)
     # nothing to remove yet
     assert page.is_disabled("#av-remove-all")
-    page.click("#av-add-all")
+    add_every_variable(page)
+    available = picker_of(app)["available"]
+    assert sorted(variable_rows_of(page)) == sorted(available)
     assert not page.is_disabled("#av-remove-all")
     assert not page.is_disabled("#av-continue")
     page.click("#av-remove-all")
@@ -1455,8 +1408,7 @@ def test_remove_all_variables_leaves_one_blank_row(browser, tmp_path):
     assert page.is_disabled("#av-continue")
     assert page.is_disabled("#av-remove-all")
     # and the variables can be added again
-    page.click("#av-add-all")
-    available = picker_of(app)["available"]
+    add_every_variable(page)
     assert sorted(variable_rows_of(page)) == sorted(available)
     page.close()
 

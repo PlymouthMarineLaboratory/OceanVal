@@ -472,9 +472,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `analysis.py` and runs it as `app_child analyze <path>`, with `times_index=` the files' times the check read (`_analyze_keep_times`, a temporary copy; not in a saved script), so `analyze()` does not read them again. **Save Python script to run later** (`#ao-save`, beside Run, enabled as it is; `/api/analyze_save_script` → `analyze_run(save=True)`) writes
   the same script, runs nothing, and shows view `script_saved` (`_script_saved`, shared with Compare simulations, whose saved script has no `times_index`,
   those files being temporary; the page's words by `savedScriptWords`).
-  The variables page's buttons (`#av-add-all`, `#av-remove-all`, `#av-add-3d`, `#av-add-2d`) all work in the page from `state.analyze.picker`:
-  `addVariables(kind)` adds the variables no row holds yet, 3D being `picker.levels > 1` (nctoolkit's `nlevels`, the rule Analyze's Vertical
-  analyses use) and 2D the rest; Remove all leaves one blank row. Tests read the picker with `picker_of(app)`: the page's own `state` is inside a
+  The variables page's buttons (Add a variable, Add multiple variables, `#av-remove-all`) work in the page from `state.analyze.picker`:
+  Add multiple variables (`addVariableRows`) adds the variables no row holds yet, tagging each 3D (`picker.levels > 1`, nctoolkit's `nlevels`, the rule
+  Analyze's Vertical analyses use) or 2D; Remove all leaves one blank row. Tests read the picker with `picker_of(app)`: the page's own `state` is inside a
   closure, so `page.evaluate("() => state")` finds the `<script id="state">` element.
 
 - **Info pop-outs** (`oceanval/analysis_examples.py`): an **i** (`infoButton`/`withInfo` in `oceanval_app.html`, `.info-btn`, beside the label, never inside it) next to

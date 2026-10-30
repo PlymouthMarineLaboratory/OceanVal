@@ -1868,9 +1868,6 @@
       <div class="analyze-foot">
         <button type="button" class="btn btn--ghost" id="av-add">Add a variable</button>
         <button type="button" class="btn btn--ghost" id="av-add-multiple">Add multiple variables</button>
-        <button type="button" class="btn btn--ghost" id="av-add-all">Add all variables</button>
-        <button type="button" class="btn btn--ghost" id="av-add-3d">Add all 3D variables</button>
-        <button type="button" class="btn btn--ghost" id="av-add-2d">Add all 2D variables</button>
         <p class="group__msg is-error" id="av-msg" role="status" aria-live="polite"></p>
         <button type="button" class="btn btn--ghost analyze-foot__end" id="av-remove-all">Remove all variables</button>
       </div>
@@ -5351,8 +5348,6 @@
     // a kind of variable the simulation has none of, or nothing to remove, leaves its button off
     const available = analyzePicker().available;
     $("av-add-multiple").disabled = !available.length;
-    $("av-add-3d").disabled = !available.some(WHICH_VARIABLES["3d"]);
-    $("av-add-2d").disabled = !available.some(WHICH_VARIABLES["2d"]);
     $("av-remove-all").disabled = analyzeVariables.rows.every((item) => !item.name.trim() && !item.model_variable.trim());
     const next = $("av-continue");
     if (next) {
@@ -5391,17 +5386,6 @@
 
   // 3D: a vertical axis of more than one level, as nctoolkit's contents give it (the rule Analyze's Vertical analyses use)
   const isThreeD = (variable) => ((analyzePicker().levels || {})[variable] || 1) > 1;
-  const WHICH_VARIABLES = {
-    all: () => true,
-    "3d": isThreeD,
-    "2d": (variable) => !isThreeD(variable),
-  };
-
-  // one row for every variable of the kind in the simulation's files that no row holds yet: its long name on the left, its name on the right
-  function addVariables(kind) {
-    addVariableRows((variable) => WHICH_VARIABLES[kind](variable));
-  }
-
   // the rows for the variables `wants` accepts that no row holds yet (empty rows go first)
   function addVariableRows(wants) {
     const picked = analyzePicker();
@@ -5425,10 +5409,6 @@
     analyzeVariables.rows.push(...added);
     $("av-rows").append(...added.map((item) => item.tr));
     refreshAnalyzeVariables();
-  }
-
-  for (const [id, kind] of [["av-add-all", "all"], ["av-add-3d", "3d"], ["av-add-2d", "2d"]]) {
-    $(id).addEventListener("click", () => addVariables(kind));
   }
 
   // "Add multiple variables": a grid of the simulation's variables, a click chooses one, Add selected adds the chosen
