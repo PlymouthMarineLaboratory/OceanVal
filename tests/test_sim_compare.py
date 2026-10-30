@@ -34,6 +34,12 @@ def sims(tmp_path_factory):
     return str(a), str(b)
 
 
+def transects_available():
+    from oceanval import transects
+
+    return transects.available()
+
+
 def given(sims, **changes):
     a, b = sims
     arguments = dict(
@@ -286,13 +292,186 @@ class TestArguments:
                 ds = ds.load()
             ds["thetao"].attrs["units"] = "K"
             ds.to_netcdf(path)
-        with pytest.raises(ValueError, match=r"not in the same units.*degC.*K"):
+        with pytest.raises(ValueError, match=r"not in the same units.*degC.*K.*give unit_conversions"):
             oceanval.compare_simulations(
                 **given(sims, simulations=[
                     {"name": "Base run", "sim_dir": sims[0], "n_dirs_down": 1},
                     {"name": "Kelvin run", "sim_dir": str(other), "n_dirs_down": 1},
                 ], out_dir=str(tmp_path / "out"))
             )
+
+    @pytest.mark.parametrize(
+        "conversions, message",
+        [
+            ("K", "must be a dict"),
+            ({"Salinity": {"Warm run": {"adder": 1}}}, "'Salinity', which is not one of the variables"),
+            ({"Temperature": {"Cold run": {"adder": 1}}}, "'Cold run', which is not one of the simulations"),
+            ({"Temperature": {"Base run": {"adder": 1}}}, "the first simulation"),
+            ({"Temperature": {"Warm run": 2}}, "a multiplier and an adder"),
+            ({"Temperature": {"Warm run": {"times": 2}}}, "a multiplier and an adder"),
+            ({"Temperature": {"Warm run": {"multiplier": "2"}}}, "must be a number"),
+            ({"Temperature": {"Warm run": {"adder": float("nan")}}}, "must be a number"),
+            ({"Temperature": {"Warm run": {"multiplier": 0}}}, "more than 0"),
+            ({"Temperature": {"Warm run": {"multiplier": -1}}}, "more than 0"),
+        ],
+    )
+    def test_a_bad_unit_conversion_is_refused_before_anything_is_done(self, sims, tmp_path, conversions, message):
+        with pytest.raises(ValueError, match=message):
+            oceanval.compare_simulations(**given(sims, unit_conversions=conversions, out_dir=str(tmp_path)))
+        assert not os.path.exists(os.path.join(str(tmp_path), sim_compare.FOLDER))
+
+    def test_unit_conversions_are_checked_to_numbers(self):
+        names = ["Base run", "Warm run"]
+        checked = sim_compare.check_unit_conversions(
+            {"Temperature": {"Warm run": {"adder": -273.15}}, "Chlorophyll": {"Warm run": {"multiplier": 1, "adder": 0}}},
+            {"Temperature": "thetao", "Chlorophyll": "chl"},
+            names,
+        )
+        # 1 and 0 too: it says units written otherwise are the first simulation's
+        assert checked == {"Temperature": {"Warm run": (1.0, -273.15)}, "Chlorophyll": {"Warm run": (1.0, 0.0)}}
+        assert sim_compare.check_unit_conversions(None, {"Temperature": "thetao"}, names) == {}
+
+    @pytest.mark.parametrize(
+        "units, multiplier, adder, into, text",
+        [
+            ("K", 1, -273.15, "degC", "from K into degC (273.15 taken away)"),
+            ("mol m-3", 1000, 0, "mmol m-3", "from mol m-3 into mmol m-3 (multiplied by 1000)"),
+            ("a", 0.5, 2, "b", "from a into b (multiplied by 0.5 and 2 added)"),
+            ("degree_Celsius", 1, 0, "degC", "from degree_Celsius into degC (the same units, written otherwise)"),
+            ("", 1, 0, "degC", "from no units into degC (the same units, written otherwise)"),
+        ],
+    )
+    def test_a_conversion_is_said_in_words(self, units, multiplier, adder, into, text):
+        assert sim_compare.describe_conversion(units, multiplier, adder, into) == text
+
+
+class TestUnitConversions:
+    """A simulation in other units than the first's is converted into them as it is read, so every analysis of the
+    same output, given in K and in degC (and its chlorophyll in ug and in mg), gives the same answers."""
+
+    OPTIONS = dict(
+        variables={"Temperature": "thetao", "Chlorophyll": "P1_Chl+P2_Chl"},
+        climatology={"Temperature": {"start": 2012, "end": 2014, "surface": True, "bottom": True, "water_column": "mean"}},
+        phenology={"Chlorophyll": {"start": 2012, "end": 2014}},
+        long_term={"Temperature": {"start": 2012, "end": 2014, "surface": True, "water_column": "integral"}},
+        seasonal={"Temperature": {"start": 2012, "end": 2014, "surface": True}},
+        map_changes={
+            "Temperature": {
+                "historical": {"start": 2012, "end": 2012},
+                "future": [{"start": 2014, "end": 2014}],
+                "plot": "absolute_changes",
+                "change": "percentage",
+                "surface": True,
+            }
+        },
+        unit_conversions={
+            "Temperature": {"Kelvin run": {"adder": -273.15}},
+            "Chlorophyll": {"Kelvin run": {"multiplier": 0.001}},
+        },
+        thickness="e3t",
+        stations={"Station": [-2.0, 51.5]},
+    )
+    LINE = {
+        "start": [-2.0, 50.0],
+        "end": [-2.0, 53.0],
+        "climatology": {"start": 2012, "end": 2014},
+        "vertical": {"start": 2012, "end": 2014},
+        "trends": {"start": 2012, "end": 2014, "how": "percentage_change"},
+    }
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def compared(cls, tmp_path_factory):
+        base = tmp_path_factory.mktemp("units")
+        a, k = base / "a", base / "k"
+        write_analysis_simulation(str(a), years=YEARS, daily=True, trend=TREND_A)
+        write_analysis_simulation(str(k), years=YEARS, daily=True, trend=TREND_A)
+        for path in glob.glob(str(k / "*" / "*.nc")):
+            with xr.open_dataset(path) as ds:
+                ds = ds.load()
+            if "thetao" in ds:
+                ds["thetao"] = (ds["thetao"] + 273.15).assign_attrs(ds["thetao"].attrs, units="K")
+            for name in ("P1_Chl", "P2_Chl"):
+                if name in ds:
+                    ds[name] = (ds[name] * 1000).assign_attrs(ds[name].attrs, units="ug Chl m-3")
+            ds.to_netcdf(path)
+        options = dict(cls.OPTIONS)
+        if transects_available():
+            options["transects"] = {"Temperature": [cls.LINE]}
+        arguments = given(
+            (str(a), str(k)),
+            out_dir=str(base / "out"),
+            simulations=[
+                {"name": "Base run", "sim_dir": str(a), "n_dirs_down": 1},
+                {"name": "Kelvin run", "sim_dir": str(k), "n_dirs_down": 1},
+            ],
+            **options,
+        )
+        return base / "out", compare_quietly(arguments)
+
+    def test_without_them_the_units_are_refused(self, compared, tmp_path):
+        out, info = compared
+        sims = [sim["sim_dir"] for sim in info["simulations"]]
+        options = dict(self.OPTIONS, unit_conversions=None)
+        with pytest.raises(ValueError, match="Temperature is not in the same units"):
+            oceanval.compare_simulations(**given(sims, out_dir=str(tmp_path), simulations=[
+                {"name": "Base run", "sim_dir": sims[0], "n_dirs_down": 1},
+                {"name": "Kelvin run", "sim_dir": sims[1], "n_dirs_down": 1},
+            ], **options))
+
+    def test_every_netcdf_result_is_the_same(self, compared):
+        out, _ = compared
+        names = sorted(name for name in os.listdir(os.path.join(results(out), "base_run")) if name.endswith(".nc"))
+        assert {"temperature_surface_monthly.nc", "temperature_mean_annual.nc", "temperature_bottom_annual.nc",
+                "chlorophyll_phenology.nc", "temperature_surface_change1.nc"} <= set(names)
+        for name in names:
+            with xr.open_dataset(os.path.join(results(out), "base_run", name)) as a, xr.open_dataset(
+                os.path.join(results(out), "kelvin_run", name)
+            ) as k:
+                for variable in a.data_vars:
+                    assert k[variable].values == pytest.approx(a[variable].values, abs=1e-3, nan_ok=True), (name, variable)
+                    assert k[variable].attrs.get("units") == a[variable].attrs.get("units"), (name, variable)
+
+    def test_every_series_is_the_same(self, compared):
+        out, _ = compared
+        names = sorted(name for name in os.listdir(os.path.join(results(out), "base_run")) if name.endswith(".csv"))
+        assert {"temperature_surface_long_term.csv", "temperature_integral_long_term.csv",
+                "temperature_surface_seasonal.csv"} <= set(names)
+        if transects_available():
+            assert {"temperature_transect_1_climatology.csv", "temperature_transect_1_vertical.csv",
+                    "temperature_transect_1_trends.csv"} <= set(names)
+        for name in names:
+            a = pd.read_csv(os.path.join(results(out), "base_run", name))
+            k = pd.read_csv(os.path.join(results(out), "kelvin_run", name))
+            pd.testing.assert_frame_equal(a, k, check_exact=False, atol=1e-2)
+
+    def test_the_units_are_the_first_simulations(self, compared):
+        _, info = compared
+        temperature, chlorophyll = info["variables"]
+        assert temperature["sims"]["Kelvin run"]["units"] == temperature["sims"]["Base run"]["units"] == "degC"
+        assert chlorophyll["sims"]["Kelvin run"]["units"] == "mg Chl m-3"
+
+    def test_the_info_says_what_was_converted(self, compared):
+        _, info = compared
+        temperature, chlorophyll = info["variables"]
+        assert temperature["conversions"] == {
+            "Kelvin run": {"from": "K", "multiplier": 1.0, "adder": -273.15, "text": "from K into degC (273.15 taken away)"}
+        }
+        assert chlorophyll["conversions"]["Kelvin run"]["text"] == "from ug Chl m-3 into mg Chl m-3 (multiplied by 0.001)"
+        assert info["unit_conversions"] == {
+            "Temperature": {"Kelvin run": {"multiplier": 1.0, "adder": -273.15}},
+            "Chlorophyll": {"Kelvin run": {"multiplier": 0.001, "adder": 0.0}},
+        }
+
+    def test_the_report_says_so(self, compared):
+        from oceanval import sim_report
+
+        _, info = compared
+        said = sim_report.conversions_text(info["variables"][0], "Base run")
+        assert said == " It was converted into the units of Base run as it was read: Kelvin run, from K into degC (273.15 taken away)."
+        assert sim_report.conversions_text({"conversions": {}}, "Base run") == ""
+        units = next(text for text in sim_report.methods(info) if text.startswith("**Units.**"))
+        assert "Temperature in Kelvin run, from K into degC" in units and "Chlorophyll in Kelvin run" in units
 
 
 class TestSameGridIsLookedAtLightly:
@@ -587,6 +766,97 @@ class TestUnified:
         b = field(tmp_path, "warm_run", "temperature_surface_monthly.nc")
         assert a.shape == b.shape == (12, len(B_LATS), len(B_LONS))
         assert (np.isnan(a.values) == np.isnan(b.values)).all()
+
+
+class TestTheMaskIsFromTheSecondTimeStep:
+    """A cell missing in any simulation is missing in all, judged from the second time step: the first can be empty
+    (a spin-up step of zeros, which as_missing makes missing), which would make every cell missing."""
+
+    @staticmethod
+    def emptied(base, name, everything=False, value=0.0):
+        """A copy of the simulation of `sims` in which the first time of its first file (or every time) is value."""
+        root = base / name
+        write_analysis_simulation(str(root), years=YEARS, daily=False, trend=TREND_A)
+        files = sorted(glob.glob(str(root / "*" / "*grid_T.nc")))
+        for path in files if everything else files[:1]:
+            with xr.open_dataset(path) as ds:
+                ds = ds.load()
+            if everything:
+                ds["thetao"][:] = value
+            else:
+                ds["thetao"][0] = value
+            ds.to_netcdf(path, encoding={"thetao": {"_FillValue": np.float32(-1e20)}})
+        return str(root)
+
+    def run(self, directories, out, **options):
+        return compare_quietly(
+            given(
+                directories,
+                unify={"baseline": "Base run"},
+                as_missing=[0, 0],
+                out_dir=str(out),
+                **options,
+            )
+        )
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def empty_first(cls, tmp_path_factory):
+        base = tmp_path_factory.mktemp("empty_first")
+        a, b = base / "a", base / "b"
+        write_analysis_simulation(str(a), years=YEARS, daily=False, trend=TREND_A)
+        return str(a), cls.emptied(base, "b")
+
+    def test_an_empty_first_time_step_does_not_make_everything_missing(self, empty_first, tmp_path):
+        info = self.run(empty_first, tmp_path)
+        shared, cells = info["shared_cells"]["temperature"]["surface"]
+        assert shared == cells > 0
+        for key in ("base_run", "warm_run"):
+            data = field(tmp_path, key, "temperature_surface_monthly.nc")
+            assert np.isfinite(data.values).all()
+
+    def test_the_masks_time_step_is_asked_of_cdo(self, empty_first, tmp_path, monkeypatch):
+        import nctoolkit as nc
+
+        seen = []
+        original = nc.DataSet.cdo_command
+        monkeypatch.setattr(
+            nc.DataSet, "cdo_command", lambda self, command, *a, **k: seen.append(command) or original(self, command, *a, **k)
+        )
+        self.run(empty_first, tmp_path)
+        # the mask is made first, of one time step, the second; the analyses' own reads choose no time step
+        steps = [command for command in seen if "timestep=" in command]
+        assert steps and all(command.endswith("timestep=2") for command in steps), steps
+
+    def test_nothing_shared_is_said(self, tmp_path):
+        a = self.emptied(tmp_path, "a", everything=True)
+        b = self.emptied(tmp_path, "b")
+        with pytest.raises(ValueError, match=r"No cell has a value in every simulation for temperature \(surface\).*Base run: 0 of"):
+            self.run((a, b), tmp_path / "out")
+
+    @pytest.mark.parametrize(
+        "files, steps, expected",
+        [
+            (["a", "b"], 12, ("a", 1)),
+            (["a", "b"], 2, ("a", 1)),
+            (["a", "b"], 1, ("b", 0)),
+            (["a"], 1, ("a", 0)),
+        ],
+    )
+    def test_the_second_step_is_in_the_first_file_or_is_the_second_files_first(self, files, steps, expected):
+        from oceanval import analysis
+
+        assert analysis.second_step(files, steps) == expected
+
+    def test_the_run_finds_it_from_the_times_it_has_read(self):
+        from oceanval import analysis
+
+        row = {"files": ["a", "b"], "times": {"a": [1], "b": [2, 3]}}
+        assert analysis.second_step_of(row) == ("b", 0)
+        row["times"]["a"] = [1, 2]
+        assert analysis.second_step_of(row) == ("a", 1)
+        # not known: the first
+        assert analysis.second_step_of({"files": ["a", "b"], "times": {}}) == ("a", 0)
 
 
 class TestEveryOption:

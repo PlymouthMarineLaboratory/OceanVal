@@ -192,16 +192,7 @@ def check_rows(rows, found_by_sim):
                 here.setdefault("models", {})[sim] = "Give the model variable holding it."
         if not here:
             del errors[str(index)]
-    if not errors:
-        # one variable in every simulation, in the same units
-        for number, row in enumerate(placed_by_sim[names[0]]):
-            first = row["units"]
-            for sim in names[1:]:
-                units = placed_by_sim[sim][number]["units"]
-                if first and units and first != units:
-                    errors.setdefault(str(row["index"]), {}).setdefault("models", {})[sim] = (
-                        f"This is in {units} here, and in {first} in {names[0]}: they must be the same to be compared."
-                    )
+    # units that are not the first simulation's are converted on the units step (see unit_rows)
     if errors:
         return None, errors
     if not placed_by_sim[names[0]]:
@@ -231,6 +222,84 @@ def combined(placed_by_sim):
         }
         rows.append(here)
     return rows
+
+
+# ---- the units ----
+
+
+def _units_differ(first, units):
+    """Whether units are written otherwise than the first simulation's: one with
+    none, beside one with some, too."""
+    return str(first or "").strip() != str(units or "").strip()
+
+
+def unit_rows(placed_by_sim):
+    """The units step's rows: one for each variable of each simulation after the
+    first whose units are written otherwise than the first simulation's, which it
+    is converted into, as validate's units step converts observations into the
+    model's (see oceanval.units). Each is {"key", "simulation", "variable",
+    "model_variable", "units", "baseline": {"simulation", "model_variable",
+    "units"}, "check"}, check being unit_conversion.suggest's (or
+    unit_conversion.unknown's) for this simulation's units into the first's. An
+    empty list if every simulation is in the first one's units."""
+    from oceanval import unit_conversion
+
+    names = list(placed_by_sim)
+    rows = []
+    for position, sim in enumerate(names[1:], start=1):
+        for number, first in enumerate(placed_by_sim[names[0]]):
+            own = placed_by_sim[sim][number]
+            if not _units_differ(first["units"], own["units"]):
+                continue
+            if not str(first["units"] or "").strip():
+                check = unit_conversion.unknown(f"the files of {names[0]} do not give its units")
+            elif not str(own["units"] or "").strip():
+                check = unit_conversion.unknown(f"the files of {sim} do not give its units")
+            else:
+                check = unit_conversion.suggest(first["name"], own["units"], first["units"])
+            rows.append(
+                {
+                    "key": f"{position}:{number}",
+                    "simulation": sim,
+                    "variable": first["name"],
+                    "model_variable": own["model_variable"],
+                    "units": own["units"] or None,
+                    "baseline": {
+                        "simulation": names[0],
+                        "model_variable": first["model_variable"],
+                        "units": first["units"] or None,
+                    },
+                    "check": check,
+                }
+            )
+    return rows
+
+
+def unit_row_signature(row):
+    """What a units step's row converts, so that what its boxes held is kept only
+    for the same row (see oceanval.app._units_row)."""
+    return [row["simulation"], row["variable"], row["model_variable"], row["units"], row["baseline"]["units"]]
+
+
+def check_unit_boxes(sent, rows):
+    """The units step's boxes, sent as {key: {"multiplier": text, "adder":
+    text}} for rows (see unit_rows), as compare_simulations()'s
+    unit_conversions: (conversions, errors), errors {key: message}. A blank box
+    is 1 or 0, which is kept: it says the units are the first simulation's."""
+    from oceanval import units
+
+    sent = sent if isinstance(sent, dict) else {}
+    numbers, errors = units.check_conversions({row["key"]: sent.get(row["key"]) or {} for row in rows})
+    conversions = {}
+    for row in rows:
+        if row["key"] not in numbers:
+            continue
+        multiplier, adder = numbers[row["key"]]
+        if multiplier < 0:
+            errors[row["key"]] = "Multiply by a number more than 0: a change of units never makes values negative."
+            continue
+        conversions.setdefault(row["variable"], {})[row["simulation"]] = {"multiplier": multiplier, "adder": adder}
+    return (None, errors) if errors else (conversions, {})
 
 
 # ---- the grids ----
@@ -311,12 +380,15 @@ def check_unify(form, names):
 # ---- the run ----
 
 
-def arguments(sims, placed_by_sim, shifts, unify, out_dir, times_index=None, domain_mask=None, **analyses):
+def arguments(
+    sims, placed_by_sim, shifts, unify, out_dir, times_index=None, domain_mask=None, unit_conversions=None, **analyses
+):
     """compare_simulations()'s arguments, from the steps. sims are check_sims's,
     shifts {simulation: days or None}, times_index {simulation: the path of the
     times of its files the check of the dates read}, domain_mask the path of the
-    mask file (or None), and analyses
-    analysis_forms.arguments's keywords (without the setup)."""
+    mask file (or None), unit_conversions the units step's (see
+    check_unit_boxes), and analyses analysis_forms.arguments's keywords (without
+    the setup)."""
     setup = {"simdir": sims[0]["simdir"], "ndown": sims[0]["ndown"], "out_dir": out_dir}
     out = analysis_forms.arguments(setup, combined(placed_by_sim), **analyses)
     for name in ("sim_dir", "n_dirs_down", "exclude", "require", "time_shift", "variables"):
@@ -347,6 +419,10 @@ def arguments(sims, placed_by_sim, shifts, unify, out_dir, times_index=None, dom
         result["unify"] = unify
     if domain_mask is not None:
         result["domain_mask"] = domain_mask
+    # only of the variables compared
+    conversions = {name: by_sim for name, by_sim in (unit_conversions or {}).items() if name in variables}
+    if conversions:
+        result["unit_conversions"] = conversions
     return result
 
 

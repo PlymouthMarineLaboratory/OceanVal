@@ -68,11 +68,13 @@ class TestOrderOfTheChain:
     and the renaming last."""
 
     @staticmethod
-    def chain(monkeypatch, files, parts, years, layer, shift=None, missing=None):
+    def chain(monkeypatch, files, parts, years, layer, shift=None, missing=None, convert=None):
         import nctoolkit as nc
 
         monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
         row = {"key": "chl", "name": "chl", "parts": parts, "as_missing": missing}
+        if convert is not None:
+            row["convert"] = convert
         ds = analysis._model_data(files, row, years, shift, layer, 3)
         return ds.history[-1]
 
@@ -98,6 +100,33 @@ class TestOrderOfTheChain:
         files = sorted(glob.glob(os.path.join(daily, "*", "*ptrc_T.nc")))
         command = self.chain(monkeypatch, files, ["P1_Chl", "P2_Chl"], (2013, 2014), "surface", missing=[0, 0])
         assert self.first_applied(command, "-selname", "-topvalue", "-setrtomiss", "-expr"), command
+
+    @pytest.mark.parametrize("parts, last", [(["thetao"], "-chname"), (["P1_Chl", "P2_Chl"], "-expr")])
+    def test_a_comparisons_conversion_of_units_is_last(self, daily, monkeypatch, parts, last):
+        """After the missing value, which is in the simulation's own units, and after a sum, so it is made once."""
+        stream = "grid_T" if parts == ["thetao"] else "ptrc_T"
+        files = sorted(glob.glob(os.path.join(daily, "*", f"*{stream}.nc")))
+        command = self.chain(monkeypatch, files, parts, (2013, 2014), "surface", missing=[0, 0], convert=(0.001, -273.15))
+        assert self.first_applied(command, "-setrtomiss", last, "-mulc,0.001", "-addc,-273.15"), command
+
+    @pytest.mark.parametrize("convert, says", [(None, ()), ((1, 0), ()), ((1000, 0), ("-mulc,1000",)), ((1, 2.5), ("-addc,2.5",))])
+    def test_only_what_converts_is_asked_for(self, daily, monkeypatch, convert, says):
+        files = sorted(glob.glob(os.path.join(daily, "*", "*grid_T.nc")))
+        command = self.chain(monkeypatch, files, ["thetao"], (2013, 2014), "surface", convert=convert)
+        assert [word for word in ("-mulc", "-addc") if word in command] == [said.split(",")[0] for said in says]
+        assert all(said in command for said in says)
+
+    def test_a_chosen_time_step_and_file_are_the_ones_read(self, daily, monkeypatch):
+        import nctoolkit as nc
+
+        files = sorted(glob.glob(os.path.join(daily, "*", "*grid_T.nc")))
+        monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
+        row = {"key": "chl", "name": "chl", "parts": ["thetao"], "as_missing": None}
+        ds = analysis._model_data(files, row, None, None, "surface", 3, at=(files[1], 1))
+        assert "timestep=2" in ds.history[-1] and ds.start == [files[1]]
+        # without it, the first of the first file, as before
+        ds = analysis._model_data(files, row, None, None, "surface", 3)
+        assert "timestep=1" in ds.history[-1] and ds.start == [files[0]]
 
     def test_the_variable_and_the_first_time_step_are_chosen_together_first(self, daily, monkeypatch):
         files = sorted(glob.glob(os.path.join(daily, "*", "*grid_T.nc")))

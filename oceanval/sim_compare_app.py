@@ -8,6 +8,11 @@ through these views:
                             are, as an Analyze simulation is
     "simcompare_variables"  the variables to compare, as "Your name" and the
                             model variable holding it in each simulation
+    "simcompare_units"      only if a variable's units in a simulation are not
+                            the first simulation's: how to convert them into the
+                            first's, as validate's units step converts the
+                            observations into the model's, a page for each
+                            simulation that needs one (pages of the page's own)
     "simcompare_files"      the files holding them, with the dates missing from
                             them, for each simulation (a model_check.ModelCheck
                             each), asking first, if their times look like the end
@@ -38,6 +43,7 @@ import tempfile
 import threading
 import traceback
 
+import nctoolkit as nc
 import numpy as np
 import pandas as pd
 
@@ -108,6 +114,12 @@ class SimCompareSteps:
         self.sc_checks = {}
         self.sc_times_dir = None
         self._sc_check_shifts = {}
+        # the units step's rows (see sim_compare_forms.unit_rows), what its boxes
+        # held, by key, with the row they were for, and the conversions they were
+        # checked to, as compare_simulations()'s unit_conversions
+        self.sc_unit_rows = None
+        self.sc_unit_boxes = {}
+        self.sc_conversions = None
         # the grids step's boxes, and what they were checked to
         self.sc_unify_form = sim_compare_forms.default_unify_form()
         self.sc_unify = None
@@ -118,6 +130,9 @@ class SimCompareSteps:
         self._sc_grids_number = 0
         # what generating the unified grid is doing, as words for the page, or None
         self.sc_stage = None
+        # the time step the grids step draws, by the first file of a simulation's
+        # first variable: (path, step), see _sc_field_step
+        self._sc_steps = {}
 
     # ---- the simulations ----
 
@@ -154,6 +169,9 @@ class SimCompareSteps:
         the lock held."""
         self.sc_placed = None
         self.analyze_placed = None
+        self.sc_unit_rows = None
+        self.sc_unit_boxes = {}
+        self.sc_conversions = None
         self.sc_shift = None
         self._sc_drop_checks()
         self._sc_drop_times()
@@ -260,7 +278,15 @@ class SimCompareSteps:
             changed = _placed_key(placed) != _placed_key(self.sc_placed)
             self.sc_placed = placed
             self.analyze_placed = sim_compare_forms.combined(placed)
-            self.view = "simcompare_files"
+            unit_rows = sim_compare_forms.unit_rows(placed)
+            if unit_rows != self.sc_unit_rows:
+                self.sc_unit_rows = unit_rows
+                self.sc_conversions = None
+            # the units are converted into the first simulation's, if any are not
+            # its: the checks of the files below go on meanwhile
+            self.view = "simcompare_units" if unit_rows else "simcompare_files"
+            if not unit_rows:
+                self.sc_conversions = {}
             if changed or self.sc_shift is None or not self.sc_checks:
                 self._sc_drop_checks()
                 self._sc_check_time_stamps()
@@ -269,6 +295,50 @@ class SimCompareSteps:
                 self._sc_grids_number += 1
             self._notify()
         return 200, {"ok": True}
+
+    # ---- the units ----
+
+    def simcompare_units(self, conversions, confirmed=False):
+        """The units step's Continue (on its last page), with what its boxes hold:
+        {key: {"multiplier", "adder"}}, and whether the user ticked that they are
+        happy with the units, which they must have."""
+        with self._lock:
+            if self.view != "simcompare_units":
+                return 409, {"ok": False, "error": "This step is over."}
+            self._sc_keep_unit_boxes(conversions)
+            if confirmed is not True:
+                return 400, {"ok": False, "error": "Confirm the units before carrying on."}
+            checked, errors = sim_compare_forms.check_unit_boxes(conversions, self.sc_unit_rows or [])
+            if errors:
+                return 400, {"ok": False, "errors": errors}
+            self.sc_conversions = checked
+            self.view = "simcompare_files"
+            self._notify()
+        return 200, {"ok": True}
+
+    def _sc_keep_unit_boxes(self, sent):
+        """Keep what the units step's boxes hold, with the row each is for, so that
+        they are shown again for Back. Called with the lock held."""
+        if not isinstance(sent, dict):
+            return
+        for row in self.sc_unit_rows or []:
+            boxes = sent.get(row["key"])
+            if isinstance(boxes, dict):
+                self.sc_unit_boxes[row["key"]] = {
+                    "multiplier": str(boxes.get("multiplier", ""))[:40],
+                    "adder": str(boxes.get("adder", ""))[:40],
+                    "row": sim_compare_forms.unit_row_signature(row),
+                }
+
+    def _sc_unit_boxes_shown(self):
+        """What the units step's boxes are filled in with again, for each row that
+        is the same as when they were left. Called with the lock held."""
+        shown = {}
+        for row in self.sc_unit_rows or []:
+            kept = self.sc_unit_boxes.get(row["key"])
+            if kept is not None and kept["row"] == sim_compare_forms.unit_row_signature(row):
+                shown[row["key"]] = {"multiplier": kept["multiplier"], "adder": kept["adder"]}
+        return shown
 
     def _sc_check_time_stamps(self):
         """Look, in a thread, at whether the times of the files look like the end
@@ -565,6 +635,25 @@ class SimCompareSteps:
         variable = (row.get("parts") or [None])[0]
         return files[0], variable, files
 
+    def _sc_field_step(self, files):
+        """The file and the time step in it (from 0) the grids step draws from
+        files, a simulation's first variable's: the simulation's second time
+        step, if it has one, which is the first file's second, or else the
+        second file's first, and otherwise its first. Counting a file's times
+        runs CDO, so it is done once for each first file, outside the lock."""
+        with self._lock:
+            known = self._sc_steps.get(files[0])
+        if known is not None:
+            return known
+        try:
+            count = len(nc.open_data(files[0], checks=False).times)
+        except Exception:
+            count = 1
+        found = analysis.second_step(files, count)
+        with self._lock:
+            self._sc_steps[files[0]] = found
+        return found
+
     @staticmethod
     def _sc_missing(files, variable):
         """The preview's missing values for the first variable of a simulation: the
@@ -578,9 +667,10 @@ class SimCompareSteps:
 
     def simcompare_panel(self, number):
         """The map of simulation number's (counted from 1) first variable, at the
-        surface and the first time, for the grids step: {"ok", "item", "notes",
-        "variable", "file"} or {"ok": False, "error"}. Returns the HTTP status and
-        the reply."""
+        surface and the simulation's second time step (see _sc_field_step), for
+        the grids step: {"ok", "item", "notes", "variable", "file", "step"} (the
+        file and the time step in it, from 1) or {"ok": False, "error"}. Returns
+        the HTTP status and the reply."""
         from oceanval import viewer_plots
 
         with self._lock:
@@ -598,15 +688,18 @@ class SimCompareSteps:
         found = None
         try:
             missing, note = self._sc_missing(files, variable)
+            path, step = self._sc_field_step(files)
             found = viewer_catalogue.scan(path, 0, wait=False)
             about = found.combined(0, [variable])
-            data, _ = found.field(0, [variable], 0, about.get("surface_level", 0), missing)
+            data, _ = found.field(0, [variable], step, about.get("surface_level", 0), missing)
             item, notes, _ = viewer_plots.map_plot(data, about, about["name"], coast=viewer_plots.has_geoviews())
             if not data.notnull().any():
                 notes.append("Every cell is missing, so there is nothing to show.")
             if note:
                 notes.append(note)
-            return 200, {"ok": True, "item": item, "notes": notes, "variable": variable, "file": os.path.basename(path)}
+            return 200, {
+                "ok": True, "item": item, "notes": notes, "variable": variable, "file": os.path.basename(path), "step": step + 1,
+            }
         except ValueError as problem:
             return 200, {"ok": False, "error": str(problem)}
         except Exception as problem:  # noqa: BLE001 - told to the page
@@ -625,7 +718,7 @@ class SimCompareSteps:
     def simcompare_generate(self, form):
         """The cells every simulation has a value in once they are on one grid, as
         the grids step's boxes say (baseline or box, and how they are regridded),
-        judged from the first variable of each at the surface and the first time:
+        judged from the first variable of each at the surface and the time step its map is of:
         a preview of what the run makes for every variable and layer. Returns the
         HTTP status and the reply, {"ok", "item", "notes", "shared", "total"}, or
         {"ok": False, "errors"} by box, or "error"."""
@@ -650,12 +743,14 @@ class SimCompareSteps:
         try:
             for name, (path, variable, files) in sources.items():
                 missing, _ = self._sc_missing(files, variable)
+                # the time step each simulation's map is of
+                path, step = self._sc_field_step(files)
                 found = viewer_catalogue.scan(path, 0, wait=False)
                 try:
                     about = found.combined(0, [variable])
                 finally:
                     found.close()
-                fields[name] = grid_align.field_for_cdo(path, variable, about.get("surface_level", 0), missing)
+                fields[name] = grid_align.field_for_cdo(path, variable, about.get("surface_level", 0), missing, step)
             method = form["regrid"] or sim_unify.DEFAULT_METHOD
             try:
                 if unify["method"] == "box":
@@ -722,6 +817,7 @@ class SimCompareSteps:
             # the times the checks read are kept for a run now, not for a script kept for later
             times_index=None if save else self._sc_keep_times(),
             domain_mask=self.sc_domain_mask,
+            unit_conversions=self.sc_conversions,
             climatology=chosen["climatology"]["rows"] if chosen["climatology"] else None,
             phenology=chosen["phenology"]["rows"] if chosen["phenology"] else None,
             thickness=next(iter(thicknesses), None),
@@ -766,8 +862,11 @@ class SimCompareSteps:
             if isinstance(sent.get("rows"), list):
                 self.sc_rows = sim_compare_forms.clean_rows(sent["rows"], [sim["name"] for sim in self.sc_sims or []])
             self.view = "simcompare_sims"
-        elif self.view == "simcompare_files":
+        elif self.view == "simcompare_units":
+            self._sc_keep_unit_boxes(sent.get("conversions"))
             self.view = "simcompare_variables"
+        elif self.view == "simcompare_files":
+            self.view = "simcompare_units" if self.sc_unit_rows else "simcompare_variables"
         elif self.view == "simcompare_grids":
             if isinstance(sent.get("form"), dict):
                 self.sc_unify_form = sim_compare_forms.clean_unify(sent["form"])
@@ -821,6 +920,11 @@ class SimCompareSteps:
                 }
                 for row in placed
             ],
+            "units": (
+                {"rows": self.sc_unit_rows, "boxes": self._sc_unit_boxes_shown()}
+                if self.view == "simcompare_units"
+                else None
+            ),
             "shift": self.sc_shift,
             "suggested_shift": time_stamps.describe(time_stamps.SUGGESTED),
             "unify_form": self.sc_unify_form,

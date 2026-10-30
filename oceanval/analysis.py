@@ -574,10 +574,31 @@ def integral_units(units):
     return f"{units} m" if units else "m"
 
 
-def _model_data(files, row, years, time_shift, layer=None, levels=1):
+def second_step(files, steps_in_first):
+    """The file and the time step in it (from 0) a comparison's maps and masks are
+    made from: the output's second time step, if it has one, which is the first
+    file's second if that has more than one time, else the second file's first;
+    otherwise its first. steps_in_first is how many times files[0] has."""
+    if steps_in_first > 1:
+        return files[0], 1
+    if len(files) > 1:
+        return files[1], 0
+    return files[0], 0
+
+
+def second_step_of(row):
+    """second_step for the files of row (locate_rows's), from the times it read; the
+    first time step of the first file, if they are not known."""
+    files = row["files"]
+    times = (row.get("times") or {}).get(files[0])
+    return second_step(files, len(times)) if times is not None else (files[0], 0)
+
+
+def _model_data(files, row, years, time_shift, layer=None, levels=1, at=None):
     """The model's output of row's variable in years, from files, as a
-    dataset with one variable, named row["key"]. With years None, it is the
-    first time of the first file, which is enough to see what is missing. If
+    dataset with one variable, named row["key"]. With years None, it is one
+    time step, which is enough to see what is missing: the first of the first
+    file, or at, (file, step from 0). If
     layer is the surface or the bottom (see _pick_level), only that level is
     kept, of each part of a sum.
 
@@ -591,8 +612,9 @@ def _model_data(files, row, years, time_shift, layer=None, levels=1):
     the variables, by CDO's select, which does not read the other levels."""
     fast = layer == SURFACE and levels > 1 and bool(row.get("surface_fast"))
     if years is None:
-        ds = nc.open_data(files if isinstance(files, str) else files[0], checks=False)
-        _choose(ds, row, fast, first_step=True)
+        path, step = at if at is not None else (files if isinstance(files, str) else files[0], 0)
+        ds = nc.open_data(path, checks=False)
+        _choose(ds, row, fast, step=step)
     elif time_shift:
         ds = nc.open_data(files, checks=False)
         _choose(ds, row, fast)
@@ -619,6 +641,14 @@ def _model_data(files, row, years, time_shift, layer=None, levels=1):
         ds.cdo_command(f"-expr,{row['key']}={'+'.join(row['parts'])}")
     else:
         ds.rename({row["parts"][0]: row["key"]})
+    # a comparison's simulation in other units than the first's (see
+    # sim_compare.check_unit_conversions): converted as it is read, so that every
+    # analysis is of the converted values. Missing values stay missing
+    multiplier, adder = row.get("convert") or (1, 0)
+    if multiplier != 1:
+        ds.cdo_command(f"-mulc,{multiplier!r}")
+    if adder != 0:
+        ds.cdo_command(f"-addc,{adder!r}")
     return ds
 
 
@@ -663,10 +693,10 @@ def thickness_data(thickness, files, as_missing=None):
 CHUNK_CACHE = surface.CHUNK_CACHE
 
 
-def _choose(ds, row, fast, first_step=False):
-    """Choose the variables of row in ds, and with first_step its first time
-    step; if fast, only the surface of them too (see oceanval.surface)."""
-    surface.choose(ds, row["parts"], fast, [0] if first_step else None)
+def _choose(ds, row, fast, step=None):
+    """Choose the variables of row in ds, and with step (from 0) that time step
+    only; if fast, only the surface of them too (see oceanval.surface)."""
+    surface.choose(ds, row["parts"], fast, None if step is None else [step])
 
 
 def _chunk_cache(row, layer):
@@ -701,11 +731,12 @@ def _reduce_column(ds, layer, thickness):
             how(thickness=thickness)
 
 
-def first_step_of(files, row, layer, levels, thickness=None):
+def first_step_of(files, row, layer, levels, thickness=None, at=None):
     """The field row's variable has in one layer at the first time step of
-    files, on the model's own grid: what monthly_means_of gives, for one time."""
+    files, or at at, (file, step from 0), on the model's own grid: what
+    monthly_means_of gives, for one time."""
     with _chunk_cache(row, layer):
-        ds = _model_data(files, row, None, None, layer, levels)
+        ds = _model_data(files, row, None, None, layer, levels, at)
         with warnings.catch_warnings(record=True):
             ds.run()
             _reduce_column(ds, layer, thickness)

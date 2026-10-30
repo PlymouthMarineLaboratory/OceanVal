@@ -263,21 +263,6 @@ class TestVariables:
         assert "Fine run" in reply["errors"]["1"]["models"]
         assert post(app, "/api/simcompare_variables", {"rows": []})[1]["errors"] == {"rows": "Add a variable to compare."}
 
-    def test_the_units_must_agree(self, app, sims, tmp_path):
-        import glob
-
-        import xarray as xr
-
-        for path in glob.glob(str(tmp_path / "fine" / "*" / "*grid_T.nc")):
-            with xr.open_dataset(path) as ds:
-                ds = ds.load()
-            ds["thetao"].attrs["units"] = "K"
-            ds.to_netcdf(path)
-        to_variables(app)
-        status, reply = post(app, "/api/simcompare_variables", {"rows": ROWS[1:]})
-        assert status == 400
-        assert "in K here, and in degC in Base run" in reply["errors"]["0"]["models"]["Fine run"]
-
     def test_the_variables_are_placed_in_every_simulation(self, app, sims):
         shown = to_files(app)
         assert app.view == "simcompare_files"
@@ -293,6 +278,123 @@ class TestVariables:
         assert post(app, "/api/back", {"rows": ROWS})[0] == 200
         assert app.view == "simcompare_sims"
         assert state(app)["simcompare"]["rows"][0]["models"] == ROWS[0]["models"]
+
+
+def in_kelvin(folder):
+    """The temperature of the simulation in folder given in K, as it is in degC."""
+    import glob
+
+    import xarray as xr
+
+    for path in glob.glob(os.path.join(folder, "*", "*grid_T.nc")):
+        with xr.open_dataset(path) as ds:
+            ds = ds.load()
+        ds["thetao"] = (ds["thetao"] + 273.15).assign_attrs(ds["thetao"].attrs, units="K")
+        ds.to_netcdf(path)
+
+
+# the boxes of the units step for the one row of TestUnits: OceanVal's suggestion
+SUGGESTED = {"1:1": {"multiplier": "", "adder": "-273.15"}}
+
+
+class TestUnits:
+    """A simulation in other units than the first's is converted into them, as validate's units step converts the
+    observations into the model's: a page for each simulation that needs one, which must be confirmed."""
+
+    @pytest.fixture
+    def kelvin(self, app, sims, tmp_path):
+        in_kelvin(str(tmp_path / "fine"))
+        to_variables(app)
+        assert post(app, "/api/simcompare_variables", {"rows": ROWS}) == (200, {"ok": True})
+        return state(app)["simcompare"]
+
+    def test_units_not_the_firsts_are_asked_about(self, app, kelvin):
+        assert app.view == "simcompare_units"
+        assert kelvin["units"]["boxes"] == {}
+        # chlorophyll is in the same units in both: only temperature has a row
+        [row] = kelvin["units"]["rows"]
+        assert row["key"] == "1:1"
+        assert row["simulation"] == "Fine run" and row["variable"] == "Temperature"
+        assert row["model_variable"] == "thetao" and row["units"] == "K"
+        assert row["baseline"] == {"simulation": "Base run", "model_variable": "thetao", "units": "degC"}
+        assert row["check"]["status"] == "convert"
+        assert (row["check"]["multiplier"], row["check"]["adder"]) == (1, -273.15)
+
+    def test_the_units_must_be_confirmed(self, app, kelvin):
+        status, reply = post(app, "/api/simcompare_units", {"conversions": SUGGESTED})
+        assert status == 400 and reply["error"] == "Confirm the units before carrying on."
+        assert app.view == "simcompare_units"
+
+    @pytest.mark.parametrize(
+        "boxes, said",
+        [
+            ({"multiplier": "abc", "adder": ""}, "Multiply by a number that is not 0"),
+            ({"multiplier": "0", "adder": ""}, "Multiply by a number that is not 0"),
+            ({"multiplier": "-1", "adder": ""}, "more than 0"),
+        ],
+    )
+    def test_boxes_that_cannot_be_used_are_said(self, app, kelvin, boxes, said):
+        status, reply = post(app, "/api/simcompare_units", {"conversions": {"1:1": boxes}, "confirmed": True})
+        assert status == 400 and said in reply["errors"]["1:1"]
+        # kept for the page as they were
+        assert state(app)["simcompare"]["units"]["boxes"]["1:1"] == boxes
+
+    def test_continue_goes_on_to_the_files_with_the_conversions(self, app, kelvin):
+        assert post(app, "/api/simcompare_units", {"conversions": SUGGESTED, "confirmed": True}) == (200, {"ok": True})
+        assert app.view == "simcompare_files"
+        assert app.sc_conversions == {"Temperature": {"Fine run": {"multiplier": 1, "adder": -273.15}}}
+        # the checks of the files went on while the units were asked about
+        wait_for(lambda: app._sc_checks_done())
+
+    def test_blank_boxes_say_the_units_are_the_firsts(self, app, kelvin):
+        blank = {"1:1": {"multiplier": "", "adder": ""}}
+        assert post(app, "/api/simcompare_units", {"conversions": blank, "confirmed": True}) == (200, {"ok": True})
+        assert app.sc_conversions == {"Temperature": {"Fine run": {"multiplier": 1, "adder": 0}}}
+
+    def test_back_keeps_the_boxes(self, app, kelvin):
+        typed = {"1:1": {"multiplier": "1", "adder": "-273"}}
+        assert post(app, "/api/simcompare_units", {"conversions": typed, "confirmed": True})[0] == 200
+        # from the files to the units, and from the units to the variables
+        assert post(app, "/api/back", {})[0] == 200
+        assert app.view == "simcompare_units"
+        assert state(app)["simcompare"]["units"]["boxes"] == typed
+        assert post(app, "/api/back", {"conversions": SUGGESTED})[0] == 200
+        assert app.view == "simcompare_variables"
+        assert post(app, "/api/simcompare_variables", {"rows": ROWS}) == (200, {"ok": True})
+        assert state(app)["simcompare"]["units"]["boxes"] == SUGGESTED
+
+    def test_no_step_once_the_units_are_the_same(self, app, kelvin, tmp_path):
+        assert post(app, "/api/back", {"conversions": {"1:1": {"multiplier": "", "adder": "5"}}})[0] == 200
+        # both simulations in K, read afresh (as other simulations): nothing to convert
+        in_kelvin(str(tmp_path / "base"))
+        assert post(app, "/api/back", {})[0] == 200
+        assert post(app, "/api/simcompare_sims", {"form": sims_form(rows=[
+            {"name": "Base run", "simdir": "fine", "ndown": "1", "exclude": "", "require": ""},
+            {"name": "Fine run", "simdir": "base", "ndown": "1", "exclude": "", "require": ""},
+        ])}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_all_read())
+        assert post(app, "/api/simcompare_variables", {"rows": ROWS}) == (200, {"ok": True})
+        assert app.view == "simcompare_files" and app.sc_conversions == {}
+
+    def test_the_script_converts_them(self, app, kelvin, runs):
+        assert post(app, "/api/simcompare_units", {"conversions": SUGGESTED, "confirmed": True})[0] == 200
+        wait_for(lambda: app._sc_checks_done())
+        assert post(app, "/api/simcompare_files") == (200, {"ok": True})
+        assert post(app, "/api/simcompare_grids", {"form": {"need": "no"}}) == (200, {"ok": True})
+        assert post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY}) == (200, {"ok": True})
+        assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
+        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        assert post(app, "/api/analyze_save_script", OUTPUT) == (200, {"ok": True})
+        call = ast.parse(open(os.path.join(app.cwd, "comparison.py")).read()).body[-1].value
+        given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
+        assert given["unit_conversions"] == {"Temperature": {"Fine run": {"multiplier": 1, "adder": -273.15}}}
+        sim_compare.check_unit_conversions(given["unit_conversions"], given["variables"], ["Base run", "Fine run"])
+
+    def test_the_same_units_have_no_step(self, app, sims, runs):
+        to_files(app)
+        assert app.view == "simcompare_files" and app.sc_unit_rows == [] and app.sc_conversions == {}
+        assert post(app, "/api/back", {})[0] == 200
+        assert app.view == "simcompare_variables"
 
 
 class TestFiles:
@@ -484,6 +586,42 @@ class TestGrids:
         assert reply["variable"] == "P1_Chl" and reply["item"]
         assert post(app, "/api/simcompare_panel", {"number": 3})[0] == 400
         assert post(app, "/api/simcompare_panel", {"number": 0})[0] == 400
+
+    def test_the_maps_are_of_the_second_time_step(self, app, sims, monkeypatch):
+        """The second time step of each simulation, which the unified grid is made from too."""
+        from oceanval import grid_align
+
+        to_grids(app)
+        files = app.sc_placed["Fine run"][0]["files"]
+        reply = post(app, "/api/simcompare_panel", {"number": 2})[1]
+        # a file a year of monthly output: the first file's second month
+        assert reply["ok"] and (reply["file"], reply["step"]) == (os.path.basename(files[0]), 2)
+        steps = []
+        real = grid_align.field_for_cdo
+        monkeypatch.setattr(grid_align, "field_for_cdo", lambda *args: steps.append(args[-1]) or real(*args))
+        form = {"need": "yes", "method": "baseline", "baseline": "Fine run"}
+        assert post(app, "/api/simcompare_generate", {"form": form})[1]["ok"]
+        assert steps == [1, 1]
+
+    def test_a_file_of_one_time_step_gives_the_next_files_first(self, app, tmp_path):
+        """The simulation's second time step, wherever it is: a first file of one time is followed by the next's."""
+        files = [str(tmp_path / "a.nc"), str(tmp_path / "b.nc")]
+        counts = {files[0]: 1, files[1]: 1}
+
+        class Times:
+            def __init__(self, path, checks=False):
+                self.times = [0] * counts[path]
+
+        import oceanval.sim_compare_app as module
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(module.nc, "open_data", Times)
+            assert app._sc_field_step(files) == (files[1], 0)
+            # worked out once for each first file
+            counts[files[0]] = 5
+            assert app._sc_field_step(files) == (files[1], 0)
+            # a simulation of one time step has only its first
+            assert app._sc_field_step([files[1]]) == (files[1], 0)
 
     def test_the_unified_grid_is_a_preview_on_a_baseline(self, app, sims):
         to_grids(app)

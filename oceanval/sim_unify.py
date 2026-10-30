@@ -15,8 +15,9 @@ Either can also say how the regridding is done, "regrid": one of METHODS
 
 Whichever it is, a cell with no value in one simulation is made missing in all of
 them, so that every simulation is compared over exactly the same cells. That
-mask is worked out from the first time step of each simulation's field (once
-it is on the common grid), for each variable and each layer (surface, bottom,
+mask is worked out from the second time step of each simulation's field (its first
+if it has only one; the first can be empty, see oceanval.analysis.second_step), once
+it is on the common grid, for each variable and each layer (surface, bottom,
 water column, or every level), in prepare(), and kept in a folder as netCDF.
 
 The analysis reads it through row["unify"] (see row_unify), which
@@ -129,7 +130,7 @@ def describe(unify):
             f"({interpolation}, nctoolkit's to_latlon)."
         )
     return (
-        how + " Where any simulation has no value in a cell (judged from its first time step), "
+        how + " Where any simulation has no value in a cell (judged from its second time step), "
         "that cell is missing in all of them, so every simulation is compared over exactly the same cells."
     )
 
@@ -319,6 +320,7 @@ def prepare(folder, unify, key, layer, fields, progress=None):
     valid = None
     reference = None
     same = {}
+    counts = {}
     for sim, field in fields.items():
         ds = field.copy()
         here_unify = row_unify(unify, folder, sim)
@@ -334,6 +336,7 @@ def prepare(folder, unify, key, layer, fields, progress=None):
             data = ds.to_xarray()
         variable = field_variable(data, key)
         here = np.isfinite(variable.values)
+        counts[sim] = int(here.sum())
         if valid is None:
             valid, reference = here, variable
         elif valid.shape != here.shape:
@@ -345,6 +348,13 @@ def prepare(folder, unify, key, layer, fields, progress=None):
             valid = valid & here
     if progress is not None:
         progress("unifying", None)
+    if not valid.any():
+        raise ValueError(
+            f"No cell has a value in every simulation for {key} ({layer}), at the time step the cells are judged from "
+            f"(the second, or the first if there is only one). Cells with a value: "
+            + "; ".join(f"{sim}: {count} of {valid.size}" for sim, count in counts.items())
+            + ". Check the missing values (as_missing), which are set before this, and that the output has values then."
+        )
     # 0 where every simulation has a value, missing where any has not, so that
     # adding it to a field only makes cells missing
     with open(same_path(folder, key, layer), "w") as f:

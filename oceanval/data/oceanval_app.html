@@ -2128,6 +2128,12 @@
     </div>
   </section>
 
+  <section id="view-simcompare-units" hidden>
+    <p class="lede" id="scu-lede"></p>
+    <p class="lede">Each value becomes <strong>value × Multiply by + Add</strong> as it is read, so every analysis (and a water column's integral) is of the converted values. <strong>Multiply by</strong> rescales the units: 1000 turns mol/m3 into mmol/m3. <strong>Add</strong> shifts the zero point: -273.15 turns K into °C. Leave both boxes empty when the units are the same, only written another way. OceanVal's suggestions are <strong class="oceanval-change">in red and bold</strong>. The units must be confirmed, with the tick box beside Continue.</p>
+    <div id="scu-pages"></div>
+  </section>
+
   <section id="view-simcompare-files" hidden>
     <section class="time-shift" id="scf-shift" aria-label="Whether to shift the simulations' times" hidden>
       <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, a January mean would count as February's, and the year's last mean would fall in the next year.</p>
@@ -2798,6 +2804,7 @@
         return state.action === "simcompare" ? "What do you want to compare?" : "What do you want to work out?";
       case "simcompare_sims": return "Which simulations do you want to compare?";
       case "simcompare_variables": return "What variables do you want to compare?";
+      case "simcompare_units": return "Do the units match up?";
       case "simcompare_files": return scState().shift && scState().shift.status === "asked"
         && !scState().shift.choice ? "Are the models' times at the end of each mean?"
         : "Check the files of each simulation";
@@ -2864,7 +2871,8 @@
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
       state.demo && state.demo.status, demoKey(), Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
-      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number, viewerFvcom()].join("|");
+      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number, viewerFvcom(),
+      scUnits.page].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
       if (view === "output") refreshMatchupOutput();
@@ -2929,6 +2937,15 @@
     } else if (view === "simcompare_variables") {
       actions.push(button("Back", "ghost", () => post("api/back", { rows: readScRows() })),
         button("Continue", "primary", submitScVariables, { id: "scv-continue", disabled: true }));
+    } else if (view === "simcompare_units") {
+      // a page for each simulation converted: Back and Continue go between them, then the steps either side
+      const confirm = el("input", { type: "checkbox", class: "tick", id: "scu-confirm" });
+      confirm.addEventListener("change", scUnitsButton);
+      asked = el("label", { class: "summary__question tick-label summary__confirm" }, "Tick if you are happy with the units", confirm);
+      const last = scUnits.page >= scUnits.sims.length - 1;
+      actions.push(button("Back", "ghost", () => (scUnits.page > 0 ? scUnitsTo(scUnits.page - 1)
+        : post("api/back", { conversions: unitsBoxes(".scu-body input") }))),
+      button("Continue", "primary", () => (last ? submitScUnits() : scUnitsTo(scUnits.page + 1)), { id: "scu-continue", disabled: true }));
     } else if (view === "simcompare_files") {
       actions.push(button("Back", "ghost", () => post("api/back")),
         button("Continue", "primary", async () => {
@@ -3962,7 +3979,7 @@
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
-    simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
+    simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
     own_future: "view-own-future",
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
@@ -4008,6 +4025,9 @@
       scVars.built = false;
       scVars.busy = false;
       $("scv-rows").replaceChildren();
+    } else if (view === "simcompare_units") {
+      // the units are confirmed afresh every time this step is reached
+      fillScUnits();
     } else if (view === "simcompare_files") {
       scFiles.key = null;
       scFiles.shift = null;
@@ -4141,6 +4161,12 @@
     if (state.view === "analyze_files") renderAnalyzeFiles();
     if (state.view === "analyze_options") renderAnalyzeOptions();
     if (state.view === "simcompare_variables") renderScVariables();
+    if (state.view === "simcompare_units" && scUnits.key !== JSON.stringify((scState().units || {}).rows || [])) {
+      // its pages start again from the first, whose bar is not the one shown
+      fillScUnits();
+      barShown = null;
+      renderBar();
+    }
     if (state.view === "simcompare_files") renderScFiles();
     if (state.view === "simcompare_grids") renderScGrids();
     showGenerateStage();
@@ -8737,7 +8763,7 @@
       // a section with nothing in it says so, rather than going missing
       $(`units-empty-${kind}`).hidden = rows.length > 0;
       $(`units-body-${kind}`).closest(".card").hidden = rows.length === 0;
-      $(`units-body-${kind}`).replaceChildren(...rows.flatMap(unitsRow));
+      $(`units-body-${kind}`).replaceChildren(...rows.flatMap((row) => unitsRow(row)));
     }
     unitsFilled = !reading;
     const first = document.querySelector(".units-body input");
@@ -8745,9 +8771,11 @@
   }
 
   // the conversion the boxes start with: one the script already has, e.g. given
-  // with your own data, or else the one OceanVal suggests
+  // with your own data, or else the one OceanVal suggests (Compare simulations'
+  // rows have none of their own)
   function unitsStart(row) {
-    if (row.obs_multiplier !== 1 || row.obs_adder !== 0) return [row.obs_multiplier, row.obs_adder, true];
+    const given = [row.obs_multiplier ?? 1, row.obs_adder ?? 0];
+    if (given[0] !== 1 || given[1] !== 0) return [...given, true];
     if (row.check.status === "convert") return [row.check.multiplier, row.check.adder, false];
     return [1, 0, false];
   }
@@ -8770,18 +8798,37 @@
     return line(check.note, { unknown: "warn", warn: "warn", same: "same" }[check.status] ?? "ok");
   }
 
-  function unitsRow(row) {
+  // validate's rows: a matchup's observations, converted into the simulation's units
+  const VALIDATE_UNITS = {
+    boxes: () => state.units.boxes || {},
+    of: (row) => `the ${row.title} observations`,
+    unconfirm: () => unitsUnconfirm(),
+    cells: (row) => [
+      el("td", {}, el("strong", { text: row.title })),
+      el("td", {}, ...row.model.parts.length > 1
+        ? row.model.parts.map((part) => el("div", { class: "units__part is-mono", text: part.name }))
+        : [el("span", { class: "is-mono", text: row.model.variable })]),
+      el("td", {}, ...row.model.parts.map((part) => el("div", { class: "units__part" },
+        unitsText(part.units, "not in the files")))),
+      el("td", {}, unitsText(row.obs_variable, "not known")),
+      el("td", {}, unitsText(row.obs_units, row.obs_note || "not available")),
+    ],
+  };
+
+  // a row of a units table: what spec's cells say of it (see VALIDATE_UNITS), then
+  // the Multiply by and Add boxes, and a note under it of what OceanVal made of the units
+  function unitsRow(row, spec = VALIDATE_UNITS) {
     const number = (value, fallback) => (value === fallback ? "" : String(value));
     const [startMultiplier, startAdder, kept] = unitsStart(row);
     // the boxes as they were left, for a row that is the same as it was then
     // (see App.units_boxes): only a number OceanVal filled in is marked as its own
-    const left = (state.units.boxes || {})[row.key];
+    const left = spec.boxes()[row.key];
     const multiplier = el("input", { type: "text", class: "s-input is-num", inputmode: "decimal", spellcheck: "false",
       placeholder: "1", value: left ? left.multiplier : number(startMultiplier, 1),
-      "aria-label": `Multiply the ${row.title} observations by` });
+      "aria-label": `Multiply ${spec.of(row)} by` });
     const adder = el("input", { type: "text", class: "s-input is-num", inputmode: "decimal", spellcheck: "false",
       placeholder: "0", value: left ? left.adder : number(startAdder, 0),
-      "aria-label": `Add to the ${row.title} observations` });
+      "aria-label": `Add to ${spec.of(row)}` });
     multiplier.dataset.unitsKey = adder.dataset.unitsKey = row.key;
     multiplier.dataset.unitsBox = "multiplier";
     adder.dataset.unitsBox = "adder";
@@ -8809,22 +8856,11 @@
         multiplier.classList.remove("is-invalid"); adder.classList.remove("is-invalid"); error.textContent = "";
         markFilled();
         // what was confirmed is not what is in the boxes any more
-        unitsUnconfirm();
+        spec.unconfirm();
       });
     }
     markFilled();
-    const cells = [
-      el("td", {}, el("strong", { text: row.title })),
-      el("td", {}, ...row.model.parts.length > 1
-        ? row.model.parts.map((part) => el("div", { class: "units__part is-mono", text: part.name }))
-        : [el("span", { class: "is-mono", text: row.model.variable })]),
-      el("td", {}, ...row.model.parts.map((part) => el("div", { class: "units__part" },
-        unitsText(part.units, "not in the files")))),
-      el("td", {}, unitsText(row.obs_variable, "not known")),
-      el("td", {}, unitsText(row.obs_units, row.obs_note || "not available")),
-      el("td", {}, multiplier),
-      el("td", {}, adder, error),
-    ];
+    const cells = [...spec.cells(row), el("td", {}, multiplier), el("td", {}, adder, error)];
     noteCell.colSpan = cells.length;
     // own point data has no note: it says it has no units already
     const noted = !row.obs_note;
@@ -8832,10 +8868,10 @@
     return noted ? [main, el("tr", { class: "units__check" }, noteCell)] : [main];
   }
 
-  // what the boxes hold, for each matchup
-  function unitsBoxes() {
+  // what the boxes hold, for each matchup (or, with Compare simulations' tables, each row of theirs)
+  function unitsBoxes(selector = ".units-body input") {
     const conversions = {};
-    document.querySelectorAll(".units-body input").forEach((box) => {
+    document.querySelectorAll(selector).forEach((box) => {
       const key = box.dataset.unitsKey;
       conversions[key] = conversions[key] || {};
       conversions[key][box.dataset.unitsBox] = box.value;
@@ -11045,6 +11081,102 @@
     refreshScVariables();
   }
 
+  // ---- the units: each simulation after the first converted into the first's, a page each ----
+  // the simulations with a page, in order, the page shown, and the rows the pages were built for
+  const scUnits = { sims: [], page: 0, key: null };
+
+  // a simulation's rows, converted into the first simulation's units, as validate's units step
+  // converts observations (see unitsRow): this simulation plays the observations
+  const SC_UNITS = {
+    boxes: () => (scState().units || {}).boxes || {},
+    of: (row) => `${row.variable} in ${row.simulation}`,
+    unconfirm: () => scUnitsUnconfirm(),
+    cells: (row) => [
+      el("td", {}, el("strong", { text: row.variable })),
+      el("td", {}, unitsText(row.baseline.model_variable, "not known")),
+      el("td", {}, unitsText(row.baseline.units, "not in the files")),
+      el("td", {}, unitsText(row.model_variable, "not known")),
+      el("td", {}, unitsText(row.units, "not in the files")),
+    ],
+  };
+
+  const scUnitsConfirmed = () => Boolean($("scu-confirm") && $("scu-confirm").checked);
+  function scUnitsButton() {
+    const button = $("scu-continue");
+    if (button) button.disabled = !scUnitsConfirmed();
+  }
+  function scUnitsUnconfirm() {
+    const box = $("scu-confirm");
+    if (box) box.checked = false;
+    scUnitsButton();
+  }
+
+  function fillScUnits() {
+    const rows = (scState().units || {}).rows || [];
+    const sims = scState().sims;
+    scUnits.key = JSON.stringify(rows);
+    scUnits.sims = [...new Set(rows.map((row) => row.simulation))];
+    scUnits.page = 0;
+    const first = sims.length ? sims[0].name : "";
+    const colourOf = (name) => scColour(sims.findIndex((sim) => sim.name === name));
+    $("scu-pages").replaceChildren(...scUnits.sims.map((name, index) => {
+      const head = (text) => el("th", { scope: "col", text });
+      return el("section", { class: "scu-page", "data-scu-page": String(index), hidden: index !== 0 },
+        el("h2", { class: "section-title sc-head" }, scSwatch(colourOf(name)), `${name}, into the units of ${first}`),
+        el("div", { class: "card units" }, el("table", {},
+          el("colgroup", {}, ...[16, 14, 13, 14, 13, 15, 15].map((width) => el("col", { style: `width:${width}%` }))),
+          el("thead", {}, el("tr", {}, head("Variable"), head(`${first} variable`), head(`${first} units`),
+            head(`${name} variable`), head(`${name} units`), head("Multiply by"), head("Add"))),
+          el("tbody", { class: "scu-body" },
+            ...rows.filter((row) => row.simulation === name).flatMap((row) => unitsRow(row, SC_UNITS))))));
+    }));
+    showScUnitsPage();
+  }
+
+  function showScUnitsPage() {
+    const sims = scState().sims;
+    const name = scUnits.sims[scUnits.page] || "";
+    document.querySelectorAll("#scu-pages .scu-page").forEach((page) => {
+      page.hidden = page.dataset.scuPage !== String(scUnits.page);
+    });
+    $("scu-lede").textContent = `${name} gives these variables in other units than ${sims.length ? sims[0].name : "the first simulation"}, `
+      + `the simulation every other is compared in the units of. Check how they are converted into its units.`;
+    const box = document.querySelector(`#scu-pages [data-scu-page="${scUnits.page}"] input`);
+    if (box) box.focus();
+  }
+
+  function scUnitsTo(page) {
+    scUnits.page = page;
+    showScUnitsPage();
+    // a page's units are confirmed on that page
+    barShown = null;
+    renderBar();
+    window.scrollTo(0, 0);
+  }
+
+  async function submitScUnits() {
+    const button = $("scu-continue");
+    if (button) button.disabled = true;
+    const reply = await post("api/simcompare_units", { conversions: unitsBoxes(".scu-body input"), confirmed: scUnitsConfirmed() });
+    if (button) button.disabled = !scUnitsConfirmed();
+    if (reply.ok) return;
+    const errors = reply.errors || {};
+    for (const [key, message] of Object.entries(errors)) {
+      document.querySelectorAll(`.scu-body input[data-units-key="${CSS.escape(key)}"]`)
+        .forEach((box) => box.classList.add("is-invalid"));
+      const slot = document.querySelector(`.scu-body [data-units-error="${CSS.escape(key)}"]`);
+      if (slot) slot.textContent = message;
+    }
+    if (reply.error) toast(reply.error);
+    // the page with the first box to put right
+    const wrong = document.querySelector(".scu-body .is-invalid");
+    if (wrong) {
+      const page = Number(wrong.closest(".scu-page").dataset.scuPage);
+      if (page !== scUnits.page) scUnitsTo(page);
+      wrong.focus();
+    }
+  }
+
   // ---- the files of each simulation, and the gaps in their dates ----
   const scFiles = { key: null, rows: {}, shift: null };
 
@@ -11226,14 +11358,15 @@
       const field = fields[index];
       return el("section", { class: "card ag-card", id: `scg-card-${index + 1}`, "aria-labelledby": `scg-title-${index + 1}` },
         el("h3", { class: "ag-card__title", id: `scg-title-${index + 1}` }, scNamed(sim.name, scColour(index))),
-        el("p", { class: "ag-card__line" }, "File: ", field ? el("code", { text: field.file }) : "not known"),
+        el("p", { class: "ag-card__line" }, "File: ", field ? el("code", { id: `scg-file-${index + 1}`, text: field.file }) : "not known"),
         el("p", { class: "ag-card__line" }, "Variable: ", field && field.variable ? el("code", { text: field.variable }) : "not known"),
+        el("p", { class: "ag-card__line", id: `scg-step-${index + 1}`, hidden: true }),
         el("p", { class: "group__msg", id: `scg-${index + 1}-msg`, role: "status" }),
         el("div", { class: "ag-map", id: `scg-map-${index + 1}` }));
     });
     cards.push(el("section", { class: "card ag-card", id: "scg-card-unified", "aria-labelledby": "scg-title-unified" },
       el("h3", { class: "ag-card__title", id: "scg-title-unified", text: "Unified grid" }),
-      el("p", { class: "ag-card__line", text: "The cells every simulation has a value in once they are on one grid. This is of each simulation's first variable at the surface; the run works it out for every variable and layer." }),
+      el("p", { class: "ag-card__line", text: "The cells every simulation has a value in once they are on one grid. This is of each simulation's first variable at the surface, at the time step its map shows; the run works it out for every variable and layer." }),
       el("p", { class: "group__msg", id: "scg-unified-msg", role: "status" }),
       el("div", { class: "ag-map", id: "scg-map-unified" })));
     $("scg-grid").replaceChildren(...cards);
@@ -11248,6 +11381,12 @@
     emptyMap(`scg-map-${number}`, "Reading the file…");
     const reply = await post("api/simcompare_panel", { number });
     if (asked !== scGrids.asked[number] || state.view !== "simcompare_grids") return;
+    // the simulation's second time step, which can be in its second file
+    if (reply.file && $(`scg-file-${number}`)) $(`scg-file-${number}`).textContent = reply.file;
+    if (reply.step && $(`scg-step-${number}`)) {
+      $(`scg-step-${number}`).textContent = `Time step: ${reply.step} of the file`;
+      $(`scg-step-${number}`).hidden = false;
+    }
     if (!reply.ok) {
       message(`scg-${number}-msg`, [line(reply.error || "The map could not be drawn.", "error")], true);
       emptyMap(`scg-map-${number}`, "Nothing to show.");

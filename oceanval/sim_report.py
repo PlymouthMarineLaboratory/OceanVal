@@ -182,6 +182,16 @@ def regridded_text(regridded):
     return ""
 
 
+def conversions_text(variable, first):
+    """How the simulations that give variable in other units than the first
+    simulation, first, were converted into its units, as a sentence, or "" if
+    none were."""
+    said = [f"{sim}, {conversion['text']}" for sim, conversion in (variable.get("conversions") or {}).items()]
+    if not said:
+        return ""
+    return f" It was converted into the units of {first} as it was read: " + "; ".join(said) + "."
+
+
 def peak_text(found, info):
     """The day of the seasonal peak in each simulation, as a sentence."""
     from oceanval import analysis_plots as ap
@@ -244,6 +254,20 @@ def methods(info):
         "The water column's vertical mean weights each layer by its thickness; its depth integral multiplies each layer by its thickness and sums them, so a concentration per cubic metre becomes an amount per square metre. "
         "The maps of the simulations share one colour scale, from the 2nd to the 98th percentile of all of them.",
     ]
+    converted = [variable for variable in variables if variable.get("conversions")]
+    if converted:
+        first = info["simulations"][0]["name"]
+        methods_.append(
+            f"**Units.** Every variable is compared in the units {first} gives it in. A simulation giving it in other units "
+            "had each value multiplied by a number and had a number added to it as it was read from the output, before "
+            "anything was worked out from it (values were taken as missing in the simulation's own units, before that): "
+            + "; ".join(
+                f"{variable['name']} in {sim}, {conversion['text']}"
+                for variable in converted
+                for sim, conversion in variable["conversions"].items()
+            )
+            + "."
+        )
     if has("phenology"):
         methods_.append(
             "**Phenology.** The day of the seasonal peak is found in each grid cell from the variable's daily climatology at the surface: its mean on each day of the year over the years chosen. The peak is the day with the highest mean, or the first of them if there are more than one, and days are counted from 1 January in the model's own calendar."

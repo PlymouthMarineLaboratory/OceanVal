@@ -490,7 +490,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - `compare_simulations(simulations, variables, ...)` does everything `analyze()` does for 2–5 simulations
   and builds one report, simulations side by side. `variables={name: {simulation: model variable}}`; every other
   analysis argument is `analyze()`'s, **the same for every simulation, with one set of years that every simulation
-  has** (each simulation is checked by `analysis.locate_rows`, which `analyze()` uses too). Units must agree. It is
+  has** (each simulation is checked by `analysis.locate_rows`, which `analyze()` uses too). It is
   not the validate-side `compare()` (`oceanval_comparison`, the window's "Compare existing validations"): every name of
   this feature is `simcompare`/`sim_compare`/`sc-`, its folder is `oceanval_simulation_comparison` (in
   `data_store.CLEARED_FOLDERS`).
@@ -514,7 +514,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   remapping spreads missing cells). It is applied through `row["unify"]` in `analysis.monthly_means_of`,
   `daily_climatology_of` and the transects' thickness: **after the vertical reduction** (surface/bottom/column mean) of each
   layer, so all analyses see the same cells. A cell missing in any simulation is missing in all: the mask is made in
-  `make_common_grid` (before any analysis) from the **first time step** of each simulation's field of that layer, on the common grid,
+  `make_common_grid` (before any analysis) from the **second time step** of each simulation's field of that layer (`analysis.second_step_of`: the
+  first file's second, else the second file's first, else the first; the user's rule, 2026-10-30, as the first step of their output was empty
+  and made every cell missing; the grids step's maps and preview use the same rule through `_sc_field_step`; `prepare` raises if no cell is
+  shared), on the common grid,
   **in xarray, written with an explicit `_FillValue`** — CDO arithmetic on NaN-fill-valued files does not propagate missing,
   so `x*0` / `ds_mask > 0` tricks (as the validate-side `compare()` notebooks use) wrongly give 0 where a value is missing and
   turn a real 0 into missing. Vertical transects need the same number of levels in every simulation.
@@ -528,9 +531,24 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (`domainMaskQuestion("scg", ...)`, `POST /api/domain_mask`, which `App.domain_mask_map` serves on `simcompare_grids` too): its boxes
   (`domain_mask`, `domain_mask_path`) are in `unify_form` (so Back keeps them) but the page keeps its own `scMaskForm`; `simcompare_grids` checks them
   with `app.check_domain_mask` into `sc_domain_mask`, which `sim_compare_forms.arguments(domain_mask=)` writes into the script.
-- The window: the landing page's third tile, views `simcompare_sims` / `_variables` / `_files` / `_grids` (mixin
+- **Units: the first simulation's are the comparison's.** A variable another simulation gives in other units is converted into them by
+  `compare_simulations(unit_conversions={variable: {simulation: {"multiplier", "adder"}}})` (value × multiplier + adder, as validate's
+  `obs_multiplier`/`obs_adder`; `sim_compare.check_unit_conversions`: never the first simulation, multiplier > 0, and an explicit 1/0 says units
+  written otherwise are the same); without one, different units are refused. After `locate_rows`, a converted row gets `row["convert"]`,
+  `row["units_given"]` and the first simulation's `row["units"]`, so `_labelled`, `integral_units` and the report say the first's. **The conversion
+  is applied in one place, the end of `analysis._model_data`** (`-mulc`/`-addc`, after the rename/sum, after `as_missing`, which stays in the
+  simulation's own units), so every analysis, the unify masks and a water column's integral are of converted values; a new read of model
+  values for an analysis must go through `_model_data` too. `comparison.json` keeps `unit_conversions` and each variable's `conversions`
+  (`describe_conversion`'s text), which the variable's page and the Methods (`sim_report.conversions_text`, `methods`) say. In the window, view
+  **`simcompare_units`** comes after the variables step only when `sim_compare_forms.unit_rows` finds units written otherwise than the first
+  simulation's (one side missing counts): validate's units table (`unitsRow` with a spec, `SC_UNITS`; `unit_conversion.suggest(name, this
+  simulation's units, the first's)` fills it, red and bold), **a page for each simulation that needs one** (client-side, `scUnits.page`), the
+  tick to confirm on each; `POST /api/simcompare_units` (`check_unit_boxes`; every row shown is sent, blank as 1/0) → `sc_conversions` →
+  `arguments(unit_conversions=)`. Back keeps the boxes (`sc_unit_boxes`, by `unit_row_signature`).
+- The window: the landing page's third tile, views `simcompare_sims` / `_variables` / (`_units`) / `_files` / `_grids` (mixin
   `oceanval/sim_compare_app.py`, boxes in `sim_compare_forms.py`, JS block "Compare simulations" in `oceanval_app.html`). **The grids step
-  has maps** (one `.ag-card` for each simulation, its first variable's first file at the surface and first time, `POST /api/simcompare_panel`;
+  has maps** (one `.ag-card` for each simulation, its first variable at the surface and **the simulation's second time step** if it has one, the
+  first file's second or else the second file's first, `_sc_field_step`, which Generate unified grid uses too, `POST /api/simcompare_panel`;
   the unified grid card; the missing value `missing_probe` finds is used for the map): Yes shows them, then the method radios (box/baseline), the
   **Regridding method** select (`unify_form["regrid"]`, blank = bilinear) and **Generate unified grid** (`POST /api/simcompare_generate`,
   `grid_align.unified(box=)` or baseline), **an optional preview only**: Continue never waits for it, and the run still works the masks out per

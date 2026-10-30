@@ -5800,6 +5800,9 @@ class _Handler(recipes_gui._Handler):
         if path == "/api/simcompare_variables":
             self._reply_json(*app.simcompare_variables(payload.get("rows")))
             return
+        if path == "/api/simcompare_units":
+            self._reply_json(*app.simcompare_units(payload.get("conversions"), payload.get("confirmed")))
+            return
         if path == "/api/simcompare_files":
             self._reply_json(*app.simcompare_files())
             return

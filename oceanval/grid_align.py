@@ -28,16 +28,16 @@ REGRID_METHODS = sim_unify.METHODS
 NAME = "grid"
 
 
-def field_for_cdo(path, variable, level=0, missing=()):
+def field_for_cdo(path, variable, level=0, missing=(), step=0):
     """The nctoolkit dataset of variable at level (counted from 0, as the
-    viewer counts) of the first time step of the file at path, with each
+    viewer counts) of time step step (from 0) of the file at path, with each
     (low, high) range of missing made missing. A model file can be many GB,
     so CDO's select reads only what it chooses (see sim_compare.grid_of).
     Raises ValueError, in words for the user, if it cannot be read."""
     tried = (
-        f"-select,name={variable},levidx={int(level) + 1},timestep=1",
+        f"-select,name={variable},levidx={int(level) + 1},timestep={int(step) + 1}",
         # a variable with no levels, or no times
-        f"-select,name={variable},timestep=1",
+        f"-select,name={variable},timestep={int(step) + 1}",
         f"-select,name={variable}",
     )
     for choice in tried:
