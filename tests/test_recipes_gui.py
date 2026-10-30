@@ -1765,7 +1765,7 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     # no dataset is set to Vertical yet, so no thickness is asked for
     assert page.locator("#group-thickness").is_hidden()
     # a gridded dataset's years and Vertical, which only depth-resolved ones offer:
-    # the years create_recipes was given, in red and bold until typed over
+    # the years create_recipes was given, in bold until typed over
     first_nsbc = page.locator('input[aria-label="First year of NSBC observations for Temperature"]')
     assert first_nsbc.input_value() == "2011"
     assert "is-oceanval" in first_nsbc.get_attribute("class")

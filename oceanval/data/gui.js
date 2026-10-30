@@ -738,6 +738,28 @@ const OceanValGUI = (() => {
   document.addEventListener("scroll", (event) => { if (choicesOpen() && event.target !== choiceList) closeChoices(); }, true);
   window.addEventListener("resize", closeChoices);
 
+  // ---- the browser never offers what was typed before ----
+  // Every box, in the markup or made later, has autocomplete="off" (Chrome
+  // ignores "chrome-off" and a form's own "off"). The simulation directories
+  // are remembered by OceanVal itself (.oceanvalcache), not by the browser.
+  const NOT_TYPED = new Set(["hidden", "checkbox", "radio", "range", "button", "submit", "reset", "file", "image", "color"]);
+  const typedIn = (node) => node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && !NOT_TYPED.has(node.type));
+  function forget(node) {
+    if (!node || node.nodeType !== 1) return;
+    const boxes = [...node.querySelectorAll("input, textarea, form")];
+    if (node.matches("input, textarea, form")) boxes.push(node);
+    for (const box of boxes) {
+      if ((box.tagName === "FORM" || typedIn(box)) && box.getAttribute("autocomplete") !== "off") {
+        box.setAttribute("autocomplete", "off");
+      }
+    }
+  }
+  forget(document.documentElement);
+  new MutationObserver((changes) => {
+    for (const change of changes) for (const node of change.addedNodes) forget(node);
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener("focusin", (event) => forget(event.target), true);
+
   return {
     ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variablesPicker, searchMatcher,
     withChoices, choicesOpen, closeChoices,

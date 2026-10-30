@@ -383,9 +383,9 @@ input.tick { cursor: pointer; }
 .group__msg { display: grid; gap: 4px; margin: 10px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
 .group__line { display: flex; gap: 6px; align-items: flex-start; }
 .group__line.is-warn { color: var(--coral-dark); }
-.group__line.is-error { color: var(--red); font-weight: 700; }
+.group__line.is-error { color: var(--ink); font-weight: 700; }
 .group__msg:empty { display: none; }
-.group__msg.is-error { color: var(--red); }
+.group__msg.is-error { color: var(--ink); }
 .group__msg.is-warn { color: var(--coral-dark); }
 
 /* ---- action bar ---- */
@@ -403,7 +403,7 @@ input.tick { cursor: pointer; }
 .summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; color: var(--muted); font-size: 14px; }
 .summary b { color: var(--ink); font-weight: 700; }
 .summary__dot { color: var(--line); }
-.summary__warn { color: var(--red); font-weight: 600; }
+.summary__warn { color: var(--ink); font-weight: 600; }
 .summary__warn.is-soft { color: var(--coral-dark); }
 .actions { display: flex; flex: none; align-items: center; gap: 10px; }
 .btn {
@@ -614,14 +614,14 @@ input.tick { cursor: pointer; }
 .prefs__hint-inline { color: var(--muted); font-size: 13.5px; }
 .check { max-width: 1040px; margin-top: 12px; }
 .check__summary { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14.5px; color: var(--ink); }
-.check__summary--problem { border-color: var(--red-line); background: var(--red-bg); color: var(--red); }
+.check__summary--problem { border-color: var(--red-line); background: var(--red-bg); color: var(--ink); }
 .check__summary--note { border-color: var(--amber); background: var(--amber-bg); }
 .check__group { margin: 14px 0 0; padding-left: 12px; border-left: 3px solid var(--line); }
 .check__group--problem { border-left-color: var(--red); }
 .check__group--note { border-left-color: var(--amber); }
 .check__title { margin: 0 0 4px; font: 600 14.5px/1.4 var(--font-head); }
 .check__badge { display: inline-block; margin-right: 8px; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); }
-.check__group--problem .check__badge { color: var(--red); border-color: var(--red-line); background: var(--red-bg); }
+.check__group--problem .check__badge { color: var(--ink); border-color: var(--red-line); background: var(--red-bg); }
 .check__group--note .check__badge { color: var(--amber); border-color: var(--amber); background: var(--amber-bg); }
 .check__list { margin: 0; padding-left: 20px; font-size: 13.5px; color: var(--ink); overflow-wrap: anywhere; }
 .check__list li { margin: 3px 0; }
@@ -633,7 +633,7 @@ input.tick { cursor: pointer; }
 .prefs__choices.is-disabled .prefs__use { color: var(--muted); cursor: not-allowed; }
 .prefs__choices.is-disabled .prefs__use input { cursor: not-allowed; }
 .prefs__note { max-width: 1040px; margin: 16px 0 0; padding: 10px 12px; border-left: 3px solid var(--amber); border-radius: 4px; background: var(--amber-bg); color: var(--ink); font-size: 14px; }
-.prefs__error { max-width: 1040px; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 10px; background: var(--red-bg); color: var(--red); font-size: 14px; }
+.prefs__error { max-width: 1040px; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 10px; background: var(--red-bg); color: var(--ink); font-size: 14px; }
 .prefs__foot { padding: 16px 32px 20px; border-top: 1px solid var(--line); }
 @media (max-width: 760px) {
   .prefs { padding: 10px; }

@@ -54,7 +54,7 @@
 
   /* ---- the demo ---- */
   .demo { display: grid; gap: 18px; max-width: 900px; }
-  .demo-folder { margin: 0; padding: 20px 24px; border: 2px solid var(--red); border-radius: var(--radius-md); background: var(--red-bg); color: var(--red); font: 700 22px/1.35 var(--font-head); letter-spacing: -0.2px; }
+  .demo-folder { margin: 0; padding: 20px 24px; border: 2px solid var(--red); border-radius: var(--radius-md); background: var(--red-bg); color: var(--ink); font: 700 22px/1.35 var(--font-head); letter-spacing: -0.2px; }
   .demo-folder code { font: inherit; font-family: var(--font-mono); font-size: 0.92em; overflow-wrap: anywhere; }
   .demo-folder small { display: block; margin-top: 6px; color: var(--ink-soft); font: 500 14px/1.45 var(--font-body); letter-spacing: 0; }
   .demo-about { padding: 22px 26px; }
@@ -91,7 +91,7 @@
   .demo-progress__bar { height: 10px; overflow: hidden; border-radius: 999px; background: var(--line-soft); }
   .demo-progress__fill { width: 0; height: 100%; border-radius: inherit; background: var(--teal-500); transition: width 0.3s; }
   .demo-progress__text { margin: 0; color: var(--ink-soft); font-size: 14px; }
-  .result__reminder { margin-top: 10px !important; color: var(--red) !important; font-weight: 700; }
+  .result__reminder { margin-top: 10px !important; color: var(--ink) !important; font-weight: 700; }
   @media (max-width: 720px) {
     .demo-folder { font-size: 18px; padding: 16px 18px; }
     .demo-about { padding: 18px 16px; }
@@ -119,7 +119,7 @@
   .choice__tag { padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .own-legend { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; color: var(--muted); font-size: 13px; }
   .own-swatch { width: 4px; height: 16px; border-radius: 2px; background: var(--red); }
-  .own-legend b { color: var(--red); font-weight: 600; }
+  .own-legend b { color: var(--ink); font-weight: 600; }
   .own-added { margin: 0 0 18px; padding: 16px 20px; }
   .own-added h2, .own-form h2 { margin: 0 0 10px; font: 600 15px/1.3 var(--font-head); }
   .own-added ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -133,12 +133,12 @@
   .own-field.is-wide { grid-column: 1 / -1; }
   /* what has to be given is marked in red: the label, its tag, and a bar beside the box */
   .own-field.is-required { padding-left: 12px; border-left: 4px solid var(--red); }
-  .own-field.is-required > .g-label { color: var(--red); font-weight: 600; }
+  .own-field.is-required > .g-label { font-weight: 500; }
   .own-field.is-required .s-input, .own-field.is-required .s-select { border-color: var(--red-field-line); }
   .own-req { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--red-bg); color: var(--red); font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-  .g-label.is-required { color: var(--red); font-weight: 700; }
+  .g-label.is-required { font-weight: 500; }
   .own-help { display: block; margin: 4px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
-  .own-err { display: block; margin: 4px 0 0; color: var(--red); font-size: 12.5px; font-weight: 500; }
+  .own-err { display: block; margin: 4px 0 0; color: var(--ink); font-size: 12.5px; font-weight: 500; }
   .own-err:empty { display: none; }
   /* under the simulation and observation variable boxes: a note on what is being read, and the pop-out of variables */
   .own-pick { min-width: 0; }
@@ -178,8 +178,8 @@
   .reg-list small { display: block; color: var(--muted); font-size: 12.5px; }
   .reg-list .is-saved { color: var(--teal-700); font-weight: 600; }
   /* what OceanVal fills in is red and bold, until it is typed over */
-  .reg-form .s-input.is-oceanval, .reg-form .s-select.is-oceanval, .reg-form .group__line.is-oceanval { color: var(--red); font-weight: 700; }
-  .reg-form .s-input:disabled.is-oceanval { color: var(--red); -webkit-text-fill-color: var(--red); opacity: 1; }
+  .reg-form .s-input.is-oceanval, .reg-form .s-select.is-oceanval, .reg-form .group__line.is-oceanval { color: var(--ink); font-weight: 700; }
+  .reg-form .s-input:disabled.is-oceanval { color: var(--ink); -webkit-text-fill-color: var(--ink); opacity: 1; }
   @media (max-width: 720px) { .reg-labels { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 720px) { .own-fields, .choices.is-two { grid-template-columns: minmax(0, 1fr); } #view-own .choice { min-height: 0; padding: 26px 22px; } }
 
@@ -195,6 +195,7 @@
   .own-legends .own-legend { margin-bottom: 8px; }
   /* what OceanVal will assume unless it is changed is amber, until it is typed over */
   .own-swatch.is-amber { background: var(--amber); }
+  .own-legend b.is-required-word { color: var(--red); }
   .own-legend b.is-amber { color: var(--amber); }
   .own-assumed { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--amber-bg); color: var(--amber); font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .future-form .s-input.is-assumed { color: var(--amber); font-weight: 600; }
@@ -268,7 +269,7 @@
   .form__row.is-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ndown-row { display: grid; grid-template-columns: max-content 84px max-content max-content; gap: 12px; align-items: center; margin-top: 24px; }
   .ndown-row > .g-label { margin: 0; }
-  .ndown-row > .g-label.is-required { color: var(--red); font-weight: 700; }
+  .ndown-row > .g-label.is-required { font-weight: 500; }
   .ndown-row > .s-input { width: 84px; text-align: center; }
   /* how many files were found, a quiet highlight beside the box that sets where to look */
   .ndown-found { margin-left: 8px; padding: 6px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--teal-50); color: var(--teal-700); font-weight: 600; }
@@ -283,7 +284,7 @@
   .group__line.is-ok { color: var(--teal-700); }
   .group__line .link { font-size: inherit; }
   /* no files to use is the one thing that has to be seen: red, bold and twice the size */
-  .group__line.is-nofiles { color: var(--red); font-weight: 700; font-size: 25px; line-height: 1.3; }
+  .group__line.is-nofiles { color: var(--ink); font-weight: 700; font-size: 25px; line-height: 1.3; }
   .group__line.is-nofiles .link { color: inherit; font-weight: 700; }
   .group__line.is-nofiles .icon { flex: none; width: 1em; height: 1em; margin-top: 0.15em; }
   /* units OceanVal has concluded are the same: amber, as a suggestion to check */
@@ -300,7 +301,7 @@
     border: 1px solid var(--red-line);
     border-radius: 10px;
     background: var(--red-bg);
-    color: var(--red);
+    color: var(--ink);
     font-size: 14px;
     white-space: pre-wrap;
   }
@@ -450,7 +451,7 @@
   .picker__info { display: flex; gap: 6px; align-items: flex-start; min-height: 20px; margin: 10px 22px 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
   .picker__info.is-ok { color: var(--teal-700); }
   .picker__info.is-warn { color: var(--coral-dark); }
-  .picker__info.is-error { color: var(--red); }
+  .picker__info.is-error { color: var(--ink); }
   .picker__file { margin: 0; padding: 6px 12px; border-bottom: 1px solid var(--line-soft); font: 400 13px/1.4 var(--font-mono); overflow-wrap: anywhere; }
   .picker__file:last-child { border-bottom: 0; }
 
@@ -503,7 +504,7 @@
   .status__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
   .status.is-busy .status__dot { animation: pulse 1.4s ease-in-out infinite; }
   .status.is-waiting { background: var(--warn-bg); color: var(--coral-dark); }
-  .status.is-failed { background: var(--red-bg); color: var(--red); }
+  .status.is-failed { background: var(--red-bg); color: var(--ink); }
   .status.is-stopped { background: var(--line-soft); color: var(--muted); }
   @keyframes pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
@@ -745,7 +746,7 @@
   .units td small { display: block; color: var(--muted); font-size: 12px; }
   .units .s-input { width: 100%; max-width: 90px; }
   .units .is-invalid + .units__error { display: block; }
-  .units__error { display: none; margin-top: 4px; color: var(--red); font-size: 12px; }
+  .units__error { display: none; margin-top: 4px; color: var(--ink); font-size: 12px; }
   .units__part + .units__part { margin-top: 4px; }
   /* what OceanVal made of a row's units, on a line of its own under the row */
   .units tr.has-check td { border-bottom: 0; padding-bottom: 4px; }
@@ -755,9 +756,9 @@
   .lede .oceanval-change, .units .s-input.is-oceanval, .units .group__line.is-oceanval,
   .form .s-input.is-oceanval, .form .s-select.is-oceanval, .setup-form .s-input.is-oceanval,
   .setup-form .s-select.is-oceanval, .demo-about .oceanval-change,
-  .ptr-mode .oceanval-change, .ag-controls .s-select.is-oceanval, .ag-controls .group__line.is-oceanval { color: var(--red); font-weight: 700; }
+  .ptr-mode .oceanval-change, .ag-controls .s-select.is-oceanval, .ag-controls .group__line.is-oceanval { color: var(--ink); font-weight: 700; }
   /* a box ticked for the user, which has no text of its own to colour: its label's */
-  .form .tick-label:has(.tick.is-oceanval), .setup-form .tick-label:has(.tick.is-oceanval) { color: var(--red); font-weight: 700; }
+  .form .tick-label:has(.tick.is-oceanval), .setup-form .tick-label:has(.tick.is-oceanval) { color: var(--ink); font-weight: 700; }
   /* the units always have to be confirmed, beside Back and Continue */
   .summary__question.summary__confirm { gap: 12px; color: var(--ink); font: 600 18px/1.3 var(--font-head); cursor: pointer; }
   .ptr-choice { margin-bottom: 16px; }
@@ -766,8 +767,8 @@
   .ptr-mode .s-select { width: auto; min-width: 200px; }
   .ptr .s-select { width: 100%; }
   .ptr .s-select:disabled { color: var(--muted); background: var(--bg-alt); }
-  .ptr .s-select.is-oceanval, .ptr-mode .s-select.is-oceanval { color: var(--red); font-weight: 700; }
-  .ts-shifted { color: var(--red); font-weight: 700; }
+  .ptr .s-select.is-oceanval, .ptr-mode .s-select.is-oceanval { color: var(--ink); font-weight: 700; }
+  .ts-shifted { color: var(--ink); font-weight: 700; }
   .ts-date { white-space: nowrap; }
   .ts-why { color: var(--muted); font-size: 13px; }
   /* ---- the dates of the files, on the matchups page (see oceanval.model_check) ---- */
@@ -775,7 +776,7 @@
   .review__dates-progress .identify__spinner { width: 22px; height: 22px; border-width: 3px; }
   .review__dates-progress .progress__bar { height: 6px; margin-top: 8px; }
   .review__dates-label { display: block; color: var(--ink-soft); font-size: 13.5px; font-weight: 500; line-height: 1.45; }
-  .review__dates-note { display: flex; gap: 8px; align-items: flex-start; margin: 14px 24px 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 8px; background: var(--red-bg); color: var(--red); font-size: 13.5px; font-weight: 500; line-height: 1.45; }
+  .review__dates-note { display: flex; gap: 8px; align-items: flex-start; margin: 14px 24px 0; padding: 10px 12px; border: 1px solid var(--red-line); border-radius: 8px; background: var(--red-bg); color: var(--ink); font-size: 13.5px; font-weight: 500; line-height: 1.45; }
   .review__found { display: grid; gap: 4px; margin-top: 4px; }
   .review .review__span { color: var(--ink-soft); }
   .review__years { font: 500 13px/20px var(--font-mono); white-space: nowrap; }
@@ -796,7 +797,7 @@
   .review__grid .review__year { justify-items: start; color: var(--ink-soft); font: 600 12px/1 var(--font-mono); }
   .review__grid .is-complete { background: var(--teal-200); }
   .review__grid .is-partial { border: 1px solid var(--amber); background: var(--amber-bg); color: var(--amber); font-weight: 700; }
-  .review__grid .is-missing { border: 1px dashed var(--red); background: var(--red-bg); color: var(--red); font-weight: 700; }
+  .review__grid .is-missing { border: 1px dashed var(--red); background: var(--red-bg); color: var(--ink); font-weight: 700; }
   .review__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; padding: 0; color: var(--muted); font-size: 12.5px; list-style: none; }
   .review__legend li { display: flex; gap: 6px; align-items: center; }
   .review__legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
@@ -890,7 +891,7 @@
   .vw-times { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12.5px; font-weight: 600; }
   .vw-times .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
   .vw-years-note { margin: 0; color: var(--muted); font-size: 12.5px; }
-  .vw-years-note.is-error { color: var(--red); font-weight: 600; }
+  .vw-years-note.is-error { color: var(--ink); font-weight: 600; }
   #vw-c-years .vw-meter { margin-top: 0; }
   /* the map is given the stage's height. Two are stacked: the next frame of an animation is drawn in the
      one behind, then shown, so there is no blank between frames. A map whose x and y are distances is
@@ -908,7 +909,7 @@
   .vw-empty { display: grid; place-items: center; height: 100%; min-height: 420px; color: var(--muted); text-align: center; padding: 20px; }
   .vw-empty[hidden] { display: none; }
   .vw-empty strong { display: block; color: var(--ink); font: 600 18px/1.3 var(--font-head); margin-bottom: 6px; }
-  .vw-error { margin: 8px 0 0; color: var(--red); font-weight: 600; font-size: 13px; }
+  .vw-error { margin: 8px 0 0; color: var(--ink); font-weight: 600; font-size: 13px; }
   /* FVCOM output is drawn in pyfvcom2's way, which the bar says */
   .vw-credit { align-self: center; margin-right: 6px; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
   .vw-credit:hover { color: var(--teal-700); }
@@ -971,9 +972,9 @@
   /* ---- Analyze (see oceanval.analysis_app) ---- */
   .analyze-reading { margin: 0 0 18px; }
   .analyze-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 14px; color: var(--muted); font-size: 13px; }
-  .analyze-legend b { color: var(--red); font-weight: 700; }
+  .analyze-legend b { color: var(--ink); font-weight: 700; }
   .analyze-legend .is-assumed { color: var(--amber); font-weight: 700; }
-  .analyze-note { margin: 0 0 14px; color: var(--red); font-weight: 700; }
+  .analyze-note { margin: 0 0 14px; color: var(--ink); font-weight: 700; }
   .analyze-table { padding: 0; }
   /* the table's own cells, not those of a pop-out of variables in it */
   .analyze-table > table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
@@ -982,8 +983,8 @@
   .analyze-table > table > * > tr > :first-child { padding-left: 22px; }
   .analyze-table > table > tbody > tr:last-child > td { border-bottom: 0; }
   .analyze-table .s-input { width: 100%; }
-  .analyze-table .s-input.is-oceanval { color: var(--red); font-weight: 700; }
-  .analyze-msg { margin: 6px 0 0; color: var(--red); font-size: 12.5px; line-height: 1.4; }
+  .analyze-table .s-input.is-oceanval { color: var(--ink); font-weight: 700; }
+  .analyze-msg { margin: 6px 0 0; color: var(--ink); font-size: 12.5px; line-height: 1.4; }
   .analyze-msg.is-warn { color: var(--amber); }
   .analyze-msg:empty { display: none; }
   .analyze-remove { padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); font: 600 18px/1 var(--font-body); cursor: pointer; }
@@ -1152,7 +1153,7 @@
   .datasets[open] .datasets__summary { border-bottom: 1px solid var(--line-soft); border-radius: 12px 12px 0 0; }
   .datasets__question { flex: 1 1 auto; min-width: 0; }
   .datasets__count { flex: none; padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .datasets__count.is-none { background: rgba(192, 57, 43, 0.08); color: var(--red); }
+  .datasets__count.is-none { background: rgba(192, 57, 43, 0.08); color: var(--ink); }
   .datasets__body { padding: 4px 14px 6px; }
   .datasets__kind { padding: 10px 0 8px; }
   .datasets__kind + .datasets__kind { border-top: 1px solid var(--line-soft); }
@@ -1178,7 +1179,7 @@
   .depth-bin__n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; background: var(--line-soft); color: var(--muted); font: 600 12px/1 var(--font-body); font-variant-numeric: tabular-nums; }
   .depth-bin__remove { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--muted-light); cursor: pointer; transition: background-color 0.15s, border-color 0.15s, color 0.15s; }
   .depth-bin__remove svg { width: 14px; height: 14px; }
-  .depth-bin__remove:hover { border-color: rgba(192, 57, 43, 0.22); background: rgba(192, 57, 43, 0.08); color: var(--red); }
+  .depth-bin__remove:hover { border-color: rgba(192, 57, 43, 0.22); background: rgba(192, 57, 43, 0.08); color: var(--ink); }
   .depth-bin__remove:focus-visible { outline: none; box-shadow: var(--focus); }
   .depth-bin__remove:disabled { border-color: transparent; background: none; color: var(--line); cursor: not-allowed; }
   .depth-bins__foot { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line-soft); }
@@ -1237,12 +1238,12 @@
       <button type="button" class="choice" data-action="analyze" id="home-analyze">
         <span class="choice__icon" data-icon="analyze"></span>
         <span class="choice__title">Analyze simulations</span>
-        <span class="choice__text">Climatologies&nbsp;| seasonal cycles&nbsp;| long-term changes&nbsp;| transects&nbsp;| phenologies</span>
+        <span class="choice__text">Climatologies&nbsp;| seasonal cycles&nbsp;| long-term trends&nbsp;| transects&nbsp;| phenologies</span>
       </button>
       <button type="button" class="choice" data-action="simcompare" id="home-simcompare">
         <span class="choice__icon" data-icon="simcompare"></span>
         <span class="choice__title">Compare simulations</span>
-        <span class="choice__text">Compare climatologies&nbsp;| seasonal cycles&nbsp;| long-term changes&nbsp;| transects&nbsp;| phenologies</span>
+        <span class="choice__text">Compare climatologies&nbsp;| seasonal cycles&nbsp;| long-term trends&nbsp;| transects&nbsp;| phenologies</span>
       </button>
       <button type="button" class="choice" data-action="validate_menu" id="home-validate">
         <span class="choice__icon" data-icon="report"></span>
@@ -1355,16 +1356,16 @@
     <div class="banner" id="setup-error" role="alert" hidden></div>
     <form class="setup-form" id="setup-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box">
-        <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
         <div class="ndown-row">
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
-          <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required>
+          <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required autocomplete="off">
           <span class="ndown-found" id="ndown-found" role="status" hidden></span>
           <span class="ndown-layout" id="ndown-layout" hidden></span>
         </div>
         <div class="form__row is-pair">
-          <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-          <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+          <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         </div>
         <p class="group__msg" id="m-simulation"></p>
         <p class="group__intro"><button type="button" class="link" id="view-files" aria-haspopup="dialog">Click here to view the files in a random subdirectory of the listed directory</button></p>
@@ -1448,8 +1449,8 @@
             <h2 class="vw-head">Colours</h2>
             <div class="vw-grid">
               <label class="is-wide"><span class="g-label">Colour map</span><select class="s-select" id="vw-cmap"></select></label>
-              <label><span class="g-label">Minimum</span><input class="s-input is-num" id="vw-vmin" inputmode="decimal" placeholder="auto"></label>
-              <label><span class="g-label">Maximum</span><input class="s-input is-num" id="vw-vmax" inputmode="decimal" placeholder="auto"></label>
+              <label><span class="g-label">Minimum</span><input class="s-input is-num" id="vw-vmin" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
+              <label><span class="g-label">Maximum</span><input class="s-input is-num" id="vw-vmax" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
               <div class="is-wide vw-scale-links"><button type="button" class="link" id="vw-keep">Keep this scale for every time</button><button type="button" class="link" id="vw-auto">Automatic scale</button></div>
             </div>
             <div class="vw-ticks">
@@ -1476,7 +1477,7 @@
   <section id="view-output" hidden>
     <form class="setup-form" id="output-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box" id="setup-output">
-        <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
         <div class="existing" id="row-existing" hidden>
           <p class="g-label is-required existing__title" id="existing-title">What do you want to do with existing matchups? <span class="own-req" id="existing-required">Required</span></p>
@@ -1492,7 +1493,7 @@
           </table></div>
           <label class="tick-label existing__confirm" id="row-existing-confirm"><input type="checkbox" class="tick" id="f-existing_confirmed">Tick to confirm what is done with these matchups</label>
         </div>
-        <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off"></label>
+        <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         <p class="group__intro" id="f-out-intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
         <p class="group__msg" id="m-out"></p>
         <!-- matchup alone's, which has no report options to ask it with -->
@@ -1513,15 +1514,15 @@
           <p class="g-label">Do you want a spatial subset?</p>
           <div class="g-row span-row">
             <span class="span-row__label">Longitude</span>
-            <input class="s-input is-num" id="f-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false">
+            <input class="s-input is-num" id="f-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="f-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false">
+            <input class="s-input is-num" id="f-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
           </div>
           <div class="g-row span-row">
             <span class="span-row__label">Latitude</span>
-            <input class="s-input is-num" id="f-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false">
+            <input class="s-input is-num" id="f-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="f-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false">
+            <input class="s-input is-num" id="f-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
           </div>
           <p class="group__msg" id="m-subset"></p>
         </div>
@@ -1592,7 +1593,7 @@
 
   <section id="view-units-table" hidden>
     <p class="lede">OceanVal has just identified whether the units are the same or whether the observational data needs to be adjusted to be in the model units. Please check the unit conversions below before proceeding.</p>
-    <p class="lede">Each observation becomes <strong>observation × Multiply by + Add</strong> before it is compared with the model. <strong>Multiply by</strong> rescales the units: roughly 1.025 turns µmol/kg into mmol/m3. <strong>Add</strong> shifts the zero point: 273.15 turns °C into K. Leave both boxes empty when no conversion is needed, and fill in any row OceanVal could not work out. Its suggestions are <strong class="oceanval-change">in red and bold</strong>. The units must be confirmed, with the tick box beside Continue, before the matchup starts.</p>
+    <p class="lede">Each observation becomes <strong>observation × Multiply by + Add</strong> before it is compared with the model. <strong>Multiply by</strong> rescales the units: roughly 1.025 turns µmol/kg into mmol/m3. <strong>Add</strong> shifts the zero point: 273.15 turns °C into K. Leave both boxes empty when no conversion is needed, and fill in any row OceanVal could not work out. Its suggestions are <strong class="oceanval-change">in bold</strong>. The units must be confirmed, with the tick box beside Continue, before the matchup starts.</p>
     <p class="group__msg units-reading" id="units-reading" hidden>Reading the units from the simulation…</p>
     <section class="units-section" id="units-section-gridded" aria-labelledby="units-title-gridded">
       <h2 class="section-title" id="units-title-gridded">Gridded datasets</h2>
@@ -1626,7 +1627,7 @@
 
   <section id="view-point-time-res" hidden>
     <p class="lede">OceanVal matches each observation in these point datasets to the simulation output on the same day, as their point_time_res includes <strong>day</strong>. But the simulation output for their variables is coarser than daily: monthly, or once every few days. So most of their observations may find no simulation output on the same day, and be left out of the matchups.</p>
-    <p class="lede">Matching them by year and month instead compares each observation with the simulation output for its month. OceanVal suggests that, <strong class="oceanval-change">in red and bold</strong>, but you can choose for all of them at once, for each one, or keep them as they are.</p>
+    <p class="lede">Matching them by year and month instead compares each observation with the simulation output for its month. OceanVal suggests that, <strong class="oceanval-change">in bold</strong>, but you can choose for all of them at once, for each one, or keep them as they are.</p>
     <div class="card ptr-choice" role="radiogroup" aria-label="What to do with these point datasets">
       <div class="ptr-modes">
         <label class="ptr-mode"><input type="radio" name="ptr-mode" value="all" id="ptr-mode-all">Change all of them to <select class="s-select" id="ptr-all" aria-label="How to match all of them"></select></label>
@@ -1648,11 +1649,11 @@
     <p class="lede" id="v-report-dir" hidden></p>
     <form class="form card" id="validate-form" novalidate autocomplete="off">
       <fieldset class="group form__wide" id="v-group-data_dir">
-        <div class="g-row"><label class="g-label" for="v-data_dir">Where are the matchups located?</label><div class="path-field"><input class="s-input is-mono" id="v-data_dir" list="v-data_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-data_dir">Browse…</button></div><datalist id="v-data_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="v-data_dir">Where are the matchups located?</label><div class="path-field"><input class="s-input is-mono" id="v-data_dir" list="v-data_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-data_dir">Browse…</button></div><datalist id="v-data_dir-folders"></datalist></div>
         <p class="group__msg" id="vm-data_dir"></p>
       </fieldset>
       <fieldset class="group form__wide" id="v-group-out_dir">
-        <div class="g-row"><label class="g-label" for="v-out_dir">Which directory do you want to build the report in?</label><div class="path-field"><input class="s-input is-mono" id="v-out_dir" list="v-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-out_dir">Browse…</button></div><datalist id="v-out_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="v-out_dir">Which directory do you want to build the report in?</label><div class="path-field"><input class="s-input is-mono" id="v-out_dir" list="v-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-out_dir">Browse…</button></div><datalist id="v-out_dir-folders"></datalist></div>
         <p class="group__msg" id="vm-out_dir"></p>
       </fieldset>
       <!-- matchup's, before anything is matched up (see oceanval.app.check_cores) -->
@@ -1703,15 +1704,15 @@
           <legend id="v-subset-legend">Do you only want to validate a subregion?</legend>
           <div class="g-row span-row">
             <span class="span-row__label">Longitude</span>
-            <input class="s-input is-num" id="v-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false">
+            <input class="s-input is-num" id="v-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="v-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false">
+            <input class="s-input is-num" id="v-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
           </div>
           <div class="g-row span-row">
             <span class="span-row__label">Latitude</span>
-            <input class="s-input is-num" id="v-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false">
+            <input class="s-input is-num" id="v-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="v-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false">
+            <input class="s-input is-num" id="v-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
           </div>
           <p class="group__msg" id="vm-subset"></p>
         </fieldset>
@@ -1725,7 +1726,7 @@
               <option value="file">A .nc file of your own…</option>
             </select>
           </div>
-          <label class="g-row" id="row-subregions_file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="v-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off"></label>
+          <label class="g-row" id="row-subregions_file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="v-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
           <p class="group__msg" id="vm-subregions"></p>
         </fieldset>
         <fieldset class="group" id="v-group-transect">
@@ -1740,13 +1741,13 @@
             </div>
             <div class="g-row span-row">
               <span class="span-row__label">Start</span>
-              <input class="s-input is-num" id="v-transect_start_lon" placeholder="e.g. -30" aria-label="Longitude of the start" spellcheck="false">
-              <input class="s-input is-num" id="v-transect_start_lat" placeholder="e.g. 0" aria-label="Latitude of the start" spellcheck="false">
+              <input class="s-input is-num" id="v-transect_start_lon" placeholder="e.g. -30" aria-label="Longitude of the start" spellcheck="false" autocomplete="off">
+              <input class="s-input is-num" id="v-transect_start_lat" placeholder="e.g. 0" aria-label="Latitude of the start" spellcheck="false" autocomplete="off">
             </div>
             <div class="g-row span-row">
               <span class="span-row__label">End</span>
-              <input class="s-input is-num" id="v-transect_end_lon" placeholder="e.g. -30" aria-label="Longitude of the end" spellcheck="false">
-              <input class="s-input is-num" id="v-transect_end_lat" placeholder="e.g. 65" aria-label="Latitude of the end" spellcheck="false">
+              <input class="s-input is-num" id="v-transect_end_lon" placeholder="e.g. -30" aria-label="Longitude of the end" spellcheck="false" autocomplete="off">
+              <input class="s-input is-num" id="v-transect_end_lat" placeholder="e.g. 65" aria-label="Latitude of the end" spellcheck="false" autocomplete="off">
             </div>
           </div>
           <p class="group__msg" id="vm-transect"></p>
@@ -1831,17 +1832,17 @@
         <table class="compare-rows">
           <thead><tr><th scope="col"><span class="compare-rows__hide">Row</span></th><th scope="col">Simulation name</th><th scope="col">Validation directory</th></tr></thead>
           <tbody>
-            <tr><td class="compare-rows__n">1</td><td><input class="s-input" id="c-name_1" aria-label="Name of simulation 1" spellcheck="false" placeholder="e.g. control"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_1" list="c-dir_1-folders" aria-label="Validation directory of simulation 1" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_1">Browse…</button></div><datalist id="c-dir_1-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">2</td><td><input class="s-input" id="c-name_2" aria-label="Name of simulation 2" spellcheck="false" placeholder="e.g. new_mixing"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_2" list="c-dir_2-folders" aria-label="Validation directory of simulation 2" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_2">Browse…</button></div><datalist id="c-dir_2-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">3</td><td><input class="s-input" id="c-name_3" aria-label="Name of simulation 3" spellcheck="false"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_3" list="c-dir_3-folders" aria-label="Validation directory of simulation 3" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_3">Browse…</button></div><datalist id="c-dir_3-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">4</td><td><input class="s-input" id="c-name_4" aria-label="Name of simulation 4" spellcheck="false"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_4" list="c-dir_4-folders" aria-label="Validation directory of simulation 4" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_4">Browse…</button></div><datalist id="c-dir_4-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">5</td><td><input class="s-input" id="c-name_5" aria-label="Name of simulation 5" spellcheck="false"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_5" list="c-dir_5-folders" aria-label="Validation directory of simulation 5" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_5">Browse…</button></div><datalist id="c-dir_5-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">1</td><td><input class="s-input" id="c-name_1" aria-label="Name of simulation 1" spellcheck="false" placeholder="e.g. control" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_1" list="c-dir_1-folders" aria-label="Validation directory of simulation 1" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_1">Browse…</button></div><datalist id="c-dir_1-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">2</td><td><input class="s-input" id="c-name_2" aria-label="Name of simulation 2" spellcheck="false" placeholder="e.g. new_mixing" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_2" list="c-dir_2-folders" aria-label="Validation directory of simulation 2" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_2">Browse…</button></div><datalist id="c-dir_2-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">3</td><td><input class="s-input" id="c-name_3" aria-label="Name of simulation 3" spellcheck="false" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_3" list="c-dir_3-folders" aria-label="Validation directory of simulation 3" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_3">Browse…</button></div><datalist id="c-dir_3-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">4</td><td><input class="s-input" id="c-name_4" aria-label="Name of simulation 4" spellcheck="false" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_4" list="c-dir_4-folders" aria-label="Validation directory of simulation 4" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_4">Browse…</button></div><datalist id="c-dir_4-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">5</td><td><input class="s-input" id="c-name_5" aria-label="Name of simulation 5" spellcheck="false" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_5" list="c-dir_5-folders" aria-label="Validation directory of simulation 5" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_5">Browse…</button></div><datalist id="c-dir_5-folders"></datalist></td></tr>
           </tbody>
         </table>
         <p class="group__msg" id="cm-rows"></p>
       </fieldset>
       <fieldset class="group form__wide">
-        <div class="g-row"><label class="g-label" for="c-out_dir">Which directory do you want to build the comparison in?</label><div class="path-field"><input class="s-input is-mono" id="c-out_dir" list="c-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-out_dir">Browse…</button></div><datalist id="c-out_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="c-out_dir">Which directory do you want to build the comparison in?</label><div class="path-field"><input class="s-input is-mono" id="c-out_dir" list="c-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-out_dir">Browse…</button></div><datalist id="c-out_dir-folders"></datalist></div>
         <p class="group__msg" id="cm-out_dir"></p>
       </fieldset>
       <button type="submit" hidden></button>
@@ -1879,7 +1880,7 @@
   <section id="view-analyze-files" hidden>
     <section class="time-shift" id="af-shift" aria-label="Whether to shift the simulation's times" hidden>
       <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, a January mean would count as February's, and the year's last mean would fall in the next year.</p>
-      <p class="lede" id="af-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every simulation time <span id="af-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers. The dates of the files are read once you have chosen.</p>
+      <p class="lede" id="af-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every simulation time <span id="af-suggested">back one day</span>, <strong class="oceanval-change">in bold</strong>, so that each mean falls in the period it covers. The dates of the files are read once you have chosen.</p>
       <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the simulation's times">
         <div class="ptr-modes">
           <label class="ptr-mode"><input type="radio" name="af-mode" value="shift" id="af-mode-shift"><span class="oceanval-change" id="af-shift-label">Shift the simulation's times back one day</span></label>
@@ -2008,10 +2009,10 @@
     </div>
     <div id="ao-page-3" hidden>
     <fieldset class="group analyze-area" id="ao-out-group">
-      <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
+      <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
       <p class="group__msg" id="ao-m-out_dir"></p>
       <label class="tick-label existing__confirm" id="ao-row-replace" hidden><input type="checkbox" class="tick" id="ao-replace_analysis"><span id="ao-replace-text">Tick to replace the analysis files in this directory (oceanval_analysis)</span></label>
-      <label class="g-row setup-box__script"><span class="g-label" id="ao-out-label">What do you want the analysis script to be called</span><input class="s-input is-mono" id="ao-out" spellcheck="false" autocapitalize="off"></label>
+      <label class="g-row setup-box__script"><span class="g-label" id="ao-out-label">What do you want the analysis script to be called</span><input class="s-input is-mono" id="ao-out" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
       <p class="group__intro" id="ao-out-intro"></p>
       <p class="group__msg" id="ao-m-out"></p>
     </fieldset>
@@ -2027,13 +2028,13 @@
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-1"></span>Simulation 1<button type="button" class="analyze-remove sc-remove" id="sc-remove-1" title="Remove this simulation" aria-label="Remove simulation 1" hidden>×</button></h3>
           <div class="form__row">
             <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_1" placeholder="e.g. Control" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" list="sc-dir_1-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div><datalist id="sc-dir_1-folders"></datalist></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" list="sc-dir_1-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div><datalist id="sc-dir_1-folders"></datalist></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_1" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
             <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_1" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_1" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_1" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_1" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
             </div>
           </details>
           <p class="group__msg" id="sc-m-1"></p>
@@ -2042,13 +2043,13 @@
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-2"></span>Simulation 2<button type="button" class="analyze-remove sc-remove" id="sc-remove-2" title="Remove this simulation" aria-label="Remove simulation 2" hidden>×</button></h3>
           <div class="form__row">
             <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_2" placeholder="e.g. New mixing" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" list="sc-dir_2-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div><datalist id="sc-dir_2-folders"></datalist></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" list="sc-dir_2-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div><datalist id="sc-dir_2-folders"></datalist></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_2" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
             <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_2" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_2" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_2" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_2" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
             </div>
           </details>
           <p class="group__msg" id="sc-m-2"></p>
@@ -2057,13 +2058,13 @@
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-3"></span>Simulation 3<button type="button" class="analyze-remove sc-remove" id="sc-remove-3" title="Remove this simulation" aria-label="Remove simulation 3">×</button></h3>
           <div class="form__row">
             <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_3" placeholder="" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" list="sc-dir_3-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div><datalist id="sc-dir_3-folders"></datalist></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" list="sc-dir_3-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div><datalist id="sc-dir_3-folders"></datalist></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_3" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
             <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_3" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_3" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_3" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_3" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
             </div>
           </details>
           <p class="group__msg" id="sc-m-3"></p>
@@ -2072,13 +2073,13 @@
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-4"></span>Simulation 4<button type="button" class="analyze-remove sc-remove" id="sc-remove-4" title="Remove this simulation" aria-label="Remove simulation 4">×</button></h3>
           <div class="form__row">
             <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_4" placeholder="" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" list="sc-dir_4-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div><datalist id="sc-dir_4-folders"></datalist></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" list="sc-dir_4-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div><datalist id="sc-dir_4-folders"></datalist></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_4" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
             <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_4" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_4" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_4" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_4" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
             </div>
           </details>
           <p class="group__msg" id="sc-m-4"></p>
@@ -2087,13 +2088,13 @@
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-5"></span>Simulation 5<button type="button" class="analyze-remove sc-remove" id="sc-remove-5" title="Remove this simulation" aria-label="Remove simulation 5">×</button></h3>
           <div class="form__row">
             <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_5" placeholder="" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" list="sc-dir_5-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div><datalist id="sc-dir_5-folders"></datalist></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" list="sc-dir_5-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div><datalist id="sc-dir_5-folders"></datalist></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_5" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
             <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_5" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_5" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_5" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_5" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
             </div>
           </details>
           <p class="group__msg" id="sc-m-5"></p>
@@ -2130,14 +2131,14 @@
 
   <section id="view-simcompare-units" hidden>
     <p class="lede" id="scu-lede"></p>
-    <p class="lede">Each value becomes <strong>value × Multiply by + Add</strong> as it is read, so every analysis (and a water column's integral) is of the converted values. <strong>Multiply by</strong> rescales the units: 1000 turns mol/m3 into mmol/m3. <strong>Add</strong> shifts the zero point: -273.15 turns K into °C. Leave both boxes empty when the units are the same, only written another way. OceanVal's suggestions are <strong class="oceanval-change">in red and bold</strong>. The units must be confirmed, with the tick box beside Continue.</p>
+    <p class="lede">Each value becomes <strong>value × Multiply by + Add</strong> as it is read, so every analysis (and a water column's integral) is of the converted values. <strong>Multiply by</strong> rescales the units: 1000 turns mol/m3 into mmol/m3. <strong>Add</strong> shifts the zero point: -273.15 turns K into °C. Leave both boxes empty when the units are the same, only written another way. OceanVal's suggestions are <strong class="oceanval-change">in bold</strong>. The units must be confirmed, with the tick box beside Continue.</p>
     <div id="scu-pages"></div>
   </section>
 
   <section id="view-simcompare-files" hidden>
     <section class="time-shift" id="scf-shift" aria-label="Whether to shift the simulations' times" hidden>
       <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, a January mean would count as February's, and the year's last mean would fall in the next year.</p>
-      <p class="lede" id="scf-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting the times of the simulations below <span id="scf-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers. The other simulations are not shifted. The dates of the files are read once you have chosen.</p>
+      <p class="lede" id="scf-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting the times of the simulations below <span id="scf-suggested">back one day</span>, <strong class="oceanval-change">in bold</strong>, so that each mean falls in the period it covers. The other simulations are not shifted. The dates of the files are read once you have chosen.</p>
       <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the simulations' times">
         <div class="ptr-modes">
           <label class="ptr-mode"><input type="radio" name="scf-mode" value="shift" id="scf-mode-shift"><span class="oceanval-change" id="scf-shift-label">Shift their times back one day</span></label>
@@ -2264,7 +2265,7 @@
     </div>
     <section class="time-shift" id="time-shift" aria-label="Whether to shift the simulation's times" hidden>
       <p class="lede">These simulation variables are time means, and their times look like the <strong>end</strong> of the period each mean covers: a day's mean dated 00:00 the next day, or a month's dated 00:00 on the 1st of the next month. If so, matched up as they are, a January mean is compared with February's observations, and the year's last mean falls in the next year and is left out.</p>
-      <p class="lede" id="ts-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every simulation time <span id="ts-suggested">back one day</span>, <strong class="oceanval-change">in red and bold</strong>, so that each mean falls in the period it covers.</p>
+      <p class="lede" id="ts-bounds">Their files have no time bounds to say for certain, so OceanVal does not shift anything unless you choose it. It suggests shifting every simulation time <span id="ts-suggested">back one day</span>, <strong class="oceanval-change">in bold</strong>, so that each mean falls in the period it covers.</p>
       <div class="card ptr-choice" role="radiogroup" aria-label="Whether to shift the simulation's times">
         <div class="ptr-modes">
           <label class="ptr-mode"><input type="radio" name="ts-mode" value="shift" id="ts-mode-shift"><span class="oceanval-change" id="ts-shift-label">Shift the simulation's times back one day</span></label>
@@ -2304,8 +2305,8 @@
         <h3 class="review__filters-title">Not the right files?</h3>
         <p class="review__filters-intro">Change which file names are used. OceanVal will read the simulation again with them and return to the recipes, to check the simulation variables, keeping your choices where they still apply.</p>
         <div class="form__row is-pair">
-          <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off"></label>
-          <label class="g-row"><span class="g-label">Only file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off"></label>
+          <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          <label class="g-row"><span class="g-label">Only file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         </div>
         <div class="review__filters-foot">
           <button type="button" class="btn btn--ghost" id="review-refilter" disabled>Use these filters</button>
@@ -2434,7 +2435,7 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro" id="clim-intro"></p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, and the years. Untick a variable to leave it out.</span></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, and the years. Untick a variable to leave it out.</span></p>
       <p class="analyze-msg is-rows" id="clim-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
@@ -2461,19 +2462,19 @@
             <option value="file">A .nc file of your own…</option>
           </select>
         </div>
-        <label class="g-row" id="area-row-file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="area-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off"></label>
+        <label class="g-row" id="area-row-file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="area-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         <p class="analyze-msg" id="area-msg-subregions"></p>
         <div class="g-row span-row">
           <span class="span-row__label">Longitude</span>
-          <input class="s-input is-num" id="area-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false">
+          <input class="s-input is-num" id="area-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
           <span class="dash">–</span>
-          <input class="s-input is-num" id="area-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false">
+          <input class="s-input is-num" id="area-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
         </div>
         <div class="g-row span-row">
           <span class="span-row__label">Latitude</span>
-          <input class="s-input is-num" id="area-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false">
+          <input class="s-input is-num" id="area-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
           <span class="dash">–</span>
-          <input class="s-input is-num" id="area-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false">
+          <input class="s-input is-num" id="area-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
         </div>
         <p class="analyze-msg" id="area-msg-subset"></p>
       </div>
@@ -2521,7 +2522,7 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">The time of the seasonal peak at the surface: in each grid cell, the day of the year with the highest value in the variable's daily climatology over the years from Start to End. It needs daily output. Tick the variables to work it out for, and give the years.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked, and the years of each variable ticked.</span></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given: at least one variable ticked, and the years of each variable ticked.</span></p>
       <table>
         <thead><tr><th scope="col">Model variable <span class="own-req">Tick at least one</span></th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th></tr></thead>
         <tbody class="analyze-all" id="phen-all"></tbody>
@@ -2544,7 +2545,7 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">Maps of how a variable changes between a historical period and one or two future periods. Each period is mapped as the mean of its years' annual means. Give the first and last years of each period, tick the surface, the bottom (the deepest value that is not missing), the water column, or more than one, and choose what to plot and whether the changes are absolute or percentages.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, the years of its historical period and of its first future period, what to plot, and the kind of change. Untick a variable to leave it out. A second future period is optional: give both of its years, or neither.</span></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, the years of its historical period and of its first future period, what to plot, and the kind of change. Untick a variable to leave it out. A second future period is optional: give both of its years, or neither.</span></p>
       <p class="analyze-msg is-rows" id="chg-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
@@ -2577,7 +2578,7 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro">The model's values along straight lines. Each variable has transects of its own: tick the variables to work transects out for, add as many transects as you like to each, and choose what to work out along each one, and the years of each.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked in <b>red</b> is what has to be given: at least one variable ticked; for each transect, where it starts and ends, at least one <b>Climatology</b> or <b>Changes</b>, in the <b>Surface</b> or the <b>Vertical</b>, and the years of each of them.</span></p>
+      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given: at least one variable ticked; for each transect, where it starts and ends, at least one <b>Climatology</b> or <b>Changes</b>, in the <b>Surface</b> or the <b>Vertical</b>, and the years of each of them.</span></p>
       <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
       <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years as a map of position along the line by year, of the annual means or of their change from the first year (or the first rolling mean), with an optional rolling mean.</p>
       <div class="analyze-thickness" id="trans-thickness-row" hidden>
@@ -3046,6 +3047,11 @@
         actions.push(stop);
       }
     } else if (view === "finished" || view === "script_saved") {
+      if (state.run.back) {
+        // a run that failed: back to the units, with what was entered kept
+        actions.push(button("Back", "ghost", () => post("api/back"),
+          { title: "Go back to the units, keeping what you entered" }));
+      }
       actions.push(button("Quit", "ghost", async () => {
         await post("api/quit");
         showDone("closed");
@@ -4302,7 +4308,7 @@
       const about = $("demo-chosen-about");
       about.replaceChildren(
         "OceanVal downloads them, then takes you through the usual steps with the options for the demo filled in, ",
-        el("strong", { class: "oceanval-change", text: "in red and bold" }),
+        el("strong", { class: "oceanval-change", text: "in bold" }),
         `. It matches up the ${against.join(", and the ")}, and builds the validation report.`
         + (demoPick.variables.includes("no3os")
           ? " The units step will suggest converting the observed nitrate, from micromoles per kilogram to the model's moles per cubic metre: check it, as you would for your own model."
@@ -4343,10 +4349,8 @@
 
   // ---- 2: the simulation ----
   // the files skipped start with what OceanVal skips (see oceanval.create_recipes.DEFAULT_EXCLUDE):
-  // OceanVal's own, so amber, until it is changed, and not something the user has filled in
+  // OceanVal's own, which is not something the user has filled in
   const isDefaultExclude = (text) => Boolean(state.default_exclude) && String(text).trim() === state.default_exclude;
-  const defaultExcludeLine = () =>
-    `Files with ${state.default_exclude} in their names are skipped. Remove ${state.default_exclude} to include them.`;
   const SETUP_FIELDS = ["simdir", "ndown", "exclude", "require", "start", "end"];
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require"]);
@@ -4488,6 +4492,7 @@
       if (name === "start" || name === "end") autoYears = false;
       if (name === "ndown") autoNdown = false;
       if (name === "simdir" && state.action === "viewer") newSimulationForViewer();
+      else if (name === "simdir") newDirectoryDepth();
       if (PROBED.has(name)) askProbe(400);
       refreshSetup();
     });
@@ -4497,11 +4502,16 @@
 
   // a different directory to view: its files are searched for afresh, so the directories down are
   // blank for the folders' layout to fill and the missing values are looked for again
-  function newSimulationForViewer() {
+  // a different directory has its own layout: the depth of the one before, kept by Back or typed, would
+  // count the files at the wrong depth, or leave Continue disabled with nothing said
+  function newDirectoryDepth() {
     setup.ndown = $("f-ndown").value = "";
     autoNdown = false;
     $("f-ndown").classList.remove("is-oceanval");
     delete setupErrors.ndown;
+  }
+  function newSimulationForViewer() {
+    newDirectoryDepth();
     missingRows = [];
     missingTouched = false;
     missingGuess = null;
@@ -4701,7 +4711,7 @@
     const oneFile = Boolean(probe && probe.file);
     if (oneFile) delete errors.ndown;
     else if (!isInteger(setup.ndown) || +setup.ndown < 0) errors.ndown = errors.ndown || (text("ndown") ? "This must be a whole number, 0 or more." : "");
-    else if (probe && probe.directory === "found" && probe.files === 0) errors.ndown = errors.ndown || "";
+    else if (probe && probe.directory === "found" && probe.files === 0) errors.ndown = errors.ndown || "No files were found at this depth.";
     // an analysis chooses its years later, for each variable, and has no domain; nor has viewing
     const analyzing = simulationOnly();
     for (const name of analyzing ? [] : ["start", "end"]) {
@@ -4768,8 +4778,6 @@
       simulation.push(line("A single file is used as it is: directories down and the file name filters do not apply."));
     }
     const skippingByDefault = isDefaultExclude(setup.exclude);
-    $("f-exclude").classList.toggle("is-detected", skippingByDefault);
-    if (skippingByDefault) simulation.push(line(defaultExcludeLine(), "detected"));
     if (String(setup.require).trim() || (String(setup.exclude).trim() && !skippingByDefault)) {
       simulation.push(line(state.action === "viewer" ? "Only file names are checked, not directories."
         : `Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
@@ -5296,6 +5304,8 @@
   }
 
   function readAnalyzeRows() {
+    // rows are made only once the read is in: before that the server keeps the ones it has
+    if (!analyzeVariables.built) return null;
     return analyzeVariables.rows.map((item) => ({ name: item.name, model_variable: item.model_variable, filled: item.filled }));
   }
 
@@ -7068,7 +7078,7 @@
     const form = el("form", { class: "own-form card", id: `own-form-${kind}`, novalidate: true, autocomplete: "off" },
       el("h2", { text: `Add a ${OWN_TEXT[kind].noun}` }),
       el("p", { class: "own-legend" }, el("span", { class: "own-swatch", "aria-hidden": "true" }),
-        el("span", {}, "Marked in ", el("b", { text: "red" }), " is what has to be given.")),
+        el("span", {}, "Marked in ", el("b", { class: "is-required-word", text: "Required" }), " is what has to be given.")),
       needed, el("div", { class: "own-fields", style: "margin-top:18px" }, optional),
       el("div", { class: "own-actions" },
         el("button", { type: "submit", class: "btn btn--primary", id: `own-add-${kind}`, text: "Add this data for use now only" }),
@@ -7365,7 +7375,7 @@
           el("p", { class: "own-legend" }, el("span", { class: "own-swatch is-amber", "aria-hidden": "true" }),
             el("span", {}, "Marked in ", el("b", { class: "is-amber", text: "amber" }), " is what OceanVal will assume unless you change it.")),
           el("p", { class: "own-legend", id: "fu-legend-required", hidden: true }, el("span", { class: "own-swatch", "aria-hidden": "true" }),
-            el("span", {}, "Marked in ", el("b", { text: "red" }), " is what has to be given."))),
+            el("span", {}, "Marked in ", el("b", { class: "is-required-word", text: "Required" }), " is what has to be given."))),
         el("dl", { class: "future-summary" }, ...summary.flatMap(([term, value, mono]) => [
           el("dt", { text: term }), el("dd", { class: mono ? "is-mono" : null, text: value })])),
         el("h3", { class: "reg-title", text: "What the recipe needs" }),
@@ -7673,7 +7683,7 @@
     const form = el("form", { class: "own-form reg-form card", id: `register-form-${kind}`, novalidate: true, autocomplete: "off" },
       el("h2", { text: `Add a ${text.noun}` }),
       el("p", { class: "own-legend" }, el("span", { class: "own-swatch", "aria-hidden": "true" }),
-        el("span", {}, "Marked in ", el("b", { text: "red" }), " is what has to be given.")),
+        el("span", {}, "Marked in ", el("b", { class: "is-required-word", text: "Required" }), " is what has to be given.")),
       el("h3", { class: "reg-title", text: "The recipe" }),
       el("div", { class: "own-fields" }, variable, source, sourceInfo, labels),
       el("h3", { class: "reg-title", text: "The data" }),
@@ -7853,7 +7863,7 @@
     refreshRegister(kind);
   }
 
-  // what is in the data goes into the boxes that ask for it, in red and bold
+  // what is in the data goes into the boxes that ask for it, in bold
   function fillFromData(kind) {
     const found = regState[kind].data.found;
     if (kind !== "gridded") return;
@@ -9917,7 +9927,7 @@
     return select;
   }
 
-  // what OceanVal suggests is in red and bold until it is changed
+  // what OceanVal suggests is in bold until it is changed
   function markSuggested(select) {
     select.classList.toggle("is-oceanval", select.value === state.point_time_res.suggested);
   }
@@ -10774,8 +10784,6 @@
       const probe = scSims.probes[n];
       const detected = Boolean(scSims.auto[n] && probe && probe.layout && probe.directory === "found" && !scSims.pending[n]);
       $(`sc-ndown_${n}`).classList.toggle("is-detected", detected);
-      const skippingByDefault = isDefaultExclude($(`sc-exclude_${n}`).value);
-      $(`sc-exclude_${n}`).classList.toggle("is-detected", skippingByDefault);
       for (const field of ["name", "simdir", "ndown"]) {
         if (shownErrors[field] && field !== "name") lines.push(line(shownErrors[field], "error"));
       }
@@ -10803,8 +10811,6 @@
         if (last && last.classList.contains("is-ok")) lines[lines.length - 1] = el("span", { class: "group__pair" }, last, layoutLine);
         else lines.push(layoutLine);
       }
-      // the files skipped are in a part of the row that starts closed, so are said here, once the row is in use
-      if (skippingByDefault && !scRowEmpty(n)) lines.push(line(defaultExcludeLine(), "detected"));
       message(`sc-m-${n}`, lines, false);
     }
     const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);

@@ -61,7 +61,7 @@
   .field__msg { display: flex; gap: 6px; align-items: flex-start; margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
   .field__msg:empty { display: none; }
   .is-empty .field__msg { color: var(--coral-dark); }
-  .is-invalid .field__msg { color: var(--red); }
+  .is-invalid .field__msg { color: var(--ink); }
 
   /* datasets */
   .chips { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
@@ -128,14 +128,14 @@
   .btn--clear:hover:not(:disabled) { border-color: var(--btn-disabled); background: var(--teal-100); }
   .btn--clear:disabled { border-color: var(--line); background: var(--bg); color: var(--muted-light); }
   .settings__ticks { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 24px; padding: 0 22px 20px; }
-  .g-label.is-required { color: var(--red); font-weight: 700; }
+  .g-label.is-required { font-weight: 500; }
   .year-required { margin-left: 6px; color: var(--red); font-size: 10.5px; font-weight: 700; text-transform: uppercase; }
   /* a box's own hint, between it and the next box */
   .group__msg + .g-row { margin-top: 10px; }
   .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
   .s-input.is-ersem, .s-select.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
   /* what the oceanval app's demo filled in is red and bold, until it is typed over */
-  .s-input.is-oceanval, .s-select.is-oceanval, .lede .oceanval-change, .field__msg .oceanval-change { color: var(--red); font-weight: 700; }
+  .s-input.is-oceanval, .s-select.is-oceanval, .lede .oceanval-change, .field__msg .oceanval-change { color: var(--ink); font-weight: 700; }
   .cores-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 10px; }
   .cores-row .g-label { margin: 0; }
   .cores-row.is-stacked { grid-template-columns: minmax(0, 1fr); gap: 6px; }
@@ -147,7 +147,7 @@
   .opts__row { display: grid; grid-template-columns: 50px minmax(0, 1fr); align-items: center; gap: 6px; }
   .opts__label { color: var(--muted); font-size: 11.5px; font-weight: 500; }
   .opts__row.is-required { grid-template-columns: 64px minmax(0, 1fr); }
-  .opts__row.is-required .opts__label { color: var(--red); font-weight: 700; }
+  .opts__row.is-required .opts__label { font-weight: 500; }
   .opts__row.is-required .opts__label::after { content: "Required"; display: block; color: var(--red); font-size: 9px; font-weight: 700; text-transform: uppercase; }
   .opts__help { position: relative; display: inline-flex; margin-left: 3px; vertical-align: middle; }
   .opts__help > summary { display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid var(--teal-600); border-radius: 50%; color: var(--teal-700); font-size: 11px; font-weight: 700; line-height: 1; list-style: none; cursor: pointer; }
@@ -175,11 +175,11 @@
   .s-input.is-small, .s-select.is-small { padding-top: 4px; padding-bottom: 4px; font-size: 12.5px; }
   .s-select.is-small { padding-right: 22px; background-position: right 7px center; }
   .opts__vertical { font-size: 12.5px; }
-  .opts__msg { margin: 0; color: var(--red); font-size: 12px; line-height: 1.35; }
+  .opts__msg { margin: 0; color: var(--ink); font-size: 12px; line-height: 1.35; }
   .opts__msg.is-warn { color: var(--coral-dark); }
   .s-input.is-outside { border-color: var(--coral-dark); }
   .opts__msg:empty { display: none; }
-  .fix-settings { margin: 0; color: var(--red); font-size: 12.5px; font-weight: 700; text-align: center; }
+  .fix-settings { margin: 0; color: var(--ink); font-size: 12.5px; font-weight: 700; text-align: center; }
   .write-action { display: grid; gap: 4px; }
 
 
@@ -235,8 +235,8 @@
           <fieldset class="group" id="group-climate">
             <legend>What simulation years do you want to use for climatologies?</legend>
             <div class="g-row pair">
-              <label><span class="g-label">First year</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
-              <label><span class="g-label">Last year</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
+              <label><span class="g-label">First year</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">Last year</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
             </div>
             <p class="group__msg" id="g-output-years"></p>
             <p class="group__msg" id="g-climate"></p>
@@ -245,12 +245,12 @@
         <div class="settings__column">
           <fieldset class="group" id="group-fvcom" hidden>
             <legend>How do you want the FVCOM output regridded?</legend>
-            <label class="g-row"><span class="g-label">Lon-lat resolution for point data (degrees)</span><input class="s-input is-num" id="s-fvcom_res" name="fvcom-resolution" inputmode="decimal" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
+            <label class="g-row"><span class="g-label">Lon-lat resolution for point data (degrees)</span><input class="s-input is-num" id="s-fvcom_res" name="fvcom-resolution" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
             <div class="g-row pair">
-              <label><span class="g-label">Minimum depth (m)</span><input class="s-input is-num" id="s-fvcom_min_depth" name="fvcom-minimum-depth" inputmode="decimal" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
-              <label><span class="g-label">Maximum depth (m)</span><input class="s-input is-num" id="s-fvcom_max_depth" name="fvcom-maximum-depth" inputmode="decimal" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
+              <label><span class="g-label">Minimum depth (m)</span><input class="s-input is-num" id="s-fvcom_min_depth" name="fvcom-minimum-depth" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">Maximum depth (m)</span><input class="s-input is-num" id="s-fvcom_max_depth" name="fvcom-maximum-depth" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
             </div>
-            <label class="g-row"><span class="g-label">Vertical spacing (m)</span><input class="s-input is-num" id="s-fvcom_dz" name="fvcom-vertical-spacing" inputmode="decimal" spellcheck="false" autocomplete="chrome-off" autocapitalize="off"></label>
+            <label class="g-row"><span class="g-label">Vertical spacing (m)</span><input class="s-input is-num" id="s-fvcom_dz" name="fvcom-vertical-spacing" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
             <p class="group__msg" id="g-fvcom"></p>
           </fieldset>
         </div>
@@ -700,7 +700,7 @@
     state.woa23_periods.find(([first, last]) => years[0] >= first && years[1] <= last);
   const WOA23_DECADES = state.woa23_periods.map(([first, last]) => `${first}–${last}`).join(", ");
   // the years every ticked dataset starts with where nothing above gives
-  // them: those create_recipes was given, in red and bold as OceanVal filled
+  // them: those create_recipes was given, in bold as OceanVal filled
   // them in. In the app, none: each dataset's are typed
   const initialYears = app
     ? null

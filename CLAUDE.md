@@ -570,7 +570,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `viewer_app.VIEWER`); the landing page is **two by two** (`.choices.is-four`, one column at ≤640px). Mixin
   `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
   (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
-  logic, `depthBox`, "Finding files", the recent-directories arrow and the amber `restart` Skip box are OceanVal's own; only
+  logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own; only
   the multi-row **Missing values** fieldset (`#setup-missing`, `missingRows`, sent as JSON `missing` by `setupForm()`,
   `viewer_app.parse_missing`) is the viewer's. **Its rows start filled in from the files** (`viewer_missing.guess` via
   `/api/viewer/missing`, asked by `askMissingGuess` after each `/api/probe` answer with files; `scan(wait=False)`, then
@@ -620,8 +620,8 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - **Files are never left out unasked.** No code drops a file for having "restart" in its name: `create_recipes.simulation_paths`
   (Analyze, Compare, the window's live check and the output years), `_has_nc`, `model_check` and `matchall` leave that to `exclude`/`require`.
   The window starts the **Skip file names containing** box with `create_recipes.DEFAULT_EXCLUDE` (`"restart"`; Validate, Analyze and each
-  Compare row: `default_setup_form`, `sim_compare_forms.blank_sim`, sent as `state.default_exclude`) in amber (`is-detected`, `isDefaultExclude`
-  in the page) with a line saying so, until it is changed. A Compare row holding only that is unused (`sim_compare_forms.row_is_blank`,
+  Compare row: `default_setup_form`, `sim_compare_forms.blank_sim`, sent as `state.default_exclude`), in the normal colours and with no line saying so (the user's rule,
+  2026-10-30; `isDefaultExclude` in the page tells it from a value typed). A Compare row holding only that is unused (`sim_compare_forms.row_is_blank`,
   `scRowEmpty`). The Python defaults (`matchup(exclude=[])`, `analyze(exclude=None)`) are unchanged.
 - **The live file check shows "Finding files"** (a spinner, `.is-finding`) from the edit of the directory, depth or filter boxes until the
   `/api/probe` answer is in: `probePending` in `askProbe` (the badge `#ndown-found`, Validate/Matchup/Analyze) and `scSims.pending[n]` in
@@ -721,6 +721,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - The window's Info panel (the **i** beside Settings) shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.
+- **The browser never offers what was typed before** (the user's rule, 2026-10-30): every typed box has `autocomplete="off"`,
+  in the markup and, for boxes the pages make later, by the guard at the end of `data/gui.js` (`forget`, a `MutationObserver`
+  and `focusin`). Never `chrome-off`, which Chrome ignores. Only the simulation directories are remembered, by OceanVal
+  itself (`.oceanvalcache`). `tests/test_no_browser_memory.py` checks both windows.
 - **A choice among boxes must be unmistakable**: the chosen one is filled with the accent colour (or tinted, with a thick
   accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.demo-detail__option`, `.prefs__use`, `.reg-where label`) and
   the theme cards are styled together at the end of `data/gui.css`; `.segmented` (the domain picker), `.choice.is-chosen` and the

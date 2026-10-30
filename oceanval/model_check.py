@@ -544,6 +544,9 @@ class ModelCheck:
             f"import sys; sys.path.insert(0, {root!r}); "
             "from oceanval.model_check import main; main()"
         )
+        with self._lock:
+            if self._stopped:
+                return
         try:
             self.process = subprocess.Popen(
                 [sys.executable, "-u", "-c", code],

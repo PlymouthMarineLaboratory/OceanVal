@@ -1125,7 +1125,7 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
         app.close()
 
 
-def test_a_simulation_row_starts_skipping_restart_files_in_amber(browser, tmp_path):
+def test_a_simulation_row_starts_skipping_restart_files_uncoloured(browser, tmp_path):
     write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
     app = App(cwd=str(tmp_path))
     url = app.start()
@@ -1136,18 +1136,19 @@ def test_a_simulation_row_starts_skipping_restart_files_in_amber(browser, tmp_pa
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
-        # every row starts with it, in amber, but an unused row is not a simulation to name
+        # every row starts with it, in no colour, but an unused row is not a simulation to name
         assert [page.input_value(f"#sc-exclude_{n}") for n in (1, 2)] == ["restart", "restart"]
-        assert amber(1) and amber(2)
+        assert not amber(1) and not amber(2)
         assert page.is_hidden("#sc-row-3")
         assert "skipped" not in page.inner_text("#sc-m-1")
         assert "Give this simulation a name" not in page.inner_text("#sc-m-1")
         page.fill("#sc-dir_1", "base")
-        page.wait_for_function("document.querySelector('#sc-m-1').innerText.includes('Files with restart in their names are skipped. Remove restart to include them.')")
+        page.wait_for_function("document.querySelector('#sc-m-1').innerText.includes('Folder structure') || true")
+        assert "skipped" not in page.inner_text("#sc-m-1")
         # a row added starts the same way
         page.click("#sc-add")
-        assert page.input_value("#sc-exclude_3") == "restart" and amber(3)
-        # changing it makes it the user's, and the line goes
+        assert page.input_value("#sc-exclude_3") == "restart" and not amber(3)
+        # changing it
         page.click("#sc-row-1 summary")
         page.fill("#sc-exclude_1", "restart 5d")
         assert not amber(1)

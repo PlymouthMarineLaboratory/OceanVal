@@ -4447,6 +4447,68 @@ class TestBack:
         assert app.status == "finished"
         assert "answer: y\nmatching up\n" in app.console.since(0, None)["text"]
 
+    def failing_run(self, app, tmp_path, monkeypatch):
+        """Get as far as a matchup run that fails, with the units step carried
+        on from. Returns the units' boxes."""
+        failing = tmp_path / "failing.py"
+        failing.write_text("print('about to fail')\nraise SystemExit(1)\n")
+        start_run = app.start_run
+        monkeypatch.setattr(
+            app, "start_run", lambda args, label: start_run([args[0], str(failing)], label)
+        )
+        self.to_recipes(app, tmp_path)
+        self.write(app)
+        conversions = {"recipe:nitrate:woa23": {"multiplier": "2", "adder": ""}}
+        assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
+        wait_for(lambda: app.view == "finished")
+        return conversions
+
+    def test_back_from_a_failed_run_goes_to_the_units(self, app, tmp_path, monkeypatch):
+        conversions = self.failing_run(app, tmp_path, monkeypatch)
+        assert app.status == "failed"
+        assert "about to fail" in app.console.since(0, None)["text"]
+        assert get_json(app, "/api/state")[1]["run"]["back"] is True
+        form = dict(app.setup_form)
+
+        assert post(app, "/api/back")[0] == 200
+        _, state = get_json(app, "/api/state")
+        assert (state["view"], state["run"]["back"]) == ("units_table", False)
+        # the failed run is forgotten, and what was entered is kept
+        assert (app.run, app.status, app.interim, app.report_arguments) == (None, None, None, None)
+        assert app.matchup_progress is None
+        assert app.setup_form == form
+        assert state["units"]["boxes"] == {
+            "recipe:nitrate:woa23": {"multiplier": "2", "adder": ""},
+        }
+        assert "about to fail" not in app.console.since(0, None)["text"]
+
+        # carried on from again, the matchup starts afresh and can fail again
+        assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
+        wait_for(lambda: app.view == "finished")
+        assert app.status == "failed"
+        assert get_json(app, "/api/state")[1]["run"]["back"] is True
+
+    def test_a_failed_validate_run_after_the_matchups_has_a_back(self, app, tmp_path, monkeypatch):
+        self.failing_run(app, tmp_path, monkeypatch)
+        # the matchup run was over, and the report's run is what failed
+        app.run.args[:] = ["validate", "{}"]
+        assert get_json(app, "/api/state")[1]["run"]["back"] is True
+        assert post(app, "/api/back")[0] == 200
+        assert app.view == "units_table"
+
+    def test_there_is_no_back_unless_a_run_failed(self, app, tmp_path, monkeypatch):
+        self.failing_run(app, tmp_path, monkeypatch)
+        for status in ("finished", None):
+            app.status = status
+            assert get_json(app, "/api/state")[1]["run"]["back"] is False
+        app.status = "failed"
+        app.matchup_script_saved = True
+        assert get_json(app, "/api/state")[1]["run"]["back"] is False
+        app.matchup_script_saved = False
+        app.action = "validate"
+        assert get_json(app, "/api/state")[1]["run"]["back"] is False
+        assert app.view == "finished"
+
     def settings_stand_in(self, tmp_path):
         """A stand-in for the script, which asks whether the matchups are
         right, as matchup does, and says what it was given along with yes."""
@@ -5241,9 +5303,9 @@ def test_the_files_skipped_start_with_restart(app, tmp_path):
 
 
 @pytest.mark.parametrize("tile", ["#home-viewer", "#home-analyze", "#home-validate"])
-def test_the_files_skipped_start_in_amber_in_a_browser(browser, tmp_path, tile):
-    """Validate, Analyze and View simulation output share the box: it starts with restart, said in
-    amber, until it is changed."""
+def test_the_files_skipped_start_uncoloured_in_a_browser(browser, tmp_path, tile):
+    """Validate, Analyze and View simulation output share the box: it starts with restart, in no
+    colour and with no line about it."""
     write_simulation(tmp_path / "sim", tracers=True)
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
@@ -5257,8 +5319,8 @@ def test_the_files_skipped_start_in_amber_in_a_browser(browser, tmp_path, tile):
         amber = lambda: page.locator("#f-exclude").evaluate("node => node.classList.contains('is-detected')")
         page.wait_for_selector("#view-setup:not([hidden])")
         page.wait_for_function("document.getElementById('f-exclude').value === 'restart'")
-        assert amber()
-        assert "Files with restart in their names are skipped. Remove restart to include them." in page.inner_text("#m-simulation")
+        assert not amber()
+        assert "are skipped. Remove restart" not in page.inner_text("#m-simulation")
         page.fill("#f-exclude", "restart 5d")
         assert not amber()
         assert "skipped. Remove restart" not in page.inner_text("#m-simulation")
@@ -5266,7 +5328,7 @@ def test_the_files_skipped_start_in_amber_in_a_browser(browser, tmp_path, tile):
         page.fill("#f-exclude", "")
         assert not amber()
         page.fill("#f-exclude", "restart")
-        assert amber()
+        assert not amber()
     finally:
         app.close()
 
@@ -5688,7 +5750,7 @@ def test_the_point_time_res_step_in_a_browser(browser, tmp_path):
 
         page.click("text=Yes, continue")
         page.wait_for_selector("#view-point-time-res:not([hidden])")
-        # OceanVal's suggestion for all of them, in red and bold
+        # OceanVal's suggestion for all of them, in bold
         assert page.is_checked("#ptr-mode-all")
         assert page.input_value("#ptr-all") == "year,month"
         assert "is-oceanval" in page.get_attribute("#ptr-all", "class")
@@ -5723,7 +5785,7 @@ def test_the_time_shift_question_in_a_browser(browser, tmp_path):
 
         assert page.is_hidden("#review") and page.is_hidden("#ask")
         assert page.text_content("#title") == "Are the model's times at the end of each mean?"
-        # OceanVal's suggestion, in red and bold
+        # OceanVal's suggestion, in bold
         assert page.is_checked("#ts-mode-shift")
         assert page.text_content("#ts-shift-label") == "Shift the simulation's times back one day"
         label = page.locator("#ts-shift-label")
@@ -6274,7 +6336,7 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_disabled("#build")
         assert page.get_attribute("#build", "title") == "Fill in both ends of the transect, or untick it"
 
-        # a diagonal line is refused, in red and bold, and every box is marked
+        # a diagonal line is refused, in bold, and every box is marked
         for name, value in [("start_lon", "-30"), ("start_lat", "0"), ("end_lon", "-20"), ("end_lat", "65")]:
             page.fill(f"#v-transect_{name}", value)
         problem = page.locator("#vm-transect .group__line")
@@ -6456,7 +6518,7 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
 def test_the_demo_in_a_browser(browser, tmp_path, fetched):
     """The demo is offered below the four, says in large bold type that it
     makes oceanval_demo, says what it is not, and fills in the simulation
-    step in red and bold."""
+    step in bold."""
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
     app.leftovers_asked = True
@@ -6581,7 +6643,7 @@ def test_comparing_validations_in_a_browser(browser, tmp_path, monkeypatch):
         page.fill("#c-dir_2", "nowhere")
         assert page.is_enabled("#compare")
 
-        # what cannot be used is said in red and bold, beside the row
+        # what cannot be used is said in bold, beside the row
         page.click("#compare")
         page.wait_for_selector("#cm-rows.is-error")
         problem = page.locator("#cm-rows .group__line.is-error")
@@ -6625,6 +6687,9 @@ def test_the_output_is_only_shown_when_a_run_fails(browser, tmp_path):
         page.wait_for_selector("#run:not([hidden])")
         assert page.is_hidden("#progress")
         assert "matching up" in page.text_content("#console-text")
+        # Quit and Start again are always there; Back only when the choices to go back to are kept
+        page.wait_for_selector("#bar button:has-text('Start again')")
+        assert page.locator("#bar button:has-text('Back')").count() == 0
     finally:
         app.close()
 
@@ -7573,7 +7638,7 @@ def test_the_demo_grid_in_a_browser(browser, tmp_path, fetched):
 
 def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
     """The table lists the units of each matchup with the conversion OceanVal
-    fills in where they differ, in red and bold for as long as it is OceanVal's,
+    fills in where they differ, in bold for as long as it is OceanVal's,
     the units have to be confirmed to carry on, a conversion that is not a
     number is marked, and those that are go into the script."""
     write_simulation(tmp_path / "sim", tracers=True)
@@ -7867,7 +7932,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
 
 def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, tmp_path):
     """What OceanVal could not keep of what the window held, once the
-    simulation is read again, is said in red and bold."""
+    simulation is read again, is said in bold."""
     write_simulation(tmp_path / "sim", tracers=True)
     # temperature only
     write_simulation(tmp_path / "other")

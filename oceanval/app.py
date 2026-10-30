@@ -2072,7 +2072,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     "server_trouble": self._server_trouble_state(),
                     "analysis": self._analysis_progress_state(),
                     # whether Back can leave it for the units step
-                    "back": self._run_back(),
+                    "back": self._run_back() or self._failed_back(),
                     # the file filters the script was written with, which
                     # the matchups page can change
                     "filters": self._run_filters(),
@@ -2684,6 +2684,22 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 # the thread waiting on the step shows the window again
                 self._units_back = True
                 self._units_done.set()
+                return True
+            if self._failed_back():
+                # nothing is running, so there is nothing to stop
+                page = self._recipes
+                self._leave_run()
+                self.interim = None
+                self.report_arguments = None
+                self.returncode = None
+                self.console.clear()
+                self._show_units(page.result)
+                threading.Thread(
+                    target=self._units_again,
+                    args=(page,),
+                    name="oceanval-units",
+                    daemon=True,
+                ).start()
                 return True
             if self._run_back():
                 question = self.question
@@ -4409,6 +4425,19 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 or self._held_matchups() is not None
                 or (self.question is not None and self.question.time_shift)
             )
+        )
+
+    def _failed_back(self):
+        """Whether Back can leave a run that failed (or was stopped), in the
+        matchup or the report, for the units step, as it can the matchups
+        question: the choices made since are still kept."""
+        return (
+            self.view == "finished"
+            and self.status in ("failed", "stopped")
+            and self.action in ("matchup_validate", "matchup")
+            and self.run is not None
+            and self._recipes is not None
+            and not self.matchup_script_saved
         )
 
     def _leave_run(self):

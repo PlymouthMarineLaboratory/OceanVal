@@ -965,7 +965,7 @@ def test_the_dates_check_works_out_the_resolution(tmp_path):
 
 
 def test_analyze_in_a_browser(browser, tmp_path):
-    """The landing page, the variables OceanVal fills in in red and bold,
+    """The landing page, the variables OceanVal fills in in bold,
     and a pop-out whose Cancel forgets what was changed and whose Confirm
     keeps it."""
     write_analysis_simulation(str(tmp_path / "sim"))
@@ -1950,7 +1950,7 @@ def test_the_transects_of_a_variable_are_copied_to_every_variable_in_a_browser(b
 
 def test_the_names_drop_down_the_larger_pop_outs_and_the_missing_value_in_a_browser(browser, tmp_path, monkeypatch):
     """The arrow of "Environmental variable" lists the preset names, and choosing one fills
-    in the Variable name in the simulation in red and bold; the pop-outs are 1300px wide; and the
+    in the Variable name in the simulation in bold; the pop-outs are 1300px wide; and the
     missing value found in the data is amber, until it is typed over."""
     from oceanval import missing_probe
 
