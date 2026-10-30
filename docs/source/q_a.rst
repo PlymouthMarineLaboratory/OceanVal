@@ -1,6 +1,17 @@
 OceanVal Q&A
 =====================
 
+OceanVal says ``cdo sinfo`` segfaulted on my files. What can I do?
+-------------------------------------------------------------------
+
+Once your simulation's files are found, OceanVal runs ``cdo sinfo`` on every one of them in the
+background. It should never crash. If it does, OceanVal will not work with that data, as every step
+reads the model files with CDO: in the app a pop-out blocks the window until you start again, and in
+Python ``matchup``, ``analyze`` and ``compare_simulations`` stop with an error naming the files.
+
+A segmentation fault on ``cdo sinfo`` indicates that the data could potentially not be CF-compliant.
+Try changing the CDO version: https://anaconda.org/conda-forge/cdo
+
 How do I validate multiple simulations?
 ---------------------------------------
 

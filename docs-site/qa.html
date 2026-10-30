@@ -80,6 +80,14 @@
     <h2 id="running">Running &amp; performance</h2>
 
     <div class="faq-item">
+      <button class="faq-question">OceanVal says <code>cdo sinfo</code> segfaulted on my files. What can I do?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="faq-answer"><div>
+        <p>Once your simulation's files are found, OceanVal runs <code>cdo sinfo</code> on every one of them in the background. It should never crash. If it does, OceanVal will not work with that data, as every step reads the model files with CDO: in the app a pop-out blocks the window until you start again, and in Python <code>matchup</code>, <code>analyze</code> and <code>compare_simulations</code> stop with an error naming the files.</p>
+        <p>A segmentation fault on <code>cdo sinfo</code> indicates that the data could potentially not be CF-compliant. Try changing the CDO version: <a href="https://anaconda.org/conda-forge/cdo">https://anaconda.org/conda-forge/cdo</a>.</p>
+      </div></div>
+    </div>
+
+    <div class="faq-item">
       <button class="faq-question">How do I validate multiple simulations?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
       <div class="faq-answer"><div>
         <p>Use the <code>out_dir</code> option in <a href="api.html#matchup"><code>oceanval.matchup</code></a>, and the <code>data_dir</code> / <code>out_dir</code> options in <a href="api.html#validate"><code>oceanval.validate</code></a>, so output is stored in separate folders. When one simulation is done, reset before starting the next:</p>

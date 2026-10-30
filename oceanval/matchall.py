@@ -33,6 +33,7 @@ from oceanval.session import session_info
 from oceanval.parsers import Validator, definitions, point_files
 from tqdm import tqdm
 from oceanval.utils import extension_of_directory
+from oceanval import cdo_check
 from oceanval import domain_mask as domain_mask_mod
 from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
@@ -1914,6 +1915,8 @@ def matchup(
     files = _files_found(
         sim_dir, sorted(set(chosen.pattern)), exclude, session_info["require"], strict_names
     )
+    # the files are looked at by CDO while the times are checked
+    cdo_checked = cdo_check.start(path for found in files.values() for path in found)
 
     # time means whose times look like the end of the period each covers are
     # asked about before the matchups are shown, so that the files and dates
@@ -1938,6 +1941,7 @@ def matchup(
             print("******************************")
             session_info["end_messages"].append(time_stamps.end_message(rows))
     session_info["time_shift"] = time_shift
+    cdo_check.require(cdo_checked)
     if time_shift:
         print(f"The model's times are shifted {time_stamps.describe(time_shift)} before matching up")
 

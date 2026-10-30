@@ -695,6 +695,9 @@
   .picker__info code { overflow-wrap: anywhere; }
   #files-intro { margin-bottom: 10px; }
   .picker__card--narrow { max-width: 540px; }
+  /* above any other pop-out, and not closed by the backdrop or Escape */
+  .picker--blocking { z-index: 60; }
+  #cdo-failed-list { max-height: 160px; overflow: auto; }
   .how__body { flex: 1; overflow-y: auto; padding: 0 22px 4px; overscroll-behavior: contain; }
   .how__body p { margin: 0 0 12px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
   .how__body strong { color: var(--ink); font-weight: 600; }
@@ -2605,6 +2608,21 @@
   </div>
 </div>
 
+<!-- CDO crashed on the simulation's files: nothing can be done with them, so there is no way on from here but starting again -->
+<div class="picker picker--blocking" id="cdo-failed" hidden>
+  <div class="picker__card picker__card--narrow" role="alertdialog" aria-modal="true" aria-labelledby="cdo-failed-title" aria-describedby="cdo-failed-text">
+    <div class="picker__head">
+      <h2 id="cdo-failed-title">OceanVal cannot work with these files</h2>
+    </div>
+    <p class="files__notice" id="cdo-failed-notice"></p>
+    <p class="picker__info" id="cdo-failed-text"></p>
+    <div class="picker__list" id="cdo-failed-list" tabindex="-1" aria-label="Files CDO crashed on"></div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--primary" id="cdo-failed-restart">Start again</button>
+    </div>
+  </div>
+</div>
+
 <div class="picker" id="leftovers" hidden>
   <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="leftovers-title">
     <div class="picker__head">
@@ -4108,6 +4126,7 @@
     renderHeader();
     renderBar();
     renderServerTrouble();
+    renderCdoFailed();
     if (state.view === "point_data") refreshOwn("point");
     if (state.view === "gridded_data") refreshOwn("gridded");
     if (state.view === "own_future") refreshOwnFuture();
@@ -10347,6 +10366,51 @@
     }
     return unit === 0 ? `${value} ${units[0]}` : `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
   }
+
+  // ---- CDO crashed on the simulation's files (see oceanval.cdo_check) ----
+  // nothing can be done with them, so this has no way out but starting again
+  const cdoFailed = { signature: null };
+
+  function renderCdoFailed() {
+    const found = state.cdo_check;
+    const failed = found && found.message ? found : null;
+    const dialog = $("cdo-failed");
+    if (!failed) {
+      if (!dialog.hidden) {
+        dialog.hidden = true;
+        BEHIND.forEach((node) => { node.inert = false; });
+      }
+      cdoFailed.signature = null;
+      return;
+    }
+    const signature = JSON.stringify([failed.faulty, failed.total, failed.status]);
+    if (signature !== cdoFailed.signature) {
+      cdoFailed.signature = signature;
+      const files = failed.faulty.length;
+      $("cdo-failed-notice").replaceChildren(icon("warn"), el("span", {
+        text: `\`cdo sinfo\` segfaulted on ${files} of ${plural(failed.total, "model file")}` +
+          (failed.status === "checking" ? " so far" : "") + ". This indicates that the data could potentially not be CF-compliant.",
+      }));
+      $("cdo-failed-text").replaceChildren(
+        "OceanVal reads model files with CDO, so it will not work with this data. Try changing the CDO version: ",
+        el("a", { href: failed.link, target: "_blank", rel: "noopener noreferrer", text: failed.link }),
+        ".");
+      $("cdo-failed-list").replaceChildren(...failed.faulty.map((path) => el("div", { class: "picker__file leftover" },
+        el("span", { class: "leftover__path", text: path }))));
+    }
+    if (dialog.hidden) {
+      dialog.hidden = false;
+      BEHIND.forEach((node) => { node.inert = true; });
+      $("cdo-failed-restart").focus();
+    }
+  }
+
+  $("cdo-failed-restart").addEventListener("click", async () => {
+    $("cdo-failed-restart").disabled = true;
+    const reply = await post("api/restart_all", {});
+    if (reply.ok) location.reload();
+    else $("cdo-failed-restart").disabled = false;
+  });
 
   function openLeftovers() {
     const found = state.leftovers;

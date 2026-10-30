@@ -125,6 +125,47 @@ def check_servers(monkeypatch):
     monkeypatch.setattr(parsers, "check_servers", True)
 
 
+@pytest.fixture(autouse=True)
+def no_cdo_check(request, monkeypatch):
+    """The check of every model file with `cdo sinfo` (see oceanval.cdo_check) is
+    turned off, as most tests have no use for it: tests/test_cdo_check.py and the
+    tests that mark themselves with cdo_check turn it on, with a cdo of their own."""
+    from oceanval import cdo_check
+
+    monkeypatch.setattr(cdo_check, "ENABLED", bool(request.node.get_closest_marker("cdo_check")))
+
+
+@pytest.fixture
+def fake_cdo(tmp_path, monkeypatch):
+    """A `cdo` first on the PATH that crashes with a segmentation fault on files
+    whose name contains "bad" and says it read any other (a file with "error" in
+    its name ends with an error). Returns the list of the paths it was run on, a
+    file in the folder the fake keeps (fake_cdo.calls())."""
+    folder = tmp_path / "fake_cdo"
+    folder.mkdir()
+    log = folder / "calls.txt"
+    script = folder / "cdo"
+    script.write_text(
+        "#!/bin/sh\n"
+        f'echo "$2" >> {log}\n'
+        'case "$2" in\n'
+        "  *bad*) kill -SEGV $$ ;;\n"
+        "  *error*) echo 'cdo: error' >&2; exit 1 ;;\n"
+        "  *slow*) sleep 30 ;;\n"
+        "esac\n"
+        "echo 'File format: NetCDF'\n"
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
+
+    class Fake:
+        @staticmethod
+        def calls():
+            return sorted(log.read_text().split()) if log.exists() else []
+
+    return Fake
+
+
 @pytest.fixture
 def browser():
     """A Chromium browser, for the tests that drive a page, which are skipped
@@ -143,3 +184,9 @@ def browser():
     chromium.close()
     playwright.stop()
 
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "cdo_check: turns on the check of the model files with `cdo sinfo` (see oceanval.cdo_check)"
+    )

@@ -144,6 +144,7 @@ class SimCompareSteps:
                         self._sc_read(sim)
                 self.sc_found = {sim["name"]: self.sc_found[sim["name"]] for sim in sims}
                 self._sc_forget_after_sims()
+            self._start_cdo_check(self.sc_sims)
             self.view = "simcompare_variables"
             self._notify()
         return 200, {"ok": True}

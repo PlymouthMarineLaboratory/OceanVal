@@ -39,7 +39,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import domain_mask, netcdf_lock, prompts, sim_unify, surface
+from oceanval import cdo_check, domain_mask, netcdf_lock, prompts, sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
 from oceanval.matchall import _restores_nctoolkit_options
@@ -1244,6 +1244,8 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
         )
     if _looks_like_fvcom(found[0]["files"][0]):
         raise ValueError("analyze does not work with FVCOM output yet.")
+    # CDO looks at the files while their times are read below
+    cdo_checked = cdo_check.start(path for stream in found for path in stream["files"])
 
     # the time resolution of a stream is read from some of its files: once for each
     labels = {}
@@ -1296,6 +1298,8 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
                     "it has no section through the water column to take along a transect: leave out "
                     "the vertical climatology and vertical changes of its transects."
                 )
+    # nothing is worked out from files CDO cannot read
+    cdo_check.require(cdo_checked)
     if problems:
         raise ValueError("\n".join(problems))
 

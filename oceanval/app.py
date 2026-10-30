@@ -75,7 +75,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store
-from oceanval import depths, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, depths, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DEFAULT_EXCLUDE,
     DOMAIN_REGIONS,
@@ -1753,6 +1753,13 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # the years the output of the simulation in the simulation step covers,
         # read from its files' times as it is typed in (see _read_output_years)
         self._output_years = None
+        # `cdo sinfo` on every file of the simulation(s) chosen, in the background
+        # (see _start_cdo_check): the simulations it is for, the check, and what the
+        # page is told. A file it crashes on stops everything (see _cdo_fault)
+        self._cdo_key = None
+        self._cdo_check = None
+        self._cdo_number = 0
+        self._cdo_failed = None
         self.run = None
         self.run_label = None
         self.status = None
@@ -1850,7 +1857,11 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         that the browser keeps no timer going. Returns whether it closed.
         connected says whether the page is still there to be answered."""
         deadline = time.monotonic() + hold
-        while not self.closed.is_set() and (connected is None or connected()):
+        while (
+            not self.closed.is_set()
+            and self._cdo_failed is None
+            and (connected is None or connected())
+        ):
             self.touch(page)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -2005,6 +2016,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "analyze": self._analyze_state(),
                 "simcompare": self._simcompare_state(),
                 "viewer": self._viewer_state(),
+                "cdo_check": self._cdo_check_state(),
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -3041,6 +3053,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             run, self.run = self.run, None
             page, self.recipes_page = self.recipes_page, None
             reading, self._output_years = self._output_years, None
+            self._drop_cdo_check()
             self._own_sim = None
             self._own_sim_number += 1
             draft, self._draft_dir = self._draft_dir, None
@@ -3150,6 +3163,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             # written where the output step says, once it is carried on from
             arguments["out"] = self._draft_script()
             self.setup_arguments = arguments
+            self._start_cdo_check([arguments])
             self.view = "own_data"
             if self.demo is None:
                 self._read_own_simulation(arguments)
@@ -4945,6 +4959,97 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     self._read_output_years(key, paths)
         return found
 
+    # ---- `cdo sinfo` on the simulation's files ----
+
+    def _start_cdo_check(self, simulations):
+        """Run `cdo sinfo` on every output file of simulations (dicts with simdir,
+        ndown and, if any, exclude and require), in the background, unless that
+        is being done or done already for them. What was checked for others is
+        stopped and forgotten. A file it segfaults on blocks the window (see
+        _cdo_fault). Called with the lock held."""
+        key = tuple(_simulation(simulation) for simulation in simulations)
+        if not cdo_check.ENABLED or self._cdo_key == key:
+            return
+        self._drop_cdo_check()
+        self._cdo_key = key
+        number = self._cdo_number
+        threading.Thread(
+            target=self._cdo_run, args=(number, list(simulations)), name="oceanval-cdo-check", daemon=True
+        ).start()
+
+    def _cdo_run(self, number, simulations):
+        """Find the files and start their check (see _start_cdo_check)."""
+        from oceanval.viewer_catalogue import viewer_paths
+
+        paths = []
+        try:
+            for simulation in simulations:
+                paths += viewer_paths(
+                    simulation["simdir"],
+                    simulation["ndown"],
+                    simulation.get("exclude") or None,
+                    simulation.get("require") or None,
+                )
+        except Exception:
+            return
+        if not paths:
+            return
+        check = cdo_check.Check(
+            paths,
+            on_fault=lambda path: self._cdo_fault(number),
+            done=lambda finished: self._cdo_fault(number) if finished.faulty else None,
+        )
+        with self._lock:
+            if number != self._cdo_number or self.closed.is_set():
+                return
+            self._cdo_check = check
+            self._notify()
+        check.start()
+
+    def _cdo_fault(self, number):
+        """CDO segfaulted on a file: from here nothing can be done with the
+        simulation. The run going, if any, is stopped, and the page says what
+        is wrong and offers only to start again. Called again when every file
+        has been looked at, to say how many."""
+        with self._lock:
+            check = self._cdo_check
+            if number != self._cdo_number or check is None or self.closed.is_set():
+                return
+            self._cdo_failed = check.message()
+            run = self.run if self.status in ("starting", "running") else None
+            # the recipes window makes no state requests: it is left (see heartbeat)
+            page = self.recipes_page if self.view in ("preparing", "recipes") else None
+            self._notify()
+        if run is not None:
+            run.stop()
+        if page is not None:
+            page.cancel()
+
+    def _drop_cdo_check(self):
+        """Stop the check of the files, if there is one, and forget what it
+        found. Called with the lock held."""
+        check, self._cdo_check = self._cdo_check, None
+        self._cdo_key = None
+        self._cdo_failed = None
+        self._cdo_number += 1
+        if check is not None:
+            check.cancel()
+
+    def _cdo_check_state(self):
+        """What the page is told of the check of the files with CDO: whether it
+        is going, and, once a file has crashed it, what to tell the user. The
+        page then allows nothing but starting again."""
+        check = self._cdo_check
+        if check is None:
+            return None
+        return {
+            "status": "done" if check.finished else "checking",
+            "total": check.total,
+            "faulty": check.faulty,
+            "message": self._cdo_failed,
+            "link": cdo_check.LINK,
+        }
+
     # ---- the years of the simulation's output ----
 
     def _read_output_years(self, key, paths=None):
@@ -5142,7 +5247,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             told=lambda news: self._matchup_news(run, news),
         )
         with self._lock:
-            if self.closed.is_set():
+            if self.closed.is_set() or self._cdo_failed is not None:
+                # nothing is run on files CDO crashes on
                 return
             self.run = run
             self.run_label = label
@@ -5402,6 +5508,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._cancel_register_check()
             self._drop_model_check()
             self._drop_analyze_check()
+            self._drop_cdo_check()
             reading, self._output_years = self._output_years, None
             viewed = self._viewer_drop()
             self._notify()
@@ -5558,7 +5665,9 @@ class _Handler(recipes_gui._Handler):
                 {
                     "closed": self.app.heartbeat(
                         query.get("page"), connected=self._connected
-                    )
+                    ),
+                    # CDO crashed on the simulation's files: the main page says so
+                    "blocked": self.app._cdo_failed is not None,
                 },
             )
         elif url.path == "/api/state":

@@ -222,6 +222,7 @@ class ViewerSteps:
                 return 400, {"ok": False, "errors": errors}
             old = self._viewer_drop()
             number = self._viewer_number
+            self._start_cdo_check([arguments])
             self.setup_error = None
             self.viewer_missing = arguments["missing"]
             self.viewer_scan = {"phase": "files", "done": 0, "total": 0}

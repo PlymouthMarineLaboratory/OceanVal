@@ -147,6 +147,7 @@ class AnalyzeSteps:
                 self.analyze_found is not None and self.analyze_found["status"] != "failed"
             )
             self.analyze_setup = arguments
+            self._start_cdo_check([arguments])
             self.view = "analyze_variables"
             if not same:
                 self._forget_after_simulation()

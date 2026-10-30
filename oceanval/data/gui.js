@@ -66,7 +66,10 @@ const OceanValGUI = (() => {
       try {
         const response = await fetch(`${root}api/heartbeat?${new URLSearchParams({ token, page: pageId })}`, { cache: "no-store" });
         if (!response.ok) return;
-        if ((await response.json()).closed) return;
+        const reply = await response.json();
+        if (reply.closed) return;
+        // the app has found the simulation cannot be worked with: its page says why
+        if (reply.blocked) { location.assign(`${root || "./"}?token=${encodeURIComponent(token)}`); return; }
       } catch (error) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }

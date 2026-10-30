@@ -269,6 +269,24 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   COBE2's THREDDS server rate limits (HTTP 429): `data_store.download_instead` swaps in the
   plain file download (`DOWNLOADS`) when it turns requests away or fails, with or without a store.
 
+### `cdo sinfo` on every model file (`oceanval/cdo_check.py`)
+
+- `cdo sinfo file.nc` must never segfault; a file it crashes on means OceanVal **cannot work with the data** (everything reads model files
+  with CDO) and that the data may not be CF-compliant. Once the files are identified, `cdo_check.Check` (a thread plus up to 4 workers, a
+  killable process group per file, 300 s a file) runs it on **all** of them and keeps `results` per path (`ok`/`segfault`/`error`/`unknown`;
+  a missing `cdo`, a timeout or a CDO error that is not a crash is never a fault). `cdo_check.message` is the one wording: how many files, the
+  CF-compliance warning and https://anaconda.org/conda-forge/cdo (try another CDO version).
+- **Not a warning: it blocks.** Python API: `cdo_check.start(paths)` where `matchup()` has its files (`_files_found`), `analysis.locate_rows` (so
+  `analyze()` and `compare_simulations()`), then `cdo_check.require(check)` raises `ValueError` before any work (matchup: after the time_shift
+  question; locate_rows: before its other problems). `start` returns None when `news_marker()` is set (the window checked already), when the
+  files are none, or when `cdo_check.ENABLED` is False (the tests' autouse `no_cdo_check` fixture; mark a test `cdo_check` and use `fake_cdo`
+  to turn it on).
+- Window: `App._start_cdo_check(simulations)` (Validate/Match up `setup`, Analyze `_analyze_setup`, Compare `simcompare_sims`, Viewer `_viewer_setup`;
+  a no-op for the same files), `_cdo_fault` on the first segfault (and again when all are looked at): stops a run going, cancels the recipes
+  window (whose heartbeat answers `blocked`, so `gui.js` goes to the main page), and `start_run` refuses while `_cdo_failed` is set.
+  `state()["cdo_check"]` shows the pop-out `#cdo-failed` (`renderCdoFailed`): modal, above every other pop-out, **no Escape, backdrop or
+  Back; Start again (`/api/restart_all`) is the only way on** (`reset` and `quit` drop the check).
+
 ### Analyze (`oceanval/analysis.py`)
 
 - `analyze()` works on model output alone: per variable (name → model variable, `+` sums),
