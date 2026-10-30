@@ -500,6 +500,16 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   **in xarray, written with an explicit `_FillValue`** — CDO arithmetic on NaN-fill-valued files does not propagate missing,
   so `x*0` / `ds_mask > 0` tricks (as the validate-side `compare()` notebooks use) wrongly give 0 where a value is missing and
   turn a real 0 into missing. Vertical transects need the same number of levels in every simulation.
+- **Domain mask** (`compare_simulations(domain_mask=path)`, the same file and `oceanval/domain_mask.py` as validate's, used unchanged): checked
+  by `domain_mask.check` before any work, kept by `keep` as `results/domain_mask.nc` (`comparison.json`'s `domain_mask`, `domain_mask_text`) and put
+  in every row as `row["domain_mask"]` (`{"path", "method": "nn", "variable"}`). It is applied by `domain_mask.mask_gridded` **right after
+  `sim_unify.apply`** in `analysis.monthly_means_of`/`daily_climatology_of` and the transects' thickness (`_depths_along`), so every analysis sees
+  the same masked cells and every simulation ends on the mask's grid (`same_grid` True; with a mask and no unify the report's Model grids says
+  only the mask's sentence). `analysis_transects.unified_steps` takes the points of a line from the mask's grid. A row without it is `analyze()`'s,
+  unchanged. In the window it is asked on the **grids step**, under the unify question, with validate's wording and map
+  (`domainMaskQuestion("scg", ...)`, `POST /api/domain_mask`, which `App.domain_mask_map` serves on `simcompare_grids` too): its boxes
+  (`domain_mask`, `domain_mask_path`) are in `unify_form` (so Back keeps them) but the page keeps its own `scMaskForm`; `simcompare_grids` checks them
+  with `app.check_domain_mask` into `sc_domain_mask`, which `sim_compare_forms.arguments(domain_mask=)` writes into the script.
 - The window: the landing page's third tile, views `simcompare_sims` / `_variables` / `_files` / `_grids` (mixin
   `oceanval/sim_compare_app.py`, boxes in `sim_compare_forms.py`, JS block "Compare simulations" in `oceanval_app.html`). **The grids step
   has maps** (one `.ag-card` for each simulation, its first variable's first file at the surface and first time, `POST /api/simcompare_panel`;

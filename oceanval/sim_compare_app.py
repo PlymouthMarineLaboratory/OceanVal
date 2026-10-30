@@ -111,6 +111,8 @@ class SimCompareSteps:
         # the grids step's boxes, and what they were checked to
         self.sc_unify_form = sim_compare_forms.default_unify_form()
         self.sc_unify = None
+        # the domain mask file the grids step chose (None for No)
+        self.sc_domain_mask = None
         # what is known of the simulations' grids: {"status": "reading" or "done", "same", "extents"}
         self.sc_grids = None
         self._sc_grids_number = 0
@@ -155,6 +157,7 @@ class SimCompareSteps:
         self._sc_drop_checks()
         self._sc_drop_times()
         self.sc_unify = None
+        self.sc_domain_mask = None
         self.sc_grids = None
         self._sc_grids_number += 1
         self._sc_shift_number += 1
@@ -539,10 +542,14 @@ class SimCompareSteps:
             self.sc_unify_form = sim_compare_forms.clean_unify(form)
             names = [sim["name"] for sim in self.sc_sims]
             unify, errors = sim_compare_forms.check_unify(self.sc_unify_form, names)
+            from oceanval.app import check_domain_mask
+
+            domain_mask = check_domain_mask(self.sc_unify_form, self.cwd, errors)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
             self.sc_unify = unify
+            self.sc_domain_mask = domain_mask
             self._sc_make_analyze_found()
             self._enter_analyze_options()
             self._notify()
@@ -713,6 +720,7 @@ class SimCompareSteps:
             self.sc_paths["out_dir"],
             # the times the checks read are kept for a run now, not for a script kept for later
             times_index=None if save else self._sc_keep_times(),
+            domain_mask=self.sc_domain_mask,
             climatology=chosen["climatology"]["rows"] if chosen["climatology"] else None,
             phenology=chosen["phenology"]["rows"] if chosen["phenology"] else None,
             thickness=next(iter(thicknesses), None),

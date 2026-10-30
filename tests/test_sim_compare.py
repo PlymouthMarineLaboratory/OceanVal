@@ -687,3 +687,110 @@ class TestEveryOption:
             else:
                 # on one grid, every simulation has the same points
                 assert len(set(steps.values())) == 1
+
+
+class TestDomainMask:
+    """compare_simulations(domain_mask=): every simulation is put on the mask's grid and masked by it, as matchup's is."""
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def daily(cls, tmp_path_factory):
+        base = tmp_path_factory.mktemp("daily_mask")
+        a, b = base / "a", base / "b"
+        write_analysis_simulation(str(a), years=YEARS, daily=True, trend=TREND_A)
+        write_analysis_simulation(str(b), years=YEARS, daily=True, trend=TREND_B, lats=B_LATS, lons=B_LONS)
+        return str(a), str(b)
+
+    @staticmethod
+    def write_mask(path, west=-2.0, name="wanted"):
+        """A mask on the usual grid: 1 from longitude west eastwards, 0 to the west of it."""
+        from simulations import ANALYSIS_LATS, ANALYSIS_LONS
+
+        lon, lat = np.array(ANALYSIS_LONS), np.array(ANALYSIS_LATS)
+        values = np.where(lon[None, :] >= west, 1.0, 0.0) * np.ones((lat.size, 1))
+        coords = {
+            "lat": ("lat", lat, {"units": "degrees_north", "standard_name": "latitude"}),
+            "lon": ("lon", lon, {"units": "degrees_east", "standard_name": "longitude"}),
+        }
+        xr.DataArray(values.astype("f4"), coords=coords, dims=("lat", "lon"), name=name).to_dataset().to_netcdf(path)
+        return str(path)
+
+    @pytest.mark.parametrize("unify", [None, {"baseline": "Warm run"}])
+    def test_every_simulation_is_on_the_masks_grid_and_masked(self, sims, tmp_path, unify):
+        from simulations import ANALYSIS_LATS, ANALYSIS_LONS
+
+        mask = self.write_mask(tmp_path / "mask.nc")
+        info = compare_quietly(given(sims, domain_mask=mask, unify=unify, out_dir=str(tmp_path)))
+        wanted = np.array(ANALYSIS_LONS) >= -2.0
+        for key in ("base_run", "warm_run"):
+            values = field(tmp_path, key, "temperature_surface_annual.nc").values
+            # B is on a finer grid, but ends on A's
+            assert values.shape[-2:] == (len(ANALYSIS_LATS), len(ANALYSIS_LONS))
+            assert (np.isfinite(values[0]) == wanted[None, :]).all()
+        assert os.path.exists(os.path.join(results(tmp_path), "domain_mask.nc"))
+        assert info["domain_mask"] == "domain_mask.nc"
+        assert "nearest neighbour" in info["domain_mask_text"]
+        assert info["same_grid"] is True
+
+    def test_without_one_nothing_is_masked(self, sims, tmp_path):
+        info = compare_quietly(given(sims, out_dir=str(tmp_path)))
+        assert info["domain_mask"] is None and info["domain_mask_text"] is None
+        assert not os.path.exists(os.path.join(results(tmp_path), "domain_mask.nc"))
+        assert np.isfinite(field(tmp_path, "base_run", "temperature_surface_annual.nc").values).all()
+
+    def test_a_file_that_is_not_a_mask_is_refused_before_any_work(self, sims, tmp_path):
+        with pytest.raises(ValueError, match="domain_mask"):
+            compare_quietly(given(sims, domain_mask=str(tmp_path / "missing.nc"), out_dir=str(tmp_path)))
+        assert not os.path.exists(os.path.join(str(tmp_path), sim_compare.FOLDER))
+
+    def test_the_analysis_of_one_simulation_is_not_masked(self, sims):
+        from oceanval import analysis
+
+        files = glob.glob(os.path.join(sims[0], "*", "*grid_T.nc"))
+        row = {"key": "temp", "name": "Temperature", "parts": ["thetao"]}
+        ds = analysis.monthly_means_of(files, row, "surface", YEARS[:1] * 2, None, 3)
+        ds.run()
+        assert np.isfinite(ds.to_xarray()["temp"].values).all()
+
+    def test_transects_are_taken_on_the_masks_grid(self, daily, tmp_path):
+        from oceanval import transects
+
+        if not transects.available():
+            pytest.skip("needs nctoolkit 1.3.6 or later")
+        mask = self.write_mask(tmp_path / "mask.nc", west=-3.0)
+        line = {
+            "start": [-2.0, 50.0],
+            "end": [-2.0, 53.0],
+            "climatology": {"start": 2012, "end": 2014},
+            "vertical": {"start": 2012, "end": 2014},
+        }
+        info = compare_quietly(
+            given(
+                daily,
+                domain_mask=mask,
+                climatology=None,
+                transects={"Temperature": [line]},
+                thickness="e3t",
+                out_dir=str(tmp_path),
+            )
+        )
+        steps = {sim: own["transects"]["lines"][0]["steps"] for sim, own in info["variables"][0]["sims"].items()}
+        # both are sampled as the mask's grid has it
+        assert len(set(steps.values())) == 1
+        for key in ("base_run", "warm_run"):
+            assert any("transect_1_vertical" in name for name in os.listdir(os.path.join(results(tmp_path), key)))
+
+    def test_every_analysis_is_of_the_masked_cells(self, daily, tmp_path):
+        mask = self.write_mask(tmp_path / "mask.nc")
+        info = compare_quietly(
+            given(daily, domain_mask=mask, out_dir=str(tmp_path), **TestEveryOption.OPTIONS)
+        )
+        wanted = np.array([-4.0, -3.0, -2.0, -1.0, 0.0]) >= -2.0
+        for key in ("base_run", "warm_run"):
+            folder = os.path.join(results(tmp_path), key)
+            with xr.open_dataset(os.path.join(folder, "chlorophyll_phenology.nc")) as ds:
+                assert (np.isfinite(ds["peak_day"].values) == wanted[None, :]).all()
+            for name in ("temperature_surface_annual.nc", "temperature_bottom_annual.nc", "temperature_mean_annual.nc"):
+                with xr.open_dataset(os.path.join(folder, name)) as ds:
+                    assert (np.isfinite(ds["temperature"].values[0]) == wanted[None, :]).all()
+        assert set(info["variables"][0]["kinds"]) >= {"climatology", "long_term", "seasonal", "map_changes"}

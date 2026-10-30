@@ -33,7 +33,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import sim_unify, transects
+from oceanval import domain_mask, sim_unify, transects
 from oceanval.analysis import SURFACE, Z_LEVEL, _say, _time_dim, _year, monthly_means_of, thickness_data
 from oceanval.analysis_series import EARTH_KM, _grid, _spacing, months_per_year
 
@@ -198,8 +198,12 @@ def unified_steps(row, line):
     """How many points to sample a transect at when the simulations of a comparison
     are on one grid (see oceanval.sim_unify), so that every simulation has the same
     points: about one for each cell of that grid the line crosses, or None if that
-    cannot be told."""
-    unify = row["unify"]
+    cannot be told. With a domain mask (see oceanval.domain_mask) the grid is the mask's."""
+    unify = row.get("unify")
+    mask = row.get("domain_mask")
+    if mask is not None:
+        # every simulation ends on the mask's grid
+        return steps_for(mask["path"], mask["variable"], line)
     start, end = transects.line_ends(line)
     north_south = transects.direction(line) == "north-south"
     if unify["method"] == "baseline":
@@ -370,6 +374,8 @@ def _depths_along(row, line, steps, ends, thickness, thickness_for):
     if row.get("unify"):
         # the thickness goes where the values do: onto the comparison's common grid
         sim_unify.apply(ds, row["unify"], row["key"], LEVELS)
+    # and onto the domain mask's, masked
+    domain_mask.mask_gridded(ds, row.get("domain_mask"))
     name = ds.variables[0]
     ds.to_transect(start=ends[0], end=ends[1], nsteps=steps)
     ds.run()
@@ -566,7 +572,7 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
         monthly[vertical] = (ds, [(time.year, time.month) for time in ds.times])
     saved = []
     for number, line in enumerate(asked["lines"], start=1):
-        steps = unified_steps(row, line) if row.get("unify") else None
+        steps = unified_steps(row, line) if row.get("unify") or row.get("domain_mask") else None
         if steps is None:
             steps = steps_for(row["files"][0], row["parts"][0], line)
         ends = transects.line_ends(line)

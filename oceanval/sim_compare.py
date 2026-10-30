@@ -17,7 +17,8 @@ Each simulation is analysed by the code analyze() uses, into a folder of its own
     oceanval_simulation_comparison/report/         the report's book
 
 The simulations can be put on one grid (see oceanval.sim_unify), with a cell
-missing in any of them missing in all.
+missing in any of them missing in all, and masked to part of the domain by a
+netCDF file (see oceanval.domain_mask), which is then the grid they all end on.
 
 The oceanval window (see oceanval.sim_compare_app) writes a script calling
 compare_simulations() and runs it.
@@ -32,6 +33,7 @@ import webbrowser
 import nctoolkit as nc
 import numpy as np
 
+from oceanval import domain_mask as domain_mask_mod
 from oceanval import extent, sim_unify
 from oceanval.analysis import (
     BOTTOM,
@@ -287,6 +289,17 @@ def _same_grid(rows_by_sim, sims):
         return None
 
 
+def describe_mask(kept):
+    """What the domain mask does, as a sentence for the report, or None for no mask."""
+    if kept is None:
+        return None
+    return (
+        "The domain was masked with a netCDF file: each simulation was regridded to the file's grid by nearest "
+        "neighbour, and only the cells with a value of 1 in the file were kept, so all the simulations were "
+        "compared over those cells, on the file's grid."
+    )
+
+
 @_restores_nctoolkit_options
 def compare_simulations(
     simulations=None,
@@ -302,6 +315,7 @@ def compare_simulations(
     lon_lim=None,
     lat_lim=None,
     unify=None,
+    domain_mask=None,
     thickness=None,
     time_shift=None,
     as_missing=None,
@@ -348,6 +362,13 @@ def compare_simulations(
         "regrid": "nn"}. In both, a cell with no value in any one simulation is
         missing in all of them (judged from each one's first time step), so
         every simulation is compared over exactly the same cells.
+    domain_mask : str or None
+        Compare only part of the domain: the path of a netCDF file with a single
+        variable at a single time step, 1 in the cells wanted and 0 or missing
+        elsewhere. Every simulation is regridded to the file's grid by nearest
+        neighbour (after unify, if that is given) and only the cells of 1 are
+        kept, so all the simulations end on the file's grid. A copy of the mask
+        is kept in the results.
     thickness, time_shift, as_missing :
         As in analyze(), for the simulations that do not give their own.
     out_dir : str
@@ -382,6 +403,7 @@ def compare_simulations(
     names = [sim["name"] for sim in sims]
     by_sim = check_variables(variables, names)
     unify = sim_unify.check_unify(unify, names)
+    domain_mask = domain_mask_mod.check(domain_mask)
     out_dir = os.path.abspath(out_dir or ".")
     if os.path.isfile(out_dir):
         raise ValueError(f"out_dir, {out_dir}, is a file, not a directory.")
@@ -458,7 +480,14 @@ def compare_simulations(
         for sim in sims:
             for row in rows_by_sim[sim["name"]]:
                 row["unify"] = sim_unify.row_unify(unify, unify_dir, sim["name"])
-    same_grid = True if unify is not None else _same_grid(rows_by_sim, sims)
+    # the mask is kept with the results, and every simulation ends on its grid
+    mask_kept = domain_mask_mod.keep(domain_mask, results_dir)
+    if mask_kept is not None:
+        mask_kept["variable"] = domain_mask_mod.inspect(mask_kept["path"])[0].name
+        for sim in sims:
+            for row in rows_by_sim[sim["name"]]:
+                row["domain_mask"] = mask_kept
+    same_grid = True if unify is not None or mask_kept is not None else _same_grid(rows_by_sim, sims)
 
     from oceanval import __version__, analysis_report, sim_report
 
@@ -496,6 +525,8 @@ def compare_simulations(
         "colours": colours,
         "unify": unify,
         "unify_text": sim_unify.describe(unify),
+        "domain_mask": None if mask_kept is None else os.path.relpath(mask_kept["path"], results_dir),
+        "domain_mask_text": describe_mask(mask_kept),
         "same_grid": same_grid,
         "shared_cells": cells,
         "subregions": area["subregions"],

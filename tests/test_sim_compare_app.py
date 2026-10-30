@@ -561,6 +561,97 @@ class TestGrids:
         assert state(app)["simcompare"]["unify_form"]["res"] == "0.25"
 
 
+def write_mask(path):
+    """A mask on the usual grid, 1 from longitude -2 eastwards."""
+    import xarray as xr
+
+    from simulations import ANALYSIS_LATS, ANALYSIS_LONS
+
+    lon, lat = np.array(ANALYSIS_LONS), np.array(ANALYSIS_LATS)
+    values = np.where(lon[None, :] >= -2.0, 1.0, 0.0) * np.ones((lat.size, 1))
+    coords = {
+        "lat": ("lat", lat, {"units": "degrees_north", "standard_name": "latitude"}),
+        "lon": ("lon", lon, {"units": "degrees_east", "standard_name": "longitude"}),
+    }
+    xr.DataArray(values.astype("f4"), coords=coords, dims=("lat", "lon"), name="wanted").to_dataset().to_netcdf(path)
+    return str(path)
+
+
+class TestDomainMask:
+    """The grids step's question: No to start, a file for Yes, checked and drawn as validate's is, and written
+    into the script."""
+
+    def test_no_to_start(self, app, sims):
+        shown = to_grids(app)
+        assert shown["unify_form"]["domain_mask"] == "no" and shown["unify_form"]["domain_mask_path"] == ""
+        assert post(app, "/api/simcompare_grids", {"form": {"need": "no"}}) == (200, {"ok": True})
+        assert app.sc_domain_mask is None
+
+    def test_the_file_is_checked_when_the_step_is_left(self, app, sims, tmp_path):
+        mask = write_mask(tmp_path / "mask.nc")
+        to_options(app, {"need": "no", "domain_mask": "yes", "domain_mask_path": mask})
+        assert app.view == "analyze_options" and app.sc_domain_mask == mask
+
+    def test_a_relative_path_is_from_the_directory_worked_in(self, app, sims, tmp_path):
+        write_mask(tmp_path / "mask.nc")
+        to_options(app, {"need": "no", "domain_mask": "yes", "domain_mask_path": "mask.nc"})
+        assert app.sc_domain_mask == str(tmp_path / "mask.nc")
+
+    @pytest.mark.parametrize("path, error", [("", "Give the path"), ("nothing.nc", "There is no file there.")])
+    def test_yes_needs_a_file_that_is_a_mask(self, app, sims, path, error):
+        to_grids(app)
+        form = {"need": "no", "domain_mask": "yes", "domain_mask_path": path}
+        status, reply = post(app, "/api/simcompare_grids", {"form": form})
+        assert status == 400 and list(reply["errors"]) == ["domain_mask_path"]
+        assert reply["errors"]["domain_mask_path"].startswith(error)
+        assert app.view == "simcompare_grids"
+
+    def test_a_file_typed_with_no_is_not_used(self, app, sims, tmp_path):
+        to_options(app, {"need": "no", "domain_mask": "no", "domain_mask_path": write_mask(tmp_path / "mask.nc")})
+        assert app.sc_domain_mask is None
+
+    def test_it_goes_with_unify(self, app, sims, tmp_path):
+        mask = write_mask(tmp_path / "mask.nc")
+        to_options(app, {"need": "yes", "method": "baseline", "baseline": "Fine run", "domain_mask": "yes", "domain_mask_path": mask})
+        assert app.sc_unify == {"baseline": "Fine run"} and app.sc_domain_mask == mask
+
+    def test_the_map_is_drawn_on_the_grids_step_only(self, app, sims, tmp_path):
+        mask = write_mask(tmp_path / "mask.nc")
+        assert post(app, "/api/domain_mask", {"path": mask})[0] == 409
+        to_grids(app)
+        status, reply = post(app, "/api/domain_mask", {"path": mask})
+        assert status == 200 and reply["ok"], reply
+        assert (reply["kept"], reply["total"]) == (12, 20) and reply["item"]["doc"]
+        assert post(app, "/api/domain_mask", {"path": "nothing.nc"}) == (
+            200, {"ok": False, "error": "There is no file there."})
+        assert post(app, "/api/simcompare_grids", {"form": {"need": "no"}}) == (200, {"ok": True})
+        assert post(app, "/api/domain_mask", {"path": mask})[0] == 409
+
+    def test_back_keeps_the_boxes(self, app, sims, tmp_path):
+        mask = write_mask(tmp_path / "mask.nc")
+        to_grids(app)
+        form = {"need": "no", "domain_mask": "yes", "domain_mask_path": mask}
+        assert post(app, "/api/back", {"form": form})[0] == 200
+        shown = state(app)["simcompare"]["unify_form"]
+        assert (shown["domain_mask"], shown["domain_mask_path"]) == ("yes", mask)
+
+    def test_the_script_has_it_only_when_there_is_one(self, app, sims, runs, tmp_path):
+        mask = write_mask(tmp_path / "mask.nc")
+        to_options(app, {"need": "no", "domain_mask": "yes", "domain_mask_path": mask})
+        post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})
+        post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "1"}})
+        post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})
+        assert post(app, "/api/analyze_run", OUTPUT) == (200, {"ok": True})
+        call = ast.parse(open(os.path.join(app.cwd, "comparison.py")).read()).body[-1].value
+        given = {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
+        assert given["domain_mask"] == mask
+
+    def test_the_form_is_cleaned(self):
+        clean = sim_compare_forms.clean_unify({"domain_mask": "YES", "domain_mask_path": "  Mask.nc "})
+        assert clean["domain_mask"] == "yes" and clean["domain_mask_path"] == "Mask.nc"
+        assert sim_compare_forms.clean_unify({"domain_mask": "maybe"})["domain_mask"] == "no"
+
+
 CLIMATOLOGY = {
     "rows": {
         "Chlorophyll": {"use": True, "start": "2013", "end": "2014", "surface": True},
@@ -1146,3 +1237,40 @@ def test_the_grids_step_shows_each_simulation_and_a_preview_in_a_browser(browser
         assert errors == []
     finally:
         page.close()
+
+
+def test_the_domain_mask_is_asked_in_a_browser(browser, tmp_path):
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    write_analysis_simulation(str(tmp_path / "fine"), years=(2013, 2014), daily=False, trend=1.0, lats=B_LATS, lons=B_LONS)
+    mask = write_mask(tmp_path / "mask.nc")
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        to_grids(app)
+        page = browser.new_page(viewport={"width": 1280, "height": 1000})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("#view-simcompare-grids:not([hidden])")
+        # No to start, with the file's box hidden
+        assert page.is_checked("#scg-dm-no") and page.is_hidden("#scg-dm-detail")
+        assert page.inner_text("#scg-dm-question") == "Do you want to mask part of the domain?"
+        page.check("#scg-need-no")
+        assert page.is_enabled("#scg-continue")
+        # Yes needs a file that is a mask, which is drawn
+        page.check("#scg-dm-yes")
+        assert page.is_visible("#scg-dm-detail") and page.is_disabled("#scg-continue")
+        assert "single variable and a single time step" in page.inner_text("#scg-dm-detail")
+        page.fill("#scg-domain_mask_path", "nothing.nc")
+        page.wait_for_function("() => document.querySelector('#scm-domain_mask_path').innerText.includes('There is no file there.')")
+        assert page.is_disabled("#scg-continue")
+        page.fill("#scg-domain_mask_path", mask)
+        page.wait_for_function("() => document.querySelector('#scm-domain_mask_path').innerText.includes('12 of 20 cells will be matched up.')", timeout=60000)
+        page.wait_for_selector("#dm-map-scg.is-drawn", timeout=60000)
+        page.wait_for_function("() => !document.querySelector('#scg-continue').disabled", timeout=60000)
+        page.click("#scg-continue")
+        page.wait_for_selector("#view-analyze-options:not([hidden])")
+        assert app.sc_domain_mask == mask
+        assert not errors, errors
+    finally:
+        app.close()

@@ -2210,6 +2210,25 @@
       <div class="ag-grid" id="scg-grid"></div>
     </div>
     <p class="group__msg" id="scg-no" hidden></p>
+    <!-- every simulation's too: a file masking out part of the domain (see oceanval.domain_mask) -->
+    <fieldset class="group card sc-choice" id="scg-dm-group" style="margin-top:18px">
+      <div class="g-row">
+        <span class="g-label" id="scg-dm-question">Do you want to mask part of the domain?</span>
+        <div class="analyze-code" role="radiogroup" aria-labelledby="scg-dm-question">
+          <label class="ptr-mode"><input type="radio" name="scg-dm" value="yes" id="scg-dm-yes">Yes</label>
+          <label class="ptr-mode"><input type="radio" name="scg-dm" value="no" id="scg-dm-no">No</label>
+        </div>
+      </div>
+      <div class="dm-detail" id="scg-dm-detail" hidden>
+        <p class="dm-detail__about">You must supply a netCDF file with a single variable and a single time step. Values of 1 mark the cells you want; other cells should be 0 or missing. The simulations will be regridded to this file using nearest neighbour.</p>
+        <div class="g-row">
+          <label class="g-label" for="scg-domain_mask_path">NetCDF file</label>
+          <input class="s-input is-mono" id="scg-domain_mask_path" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="mask.nc">
+        </div>
+        <p class="group__msg" id="scm-domain_mask_path"></p>
+        <div class="ag-map dm-map" id="dm-map-scg"></div>
+      </div>
+    </fieldset>
   </section>
 
   <section id="view-run" hidden>
@@ -11094,9 +11113,14 @@
     }
   });
 
+  // the domain mask question's boxes, the page's own (a state from the server would undo what is typed)
+  const scMaskForm = { domain_mask: "no", domain_mask_path: "" };
+  const scMask = domainMaskQuestion("scg", "simcompare_grids", () => scMaskForm, "scm-domain_mask_path", () => refreshScGrids());
+
   function scReadGrids() {
     const checked = (name) => { const radio = document.querySelector(`input[name="${name}"]:checked`); return radio ? radio.value : ""; };
-    const form = { need: checked("scg-need"), method: checked("scg-method"), baseline: $("scg-baseline-select").value, regrid: $("scg-regrid-select").value };
+    const form = { need: checked("scg-need"), method: checked("scg-method"), baseline: $("scg-baseline-select").value, regrid: $("scg-regrid-select").value,
+      domain_mask: scMaskForm.domain_mask, domain_mask_path: scMaskForm.domain_mask_path };
     for (const box of SC_GRID_BOXES) form[box] = $(`scg-${box}`).value;
     return form;
   }
@@ -11116,6 +11140,9 @@
       ...Object.entries(scState().regrid_methods || {}).filter(([value]) => value !== "bil").map(([value, text]) => el("option", { value, text })));
     $("scg-regrid-select").value = form.regrid || "";
     for (const box of SC_GRID_BOXES) $(`scg-${box}`).value = form[box] || "";
+    scMaskForm.domain_mask = form.domain_mask || "no";
+    scMaskForm.domain_mask_path = form.domain_mask_path || "";
+    scMask.fill();
     releaseScMaps();
     scGrids.generation += 1;
     scGrids.generating = false;
@@ -11221,6 +11248,8 @@
         }
       }
     }
+    // Yes with no file that is a mask stops Continue
+    if (scMask.blocked()) errors.domain_mask_path = errors.domain_mask_path || "";
     return { form, errors: { ...errors, ...Object.fromEntries(Object.entries(scGrids.errors).filter(([box]) => !(box in errors) || scGrids.errors[box])) } };
   }
 
@@ -11252,6 +11281,8 @@
     $("scg-method-msg").textContent = scGrids.errors.method || "";
     $("scg-box-msg").textContent = SC_GRID_BOXES.map((box) => scGrids.errors[box]).find(Boolean) || "";
     $("scg-baseline-msg").textContent = scGrids.errors.baseline || "";
+    $("scg-domain_mask_path").classList.toggle("is-invalid", Boolean(errors.domain_mask_path || scMask.error()));
+    if (scGrids.errors.domain_mask_path && !scMask.error()) message("scm-domain_mask_path", [line(scGrids.errors.domain_mask_path, "error")], true);
     const next = $("scg-continue");
     if (next) next.disabled = scGrids.busy || Object.keys(errors).length > 0;
   }

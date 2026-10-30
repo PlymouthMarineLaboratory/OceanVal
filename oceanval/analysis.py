@@ -39,7 +39,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import netcdf_lock, prompts, sim_unify, surface
+from oceanval import domain_mask, netcdf_lock, prompts, sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
 from oceanval.matchall import _restores_nctoolkit_options
@@ -717,7 +717,8 @@ def monthly_means_of(files, row, layer, years, time_shift, levels, thickness=Non
     """The mean of each month of each year of row's variable in one layer
     (see LAYER_TITLES) over years, as a dataset with a time for each. If row
     has "unify" (see oceanval.sim_unify), it is on the common grid of a
-    comparison's simulations. If row has "month_per_file" (see
+    comparison's simulations, and if it has "domain_mask" (see
+    oceanval.domain_mask), it is masked, on the mask's grid. If row has "month_per_file" (see
     time_res.one_month_per_file), each file's mean is its month's, taken as
     it is read, so merging the files writes one time of each."""
     month_per_file = bool(row.get("month_per_file"))
@@ -736,6 +737,8 @@ def monthly_means_of(files, row, layer, years, time_shift, levels, thickness=Non
             ds.run()
     if row.get("unify"):
         sim_unify.apply(ds, row["unify"], row["key"], layer)
+    # a comparison's domain mask, which puts the simulation on the mask's grid
+    domain_mask.mask_gridded(ds, row.get("domain_mask"))
     return ds
 
 
@@ -760,6 +763,7 @@ def daily_climatology_of(files, row, years, time_shift, levels):
             ds.run()
     if row.get("unify"):
         sim_unify.apply(ds, row["unify"], row["key"], SURFACE)
+    domain_mask.mask_gridded(ds, row.get("domain_mask"))
     return ds
 
 

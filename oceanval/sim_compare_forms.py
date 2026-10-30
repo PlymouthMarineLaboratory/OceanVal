@@ -240,12 +240,18 @@ UNIFY_BOXES = ("lon_min", "lon_max", "lat_min", "lat_max", "res")
 
 def default_unify_form():
     """The grids step's boxes, as they start: nothing is chosen for the user."""
-    return {"need": "", "method": "", "baseline": "", "regrid": "", **{box: "" for box in UNIFY_BOXES}}
+    return {
+        "need": "", "method": "", "baseline": "", "regrid": "", **{box: "" for box in UNIFY_BOXES},
+        # whether part of the domain is masked out, by a file (see oceanval.app.check_domain_mask): No to start
+        "domain_mask": "no", "domain_mask_path": "",
+    }
 
 
 def clean_unify(form):
     form = form if isinstance(form, dict) else {}
-    clean = {box: str(form.get(box) or "").strip()[:60] for box in default_unify_form()}
+    clean = {box: str(form.get(box) or "").strip()[:60] for box in default_unify_form() if box != "domain_mask_path"}
+    clean["domain_mask_path"] = str(form.get("domain_mask_path") or "").strip()[:4096]
+    clean["domain_mask"] = "yes" if str(form.get("domain_mask")).lower() == "yes" else "no"
     clean["need"] = clean["need"].lower() if clean["need"].lower() in ("yes", "no") else ""
     clean["method"] = clean["method"].lower() if clean["method"].lower() in ("box", "baseline") else ""
     # how they are regridded; blank is bilinear
@@ -305,10 +311,11 @@ def check_unify(form, names):
 # ---- the run ----
 
 
-def arguments(sims, placed_by_sim, shifts, unify, out_dir, times_index=None, **analyses):
+def arguments(sims, placed_by_sim, shifts, unify, out_dir, times_index=None, domain_mask=None, **analyses):
     """compare_simulations()'s arguments, from the steps. sims are check_sims's,
     shifts {simulation: days or None}, times_index {simulation: the path of the
-    times of its files the check of the dates read}, and analyses
+    times of its files the check of the dates read}, domain_mask the path of the
+    mask file (or None), and analyses
     analysis_forms.arguments's keywords (without the setup)."""
     setup = {"simdir": sims[0]["simdir"], "ndown": sims[0]["ndown"], "out_dir": out_dir}
     out = analysis_forms.arguments(setup, combined(placed_by_sim), **analyses)
@@ -338,6 +345,8 @@ def arguments(sims, placed_by_sim, shifts, unify, out_dir, times_index=None, **a
     result.update(out)
     if unify is not None:
         result["unify"] = unify
+    if domain_mask is not None:
+        result["domain_mask"] = domain_mask
     return result
 
 

@@ -4276,14 +4276,17 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
 
     def domain_mask_map(self, text):
         """The map of the domain mask in the file typed (see
-        check_domain_mask), for the output step or the report options:
+        check_domain_mask), for the output step or the report options (or
+        Compare simulations' grids step):
         {"ok", "item" (a Bokeh json_item), "notes", "kept", "total"} (the
         cells kept, of all), or {"ok": False, "error"}. Returns the HTTP
         status and the reply."""
         from oceanval import grid_align, viewer_plots
 
         with self._lock:
-            if self.view not in ("output", "report_options") or self._held_matchups() is None:
+            # Compare simulations asks it on its grids step, where no matchups are held
+            compare = self.view == "simcompare_grids"
+            if not compare and (self.view not in ("output", "report_options") or self._held_matchups() is None):
                 return 409, {"ok": False, "error": "This step is over."}
         _, mask, error = inspect_domain_mask(str(text or "").strip(), self.cwd)
         if error is not None:
