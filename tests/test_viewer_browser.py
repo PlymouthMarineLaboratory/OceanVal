@@ -53,7 +53,9 @@ def test_files_page_finds_the_depth(page, simulation):
     tab.wait_for_function("() => document.querySelector('#f-ndown').value === '2'")
     tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
     assert tab.text_content("#ndown-found") == "48 netCDF files found"
-    assert "YYYY/MM/**.nc" in tab.text_content("#ndown-layout")
+    # the layout is told in a pop-out (the conftest dismisses it); the box is bold
+    assert tab.evaluate("() => getComputedStyle(document.querySelector('#f-ndown')).fontWeight") == "700"
+    assert tab.locator("#ndown-layout").count() == 0
     assert "is-detected" in tab.get_attribute("#f-ndown", "class")
     assert tab.is_enabled("#continue")
     # the files the filters leave out are not mentioned, only the number there are

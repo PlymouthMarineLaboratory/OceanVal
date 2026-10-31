@@ -489,7 +489,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `analysis.py` and runs it as `app_child analyze <path>`, with `times_index=` the files' times the check read (`_analyze_keep_times`, a temporary copy; not in a saved script), so `analyze()` does not read them again. **Save Python script to run later** (`#ao-save`, beside Run, enabled as it is; `/api/analyze_save_script` → `analyze_run(save=True)`) writes
   the same script, runs nothing, and shows view `script_saved` (`_script_saved`, shared with Compare simulations, whose saved script has no `times_index`,
   those files being temporary; the page's words by `savedScriptWords`).
-  The variables page's buttons (one **+** under the table's first column adds a row at the end (`#av-add`, and Compare's `#scv-add`; each row keeps its ×), not a per-row button; Add multiple variables, `#av-remove-all`) work in the page from `state.analyze.picker`:
+  The variables page's buttons (each row's right-hand cell is one rounded box, `.analyze-pill` (`variablePill`, shared with Compare's `scVariableRow`), holding a **+** on the left, which adds a blank row directly below that row, and a **×** that removes it (the user's rule, 2026-10-31: there is no + under the table any more; any row can be removed, and removing the last leaves a blank row whose × is disabled, light grey, as does a lone blank row; `refresh*Variables` sets it); Add multiple variables, `#av-remove-all`) work in the page from `state.analyze.picker`:
   Add multiple variables (`addVariableRows`) adds the variables no row holds yet, tagging each 3D (`picker.levels > 1`, nctoolkit's `nlevels`, the rule
   Analyze's Vertical analyses use) or 2D; Remove all leaves one blank row. Tests read the picker with `picker_of(app)`: the page's own `state` is inside a
   closure, so `page.evaluate("() => state")` finds the `<script id="state">` element.
@@ -752,10 +752,13 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   A list wider than its box is moved in from the window's edge, and a blank box has none of its list chosen.
   **A blank box is filled from the folders' layout** (`create_recipes.folder_layout`, in `/api/probe`'s `layout`: `{pattern, ndown}`
   whatever depth is typed): a year directory with all of `01`..`12` and `.nc` files (`YYYY/MM/**.nc`, 2), the twelve months in the
-  directory (`MM/*.nc`, 1), or no subdirectories and `.nc` files (`*.nc`, 0). It is only a few `scandir`s (NFS). The fill is amber
-  (`is-detected`, tokens), with the line "Folder structure was identified as <pattern>" (`autoNdown` for setup, `scSims.auto[n]` for
-  Compare); typing or picking sets the flag off and the value is the user's for good, and a directory without a layout empties a
-  value OceanVal filled. The probe is asked again once it fills, to count the files.
+  directory (`MM/*.nc`, 1), or no subdirectories and `.nc` files (`*.nc`, 0). It is only a few `scandir`s (NFS). The fill is bold
+  (`is-detected` on a `.is-depth` box: ordinary colours, never amber, the user's rule, 2026-10-31) and is told once in a modal pop-out,
+  `#folder-structure` (`tellFolderStructure`, "It looks like the folder structure is <pattern> and the number of directories down is assumed to
+  be <n>. Change it if this is not correct." and Continue; Compare names the simulation), keyed by directory + layout, one at a time and not over
+  another pop-out (`autoNdown` for setup, `scSims.auto[n]` for Compare); typing or picking sets the flag off and the value is the user's for good
+  (`forgetFolderStructure`), and a directory without a layout empties a value OceanVal filled. The tests' `browser` fixture dismisses the pop-out
+  on every page (`DISMISS_FOLDER_STRUCTURE`) unless the test sets `window.__keepFolderStructure`. The probe is asked again once it fills, to count the files.
 - Both windows inline `data/gui.css` and `data/gui.js` (shared look and helpers, including
   `OceanValGUI.variableBox`, the box that opens the pop-out of the model's variables) via
   `recipes_gui.render_page`. The browser tests (`browser` fixture in `tests/conftest.py`) skip

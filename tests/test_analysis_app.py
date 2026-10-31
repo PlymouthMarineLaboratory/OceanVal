@@ -988,6 +988,15 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
         # nothing is filled in for the user: there is one empty row
         assert page.locator("#av-rows > tr").count() == 1
+        # a lone blank row has nothing to remove (grey ×), but its + adds one; with something in it, × blanks the table
+        assert page.locator("#av-rows > tr").first.locator(".analyze-remove").is_disabled()
+        assert page.locator("#av-rows > tr").first.locator(".analyze-add").is_enabled()
+        page.locator("#av-rows > tr").first.locator("input").first.fill("X")
+        assert page.locator("#av-rows > tr").first.locator(".analyze-remove").is_enabled()
+        page.locator("#av-rows > tr").first.locator(".analyze-remove").click()
+        assert page.locator("#av-rows > tr").count() == 1
+        assert page.locator("#av-rows > tr").first.locator("input").first.input_value() == ""
+        assert page.locator("#av-rows > tr").first.locator(".analyze-remove").is_disabled()
         first = page.locator("#av-rows > tr").first.locator("td").first.locator("input")
         model = page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input").first
         assert first.input_value() == "" and model.input_value() == ""
@@ -1316,7 +1325,7 @@ def open_analyze_option(browser, tmp_path, years, option, dialog, rows=(("Temper
     page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
     for number, (name, model) in enumerate(rows):
         if number:
-            page.click("#av-add")
+            page.locator("#av-rows > tr").last.locator(".analyze-add").click()
         page.locator("#av-rows > tr").nth(number).locator("td").first.locator("input").fill(name)
         page.locator("#av-rows > tr").nth(number).locator("td").nth(1).locator("input").first.fill(model)
     page.click("#av-continue")
@@ -1631,7 +1640,7 @@ def test_transects_in_a_browser(browser, tmp_path):
         rows = [("Temperature", "thetao"), ("Chlorophyll", "P1_Chl+P2_Chl")]
         for number, (name, model) in enumerate(rows):
             if number:
-                page.click("#av-add")
+                page.locator("#av-rows > tr").last.locator(".analyze-add").click()
             page.locator("#av-rows > tr").nth(number).locator("td").first.locator("input").fill(name)
             page.locator("#av-rows > tr").nth(number).locator("td").nth(1).locator("input").first.fill(model)
         page.click("#av-continue")

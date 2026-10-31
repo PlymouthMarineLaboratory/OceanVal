@@ -180,9 +180,32 @@ def browser():
     except Exception as error:
         playwright.stop()
         pytest.skip(f"Chromium is not available: {error}")
+    # the pop-out that says the directories down were filled in from the folders' layout would cover the page
+    # for every test that points at a simulation, so each page dismisses it, unless the test sets
+    # window.__keepFolderStructure (before it goes to the page) to look at it
+    new_page = chromium.new_page
+
+    def new_page_dismissing(*args, **kwargs):
+        page = new_page(*args, **kwargs)
+        page.context.add_init_script(DISMISS_FOLDER_STRUCTURE)
+        return page
+
+    chromium.new_page = new_page_dismissing
     yield chromium
     chromium.close()
     playwright.stop()
+
+
+DISMISS_FOLDER_STRUCTURE = """
+document.addEventListener("DOMContentLoaded", () => {
+  new MutationObserver(() => {
+    const dialog = document.getElementById("folder-structure");
+    if (dialog && !dialog.hidden && !window.__keepFolderStructure) {
+      document.getElementById("folder-structure-continue").click();
+    }
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+});
+"""
 
 
 

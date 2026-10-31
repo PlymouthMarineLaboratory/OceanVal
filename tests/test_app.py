@@ -7225,7 +7225,7 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
     ],
 )
 def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, layout, depth, text):
-    """An amber suggestion, which the user's own value is never replaced by."""
+    """Told once in a pop-out, with the box in bold; the user's own value is never replaced by it."""
     write_folders(tmp_path / "sim", layout)
     write_simulation(tmp_path / "other")
     app = App(cwd=str(tmp_path))
@@ -7233,6 +7233,7 @@ def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, l
     url = app.start()
     try:
         page = browser.new_page()
+        page.add_init_script("window.__keepFolderStructure = true")
         page.goto(url)
         page.click('button.choice[data-action="matchup"]')
         page.fill("#f-simdir", "sim")
@@ -7240,25 +7241,29 @@ def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, l
         ndown = page.locator("#f-ndown")
         assert ndown.evaluate("node => node.classList.contains('is-detected')")
         assert not ndown.evaluate("node => node.classList.contains('is-oceanval')")
-        # amber (the --amber token), not red
-        assert ndown.evaluate("node => getComputedStyle(node).fontWeight") == "600"
+        # bold, no longer amber (the pop-out tells it instead)
+        assert ndown.evaluate("node => getComputedStyle(node).fontWeight") == "700"
         assert ndown.evaluate("node => getComputedStyle(node).color") != "rgb(192, 57, 43)"
-        line = page.locator("#ndown-layout .group__line.is-detected")
-        line.wait_for()
-        assert line.text_content() == f"Folder structure was identified as {text}"
+        assert page.locator("#ndown-layout").count() == 0
+        popout = page.locator("#folder-structure")
+        popout.wait_for(state="visible")
+        assert popout.inner_text().count("It looks like the folder structure is " + text) == 1
+        assert f"the number of directories down is assumed to be {depth}. Change it if this is not correct." in popout.inner_text()
+        page.click("#folder-structure-continue")
+        assert popout.is_hidden()
         # the files at that depth are counted
         page.wait_for_function("document.querySelector('#ndown-found').textContent.includes('netCDF file')")
         # a directory without the layout empties what OceanVal filled in
         page.fill("#f-simdir", "other")
         page.wait_for_function("document.querySelector('#f-ndown').value === ''")
-        assert page.locator("#ndown-layout .group__line.is-detected").count() == 0
+        assert popout.is_hidden()
         # a value typed is the user's: it stays, with no suggestion shown
         page.fill("#f-ndown", "3")
         page.fill("#f-simdir", "sim")
         page.wait_for_timeout(1000)
         assert page.input_value("#f-ndown") == "3"
         assert not ndown.evaluate("node => node.classList.contains('is-detected')")
-        assert page.locator("#ndown-layout .group__line.is-detected").count() == 0
+        assert popout.is_hidden()
     finally:
         app.close()
 

@@ -272,7 +272,6 @@
   .ndown-row > .s-input { width: 84px; text-align: center; }
   /* how many files were found, a quiet highlight beside the box that sets where to look */
   .ndown-found { margin-left: 8px; padding: 6px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--teal-50); color: var(--teal-700); font-weight: 600; }
-  .ndown-layout { margin-left: 4px; }
   .group__pair { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
   .ndown-found.is-finding, .group__line.is-finding { display: inline-flex; gap: 8px; align-items: center; }
   .ndown-found.is-finding { color: var(--muted); background: transparent; }
@@ -291,6 +290,8 @@
   /* the directories down OceanVal filled in from the layout of the folders: an assumption, amber */
   .group__line.is-detected { color: var(--amber); font-weight: 600; }
   .s-input.is-detected { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
+  /* the directories down are told in a pop-out (tellFolderStructure), so the box is only bold, not amber */
+  .s-input.is-depth.is-detected { border-color: var(--line-strong); background-color: var(--bg); color: var(--ink); font-weight: 700; }
   .banner {
     display: flex;
     gap: 10px;
@@ -729,7 +730,7 @@
     .form__row > .g-row + .g-row { margin-top: 10px; }
     .ndown-row { grid-template-columns: minmax(0, 1fr); gap: 6px 10px; }
     .ndown-row > .g-label { grid-column: 1 / -1; }
-    .ndown-found, .ndown-layout { grid-column: 1 / -1; justify-self: start; margin-left: 0; }
+    .ndown-found { grid-column: 1 / -1; justify-self: start; margin-left: 0; }
     .ask { grid-template-columns: auto minmax(0, 1fr); }
     .ask__answer { grid-column: 1 / -1; justify-content: flex-start; }
     .ask__answer .s-input { flex: 1; width: auto; }
@@ -984,9 +985,12 @@
   .analyze-msg:empty { display: none; }
   .analyze-remove, .analyze-add { padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); font: 600 18px/1 var(--font-body); cursor: pointer; }
   .analyze-remove:hover, .analyze-add:hover { background: var(--line); color: var(--ink); }
-  .analyze-add-row { padding: 8px 22px 12px; border-top: 1px solid var(--line); }
-  .analyze-add-row .analyze-add { border: 1px solid var(--line); background: var(--bg); }
   .analyze-remove:focus-visible, .analyze-add:focus-visible { outline: none; box-shadow: var(--focus); }
+  /* a variable row's + and ×, one box: + adds a row below this one, × removes it */
+  .analyze-pill { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+  .analyze-pill .analyze-add { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .analyze-pill .analyze-remove:disabled { background: none; color: var(--muted-light); opacity: 0.5; cursor: not-allowed; }
+  .analyze-pill .analyze-remove { border-left: 1px solid var(--line); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
   .analyze-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 14px 0 0; }
   .analyze-foot .group__msg { margin: 0; }
   .analyze-foot__end { margin-left: auto; }
@@ -1358,7 +1362,6 @@
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
           <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required autocomplete="off">
           <span class="ndown-found" id="ndown-found" role="status" hidden></span>
-          <span class="ndown-layout" id="ndown-layout" hidden></span>
         </div>
         <div class="form__row is-pair">
           <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
@@ -1857,11 +1860,11 @@
     <div id="av-main" hidden>
       <p class="analyze-note" id="av-refilled" hidden>The simulation has changed, so OceanVal filled in the variables it recognised again. The rows you gave yourself are kept.</p>
       <div class="card analyze-table"><table>
-        <colgroup><col style="width:34%"><col><col style="width:56px"></colgroup>
+        <colgroup><col style="width:34%"><col><col style="width:96px"></colgroup>
         <thead><tr><th scope="col">Environmental variable</th><th scope="col">Variable name in the simulation</th><th scope="col" aria-label="Remove"></th></tr></thead>
         <tbody id="av-rows"></tbody>
       </table>
-      <div class="analyze-add-row"><button type="button" class="analyze-add" id="av-add" title="Add a variable" aria-label="Add a variable">+</button></div></div>
+      </div>
       <div class="analyze-foot">
         <button type="button" class="btn btn--ghost" id="av-add-multiple">Add multiple variables</button>
         <p class="group__msg is-error" id="av-msg" role="status" aria-live="polite"></p>
@@ -2115,7 +2118,7 @@
         <thead id="scv-head"></thead>
         <tbody id="scv-rows"></tbody>
       </table>
-      <div class="analyze-add-row"><button type="button" class="analyze-add" id="scv-add" title="Add a variable" aria-label="Add a variable">+</button></div></div>
+      </div>
       <div class="analyze-foot">
         <p class="group__msg is-error" id="scv-msg" role="status" aria-live="polite"></p>
       </div>
@@ -2603,6 +2606,18 @@
 </div>
 
 <!-- CDO crashed on the simulation's files: nothing can be done with them, so there is no way on from here but starting again -->
+<!-- the directories down OceanVal filled in from the folders' layout (tellFolderStructure) -->
+<div class="picker" id="folder-structure" hidden>
+  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="folder-structure-title" aria-describedby="folder-structure-text">
+    <div class="picker__head">
+      <h2 id="folder-structure-title">Folder structure</h2>
+    </div>
+    <p class="picker__info" id="folder-structure-text"></p>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--primary" id="folder-structure-continue">Continue</button>
+    </div>
+  </div>
+</div>
 <div class="picker picker--blocking" id="cdo-failed" hidden>
   <div class="picker__card picker__card--narrow" role="alertdialog" aria-modal="true" aria-labelledby="cdo-failed-title" aria-describedby="cdo-failed-text">
     <div class="picker__head">
@@ -2709,6 +2724,55 @@
     input.choiceHints = Object.fromEntries(DEPTHS.map((depth) => [depth, depthText(depth).replace(/^\d+ /, "")]));
     return withChoices(input, DEPTHS);
   }
+
+  // ---- the pop-out that says the directories down were filled in from the folders' layout ----
+  // told once for each finding (its key), one at a time, and not over another pop-out
+  const folderStructure = { told: new Set(), queue: [], open: null, waiting: false };
+
+  function tellFolderStructure({ key, who, pattern, ndown, focus }) {
+    const fs = folderStructure;
+    if (fs.told.has(key)) return;
+    fs.told.add(key);
+    fs.queue.push({ key, who, pattern, ndown, focus });
+    showFolderStructure();
+  }
+
+  // a different directory or a typed depth forgets what was told, so the layout is told again if found again
+  function forgetFolderStructure(prefix) {
+    folderStructure.told = new Set([...folderStructure.told].filter((key) => !key.startsWith(prefix)));
+    folderStructure.queue = folderStructure.queue.filter((item) => !item.key.startsWith(prefix));
+  }
+
+  function showFolderStructure() {
+    const fs = folderStructure;
+    if (fs.open || !fs.queue.length) return;
+    const dialog = $("folder-structure");
+    if ([...document.querySelectorAll(".picker")].some((other) => other !== dialog && !other.hidden)) {
+      if (!fs.waiting) { fs.waiting = true; setTimeout(() => { fs.waiting = false; showFolderStructure(); }, 300); }
+      return;
+    }
+    fs.open = fs.queue.shift();
+    const { who, pattern, ndown } = fs.open;
+    $("folder-structure-text").textContent = `${who ? `For ${who}, it` : "It"} looks like the folder structure is ${pattern} `
+      + `and the number of directories down is assumed to be ${ndown}. Change it if this is not correct.`;
+    dialog.hidden = false;
+    $("folder-structure-continue").focus();
+  }
+
+  function closeFolderStructure() {
+    const fs = folderStructure;
+    if (!fs.open) return;
+    const { focus } = fs.open;
+    fs.open = null;
+    $("folder-structure").hidden = true;
+    showFolderStructure();
+    if (!fs.open && focus) focus.focus();
+  }
+  $("folder-structure-continue").addEventListener("click", closeFolderStructure);
+  $("folder-structure").addEventListener("click", (event) => { if (event.target === $("folder-structure")) closeFolderStructure(); });
+  $("folder-structure").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); closeFolderStructure(); }
+  });
 
   // ---- talking to oceanval ----
   const query = (params) => new URLSearchParams({ token, ...params }).toString();
@@ -4474,7 +4538,7 @@
       setup[name] = event.target.value;
       delete setupErrors[name];
       if (name === "start" || name === "end") autoYears = false;
-      if (name === "ndown") autoNdown = false;
+      if (name === "ndown") { autoNdown = false; forgetFolderStructure("setup:"); }
       if (name === "simdir" && state.action === "viewer") newSimulationForViewer();
       else if (name === "simdir") newDirectoryDepth();
       if (PROBED.has(name)) askProbe(400);
@@ -4491,6 +4555,7 @@
   function newDirectoryDepth() {
     setup.ndown = $("f-ndown").value = "";
     autoNdown = false;
+    forgetFolderStructure("setup:");
     $("f-ndown").classList.remove("is-oceanval");
     delete setupErrors.ndown;
   }
@@ -4560,6 +4625,7 @@
       }
     } else if (!layout && autoNdown) {
       autoNdown = false;
+      forgetFolderStructure("setup:");
       setup.ndown = $("f-ndown").value = "";
       askProbe(0);
     }
@@ -4759,12 +4825,13 @@
       simulation.push(line(state.action === "viewer" ? "Only file names are checked, not directories."
         : `Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
-    // the depth was filled in from the layout of the folders: amber, as an assumption to check
+    // the depth was filled in from the layout of the folders: bold, and told once in a pop-out
     const detected = autoNdown && !finding && Boolean(probe && probe.layout) && probe.directory === "found";
     $("f-ndown").classList.toggle("is-detected", detected);
-    const layoutBadge = $("ndown-layout");
-    layoutBadge.replaceChildren(...(detected ? [line(`Folder structure was identified as ${probe.layout.pattern}`, "detected")] : []));
-    layoutBadge.hidden = !detected;
+    if (detected) {
+      tellFolderStructure({ key: `setup:${setup.simdir}|${probe.layout.pattern}|${probe.layout.ndown}`,
+        pattern: probe.layout.pattern, ndown: probe.layout.ndown, focus: $("f-ndown") });
+    }
     const badge = $("ndown-found");
     badge.classList.toggle("is-finding", finding);
     if (finding) badge.replaceChildren(el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Finding files");
@@ -5198,6 +5265,36 @@
   // have been built from what OceanVal sent since the step was reached
   const analyzeVariables = { rows: [], built: false, busy: false };
 
+  // the + and × of a variable row, in one box: + adds a blank row below this one, × removes it
+  // (the last row removed is replaced by a blank one, whose × refresh greys, so there is always a + to add with)
+  function variablePill(item, list, make, refresh) {
+    const add = el("button", { type: "button", class: "analyze-add", text: "+", title: "Add a variable below this one", "aria-label": "Add a variable below this one" });
+    add.addEventListener("click", () => {
+      const next = make({});
+      list.rows.splice(list.rows.indexOf(item) + 1, 0, next);
+      item.tr.after(next.tr);
+      refresh();
+      next.nameBox.focus();
+    });
+    const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: "Remove this variable", "aria-label": "Remove this variable" });
+    remove.addEventListener("click", () => {
+      const body = item.tr.parentNode;
+      list.rows.splice(list.rows.indexOf(item), 1);
+      item.tr.remove();
+      if (!list.rows.length) {
+        const blank = make({});
+        list.rows.push(blank);
+        body.append(blank.tr);
+        refresh();
+        blank.nameBox.focus();
+        return;
+      }
+      refresh();
+    });
+    item.removeButton = remove;
+    return el("span", { class: "analyze-pill" }, add, remove);
+  }
+
   function variableRow(row) {
     const item = {
       name: row.name || "", model_variable: row.model_variable || "", filled: Boolean(row.filled), server: {}, hint: "",
@@ -5250,12 +5347,7 @@
       yours();
       refreshAnalyzeVariables();
     });
-    const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: "Remove this variable", "aria-label": "Remove this variable" });
-    remove.addEventListener("click", () => {
-      analyzeVariables.rows.splice(analyzeVariables.rows.indexOf(item), 1);
-      item.tr.remove();
-      refreshAnalyzeVariables();
-    });
+    const remove = variablePill(item, analyzeVariables, variableRow, refreshAnalyzeVariables);
     item.nameMsg = el("p", { class: "analyze-msg" });
     item.modelMsg = el("p", { class: "analyze-msg" });
     item.nameBox = name;
@@ -5312,6 +5404,7 @@
     let complete = 0;
     analyzeVariables.rows.forEach((item, index) => {
       const [nameError, modelError] = problems[index];
+      item.removeButton.disabled = analyzeVariables.rows.length === 1 && !item.name.trim() && !item.model_variable.trim();
       item.nameMsg.textContent = nameError;
       item.modelMsg.textContent = modelError || item.hint || "";
       item.nameBox.classList.toggle("is-invalid", Boolean(nameError));
@@ -5350,14 +5443,6 @@
     if (done && !analyzeVariables.built) buildAnalyzeVariables();
     else if (analyzeVariables.built) refreshAnalyzeVariables();
   }
-
-  $("av-add").addEventListener("click", () => {
-    const item = variableRow({});
-    analyzeVariables.rows.push(item);
-    $("av-rows").append(item.tr);
-    refreshAnalyzeVariables();
-    item.nameBox.focus();
-  });
 
   // 3D: a vertical axis of more than one level, as nctoolkit's contents give it (the rule Analyze's Vertical analyses use)
   const isThreeD = (variable) => ((analyzePicker().levels || {})[variable] || 1) > 1;
@@ -10659,6 +10744,7 @@
       if (box.value !== String(layout.ndown)) { box.value = String(layout.ndown); scAskProbe(n, 0); }
     } else if (!layout && scSims.auto[n]) {
       scSims.auto[n] = false;
+      forgetFolderStructure(`sc${n}:`);
       box.value = "";
       scAskProbe(n, 0);
     }
@@ -10726,10 +10812,9 @@
         }
       }
       if (detected) {
-        const layoutLine = line(`Folder structure was identified as ${probe.layout.pattern}`, "detected");
-        const last = lines[lines.length - 1];
-        if (last && last.classList.contains("is-ok")) lines[lines.length - 1] = el("span", { class: "group__pair" }, last, layoutLine);
-        else lines.push(layoutLine);
+        tellFolderStructure({ key: `sc${n}:${$(`sc-dir_${n}`).value}|${probe.layout.pattern}|${probe.layout.ndown}`,
+          who: $(`sc-name_${n}`).value.trim() || `Simulation ${n}`, pattern: probe.layout.pattern, ndown: probe.layout.ndown,
+          focus: $(`sc-ndown_${n}`) });
       }
       message(`sc-m-${n}`, lines, false);
     }
@@ -10753,7 +10838,7 @@
         scSims.touched = scSims.touched || {};
         scSims.touched[n] = true;
         delete scSims.errors[String(n - 1)];
-        if (id === "ndown") scSims.auto[n] = false;
+        if (id === "ndown") { scSims.auto[n] = false; forgetFolderStructure(`sc${n}:`); }
         if (id === "dir" || id === "ndown" || id === "exclude" || id === "require") scAskProbe(n, 400);
         refreshScSims();
       });
@@ -10860,12 +10945,7 @@
       };
     }
     name.addEventListener("input", () => { item.name = name.value; yours(); refreshScVariables(); });
-    const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: "Remove this variable", "aria-label": "Remove this variable" });
-    remove.addEventListener("click", () => {
-      scVars.rows.splice(scVars.rows.indexOf(item), 1);
-      item.tr.remove();
-      refreshScVariables();
-    });
+    const remove = variablePill(item, scVars, scVariableRow, refreshScVariables);
     item.tr = el("tr", {}, el("td", { "data-label": "Environmental variable" }, name, item.nameMsg), ...cells, el("td", {}, remove));
     return item;
   }
@@ -10874,7 +10954,7 @@
     const sims = scState().sims;
     const width = Math.floor(72 / Math.max(sims.length, 1));
     $("scv-table").replaceChildren(
-      el("colgroup", {}, el("col", { style: "width:22%" }), ...sims.map(() => el("col", { style: `width:${width}%` })), el("col", { style: "width:56px" })),
+      el("colgroup", {}, el("col", { style: "width:22%" }), ...sims.map(() => el("col", { style: `width:${width}%` })), el("col", { style: "width:96px" })),
       el("thead", {}, el("tr", {},
         el("th", { scope: "col" }, "Environmental variable"),
         ...sims.map((sim, index) => el("th", { scope: "col" }, scNamed(sim.name, scColour(index)))),
@@ -10928,6 +11008,7 @@
     let complete = 0, wrong = false;
     scVars.rows.forEach((item, index) => {
       const here = problems[index];
+      item.removeButton.disabled = scVars.rows.length === 1 && !item.name.trim() && !Object.values(item.models).some((value) => String(value).trim());
       item.nameMsg.textContent = here.name;
       item.nameBox.classList.toggle("is-invalid", Boolean(here.name));
       let rowWrong = Boolean(here.name);
@@ -10970,14 +11051,6 @@
     if (ready && !scVars.built) buildScVariables();
     else if (scVars.built) refreshScVariables();
   }
-
-  $("scv-add").addEventListener("click", () => {
-    const item = scVariableRow({});
-    scVars.rows.push(item);
-    $("scv-rows").append(item.tr);
-    refreshScVariables();
-    item.nameBox.focus();
-  });
 
   async function submitScVariables() {
     scVars.busy = true;

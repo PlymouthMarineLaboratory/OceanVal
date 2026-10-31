@@ -1101,23 +1101,31 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
     url = app.start()
     page = browser.new_page(viewport={"width": 1280, "height": 1000})
     try:
+        page.add_init_script("window.__keepFolderStructure = true")
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         page.fill("#sc-dir_1", "months")
         page.wait_for_function("document.querySelector('#sc-ndown_1').value === '2'")
-        assert page.locator("#sc-ndown_1").evaluate("node => node.classList.contains('is-detected')")
-        page.wait_for_function(
-            "document.querySelector('#sc-m-1').innerText.includes('Folder structure was identified as YYYY/MM/**.nc')"
-        )
+        box = page.locator("#sc-ndown_1")
+        assert box.evaluate("node => node.classList.contains('is-detected')")
+        assert box.evaluate("node => getComputedStyle(node).fontWeight") == "700"
+        popout = page.locator("#folder-structure")
+        popout.wait_for(state="visible")
+        assert "For Simulation 1, it looks like the folder structure is YYYY/MM/**.nc" in popout.inner_text()
+        assert "directories down is assumed to be 2" in popout.inner_text()
+        assert "Folder structure was identified" not in page.inner_text("#sc-m-1")
+        page.click("#folder-structure-continue")
+        assert popout.is_hidden()
         page.fill("#sc-dir_2", "flat")
         page.wait_for_function("document.querySelector('#sc-ndown_2').value === '0'")
-        assert "Folder structure was identified as *.nc" in page.inner_text("#sc-m-2")
+        popout.wait_for(state="visible")
+        assert "For Simulation 2, it looks like the folder structure is *.nc" in popout.inner_text()
+        page.click("#folder-structure-continue")
         # typing over it makes it the user's, and the suggestion goes
         page.fill("#sc-ndown_1", "1")
         assert not page.locator("#sc-ndown_1").evaluate("node => node.classList.contains('is-detected')")
-        assert "Folder structure" not in page.inner_text("#sc-m-1")
         # a directory without the layout empties what OceanVal filled in
         page.fill("#sc-dir_2", "base")
         page.wait_for_function("document.querySelector('#sc-ndown_2').value === ''")
@@ -1200,12 +1208,31 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.locator("#scv-rows > tr").count() == 1
         cells = page.locator("#scv-rows > tr").first.locator("input.s-input")
         assert cells.count() == 3
-        # one +, under the first column, adds a row at the end; each row keeps its ×
-        page.click("#scv-add")
-        assert page.locator("#scv-rows > tr").count() == 2
-        assert page.locator("#scv-add").bounding_box()["y"] > page.locator("#scv-rows > tr").last.bounding_box()["y"]
-        page.locator("#scv-rows > tr").last.locator(".analyze-remove").click()
-        assert page.locator("#scv-rows > tr").count() == 1
+        # each row has its + and × in one box: + adds a row directly below this one
+        names = lambda: [page.locator("#scv-rows > tr").nth(n).locator("input.s-input").first.input_value()
+                         for n in range(page.locator("#scv-rows > tr").count())]
+        page.locator("#scv-rows > tr").first.locator("input.s-input").first.fill("A")
+        page.locator("#scv-rows > tr").first.locator(".analyze-pill .analyze-add").click()
+        assert names() == ["A", ""]
+        page.locator("#scv-rows > tr").nth(1).locator("input.s-input").first.fill("B")
+        page.locator("#scv-rows > tr").first.locator(".analyze-pill .analyze-add").click()
+        assert names() == ["A", "", "B"]
+        page.locator("#scv-rows > tr").nth(1).locator(".analyze-pill .analyze-remove").click()
+        page.locator("#scv-rows > tr").last.locator(".analyze-pill .analyze-remove").click()
+        assert names() == ["A"]
+        # a lone row with something in it can be removed: a blank row takes its place, with a grey ×
+        pill = page.locator("#scv-rows > tr").first.locator(".analyze-pill")
+        assert pill.locator(".analyze-remove").is_enabled()
+        pill.locator(".analyze-remove").click()
+        assert names() == [""]
+        assert pill.locator(".analyze-remove").is_disabled()
+        assert pill.locator(".analyze-add").is_enabled()
+        page.locator("#scv-rows > tr").first.locator("input.s-input").first.fill("C")
+        assert page.locator("#scv-rows > tr").first.locator(".analyze-remove").is_enabled()
+        pill.locator(".analyze-add").click()
+        assert page.locator("#scv-rows > tr").first.locator(".analyze-remove").is_enabled()
+        page.locator("#scv-rows > tr").first.locator(".analyze-remove").click()
+        assert names() == [""]
         # a simulation's box lists its variables as it is typed in, with wildcards
         assert page.locator("details.vars").count() == 0
         cells.nth(1).fill("P*_Chl")
