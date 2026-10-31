@@ -1204,6 +1204,25 @@ class TestModelVariablesBox:
         finally:
             recipe_page.close()
 
+    def test_a_row_with_a_dataset_ticked_is_tinted_teal(self, browser):
+        recipe_page = self.page({"thetao": "Sea water temperature"})
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            row = page.locator("#rows-gridded tbody tr").first
+            box = row.locator(".chip input[type=checkbox]").first
+            box.uncheck()
+            assert "is-selected" not in row.get_attribute("class")
+            plain = row.evaluate("tr => getComputedStyle(tr).backgroundColor")
+            box.check()
+            assert "is-selected" in row.get_attribute("class")
+            assert row.evaluate("tr => getComputedStyle(tr).backgroundColor") != plain
+            box.uncheck()
+            assert "is-selected" not in row.get_attribute("class")
+        finally:
+            recipe_page.close()
+
     def test_what_is_typed_searches_the_names_and_long_names(self, browser):
         recipe_page = self.page({"thetao": "Sea water potential temperature", "so": "Sea water salinity"})
         url = recipe_page.start()

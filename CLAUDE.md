@@ -186,7 +186,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `app.recipes_choices`/`recipes_restore`, the first page in a window made afresh): **Gridded data selection** (`#page-gridded`, the
   rows with gridded datasets, recipes or own) and **Point data selection** (`#page-point`, the rows with point ones, and a
   last column "Gridded data selected", `chosenCell`). A row on both has a simulation variable box on each (`row.dom.views`).
-  No meta strip (the simulation path is not shown). **The Environmental variable column (both pages) and the Info panel's
+  No meta strip (the simulation path is not shown). A row with a dataset ticked on the page (or the user's own data) is tinted `--teal-50` with a teal left edge (`tr.is-selected`, set in `update(row)`). **The Environmental variable column (both pages) and the Info panel's
   Built-in datasets tables show `user_recipes.DISPLAY_NAMES`** ("Nitrate concentration in sea water", row `display`,
   `user_recipes.display_name`; user recipes keep their title); everything else, the report included, keeps `title`/`VARIABLE_LABELS`. The standalone `create_recipes()` window keeps its other settings
   (subset, missing values, output, file filters, cores, report options) in `#settings-more` under page 2's table.
