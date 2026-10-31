@@ -8956,10 +8956,14 @@ class TestInfo:
         assert [row["point"] for row in rows].count(True) == len(POINT_RECIPE_CATALOGUE)
         for row in rows:
             assert row["variable"] and row["recipe"] and row["dataset"] and row["units"]
-        woa = next(r for r in rows if (r["variable"], r["recipe"]) == ("Nitrate", "woa23"))
+        woa = next(
+            r for r in rows if (r["variable"], r["recipe"]) == ("Nitrate concentration in sea water", "woa23")
+        )
         assert woa["dataset"] == "World Ocean Atlas 2023" and woa["water_column"]
         assert woa["url"].startswith("https://")
-        glodap = next(r for r in rows if r["recipe"] == "glodap" and r["variable"] == "Alkalinity")
+        glodap = next(
+            r for r in rows if r["recipe"] == "glodap" and r["variable"] == "Total alkalinity of sea water"
+        )
         assert not glodap["water_column"] and glodap["region"] == "Global"
         nsbc = next(r for r in rows if r["recipe"] == "nsbc")
         assert nsbc["dataset"] == "North Sea Biogeochemical Climatology"

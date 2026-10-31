@@ -118,7 +118,7 @@ def builtin_datasets():
                 {
                     "point": point,
                     "region": _POINT_DATASET_REGION if point else _DATASET_REGIONS.get(region, region),
-                    "variable": note["title"],
+                    "variable": user_recipes.display_name(entry["variable"], note["title"]),
                     "recipe": entry["recipe"],
                     "dataset": note["dataset"],
                     "url": _DATASET_URLS.get(entry["recipe"], note["url"]),

@@ -1380,7 +1380,7 @@
 
   function titleCell(row) {
     return el("td", {},
-      el("span", { class: "obs__title", text: row.title }),
+      el("span", { class: "obs__title", text: row.display || row.title }),
       row.variable === row.title.toLowerCase() ? null : el("code", { class: "obs__key", text: row.variable }));
   }
 

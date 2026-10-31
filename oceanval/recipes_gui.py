@@ -718,6 +718,9 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
         }
         for variable in sorted(variables)
     ]
+    for row in rows:
+        # the name in the Environmental variable column (the title stays the report's)
+        row["display"] = user_recipes.display_name(row["variable"], row["title"])
     return [row for row in rows if row["gridded"] or row["point"] or row["own"]]
 
 

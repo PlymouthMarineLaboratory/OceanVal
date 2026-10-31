@@ -60,6 +60,14 @@ class TestRows:
         assert titles["kd490"] == "KD490"
         assert titles["ammonium"] == "Ammonium"
 
+    def test_the_tables_show_descriptive_names_and_the_report_keeps_the_titles(self):
+        rows = {row["variable"]: row for row in recipe_rows({}, "global")}
+        assert rows["nitrate"]["display"] == "Nitrate concentration in sea water"
+        assert rows["nitrate"]["title"] == "Nitrate"
+        assert {variable: row["display"] for variable, row in rows.items()} == {
+            variable: user_recipes.DISPLAY_NAMES[variable] for variable in rows
+        }
+
     @pytest.mark.parametrize("domain", ["global", "nwes"])
     def test_the_ticks_are_what_the_script_would_leave_live(self, domain):
         # so writing the script straight away gives the one gui=False would

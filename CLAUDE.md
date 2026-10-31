@@ -186,7 +186,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `app.recipes_choices`/`recipes_restore`, the first page in a window made afresh): **Gridded data selection** (`#page-gridded`, the
   rows with gridded datasets, recipes or own) and **Point data selection** (`#page-point`, the rows with point ones, and a
   last column "Gridded data selected", `chosenCell`). A row on both has a simulation variable box on each (`row.dom.views`).
-  No meta strip (the simulation path is not shown). The standalone `create_recipes()` window keeps its other settings
+  No meta strip (the simulation path is not shown). **The Environmental variable column (both pages) and the Info panel's
+  Built-in datasets tables show `user_recipes.DISPLAY_NAMES`** ("Nitrate concentration in sea water", row `display`,
+  `user_recipes.display_name`; user recipes keep their title); everything else, the report included, keeps `title`/`VARIABLE_LABELS`. The standalone `create_recipes()` window keeps its other settings
   (subset, missing values, output, file filters, cores, report options) in `#settings-more` under page 2's table.
   **Every ticked dataset needs its From/To** (`optionErrors`, `is-required` red; `outsideOutput` compares any years with the output's: partly outside is an amber warning on the dataset and in the years groups, none in the output is an error that blocks Continue); OceanVal fills the boxes not typed in
   (`dataset.typed`, `fill`/`filledValue`, red and bold `is-oceanval`): point datasets from **What years do you want to

@@ -56,6 +56,29 @@ VARIABLE_LABELS = {
     "alkalinity": ("total alkalinity", "sea water total alkalinity", "Total Alkalinity"),
 }
 
+# what the variables are called in the window's tables of datasets (the
+# recipes window's two pages and the Info panel), never in the report, which
+# keeps VARIABLE_LABELS
+DISPLAY_NAMES = {
+    "alkalinity": "Total alkalinity of sea water",
+    "ammonium": "Ammonium concentration in sea water",
+    "chlorophyll": "Chlorophyll a concentration in sea water",
+    "kd490": "Diffuse attenuation coefficient at 490 nm",
+    "nitrate": "Nitrate concentration in sea water",
+    "oxygen": "Dissolved oxygen concentration in sea water",
+    "ph": "Sea water pH",
+    "phosphate": "Phosphate concentration in sea water",
+    "salinity": "Sea water salinity",
+    "silicate": "Silicate concentration in sea water",
+    "temperature": "Sea water temperature",
+}
+
+
+def display_name(variable, fallback):
+    """A variable's name in the window's tables of datasets: DISPLAY_NAMES',
+    or fallback (its title) for one OceanVal has no recipes for."""
+    return DISPLAY_NAMES.get(str(variable).lower(), fallback)
+
 # names on a Validator, which a variable cannot be called
 RESERVED_VARIABLES = (
     "keys",
