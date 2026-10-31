@@ -303,6 +303,36 @@ def _panels_work(page, oceanvalrc):
     assert page.locator("#restart-open").count() == 0
 
 
+def test_the_pages_carry_the_logos_inline():
+    html = recipes_gui.render_page("create_recipes_gui.html", {})
+    assert "data:image/jpeg;base64," in html
+    assert "__OCEANVAL_PML_LOGO__" not in html
+
+
+def test_the_info_panel_credits_pml_and_gives_the_licence(browser, oceanvalrc):
+    recipe_page = RecipePage(
+        recipe_rows({"temperature": "thetao"}, "nwes"),
+        {"thetao"},
+        CONTEXT,
+        lambda *chosen: "/out/matchup.py",
+    )
+    url = recipe_page.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click("#info-open")
+        credit = page.locator("#info .info__credit")
+        assert "Environmental Intelligence group at Plymouth Marine Laboratory" in credit.text_content()
+        assert "GNU GPLv3 license" in credit.text_content()
+        assert credit.locator("a[href='https://pml.ac.uk/']").count() == 1
+        assert all(page.evaluate("img => img.naturalWidth", img.element_handle()) > 0
+                   for img in credit.locator("img").all())
+        # at the bottom, under the tables
+        assert credit.bounding_box()["y"] > page.locator("#info-point").bounding_box()["y"]
+    finally:
+        recipe_page.close()
+
+
 def test_the_preferences_and_info_are_in_the_window_too(browser, oceanvalrc):
     recipe_page = RecipePage(
         recipe_rows({"temperature": "thetao"}, "nwes"),

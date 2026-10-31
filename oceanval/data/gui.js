@@ -172,6 +172,16 @@ const OceanValGUI = (() => {
         <h3 class="info__subtitle">Point data</h3>
         <div class="info__table-wrap" id="info-point"></div>
       </fieldset>
+      <footer class="info__credit">
+        <div class="info__credit-row">
+          <a href="https://pml.ac.uk/" target="_blank" rel="noopener" class="info__credit-logo"><img src="__OCEANVAL_PML_LOGO__" alt="Plymouth Marine Laboratory"></a>
+          <span>Developed by the Environmental Intelligence group at Plymouth Marine Laboratory</span>
+        </div>
+        <div class="info__credit-row info__credit-legal">
+          <span>Released under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GNU GPLv3 license</a>.</span>
+          <span class="info__badge">GPLv3</span>
+        </div>
+      </footer>
     </div>
     <div class="picker__foot prefs__foot">
       <button type="button" class="btn btn--primary" id="info-close">Close</button>

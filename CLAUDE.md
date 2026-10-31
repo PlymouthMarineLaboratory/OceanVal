@@ -740,6 +740,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - The window's Info panel (the **i** beside Settings) shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.
+  It ends with a credit (`.info__credit`): the PML logo and "Developed by the Environmental Intelligence group at Plymouth Marine Laboratory" (as the website's footer), then "Released under the GNU GPLv3 license." and a GPLv3 badge. The logo is a `data:` URI that `recipes_gui.render_page` puts in for `__OCEANVAL_PML_LOGO__` in `gui.js`.
 - **The browser never offers what was typed before** (the user's rule, 2026-10-30): every typed box has `autocomplete="off"`,
   in the markup and, for boxes the pages make later, by the guard at the end of `data/gui.js` (`forget`, a `MutationObserver`
   and `focusin`). Never `chrome-off`, which Chrome ignores. Only the simulation directories are remembered, by OceanVal

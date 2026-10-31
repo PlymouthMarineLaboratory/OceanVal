@@ -12,6 +12,7 @@ Run from the oceanval command (see oceanval.app), the window is one of its
 pages instead (see hosted_by).
 """
 
+import base64
 import contextlib
 import copy
 import getpass
@@ -744,11 +745,20 @@ def render_page(template, state):
         .replace(">", "\\u003e")
         .replace("&", "\\u0026")
     )
+    def picture(name, kind):
+        encoded = base64.b64encode(data.joinpath(name).read_bytes()).decode("ascii")
+        return f"data:{kind};base64,{encoded}"
+
     html = read(template)
     return (
         html
         .replace("/*__OCEANVAL_GUI_CSS__*/", read("gui.css"))
-        .replace("/*__OCEANVAL_GUI_JS__*/", read("gui.js"))
+        .replace(
+            "/*__OCEANVAL_GUI_JS__*/",
+            # the Info panel's logo, inlined as the page loads nothing from elsewhere
+            read("gui.js")
+            .replace("__OCEANVAL_PML_LOGO__", picture("pml_logo.jpg", "image/jpeg")),
+        )
         # last, so nothing inlined above can be mistaken for it
         .replace("__OCEANVAL_STATE__", state)
     )
