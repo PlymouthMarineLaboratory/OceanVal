@@ -738,6 +738,7 @@
   }
   .units { overflow-x: auto; margin-bottom: 8px; }
   .units table { width: 100%; min-width: 860px; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+  .units-heading { margin: 0 0 12px; font: 600 24px/1.25 var(--font-head); letter-spacing: -0.3px; text-align: left; }
   .units th, .units td { padding: 12px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
   .units th { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
   .units tbody tr:last-child td { border-bottom: 0; }
@@ -1591,7 +1592,8 @@
   <section id="view-register-gridded" hidden data-register="gridded"></section>
 
   <section id="view-units-table" hidden>
-    <p class="lede">OceanVal has just identified whether the units are the same or whether the observational data needs to be adjusted to be in the model units. Please check the unit conversions below before proceeding.</p>
+    <h2 class="units-heading">Check the units</h2>
+    <p class="lede">OceanVal has just identified whether the units are the same or whether the observational data needs to be adjusted to be in the model units. <strong>Please check the unit conversions below before proceeding.</strong></p>
     <p class="lede">Each observation becomes <strong>observation × Multiply by + Add</strong> before it is compared with the model. <strong>Multiply by</strong> rescales the units: roughly 1.025 turns µmol/kg into mmol/m3. <strong>Add</strong> shifts the zero point: 273.15 turns °C into K. Leave both boxes empty when no conversion is needed, and fill in any row OceanVal could not work out. Its suggestions are <strong class="oceanval-change">in bold</strong>. The units must be confirmed, with the tick box beside Continue, before the matchup starts.</p>
     <p class="group__msg units-reading" id="units-reading" hidden>Reading the units from the simulation…</p>
     <section class="units-section" id="units-section-gridded" aria-labelledby="units-title-gridded">
@@ -1645,7 +1647,6 @@
   </section>
 
   <section id="view-validate" hidden>
-    <p class="lede" id="v-report-dir" hidden></p>
     <form class="form card" id="validate-form" novalidate autocomplete="off">
       <fieldset class="group form__wide" id="v-group-data_dir">
         <div class="g-row"><label class="g-label" for="v-data_dir">Where are the matchups located?</label><div class="path-field"><input class="s-input is-mono" id="v-data_dir" list="v-data_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-data_dir">Browse…</button></div><datalist id="v-data_dir-folders"></datalist></div>
@@ -1814,6 +1815,7 @@
       </fieldset>
       <button type="submit" hidden></button>
     </form>
+    <p class="lede" id="v-report-dir" hidden></p>
   </section>
 
   <section id="view-compare" hidden>
@@ -1859,6 +1861,7 @@
     <div class="banner" id="av-error" role="alert" hidden></div>
     <div id="av-main" hidden>
       <p class="analyze-note" id="av-refilled" hidden>The simulation has changed, so OceanVal filled in the variables it recognised again. The rows you gave yourself are kept.</p>
+      <p class="lede" id="av-lede">Choose the variables to analyze</p>
       <div class="card analyze-table"><table>
         <colgroup><col style="width:34%"><col><col style="width:96px"></colgroup>
         <thead><tr><th scope="col">Environmental variable</th><th scope="col">Variable name in the simulation</th><th scope="col" aria-label="Remove"></th></tr></thead>
@@ -1899,10 +1902,8 @@
         <p class="identify__text">OceanVal is checking whether the times of the files are the start or the end of the period each mean covers.</p>
       </div>
     </div>
-    <section class="review card analyze-files" id="af-review" aria-labelledby="title" hidden>
-      <div class="review__head">
-        <p class="review__lede" id="af-lede"></p>
-      </div>
+    <div class="lede" id="af-lede" hidden></div>
+    <section class="review card analyze-files" id="af-review" aria-label="Files used for the analysis" hidden>
       <div class="review__dates-progress" id="af-progress" hidden>
         <span class="identify__spinner" aria-hidden="true"></span>
         <div class="progress__body">
@@ -1973,7 +1974,7 @@
     <div id="ao-page-2" hidden>
     <fieldset class="group analyze-area" id="ao-cores-group">
       <legend>Cores <span class="own-req">Required</span></legend>
-      <label class="g-row"><span class="g-label is-required">How many cores should OceanVal use?</span><select class="s-select" id="ao-cores"><option value="">Choose…</option></select></label>
+      <label class="g-row"><span class="g-label is-required">How many cores should be used?</span><select class="s-select" id="ao-cores"><option value="">Choose…</option></select></label>
       <p class="group__msg" id="ao-cores-msg"></p>
     </fieldset>
     <fieldset class="group analyze-area" id="ao-missing-group">
@@ -1991,9 +1992,9 @@
       <p class="group__line is-ersem" id="ao-missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
     </fieldset>
     <fieldset class="group analyze-area" id="ao-code-group">
-      <legend>Figure code <span class="own-req">Required</span></legend>
+      <legend>Figure code</legend>
       <div class="g-row">
-        <span class="g-label is-required" id="ao-code-question">Do you want the report to contain code to reproduce figures?</span>
+        <span class="g-label" id="ao-code-question">Do you want the report to contain code to reproduce figures?</span>
         <div class="analyze-code" role="radiogroup" aria-labelledby="ao-code-question">
           <label class="ptr-mode"><input type="radio" name="ao-code" value="yes" id="ao-code-yes">Yes</label>
           <label class="ptr-mode"><input type="radio" name="ao-code" value="no" id="ao-code-no">No</label>
@@ -2004,6 +2005,7 @@
     </fieldset>
     </div>
     <div id="ao-page-3" hidden>
+    <p class="lede" id="ao-save-lede">Choose where to save the analysis</p>
     <fieldset class="group analyze-area" id="ao-out-group">
       <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
       <p class="group__msg" id="ao-m-out_dir"></p>
@@ -2844,16 +2846,11 @@
       case "start": return "";
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
-      case "setup": return simulationOnly() ? ""
-        : "What kind of datasets do you want to use for validation?";
-      case "analyze_variables": return "What variables do you want to analyse?";
+      case "setup": return "";
+      case "analyze_variables": return "";  // the grid has its own label
       case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
-        && !state.analyze.time_shift.choice ? "Are the model's times at the end of each mean?"
-        : "What files will be used for the analysis?";
-      case "analyze_options":
-        if (analyzePage.number === 3) return state.action === "simcompare" ? "Where do you want the comparison to be saved?" : "Where do you want the analysis to be saved?";
-        if (analyzePage.number === 2) return state.action === "simcompare" ? "How should the comparison be run?" : "How should the analysis be run?";
-        return state.action === "simcompare" ? "What do you want to compare?" : "What do you want to work out?";
+        && !state.analyze.time_shift.choice ? "Are the model's times at the end of each mean?" : "";
+      case "analyze_options": return "";  // the pages say what they ask for
       case "simcompare_sims": return "Which simulations do you want to compare?";
       case "simcompare_variables": return "What variables do you want to compare?";
       case "simcompare_units": return "Do the units match up?";
@@ -2871,12 +2868,12 @@
       case "preparing": return "";  // the box in the middle of the page says it
       case "viewer_scanning": return "";  // so does this one
       case "viewer": return "";  // the map has the room
-      case "units_table": return "Do the units match up?";
+      case "units_table": return "";  // the page heads itself, top left
       case "output": return state.action === "matchup" ? "Where do you want the matchups to be saved?"
-        : "Where do you want the matchups and the validation report to be saved?";
+        : "";
       case "validate": return "Build a validation report";
       case "compare": return "Which validations do you want to compare?";
-      case "report_options": return "One last thing... How would you like your validation report?";
+      case "report_options": return "";
       case "point_time_res": return "Some point observations may not match the model's output";
       case "running":
         // asked before the matchups, so that they show the dates matched up
@@ -2887,7 +2884,7 @@
         // found, the box in the middle of the page says so)
         if (state.action === "matchup_validate" && !run.identifying && state.question
           && state.question.details && state.question.details.kind === "matchups") {
-          return "Identify simulations files for validating variables";
+          return "";
         }
         if (run.identifying && !state.question) return "";
         return ACTION_TITLES[state.action];
@@ -2974,8 +2971,8 @@
     } else if (view === "analyze_options") {
       if (analyzePage.number === 3) {
         actions.push(button("Back", "ghost", () => { analyzePage.number = 2; render(); $("ao-cores").focus(); }),
-          button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }),
-          button("Save Python script to run later", "ghost", saveAnalysisScript, { id: "ao-save", disabled: true }));
+          button("Save Python script to run later", "ghost", saveAnalysisScript, { id: "ao-save", disabled: true }),
+          button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }));
       } else if (analyzePage.number === 2) {
         actions.push(button("Back", "ghost", () => { analyzePage.number = 1; render(); $("ao-climatology").focus(); }),
           button("Continue", "primary", () => { analyzePage.number = 3; render(); fillOutput(); $("ao-out_dir").focus(); }, { id: "ao-next", disabled: true }));
@@ -5589,7 +5586,8 @@
     const placed = state.analyze.placed;
     analyzeFiles.key = JSON.stringify(placed.map((row) => [row.name, row.model_variable, row.pattern]));
     analyzeFiles.rows = {};
-    $("af-lede").textContent = "The simulation output with the highest temporal resolution has been identified and is listed below. These files will be used for analysis.";
+    $("af-lede").replaceChildren(el("p", { text: "The simulation output with the highest temporal resolution has been identified and is listed below." }),
+      el("p", { text: "These files will be used for analysis." }));
     let number = 0;
     $("af-body").replaceChildren(...placed.flatMap((row) => {
       const files = el("div", { class: "review__found" });
@@ -5657,6 +5655,7 @@
     if (asked) fillAnalyzeShift(shift);
     const shown = shift.status === "none" || (asked && Boolean(shift.choice));
     $("af-review").hidden = !shown;
+    $("af-lede").hidden = !shown;
     if (!shown) return;
     const key = JSON.stringify(analysis.placed.map((row) => [row.name, row.model_variable, row.pattern]));
     if (analyzeFiles.key !== key) buildAnalyzeFiles();
@@ -5808,7 +5807,7 @@
   function updateRun() {
     const run = $("ao-run");
     const chosen = ANALYSES.some((kind) => state.analyze.chosen[kind]);
-    const ready = chosen && coresGiven() && figureCodeGiven();
+    const ready = chosen && coresGiven();
     // the last page's boxes must be right too, when it is the one shown
     const saveable = ready && (analyzePage.number !== 3 || Object.keys(outputProblems()).length === 0);
     if (run) run.disabled = !saveable;
@@ -5842,6 +5841,7 @@
       analyzeOutput.typed = Boolean(kept.out_typed);
       $("ao-replace_analysis").checked = Boolean(kept.replace_analysis);
       $("ao-out_dir").placeholder = state.cwd;
+      $("ao-save-lede").textContent = `Choose where to save the ${comparing ? "comparison" : "analysis"}`;
       $("ao-out-label").textContent = comparing ? "What do you want the comparison script to be called"
         : "What do you want the analysis script to be called";
       $("ao-replace-text").textContent = comparing
@@ -8407,10 +8407,12 @@
       ? "Do you want a spatial subset?" : "Do you only want to validate a subregion?";
     if (coresAsked()) coreOptions($("v-cores"), validateForm.cores);
     if (before) {
-      $("v-report-dir").replaceChildren(
-        state.question ? "Nothing is matched up until you carry on. " : "",
-        "The report is built in oceanval_report, beside the matchups, in ",
-        el("code", { text: state.report.dir || state.cwd }), ".");
+      const where = state.report.dir || state.cwd;
+      $("v-report-dir").replaceChildren(...[
+        ["Matchups will be stored here:", "oceanval_matchups"],
+        ["An interim validation report will be viewable here:", "oceanval_interim_report/oceanval_report/_build/html/notebooks/summary.html"],
+        ["The final validation report will be viewable here:", "oceanval_report.html"],
+      ].map(([label, folder]) => el("div", {}, `${label} `, el("code", { text: `${where}/${folder}` }))));
     }
     validateErrors = {};
     // the matchups to validate are looked for as soon as their directory is there

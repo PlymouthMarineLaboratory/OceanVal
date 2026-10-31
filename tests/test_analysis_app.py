@@ -347,7 +347,7 @@ class TestOptions:
         assert state["forms"]["climatology"]["thickness"] == ""
         assert state["cores"] == "" and state["missing"] == {"from": "", "to": ""}
         # nor whether the report has code to reproduce its figures
-        assert state["figure_code"] == ""
+        assert state["figure_code"] == "no"
         assert state["nemo_ersem"] is False
         assert state["chosen"] == {
             "climatology": None, "phenology": None, "long_term": None, "seasonal": None, "map_changes": None,
@@ -552,11 +552,8 @@ class TestOptions:
         assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "x", "to": ""}})[0] == 400
         assert post(app, "/api/analyze_run")[0] == 400
         assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
-        # whether the report has code to reproduce its figures must be answered
-        status, reply = post(app, "/api/analyze_run")
-        assert status == 400 and reply["errors"] == {
-            "figure_code": "Say whether the report should have code to reproduce its figures."
-        }
+        # whether the report has code to reproduce its figures is not required: it starts at "no"
+        assert get_json(app, "/api/state")[1]["analyze"]["figure_code"] == "no"
         assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "maybe"}})[0] == 400
         assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "yes"}}) == (200, {"ok": True})
         assert get_json(app, "/api/state")[1]["analyze"]["figure_code"] == "yes"
@@ -986,6 +983,7 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.wait_for_function("() => !document.querySelector('#continue').disabled")
         page.click("#continue")
         page.wait_for_selector("#av-main:not([hidden])", timeout=60000)
+        assert page.inner_text("#av-lede") == "Choose the variables to analyze" and page.is_hidden("#title")
         # nothing is filled in for the user: there is one empty row
         assert page.locator("#av-rows > tr").count() == 1
         # a lone blank row has nothing to remove (grey ×), but its + adds one; with something in it, × blanks the table
@@ -1013,7 +1011,7 @@ def test_analyze_in_a_browser(browser, tmp_path):
         assert page.input_value("#ao-cores") == "" and page.locator("#ao-cores option").all_text_contents() == [
             "Choose…", *[str(n) for n in range(1, os.cpu_count() + 1)]]
         assert page.input_value("#ao-missing_from") == "" and page.input_value("#ao-missing_from") == ""
-        assert not page.is_checked("#ao-code-yes") and not page.is_checked("#ao-code-no")
+        assert page.is_checked("#ao-code-no") and not page.is_checked("#ao-code-yes")
         # the regional subdomains are in the time series' pop-outs, not on this page
         assert page.locator("#area-subregions").count() == 1 and page.is_hidden("#area-subregions")
 
@@ -1063,28 +1061,29 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.click("#ao-continue")
         page.wait_for_selector("#ao-page-2:not([hidden])")
         assert page.is_hidden("#ao-page-1") and page.is_hidden("#ao-continue")
-        assert page.inner_text("#title") == "How should the analysis be run?"
-        # the last page is not reached until the cores are given, and the figure code question answered
+        assert page.is_hidden("#title")
+        # the last page is not reached until the cores are given
         assert page.is_disabled("#ao-next") and page.locator("#ao-run").count() == 0
         page.select_option("#ao-cores", "2")
         assert page.is_disabled("#ao-next")
         page.check("#ao-code-yes")
         wait_for(lambda: app.analyze_figure_code == "yes")
-        # the cores and the figure code are marked as required
+        # the cores are marked as required, the figure code is not
         assert "required" in page.inner_text("#ao-cores-group legend").lower()
-        assert "required" in page.inner_text("#ao-code-group legend").lower()
+        assert "required" not in page.inner_text("#ao-code-group legend").lower()
         # where the output is saved is the last page, which has the buttons that run the analysis
         assert page.is_enabled("#ao-next") and page.locator("#ao-run").count() == 0
         page.click("#ao-next")
         page.wait_for_selector("#ao-page-3:not([hidden])")
         assert page.is_hidden("#ao-page-2")
-        assert page.inner_text("#title") == "Where do you want the analysis to be saved?"
+        assert page.is_hidden("#title")
+        assert page.inner_text("#ao-save-lede") == "Choose where to save the analysis"
         assert page.input_value("#ao-out_dir") == app.cwd and page.input_value("#ao-out") == "analysis.py"
         assert page.is_enabled("#ao-run") and page.is_enabled("#ao-save")
-        # the script can be saved to run later, from a button to the right of the one that runs it
+        # the script can be saved to run later, from a button to the left of the one that runs it, which is on the right
         assert page.inner_text("#ao-save") == "Save Python script to run later"
-        assert page.evaluate("() => document.querySelector('#ao-save').getBoundingClientRect().left"
-                             " > document.querySelector('#ao-run').getBoundingClientRect().right")
+        assert page.evaluate("() => document.querySelector('#ao-run').getBoundingClientRect().left"
+                             " > document.querySelector('#ao-save').getBoundingClientRect().right")
         # a script that has no name cannot be written
         page.fill("#ao-out", "")
         assert page.is_disabled("#ao-run") and page.is_disabled("#ao-save")

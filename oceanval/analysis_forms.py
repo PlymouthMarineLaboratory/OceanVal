@@ -879,9 +879,8 @@ FIGURE_CODE_CHOICES = {"yes": True, "no": False}
 
 def check_figure_code(choice):
     """The answer to whether the report should have code to reproduce its
-    figures, "yes" or "no": (figure_code, error). It must be answered, so
-    no answer is an error."""
-    choice = str(choice or "").strip().lower()
+    figures, "yes" or "no": (figure_code, error). Not answering is "no"."""
+    choice = str(choice or "").strip().lower() or "no"
     if choice not in FIGURE_CODE_CHOICES:
         return None, "Say whether the report should have code to reproduce its figures."
     return FIGURE_CODE_CHOICES[choice], None

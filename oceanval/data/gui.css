@@ -431,9 +431,7 @@ input.tick { cursor: pointer; }
 /* the pop-up that asks whether to start again from the first page */
 .restart__card { max-width: 480px; }
 .restart__body { padding: 22px 22px 6px; }
-.restart__body h2 { margin: 0 0 10px; font: 600 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
-.restart__body p { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
-.restart__body .restart__stopping { color: var(--ink); font-weight: 600; }
+.restart__body h2 { margin: 0 0 10px; font: 400 18px/1.3 var(--font-head); letter-spacing: -0.2px; }
 .btn--danger { border-color: var(--danger); background: var(--danger); color: #fff; }
 .btn--danger:hover { background: var(--danger-hover); }
 .btn--danger:disabled { background: var(--danger-disabled); cursor: not-allowed; }

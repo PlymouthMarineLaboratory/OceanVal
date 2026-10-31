@@ -386,23 +386,18 @@ const OceanValGUI = (() => {
   }
 
   // the button's pop-up: starting again from the first page throws away what
-  // was entered, so it is asked about, with Cancel the default
+  // was entered, so it is asked about (one sentence and two buttons), with Cancel the default
   function mountRestart({ restart, hideBehind }) {
-    const stopping = el("p", { class: "restart__stopping", id: "restart-stopping", hidden: "",
-      text: "The run in progress will be stopped." });
     const cancel = el("button", { type: "button", class: "btn btn--ghost", id: "restart-cancel", text: "Cancel" });
     const confirm = el("button", { type: "button", class: "btn btn--primary", id: "restart-go", text: "Restart" });
     const dialog = el("div", { class: "picker", id: "restart-confirm", hidden: "" },
       el("div", { class: "picker__card restart__card", role: "dialog", "aria-modal": "true", "aria-labelledby": "restart-title" },
         el("div", { class: "restart__body" },
-          el("h2", { id: "restart-title", text: "Start again?" }),
-          el("p", { text: "Do you want to go back to the first page? Everything you have entered will be discarded, and you will start from a clean slate." }),
-          stopping),
+          el("h2", { id: "restart-title", text: "Begin again with a clean slate" })),
         el("div", { class: "picker__foot" }, cancel, confirm)));
     document.body.append(dialog);
 
     function open() {
-      stopping.hidden = !restart.running();
       confirm.disabled = false;
       dialog.hidden = false;
       hideBehind(true);

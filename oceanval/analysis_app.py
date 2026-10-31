@@ -127,8 +127,8 @@ class AnalyzeSteps:
         self.analyze_missing_probed = False
         self._analyze_probe_number = 0
         # whether the report has code to reproduce its figures, "yes" or
-        # "no": it must be answered, and nothing is chosen for the user
-        self.analyze_figure_code = ""
+        # "no": not required, and "no" to start with
+        self.analyze_figure_code = "no"
 
     # ---- the simulation ----
 

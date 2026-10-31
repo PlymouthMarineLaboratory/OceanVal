@@ -189,12 +189,18 @@ def check_settings(form, available, fvcom=False):
     settings = default_settings(None, None)
     errors = {}
 
+    # with nothing ticked the window has no years to give: matchup's are then
+    # left for the script to say
+    no_years = not text("start") and not text("end")
     for name in ("start", "end"):
+        if no_years:
+            settings[name] = None
+            continue
         try:
             settings[name] = int(text(name))
         except ValueError:
             errors[name] = f"{'First' if name == 'start' else 'Last'} must be a year, e.g. 2011."
-    if not errors and settings["end"] < settings["start"]:
+    if not errors and not no_years and settings["end"] < settings["start"]:
         errors["end"] = "Last year must not be before the first year."
 
     # the years climatology datasets average the simulation over, if not the
@@ -1030,7 +1036,10 @@ class RecipePage:
             )
             years = None
             if "start" not in setting_errors and "end" not in setting_errors:
-                years = (settings["start"], settings["end"])
+                years = (
+                    None if settings["start"] is None
+                    else (settings["start"], settings["end"])
+                )
 
             mapping, selection, errors = {}, set(), {}
             point_options, point_errors = {}, {}

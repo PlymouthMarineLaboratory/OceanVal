@@ -1853,7 +1853,12 @@ def _create_recipes(
         # out: the oceanval window's output step names the script after the recipes window
         selection = set(selection) - replaced
         # the window can change the years along with everything else
-        years = (settings["start"], settings["end"]) if settings else (start, end)
+        years = (start, end)
+        if settings:
+            years = (
+                None if settings["start"] is None
+                else (settings["start"], settings["end"])
+            )
         if not mapping:
             warnings.warn(
                 "No model variables could be identified, so every recipe in "

@@ -727,7 +727,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `answered_by`) — never call `input()`/`isatty()` directly, or the window can't answer it. In
   the child process a question is a `QUESTION_MARKER` line on stdout, answered on stdin.
 - **Restart** (the circular arrow beside the **i**, `mountChrome(restart=)` in `data/gui.js`, in the recipes window too) asks in a pop-up
-  (`#restart-confirm`, Cancel is the default, and it says a run in progress will be stopped), then posts `/api/restart_all` →
+  (`#restart-confirm`: only the sentence "Begin again with a clean slate" and the Cancel and Restart buttons, Cancel the default), then posts `/api/restart_all` →
   `App.reset`, which goes to `home` from **any** view with everything entered forgotten (forms, own data, recipes/units state, the run,
   the draft script folder, Analyze/Compare state); the page then reloads, so its own objects are fresh. Kept: `settings`, `leftovers`,
   `.oceanvalrc` recipes, `.oceanvalcache`, `version`. A run is stopped, and threads of the steps still going (`_prepare`,

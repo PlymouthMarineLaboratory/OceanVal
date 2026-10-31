@@ -153,7 +153,7 @@ def fill_gridded_years(page):
         assert page.locator(f"#s-{name}").evaluate("node => node.yearChoices") == [2011, 2012]
     assert page.get_attribute("#s-clim_start", "placeholder") == "2011"
     assert page.get_attribute("#s-clim_end", "placeholder") == "2012"
-    assert page.text_content("#g-output-years") == "The simulation's output runs from 2011 to 2012, from the times in its files."
+    assert page.text_content("#g-output-years") == ""
     # the cores, missing values and subset are asked once the matchups are confirmed
     assert page.is_hidden("#s-cores")
     assert page.is_hidden("#s-missing_from")
@@ -5383,20 +5383,13 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.locator("#steps").count() == 0
         assert page.is_hidden("#title")
         page.click('button.choice[data-action="matchup"]')
-        page.wait_for_function(
-            "document.querySelector('#title').textContent === 'What kind of datasets do you want to use for validation?'"
-        )
-        # after it, the title is at the top right, level with the name
-        name, title = page.locator(".brand__word").bounding_box(), page.locator("#title").bounding_box()
-        assert title["x"] > name["x"] + name["width"]
-        assert title["y"] < name["y"] + name["height"]
-        assert page.text_content("#title") == "What kind of datasets do you want to use for validation?"
+        page.wait_for_selector("#view-setup:not([hidden])")
+        # the setup page has no title: the boxes say what they ask
+        assert page.is_hidden("#title")
         assert page.locator("#m-domain").count() == 0
-        assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "nowrap"
         assert "OceanVal is running from" not in page.text_content("#meta")
         assert "Next, OceanVal reads the simulation, and shows you what it found." not in page.text_content("#bar")
         page.set_viewport_size({"width": 390, "height": 844})
-        assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "normal"
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
         page.set_viewport_size({"width": 1280, "height": 720})
         assert page.locator(".ndown-row").evaluate(
@@ -5652,7 +5645,7 @@ def test_the_files_are_found_in_a_box_with_no_title(browser, tmp_path):
         assert page.is_hidden("#run")
         go.write_text("")
         page.wait_for_selector("#review:not([hidden])", timeout=60000)
-        assert page.text_content("#title") == "Identify simulations files for validating variables"
+        assert page.text_content("#title") == ""
         assert page.is_hidden("#run")
     finally:
         app.close()
@@ -5730,7 +5723,7 @@ def test_a_saved_matchup_script_opens_run_instructions(browser, tmp_path):
         page = browser.new_page()
         page.goto(url)
         page.wait_for_selector("#review:not([hidden])")
-        assert page.text_content("#title") == "Identify simulations files for validating variables"
+        assert page.text_content("#title") == ""
         # the window does not offer to store the script, but an answer of "save" still does
         assert page.locator("#actions button:has-text('store')").count() == 0
         question = get_json(app, "/api/state")[1]["question"]
@@ -5896,14 +5889,16 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
 
-        assert page.text_content("#title") == "One last thing... How would you like your validation report?"
+        assert page.text_content("#title") == ""
         assert page.locator("#title").evaluate("node => getComputedStyle(node).whiteSpace") == "nowrap"
         # the matchups and the report go where the output step said
         assert page.is_hidden("#v-group-data_dir")
         assert page.is_hidden("#v-group-out_dir")
         assert page.text_content("#v-report-dir") == (
-            "Nothing is matched up until you carry on. The report is built in "
-            f"oceanval_report, beside the matchups, in {tmp_path}."
+            f"Matchups will be stored here: {tmp_path}/oceanval_matchups"
+            f"An interim validation report will be viewable here: {tmp_path}/oceanval_interim_report"
+            "/oceanval_report/_build/html/notebooks/summary.html"
+            f"The final validation report will be viewable here: {tmp_path}/oceanval_report.html"
         )
         assert page.evaluate("document.activeElement.id") == "v-lon_min"
         assert page.text_content("#build") == "Match up and validate"
@@ -7999,7 +7994,7 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
 
 
 def test_clearing_every_selection_in_a_browser(browser, tmp_path):
-    """Clear all selections unticks every dataset, and is then disabled until
+    """Deselect all unticks every dataset, and is then disabled until
     one is ticked again."""
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
@@ -9008,7 +9003,8 @@ class TestInfo:
             assert page.is_hidden("#restart-confirm")
             page.click("#restart-open")
             assert page.is_visible("#restart-confirm")
-            assert page.is_hidden("#restart-stopping")
+            assert page.text_content("#restart-title") == "Begin again with a clean slate"
+            assert page.locator("#restart-confirm .restart__body *").count() == 1
             assert page.evaluate("document.activeElement.id") == "restart-cancel"
             # Cancel and Escape change nothing
             page.click("#restart-cancel")

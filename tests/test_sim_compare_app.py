@@ -1034,14 +1034,15 @@ def test_phenology_is_ticked_in_a_browser(browser, tmp_path):
         assert "Chlorophyll" in page.inner_text("#ao-phenology-text")
         page.click("#ao-continue")
         page.wait_for_selector("#ao-page-2:not([hidden])")
-        assert page.inner_text("#title") == "How should the comparison be run?"
+        assert page.is_hidden("#title")
         assert page.is_disabled("#ao-next")
         page.select_option("#ao-cores", "1")
         page.check("#ao-code-no")
         page.click("#ao-next")
         page.wait_for_selector("#ao-page-3:not([hidden])")
         # where the comparison is saved is asked last, for it, and has no tick to replace anything
-        assert page.inner_text("#title") == "Where do you want the comparison to be saved?"
+        assert page.is_hidden("#title")
+        assert page.inner_text("#ao-save-lede") == "Choose where to save the comparison"
         assert page.input_value("#ao-out") == "simulation_comparison.py" and page.is_hidden("#ao-row-replace")
         assert page.inner_text("#ao-run") == "Run the comparison"
         assert page.inner_text("#ao-save") == "Save Python script to run later"
@@ -1279,7 +1280,7 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#view-analyze-options:not([hidden])")
         assert page.is_visible("#ao-compare-note")
         # the tiles are the first page; the run buttons are on the second, once something is chosen
-        assert page.inner_text("#title") == "What do you want to compare?"
+        assert page.is_hidden("#title")
         assert page.is_disabled("#ao-continue")
         assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5}
 

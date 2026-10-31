@@ -641,6 +641,18 @@ class TestSettingsChecks:
         assert errors == {}
         assert settings == default_settings(2011, 2012)
 
+    def test_no_years_is_fine_when_nothing_needs_them(self):
+        settings, errors = self.check(start="", end="", clim_start="1990", clim_end="2000")
+
+        assert errors == {}
+        assert settings["start"] is None and settings["end"] is None
+        assert settings["clim_years"] == (1990, 2000)
+
+    def test_one_year_alone_is_still_an_error(self):
+        _, errors = self.check(start="2011", end="")
+
+        assert "end" in errors
+
     def test_core_count_cannot_exceed_system_cores(self):
         cpu_count = recipes_gui.os.cpu_count()
         if not cpu_count:
@@ -1569,7 +1581,7 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.text_content("#write") == "Continue"
     gridded = page.locator("#rows-gridded")
     assert page.locator("#page-gridded thead th").all_text_contents() == [
-        "Environmental variable", "What is the simulation variable name?", "What gridded datasets do you want?",
+        "Environmental variable", "What is the simulation variable name?", "What gridded datasets do you want?Deselect all",
     ]
     assert gridded.locator('input[aria-label="ICES, Northwest European Shelf, for Temperature"]').count() == 0
 
@@ -1578,7 +1590,7 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.text_content("#cancel") == "Back"
     assert page.text_content("#write") == "Write script"
     assert page.locator("#page-point thead th").all_text_contents() == [
-        "Environmental variable", "What is the simulation variable name?", "What point datasets do you want?",
+        "Environmental variable", "What is the simulation variable name?", "What point datasets do you want?Deselect all",
         "Gridded data selected",
     ]
     temperature = page.locator("#rows-point tr", has=page.locator('input[aria-label="Simulation variable for Temperature"]'))
@@ -1631,7 +1643,7 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.locator("#s-point_start").is_hidden()
     assert page.locator("#settings-title").count() == 0
     assert page.locator("#s-clim_start").locator("xpath=ancestor::fieldset").locator("legend").text_content() == (
-        "What simulation years do you want to use for climatologies?")
+        "What simulation years do you want to use to compare with climatologies?")
     # no dataset is set to Vertical yet, so no thickness is asked for
     assert page.locator("#group-thickness").is_hidden()
     # a gridded dataset's years and Vertical, which only depth-resolved ones offer:
@@ -1651,7 +1663,7 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
 
     assert page.locator("#s-point_start-label").text_content().startswith("First")
     assert page.locator("#s-point_end-label").text_content().startswith("Last")
-    assert page.locator("#s-point_start").locator("xpath=ancestor::fieldset").locator("legend").text_content() == "What years do you want to validate?"
+    assert page.locator("#s-point_start").locator("xpath=ancestor::fieldset").locator("legend").text_content() == "Settings for all point matchups"
     # ICES is ticked, so they are needed
     page.fill("#s-point_start", "")
     page.fill("#s-point_end", "")
@@ -1762,6 +1774,25 @@ def test_only_the_settings_the_datasets_need_are_shown_in_the_browser(browser, t
     assert page.is_enabled("#write")
 
 
+def test_nothing_ticked_can_continue_but_is_told_and_kept_on_the_point_page_in_the_browser(browser, tmp_path, monkeypatch):
+    """With no dataset ticked there are no years to validate to ask for, so
+    blank years do not disable Continue; clicking it says nothing
+    is ticked and keeps the user on the point datasets' page until Return."""
+    page, out, finished = _open_window(browser, tmp_path, monkeypatch)
+    _continue(page)
+    page.fill("#s-point_start", "")
+    page.fill("#s-point_end", "")
+
+    assert page.is_enabled("#write")
+    page.click("#write")
+    assert page.locator("#nothing-ticked").is_visible()
+    assert page.locator("#group-point").is_visible()
+    page.click("#nothing-return")
+    assert page.locator("#nothing-ticked").count() == 0
+    assert page.locator("#group-point").is_visible()
+    assert not out or not __import__("os").path.exists(out)
+
+
 def test_the_gridded_years_are_required_in_the_browser(browser, tmp_path, monkeypatch):
     """Every gridded dataset ticked needs its years, typed or filled in from
     the years for climatologies, which are written into those that are
@@ -1785,7 +1816,6 @@ def test_the_gridded_years_are_required_in_the_browser(browser, tmp_path, monkey
     assert (first("NSBC").input_value(), last("NSBC").input_value()) == ("2000", "2010")
     assert first("COBE2").input_value() == "2011"
     assert last("COBE2").input_value() == "2012"
-    assert "Filled in for NSBC temperature" in page.inner_text("#g-climate")
     # typed over, the dataset's own stay
     last("NSBC").fill("2009")
     page.fill("#s-clim_end", "2008")
