@@ -1846,6 +1846,28 @@ def test_a_variable_ticked_with_no_layer_is_said_in_a_browser(browser, tmp_path)
         app.close()
 
 
+def test_the_errors_of_the_pop_outs_are_red_and_bold_in_a_browser(browser, tmp_path):
+    """A row's error (an end year before the start) is red and bold, as the page's --red token."""
+    page, app, errors = open_analyze_option(browser, tmp_path, (2013, 2014), "climatology", "clim-dialog")
+    try:
+        row = page.locator("#clim-body > tr").first
+        row.locator("input[type=checkbox]").nth(1).check()
+        row.locator("input.is-year").nth(0).fill("2014")
+        row.locator("input.is-year").nth(1).fill("2013")
+        page.click("#clim-confirm")
+        page.wait_for_function("() => document.querySelector('#clim-body .analyze-msg').textContent !== ''")
+        message = row.locator(".analyze-msg")
+        assert "End must not be before start" in message.inner_text()
+        red = page.evaluate("() => { const probe = document.createElement('i'); probe.style.color = 'var(--red)';"
+                            " document.body.append(probe); const colour = getComputedStyle(probe).color; probe.remove(); return colour; }")
+        style = message.evaluate("(node) => { const css = getComputedStyle(node); return [css.color, +css.fontWeight]; }")
+        assert style[0] == red
+        assert style[1] >= 700
+        assert errors == []
+    finally:
+        app.close()
+
+
 def test_the_all_variables_row_of_the_long_term_series_and_the_map_changes_in_a_browser(browser, tmp_path):
     """The long-term series' rolling mean and way to show them, and the map changes' periods, plot and
     change, are set for every variable from the All variables row; one variable has no such row."""
