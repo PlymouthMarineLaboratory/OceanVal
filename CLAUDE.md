@@ -59,6 +59,10 @@ tests patch it with `raising=False`), and the report notebooks' kernels import t
 oceanval, so reinstall (`pip install --no-deps .`) before running report tests against changed code.
 `_run_filtered` waits for the process, not the end of its pipe (`_OUTPUT_GRACE`): nctoolkit's Manager
 servers in a kernel that died keep the pipe open, which hung the interim report's builder.
+"resource_tracker: There appear to be 1 leaked semaphore objects" at quit is harmless (the tracker removes it): a
+process that made a spawn-context Lock (tqdm's `create_mp_lock` does, in a forked process later killed) ended without its
+finalizers. `OCEANVAL_TRACE_SEMAPHORES=<file> oceanval` records every semaphore made (`oceanval/semaphore_trace.py`), and
+`python -m oceanval.semaphore_trace <file>` lists those never released, with the stack that made each.
 Never put conda's `lib` on `DYLD_LIBRARY_PATH` (`utils.restrict_r_to_conda` sets `LD_LIBRARY_PATH` on Linux only):
 dyld swaps libraries by file name, so ImageIO's own `libPng.dylib` became conda's libpng (the file system ignores
 case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS in `QuartzBitmap_Close`).

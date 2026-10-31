@@ -5990,6 +5990,11 @@ class _Handler(recipes_gui._Handler):
 
 def main(argv=None):
     """The oceanval command."""
+    # OCEANVAL_TRACE_SEMAPHORES: where to record what made each semaphore, to
+    # find the owner of one the resource tracker says leaked (see the module)
+    from oceanval import semaphore_trace
+
+    semaphore_trace.install_from_environment()
     parser = argparse.ArgumentParser(
         prog="oceanval",
         description=(
