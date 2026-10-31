@@ -1079,13 +1079,14 @@ class TestForms:
             "missing_to": "The end of the range must not be less than its start."
         }
 
-    def test_whether_the_report_has_figure_code_must_be_said(self):
+    def test_the_figure_code_is_yes_or_no_and_not_answering_is_no(self):
         assert analysis_forms.check_figure_code("yes") == (True, None)
         assert analysis_forms.check_figure_code("No") == (False, None)
-        for choice in ("", None, "maybe"):
-            assert analysis_forms.check_figure_code(choice) == (
-                None, "Say whether the report should have code to reproduce its figures."
-            )
+        for choice in ("", None):
+            assert analysis_forms.check_figure_code(choice) == (False, None)
+        assert analysis_forms.check_figure_code("maybe") == (
+            None, "Say whether the report should have code to reproduce its figures."
+        )
 
     def test_the_script_calls_analyze(self, monkeypatch):
         arguments = analysis_forms.arguments(

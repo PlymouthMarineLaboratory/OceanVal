@@ -602,8 +602,7 @@ class TestOptions:
         assert status == 400 and reply["errors"] == {"cores": "Say how many cores OceanVal may use."}
         assert post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "2"}})[0] == 200
         assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
-        assert post(app, "/api/analyze_save_script")[0] == 400
-        assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
+        # not answering whether the report has figure code is "no"
         assert app.view == "analyze_options" and not os.path.exists(os.path.join(app.cwd, "analysis.py"))
         assert post(app, "/api/analyze_save_script") == (200, {"ok": True})
         # the script is written, and nothing is run

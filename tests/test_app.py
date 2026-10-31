@@ -1846,9 +1846,7 @@ class TestServer:
                 "selected": ["cobe2"],
             }
         ]
-        status, reply = post(app, "/recipes/write", {"rows": rows})
-        assert status == 400
-        assert {"start", "end"} <= set(reply["setting_errors"])
+        # no years is not an error: matchup's are left for the script to say
         assert post(app, "/recipes/write", {"rows": rows, "settings": recipe_settings(app)})[0] == 200
         units_match(app)
         wait_for(lambda: runs)
