@@ -1483,7 +1483,7 @@
         <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
         <div class="existing" id="row-existing" hidden>
-          <p class="g-label is-required existing__title" id="existing-title">What do you want to do with existing matchups? <span class="own-req" id="existing-required">Required</span></p>
+          <p class="g-label is-required existing__title" id="existing-title">What do you want to do with existing matchups? <span class="own-req" id="existing-required" data-required-for="f-existing_confirmed">Required</span></p>
           <p class="group__intro" id="existing-intro"></p>
           <div class="existing__table"><table aria-labelledby="existing-title">
             <thead><tr>
@@ -2440,7 +2440,7 @@
       <p class="analyze-msg is-rows" id="clim-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
-          <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th><th colspan="2" class="is-series" hidden></th></tr>
+          <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req" data-required-tick>Required: tick at least one</span></th><th colspan="2" class="is-series" hidden></th></tr>
           <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th><th scope="col" class="is-series" hidden>Use a rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
         </thead>
         <tbody class="analyze-all" id="clim-all"></tbody>
@@ -2523,7 +2523,7 @@
       <p class="analyze-dialog__intro">The time of the seasonal peak at the surface: in each grid cell, the day of the year with the highest value in the variable's daily climatology over the years from Start to End. It needs daily output. Tick the variables to work it out for, and give the years.</p>
       <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given: at least one variable ticked, and the years of each variable ticked.</span></p>
       <table>
-        <thead><tr><th scope="col">Model variable <span class="own-req">Tick at least one</span></th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th></tr></thead>
+        <thead><tr><th scope="col">Model variable <span class="own-req" data-required-any>Tick at least one</span></th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th></tr></thead>
         <tbody class="analyze-all" id="phen-all"></tbody>
         <tbody id="phen-body"></tbody>
       </table>
@@ -2548,7 +2548,7 @@
       <p class="analyze-msg is-rows" id="chg-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
-          <tr class="is-need"><th></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"></th><th colspan="3"><span class="own-req">Required: tick at least one</span></th></tr>
+          <tr class="is-need"><th></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"></th><th colspan="3"><span class="own-req" data-required-tick>Required: tick at least one</span></th></tr>
           <tr><th scope="col" rowspan="2">Variable</th><th scope="colgroup" colspan="2">Historical</th><th scope="colgroup" colspan="2">Future 1</th><th scope="colgroup" colspan="2">Future 2 <span class="own-opt">Optional</span></th><th scope="col" rowspan="2">Surface</th><th scope="col" rowspan="2">Bottom</th><th scope="col" rowspan="2">Water column</th></tr>
           <tr><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th></tr>
         </thead>

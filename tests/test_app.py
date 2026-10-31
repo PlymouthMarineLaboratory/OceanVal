@@ -5346,6 +5346,39 @@ def test_the_files_skipped_start_empty_in_a_browser(browser, tmp_path, tile):
         app.close()
 
 
+def test_required_tags_show_only_while_empty(browser, tmp_path):
+    """The red Required tag is there at the start and goes once the box is
+    filled (typed or written by a script), and comes back when it is emptied."""
+    write_simulation(tmp_path / "sim")
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click('button.choice[data-action="matchup"]')
+        page.wait_for_selector("#view-setup:not([hidden])")
+        tag = page.locator('label[for="f-ndown"] .own-req')
+        simdir = page.locator('label[for="f-simdir"] .own-req')
+        domain = page.locator("#setup-domain legend .own-req")
+        assert tag.is_visible() and simdir.is_visible() and domain.is_visible()
+        page.fill("#f-simdir", str(tmp_path / "sim"))
+        page.wait_for_selector('label[for="f-simdir"] .own-req', state="hidden")
+        assert tag.is_visible()
+        # a value written by a script fires no event
+        page.evaluate("document.getElementById('f-ndown').value = '0'")
+        page.wait_for_selector('label[for="f-ndown"] .own-req', state="hidden")
+        page.fill("#f-simdir", "")
+        page.wait_for_selector('label[for="f-simdir"] .own-req', state="visible")
+        # the tag stays in the page: only its display changes
+        assert page.locator('label[for="f-ndown"]').text_content().strip().endswith("Required")
+        # a group of choices is filled once one is chosen
+        page.locator("#f-domain > *").first.click()
+        page.wait_for_selector("#setup-domain legend .own-req", state="hidden")
+    finally:
+        app.close()
+
+
 def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
     """The whole of matching up only, driven as a user would, with a stand-in
     for the script, which would otherwise download observations."""

@@ -2191,3 +2191,39 @@ class TestClosingTheBrowser:
         assert app.status == "starting"
         assert not app.closed.wait(3)
         assert capsys.readouterr().out.count("The OceanVal window has gone quiet") == 1
+
+
+def test_the_required_tags_of_the_climatology_go_when_the_rows_are_filled(browser, tmp_path):
+    """The column tags over the climatology's rows stay until a ticked
+    variable has its years and a layer, and the red round a filled year box goes."""
+    page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012, 2013, 2014), "climatology", "clim-dialog")
+    try:
+        years = page.locator("#clim-dialog thead tr:last-child .own-req")
+        tick = page.locator("#clim-dialog thead .is-need .own-req")
+        row = page.locator("#clim-body > tr").first
+        assert years.nth(0).is_visible() and years.nth(1).is_visible() and tick.is_visible()
+        use = row.locator("input[type=checkbox]").first
+        if not use.is_checked():
+            use.check()
+        row.locator("input[type=checkbox]").nth(1).check()
+        page.wait_for_selector("#clim-dialog thead .is-need .own-req", state="hidden")
+        # a layer is not the years
+        assert years.nth(0).is_visible() and years.nth(1).is_visible()
+        start = page.locator("#clim-body input.is-year").nth(0)
+        end = page.locator("#clim-body input.is-year").nth(1)
+        red = "rgb(226, 165, 157)"
+        assert start.evaluate("node => getComputedStyle(node).borderTopColor") == red
+        start.fill("2012")
+        end.fill("2013")
+        page.wait_for_selector("#clim-dialog thead tr:last-child .own-req >> nth=1", state="hidden")
+        assert years.nth(0).is_hidden() and years.nth(1).is_hidden()
+        # the border changes colour over a transition
+        page.wait_for_function(
+            "([node, red]) => getComputedStyle(node).borderTopColor !== red", arg=[start.element_handle(), red]
+        )
+        end.fill("")
+        page.wait_for_selector("#clim-dialog thead tr:last-child .own-req >> nth=1", state="visible")
+        assert years.nth(0).is_hidden() and years.nth(1).is_visible()
+        assert not errors
+    finally:
+        app.close()

@@ -745,6 +745,13 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   in the markup and, for boxes the pages make later, by the guard at the end of `data/gui.js` (`forget`, a `MutationObserver`
   and `focusin`). Never `chrome-off`, which Chrome ignores. Only the simulation directories are remembered, by OceanVal
   itself (`.oceanvalcache`). `tests/test_no_browser_memory.py` checks both windows.
+- **Required tags show only while empty** (the user's rule, 2026-10-31): a red tag (`.own-req`, `.year-required`) is there at the start and goes
+  once its box is filled, and returns if it is emptied. `OceanValGUI.syncRequired` (`gui.js`; on input/change/click, DOM mutations and a 300 ms
+  interval, as a script's `.value =` fires no event) only toggles `is-satisfied` on the tag (and its `.own-field`) and `is-filled` on
+  the boxes of the Analyze pop-outs and own-data fields, whose red borders it removes; the page's own `hidden`/`is-required` are untouched.
+  The box is found from the tag (`data-required-for` ids, the label's `for`, the one box in its label/row/field, a legend's fieldset); a tag
+  in a table head covers the columns it spans (`data-required-tick`: each ticked row has a layer; `data-required-any`: some row is ticked;
+  otherwise every ticked row has the boxes filled). A new Required tag needs no code if it sits in the label/row/legend of its box.
 - **A choice among boxes must be unmistakable**: the chosen one is filled with the accent colour (or tinted, with a thick
   accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.demo-detail__option`, `.prefs__use`, `.reg-where label`) are
   styled together at the end of `data/gui.css`; `.segmented` (the domain picker), `.choice.is-chosen` and the

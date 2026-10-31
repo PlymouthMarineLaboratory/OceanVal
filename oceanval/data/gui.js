@@ -853,8 +853,111 @@ const OceanValGUI = (() => {
   }).observe(document.documentElement, { childList: true, subtree: true });
   document.addEventListener("focusin", (event) => forget(event.target), true);
 
+  // ---- Required tags are shown only while what they ask for is empty ----
+  // A tag (.own-req, .year-required) gets is-satisfied once its box is filled, and CSS hides it; the red bar and
+  // borders of a filled box go the same way. Only is-satisfied/is-filled are set here, never `hidden` or
+  // is-required, which the pages use themselves. The box is found from the tag: data-required-for (ids), the
+  // label's `for`, the one box in its label/row/field, or a legend's fieldset. A tag in a table's head covers the
+  // columns it spans: data-required-tick = every ticked row has one of them ticked, data-required-any = some row
+  // is ticked, otherwise every ticked row has the boxes filled.
+  const TAGS = ".own-req, .year-required";
+  const BOXES = "input, select, textarea";
+  const isFilled = (box) => {
+    if (box.type === "checkbox" || box.type === "radio") return box.checked;
+    return box.value.trim() !== "";
+  };
+  const groupFilled = (boxes) => {
+    if (!boxes.length) return false;
+    const radios = boxes.filter((box) => box.type === "radio");
+    const others = boxes.filter((box) => box.type !== "radio");
+    const named = new Map();
+    for (const radio of radios) named.set(radio.name, (named.get(radio.name) || false) || radio.checked);
+    return [...named.values()].every(Boolean) && others.every(isFilled);
+  };
+  const chosenIn = (node) => node.querySelector(".is-chosen, [aria-checked='true'], [aria-pressed='true']") !== null;
+  function ownersOf(tag) {
+    const given = tag.getAttribute("data-required-for");
+    if (given) return given.split(/\s+/).map((id) => document.getElementById(id)).filter(Boolean);
+    const label = tag.closest("label");
+    if (label && label.htmlFor) return [document.getElementById(label.htmlFor)].filter(Boolean);
+    const legend = tag.closest("legend");
+    if (legend) return [legend.closest("fieldset")].filter(Boolean);
+    const holder = tag.closest("label, .g-row, .own-field");
+    if (!holder) return [];
+    const boxes = [...holder.querySelectorAll(BOXES)];
+    return boxes.length > 1 && boxes.every((box) => box.type === "checkbox" || box.type === "radio") ? boxes : boxes.slice(0, 1);
+  }
+  function columnsOf(cell) {
+    let first = 0;
+    for (const sibling of cell.parentElement.children) {
+      if (sibling === cell) break;
+      first += sibling.colSpan;
+    }
+    return [first, first + cell.colSpan];
+  }
+  function tableSatisfied(tag, cell) {
+    const [from, to] = columnsOf(cell);
+    const rows = [...cell.closest("table").querySelectorAll("tbody:not(.analyze-all) > tr")]
+      .filter((row) => row.children.length > 1);
+    const spanned = (row) => [...row.children].slice(from, to).flatMap((td) => [...td.querySelectorAll(BOXES)])
+      .filter((box) => box.type !== "hidden");
+    if (tag.hasAttribute("data-required-any")) return rows.some((row) => spanned(row).some((box) => box.checked));
+    const ticked = rows.filter((row) => row.classList.contains("is-on"));
+    if (!ticked.length) return false;
+    if (tag.hasAttribute("data-required-tick")) {
+      return ticked.every((row) => spanned(row).some((box) => box.type === "checkbox" && box.checked));
+    }
+    return ticked.every((row) => {
+      const boxes = spanned(row).filter((box) => box.type === "text" || box.tagName === "SELECT");
+      return boxes.length > 0 && boxes.every(isFilled);
+    });
+  }
+  function ownerFilled(owner) {
+    if (owner.matches("input[type=radio]") && owner.name) {
+      return groupFilled([...document.querySelectorAll(`input[type=radio][name="${owner.name}"]`)]);
+    }
+    if (owner.matches(BOXES)) return isFilled(owner);
+    // a fieldset or group of choices: its radios, else the boxes in it
+    const radios = [...owner.querySelectorAll("input[type=radio]")];
+    if (radios.length) return groupFilled(radios) || chosenIn(owner);
+    const boxes = [...owner.querySelectorAll(BOXES)];
+    return boxes.length ? boxes.every(isFilled) : chosenIn(owner);
+  }
+  function syncRequired(root = document) {
+    for (const tag of root.querySelectorAll(TAGS)) {
+      const cell = tag.closest("thead th");
+      let satisfied;
+      if (cell && !tag.hasAttribute("data-required-for")) {
+        satisfied = tableSatisfied(tag, cell);
+      } else {
+        const owners = ownersOf(tag);
+        satisfied = owners.length > 0 && owners.every(ownerFilled);
+      }
+      tag.classList.toggle("is-satisfied", satisfied);
+      const field = tag.closest(".own-field");
+      if (field) field.classList.toggle("is-satisfied", satisfied);
+    }
+    // the boxes that are red because they must be given are plain once they are
+    for (const box of root.querySelectorAll(".analyze-dialog .s-input, .analyze-dialog .s-select, .own-field .s-input, .own-field .s-select")) {
+      box.classList.toggle("is-filled", box.value.trim() !== "");
+    }
+  }
+  let requiredQueued = false;
+  function queueRequired() {
+    if (requiredQueued) return;
+    requiredQueued = true;
+    queueMicrotask(() => { requiredQueued = false; syncRequired(); });
+  }
+  for (const type of ["input", "change", "click"]) document.addEventListener(type, queueRequired, true);
+  new MutationObserver(queueRequired).observe(document.documentElement, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "class", "disabled"],
+  });
+  // a value written by a script fires no event
+  setInterval(() => { if (!document.hidden) syncRequired(); }, 300);
+  syncRequired();
+
   return {
     ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variableBox, searchMatcher,
-    withChoices, choicesOpen, closeChoices,
+    withChoices, choicesOpen, closeChoices, syncRequired,
   };
 })();

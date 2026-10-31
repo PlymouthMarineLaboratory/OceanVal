@@ -645,3 +645,10 @@ input.tick { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .ptr-mode, .demo-detail__option, .prefs__use, .reg-where label { transition: none; }
 }
+
+/* Required tags and the red round a box that must be given, only while it is empty (OceanValGUI.syncRequired) */
+.own-req.is-satisfied, .year-required.is-satisfied { display: none; }
+.own-field.is-required.is-satisfied { border-left-color: transparent; }
+.own-field.is-required .s-input.is-filled, .own-field.is-required .s-select.is-filled,
+.analyze-dialog tr.is-on .s-input.is-year.is-filled, .analyze-dialog .s-select.is-required.is-filled,
+.analyze-thickness .s-input.is-filled { border-color: var(--line); }
