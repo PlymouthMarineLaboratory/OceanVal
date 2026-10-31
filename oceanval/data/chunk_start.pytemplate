@@ -9,7 +9,7 @@ import pickle
 
 import glob
 import geopandas as gpd
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import os
 import pickle
 import numpy as np

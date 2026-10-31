@@ -5,7 +5,7 @@ import subprocess
 import sys
 import threading
 import warnings
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 
 from oceanval import leftovers
 from oceanval.leftovers import STAMP, in_use, is_oceanval_temp

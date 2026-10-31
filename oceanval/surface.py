@@ -36,7 +36,7 @@ import subprocess
 import tempfile
 import warnings
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import numpy as np
 import xarray as xr
 

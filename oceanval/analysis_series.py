@@ -21,7 +21,7 @@ with a gap is the mean of its months there are, which the report says.
 import os
 import warnings
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import numpy as np
 import pandas as pd
 import xarray as xr

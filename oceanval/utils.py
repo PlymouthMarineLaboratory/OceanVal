@@ -1,4 +1,4 @@
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import xarray as xr
 import numpy as np
 import subprocess

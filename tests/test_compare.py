@@ -68,7 +68,7 @@ def test_the_comparison_is_built_in_out_dir(tmp_path, monkeypatch, built):
         assert repr({"control": str(control), "mixing": str(mixing)}) in source
         assert "model_dict_str" not in source
         assert "\nchunk_start\n" not in f"\n{source}\n"
-        assert "import nctoolkit as nc" in source
+        assert "from oceanval.quiet_nc import nc" in source
 
 
 def test_out_dir_defaults_to_the_current_directory(tmp_path, monkeypatch, built):

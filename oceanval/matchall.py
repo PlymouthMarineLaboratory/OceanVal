@@ -7,7 +7,7 @@ import queue
 import sys
 import threading
 import time
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import re
 import importlib
 import glob

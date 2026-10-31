@@ -65,7 +65,7 @@ import urllib.parse
 import urllib.request
 import uuid
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import pandas as pd
 
 from oceanval import user_settings

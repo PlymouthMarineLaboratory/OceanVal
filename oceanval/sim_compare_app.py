@@ -43,7 +43,7 @@ import tempfile
 import threading
 import traceback
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import numpy as np
 import pandas as pd
 

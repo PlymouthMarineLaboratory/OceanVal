@@ -22,7 +22,7 @@ import subprocess
 import sys
 import threading
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 
 from oceanval.parsers import point_files, read_point
 

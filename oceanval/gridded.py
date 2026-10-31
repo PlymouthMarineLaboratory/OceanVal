@@ -12,7 +12,7 @@ import pickle
 import pandas as pd
 import time
 import numpy as np
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import xarray as xr
 
 from oceanval import data_store

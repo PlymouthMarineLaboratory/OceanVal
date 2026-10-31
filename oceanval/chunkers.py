@@ -4,7 +4,7 @@ import glob
 import os
 import importlib
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import webbrowser
 
 import re

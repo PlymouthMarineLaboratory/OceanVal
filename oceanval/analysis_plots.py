@@ -29,7 +29,7 @@ import re
 import warnings
 
 import matplotlib.pyplot as plt
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -181,7 +181,9 @@ def script(drawn, title=None):
 
 # ---- the maps ----
 
-MAP_IMPORTS = "import matplotlib.pyplot as plt\nimport nctoolkit as nc\n"
+# nctoolkit is imported quietly in the copied scripts too (they do not import oceanval)
+NC_IMPORT = "import warnings\nwith warnings.catch_warnings():\n    warnings.simplefilter(\"ignore\")\n    import nctoolkit as nc\n"
+MAP_IMPORTS = "import matplotlib.pyplot as plt\n" + NC_IMPORT
 
 
 def _lon_lat(path):
@@ -349,7 +351,7 @@ def _panel_draw(key, label, font, colours=None, with_calendar=False):
         draw = 'with plt.rc_context({"font.size": font_size}):\n' + "\n".join("    " + line for line in call.split("\n"))
     else:
         # nctoolkit before 1.3.2 has no panel_plot: a grid of pub_plots
-        imports = lead + "import matplotlib.pyplot as plt\nimport nctoolkit as nc\nimport numpy as np\n"
+        imports = lead + "import matplotlib.pyplot as plt\n" + NC_IMPORT + "import numpy as np\n"
         options = {"var": key, "limits": _Code("limits"), "title": _Code("title"), "legend": label,
                    "fig": _Code("fig"), "gs": _Code("grid[index // ncol, index % ncol]")}
         if colours:

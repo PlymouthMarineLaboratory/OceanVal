@@ -5,7 +5,7 @@ import glob
 import os
 import re
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 
 # where nctoolkit (and so cdo and nco) writes its temporary files
 TEMP_DIRS = ("/tmp/", "/var/tmp/", "/usr/tmp/")

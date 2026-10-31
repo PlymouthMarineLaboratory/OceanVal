@@ -30,7 +30,7 @@ import os
 import warnings
 import webbrowser
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import numpy as np
 
 from oceanval import domain_mask as domain_mask_mod

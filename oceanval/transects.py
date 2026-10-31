@@ -45,7 +45,7 @@ _LAND = None
 
 def available():
     """Whether the installed nctoolkit can extract a transect."""
-    import nctoolkit as nc
+    from oceanval.quiet_nc import nc
 
     return hasattr(nc.DataSet, "to_transect")
 
@@ -340,7 +340,7 @@ def surface_frame(path, transect, steps):
     """The surface matchup in path along the transect, as a monthly
     climatology: a data frame of position (latitude, or longitude), month,
     model, observation and bias."""
-    import nctoolkit as nc
+    from oceanval.quiet_nc import nc
 
     check_on_grid(path, transect)
     start, end = line_ends(transect)
@@ -368,7 +368,7 @@ def _section_of(path, variable, transect, steps, depths=None):
     with the depths it was interpolated to. If depths is None, they are N_DEPTHS
     evenly spaced ones from the shallowest level to the deepest, which is
     None if there are fewer than two levels."""
-    import nctoolkit as nc
+    from oceanval.quiet_nc import nc
     import xarray as xr
 
     start, end = line_ends(transect)

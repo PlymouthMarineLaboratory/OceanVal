@@ -34,7 +34,7 @@ import shutil
 import warnings
 import webbrowser
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import numpy as np
 import pandas as pd
 import xarray as xr

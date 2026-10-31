@@ -29,7 +29,7 @@ import re
 import textwrap
 import warnings
 
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import xarray as xr
 
 from oceanval import prompts

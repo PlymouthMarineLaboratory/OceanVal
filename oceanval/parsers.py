@@ -1,4 +1,4 @@
-import nctoolkit as nc
+from oceanval.quiet_nc import nc
 import re
 import pandas as pd
 import os
