@@ -182,9 +182,8 @@ class ViewerSteps:
             "catalogue_number": self.viewer_catalogue_number if self.viewer_catalogue else None,
             "times": dict(self.viewer_times) if self.viewer_times else None,
             "times_number": self.viewer_times_number,
-            # coastlines on a grid need geoviews; on an FVCOM mesh, cartopy only (viewer_plots.mesh_coastline)
-            "coast": _installed("geoviews", "cartopy"),
-            "coast_mesh": _installed("cartopy", "shapely"),
+            # coastlines need cartopy only, on a grid as on an FVCOM mesh (viewer_plots.coastline_overlay)
+            "coast": _installed("cartopy", "shapely"),
         }
 
     def _viewer_drop(self):

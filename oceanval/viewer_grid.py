@@ -13,7 +13,10 @@ the distance to the farthest of its neighbours along the rows and columns; an
 unstructured grid's, the distance to its fourth nearest other cell. Cells with
 no longitude or latitude, or piled up at one place (NEMO puts the cells of the
 land processors it leaves out at one point; more than the two cells of a north
-fold or a repeated column), are left out. Which cell each pixel takes is worked out once for a grid (Raster) and
+fold or a repeated column), are left out. A pixel whose cell has no value
+takes the next nearest cell it is in that has one (OWNERS are looked at), on
+a grid folded over itself only (has_folds: a ROMS grid's lines crossing),
+which can put land cells over sea cells. Which cell each pixel takes is worked out once for a grid (Raster) and
 kept (raster_for), so each map after the first costs one take. The cells'
 corners (CMIP's vertices) are not needed.
 """
@@ -32,6 +35,8 @@ PIXEL_FACTOR = 0.5
 RADIUS_FACTOR = 0.75
 # how many of a cell's nearest others are looked at for its radius (piled-up cells are skipped)
 NEIGHBOURS = 8
+# a pixel's cells looked at, nearest first: the first with a value that the pixel is in gives it its value
+OWNERS = 16
 # rasters kept, for the grids drawn last
 KEPT = 4
 _kept = OrderedDict()
@@ -59,6 +64,25 @@ def has_seam(lon):
         )
 
 
+def has_folds(lon, lat):
+    """Whether some cells of a 2-D grid are turned over: the quadrilateral of
+    four neighbouring centres goes round the other way from most (a ROMS
+    grid's lines crossing over land), which a quadmesh draws as spikes
+    across the map."""
+    lon, lat = np.asarray(lon, dtype="float64"), np.asarray(lat, dtype="float64")
+    if lon.ndim != 2 or min(lon.shape) < 2:
+        return False
+    # longitudes as steps from a neighbour, so a seam is no fold
+    along = _wrap(lon[:-1, 1:] - lon[:-1, :-1]), lat[:-1, 1:] - lat[:-1, :-1]
+    across = _wrap(lon[1:, :-1] - lon[:-1, :-1]), lat[1:, :-1] - lat[:-1, :-1]
+    with np.errstate(invalid="ignore"):
+        turn = along[0] * across[1] - along[1] * across[0]
+        turn = turn[np.isfinite(turn) & (turn != 0)]
+    if not turn.size:
+        return False
+    return bool(min((turn > 0).sum(), (turn < 0).sum()) > 0)
+
+
 def _grid_radius(xyz):
     """For each cell of a curvilinear grid (xyz: (ny, nx, 3), NaN where a cell
     is left out), the farthest and the nearest of its neighbours along the
@@ -81,14 +105,12 @@ def _grid_radius(xyz):
     return np.nan_to_num(radius, nan=0.0), np.nan_to_num(nearest, nan=0.0)
 
 
-def _cloud_radius(points):
+def _cloud_radius(tree, points):
     """For each of the cells at points (an unstructured grid's, (n, 3) on the
-    unit sphere), the chord to its 4th nearest other cell (or the farthest of
-    those looked at), and to its nearest."""
-    from scipy.spatial import cKDTree
-
+    unit sphere, whose cKDTree is tree), the chord to its 4th nearest other
+    cell (or the farthest of those looked at), and to its nearest."""
     k = min(NEIGHBOURS, len(points))
-    distances, _ = cKDTree(points).query(points, k=k)
+    distances, _ = tree.query(points, k=k, workers=-1)
     apart = np.where(distances > 1e-7, distances, np.nan)
     counted = np.sum(np.isfinite(apart), axis=1)
     apart.sort(axis=1)
@@ -113,6 +135,7 @@ class Raster:
         lon = np.asarray(lon, dtype="float64")
         lat = np.asarray(lat, dtype="float64")
         self.cells = lon.size
+        self.grid_shape = lon.shape
         usable = np.isfinite(lon) & np.isfinite(lat) & (np.abs(lat) <= 90)
         # cells piled up in one place (more than the two of a fold or a grid's repeated columns): fill values
         rounded = np.where(usable, np.round(_wrap(lon), 5) + 1j * np.round(lat, 5), np.nan)
@@ -123,12 +146,14 @@ class Raster:
         usable &= ~piled
         xyz = np.full(lon.shape + (3,), np.nan)
         xyz[usable] = _xyz(lon[usable], lat[usable])
+        tree = None
         if lon.ndim == 2:
             radius, nearest = _grid_radius(xyz)
         else:
             radius, nearest = np.zeros(lon.shape), np.zeros(lon.shape)
             if usable.sum() >= 2:
-                radius[usable], nearest[usable] = _cloud_radius(xyz[usable])
+                tree = cKDTree(xyz[usable])
+                radius[usable], nearest[usable] = _cloud_radius(tree, xyz[usable])
         # the two cells in one place (across a fold) are as big as the bigger: the nearest of them is either
         group = where.reshape(lon.shape)[usable]
         largest = np.zeros(counts.size)
@@ -167,20 +192,49 @@ class Raster:
         self.x_axis = x0 + (np.arange(nx) + 0.5) * (x1 - x0) / nx
         self.y_axis = y0 + (np.arange(ny) + 0.5) * (y1 - y0) / ny
 
+        if tree is None or tree.n != len(points):
+            tree = cKDTree(points)
         px, py = np.meshgrid(self.x_axis, self.y_axis)
-        distance, nearest = cKDTree(points).query(_xyz(px.ravel(), py.ravel()), k=1)
-        inside = distance <= radius[nearest]
-        self.pixels = np.flatnonzero(inside)
-        self.owners = self.kept[nearest[inside]]
+        # pixels farther than any cell's radius from every cell are in none: the search stops there (without the
+        # bound, a pixel far from a dense mesh, on land, searches most of the tree)
+        # only a grid folded over itself looks past a pixel's nearest cell: elsewhere a coast's sea would spread
+        # into its land cells
+        k = min(OWNERS if has_folds(lon.reshape(self.grid_shape), lat.reshape(self.grid_shape)) else 1, len(points))
+        distance, nearest = tree.query(
+            _xyz(px.ravel(), py.ravel()), k=k, workers=-1, distance_upper_bound=float(radius.max()) * (1 + 1e-9)
+        )
+        distance, nearest = distance.reshape(-1, k), nearest.reshape(-1, k)
+        found = nearest < len(points)
+        inside = np.zeros(found.shape, dtype=bool)
+        inside[found] = distance[found] <= radius[nearest[found]]
+        self.pixels = np.flatnonzero(inside.any(axis=1))
+        # for each pixel, the cells it is in, nearest first (-1: no more); the first is its own cell
+        owners = np.where(inside, self.kept[np.where(found, nearest, 0)], -1)[self.pixels]
+        # each pixel's cells in order, those it is in first
+        order = np.argsort(owners < 0, axis=1, kind="stable")
+        owners = np.take_along_axis(owners, order, axis=1).astype("int32" if self.cells < 2**31 else "int64")
+        # no more columns than the most cells a pixel is in
+        self.candidates = owners[:, : max(1, int((owners >= 0).sum(axis=1).max()))]
+        self.owners = self.candidates[:, 0]
 
     def image(self, values):
         """The values of the cells (of the grid's shape, or flattened) as a
-        (ny, nx) float64 array: NaN where no cell is, or where its value is missing."""
+        (ny, nx) float64 array: NaN where no cell is, or where its value is
+        missing. A pixel whose cell's value is missing takes that of the next
+        nearest cell it is in that has one (a grid folded over itself puts
+        land cells over sea cells, which they would hide)."""
         values = np.asarray(values, dtype="float64").ravel()
         if values.size != self.cells:
             raise ValueError("The values are not of the grid they are drawn on.")
+        taken = values[self.owners]
+        for column in range(1, self.candidates.shape[1]):
+            missing = ~np.isfinite(taken)
+            if not missing.any():
+                break
+            cells = self.candidates[missing, column]
+            taken[missing] = np.where(cells >= 0, values[np.maximum(cells, 0)], np.nan)
         out = np.full(self.shape[0] * self.shape[1], np.nan)
-        out[self.pixels] = values[self.owners]
+        out[self.pixels] = taken
         return out.reshape(self.shape)
 
     def placed_share(self, values):

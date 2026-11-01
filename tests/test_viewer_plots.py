@@ -105,8 +105,8 @@ def test_the_frame_keeps_distances_on_one_scale(coast):
     """A map's frame is as tall for its width as the area's north-south
     distance is for its east-west one: 10 degrees of latitude by 20 of
     longitude about 55N is nearly as tall as it is wide."""
-    if coast and not plotting.has_geoviews():
-        pytest.skip("geoviews is not installed")
+    if coast and not plotting.has_cartopy():
+        pytest.skip("cartopy is not installed")
     data, about = _box(50, 60, -10, 10)
     item, _, _ = plotting.map_plot(data, about, "v", coast=coast)
     # the image's cells reach half a cell past the outer points
@@ -151,3 +151,34 @@ def test_the_window_imports_no_plotting_library():
             "print(sorted(n for n in ('holoviews', 'hvplot', 'bokeh') if n in sys.modules))")
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300)
     assert done.stdout.strip().splitlines()[-1] == "[]", done.stderr
+
+
+def test_every_map_has_its_coastline_drawn_over_it(monkeypatch):
+    """The coastline is drawn over each map in its own axes (coastline_overlay), the
+    next map's too: geoviews' coastline, once one map was drawn, refused the next."""
+    if not plotting.has_cartopy():
+        pytest.skip("cartopy is not installed")
+    asked = []
+
+    def coastline(x_range, y_range, scale):
+        asked.append((x_range, y_range))
+        return np.array([x_range[0], x_range[1]]), np.array([y_range[0], y_range[1]])
+
+    monkeypatch.setattr(plotting, "natural_earth_coastline", coastline)
+    image, about = _box(50, 60, -10, 10)
+    j, i = np.meshgrid(np.arange(6), np.arange(8), indexing="ij")
+    curvilinear = xr.DataArray(
+        np.random.default_rng(1).random((6, 8)), dims=("y", "x"),
+        coords={"lon": (("y", "x"), -5 + i * 0.5 + j * 0.1), "lat": (("y", "x"), 50 + j * 0.5)},
+    )
+    for data, about_it in ((image, about), (curvilinear, dict(about, horizontal=["y", "x"])), (image, about)):
+        item, notes, _ = plotting.map_plot(data, about_it, "v", coast=True)
+        assert "'MultiLine'" in str(item)
+        assert not any("coast" in note.lower() for note in notes)
+    # to the map's edges: an image's cells reach half a cell past its outer points
+    assert asked[0] == ((-10.5, 10.5), (49.5, 60.5))
+
+
+def test_a_thinned_map_says_every_nth_cell():
+    assert [plotting._ordinal(n) for n in (1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111)] == [
+        "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th"]

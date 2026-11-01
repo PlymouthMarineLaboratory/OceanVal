@@ -7,10 +7,11 @@ grid's own indices when its longitudes/latitudes cannot place the cells
 (ncplot's change_coords: model grids whose land cells all have 0 or a fill
 value), a colour scale symmetric about 0 in RdBu_r when the values span 0
 (ncplot's _get_color_limits), and coastlines at a resolution set by the
-extent (get_coastline), by geoviews. An unstructured grid, and a curvilinear
+extent (get_coastline), from Natural Earth (cartopy), drawn over the map in
+its own axes (coastline_overlay). An unstructured grid, and a curvilinear
 one a quadmesh would pull out of shape (a global ocean grid's seam and north
-fold, cells piled up in one place), is drawn on a regular longitude-latitude
-grid instead (oceanval.viewer_grid), so it has its coastlines too.
+fold, cells piled up in one place, cells turned over), is drawn on a regular longitude-latitude
+grid instead (oceanval.viewer_grid).
 
 holoviews, hvplot and bokeh take seconds to import, so they are imported
 when the first map is drawn, not with this module, which the window imports.
@@ -279,12 +280,13 @@ def needs_raster(lons, lats, values):
     """Whether a grid at lons, lats is drawn on a regular grid (see
     oceanval.viewer_grid) rather than as a quadmesh: an unstructured grid
     (1-D, cells along one dimension), or a curvilinear one with a seam,
-    cells in the same places, or cells with values and no longitude or latitude."""
+    cells in the same places, cells turned over (viewer_grid.has_folds), or
+    cells with values and no longitude or latitude."""
     if lons.ndim == 1 and lats.ndim == 1:
         return lons.shape == lats.shape == values.shape and values.ndim == 1
     if lons.ndim != 2 or lons.shape != lats.shape:
         return False
-    if viewer_grid.has_seam(lons) or _repeated_coordinates(lons, lats):
+    if viewer_grid.has_seam(lons) or _repeated_coordinates(lons, lats) or viewer_grid.has_folds(lons, lats):
         return True
     unplaced = ~np.isfinite(lons) | ~np.isfinite(lats)
     return bool(unplaced.any())
@@ -318,6 +320,34 @@ def cells_image(data, lon, lat):
         "each point taking the value of the cell it is in."
     )
     return image, note
+
+
+def _grid_coastline(data, x, y, kind):
+    """The coastline over a map of data on longitudes x and latitudes y (an
+    image's 1-D axes, or a quadmesh's 1-D or 2-D coordinates), to the map's own
+    edges, at the scale of the extent of the cells with values (coastline_overlay)."""
+    if not has_cartopy():
+        return None, ["Coastlines need cartopy installed."]
+    lons = data[x].broadcast_like(data).transpose(*data.dims).values
+    lats = data[y].broadcast_like(data).transpose(*data.dims).values
+    valued = np.isfinite(data.values)
+    scale = coastline_scale(lons, lats, np.where(valued, 1.0, np.nan)) if valued.any() else "110m"
+    if kind == "image" and data[x].ndim == 1 and data[x].size > 1 and data[y].size > 1:
+        # an image's cells reach half a cell past its outer points
+        half_x = abs(float(data[x][1] - data[x][0])) / 2
+        half_y = abs(float(data[y][1] - data[y][0])) / 2
+        edges_x = [float(data[x].min()) - half_x, float(data[x].max()) + half_x]
+        edges_y = [float(data[y].min()) - half_y, float(data[y].max()) + half_y]
+    else:
+        edges_x, edges_y = [np.nanmin(lons), np.nanmax(lons)], [np.nanmin(lats), np.nanmax(lats)]
+    return coastline_overlay(edges_x, edges_y, x, y, scale, pad=False)
+
+
+def _ordinal(number):
+    """1st, 2nd, 3rd, 4th, ..., 11th, 12th, 13th, ..., 21st."""
+    if 10 <= number % 100 <= 20:
+        return f"{number}th"
+    return f"{number}" + {1: "st", 2: "nd", 3: "rd"}.get(number % 10, "th")
 
 
 def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coast=False, mesh=None):
@@ -370,7 +400,7 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
     else:
         data, stride = _thin(data, MAX_PIXELS)
     if stride > 1:
-        notes.append(f"Every {stride}th cell is shown, as the grid is large.")
+        notes.append(f"Every {_ordinal(stride)} cell is shown, as the grid is large.")
 
     (low, high), symmetric = colour_limits(data.values, vmin, vmax, log)
     if log and high <= 0:
@@ -386,60 +416,28 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
         tools=["hover"], responsive=True, colorbar=True, clabel=about.get("units") or None,
     )
     cartesian = about.get("cartesian", False)
-    # a mesh's coastline, and that of a grid drawn on a regular one (cells_image), is drawn over its image in its
-    # own axes (coastline_overlay), not by geoviews (whose coastline, once a map past 180° has been drawn, refuses
-    # every map after it)
+    options.update(xlabel=x, ylabel=y)
+    if cartesian:
+        options.update(xlabel="x (m)", ylabel="y (m)")
+    elif lon is not None:
+        options.update(xlabel="Longitude", ylabel="Latitude")
     on_mesh = bool(about.get("mesh"))
-    geographic = coast and lon is not None and not on_mesh and drawn is None and has_geoviews()
-    if coast and lon is not None and not on_mesh and drawn is None and not geographic:
-        notes.append("Coastlines need cartopy and geoviews installed.")
-    if geographic:
-        # the extent of the cells with values: a grid can have cells far from the domain (NEMO's at -1, -1)
-        lon_cells = data[x].broadcast_like(data).transpose(*data.dims).values
-        lat_cells = data[y].broadcast_like(data).transpose(*data.dims).values
-        # the axes are longitudes and latitudes: say so, and hide any grid mapping from rioxarray, whose
-        # crs hvplot would use instead of this one (and geoviews refuses a crs unlike its coastline's)
-        import cartopy.crs as ccrs
-
-        data = _without_grid_mapping(data)
-        options.update(geo=True, crs=ccrs.PlateCarree(), coastline=coastline_scale(lon_cells, lat_cells, data.values))
-    else:
-        options.update(xlabel=x, ylabel=y)
-        if cartesian:
-            options.update(xlabel="x (m)", ylabel="y (m)")
-        elif lon is not None:
-            options.update(xlabel="Longitude", ylabel="Latitude")
+    # no grid mapping for hvplot to find (through rioxarray) a crs in and project the map by: its axes are as they are
+    data = _without_grid_mapping(data)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         draw = data.hvplot.quadmesh if kind == "quadmesh" else data.hvplot.image
-        try:
-            plot = draw(**options)
-        except ValueError as problem:
-            # geoviews refusing a crs that is not its coastline's: draw the map without the coastline
-            if not (geographic and "coordinate reference system" in str(problem)):
-                raise
-            for key in ("geo", "crs", "coastline"):
-                options.pop(key)
-            options.update(xlabel="Longitude", ylabel="Latitude")
-            notes.append("The coastline could not be drawn over this map.")
-            geographic = False
-            plot = draw(**options)
+        plot = draw(**options)
+        # every coastline is drawn over the map in its own axes (coastline_overlay), never by geoviews, whose
+        # shared coastline, once one map has been drawn, refuses many of the maps after it
         if coast and on_mesh:
             line, coast_notes = mesh_coastline(mesh, x, y)
-            if line is not None:
-                plot = (plot * line).opts(responsive=True)
-            notes += coast_notes
-        elif coast and drawn is not None:
-            half_x = abs(float(data[x][1] - data[x][0])) / 2
-            half_y = abs(float(data[y][1] - data[y][0])) / 2
-            edges_x = [float(data[x].min()) - half_x, float(data[x].max()) + half_x]
-            edges_y = [float(data[y].min()) - half_y, float(data[y].max()) + half_y]
-            valued = np.isfinite(data.values)
-            lon_cells, lat_cells = np.meshgrid(data[x].values, data[y].values)
-            scale = coastline_scale(lon_cells, lat_cells, np.where(valued, 1.0, np.nan)) if valued.any() else "110m"
-            line, coast_notes = coastline_overlay(edges_x, edges_y, x, y, scale, pad=False)
-            if line is not None:
-                plot = (plot * line).opts(responsive=True)
-            notes += coast_notes
+        elif coast and lon is not None:
+            line, coast_notes = _grid_coastline(data, x, y, kind)
+        else:
+            line, coast_notes = None, []
+        if line is not None:
+            plot = (plot * line).opts(responsive=True)
+        notes += coast_notes
     axes = None if lon is None else "metres" if cartesian else "lonlat"
     return _render(plot, axes), notes, [float(low), float(high)]

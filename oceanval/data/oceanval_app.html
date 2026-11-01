@@ -3556,15 +3556,12 @@
     $("vw-vmin").value = pick.vmin;
     $("vw-vmax").value = pick.vmax;
     $("vw-log").checked = pick.log;
-    // an FVCOM mesh's coastline is drawn with cartopy alone, without geoviews
-    const onMesh = Boolean(now.mesh);
-    const canCoast = onMesh ? state.viewer.coast_mesh : state.viewer.coast;
+    // every coastline (a grid's, a mesh's) is drawn with cartopy alone
+    const canCoast = state.viewer.coast;
     $("vw-coast").checked = pick.coast && canCoast;
     $("vw-coast").disabled = !canCoast;
     $("vw-coast-label").classList.toggle("is-off", $("vw-coast").disabled);
-    $("vw-coast-label").title = canCoast ? ""
-      : onMesh ? "Coastlines need cartopy (conda install -c conda-forge cartopy)"
-        : "Coastlines need cartopy and geoviews (conda install -c conda-forge geoviews-core)";
+    $("vw-coast-label").title = canCoast ? "" : "Coastlines need cartopy (conda install -c conda-forge cartopy)";
   }
 
   // the time: the slider and the arrows

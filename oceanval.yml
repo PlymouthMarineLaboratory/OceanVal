@@ -5,7 +5,7 @@ dependencies:
   - cartopy
   - h5py
   - cftime
-  # View simulation output: the maps (bokeh, holoviews, hvplot) and their coastlines (geoviews)
+  # View simulation output: the maps (bokeh, holoviews, hvplot, geoviews)
   - bokeh>=3.1
   - holoviews
   - hvplot

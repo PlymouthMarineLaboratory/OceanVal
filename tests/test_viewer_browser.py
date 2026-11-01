@@ -571,7 +571,7 @@ def test_fvcom_output(page, tmp_path, monkeypatch):
     from viewer_simulations import fvcom_simulation
 
     tab, app = page
-    # without geoviews, a mesh's coastline can still be drawn, with cartopy alone
+    # without geoviews, coastlines can still be drawn, with cartopy alone
     monkeypatch.setattr(viewer_app, "_installed", lambda *names: "geoviews" not in names)
     tab.reload()
     root = fvcom_simulation(str(tmp_path / "fvcom"))

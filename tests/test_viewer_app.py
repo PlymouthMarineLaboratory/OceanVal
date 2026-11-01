@@ -346,7 +346,7 @@ def test_the_page_says_how_to_open_it(app):
     """The state the page starts with, inlined, has the viewer's part."""
     body = urllib.request.urlopen(app.url).read().decode()
     assert '"viewer":' in body and "renderViewer" in body
-    assert json.loads(get(app, "/api/state")[1])["viewer"]["coast_mesh"] in (True, False)
+    assert json.loads(get(app, "/api/state")[1])["viewer"]["coast"] in (True, False)
 
 
 class TestOneFile:

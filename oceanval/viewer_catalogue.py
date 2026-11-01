@@ -66,10 +66,18 @@ def _bounds_names(ds):
     return names
 
 
+_LON_UNITS = ("degrees_east", "degree_east", "degrees_e", "degree_e", "degreee")
+_LAT_UNITS = ("degrees_north", "degree_north", "degrees_n", "degree_n", "degreen")
+
+
 def _lonlat(ds, name):
     """The names of the longitude and latitude of variable name, or Nones:
     its coordinates with a standard_name, units or name that says so (the
-    rules of ncplot's get_dims, without metpy)."""
+    rules of ncplot's get_dims, without metpy). A variable no coordinates
+    name (an unstructured mesh's, as SHYFEM, ADCIRC and SCHISM write them:
+    longitude and latitude variables on its nodes, which nothing points at)
+    takes any variable of the file on its dimensions whose standard_name or
+    units say it is a longitude or latitude."""
     variable = ds[name]
     candidates = list(variable.coords)
     for word in _attr(variable, "coordinates").split():
@@ -77,26 +85,43 @@ def _lonlat(ds, name):
             candidates.append(word)
     candidates += [dim for dim in variable.dims if dim in ds.variables and dim not in candidates]
 
-    def find(standard, units, words):
-        for key in candidates:
+    def find(keys, standard, units, words):
+        for key in keys:
             attrs = ds[key].attrs
             if str(attrs.get("standard_name", "")) == standard:
                 return key
-        for key in candidates:
+        for key in keys:
             if str(ds[key].attrs.get("units", "")).lower() in units:
                 return key
-        for key in candidates:
+        for key in keys:
             if any(key.lower().startswith(word) or key.lower().endswith(word) for word in words):
                 return key
         return None
 
-    lon = find("longitude", ("degrees_east", "degree_east", "degrees_e", "degreee"), ("lon", "nav_lon", "glamt"))
-    lat = find("latitude", ("degrees_north", "degree_north", "degrees_n", "degreen"), ("lat", "nav_lat", "gphit"))
+    lon = find(candidates, "longitude", _LON_UNITS, ("lon", "nav_lon", "glamt"))
+    lat = find(candidates, "latitude", _LAT_UNITS, ("lat", "nav_lat", "gphit"))
+    if lon is None or lat is None:
+        others = [
+            key for key in ds.variables
+            if key != name and ds[key].ndim and set(ds[key].dims) <= set(variable.dims)
+        ]
+        lon = lon or find(others, "longitude", _LON_UNITS, ())
+        lat = lat or find(others, "latitude", _LAT_UNITS, ())
     # coordinates that do not span the variable's own dimensions cannot place it
     for key in (lon, lat):
         if key is not None and not set(ds[key].dims) <= set(variable.dims):
             return None, None
     return lon, lat
+
+
+def _is_connectivity(ds, name):
+    """Whether variable name is a mesh's table of the nodes of each element
+    (UGRID's face_node_connectivity, FVCOM's nv, SHYFEM's element_index): a
+    table of indices, not a field to map."""
+    variable = ds[name]
+    if str(variable.attrs.get("cf_role", "")).endswith("_connectivity"):
+        return True
+    return variable.dtype.kind in "iu" and variable.ndim == 2 and min(variable.shape) in (3, 4)
 
 
 def describe_variables(ds, time_dim):
@@ -112,10 +137,19 @@ def describe_variables(ds, time_dim):
     found = {}
     # vertical dim -> which end is the surface, for levels with no depths (the variables on one dim share it)
     ends = {}
+    places = {
+        name: _lonlat(ds, name) for name, variable in ds.data_vars.items()
+        if name not in skip and name not in coords and variable.ndim
+    }
+    # the longitudes and latitudes of other variables (a mesh's, which are data variables) are not maps of their own
+    skip |= {key for pair in places.values() for key in pair if key is not None}
     for name, variable in ds.data_vars.items():
         if name in skip or name in coords or variable.ndim == 0:
             continue
         if name.endswith(("_bnds", "_bounds")):
+            continue
+        lon, lat = places[name]
+        if lon is None and _is_connectivity(ds, name):
             continue
         dims = list(variable.dims)
         time = time_dim if time_dim in dims else None
@@ -123,7 +157,6 @@ def describe_variables(ds, time_dim):
         vertical = next((dim for dim in rest if _is_vertical(ds, dim)), None)
         # the last two of the others are the horizontal ones; any before them are taken at their first index
         horizontal = [dim for dim in rest if dim != vertical][-2:]
-        lon, lat = _lonlat(ds, name)
         # an unstructured grid (ICON's, FESOM's): the cells along one dimension, each with its longitude and latitude
         cells = None
         if len(horizontal) == 1 and lon is not None and ds[lon].dims == ds[lat].dims == (horizontal[0],):

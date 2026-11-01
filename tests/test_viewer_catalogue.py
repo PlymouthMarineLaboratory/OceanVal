@@ -453,3 +453,24 @@ def test_stopping_the_times_kills_the_process_reading_them(simulation, monkeypat
     finally:
         quick.close()
         thread.join(30)
+
+
+def test_a_mesh_whose_coordinates_nothing_names(tmp_path):
+    """Nodes with longitudes and latitudes that no coordinates attribute names
+    (SCHISM's x and y in degree_E/degree_N, SHYFEM's) are drawn as cells; the
+    mesh's table of the nodes of each element, and the longitudes and latitudes
+    themselves, are not offered as maps."""
+    import xarray as xr
+
+    rng = np.random.default_rng(2)
+    ds = xr.Dataset({
+        "x": ("node", rng.uniform(-75, -70, 200), {"units": "degree_E"}),
+        "y": ("node", rng.uniform(35, 40, 200), {"units": "degree_N"}),
+        "zeta_max": ("node", rng.random(200), {"units": "m"}),
+        "element": (("nele", "nvertex"), rng.integers(1, 200, (300, 3)).astype("int32"), {"cf_role": "face_node_connectivity"}),
+        "element_index": (("nele", "nvertex"), rng.integers(1, 200, (300, 3)).astype("int32")),
+    })
+    found = catalogue.describe_variables(ds, None)
+    assert sorted(name for name, about in found.items() if catalogue.mappable(about)) == ["zeta_max"]
+    assert (found["zeta_max"]["lon"], found["zeta_max"]["lat"], found["zeta_max"]["cells"]) == ("x", "y", "node")
+    assert "x" not in found and "y" not in found
