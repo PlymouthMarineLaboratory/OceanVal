@@ -957,7 +957,7 @@ const OceanValGUI = (() => {
   syncRequired();
 
   return {
-    ICONS, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variableBox, searchMatcher,
+    ICONS, COG, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variableBox, searchMatcher,
     withChoices, choicesOpen, closeChoices, syncRequired,
   };
 })();

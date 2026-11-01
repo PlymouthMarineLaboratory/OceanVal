@@ -2043,6 +2043,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 # the version is setup.py's: the installed package's metadata, never typed in here
                 "oceanval_version": oceanval.__version__,
                 "datasets": BUILTIN_DATASETS,
+                # the first time Validate is opened, a note on the data store (user_cache "seen")
+                "validate_intro": not user_cache.has_seen("validate"),
                 "user_settings": {
                     "values": dict(self.settings),
                     "path": user_settings.path(),
@@ -3559,6 +3561,13 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             # a recipe it was saved as stays saved
             del self.own_data[kind][index]
             self._forget_own_boxes()
+            self._notify()
+            return True
+
+    def validate_intro_seen(self):
+        """Note that the first-time message of Validate has been dealt with."""
+        with self._lock:
+            user_cache.record_seen("validate")
             self._notify()
             return True
 
@@ -5938,6 +5947,7 @@ class _Handler(recipes_gui._Handler):
             "/api/own_remove": lambda: app.remove_own_data(
                 payload.get("kind"), payload.get("index")
             ),
+            "/api/validate_intro_seen": lambda: app.validate_intro_seen(),
             "/api/forget_sim_dir": lambda: app.forget_sim_dir(payload.get("path")),
             "/api/demo_detail": lambda: app.demo_detail(payload.get("concise")),
             "/api/demo_continue": app.demo_continue,

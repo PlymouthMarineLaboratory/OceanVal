@@ -331,6 +331,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (dialog && !dialog.hidden && !window.__keepFolderStructure) {
       document.getElementById("folder-structure-continue").click();
     }
+    const intro = document.getElementById("validate-intro");
+    if (intro && !intro.hidden && !window.__keepValidateIntro) {
+      document.getElementById("validate-intro-continue").click();
+    }
   }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
 });
 """

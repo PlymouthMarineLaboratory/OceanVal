@@ -3,7 +3,8 @@
 For now that is the simulation directories you have matched up, which the
 oceanval window offers again when you set up a run, and the years the output
 of the simulations set up covers (see oceanval.output_years), which are read
-again only when their files change.
+again only when their files change, and which first-time messages the window
+has shown (``seen``, e.g. the note on the data store when Validate is first opened).
 
 The file is in your home directory (or is the file the ``OCEANVALCACHE``
 environment variable names, if it is set). OceanVal never ships it and does not
@@ -207,6 +208,51 @@ def record_output_years(key, stamp, found):
         kept[_key(key)] = {"stamp": list(stamp), "found": found}
         # the latest last, and only so many
         data["output_years"] = dict(list(kept.items())[-MAX_OUTPUT_YEARS:])
+        _write(where, data)
+        return True
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False
+
+
+def has_seen(name):
+    """Whether record_seen noted name before. A file that cannot be read counts
+    as seen, as a note could not be kept in it and the user would be told
+    every time."""
+    try:
+        where = path()
+        if not os.path.exists(where):
+            return False
+        data, problem = _load(where)
+        if problem:
+            return True
+        seen = data.get("seen")
+        return isinstance(seen, dict) and name in seen
+    except Exception:
+        return True
+
+
+def record_seen(name):
+    """Note that the user has been shown or has done name (e.g. "validate").
+    Returns whether it was written."""
+    try:
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was added to it: {problem}")
+            return False
+        seen = data.get("seen", {})
+        if not isinstance(seen, dict):
+            return False
+        if name in seen:
+            return True
+        seen[name] = datetime.datetime.now().isoformat(timespec="seconds")
+        data["seen"] = seen
         _write(where, data)
         return True
     except Exception as error:

@@ -2,8 +2,11 @@
 box has autocomplete="off", in the markup and when the pages make it later.
 The simulation directories are remembered by OceanVal itself (.oceanvalcache)."""
 
+import json
 import pathlib
 import re
+
+import os
 
 from oceanval.app import App
 from oceanval.recipes_gui import RecipePage, recipe_rows
@@ -55,6 +58,8 @@ def test_every_box_in_the_markup_says_off():
                 continue
             assert 'autocomplete="off"' in tag, (name, tag)
 
+SHOT = os.environ.get("VALIDATE_INTRO_SHOT")
+
 
 def test_the_app_window_remembers_nothing(browser, tmp_path):
     app = App(cwd=str(tmp_path))
@@ -88,3 +93,40 @@ def test_the_recipes_window_remembers_nothing(browser):
         assert page.evaluate(MADE_LATER) == "off"
     finally:
         recipe_page.close()
+
+
+def test_the_first_time_validate_is_opened_the_data_store_is_mentioned(browser, tmp_path, oceanvalcache):
+    app = App(cwd=str(tmp_path))
+    app.leftovers_asked = True
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.add_init_script("window.__keepValidateIntro = true")
+        page.goto(url)
+        page.click("#home-validate")
+        page.wait_for_selector("#validate-intro:not([hidden])")
+        text = page.inner_text("#validate-intro-text")
+        assert "downloads observational data" in text and "Preferences" in text
+        assert page.query_selector("#validate-intro-text svg") is not None
+        # the gear is in the line of the text, not a column of its own
+        assert page.evaluate("document.getElementById('validate-intro-text').children.length") == 1
+        gear = page.locator("#validate-intro-text svg").bounding_box()
+        paragraph = page.locator("#validate-intro-text").bounding_box()
+        assert gear["width"] < 20 and gear["x"] + gear["width"] < paragraph["x"] + paragraph["width"]
+        page.screenshot(path=SHOT) if SHOT else None
+        page.click("#validate-intro-continue")
+        page.wait_for_selector("#validate-intro", state="hidden")
+        for _ in range(50):
+            if "validate" in oceanvalcache.read_text() if oceanvalcache.exists() else False:
+                break
+            page.wait_for_timeout(100)
+        assert json.loads(oceanvalcache.read_text())["seen"].keys() == {"validate"}
+        # a page opened later is not told again
+        page2 = browser.new_page()
+        page2.add_init_script("window.__keepValidateIntro = true")
+        page2.goto(url)
+        page2.wait_for_selector("#view-start:not([hidden])")
+        page2.wait_for_timeout(600)
+        assert page2.is_hidden("#validate-intro")
+    finally:
+        app.close()

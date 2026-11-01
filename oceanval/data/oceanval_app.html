@@ -696,6 +696,8 @@
   .picker__info code { overflow-wrap: anywhere; }
   #files-intro { margin-bottom: 10px; }
   .picker__card--narrow { max-width: 540px; }
+  #validate-intro-text .settings-open__icon { display: inline-block; width: 1em; height: 1em; vertical-align: -0.15em; }
+  #validate-intro-text svg { width: 100%; height: 100%; }
   /* above any other pop-out, and not closed by the backdrop or Escape */
   .picker--blocking { z-index: 60; }
   #cdo-failed-list { max-height: 160px; overflow: auto; }
@@ -2624,6 +2626,17 @@
 
 <!-- CDO crashed on the simulation's files: nothing can be done with them, so there is no way on from here but starting again -->
 <!-- the directories down OceanVal filled in from the folders' layout (tellFolderStructure) -->
+<div class="picker" id="validate-intro" hidden>
+  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="validate-intro-title" aria-describedby="validate-intro-text">
+    <div class="picker__head">
+      <h2 id="validate-intro-title">Observational data</h2>
+    </div>
+    <p class="picker__info" id="validate-intro-text"></p>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--primary" id="validate-intro-continue">Close</button>
+    </div>
+  </div>
+</div>
 <div class="picker" id="folder-structure" hidden>
   <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="folder-structure-title" aria-describedby="folder-structure-text">
     <div class="picker__head">
@@ -2789,6 +2802,39 @@
   $("folder-structure").addEventListener("click", (event) => { if (event.target === $("folder-structure")) closeFolderStructure(); });
   $("folder-structure").addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); closeFolderStructure(); }
+  });
+
+  // the first time Validate is opened: OceanVal downloads observations, and Preferences can keep them
+  const validateIntro = { open: false, waiting: false, done: false };
+  function showValidateIntro() {
+    const vi = validateIntro;
+    if (vi.open || vi.done || !state.validate_intro) return;
+    if (state.user_settings.values.data_store) { closeValidateIntro(); return; }
+    const dialog = $("validate-intro");
+    if ([...document.querySelectorAll(".picker")].some((other) => other !== dialog && !other.hidden)) {
+      if (!vi.waiting) { vi.waiting = true; setTimeout(() => { vi.waiting = false; showValidateIntro(); }, 300); }
+      return;
+    }
+    vi.open = true;
+    const gear = el("span", { class: "settings-open__icon", "aria-label": "Preferences", html: OceanValGUI.COG });
+    // one element, as .picker__info is a flex row and would put each piece of text in a column of its own
+    $("validate-intro-text").replaceChildren(el("span", {},
+      "OceanVal downloads observational data when it validates your simulation. If you want that data saved for future use, "
+      + "click the Preferences\u00a0", gear, " button and set the data store folder."));
+    dialog.hidden = false;
+    $("validate-intro-continue").focus();
+  }
+  function closeValidateIntro() {
+    const vi = validateIntro;
+    vi.open = false;
+    vi.done = true;
+    $("validate-intro").hidden = true;
+    post("api/validate_intro_seen");
+  }
+  $("validate-intro-continue").addEventListener("click", closeValidateIntro);
+  $("validate-intro").addEventListener("click", (event) => { if (event.target === $("validate-intro")) closeValidateIntro(); });
+  $("validate-intro").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); closeValidateIntro(); }
   });
 
   // ---- talking to oceanval ----
@@ -4075,6 +4121,7 @@
       $("home-viewer").focus();
     } else if (view === "start") {
       document.querySelector("#view-start .choice").focus();
+      showValidateIntro();
     } else if (view === "analyze_variables") {
       // built afresh from what the server kept, once the simulation is read
       analyzeVariables.built = false;

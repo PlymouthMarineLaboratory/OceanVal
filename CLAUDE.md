@@ -263,6 +263,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   setup page lists them (`state()["setup"]["recent"]`, those that still exist) in a list opened by an arrow inside the `#f-simdir` box (Validate and Analyze share it; Compare simulations' `#sc-dir_N` boxes have `makeRecent`).
   Each entry has an x (`recentEntry`/`forgetRecent` in `oceanval_app.html`, empty button with the × drawn by CSS so an entry's text stays its path)
   that posts `/api/forget_sim_dir` → `App.forget_sim_dir` → `user_cache.forget_sim_dir`; Delete does the same for the marked entry.
+- `user_cache.has_seen(name)`/`record_seen(name)` keep a `"seen"` map of first-time messages. The first time Validate is opened (`state.validate_intro`,
+  `#validate-intro`, a pop-out with a Close button, `POST /api/validate_intro_seen`) the window says OceanVal downloads observational data and that the
+  Preferences gear (the same `OceanValGUI.COG` icon) sets the data store folder to keep it; it is recorded on closing, and not shown if a data store is set.
+  An unreadable cache counts as seen. The tests' `browser` fixture closes it unless `window.__keepValidateIntro`.
 - The package never ships or creates the file ahead of use, and writes are read-merge-write: other
   keys and entries survive, and an unreadable or newer-version file is left untouched. It must
   never raise, as a cache must not stop a run.

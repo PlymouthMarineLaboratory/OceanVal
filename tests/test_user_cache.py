@@ -146,3 +146,33 @@ def test_a_place_that_cannot_be_written_does_not_raise_when_forgetting(oceanvalc
 
     monkeypatch.setattr(user_cache, "_write", refuse)
     assert not user_cache.forget_sim_dir("/x")
+
+
+def test_nothing_is_seen_before_it_is_recorded(oceanvalcache):
+    assert not user_cache.has_seen("validate")
+    assert not oceanvalcache.exists()
+
+
+def test_what_was_seen_is_kept_with_the_rest(oceanvalcache, tmp_path):
+    user_cache.record_sim_dir(str(tmp_path / "a"))
+    assert user_cache.record_seen("validate")
+    assert user_cache.has_seen("validate")
+    assert not user_cache.has_seen("other")
+    data = json.loads(oceanvalcache.read_text())
+    assert "validate" in data["seen"]
+    assert data["sim_dirs"][0]["path"] == str(tmp_path / "a")
+    assert [p.name for p in oceanvalcache.parent.iterdir() if p.name.endswith(".tmp")] == []
+
+
+def test_an_unreadable_file_counts_as_seen_and_is_left_alone(oceanvalcache):
+    oceanvalcache.write_text("not json")
+    assert user_cache.has_seen("validate")
+    assert not user_cache.record_seen("validate")
+    assert oceanvalcache.read_text() == "not json"
+
+
+def test_a_newer_file_is_left_alone_by_seen(oceanvalcache):
+    text = json.dumps({"version": 99, "sim_dirs": []})
+    oceanvalcache.write_text(text)
+    assert not user_cache.record_seen("validate")
+    assert oceanvalcache.read_text() == text
