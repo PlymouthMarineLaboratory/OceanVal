@@ -124,6 +124,10 @@ def describe_variables(ds, time_dim):
         # the last two of the others are the horizontal ones; any before them are taken at their first index
         horizontal = [dim for dim in rest if dim != vertical][-2:]
         lon, lat = _lonlat(ds, name)
+        # an unstructured grid (ICON's, FESOM's): the cells along one dimension, each with its longitude and latitude
+        cells = None
+        if len(horizontal) == 1 and lon is not None and ds[lon].dims == ds[lat].dims == (horizontal[0],):
+            cells = horizontal[0]
         levels = int(variable.sizes[vertical]) if vertical else 1
         labels, surface = None, 0
         if vertical and levels > 1 and not _has_depths(ds, vertical):
@@ -147,6 +151,7 @@ def describe_variables(ds, time_dim):
             "horizontal": horizontal,
             "lon": lon,
             "lat": lat,
+            "cells": cells,
         }
     return found
 
@@ -785,5 +790,6 @@ def missing_mask(data, ranges):
 
 def mappable(about):
     """Whether a variable can be drawn as a map: it has two horizontal
-    dimensions, or is on an FVCOM mesh."""
-    return len(about["horizontal"]) >= 2 or bool(about.get("mesh"))
+    dimensions, is on an FVCOM mesh, or on an unstructured grid of cells
+    with longitudes and latitudes (see oceanval.viewer_grid)."""
+    return len(about["horizontal"]) >= 2 or bool(about.get("mesh")) or bool(about.get("cells"))

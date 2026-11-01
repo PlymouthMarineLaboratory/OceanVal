@@ -542,14 +542,16 @@ def _figure_ranges(tab, to=None):
 def test_play_keeps_the_zoom_and_the_scale(page, simulation):
     tab, app = page
     _open_chl(tab, app, simulation)
-    assert _figure_ranges(tab) == [-0.5, 9.5, -0.5, 11.5]
+    whole = _figure_ranges(tab)
     # zoom in, then play: every frame is zoomed the same
-    _figure_ranges(tab, [2, 6, 1, 5])
+    x0, x1, y0, y1 = whole
+    zoomed = [x0 + (x1 - x0) * 0.2, x0 + (x1 - x0) * 0.6, y0 + (y1 - y0) * 0.1, y0 + (y1 - y0) * 0.4]
+    _figure_ranges(tab, zoomed)
     _watch_play(tab)
     tab.click("#vw-play")
     tab.wait_for_function("() => window.__seen.length >= 3", timeout=30000)
     tab.click("#vw-play")
-    assert _figure_ranges(tab) == [2, 6, 1, 5]
+    assert _figure_ranges(tab) == pytest.approx(zoomed)
     # only the figure on show is kept, not one for every frame
     assert tab.evaluate("() => Object.values(Bokeh.index).filter((v) => v.model && v.model.type === 'Figure').length") == 1
     # the scale of the animation is kept after it, so the map does not change under the user,
@@ -562,7 +564,7 @@ def test_play_keeps_the_zoom_and_the_scale(page, simulation):
     tab.fill("#vw-search", "sossheig")
     tab.keyboard.press("Enter")
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert _figure_ranges(tab) == [-0.5, 9.5, -0.5, 11.5]
+    assert _figure_ranges(tab) == pytest.approx(whole)
 
 
 def test_fvcom_output(page, tmp_path, monkeypatch):

@@ -38,12 +38,28 @@ def found(simulation):
     return catalogue.scan(simulation, 2)
 
 
-def test_curvilinear_land_at_zero_is_drawn_by_index(found):
+def test_curvilinear_land_at_zero_is_drawn_on_longitudes_and_latitudes(found):
+    # the land cells piled up at 0, 0 are left out (oceanval.viewer_grid), the rest drawn where they are
     data, _ = found.field(0, "votemper", 0, 0)
     item, notes, clim = plotting.map_plot(data, found.about(0, "votemper"), "votemper")
     assert "Image" in _kinds(item)
-    assert any("indices" in note for note in notes)
+    assert not any("indices" in note for note in notes)
+    assert any("regular" in note for note in notes)
+    assert item["aspect"] is not None
     assert clim[0] < clim[1]
+
+
+def test_cells_the_coordinates_cannot_place_are_drawn_by_index():
+    # every cell with a value at 0, 0: nothing can be placed
+    data = xr.DataArray(
+        np.random.default_rng(0).random((8, 6)), dims=("y", "x"),
+        coords={"lon": (("y", "x"), np.zeros((8, 6))), "lat": (("y", "x"), np.zeros((8, 6)))},
+    )
+    about = {"horizontal": ["y", "x"], "lon": "lon", "lat": "lat", "units": "K", "long_name": "t"}
+    item, notes, clim = plotting.map_plot(data, about, "t")
+    assert "Image" in _kinds(item)
+    assert any("indices" in note for note in notes)
+    assert item["aspect"] is None
 
 
 def test_curvilinear_grid_is_a_quadmesh():
@@ -98,9 +114,14 @@ def test_the_frame_keeps_distances_on_one_scale(coast):
     assert item["aspect"] == pytest.approx(yspan / (xspan * np.cos(np.radians(55))), rel=1e-6)
 
 
-def test_a_map_of_indices_fills_its_box(found):
-    data, _ = found.field(0, "votemper", 0, 0)
-    item, _, _ = plotting.map_plot(data, found.about(0, "votemper"), "votemper")
+def test_a_map_of_indices_fills_its_box():
+    # longitudes and latitudes that place no cell: the map is of the grid's indices
+    data = xr.DataArray(
+        np.ones((5, 4)), dims=("y", "x"),
+        coords={"lon": (("y", "x"), np.full((5, 4), np.nan)), "lat": (("y", "x"), np.full((5, 4), np.nan))},
+    )
+    about = {"horizontal": ["y", "x"], "lon": "lon", "lat": "lat", "units": "K", "long_name": "t"}
+    item, _, _ = plotting.map_plot(data, about, "t")
     assert item["aspect"] is None
 
 

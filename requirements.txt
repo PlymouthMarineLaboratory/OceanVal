@@ -28,3 +28,5 @@ bokeh>=3.1
 holoviews
 hvplot
 geoviews
+# the viewer's unstructured and global curvilinear grids (oceanval/viewer_grid.py)
+scipy

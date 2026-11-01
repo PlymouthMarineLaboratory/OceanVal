@@ -7,7 +7,10 @@ grid's own indices when its longitudes/latitudes cannot place the cells
 (ncplot's change_coords: model grids whose land cells all have 0 or a fill
 value), a colour scale symmetric about 0 in RdBu_r when the values span 0
 (ncplot's _get_color_limits), and coastlines at a resolution set by the
-extent (get_coastline), by geoviews.
+extent (get_coastline), by geoviews. An unstructured grid, and a curvilinear
+one a quadmesh would pull out of shape (a global ocean grid's seam and north
+fold, cells piled up in one place), is drawn on a regular longitude-latitude
+grid instead (oceanval.viewer_grid), so it has its coastlines too.
 
 holoviews, hvplot and bokeh take seconds to import, so they are imported
 when the first map is drawn, not with this module, which the window imports.
@@ -18,6 +21,8 @@ import warnings
 import numpy as np
 import pandas as pd
 import xarray as xr
+
+from oceanval import viewer_grid
 
 # a quadmesh of more cells than this is thinned out to it, as a browser draws each cell
 MAX_QUADS = 250_000
@@ -76,31 +81,54 @@ def natural_earth_coastline(x_range, y_range, scale):
     return _coastlines[key]
 
 
-def mesh_coastline(mesh, x, y):
-    """The Natural Earth coastline over a map of an FVCOM mesh, whose axes
-    are x and y (longitude and latitude). Drawn in the map's own axes, not
-    by geoviews, which would have to reproject the map's image (and needs
-    scipy to). Returns (overlay or None, notes)."""
-    if mesh.cartesian:
-        return None, ["The mesh is in metres, not longitude and latitude, so there is no coastline."]
+def coastline_overlay(lon, lat, x, y, scale=None, pad=True):
+    """The Natural Earth coastline over a map whose axes x and y are
+    longitude and latitude, about the longitudes lon and latitudes lat (of
+    any shape) it shows: drawn in the map's own axes, not by geoviews, which
+    would have to reproject the map's image. Longitudes past 180 (a map
+    across the dateline) have the coastline there too. Returns (overlay or
+    None, notes)."""
     if not has_cartopy():
         return None, ["Coastlines need cartopy installed."]
-    # a margin, so the coastline goes on a little past the mesh as the map is panned
-    x0, x1 = float(np.nanmin(mesh.x)), float(np.nanmax(mesh.x))
-    y0, y1 = float(np.nanmin(mesh.y)), float(np.nanmax(mesh.y))
-    pad_x, pad_y = max((x1 - x0) * 0.25, 0.05), max((y1 - y0) * 0.25, 0.05)
+    lon, lat = np.asarray(lon, dtype="float64"), np.asarray(lat, dtype="float64")
+    # a margin (unless pad is False: the map's own edges), so the coastline goes on a little past the map as it is panned
+    x0, x1 = float(np.nanmin(lon)), float(np.nanmax(lon))
+    y0, y1 = float(np.nanmin(lat)), float(np.nanmax(lat))
+    pad_x, pad_y = (max((x1 - x0) * 0.25, 0.05), max((y1 - y0) * 0.25, 0.05)) if pad else (0.0, 0.0)
+    x0, x1, y0, y1 = x0 - pad_x, x1 + pad_x, max(y0 - pad_y, -90), min(y1 + pad_y, 90)
+    scale = scale or coastline_scale(lon, lat)
+    # the longitudes of Natural Earth's (-180 to 180) that the map shows, and how far each part is moved
+    parts = [(max(x0, -180), min(x1, 180), 0)]
+    if x1 > 180:
+        parts.append((max(x0 - 360, -180), min(x1 - 360, 180), 360))
+    if x0 < -180:
+        parts.append((max(x0 + 360, -180), min(x1 + 360, 180), -360))
+    xs, ys = [], []
     try:
-        coast_x, coast_y = natural_earth_coastline(
-            (max(x0 - pad_x, -180), min(x1 + pad_x, 180)), (max(y0 - pad_y, -90), min(y1 + pad_y, 90)),
-            coastline_scale(mesh.x, mesh.y),
-        )
+        for low, high, shift in parts:
+            if high <= low:
+                continue
+            coast_x, coast_y = natural_earth_coastline((low, high), (y0, y1), scale)
+            if len(coast_x):
+                xs += [coast_x + shift, [np.nan]]
+                ys += [coast_y, [np.nan]]
     except Exception as error:  # noqa: BLE001 - told to the user
         return None, [f"{COAST_FAILED} (cartopy downloads it the first time): {error}"]
-    if not len(coast_x):
+    if not xs:
         return None, []
     import holoviews as hv
 
-    return hv.Path((coast_x, coast_y), kdims=[x, y]).opts(color="#111827", line_width=1.2), []
+    line = (np.concatenate(xs)[:-1], np.concatenate(ys)[:-1])
+    return hv.Path(line, kdims=[x, y]).opts(color="#111827", line_width=1.2), []
+
+
+def mesh_coastline(mesh, x, y):
+    """The Natural Earth coastline over a map of an FVCOM mesh, whose axes
+    are x and y (longitude and latitude) (coastline_overlay). Returns
+    (overlay or None, notes)."""
+    if mesh.cartesian:
+        return None, ["The mesh is in metres, not longitude and latitude, so there is no coastline."]
+    return coastline_overlay(mesh.x, mesh.y, x, y, coastline_scale(mesh.x, mesh.y))
 
 
 def frame_aspect(x_range, y_range, axes):
@@ -247,6 +275,51 @@ def mesh_image(data, about, mesh):
     return drawn, about, note
 
 
+def needs_raster(lons, lats, values):
+    """Whether a grid at lons, lats is drawn on a regular grid (see
+    oceanval.viewer_grid) rather than as a quadmesh: an unstructured grid
+    (1-D, cells along one dimension), or a curvilinear one with a seam,
+    cells in the same places, or cells with values and no longitude or latitude."""
+    if lons.ndim == 1 and lats.ndim == 1:
+        return lons.shape == lats.shape == values.shape and values.ndim == 1
+    if lons.ndim != 2 or lons.shape != lats.shape:
+        return False
+    if viewer_grid.has_seam(lons) or _repeated_coordinates(lons, lats):
+        return True
+    unplaced = ~np.isfinite(lons) | ~np.isfinite(lats)
+    return bool(unplaced.any())
+
+
+def cells_image(data, lon, lat):
+    """data (a slice with coordinates lon and lat) drawn on a regular
+    longitude-latitude grid, as (DataArray on lat, lon, note), when it needs
+    it (needs_raster) and its cells can be placed; else None."""
+    lons, lats = np.asarray(data[lon].values), np.asarray(data[lat].values)
+    if lons.ndim == 2 and data[lat].dims != data.dims:
+        data = data.transpose(*data[lat].dims)
+    values = np.asarray(data.values)
+    if not needs_raster(lons, lats, values) or (lons.shape != values.shape):
+        return None
+    try:
+        raster = viewer_grid.raster_for(lons, lats)
+    except ValueError:
+        return None
+    # a grid whose coordinates leave out many of its cells with values is drawn by its indices
+    if raster.placed_share(values) < 0.9:
+        return None
+    image = xr.DataArray(
+        raster.image(values), dims=("lat", "lon"),
+        coords={"lat": raster.y_axis, "lon": raster.x_axis}, name=data.name,
+    )
+    shape = " by ".join(f"{size:,}" for size in lons.shape)
+    kind = "unstructured grid" if lons.ndim == 1 else "grid"
+    note = (
+        f"The {kind}'s {shape} cells are drawn on a regular {raster.step:.3g}° longitude-latitude grid, "
+        "each point taking the value of the cell it is in."
+    )
+    return image, note
+
+
 def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coast=False, mesh=None):
     """The map of a 2-D slice (see viewer_catalogue.Catalogue.field), as (json_item, with
     its frame's "aspect" (see _render), notes, the colour scale's limits). A slice of a variable on an FVCOM mesh is
@@ -262,7 +335,14 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
     lon, lat = about.get("lon"), about.get("lat")
     if lon not in data.coords or lat not in data.coords:
         lon = lat = None
-    y_dim, x_dim = about["horizontal"][-2:]
+    drawn = cells_image(data, lon, lat) if lon is not None else None
+    if drawn is not None:
+        data, note = drawn
+        notes.append(note)
+        lon, lat = "lon", "lat"
+    elif about.get("cells"):
+        raise ValueError("The grid's longitudes and latitudes cannot place its cells, so it cannot be drawn.")
+    y_dim, x_dim = about["horizontal"][-2:] if drawn is None else ("lat", "lon")
     kind = "image"
     if lon is not None:
         lons, lats = np.asarray(data[lon].values), np.asarray(data[lat].values)
@@ -306,10 +386,12 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
         tools=["hover"], responsive=True, colorbar=True, clabel=about.get("units") or None,
     )
     cartesian = about.get("cartesian", False)
-    # a mesh's coastline is drawn over its image in its own axes (mesh_coastline), not by geoviews
+    # a mesh's coastline, and that of a grid drawn on a regular one (cells_image), is drawn over its image in its
+    # own axes (coastline_overlay), not by geoviews (whose coastline, once a map past 180° has been drawn, refuses
+    # every map after it)
     on_mesh = bool(about.get("mesh"))
-    geographic = coast and lon is not None and not on_mesh and has_geoviews()
-    if coast and lon is not None and not on_mesh and not geographic:
+    geographic = coast and lon is not None and not on_mesh and drawn is None and has_geoviews()
+    if coast and lon is not None and not on_mesh and drawn is None and not geographic:
         notes.append("Coastlines need cartopy and geoviews installed.")
     if geographic:
         # the extent of the cells with values: a grid can have cells far from the domain (NEMO's at -1, -1)
@@ -344,6 +426,18 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
             plot = draw(**options)
         if coast and on_mesh:
             line, coast_notes = mesh_coastline(mesh, x, y)
+            if line is not None:
+                plot = (plot * line).opts(responsive=True)
+            notes += coast_notes
+        elif coast and drawn is not None:
+            half_x = abs(float(data[x][1] - data[x][0])) / 2
+            half_y = abs(float(data[y][1] - data[y][0])) / 2
+            edges_x = [float(data[x].min()) - half_x, float(data[x].max()) + half_x]
+            edges_y = [float(data[y].min()) - half_y, float(data[y].max()) + half_y]
+            valued = np.isfinite(data.values)
+            lon_cells, lat_cells = np.meshgrid(data[x].values, data[y].values)
+            scale = coastline_scale(lon_cells, lat_cells, np.where(valued, 1.0, np.nan)) if valued.any() else "110m"
+            line, coast_notes = coastline_overlay(edges_x, edges_y, x, y, scale, pad=False)
             if line is not None:
                 plot = (plot * line).opts(responsive=True)
             notes += coast_notes

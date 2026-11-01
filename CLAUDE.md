@@ -631,6 +631,18 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   the laid-out figure; `invalidate_layout`, as a new frame size alone is not laid out), again on resize
   (`ResizeObserver`); box zoom has `match_aspect`. The page's JS block "View simulation output" uses `vw-` ids/classes throughout. A thread setting
   `view` checks `_viewer_number` (bumped by `_viewer_drop`: Back, Restart, quit, a new Continue).
+- **Grids a quadmesh cannot draw** (`oceanval/viewer_grid.py`, `viewer_plots.cells_image`/`needs_raster`): an unstructured grid (one horizontal
+  dim with 1-D lon/lat on it, `about["cells"]`, which `mappable` accepts: ICON, FESOM) and a curvilinear one with a seam (|Δlon| > 180),
+  cells in one place (a north fold) or cells without coordinates are drawn as an image on a regular lon-lat grid: each pixel takes the
+  nearest cell (scipy cKDTree on the sphere) within its radius (the farthest row/column neighbour; an unstructured cell's 4th nearest),
+  cells piled more than twice at one place (fill coordinates: NEMO's land processors, CESM's at -1, -1) left out, the two of a fold sharing
+  the larger radius. Global maps are -180..180 (geoviews refuses a global 0..360 image). Its coastline is `coastline_overlay` (an `hv.Path`
+  in the map's axes, as FVCOM's), never hvplot's `coastline=`: once a map past 180° is drawn, geoviews' shared coastline refuses every
+  later one. `raster_for` keeps the last `KEPT` rasters. Its tests are not in git (the user's rule, 2026-11-01: they would
+  bloat the repo): the gitignored `test_cmip6/` (`python -m pytest test_cmip6` from the repo root, never in CI) tests every one of
+  the 33 grids of the CMIP6 models by a small piece of it (`test_cmip6/grids/`, `grids.json` lists each grid's models, made by
+  `test_cmip6/make_grid_files.py`) and every model whole from the gitignored `cmip6/{model}/` (the smallest
+  `tos_Omon_*_gn_*` file of each non lat-lon model from ESGF, `cmip6/inventory.csv`).
 - **Levels with no depths** (a vertical dim with no 1-D variable, as GETM's `z`/`zi`, written bottom first) are named
   "0 (bottom)" … "29 (surface)" when `viewer_catalogue._ends` can tell: from a vertical coordinate of the variable
   (`coordinates`/coords spanning the dim, `positive`/`standard_name`; GETM's `zct_av`, with -1e20 on land) or else from
