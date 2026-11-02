@@ -363,11 +363,11 @@ def test_the_report(sim, regions, tmp_path):
     page = open(os.path.join(pages, "001_temperature.html")).read()
     assert "Long-term time series" in page and "Seasonal cycles" in page
     assert "Water column: vertical mean" in page
-    assert "Near" in page and "Model cell" in page
-    # figures and tables are numbered from 1 on the page
-    assert "Figure 6" in page and "Table 3" in page and "Figure 7" not in page
+    assert "Near" in page
+    # figures are numbered from 1 on the page
+    assert "Figure 7" in page and "Figure 8" not in page
     overview = open(landing).read()
-    assert "Long-term series" in overview and "Regions." in overview and "Stations." in overview
+    assert "Long-term time series" in overview and "Regions." in overview and "Stations." in overview
     assert "Traceback" not in page + overview
 
 
@@ -551,8 +551,7 @@ class TestSpatialMeans:
         assert len(methods) == 3
         notes = no_report[0]["variables"][0]["long_term"]["notes"]
         assert len(notes) == 1
-        assert notes[0].startswith("The raw grid of the model did not have sufficient information to calculate grid cell areas")
-        assert "bilinear" in notes[0] and "nearest neighbour" in notes[0]
+        assert notes[0] == "The model's grid did not have cell areas, so its spatial means were calculated after regridding to a regular lon-lat grid."
         # the sst is the same everywhere, so any mean of it is that
         monthly = series(out, "sst_surface_seasonal.csv")
         assert monthly.value.tolist() == pytest.approx(list(10 + np.arange(1, 13)), abs=1e-3)
@@ -614,7 +613,7 @@ class TestSpatialMeans:
         )
         page = open(os.path.join(os.path.dirname(landing), "001_sst.html")).read()
         # in the time series' text (the climatology has no domain mean)
-        assert page.count("did not have sufficient information to calculate grid cell areas") == 1
+        assert page.count("did not have cell areas") == 1
         assert "Traceback" not in page
 
     @pytest.mark.parametrize(

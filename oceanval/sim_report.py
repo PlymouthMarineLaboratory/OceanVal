@@ -79,7 +79,7 @@ def dates_text(variable, kind):
                 said[sim] = " ".join(dates["issues"])
             summaries[sim] = dates["summary"]
     if not said:
-        return "No output is missing in these years from any simulation."
+        return ""
     return "Gaps in the output: " + " ".join(f"**{sim}**: {text}" for sim, text in said.items())
 
 
@@ -309,6 +309,6 @@ def methods(info):
         )
     if info.get("stations"):
         methods_.append(
-            "**Stations.** The series at a station are those of the cell of each model's grid, with values, that is nearest to it, by distance over the Earth's surface. The cells used are in the tables on each variable's page."
+            "**Stations.** The series at a station are those of the cell of each model's grid, with values, that is nearest to it, by distance over the Earth's surface. The cells used are shown in the figures on each variable's page."
         )
     return methods_

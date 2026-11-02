@@ -67,6 +67,12 @@ def _about(info):
     return f"the OceanVal comparison of {', '.join(names_of(info))} (oceanval {info['oceanval']})"
 
 
+def region_map(results_dir):
+    """A map of the subdomains the time series are taken over, or None."""
+    info = load(results_dir)
+    return ap.region_map(results_dir, info=info)
+
+
 def _own(variable, sim):
     """The entry of one simulation for the variable (as analyze() saves it)."""
     return variable["sims"][sim]
@@ -449,27 +455,80 @@ def seasonal_cycle_regions(results_dir, key, layer):
 
 def station_plot(results_dir, key, kind, layer):
     """The series at each station, by year (the long-term series) or the mean of each
-    month of the year (the seasonal series), a line for each simulation in a panel for each station, or None
-    if there are no stations. Drawn.found holds "names", the stations'."""
+    month of the year (the seasonal series), a line for each simulation in a panel for each
+    station, or None if there are no stations. Panel titles show coordinates.
+    Single station: found has "caption". Drawn.found holds "names", the stations'."""
     info = load(results_dir)
     variable = entry(info, key)
     sims, saved, files = _series_files(results_dir, info, variable, kind, layer)
-    panels = _series_names(files, ("station",))
-    if not panels:
+    station_names = _series_names(files, ("station",))
+    if not station_names:
         return None
-    prepare = "# the series in the model cell nearest each station\n" 'frame = frame[frame.kind == "station"]\n'
-    if kind == "long_term":
-        code = _series_code(
-            info, sims, files, prepare, "frame", "part.year.values", series_legend(_own(variable, sims[0]), saved[0]),
-            YEAR_TICKS, panels, hollow=True,
-        )
-    else:
-        code = _series_code(
-            info, sims, files, prepare + cycle_code(CYCLE_BY), "cycle", "part.month.values",
-            legend(variable["name"], saved[0]["units"]), CYCLE_AXIS, panels,
-        )
+    long_term = kind == "long_term"
+    table = "frame" if long_term else "cycle"
+    ylabel = series_legend(_own(variable, sims[0]), saved[0]) if long_term else legend(variable["name"], saved[0]["units"])
+    axis_lines = YEAR_TICKS if long_term else CYCLE_AXIS
+    imports = "import matplotlib.pyplot as plt\nimport pandas as pd\n"
+    if not long_term:
+        imports = "import calendar\n\n" + imports
+    prepare = '# the series in the model cell nearest each station\nframe = frame[frame.kind == "station"]\n'
+    if not long_term:
+        prepare += cycle_code(CYCLE_BY)
+    marks = [
+        f"        ax.plot(x, y, color=colour, label=sim_name, linewidth=1.6)",
+    ]
+    if long_term:
+        marks += [
+            "        hollow = ~part.complete.values.astype(bool) & (part.months.values > 0)",
+            "        if hollow.any():",
+            '            ax.plot(x[hollow], y[hollow], "o", markerfacecolor="white", markeredgecolor=colour, markersize=5, linestyle="none")',
+        ]
+    titles = []
+    for name in station_names:
+        given = info["stations"][name]
+        titles.append(f"{name} ({given['lon']:.2f}, {given['lat']:.2f})")
+    station_listing = _listing(
+        "stations",
+        [(title, name) for title, name in zip(titles, station_names)],
+        "each station's panel title and its name in the data",
+    )
+    columns = min(SERIES_COLUMNS, len(station_names))
+    nrow = int(np.ceil(len(station_names) / columns))
+    size = (8, 4.4) if len(station_names) == 1 else (4.8 * columns, 3.0 * nrow + 0.7)
+    code = _code(
+        imports,
+        _simulations_listing(info, sims, files),
+        "frame = pd.concat(\n"
+        "    [pd.read_csv(path).assign(simulation=name) for name, _, path in simulations], ignore_index=True\n"
+        ")",
+        prepare.rstrip("\n"),
+        station_listing,
+        _call(
+            "fig, grid = plt.subplots",
+            {"nrows": nrow, "ncols": columns, "figsize": size, "sharex": True, "squeeze": False},
+        ),
+        "for (title, data_name), ax in zip(stations, grid.flat):",
+        *(["    ax.set_title(title, fontsize=10)"] if len(station_names) > 1 else []),
+        "    for sim_name, colour, _ in simulations:",
+        f"        part = {table}[({table}.simulation == sim_name) & ({table}.name == data_name)]",
+        f"        x = {'part.year.values' if long_term else 'part.month.values'}",
+        "        y = part.value.values",
+        *marks,
+        "    " + "\n    ".join(axis_lines.split("\n")),
+        "    " + "\n    ".join(LINE_STYLE.split("\n")),
+        "for ax in list(grid.flat)[len(stations):]:",
+        "    ax.set_visible(False)",
+        "for ax in grid[:, 0]:",
+        f"    ax.set_ylabel({_py(ylabel)})",
+        "handles, labels = grid.flat[0].get_legend_handles_labels()",
+        'fig.legend(handles, labels, loc="lower center", ncol=len(labels), frameon=False, fontsize=9)',
+        "fig.tight_layout(rect=(0, 0.07, 1, 1))",
+    )
     _run(code, "sim_station_plot")
-    return Drawn(code, False, {"names": panels}, _about(info))
+    found = {"names": station_names}
+    if len(station_names) == 1:
+        found["caption"] = titles[0]
+    return Drawn(code, False, found, _about(info))
 
 
 # ---- the transects ----

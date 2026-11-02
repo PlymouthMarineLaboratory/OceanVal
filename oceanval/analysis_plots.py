@@ -423,6 +423,85 @@ def monthly_maps(results_dir, key, layer, limits=None):
     return _map(code_for, path, info, "monthly_maps")
 
 
+def _region_file(info):
+    """The path to the region file from info["subregions"], or None."""
+    subregions = info.get("subregions")
+    if not subregions:
+        return None
+    if subregions in ("nwes", "global"):
+        import importlib.resources
+        return str(importlib.resources.files("oceanval").joinpath(f"data/{subregions}_subdomains.nc"))
+    return subregions
+
+
+def region_map(results_dir, info=None):
+    """A map of the subdomains the time series are taken over, one panel per
+    region, or None if there are no subregions. Drawn.found is empty."""
+    if info is None:
+        info = load(results_dir)
+    path = _region_file(info)
+    if not path:
+        return None
+    ds = nc.open_data(path, checks=False)
+    ds.as_missing(0)
+    ds.set_fill(-9999)
+    ds.run()
+    contents = ds.contents
+    names = {
+        row.long_name if isinstance(row.long_name, str) and row.long_name else row.variable: row.variable
+        for row in contents.itertuples()
+    }
+    n_regions = len(names)
+    if n_regions == 0:
+        return None
+    ncol = 3 if n_regions == 3 else int(np.ceil(np.sqrt(n_regions)))
+    nrow = int(np.ceil(n_regions / ncol))
+    regions_listing = _listing(
+        "regions",
+        [(name, var) for name, var in names.items()],
+        "each region's display name and its variable in the file",
+    )
+    if hasattr(nc, "panel_plot"):
+        draw = _call(
+            "nc.panel_plot",
+            {
+                "ncol": ncol, "var": _Code("[var for _, var in regions]"),
+                "colours": _Code("ListedColormap(['#333333'])"),
+                "limits": [0, 1], "legend_position": None,
+                "land": "lightgrey", "grid_labels": False,
+                "size": [10, 2.4 * nrow],
+            },
+            args=(_Code("{name: ds for name, _ in regions}"),),
+        )
+    else:
+        draw = "\n".join([
+            f"nrow = {nrow}",
+            f"fig = plt.figure(figsize=(4 * {ncol}, 3.2 * {nrow}))",
+            f"grid = fig.add_gridspec({nrow}, {ncol})",
+            "for index, (name, var) in enumerate(regions):",
+            "    ds_region = ds.copy()",
+            "    ds_region.subset(variables=var)",
+            "    ds_region.run()",
+            _call("    ds_region.pub_plot", {
+                "var": _Code("var"), "limits": [0, 1], "title": _Code("name"),
+                "legend": None, "fig": _Code("fig"),
+                "gs": _Code(f"grid[index // {ncol}, index % {ncol}]"),
+            }),
+        ])
+    code = _code(
+        MAP_IMPORTS + "from matplotlib.colors import ListedColormap\n",
+        f"ds = nc.open_data({_py(path)}, checks=False)",
+        "ds.as_missing(0)",
+        "ds.set_fill(-9999)",
+        "ds.run()",
+        regions_listing,
+        draw,
+    )
+    _run(code, "region_map")
+    about = _about(info) if "sim_dir" in info else f"the OceanVal comparison (oceanval {info['oceanval']})"
+    return Drawn(code, False, {}, about)
+
+
 def _all_values(paths, key):
     """Every value of variable key in the files in paths."""
     values = []
@@ -746,7 +825,7 @@ def _layout(frame, panels_over=MANY_REGIONS):
     colours.update({name: to_hex(palette(i % palette.N)) for i, name in enumerate(others)})
     if len(others) > panels_over:
         lines = [
-            (name, colours[name], 2.2 if name in domain else 1.4, [name])
+            (name, DOMAIN_COLOUR, 1.4, [name])
             for name in names
         ]
         return domain + others, lines
@@ -888,9 +967,17 @@ def seasonal_cycle_regions(results_dir, key, layer):
     return Drawn(code, False, {"means": dict(zip(domain.month, domain.value))}, _about(info))
 
 
+def _station_title(name, info):
+    """A station's name with its requested coordinates."""
+    given = info["stations"][name]
+    return f"{name} ({given['lon']:.2f}, {given['lat']:.2f})"
+
+
 def station_plot(results_dir, key, kind, layer):
     """The series at each station, by year (the long-term series) or the mean
-    of each month of the year (the seasonal series), or None if there are no stations.
+    of each month of the year (the seasonal series), or None if there are no
+    stations. Single station: one figure, black line, found has "caption".
+    Multiple stations: a panel for each, titled with name and coordinates.
     Drawn.found holds "names", the stations'."""
     info = load(results_dir)
     variable = entry(info, key)
@@ -900,38 +987,70 @@ def station_plot(results_dir, key, kind, layer):
     frame = frame[frame.kind == "station"]
     if frame.empty:
         return None
-    palette = plt.get_cmap("tab10")
     names = list(dict.fromkeys(frame.name))
-    lines = [(name, to_hex(palette(i % 10))) for i, name in enumerate(names)]
     long_term = kind == "long_term"
     table = "frame" if long_term else "cycle"
+    colour = DOMAIN_COLOUR
+    ylabel = series_legend(variable, saved) if long_term else legend(variable["name"], saved["units"])
     draw = [
         f"    part = {table}[{table}.name == name]",
         f"    x = {'part.year.values' if long_term else 'part.month.values'}",
         "    y = part.value.values",
-        "    ax.plot(x, y, color=colour, label=name, linewidth=1.4)",
+        f"    ax.plot(x, y, color={_py(colour)}, linewidth=1.4)",
     ]
     if long_term:
         draw += [
-            "    # years that are the mean of fewer than 12 months, as open circles",
             "    hollow = ~part.complete.values.astype(bool) & (part.months.values > 0)",
             "    if hollow.any():",
-            '        ax.plot(x[hollow], y[hollow], "o", markerfacecolor="white", markeredgecolor=colour, markersize=5, linestyle="none")',
+            f'        ax.plot(x[hollow], y[hollow], "o", markerfacecolor="white", markeredgecolor={_py(colour)}, markersize=5, linestyle="none")',
         ]
-    code = _code(
-        "import matplotlib.pyplot as plt\nimport pandas as pd\n" if long_term else "import calendar\n\nimport matplotlib.pyplot as plt\nimport pandas as pd\n",
+    imports = "import matplotlib.pyplot as plt\nimport pandas as pd\n" if long_term else "import calendar\n\nimport matplotlib.pyplot as plt\nimport pandas as pd\n"
+    prepare = [
         f"frame = pd.read_csv({_py(path)})",
-        "# the series in the model cell nearest each station",
         'frame = frame[frame.kind == "station"]',
-        *([] if long_term else [CYCLE.rstrip("\n")]),
-        _call("fig, ax = plt.subplots", {"figsize": (8, 3.8)}),
-        _listing("stations", lines, "each station's name in the data, and its line's colour"),
-        "for name, colour in stations:",
+    ]
+    if not long_term:
+        prepare.append(CYCLE.rstrip("\n"))
+    if len(names) == 1:
+        code = _code(
+            imports,
+            "\n".join(prepare),
+            _call("fig, ax = plt.subplots", {"figsize": (8, 3.8)}),
+            f"name = {_py(names[0])}",
+            "\n".join(line[4:] for line in draw),
+            YEAR_TICKS if long_term else CYCLE_AXIS,
+            f"ax.set_ylabel({_py(ylabel)})",
+            LINE_STYLE,
+            "fig.tight_layout()",
+        )
+        _run(code, "station_plot")
+        caption = _station_title(names[0], info)
+        return Drawn(code, False, {"names": names, "caption": caption}, _about(info))
+    titles = [_station_title(name, info) for name in names]
+    stations = _listing(
+        "stations",
+        [(title, name) for title, name in zip(titles, names)],
+        "each station's panel title and its name in the data",
+    )
+    nrow = int(np.ceil(len(names) / 3))
+    code = _code(
+        imports + "import numpy as np\n",
+        "\n".join(prepare),
+        stations,
+        f"nrow = {nrow}",
+        _call("fig, grid = plt.subplots", {
+            "nrows": _Code("nrow"), "ncols": 3,
+            "figsize": _Code("(4.2 * 3, 2.6 * nrow)"), "sharex": True, "squeeze": False,
+        }),
+        "for (title, name), ax in zip(stations, grid.flat):",
+        "    ax.set_title(title, fontsize=9)",
         "\n".join(draw),
-        YEAR_TICKS if long_term else CYCLE_AXIS,
-        f"ax.set_ylabel({_py(series_legend(variable, saved) if long_term else legend(variable['name'], saved['units']))})",
-        "ax.legend(frameon=False, fontsize=8)",
-        LINE_STYLE,
+        "    " + "\n    ".join((YEAR_TICKS if long_term else CYCLE_AXIS).split("\n")),
+        "    " + "\n    ".join(LINE_STYLE.split("\n")),
+        "for ax in list(grid.flat)[len(stations):]:",
+        "    ax.set_visible(False)",
+        "for ax in grid[:, 0]:",
+        f"    ax.set_ylabel({_py(ylabel)})",
         "fig.tight_layout()",
     )
     _run(code, "station_plot")

@@ -366,20 +366,11 @@ def robust_spatial_mean(ds, key, n_times):
             )
         means[method], more = _mean_once(regridded, key, n_times)
         still = still or more
-    nn, bil = means["nn"], means["bil"]
-    scale = np.nanmean(np.abs(bil)) if np.isfinite(bil).any() else np.nan
-    gap = np.nanmax(np.abs(nn - bil)) if np.isfinite(nn - bil).any() else np.nan
-    percent = 100 * gap / scale if np.isfinite(gap) and scale and np.isfinite(scale) else np.nan
+    bil = means["bil"]
     note = (
-        "The raw grid of the model did not have sufficient information to calculate grid cell areas, so its "
-        f"spatial means were calculated after regridding it to a regular lon-lat grid of {grid['res'][0]:.3g} by "
-        f"{grid['res'][1]:.3g} degrees, by bilinear interpolation"
+        "The model's grid did not have cell areas, so its spatial means were "
+        "calculated after regridding to a regular lon-lat grid."
     )
-    if np.isfinite(percent):
-        note += f"; regridding by nearest neighbour instead changed them by at most {percent:.2g}%"
-    note += "."
-    if still:
-        note += " The regridded grid also lacked cell bounds, so these means should be treated with caution."
     return bil, note
 
 
