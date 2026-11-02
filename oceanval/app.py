@@ -70,7 +70,7 @@ from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
 from oceanval.viewer_app import VIEWER, ViewerSteps
-from oceanval import viewer_app
+from oceanval import viewer_app, viewer_catalogue
 from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
@@ -1107,7 +1107,7 @@ def _simulation(where):
     """The files a simulation is read from, as create_recipes takes them in
     where: its directory, how far down they are, and the file filters."""
     return (
-        os.path.abspath(where["simdir"]),
+        where["simdir"] if viewer_catalogue.is_url(where["simdir"]) else os.path.abspath(where["simdir"]),
         where["ndown"],
         tuple(where.get("exclude") or ()),
         tuple(where.get("require") or ()),
@@ -4979,7 +4979,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         if not simdir.strip():
             return found
         path = _path(simdir.strip(), self.cwd)
-        if self.action == VIEWER and os.path.isfile(path):
+        if self.action == VIEWER and (viewer_catalogue.is_url(simdir) or os.path.isfile(path)):
             # one file, used as it is: no directories down, not filtered
             found.update(directory="found", file=True, files=1, all_files=1)
             return found

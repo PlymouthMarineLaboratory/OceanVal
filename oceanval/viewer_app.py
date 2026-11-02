@@ -47,7 +47,7 @@ def default_setup_form():
     [from, to] (see parse_missing)."""
     from oceanval.app import default_setup_form as setup_form
 
-    return dict(setup_form(), missing="")
+    return dict(setup_form(), missing="", thredds="")
 
 
 def check_setup(form, cwd):
@@ -62,12 +62,16 @@ def check_setup(form, cwd):
 
     form = _form(form, default_setup_form())
     # a file is used as it is: checked as its directory, with no directories down
-    path = _path(form["simdir"], cwd) if form["simdir"] else ""
-    is_file = bool(path) and os.path.isfile(path)
-    shared = dict(form, simdir=os.path.dirname(path), ndown="0") if is_file else form
+    url = viewer_catalogue.is_url(form["simdir"])
+    path = form["simdir"] if url else _path(form["simdir"], cwd) if form["simdir"] else ""
+    is_file = bool(path) and (url or os.path.isfile(path))
+    # a web address is used as it is, as a file is: checked as the working directory, with none down
+    shared = dict(form, simdir=cwd if url else os.path.dirname(path), ndown="0") if is_file else form
     arguments, errors = check(dict(shared, domain="global", start="0", end="0"), cwd)
     if is_file:
         arguments["simdir"] = path
+    elif form["thredds"]:
+        errors["simdir"] = "A THREDDS address must start with https:// and end in .nc."
     for name in ("domain", "start", "end"):
         arguments.pop(name, None)
         errors.pop(name, None)
@@ -350,10 +354,11 @@ class ViewerSteps:
         from oceanval import viewer_missing
         from oceanval.app import _path
 
-        simdir = _path(query["simdir"].strip(), self.cwd) if query.get("simdir", "").strip() else ""
+        text = query.get("simdir", "").strip()
+        simdir = text if viewer_catalogue.is_url(text) else _path(text, self.cwd) if text else ""
         try:
             # a file has no directories down
-            ndown = 0 if os.path.isfile(simdir) else int(query.get("ndown", ""))
+            ndown = 0 if viewer_catalogue.is_url(simdir) or os.path.isfile(simdir) else int(query.get("ndown", ""))
             assert ndown >= 0 and simdir
         except (ValueError, AssertionError):
             return {"value": None, "ersem": False}
@@ -404,7 +409,7 @@ class ViewerSteps:
             return {
                 "ok": True, "item": item, "notes": notes, "clim": clim, "when": when, "n_missing": n_missing,
                 "warning": warning,
-                "file": os.path.relpath(record["files"][index], found.simdir),
+                "file": viewer_catalogue.relative(record["files"][index], found.simdir),
             }
         except ValueError as error:
             # said in words for the user

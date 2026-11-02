@@ -1364,6 +1364,7 @@
     <form class="setup-form" id="setup-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box">
         <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
+        <div class="g-row" id="row-f-thredds" hidden><label class="g-check" for="f-thredds"><input type="checkbox" id="f-thredds"> <span>Is the path a THREDDS (OPeNDAP) web address for one netCDF file, ending in .nc?</span></label></div>
         <div class="ndown-row">
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
           <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required autocomplete="off">
@@ -4570,6 +4571,9 @@
     fillRecent();
     Object.assign(setup, state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
+    // viewing can be given a web address, which the tick says it is
+    $("row-f-thredds").hidden = state.action !== "viewer";
+    $("f-thredds").checked = Boolean(setup.thredds);
     segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
     // an analysis, or viewing the output, has no observations, so no domain to choose
     $("setup-domain").hidden = simulationOnly();
@@ -4577,7 +4581,7 @@
     $("setup-missing").hidden = state.action !== "viewer";
     // viewing can also be given the path of one file
     $("simdir-question").textContent = state.action === "viewer"
-      ? "Which directory or file path stores your simulation data?" : "Which directory stores your simulation data?";
+      ? "Which directory, file path or web address stores your simulation data?" : "Which directory stores your simulation data?";
     fillMissingRows();
     setupErrors = {};
     // the demo's one year is not to be widened to the years its file covers
@@ -4601,6 +4605,18 @@
       refreshSetup();
     });
   }
+
+  // a web address typed is ticked as one for the user, who can untick it
+  $("f-simdir").addEventListener("input", () => {
+    if (state.action !== "viewer") return;
+    setup.thredds = /^https?:\/\//i.test(String(setup.simdir).trim()) ? "yes" : "";
+    $("f-thredds").checked = Boolean(setup.thredds);
+    refreshSetup();
+  });
+  $("f-thredds").addEventListener("change", (event) => {
+    setup.thredds = event.target.checked ? "yes" : "";
+    refreshSetup();
+  });
 
   $("setup-form").addEventListener("submit", (event) => { event.preventDefault(); submitSetup(); });
 
@@ -4807,6 +4823,10 @@
     const errors = { ...setupErrors };
     const text = (name) => String(setup[name]).trim();
     if (!text("simdir")) errors.simdir = errors.simdir || "";
+    else if (state.action === "viewer" && setup.thredds && !/^https?:\/\/.+\.nc(\?.*)?$/i.test(text("simdir")))
+      errors.simdir = "A THREDDS address must start with https:// and end in .nc.";
+    else if (state.action === "viewer" && !setup.thredds && /^https?:\/\//i.test(text("simdir")))
+      errors.simdir = "Tick the box below if this is a THREDDS web address.";
     else if (probe && probe.directory === "missing") errors.simdir = "There is no directory at this path.";
     const oneFile = Boolean(probe && probe.file);
     if (oneFile) delete errors.ndown;
@@ -4875,7 +4895,8 @@
     $("f-ndown").disabled = oneFile;
     if (oneFile) {
       counted = "1 netCDF file found";
-      simulation.push(line("A single file is used as it is: directories down and the file name filters do not apply."));
+      simulation.push(line(setup.thredds ? "The file is read from the server as it is: directories down and the file name filters do not apply."
+        : "A single file is used as it is: directories down and the file name filters do not apply."));
     }
     if (String(setup.require).trim() || String(setup.exclude).trim()) {
       simulation.push(line(state.action === "viewer" ? "Only file names are checked, not directories."

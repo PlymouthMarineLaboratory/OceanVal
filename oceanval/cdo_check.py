@@ -206,7 +206,8 @@ def start(paths):
     """Start a check of the files paths for a function of the package, or
     return None: when the check is off, there are no files, or the window
     that started this run has checked them already."""
-    paths = list(paths)
+    # a web address is not a file CDO is asked about
+    paths = [path for path in paths if not str(path).lower().startswith(("http://", "https://"))]
     if not ENABLED or not paths or prompts.news_marker() is not None:
         return None
     return Check(paths).start()

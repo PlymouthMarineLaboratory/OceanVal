@@ -151,7 +151,7 @@ def file_times(path):
     could not be read. Never raises. In the window's own process the caller
     holds oceanval.netcdf_lock.LOCK."""
     try:
-        if h5py is not None:
+        if h5py is not None and not str(path).lower().startswith(("http://", "https://")):
             try:
                 return _read_h5py(path)
             except OSError:

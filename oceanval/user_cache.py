@@ -116,7 +116,8 @@ def record_sim_dir(sim_dir):
     was written."""
     try:
         where = path()
-        sim_dir = os.path.abspath(os.path.expanduser(sim_dir))
+        if not str(sim_dir).lower().startswith(("http://", "https://")):
+            sim_dir = os.path.abspath(os.path.expanduser(sim_dir))
         data, problem = _load(where)
         if problem:
             _say(where, 0, f"the file could not be used, so nothing was added to it: {problem}")

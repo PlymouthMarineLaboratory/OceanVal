@@ -424,10 +424,24 @@ def resolution(times):
     return "daily" if step == 1 else f"{step}-daily"
 
 
+def is_url(text):
+    """Whether text is the address of one netCDF file on a THREDDS/OPeNDAP
+    server (http or https, ending in .nc), which is viewed as one file."""
+    text = str(text or "").strip()
+    return text.lower().startswith(("http://", "https://")) and text.lower().split("?")[0].endswith(".nc")
+
+
+def relative(path, root):
+    """path as named relative to root: a web address by its file name."""
+    return path.rsplit("/", 1)[-1] if is_url(path) else os.path.relpath(path, root)
+
+
 def viewer_paths(simdir, ndown, exclude=None, require=None):
     """The output files to look at: simdir itself if it is a file, used as it
     is (whatever its name, not filtered, with no directories down), else those
     ndown directories below it that pass the file filters."""
+    if is_url(simdir):
+        return [simdir.strip()]
     if os.path.isfile(simdir):
         return [simdir]
     return simulation_paths(simdir, ndown, exclude, require)
@@ -441,7 +455,7 @@ def scan(simdir, ndown, exclude="", require="", progress=lambda **_: None, stopp
     the first file of each file type are (and any the cache has), so that
     the Catalogue is there at once: each stream says how many of its files
     are "pending", and Catalogue.read_times reads the rest."""
-    simdir = os.path.abspath(os.path.expanduser(simdir.strip()))
+    simdir = simdir.strip() if is_url(simdir) else os.path.abspath(os.path.expanduser(simdir.strip()))
     paths = viewer_paths(simdir, int(ndown or 0), exclude.split() or None, require.split() or None)
     if not paths:
         raise ValueError("No netCDF files were found.")
@@ -469,7 +483,7 @@ def scan(simdir, ndown, exclude="", require="", progress=lambda **_: None, stopp
         streams.append(_stream(number, pattern, members, read))
         progress(phase="variables", done=number + 1, total=len(groups))
     # the files are named relative to the directory they are in
-    root = os.path.dirname(simdir) if os.path.isfile(simdir) else simdir
+    root = os.path.dirname(simdir) if is_url(simdir) or os.path.isfile(simdir) else simdir
     return Catalogue(root, int(ndown or 0), streams, read)
 
 
@@ -600,7 +614,7 @@ class Catalogue:
                 "id": stream["id"],
                 "pattern": stream["pattern"],
                 "files": len(stream["files"]),
-                "first_file": os.path.relpath(stream["files"][0], self.simdir),
+                "first_file": relative(stream["files"][0], self.simdir),
                 "steps": len(times),
                 "first": times[0] if times else None,
                 "last": times[-1] if times else None,
