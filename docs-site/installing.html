@@ -75,7 +75,7 @@
 
   <div class="docs-content">
     <h2 id="install">Install from conda-forge</h2>
-    <p>OceanVal runs on Linux and macOS with Python 3.10–3.13, and needs jupyter-book 2 or later. If you do not have conda installed, follow the <a href="https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html" target="_blank" rel="noopener">conda installation guide</a> first.</p>
+    <p>OceanVal runs on Linux and macOS with Python 3.10–3.14. If you do not have conda installed, follow the <a href="https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html" target="_blank" rel="noopener">conda installation guide</a> first.</p>
     <p>You can install the package using pip. However, this is not advised as setting up system dependencies can be tricky.</p>
     <p>Install the released package:</p>
     <div class="code-block">
@@ -86,7 +86,19 @@
       <pre>conda install -c conda-forge oceanval</pre>
     </div>
 
-    <p>Then try the demo in <a href="app.html">the OceanVal app</a>, which validates a CMIP6 model in a few minutes, or start with the <a href="how-to-use.html#quickstart">Python quickstart</a>.</p>
+    <p>Start the OceanVal app:</p>
+    <div class="code-block">
+      <div class="code-card__bar">
+        <div class="code-card__dots"><span></span><span></span><span></span></div>
+        <span class="code-card__label">console</span>
+      </div>
+      <pre>oceanval</pre>
+    </div>
+    <p>The app is designed to be as self-contained as possible. To get going, click "View simulation output" on the landing page:</p>
+    <figure style="margin:1.5rem 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;display:inline-block;width:100%;">
+      <img src="assets/img/app_landing.png" alt="The OceanVal app landing page, showing four options: View simulation output, Analyze simulations, Compare simulations, and Validate simulations." style="max-width:100%;display:block;">
+      <figcaption style="padding:0.6rem 1rem;font-size:0.875rem;color:var(--text-muted);background:var(--surface-2);text-align:right;">The landing page of OceanVal</figcaption>
+    </figure>
   </div>
 </div>
 
