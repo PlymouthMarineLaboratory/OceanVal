@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyzing simulations — OceanVal</title>
+<meta name="description" content="Analyze a simulation, or compare two to five side by side, with no observations: climatologies, phenology, time series and transects in an HTML report.">
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="index.html">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <span id="oceanval-docs-version" class="brand-version">v&hellip;</span>
+    </a>
+    <nav class="nav-links" id="nav-links">
+      <a href="installing.html" data-page="installing.html">Install</a>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          The OceanVal app
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="app.html" data-page="app.html">The OceanVal app</a>
+          <a href="viewing.html" data-page="viewing.html">Visualization</a>
+          <a href="analyzing.html" data-page="analyzing.html">Analysis</a>
+          <a href="datasets.html" data-page="datasets.html">Validation</a>
+        </div>
+      </div>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          How to use in Python
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="how-to-use.html" data-page="how-to-use.html">Guide</a>
+          <a href="recipes.html" data-page="recipes.html">Recipes</a>
+          <a href="obs-data.html" data-page="obs-data.html">Data formats</a>
+          <a href="qa.html" data-page="qa.html">Q&amp;A</a>
+          <a href="api.html" data-page="api.html">API</a>
+        </div>
+      </div>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          Info
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="about.html" data-page="about.html">About</a>
+          <a href="version-history.html" data-page="version-history.html">Version history</a>
+        </div>
+      </div>
+    </nav>
+    <div class="nav-actions">
+      <a class="icon-btn" href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener" aria-label="OceanVal on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+      </a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="page-hero">
+  <div class="container">
+    <div class="breadcrumb"><a href="index.html">Home</a> / Analysis</div>
+    <h1>Analyzing simulations</h1>
+    <p class="lead">Climatologies, time series and transects of one simulation, or of several side by side, with no observations.</p>
+  </div>
+</div>
+
+<div class="container docs-layout">
+  <aside class="docs-toc">
+    <div class="docs-toc-title">On this page</div>
+    <ul>
+      <li><a href="#analyze">Analyze simulations</a></li>
+      <li><a href="#compare">Compare simulations</a></li>
+    </ul>
+  </aside>
+
+  <div class="docs-content">
+    <p>Two of the app&rsquo;s boxes work on model output alone, with no observations: <strong>Analyze simulations</strong> for one simulation and <strong>Compare simulations</strong> for two to five side by side. Each builds an HTML report laid out like a validation report, and writes the Python script it ran, so the analysis can be repeated.</p>
+
+    <h2 id="analyze">Analyze simulations</h2>
+    <p>Run <code>oceanval</code>, choose <strong>Analyze simulations</strong>, and the app takes you through these pages, each with <strong>Back</strong>, which keeps what you entered:</p>
+    <ol>
+      <li><strong>Simulation</strong>: where the output is, as for a validation but with no domain to choose.</li>
+      <li><strong>Variables</strong>: a row for each, with the name in the simulation (clicking opens a searchable list of the model&rsquo;s variables; several can be summed as <code>a+b</code>). Nothing is ticked to start with.</li>
+      <li><strong>The files</strong> holding each variable, their time resolution and dates, with any missing ones reported.</li>
+      <li><strong>The analyses</strong>: <strong>Map climatologies</strong>, <strong>Map phenologies</strong>, <strong>Long-term time series</strong>, <strong>Seasonal cycles</strong>, <strong>Map temporal changes</strong> and <strong>Analyse transects</strong>. Each opens a pop-out with a row for each variable, where you tick it, give its years and choose surface, bottom or water column; an <strong>i</strong> beside each option says what it plots.</li>
+      <li><strong>Cores, missing values and figure code</strong>: how many cores OceanVal may use, what counts as missing, and whether the report holds code to reproduce each figure.</li>
+      <li><strong>Where to save</strong>: the analysis goes in <code>oceanval_analysis</code> in the directory you choose, replacing any there.</li>
+    </ol>
+    <p>The window then writes the <code>oceanval.analyze()</code> call into <code>analysis.py</code> (or <strong>Save Python script to run later</strong> writes it without running it) and runs it. A grid shows each variable and analysis as it is worked out, and the report grows a variable at a time, linked from the grid. Full details are in <a href="app.html#analyze">The OceanVal app</a>.</p>
+
+    <h2 id="compare">Compare simulations</h2>
+    <p><strong>Compare simulations</strong> does everything Analyze does for two to five simulations and shows them side by side in one report: the maps are a panel for each simulation on one colour scale, and the time series have a colour for each simulation. The pages are:</p>
+    <ol>
+      <li><strong>Which simulations?</strong> A name, directory and directories down for each.</li>
+      <li><strong>Which variables?</strong> A row for each, with the model variable that holds it in every simulation, which can differ.</li>
+      <li><strong>Units</strong>, only if a variable is in different units: the first simulation&rsquo;s units are the comparison&rsquo;s, and the others are converted with a multiplier and an adder.</li>
+      <li><strong>The files</strong> of each simulation; they are compared over the years all of them have.</li>
+      <li><strong>Unify the model grids?</strong> Optionally put the simulations on one lon/lat grid, or on one simulation&rsquo;s grid, with a regridding method of your choice. A cell with no value in any one simulation is made missing in all, so they are compared like for like.</li>
+      <li><strong>Mask part of the domain?</strong> Optionally keep only the cells of a netCDF mask you give.</li>
+      <li><strong>The analyses</strong>: the same six as Analyze, then the cores, missing values and figure code.</li>
+    </ol>
+    <p>The results go in <code>oceanval_simulation_comparison</code>, from a script called <code>simulation_comparison.py</code> that calls <code>oceanval.compare_simulations()</code>. See <a href="app.html#compare-simulations">The OceanVal app</a> for every option. To look at one simulation&rsquo;s fields first, see <a href="viewing.html">Viewing simulations</a>.</p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container footer-pml">
+    <a href="https://pml.ac.uk/" target="_blank" rel="noopener"><img src="assets/img/pml_logo.jpg" alt="Plymouth Marine Laboratory"></a>
+    <span>Developed by the Environmental Intelligence group at Plymouth Marine Laboratory</span>
+  </div>
+  <div class="container footer-top">
+    <div class="footer-brand">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <p>Automated ocean model validation. Match, compute, and report — from your browser or in Python.</p>
+      <div class="footer-social">
+        <a href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener" aria-label="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+        </a>
+        <a href="mailto:rwi@pml.ac.uk" aria-label="Email">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Documentation</h4>
+      <ul>
+        <li><a href="installing.html">Installing</a></li>
+        <li><a href="app.html">The OceanVal app</a></li>
+        <li><a href="viewing.html">Viewing simulations</a></li>
+        <li><a href="analyzing.html">Analyzing simulations</a></li>
+        <li><a href="how-to-use.html">How to use OceanVal in Python</a></li>
+        <li><a href="api.html">API reference</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Data</h4>
+      <ul>
+        <li><a href="datasets.html">Built-in observational datasets</a></li>
+        <li><a href="recipes.html">Observation recipes</a></li>
+        <li><a href="obs-data.html">Compatible data formats</a></li>
+        <li><a href="qa.html">Q&amp;A</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="about.html">About &amp; contact</a></li>
+        <li><a href="version-history.html">Version history</a></li>
+        <li><a href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener">GitHub repository</a></li>
+        <li><a href="https://github.com/PlymouthMarineLaboratory/oceanVal/issues" target="_blank" rel="noopener">Report an issue</a></li>
+        <li><a href="https://anaconda.org/conda-forge/oceanval" target="_blank" rel="noopener">conda-forge package</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <span>© 2026 Plymouth Marine Laboratory. Released under the GNU GPLv3 license.</span>
+    <span>Built for ocean modellers, by ocean modellers.</span>
+  </div>
+</footer>
+
+<button class="back-to-top" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+</button>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

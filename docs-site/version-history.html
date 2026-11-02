@@ -21,8 +21,18 @@
     </a>
     <nav class="nav-links" id="nav-links">
       <a href="installing.html" data-page="installing.html">Install</a>
-      <a href="app.html" data-page="app.html">The OceanVal app</a>
-      <a href="datasets.html" data-page="datasets.html">Datasets</a>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          The OceanVal app
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="app.html" data-page="app.html">The OceanVal app</a>
+          <a href="viewing.html" data-page="viewing.html">Visualization</a>
+          <a href="analyzing.html" data-page="analyzing.html">Analysis</a>
+          <a href="datasets.html" data-page="datasets.html">Validation</a>
+        </div>
+      </div>
       <div class="nav-drop">
         <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
           How to use in Python
@@ -105,6 +115,8 @@
       <ul>
         <li><a href="installing.html">Installing</a></li>
         <li><a href="app.html">The OceanVal app</a></li>
+        <li><a href="viewing.html">Viewing simulations</a></li>
+        <li><a href="analyzing.html">Analyzing simulations</a></li>
         <li><a href="how-to-use.html">How to use OceanVal in Python</a></li>
         <li><a href="api.html">API reference</a></li>
       </ul>

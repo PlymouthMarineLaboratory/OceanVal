@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viewing simulations — OceanVal</title>
+<meta name="description" content="View a simulation's netCDF output in the OceanVal app: map any variable at the time, depth and years you choose.">
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="index.html">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <span id="oceanval-docs-version" class="brand-version">v&hellip;</span>
+    </a>
+    <nav class="nav-links" id="nav-links">
+      <a href="installing.html" data-page="installing.html">Install</a>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          The OceanVal app
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="app.html" data-page="app.html">The OceanVal app</a>
+          <a href="viewing.html" data-page="viewing.html">Visualization</a>
+          <a href="analyzing.html" data-page="analyzing.html">Analysis</a>
+          <a href="datasets.html" data-page="datasets.html">Validation</a>
+        </div>
+      </div>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          How to use in Python
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="how-to-use.html" data-page="how-to-use.html">Guide</a>
+          <a href="recipes.html" data-page="recipes.html">Recipes</a>
+          <a href="obs-data.html" data-page="obs-data.html">Data formats</a>
+          <a href="qa.html" data-page="qa.html">Q&amp;A</a>
+          <a href="api.html" data-page="api.html">API</a>
+        </div>
+      </div>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          Info
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="about.html" data-page="about.html">About</a>
+          <a href="version-history.html" data-page="version-history.html">Version history</a>
+        </div>
+      </div>
+    </nav>
+    <div class="nav-actions">
+      <a class="icon-btn" href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener" aria-label="OceanVal on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+      </a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="page-hero">
+  <div class="container">
+    <div class="breadcrumb"><a href="index.html">Home</a> / Visualization</div>
+    <h1>Viewing simulations</h1>
+    <p class="lead">Map any variable in a simulation's output, at the time, depth and years you choose.</p>
+  </div>
+</div>
+
+<div class="container docs-layout">
+  <aside class="docs-toc">
+    <div class="docs-toc-title">On this page</div>
+    <ul>
+      <li><a href="#setup">Choosing the simulation</a></li>
+      <li><a href="#viewer">The viewer</a></li>
+      <li><a href="#map">The map</a></li>
+    </ul>
+  </aside>
+
+  <div class="docs-content">
+    <p><strong>View simulation output</strong> lets you look at what a simulation&rsquo;s netCDF files hold, and map any variable in them at the time, depth and years you choose. Run <code>oceanval</code> in a terminal and choose <strong>View simulation output</strong>. Nothing is written but a record of the files&rsquo; times, and only the map on show is ever read from the files: one time step at one depth of one file, so output of many GB stays quick to look at.</p>
+
+    <h2 id="setup">Choosing the simulation</h2>
+    <ol>
+      <li>Give the <strong>directory</strong> the output is in (or the path of a single file) and how many directories down its files are. OceanVal fills the number in when it recognises the folders. The arrow in the directory box lists simulations you have viewed before.</li>
+      <li>Use <strong>Skip file names containing</strong> to leave files out; it starts empty, so nothing is skipped unless you ask.</li>
+      <li>Optionally give <strong>Missing values</strong>: numbers in the files that mean there is no data, such as 0 or -999. OceanVal looks for a value that the same cells have in every file and fills it in for you to check.</li>
+      <li><strong>Continue</strong> reads the variables of the first file of each kind and opens the viewer straight away. The times of all the files are read in the background; until they are in you can map the first time of any variable. They are kept in <code>.oceanvaltimes</code> in your home directory, so a simulation opened again has them at once.</li>
+    </ol>
+
+    <h2 id="viewer">The viewer</h2>
+    <p>On the left, search the variables by name, description or units (<code>*</code> stands for any characters and <code>?</code> for one, so <code>P*_Chl</code> finds <code>P1_Chl</code> and <code>P2_Chl</code>). Clicking a variable maps it. To map the <strong>sum</strong> of several variables, tick their boxes. The controls are:</p>
+    <ul>
+      <li><strong>Years</strong>: a first and a last year; Time and Play stay inside them.</li>
+      <li><strong>Time</strong>: a slider, arrow buttons, and <strong>Play</strong>, which animates the simulation at Slow, Normal or Fast on one colour scale, keeping your zoom.</li>
+      <li><strong>Depth</strong>: the level to show.</li>
+      <li><strong>Colours</strong>: the colour map, fixed limits or an automatic scale, a logarithmic scale and coastlines.</li>
+    </ul>
+
+    <h2 id="map">The map</h2>
+    <p>On the right is the map, which you can zoom, pan, hover over to read values, and save as a PNG. It keeps the area&rsquo;s true proportions and is fitted again when the window is resized. Regular and curvilinear grids, regional models, unstructured grids (such as ICON and FESOM) and FVCOM meshes are all drawn.</p>
+    <p>The full description of every control is in <a href="app.html#viewer">The OceanVal app</a>. To look at a simulation&rsquo;s climatologies and time series, see <a href="analyzing.html">Analyzing simulations</a>.</p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container footer-pml">
+    <a href="https://pml.ac.uk/" target="_blank" rel="noopener"><img src="assets/img/pml_logo.jpg" alt="Plymouth Marine Laboratory"></a>
+    <span>Developed by the Environmental Intelligence group at Plymouth Marine Laboratory</span>
+  </div>
+  <div class="container footer-top">
+    <div class="footer-brand">
+      <img src="assets/img/oceanval_wordmark.svg" alt="OceanVal">
+      <p>Automated ocean model validation. Match, compute, and report — from your browser or in Python.</p>
+      <div class="footer-social">
+        <a href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener" aria-label="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 .5C5.73.5.5 5.74.5 12.09c0 5.08 3.29 9.38 7.86 10.9.57.1.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.44-2.7 5.42-5.28 5.7.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.21.66.8.55A10.6 10.6 0 0 0 23.5 12.1C23.5 5.74 18.27.5 12 .5Z"/></svg>
+        </a>
+        <a href="mailto:rwi@pml.ac.uk" aria-label="Email">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Documentation</h4>
+      <ul>
+        <li><a href="installing.html">Installing</a></li>
+        <li><a href="app.html">The OceanVal app</a></li>
+        <li><a href="viewing.html">Viewing simulations</a></li>
+        <li><a href="analyzing.html">Analyzing simulations</a></li>
+        <li><a href="how-to-use.html">How to use OceanVal in Python</a></li>
+        <li><a href="api.html">API reference</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Data</h4>
+      <ul>
+        <li><a href="datasets.html">Built-in observational datasets</a></li>
+        <li><a href="recipes.html">Observation recipes</a></li>
+        <li><a href="obs-data.html">Compatible data formats</a></li>
+        <li><a href="qa.html">Q&amp;A</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="about.html">About &amp; contact</a></li>
+        <li><a href="version-history.html">Version history</a></li>
+        <li><a href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener">GitHub repository</a></li>
+        <li><a href="https://github.com/PlymouthMarineLaboratory/oceanVal/issues" target="_blank" rel="noopener">Report an issue</a></li>
+        <li><a href="https://anaconda.org/conda-forge/oceanval" target="_blank" rel="noopener">conda-forge package</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <span>© 2026 Plymouth Marine Laboratory. Released under the GNU GPLv3 license.</span>
+    <span>Built for ocean modellers, by ocean modellers.</span>
+  </div>
+</footer>
+
+<button class="back-to-top" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+</button>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -9,6 +9,8 @@ oceanVal repository). Plain static HTML/CSS/JS — no build step, no dependencie
 index.html          Landing page
 datasets.html       Built-in observational datasets, for users of the app
                      (no recipes or Python): the same data as recipes.html
+viewing.html         Viewing simulations (nav: Visualization), summary of the app's viewer
+analyzing.html       Analyzing simulations (nav: Analysis): Analyze and Compare simulations
 app.html            The OceanVal app (`oceanval` browser window), development
                      version only
 installing.html      \

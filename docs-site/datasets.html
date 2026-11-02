@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Built-in observational datasets — OceanVal</title>
+<title>Validating simulations — OceanVal</title>
 <meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, Ocean Colour CCI, GLODAP, the North Sea Biogeochemical Climatology and ICES.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,8 +21,18 @@
     </a>
     <nav class="nav-links" id="nav-links">
       <a href="installing.html" data-page="installing.html">Install</a>
-      <a href="app.html" data-page="app.html">The OceanVal app</a>
-      <a href="datasets.html" data-page="datasets.html">Datasets</a>
+      <div class="nav-drop">
+        <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+          The OceanVal app
+          <svg class="nav-drop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="nav-drop-menu">
+          <a href="app.html" data-page="app.html">The OceanVal app</a>
+          <a href="viewing.html" data-page="viewing.html">Visualization</a>
+          <a href="analyzing.html" data-page="analyzing.html">Analysis</a>
+          <a href="datasets.html" data-page="datasets.html">Validation</a>
+        </div>
+      </div>
       <div class="nav-drop">
         <button class="nav-drop-toggle" type="button" aria-expanded="false" aria-haspopup="true">
           How to use in Python
@@ -60,8 +70,8 @@
 
 <div class="page-hero">
   <div class="container">
-    <div class="breadcrumb"><a href="index.html">Home</a> / Built-in observational datasets</div>
-    <h1>Built-in observational datasets</h1>
+    <div class="breadcrumb"><a href="index.html">Home</a> / Validation</div>
+    <h1>Validating simulations</h1>
   </div>
 </div>
 
@@ -69,6 +79,8 @@
   <aside class="docs-toc">
     <div class="docs-toc-title">On this page</div>
     <ul>
+      <li><a href="#validating">How validation works</a></li>
+      <li><a href="#builtin">Built-in observational datasets</a></li>
       <li><a href="#gridded">What gridded datasets are available?</a></li>
       <li class="docs-toc-sub"><a href="#woa23">World Ocean Atlas 2023 periods</a></li>
       <li><a href="#point">What point datasets are available?</a></li>
@@ -79,6 +91,32 @@
   </aside>
 
   <div class="docs-content">
+    <div class="code-card hero-video-card">
+      <div class="code-card__bar">
+        <div class="code-card__dots"><span></span><span></span><span></span></div>
+        <span class="code-card__label">oceanval</span>
+        <button class="hero-video__toggle" id="hero-video-toggle" type="button" aria-label="Pause the animation">
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="7 4 20 12 7 20"/></svg>
+        </button>
+      </div>
+      <video id="hero-video" class="hero-video" autoplay muted loop playsinline preload="auto" width="1600" height="900" poster="media/oceanval-hero-poster.jpg" aria-label="A short animation of the OceanVal app: choosing a simulation and observations, checking the units, setting the report options, and the validation report it builds.">
+        <source src="media/oceanval-hero.mp4" type="video/mp4">
+      </video>
+    </div>
+
+    <h2 id="validating">How validation works</h2>
+    <p>The <a href="app.html">OceanVal app</a> takes you from a folder of model output to a validation report, with no Python. Run <code>oceanval</code> in a terminal and choose <strong>Validate simulations</strong>:</p>
+    <ol>
+      <li>Give the directory the simulation&rsquo;s output is in. OceanVal reads the years it covers from the files&rsquo; time axes.</li>
+      <li>Choose the observations to validate against, first gridded then point datasets. OceanVal finds the simulation variable for each observed variable and ticks the datasets it can use; each needs the simulation years to validate (<strong>From</strong> and <strong>To</strong>). Add observations of your own if you have them.</li>
+      <li>Check the units, and say you are happy with the matchups OceanVal found.</li>
+      <li>Choose where the matchups are saved and what to do with any that exist already, then set the report options, the number of cores and what counts as a missing value.</li>
+      <li>Watch the run: a grid shows each variable and data source as it is matched up, and an interim report grows as each is finished.</li>
+    </ol>
+    <p>The result is an HTML report you can share, optionally exported to PDF and Word. The full steps are in <a href="app.html">the OceanVal app</a>; to validate from a script instead, see <a href="how-to-use.html">How to use in Python</a>. Downloaded observations can be kept for later runs in a <a href="app.html#data-store">data store</a>.</p>
+
+    <h2 id="builtin" style="margin-top:2.4rem;">Built-in observational datasets</h2>
     <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen, nutrients, chlorophyll, the carbonate system and light attenuation, globally and on the Northwest European Shelf.</p>
 
     <p>In the <a href="app.html">OceanVal app</a>, the datasets are offered in the step where you choose the observations to validate against. OceanVal reads your simulation, works out which of its variables holds each observed variable, and ticks every dataset for the domain you chose (global or the Northwest European Shelf) that it finds a variable for. Check what it found, and untick anything you do not want.</p>
@@ -364,6 +402,8 @@
       <ul>
         <li><a href="installing.html">Installing</a></li>
         <li><a href="app.html">The OceanVal app</a></li>
+        <li><a href="viewing.html">Viewing simulations</a></li>
+        <li><a href="analyzing.html">Analyzing simulations</a></li>
         <li><a href="how-to-use.html">How to use OceanVal in Python</a></li>
         <li><a href="api.html">API reference</a></li>
       </ul>
