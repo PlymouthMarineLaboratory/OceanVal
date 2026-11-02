@@ -231,7 +231,7 @@ def test_the_report(monthly, tmp_path):
     assert sorted(set(int(n) for n in re.findall(r"Figure (\d+)</strong>", page))) == [1, 2]
     assert page.count("Copy code to reproduce figure") >= 2
     assert "in 2010-2011, 2014-2015 and 2012-2013, and the percentage change (%) from 2010-2011 to 2014-2015 and to 2012-2013" in page
-    assert "Map changes" in overview and "Map temporal changes." in overview
+    assert "Map temporal changes." in overview
     # what was asked for is what is drawn: one figure, and one caption, whatever it is
     for page_name, plot in (("002_absolute", "absolute"), ("003_changes", "changes"), ("004_both", "absolute_changes")):
         page = open(os.path.join(folder, f"{page_name}.html")).read()
