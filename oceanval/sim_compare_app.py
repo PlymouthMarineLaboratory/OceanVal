@@ -697,7 +697,7 @@ class SimCompareSteps:
         variable = (row.get("parts") or [None])[0]
         return files[0], variable, files
 
-    def _sc_field_step(self, files):
+    def _sc_field_step(self, files, fvcom=False):
         """The file and the time step in it (from 0) the grids step draws from
         files, a simulation's first variable's: the simulation's second time
         step, if it has one, which is the first file's second, or else the
@@ -708,7 +708,8 @@ class SimCompareSteps:
         if known is not None:
             return known
         try:
-            count = len(nc.open_data(files[0], checks=False).times)
+            # raw FVCOM output is not readable by CDO: its times are read as the run reads them
+            count = len(analysis._file_times(files[0], True)) if fvcom else len(nc.open_data(files[0], checks=False).times)
         except Exception:
             count = 1
         found = analysis.second_step(files, count)
@@ -749,20 +750,18 @@ class SimCompareSteps:
             return 200, {"ok": False, "error": "The model variable of this simulation could not be told."}
         with self._lock:
             is_mesh = name in self._sc_fvcom_kinds()["fvcom"]
-        if is_mesh:
-            return 200, {
-                "ok": False,
-                "mesh": True,
-                "error": "This is FVCOM output, a mesh of triangles: it is regridded to the grid chosen when the comparison runs.",
-            }
         found = None
         try:
             missing, note = self._sc_missing(files, variable)
-            path, step = self._sc_field_step(files)
+            path, step = self._sc_field_step(files, is_mesh)
             found = viewer_catalogue.scan(path, 0, wait=False)
             about = found.combined(0, [variable])
             data, _ = found.field(0, [variable], step, about.get("surface_level", 0), missing)
-            item, notes, _ = viewer_plots.map_plot(data, about, about["name"], coast=viewer_plots.has_geoviews())
+            # FVCOM output is drawn on its mesh, as the viewer draws it
+            item, notes, _ = viewer_plots.map_plot(
+                data, about, about["name"], coast=viewer_plots.has_geoviews(),
+                mesh=found.mesh(0) if about.get("mesh") else None,
+            )
             if not data.notnull().any():
                 notes.append("Every cell is missing, so there is nothing to show.")
             if note:
@@ -801,13 +800,7 @@ class SimCompareSteps:
             names = [sim["name"] for sim in self.sc_sims or []]
             sources = {name: self._sc_field_source(name) for name in names}
             kinds = self._sc_fvcom_kinds()
-        if kinds["fvcom"]:
-            # a mesh can not be read by CDO: the run itself regrids it, and it is not previewed
-            return 400, {
-                "ok": False,
-                "error": "The unified grid is not previewed when a simulation is FVCOM output: it is regridded when the comparison runs.",
-            }
-        unify, errors = sim_compare_forms.check_unify(form, names)
+        unify, errors = sim_compare_forms.check_unify(form, names, **kinds)
         if unify is None and not errors:
             errors = {"need": "Say yes to put the simulations on one grid."}
         if errors:
@@ -817,23 +810,37 @@ class SimCompareSteps:
         # the same checks the run makes, which add how the grid is made
         unify = sim_unify.check_unify(unify, names)
         fields = {}
+        meshes = {}
         try:
             for name, (path, variable, files) in sources.items():
                 missing, _ = self._sc_missing(files, variable)
+                is_mesh = name in kinds["fvcom"]
                 # the time step each simulation's map is of
-                path, step = self._sc_field_step(files)
+                path, step = self._sc_field_step(files, is_mesh)
                 found = viewer_catalogue.scan(path, 0, wait=False)
                 try:
                     about = found.combined(0, [variable])
+                    if is_mesh:
+                        # a mesh is not a grid CDO can read: the surface at that step, on the mesh's points,
+                        # which unified() puts on the grid chosen (see grid_align.fvcom_field)
+                        meshes[name] = found.mesh(0)
+                        data, _ = found.field(0, [variable], step, about.get("surface_level", 0), missing)
+                        with netcdf_lock.LOCK:
+                            fields[name] = grid_align.fvcom_field(meshes[name], data)
+                        continue
                 finally:
                     found.close()
                 fields[name] = grid_align.field_for_cdo(path, variable, about.get("surface_level", 0), missing, step)
             method = form["regrid"] or sim_unify.DEFAULT_METHOD
             try:
                 if unify["method"] == "box":
-                    mask, shared, total = grid_align.unified(fields, None, method, box=unify, progress=self._sc_progress)
+                    mask, shared, total = grid_align.unified(
+                        fields, None, method, box=unify, progress=self._sc_progress, meshes=meshes
+                    )
                 else:
-                    mask, shared, total = grid_align.unified(fields, unify["baseline"], method, progress=self._sc_progress)
+                    mask, shared, total = grid_align.unified(
+                        fields, unify["baseline"], method, progress=self._sc_progress, meshes=meshes
+                    )
             finally:
                 with self._lock:
                     self.sc_stage = None

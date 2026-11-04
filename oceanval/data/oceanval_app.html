@@ -2269,7 +2269,7 @@
       <p class="group__msg" id="scg-need-msg"></p>
     </fieldset>
     <div id="scg-how" hidden>
-      <p class="sc-grid-note" id="scg-fvcom-note" hidden><strong>FVCOM output is a mesh of triangles.</strong> It is regridded to the grid chosen (nearest neighbour, as the matchups regrid it) when the comparison runs, so only the cells inside the mesh have values, and the unified grid is not previewed. Variables below the surface are interpolated from the sigma layers to the depths of the levels of the first simulation that is not FVCOM, or, if all of them are, 0 to 150 m every 5 m.</p>
+      <p class="sc-grid-note" id="scg-fvcom-note" hidden><strong>FVCOM output is a mesh of triangles.</strong> It is regridded to the grid chosen (nearest neighbour, as the matchups regrid it) when the comparison runs, so only the cells inside the mesh have values; the unified grid below shows this. The regridding method chosen is for the simulations that are not FVCOM. Variables below the surface are interpolated from the sigma layers to the depths of the levels of the first simulation that is not FVCOM, or, if all of them are, 0 to 150 m every 5 m.</p>
       <p class="sc-grid-note" id="scg-note"><strong>Cells with no value in any one simulation are made missing in all of them.</strong> Once the simulations are on one grid, a cell that is missing in one simulation (land, say, or a place it has no water) is set to missing in every simulation, so that all of them are compared over exactly the same cells. This is judged from the first time step of each simulation's output, for each variable and each layer.</p>
       <fieldset class="group card sc-choice" style="margin-top:18px">
         <legend>How should they be put on one grid? <span class="own-req">Required</span></legend>
@@ -11873,19 +11873,15 @@
         el("p", { class: "group__msg", id: `scg-${index + 1}-msg`, role: "status" }),
         el("div", { class: "ag-map", id: `scg-map-${index + 1}` }));
     });
-    // a mesh is not previewed: there is no unified grid to show if any simulation is FVCOM
-    const preview = !(scState().fvcom || []).length;
-    if (preview) cards.push(el("section", { class: "card ag-card", id: "scg-card-unified", "aria-labelledby": "scg-title-unified" },
+    cards.push(el("section", { class: "card ag-card", id: "scg-card-unified", "aria-labelledby": "scg-title-unified" },
       el("h3", { class: "ag-card__title", id: "scg-title-unified", text: "Unified grid" }),
       el("p", { class: "ag-card__line", text: "The cells every simulation has a value in once they are on one grid. This is of each simulation's first variable at the surface, at the time step its map shows; the run works it out for every variable and layer." }),
       el("p", { class: "group__msg", id: "scg-unified-msg", role: "status" }),
       el("div", { class: "ag-map", id: "scg-map-unified" })));
     $("scg-grid").replaceChildren(...cards);
     for (let number = 1; number <= sims.length; number++) scResized.observe($(`scg-map-${number}`));
-    if (preview) {
-      scResized.observe($("scg-map-unified"));
-      emptyMap("scg-map-unified", "Choose how to put the simulations on one grid, then Generate unified grid.");
-    }
+    scResized.observe($("scg-map-unified"));
+    emptyMap("scg-map-unified", "Choose how to put the simulations on one grid, then Generate unified grid.");
     sims.forEach((sim, index) => askScPanel(index + 1));
   }
 
@@ -11899,11 +11895,6 @@
     if (reply.step && $(`scg-step-${number}`)) {
       $(`scg-step-${number}`).textContent = `Time step: ${reply.step} of the file`;
       $(`scg-step-${number}`).hidden = false;
-    }
-    if (reply.mesh) {
-      message(`scg-${number}-msg`, [line(reply.error)]);
-      emptyMap(`scg-map-${number}`, "A mesh of triangles: not drawn here.");
-      return;
     }
     if (!reply.ok) {
       message(`scg-${number}-msg`, [line(reply.error || "The map could not be drawn.", "error")], true);
@@ -11987,7 +11978,6 @@
     // FVCOM beside output on a grid has no "no", and on its own has no baseline: see oceanval.sim_fvcom
     $("scg-need-group").hidden = mixed;
     $("scg-method-baseline").closest("label").hidden = meshes.length > 0 && !mixed;
-    $("scg-generate").hidden = meshes.length > 0;
     $("scg-fvcom-note").hidden = !meshes.length;
     $("scg-dm-group").hidden = meshes.length > 0;
     $("scg-how").hidden = form.need !== "yes";

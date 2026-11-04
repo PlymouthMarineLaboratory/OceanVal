@@ -8,6 +8,7 @@ import pytest
 import xarray as xr
 
 from oceanval import grid_align, sim_unify
+from viewer_simulations import fvcom_file
 
 
 def write_grid(path, res, land_west_of, fill=-1e20, bounds=False):
@@ -45,6 +46,18 @@ def grids(tmp_path):
         write_grid(tmp_path / "a.nc", 1.0, -5),
         write_grid(tmp_path / "b.nc", 0.5, 0, fill=0.0),
     )
+
+
+def fvcom_surface(path, variable="temp"):
+    """An FVCOM file's surface at its first time, as the grids step reads it: (its viewer_mesh.Mesh, the DataArray)."""
+    from oceanval import viewer_catalogue
+
+    found = viewer_catalogue.scan(fvcom_file(str(path)), 0, wait=False)
+    try:
+        data, _ = found.field(0, [variable], 0, 0, [])
+        return found.mesh(0), data
+    finally:
+        found.close()
 
 
 class TestUnified:
@@ -141,3 +154,84 @@ class TestUnified:
         sim_unify._regrid(Dataset(), {"method": "box", "lon": [0, 1], "lat": [0, 1], "res": 1}, "k", "surface")
         sim_unify._regrid(Dataset(), {"method": "baseline", "is_baseline": False, "folder": "f", "regrid": "nn"}, "k", "surface")
         assert asked == ["bil", "bil", "nn"]
+
+
+class TestFVCOM:
+    """FVCOM output, a mesh, in the grids step's preview: put on the grid by nearest neighbour (as the run does),
+    with the cells outside the mesh missing."""
+
+    def test_on_the_baselines_grid_cropped_to_the_mesh(self, grids, tmp_path):
+        mesh, data = fvcom_surface(tmp_path / "f.nc")
+        fields = {
+            "1": grid_align.field_for_cdo(grids[1], "temp", 0, []),
+            "2": grid_align.fvcom_field(mesh, data),
+        }
+        mask, shared, total = grid_align.unified(fields, "1", "nn", meshes={"2": mesh})
+        values = mask.values.squeeze()
+        # the baseline is cropped to the mesh, a degree wider each way (the run does the same), and not the whole 40 by 40
+        assert 0 < total < 100 and values.shape[0] * values.shape[1] == total
+        # only the half degree cells inside the mesh (5W-4W, 50-51N, with the north-east corner cut out) have values in both
+        assert shared == 3 and (values == 1).sum() == 3
+        lon, lat = mask.lon.values.squeeze(), mask.lat.values.squeeze()
+        shown = np.argwhere(values == 1)
+        assert all(-5 <= lon[j] <= -4 and 50 <= lat[i] <= 51 for i, j in shown)
+
+    def test_on_a_grid_with_bounds_variables(self, tmp_path):
+        mesh, data = fvcom_surface(tmp_path / "f.nc")
+        nemo = write_grid(tmp_path / "nemo.nc", 0.5, -10, bounds=True)
+        fields = {"1": grid_align.fvcom_field(mesh, data), "2": grid_align.field_for_cdo(nemo, "temp", 0, [])}
+        mask, shared, total = grid_align.unified(fields, "2", "nn", meshes={"1": mesh})
+        assert shared == 3 and total < 100
+
+    def test_the_mesh_cannot_be_the_baseline(self, grids, tmp_path):
+        mesh, data = fvcom_surface(tmp_path / "f.nc")
+        fields = {"1": grid_align.field_for_cdo(grids[1], "temp", 0, []), "2": grid_align.fvcom_field(mesh, data)}
+        with pytest.raises(ValueError, match="cannot be the baseline"):
+            grid_align.unified(fields, "2", "nn", meshes={"2": mesh})
+
+    def test_on_a_box_with_another_simulation(self, grids, tmp_path):
+        mesh, data = fvcom_surface(tmp_path / "f.nc")
+        fields = {
+            "1": grid_align.field_for_cdo(grids[1], "temp", 0, []),
+            "2": grid_align.fvcom_field(mesh, data),
+        }
+        box = sim_unify.check_unify({"lon": [-6, -3], "lat": [49, 52], "res": 0.5}, ["1", "2"])
+        mask, shared, total = grid_align.unified(fields, None, "nn", box=box, meshes={"2": mesh})
+        values = mask.values.squeeze()
+        assert values.size == total
+        # nctoolkit's to_latlon has cells on the box's lines, so the 3 by 3 of them in the mesh's 5W-4W, 50-51N
+        # (every half degree, edges included) are there, less the one in the cut-out corner
+        assert shared == 8 and (values == 1).sum() == 8
+        lon, lat = mask.lon.values.squeeze(), mask.lat.values.squeeze()
+        assert all(-5 <= lon[j] <= -4 and 50 <= lat[i] <= 51 for i, j in np.argwhere(values == 1))
+
+    def test_on_a_box_with_only_meshes(self, tmp_path):
+        mesh, data = fvcom_surface(tmp_path / "f.nc")
+        other, other_data = fvcom_surface(tmp_path / "g.nc")
+        fields = {"1": grid_align.fvcom_field(mesh, data), "2": grid_align.fvcom_field(other, other_data)}
+        box = sim_unify.check_unify({"lon": [-6, -3], "lat": [49, 52], "res": 0.5}, ["1", "2"])
+        mask, shared, total = grid_align.unified(fields, None, "nn", box=box, meshes={"1": mesh, "2": other})
+        assert shared == 8 and (mask.values == 1).sum() == 8
+        # bilinear regridding of the meshes' grid, as the run does, spreads the missing cells at the mesh's edge
+        shared = grid_align.unified(fields, None, "bil", box=box, meshes={"1": mesh, "2": other})[1]
+        assert 0 < shared <= 8
+
+    def test_a_variable_on_the_elements(self, grids, tmp_path):
+        mesh, data = fvcom_surface(tmp_path / "f.nc", variable="u")
+        assert data.size == mesh.elements
+        field = grid_align.fvcom_field(mesh, data)
+        fields = {"1": grid_align.field_for_cdo(grids[1], "temp", 0, []), "2": field}
+        mask, shared, total = grid_align.unified(fields, "1", "nn", meshes={"2": mesh})
+        assert 0 < shared <= 6 and total < 100
+
+    def test_a_mesh_in_metres_is_refused(self, tmp_path):
+        from oceanval import viewer_catalogue
+
+        found = viewer_catalogue.scan(fvcom_file(str(tmp_path / "m.nc"), cartesian=True), 0, wait=False)
+        try:
+            data, _ = found.field(0, ["temp"], 0, 0, [])
+            mesh = found.mesh(0)
+        finally:
+            found.close()
+        with pytest.raises(ValueError, match="no longitudes and latitudes"):
+            grid_align.fvcom_field(mesh, data)

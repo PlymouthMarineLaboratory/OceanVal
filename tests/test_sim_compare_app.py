@@ -1530,12 +1530,17 @@ class TestFVCOM:
         assert status == 400 and "lon-lat box" in reply["errors"]["method"]
         assert app.view == "simcompare_grids"
 
-    def test_the_unified_grid_is_not_previewed_for_a_mesh(self, app, fvcom_sims):
+    def test_a_mesh_is_drawn_and_the_unified_grid_is_previewed(self, app, fvcom_sims):
         self.to_grids(app, fvcom_sims)
         status, reply = post(app, "/api/simcompare_panel", {"number": 1})
-        assert reply["ok"] is False and reply["mesh"] is True
-        status, reply = post(app, "/api/simcompare_generate", {"form": {"need": "yes", "method": "box"}})
-        assert status == 400 and "not previewed" in reply["error"]
+        assert status == 200 and reply["ok"] is True and reply["item"] and reply["step"] >= 1
+        # all meshes: only a box is a grid to put them on
+        box = {"need": "yes", "method": "box", "lon_min": "-6", "lon_max": "-3", "lat_min": "49", "lat_max": "52", "res": "0.5"}
+        status, reply = post(app, "/api/simcompare_generate", {"form": box})
+        assert status == 200 and reply["ok"] is True and reply["item"]
+        assert 0 < reply["shared"] <= reply["total"]
+        status, reply = post(app, "/api/simcompare_generate", {"form": {"need": "yes", "method": "baseline", "baseline": "Base run"}})
+        assert status == 400 and "lon-lat box" in reply["errors"]["method"]
 
     def mixed_to_grids(self, app, mixed_simulations):
         fvcom_dir, _, grid_dir, _ = mixed_simulations
@@ -1581,6 +1586,21 @@ class TestFVCOM:
         assert "e3t" in app.analyze_found["picker"]["available"] and "temp" not in app.analyze_found["picker"]["available"]
         assert post(app, "/api/back", {})[0] == 200
         assert app.view == "simcompare_grids"
+
+    def test_with_other_output_the_mesh_is_drawn_and_previewed_on_the_baselines_grid(self, app, mixed_simulations):
+        self.mixed_to_grids(app, mixed_simulations)
+        status, reply = post(app, "/api/simcompare_panel", {"number": 1})
+        assert status == 200 and reply["ok"] is True and reply["item"]
+        status, reply = post(app, "/api/simcompare_panel", {"number": 2})
+        assert status == 200 and reply["ok"] is True
+        # no "need" is sent: the FVCOM output has to go on a grid
+        form = {"method": "baseline", "baseline": "Grid", "regrid": "nn"}
+        status, reply = post(app, "/api/simcompare_generate", {"form": form})
+        assert status == 200 and reply["ok"] is True and reply["item"]
+        assert 0 < reply["shared"] <= reply["total"]
+        box = {"method": "box", "lon_min": "-6", "lon_max": "-3", "lat_min": "49", "lat_max": "52", "res": "0.25"}
+        status, reply = post(app, "/api/simcompare_generate", {"form": box})
+        assert status == 200 and reply["ok"] is True and 0 < reply["shared"] <= reply["total"]
 
     def test_with_other_output_a_box_can_be_chosen_too(self, app, mixed_simulations):
         self.mixed_to_grids(app, mixed_simulations)
@@ -1668,8 +1688,17 @@ def test_the_grids_page_with_fvcom_and_other_output(browser, tmp_path, mixed_sim
         assert page.eval_on_selector_all("#scg-baseline-select option", "(options) => options.map((o) => o.value)") == ["", "Grid"]
         assert page.input_value("#scg-baseline-select") == "Grid"
         assert page.is_visible("#scg-fvcom-note")
-        assert page.is_hidden("#scg-generate") and page.is_hidden("#scg-dm-group")
-        assert "regridded" in page.inner_text("#scg-same") or "regrid" in page.inner_text("#scg-same")
+        assert page.is_visible("#scg-generate") and page.is_hidden("#scg-dm-group")
+        assert "regrid" in page.inner_text("#scg-same")
+        # the mesh is drawn, like the other simulation
+        page.wait_for_function("() => document.querySelector('#scg-map-1').classList.contains('is-drawn')", timeout=60000)
+        page.wait_for_function("() => document.querySelector('#scg-map-2').classList.contains('is-drawn')", timeout=60000)
+        assert "not drawn" not in page.inner_text("#scg-card-1")
+        # and the unified grid can be generated
+        page.wait_for_function("() => !document.querySelector('#scg-generate').disabled")
+        page.click("#scg-generate")
+        page.wait_for_function("() => document.querySelector('#scg-map-unified').classList.contains('is-drawn')", timeout=120000)
+        assert "have a value in every simulation" in page.inner_text("#scg-unified-msg")
         # Continue is allowed as it stands
         page.wait_for_function("() => !document.querySelector('#scg-continue').disabled")
         page.click("#scg-continue")
