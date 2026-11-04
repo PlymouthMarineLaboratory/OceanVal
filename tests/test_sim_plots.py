@@ -112,7 +112,7 @@ def figures(info):
         if first["climatology"]:
             for layer in first["climatology"]["layers"]:
                 yield sp.annual_maps, (key, layer)
-                if len(sims) == 2:
+                if sp.difference_pair(info, variable, layer):
                     # two simulations: one figure of the months, with the difference
                     yield sp.monthly_difference_maps, (key, layer)
                     continue
@@ -269,7 +269,8 @@ def test_the_maps_of_a_pair_are_5_mm_apart(comparisons):
         map_width = max(box.width for box in maps) * width
         plt.close("all")
         for left, right in zip(starts, starts[1:]):
-            assert abs((right - left - map_width) - sp.GAP) < 0.03
+            # a map that is a little narrower than the others (its cells with values differ) sits in the middle of its place
+            assert -0.03 < (right - left - map_width) - sp.GAP < 0.1
     assert abs(sp.GAP * 25.4 - 5) < 0.1
 
 

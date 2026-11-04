@@ -258,17 +258,40 @@ DIFFERENCE_COLOURS = "RdBu_r"
 # the space between the maps, in inches: 5 mm
 GAP = 0.2
 # the room, in inches, for a map's title above it, for the names of the rows to the right of them, and
-# for the colour bars (one under the other) below them
-TITLE_ROOM, NAMES_ROOM, BAR_ROOM = 0.4, 0.8, 0.9
+# for the label of each colour bar (one under the other) below them
+TITLE_ROOM, NAMES_ROOM, BAR_LABEL = 0.4, 0.8, 0.5
 
 
-def pair_size(path, columns, rows, side=0.3, bars=1, titles=1):
-    """The size of a figure of rows of columns of maps of the grid in path, in inches: ap.PANEL_WIDTH wide,
+def drawn_aspect(path, key):
+    """The width over the height of a map of variable key in path as nctoolkit draws it (its projection
+    depends on where the map is), found by drawing it once on a figure of its own; ap.map_aspect's
+    estimate if that fails."""
+    try:
+        ds = nc.open_data(path, checks=False)
+        ds.subset(variables=key)
+        ds.run()
+        if len(ds.times) > 1:
+            ds.subset(time=0)
+            ds.run()
+        fig = plt.figure(figsize=(4, 4))
+        ds.pub_plot(var=key, legend_position=None, fig=fig)
+        fig.canvas.draw()
+        box = fig.axes[0].get_position()
+        return float(box.width / box.height)
+    except Exception:
+        return float(ap.map_aspect(path))
+    finally:
+        plt.close("all")
+
+
+def pair_size(path, key, columns, rows, side=0.3, bars=1, titles=1):
+    """The size of a figure of rows of columns of maps of variable key in path, in inches: ap.PANEL_WIDTH wide,
     each map as tall as its shape makes it, GAP apart, with room for `titles` rows of titles, `side` to the right and
-    `bars` colour bars below. Also the width of a map."""
+    `bars` colour bars below."""
     width = (ap.PANEL_WIDTH - side - 0.2 - (columns - 1) * GAP) / columns
-    height = width / min(max(float(ap.map_aspect(path)), 0.3), 3.5)
-    return [ap.PANEL_WIDTH, round(rows * height + titles * TITLE_ROOM + bars * BAR_ROOM + 0.2, 1)]
+    height = width / min(max(drawn_aspect(path, key), 0.3), 3.5)
+    # a colour bar takes about a third of a map's height (its size and its padding), and room for its label
+    return [ap.PANEL_WIDTH, round((rows + 0.3 * bars) * height + (rows - 1) * GAP + titles * TITLE_ROOM + bars * BAR_LABEL + 0.6, 1)]
 
 
 # the layout of the figures: the maps are this far apart (the padding of constrained layout is each side)
@@ -463,7 +486,7 @@ def annual_difference_maps(results_dir, key, layer):
         (0, 2, legend(name, saved["units"]), scales[0][1], 0, 1),
         (2, 3, _wrapped(legend(f"{name}, {title}", saved["units"])), scales[1][1], 2, 1),
     ]
-    size = pair_size(paths[0], 3, 1)
+    size = pair_size(paths[0], key, 3, 1)
 
     options = _plot_options(
         key,
@@ -535,7 +558,7 @@ def monthly_difference_maps(results_dir, key, layer):
         (0, months * 3, legend(name, saved["units"]), scales[0][1], 0, thin),
     ]
     # a row of maps for the first simulation, the second and the difference in every block, and room for the colour bars
-    size = pair_size(paths[0], ncol, 3 * blocks, side=NAMES_ROOM, bars=2, titles=0)
+    size = pair_size(paths[0], key, ncol, 3 * blocks, side=NAMES_ROOM, bars=2, titles=blocks)
     # the names of the rows, wrapped so that a long name stays beside its row
     rows = [textwrap.fill(label, 24) for label in (*pair, title)]
 
