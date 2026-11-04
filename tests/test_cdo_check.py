@@ -138,6 +138,7 @@ def test_the_window_blocks_everything_once_a_file_crashes_cdo(tmp_path, fake_cdo
     bad.rename(bad.with_name("bad_" + bad.name))
     app = App(cwd=str(tmp_path))
     try:
+        app.choose("analyze_menu")
         app.choose("analyze")
         with app._lock:
             app._start_cdo_check([{"simdir": str(sim), "ndown": 2, "exclude": None, "require": None}])

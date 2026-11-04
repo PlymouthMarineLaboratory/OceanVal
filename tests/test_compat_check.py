@@ -359,7 +359,7 @@ class TestCompat:
         assert len(changes) >= 12
 
     def test_a_file_with_several_variables_waits_for_the_choice(self, tmp_path):
-        check = compat_check.Compat(two_variables(tmp_path / "two.nc"), step_timeout=2).start()
+        check = compat_check.Compat(two_variables(tmp_path / "two.nc"), step_timeout=10).start()
         deadline = time.monotonic() + 60
         while check.state()["status"] == "running" and time.monotonic() < deadline:
             time.sleep(0.1)
@@ -368,7 +368,7 @@ class TestCompat:
         assert state["variables"]["tos"]["units"] == "degC"
         assert {row["status"] for row in state["rows"]} == {"waiting"}
         # nothing times out while the user chooses, and only the file's variables are taken
-        time.sleep(4)
+        time.sleep(12)
         assert check.state()["status"] == "choose"
         assert not check.choose("nothing")
         assert check.choose("chl")

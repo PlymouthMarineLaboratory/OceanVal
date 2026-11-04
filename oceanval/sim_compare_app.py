@@ -857,7 +857,7 @@ class SimCompareSteps:
         if self.view == "simcompare_sims":
             if isinstance(sent.get("form"), dict):
                 self.sc_sims_form = sim_compare_forms.clean_sims_form(sent["form"], self.cwd)
-            self.view = "home"
+            self.view = "analyze_menu"
         elif self.view == "simcompare_variables":
             if isinstance(sent.get("rows"), list):
                 self.sc_rows = sim_compare_forms.clean_rows(sent["rows"], [sim["name"] for sim in self.sc_sims or []])

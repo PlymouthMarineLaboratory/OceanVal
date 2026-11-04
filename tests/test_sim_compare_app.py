@@ -63,6 +63,7 @@ def state(app):
 
 
 def to_sims(app):
+    post(app, "/api/choose", {"action": "analyze_menu"})
     assert post(app, "/api/choose", {"action": "simcompare"}) == (200, {"ok": True})
     return state(app)["simcompare"]
 
@@ -104,8 +105,8 @@ def to_options(app, unify=None):
 class TestLanding:
     def test_there_is_a_third_tile(self, app):
         page = get(app, "/")[1]
-        assert 'data-action="simcompare"' in page and 'data-action="analyze"' in page
-        assert 'class="choices is-five"' in page
+        assert 'data-action="analyze_menu"' in page and 'id="menu-simcompare"' in page
+        assert 'class="choices is-four"' in page
         assert state(app)["view"] == "home"
 
     def test_the_tile_goes_to_the_simulations_and_back(self, app):
@@ -114,7 +115,11 @@ class TestLanding:
         assert len(shown["form"]["rows"]) == 2
         assert shown["colours"] == sim_compare.COLOURS and shown["most"] == 5
         assert post(app, "/api/back", {"form": sims_form()})[0] == 200
+        assert app.view == "analyze_menu"
+        assert post(app, "/api/back")[0] == 200
         assert app.view == "home"
+        post(app, "/api/choose", {"action": "analyze_menu"})
+        post(app, "/api/choose", {"action": "simcompare"})
         # what was entered is shown again
         assert state(app)["simcompare"]["form"]["rows"][0]["name"] == "Base run"
 
@@ -122,6 +127,7 @@ class TestLanding:
         to_options(app)
         app.view, app.action = "finished", "simcompare"
         assert post(app, "/api/restart_all")[0] == 200
+        post(app, "/api/choose", {"action": "analyze_menu"})
         assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
         # the options of the comparison are not an analysis's
         assert app.analyze_placed is None and app.analyze_found is None
@@ -996,7 +1002,8 @@ def test_phenology_is_ticked_in_a_browser(browser, tmp_path):
         page = browser.new_page(viewport={"width": 1280, "height": 1000})
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         for number, (name, folder) in enumerate((("Base run", "base"), ("Fine run", "fine")), 1):
             page.fill(f"#sc-name_{number}", name)
@@ -1070,7 +1077,8 @@ def test_a_simulation_row_says_it_is_finding_files_until_the_answer_is_in(browse
     try:
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         held = []
         page.route("**/api/probe*", lambda route: held.append(route))
@@ -1105,7 +1113,8 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
         page.add_init_script("window.__keepFolderStructure = true")
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         page.fill("#sc-dir_1", "months")
         page.wait_for_function("document.querySelector('#sc-ndown_1').value === '2'")
@@ -1143,7 +1152,8 @@ def test_a_simulation_row_starts_skipping_nothing(browser, tmp_path):
     try:
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         # every row starts with nothing skipped, and an unused row is not a simulation to name
         assert [page.input_value(f"#sc-exclude_{n}") for n in (1, 2)] == ["", ""]
@@ -1180,7 +1190,8 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         assert page.locator("#view-home .choice").count() == 4
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         # two simulations to start, a third can be added
         assert page.is_visible("#sc-row-2") and page.is_hidden("#sc-row-3")

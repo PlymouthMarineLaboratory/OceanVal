@@ -2590,8 +2590,15 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = "start"
                 self._notify()
                 return True
+            if action == "analyze_menu":
+                # the landing page's Analyze simulations tile: one simulation, or up to five
+                if self.view != "home":
+                    return False
+                self.view = "analyze_menu"
+                self._notify()
+                return True
             if action == ANALYZE:
-                if self.view not in ("home", "finished"):
+                if self.view not in ("analyze_menu", "finished"):
                     return False
                 self._end_demo()
                 self._forget_steps()
@@ -2619,7 +2626,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self._notify()
                 return True
             if action == SIMCOMPARE:
-                if self.view not in ("home", "finished"):
+                if self.view not in ("analyze_menu", "finished"):
                     return False
                 self._end_demo()
                 self._forget_steps()
@@ -2766,7 +2773,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 # the boxes are shown again as they were left
                 if isinstance(sent.get("form"), dict):
                     self.analyze_setup_form = self._analyze_form(sent["form"])
-                self.view = "home"
+                self.view = "analyze_menu"
                 self._notify()
                 return True
             went = self._analyze_back(sent)
@@ -2789,6 +2796,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "register_point": "register_kind",
             "register_gridded": "register_kind",
             "help": "home",
+            "analyze_menu": "home",
             "help_compatible": "help",
         }
         if self.demo is not None and self.demo["status"] != "downloading":

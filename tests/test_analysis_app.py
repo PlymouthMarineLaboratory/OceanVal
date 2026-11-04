@@ -44,6 +44,7 @@ def setup_form(app, simdir="sim", **changes):
 
 
 def to_variables(app, simdir="sim"):
+    post(app, "/api/choose", {"action": "analyze_menu"})
     assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
     assert post(app, "/api/setup", {"form": setup_form(app, simdir)}) == (200, {"ok": True})
     wait_for(lambda: app.analyze_found["status"] != "reading")
@@ -139,6 +140,7 @@ class TestRestart:
         assert app.own_data == {"point": [], "gridded": []}
 
     def test_it_works_from_compare_simulations(self, app):
+        post(app, "/api/choose", {"action": "analyze_menu"})
         assert post(app, "/api/choose", {"action": "simcompare"})[0] == 200
         assert app.view == "simcompare_sims"
         assert post(app, "/api/restart_all")[0] == 200
@@ -203,6 +205,7 @@ class TestSimulation:
         assert presets["Salinity"] is None
 
     def test_the_setup_page_is_its_own(self, app, sim):
+        post(app, "/api/choose", {"action": "analyze_menu"})
         assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
         state = get_json(app, "/api/state")[1]
         assert state["setup"]["form"]["out"] == "analysis.py"
@@ -974,6 +977,7 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
+        page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
         # an analysis has no domain to choose
         assert page.is_hidden("#setup-domain")
@@ -1139,6 +1143,7 @@ def test_replacing_an_analysis_must_be_ticked_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
+        page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "1")
@@ -1216,6 +1221,7 @@ def test_map_changes_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
+        page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "1")
@@ -1315,6 +1321,7 @@ def open_analyze_option(browser, tmp_path, years, option, dialog, rows=(("Temper
     page.goto(url)
     page.wait_for_selector("#view-home:not([hidden])")
     page.click("#home-analyze")
+    page.click("#menu-analyze")
     page.wait_for_selector("#view-setup:not([hidden])")
     page.fill("#f-simdir", "sim")
     page.fill("#f-ndown", "1")
@@ -1352,6 +1359,7 @@ def open_analyze_variables_in_browser(browser, tmp_path):
     page.goto(url)
     page.wait_for_selector("#view-home:not([hidden])")
     page.click("#home-analyze")
+    page.click("#menu-analyze")
     page.wait_for_selector("#view-setup:not([hidden])")
     page.fill("#f-simdir", "sim")
     page.fill("#f-ndown", "1")
@@ -1444,6 +1452,7 @@ def test_the_setup_page_says_it_is_finding_files_until_the_answer_is_in(browser,
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
+        page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "1")
@@ -1629,6 +1638,7 @@ def test_transects_in_a_browser(browser, tmp_path):
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
+        page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "1")
@@ -1962,6 +1972,7 @@ def test_the_names_drop_down_the_larger_pop_outs_and_the_missing_value_in_a_brow
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
+        page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "1")
@@ -2196,6 +2207,7 @@ class TestClosingTheBrowser:
         app.page_timeout = 2
         release = threading.Event()
         monkeypatch.setattr(app, "_read_streams", lambda *args, **kwargs: release.wait(30))
+        post(app, "/api/choose", {"action": "analyze_menu"})
         assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
         assert post(app, "/api/setup", {"form": setup_form(app)}) == (200, {"ok": True})
         assert get_json(app, "/api/state", page="a")[0] == 200
