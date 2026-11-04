@@ -769,9 +769,9 @@ def test_years_are_forgotten_with_new_files(page, simulation):
     assert tab.input_value("#vw-first") == "" and tab.input_value("#vw-last") == ""
 
 
-@pytest.mark.parametrize("width, rows", [(1300, 2), (900, 3), (400, 5)])
+@pytest.mark.parametrize("width, rows", [(1300, 2), (900, 3)])
 def test_the_landing_page_has_five_tiles_that_wrap(browser, tmp_path, width, rows):
-    """Five tiles: three and two on a wide window, two a row on a narrow one, and one above another on a phone."""
+    """Five tiles: three and two on a wide window, and two a row on a narrow one."""
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
     url = app.start()

@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>OceanVal</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%230f8f96'/%3E%3Cstop offset='1' stop-color='%23075c68'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M10 40c6-8 12-8 18 0s12 8 18 0s8-8 8-8' fill='none' stroke='%23fff' stroke-width='4.5' stroke-linecap='round' opacity='.55'/%3E%3Cpath d='M8 30c6-9 13-9 19 0s13 9 19 0s10-9 10-9' fill='none' stroke='%23fff' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -634,15 +633,9 @@
   }
   /* how many of a matchup's model files have been read, while they are */
   .matchup-grid__count { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  /* under the matchup's circle, where the grid is too narrow for a column of its own */
-  .matchup-grid__count.is-under { display: block; margin-top: 2px; font-size: 11px; }
   .matchup-grid__link { display: inline-flex; vertical-align: middle; border-radius: 6px; }
   .matchup-grid__link:hover { background: var(--teal-100); }
-  @media (max-width: 640px) {
-    .progress { padding: 20px 16px; }
-  }
-  /* the ticks stay in sight: the table fits, its names wrap (at 640px and below without the
-     extraction columns, NARROW_GRID) */
+  /* the ticks stay in sight: the table fits, its names wrap */
   @media (max-width: 860px) {
     .matchup-grid table { min-width: 0; font-size: 13px; }
     .matchup-grid th, .matchup-grid td { padding: 10px 6px; }
@@ -650,12 +643,6 @@
     .matchup-grid th { font-size: 10px; letter-spacing: 0.01em; }
     .matchup-grid th.is-state, .matchup-grid td.is-state { width: 60px; padding-left: 4px; padding-right: 4px; }
     .matchup-grid th.is-time, .matchup-grid td.is-time { width: 48px; padding-left: 4px; padding-right: 4px; }
-  }
-  /* as many as six analyses side by side on a phone (NARROW_GRID): their names are turned on their side */
-  @media (max-width: 640px) {
-    .matchup-grid.is-analyses th.is-state, .matchup-grid.is-analyses td.is-state { width: 30px; padding-left: 2px; padding-right: 2px; }
-    .matchup-grid.is-analyses thead th.is-state { vertical-align: bottom; text-align: center; }
-    .matchup-grid__sideways { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; text-align: left; }
   }
   .progress__body { flex: 1; min-width: 0; }
   .progress__bar { height: 8px; margin: 14px 0 0; overflow: hidden; border-radius: 999px; background: var(--teal-200); }
@@ -676,11 +663,6 @@
   .prepare__years[hidden] { display: none; }
   .prepare__years .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
   .prepare__years .icon { width: 16px; height: 16px; color: var(--teal-600); }
-  @media (max-width: 640px) {
-    .prepare { min-height: 0; }
-    .prepare__card { padding: 36px 20px 30px; }
-    .prepare__title { font-size: 22px; }
-  }
   .ask.card { margin: 0 0 18px; border: 1px solid var(--coral-line); background: var(--coral-bg); }
 
   /* ---- the interim report, built as the matchups are made, and the links to the reports ---- */
@@ -848,21 +830,27 @@
   #view-home .choice__text { font-size: 16px; }
 
 
-  /* ---- the landing page has five tiles, three then two, centered (one above another on a phone) ---- */
-  #view-home .choices.is-five { display: flex; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1225px; gap: 30px; }
-  #view-home .choices.is-five .choice { flex: 1 1 340px; max-width: 360px; min-height: 275px; padding: 38px 38px; gap: 18px; }
-  #view-home .choices.is-five .choice__icon { width: 80px; height: 80px; margin-bottom: 8px; border-radius: 20px; }
-  #view-home .choices.is-five .choice__icon svg { width: 40px; height: 40px; }
-  #view-home .choices.is-five .choice__title { font-size: 32px; }
-  #view-home .choices.is-five .choice__text { font-size: 20px; }
-  @media (max-width: 640px) { #view-home .choices.is-five { flex-direction: column; } #view-home .choices.is-five .choice { min-height: 0; max-width: none; } }
+  /* ---- the Analyze simulations menu: two tiles in the middle of the page, 3x the usual space between, text 1.5x ---- */
+  #view-analyze-menu:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
+  #view-analyze-menu .choices { width: 100%; max-width: 1100px; gap: 54px; }
+  #view-analyze-menu .choice { align-items: center; justify-content: center; text-align: center; aspect-ratio: auto; min-height: 260px; gap: 18px; }
+  #view-analyze-menu .choice__title { font-size: 30px; }
+  #view-analyze-menu .choice__icon { width: 69px; height: 69px; border-radius: 18px; }
+  #view-analyze-menu .choice__icon svg { width: 36px; height: 36px; }
+
+  /* ---- the landing page has four tiles, two by two ---- */
+  #view-home .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: center; width: 100%; max-width: 1032px; gap: 36px; }
+  #view-home .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
+  #view-home .choices.is-four .choice__icon { width: 96px; height: 96px; margin-bottom: 10px; border-radius: 24px; }
+  #view-home .choices.is-four .choice__icon svg { width: 48px; height: 48px; }
+  #view-home .choices.is-four .choice__title { font-size: 36px; }
+  #view-home .choices.is-four .choice__text { font-size: 22px; }
 
   /* ---- View simulation output (see oceanval.viewer_app) ---- */
   /* the setup page's missing values, asked there for viewing only */
   .missing-rows { display: grid; gap: 8px; margin-bottom: 8px; }
   .missing-rows__row { display: grid; grid-template-columns: max-content 140px max-content 140px; gap: 8px; align-items: center; }
   .missing-rows__row label { color: var(--ink-soft); font-size: 12.5px; font-weight: 500; }
-  @media (max-width: 640px) { .missing-rows__row { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); } }
   /* reading the files */
   .vw-meter { width: 100%; height: 8px; margin-top: 26px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
   .vw-meter > span { display: block; height: 100%; width: 0; background: var(--teal-500); transition: width 0.2s; }
@@ -991,7 +979,6 @@
   .ag-map__empty .identify__spinner { width: 18px; height: 18px; border-width: 3px; }
   .ag-map__empty { margin: 0; padding: 0 12px; color: var(--muted); font-size: 13px; text-align: center; }
   @media (max-width: 860px) { .ag-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ag-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-  @media (max-width: 640px) { .ag-grid, .ag-controls { grid-template-columns: minmax(0, 1fr); } }
   .sc-analyze-note { max-width: 980px; margin: 0 0 18px; color: var(--ink-soft); font-size: 14.5px; }
   .analyze-table .sc-model-cell + .sc-model-cell { border-left: 0; }
 
@@ -1148,7 +1135,6 @@
   .example-where { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
   .example-body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px 8px; overscroll-behavior: contain; }
   .example-text p { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
-  @media (max-width: 640px) { .example-body { padding: 0 16px 8px; } }
   @media (max-width: 720px) {
     .review__grid { grid-template-columns: 40px repeat(12, minmax(0, 1fr)); gap: 2px; }
   }
@@ -1263,31 +1249,39 @@
 
 <main class="wrap">
   <section id="view-home" hidden>
-    <div class="choices is-five">
-      <button type="button" class="choice" data-action="help" id="home-help">
-        <span class="choice__icon" data-icon="help"></span>
-        <span class="choice__title">Help | Examples</span>
-        <span class="choice__text">Guides, worked examples and compatibility checks</span>
-      </button>
+    <div class="choices is-four">
       <button type="button" class="choice" data-action="viewer" id="home-viewer">
         <span class="choice__icon" data-icon="viewer"></span>
         <span class="choice__title">View simulation output</span>
         <span class="choice__text">Interactively view netCDF files</span>
       </button>
-      <button type="button" class="choice" data-action="analyze" id="home-analyze">
+      <button type="button" class="choice" data-action="analyze_menu" id="home-analyze">
         <span class="choice__icon" data-icon="analyze"></span>
         <span class="choice__title">Analyze simulations</span>
         <span class="choice__text">Climatologies&nbsp;| seasonal cycles&nbsp;| long-term trends&nbsp;| transects&nbsp;| phenologies</span>
-      </button>
-      <button type="button" class="choice" data-action="simcompare" id="home-simcompare">
-        <span class="choice__icon" data-icon="simcompare"></span>
-        <span class="choice__title">Compare simulations</span>
-        <span class="choice__text">Compare climatologies&nbsp;| seasonal cycles&nbsp;| long-term trends&nbsp;| transects&nbsp;| phenologies</span>
       </button>
       <button type="button" class="choice" data-action="validate_menu" id="home-validate">
         <span class="choice__icon" data-icon="report"></span>
         <span class="choice__title">Validate simulations</span>
         <span class="choice__text">Matchup and compare simulations with observations. Bias&nbsp;| Correlation&nbsp;| RMSD</span>
+      </button>
+      <button type="button" class="choice" data-action="help" id="home-help">
+        <span class="choice__icon" data-icon="help"></span>
+        <span class="choice__title">Help | Examples</span>
+        <span class="choice__text">Guides, worked examples and compatibility checks</span>
+      </button>
+    </div>
+  </section>
+
+  <section id="view-analyze-menu" hidden>
+    <div class="choices">
+      <button type="button" class="choice" data-action="analyze" id="menu-analyze">
+        <span class="choice__icon" data-icon="analyze"></span>
+        <span class="choice__title">Analyze one simulation</span>
+      </button>
+      <button type="button" class="choice" data-action="simcompare" id="menu-simcompare">
+        <span class="choice__icon" data-icon="simcompare"></span>
+        <span class="choice__title">Analyze and compare up to 5 simulations</span>
       </button>
     </div>
   </section>
@@ -2996,6 +2990,7 @@
     switch (state.view) {
       case "home": return "";  // the cards speak for themselves
       case "start": return "";
+      case "analyze_menu": return "";
       case "help": return "Help | Examples";
       case "help_compatible": return "Is my data compatible with OceanVal?";
       case "demo": return "Try OceanVal with a demo";
@@ -3098,7 +3093,7 @@
     } else if (view === "demo_instructions") {
       actions.push(button("Back", "ghost", () => post("api/back")),
         button("Continue", "primary", () => post("api/demo_continue"), { id: "demo-continue" }));
-    } else if (view === "start") {
+    } else if (view === "start" || view === "analyze_menu") {
       // to the landing page
       actions.push(button("Back", "ghost", () => post("api/back")));
     } else if (view === "help" || view === "help_compatible") {
@@ -4186,7 +4181,7 @@
 
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
-    help: "view-help", help_compatible: "view-help-compatible",
+    analyze_menu: "view-analyze-menu", help: "view-help", help_compatible: "view-help-compatible",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
     simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
@@ -4224,6 +4219,8 @@
       $("compat-path").focus();
     } else if (view === "home") {
       $("home-viewer").focus();
+    } else if (view === "analyze_menu") {
+      $("menu-analyze").focus();
     } else if (view === "start") {
       document.querySelector("#view-start .choice").focus();
       showValidateIntro();
@@ -4424,7 +4421,7 @@
   });
 
   // ---- 1: choosing what to do ----
-  document.querySelectorAll("#view-start .choice, #view-home .choice, #view-help .choice").forEach((choice) => {
+  document.querySelectorAll("#view-start .choice, #view-home .choice, #view-help .choice, #view-analyze-menu .choice").forEach((choice) => {
     choice.addEventListener("click", () => post("api/choose", { action: choice.dataset.action }));
   });
 
@@ -9721,10 +9718,10 @@
   const filesSaid = (total) => `${total} model file${total === 1 ? "" : "s"}`;
 
   // the count of a matchup's model files read, while they are being read and how many is known
-  function filesCount(files, under) {
+  function filesCount(files) {
     const said = `Read ${files.done} of ${filesSaid(files.total)}`;
     return el("span", {
-      class: under ? "matchup-grid__count is-under" : "matchup-grid__count",
+      class: "matchup-grid__count",
       role: "img", "aria-label": said, title: said, text: `${files.done}/${files.total}`,
     });
   }
@@ -9748,7 +9745,7 @@
       if (cell.dataset.key === key) return;
       cell.dataset.key = key;
       cell.dataset.state = "counting";
-      cell.replaceChildren(filesCount(files, false));
+      cell.replaceChildren(filesCount(files));
     }
   }
 
@@ -9762,20 +9759,6 @@
     } else if (observations === "read") gridMark(cell, "done", null, "Observations read");
     else if (item.state === "not_made") gridMark(cell, "failed", null, "Observations not read");
     else gridMark(cell, "working", null, "Reading the observations");
-  }
-
-  // too narrow for the extraction columns (as on a phone), the grid leaves them out, so it
-  // still fits and its ticks stay in sight, and the count is under the matchup's circle
-  const NARROW_GRID = window.matchMedia("(max-width: 640px)");
-  NARROW_GRID.addEventListener("change", () => renderMatchupGrid() || renderAnalysisGrid());
-
-  function countUnder(cell, item) {
-    const files = item.extraction;
-    const count = cell.querySelector(".matchup-grid__count");
-    if (count) count.remove();
-    if (files && !files.finished && files.done !== null && item.state === "matching") {
-      cell.append(filesCount(files, true));
-    }
   }
 
   // a time as a stopwatch shows it: 0:07, 12:04, 1:02:03
@@ -9813,13 +9796,12 @@
     const progress = state.run.progress;
     const items = progress.items;
     const withReport = state.action === "matchup_validate";
-    const narrow = NARROW_GRID.matches;
-    const rows = JSON.stringify([withReport, narrow, items.map((item) => [item.key, item.title, item.source])]);
+    const rows = JSON.stringify([withReport, items.map((item) => [item.key, item.title, item.source])]);
     if (box.dataset.rows !== rows) {
       box.dataset.rows = rows;
       box.classList.remove("is-analyses");
       const head = [
-        "Variable", "Data source", ...(narrow ? [] : ["Model extraction", "Observation extraction"]), "Matchup", "Time",
+        "Variable", "Data source", "Model extraction", "Observation extraction", "Matchup", "Time",
         ...(withReport ? ["Interim report"] : []),
       ];
       const headClass = (text, index) => text === "Time" ? "is-time" : index > 1 ? "is-state" : null;
@@ -9828,13 +9810,13 @@
         el("tbody", {}, ...items.map((item) => el("tr", { "data-key": item.key },
           el("td", { class: "matchup-grid__title", text: item.title }),
           el("td", { text: item.source }),
-          narrow ? null : el("td", { class: "is-state", "data-column": "extraction" }),
-          narrow ? null : el("td", { class: "is-state", "data-column": "observations" }),
+          el("td", { class: "is-state", "data-column": "extraction" }),
+          el("td", { class: "is-state", "data-column": "observations" }),
           el("td", { class: "is-state", "data-column": "matchup" }),
           el("td", { class: "is-time", "data-column": "time" }),
           withReport ? el("td", { class: "is-state", "data-column": "report" }) : null))),
         el("tfoot", {}, el("tr", {},
-          el("th", { scope: "row", colspan: narrow ? "3" : "5", text: "Time elapsed" }),
+          el("th", { scope: "row", colspan: "5", text: "Time elapsed" }),
           el("td", { class: "is-time", "data-column": "total" }),
           withReport ? el("td", { class: "is-state" }) : null))));
     }
@@ -9847,11 +9829,8 @@
       row.classList.toggle("is-active", item.state === "matching");
       const matchup = row.querySelector('[data-column="matchup"]');
       gridMark(matchup, { matching: "working", made: "done", not_made: "failed" }[item.state] || "waiting");
-      if (narrow) countUnder(matchup, item);
-      else {
-        extractionMark(row.querySelector('[data-column="extraction"]'), item);
-        observationMark(row.querySelector('[data-column="observations"]'), item);
-      }
+      extractionMark(row.querySelector('[data-column="extraction"]'), item);
+      observationMark(row.querySelector('[data-column="observations"]'), item);
       setClock(row.querySelector('[data-column="time"]'), item.seconds, item.state === "matching");
       const report = row.querySelector('[data-column="report"]');
       if (!report) return;
@@ -9900,8 +9879,7 @@
     else gridMark(cell, "todo");
   }
 
-  // returns whether it is shown. Too narrow for them all (as on a phone), the
-  // grid leaves out the report's column, so the analyses' stay in sight
+  // returns whether it is shown
   function renderAnalysisGrid() {
     const box = $("progress-grid");
     if (!analysisGridShown()) return false;
@@ -9909,28 +9887,23 @@
     const progress = state.run.analysis;
     const kinds = progress.kinds;
     const items = progress.items;
-    const withReport = !NARROW_GRID.matches;
-    const rows = JSON.stringify(["analyses", withReport, kinds, items.map((item) => [item.key, item.title])]);
+    const rows = JSON.stringify(["analyses", kinds, items.map((item) => [item.key, item.title])]);
     if (box.dataset.rows !== rows) {
       box.dataset.rows = rows;
       box.classList.add("is-analyses");
-      const head = ["Variable", ...kinds.map((kind) => ANALYSIS_COLUMNS[kind] || kind), "Time", ...(withReport ? ["Report"] : [])];
+      const head = ["Variable", ...kinds.map((kind) => ANALYSIS_COLUMNS[kind] || kind), "Time", "Report"];
       const headClass = (text, index) => index === 0 ? null : index === kinds.length + 1 ? "is-time" : "is-state";
-      // on a phone, the analyses' names are turned on their side (see .matchup-grid__sideways)
-      const headCell = (text, index) => index > 0 && index <= kinds.length && !withReport
-        ? el("th", { scope: "col", class: "is-state" }, el("span", { class: "matchup-grid__sideways", text }))
-        : el("th", { scope: "col", class: headClass(text, index), text });
       box.replaceChildren(el("table", {},
-        el("thead", {}, el("tr", {}, ...head.map(headCell))),
+        el("thead", {}, el("tr", {}, ...head.map((text, index) => el("th", { scope: "col", class: headClass(text, index), text })))),
         el("tbody", {}, ...items.map((item) => el("tr", { "data-key": item.key },
           el("td", { class: "matchup-grid__title", text: item.title }),
           ...kinds.map((kind) => el("td", { class: "is-state", "data-column": kind })),
           el("td", { class: "is-time", "data-column": "time" }),
-          withReport ? el("td", { class: "is-state", "data-column": "report" }) : null))),
+          el("td", { class: "is-state", "data-column": "report" })))),
         el("tfoot", {}, el("tr", {},
           el("th", { scope: "row", colspan: String(kinds.length + 1), text: "Time elapsed" }),
           el("td", { class: "is-time", "data-column": "total" }),
-          withReport ? el("td", { class: "is-state" }) : null))));
+          el("td", { class: "is-state" })))));
     }
     setClock(box.querySelector('[data-column="total"]'), progress.elapsed, progress.running);
     const interim = state.interim || {};
@@ -9942,7 +9915,6 @@
       for (const kind of kinds) analysisMark(row.querySelector(`[data-column="${kind}"]`), item, kind, progress.simulations);
       setClock(row.querySelector('[data-column="time"]'), item.seconds, item.state === "working" && progress.running);
       const report = row.querySelector('[data-column="report"]');
-      if (!report) return;
       if (added[item.key]) gridMark(report, "done", added[item.key]);
       else if (interim.building_key === item.key && interim.state === "building") gridMark(report, "working");
       else if (failed.includes(item.key)) gridMark(report, "failed", null, "Its page could not be built");

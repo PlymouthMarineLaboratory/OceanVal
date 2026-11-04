@@ -14,6 +14,14 @@ simulations side by side), `create_recipes()` (scaffold a
 matchup script from model output), `add_gridded_comparison()`/`add_point_comparison()` (register
 custom obs datasets), `deep_clean()`, `fix_toc()`.
 
+## The app never runs on a phone
+
+The OceanVal app (the `oceanval` command's browser windows: `oceanval_app.html`, `create_recipes_gui.html`, `gui.css`, `gui.js`) will
+**never run on a phone** (the user's rule, 2026-11-04). Write no phone-specific code: no `<meta name="viewport">`, no phone-width
+(≤640px) media queries or `matchMedia` layouts, no phone layouts, and no tests that set a phone-sized viewport (~390px) or check
+that the page fits one. A narrowed desktop window is still handled (the 720px-and-wider rules, e.g. the grid's ≤860px sizes). The public docs
+website (`docs-site/`, `docs/source/`) and the generated HTML report (its ≤720px sidebar) are read on any device and keep their own responsive CSS.
+
 ## Environment setup
 
 Conda is the supported environment (`oceanval.yml`) — R packages (rpy2, r-tidyverse, r-ggtext,
@@ -355,8 +363,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   which `App._matchup_news` hands to `App._analysis_news` (`ANALYSIS_NEWS`) → `state()["run"]["analysis"]`: a cell is `done` once
   every simulation has done it, `partial` with the count between, `failed` if working when the run ended. Marks: hollow ring
   (`todo`, `.matchup-grid__todo`) to do, turning circle, tick, dash for an analysis the variable does not have. The Report column is
-  `InterimBook`'s status (`added`/`building_key`/`failed`, by variable key, through `_interim_state`). At ≤640px (`NARROW_GRID`)
-  the Report column is left out and the analyses' names are turned on their side (`.matchup-grid__sideways`), so every column fits.
+  `InterimBook`'s status (`added`/`building_key`/`failed`, by variable key, through `_interim_state`).
 - **Every Analyze figure is drawn by running its own code**, the script the report's
   "Copy code to reproduce figure" button copies (`analyze(figure_code=True)`, the window's
   required Yes/No): each `analysis_plots` function builds a standalone script (nctoolkit/
@@ -622,8 +629,8 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 
 ### View simulation output (`oceanval/viewer_*.py`)
 
-- Ported from the standalone ncviewer (2026-10-28): the landing page's **second** tile (`#home-viewer`, `data-action="viewer"`,
-  `viewer_app.VIEWER`; Help | Examples is first); the landing page's five tiles wrap (`.choices.is-five`, one column at ≤640px). Mixin
+- Ported from the standalone ncviewer (2026-10-28): the landing page's first tile (`#home-viewer`, `data-action="viewer"`,
+  `viewer_app.VIEWER`; Help | Examples is last); the landing page's four tiles are 2 x 2 (`.choices.is-four`). Mixin
   `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
   (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
   logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own; only
@@ -678,7 +685,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `OceanVal` only where file names are case sensitive, as on macOS/Windows the two are one file and pip
   failed to upgrade over them): a
   127.0.0.1 server with a token, whose page (`data/oceanval_app.html`) opens on a landing
-  page (view `home`, five tiles) of Help | Examples (see above), View simulation output, Analyze, Compare simulations (see above) and Validate, which leads to the validation page
+  page (view `home`, four tiles, 2 x 2: View simulation output, Analyze simulations, Validate, Help | Examples (see above)) - Analyze simulations (action `analyze_menu`, view `analyze_menu`: two tiles with no subtitles, **Analyze one simulation** = `analyze` and **Analyze and compare up to 5 simulations** = `simcompare` (see above); Back from either's first step returns to that menu, and from the menu to `home`) and Validate, which leads to the validation page
   (view `start`) for choosing matchup+validate / matchup only / validate, the simulation (live-checked via `/api/probe`),
   the create_recipes window, and a progress panel for the run (its console is shown only if the run fails).
 - **Whether a browser is opened** is `recipes_gui._can_open_browser`: `OCEANVAL_BROWSER` 1/0 decides if set; else `BROWSER` (VS Code's
@@ -762,8 +769,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `point_match` (the ICES download or the csv files, then the year/month/day clean-up), before its model files; a gridded
   matchup's is `gridded_matchup(on_observing=, on_observed=)`, from "Read in the monthly observational data" (after the model's
   `merge`) to the `ds_obs.run()` after the observations' merge, before they are cut to the surface and regridded. At ≤860px the
-  grid is made smaller so every column stays in sight. At ≤640px (`NARROW_GRID`) both extraction columns are left out, so the
-  table still fits, and the count is under the Matchup circle (`countUnder`). **A data server that is down** (`oceanval/server_trouble.py`): `answer_of` finds a 5xx/429 in an error (urllib/requests
+  grid is made smaller so every column stays in sight. **A data server that is down** (`oceanval/server_trouble.py`): `answer_of` finds a 5xx/429 in an error (urllib/requests
   status, or the server's HTML page CDO gives back, e.g. NOAA's `<title>503 Service Unavailable</title>`); `gridded.record_gridded_failure`
   (and matchall around the ICES download) tells the window news `{"kind": "server_trouble", key, title, host, server, status, reason}`
   as the matchup fails. `App._server_trouble_news` keeps it by host in `App.server_trouble` (`state()["run"]["server_trouble"]`; a

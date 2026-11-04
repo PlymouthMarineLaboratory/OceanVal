@@ -5329,6 +5329,8 @@ def test_the_files_skipped_start_empty_in_a_browser(browser, tmp_path, tile):
         page = browser.new_page()
         page.goto(url)
         page.click(tile)
+        if tile == "#home-analyze":
+            page.click("#menu-analyze")
         if tile == "#home-validate":
             page.click('button.choice[data-action="matchup_validate"]')
         amber = lambda: page.locator("#f-exclude").evaluate("node => node.classList.contains('is-detected')")
@@ -5420,9 +5422,6 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.locator("#m-domain").count() == 0
         assert "OceanVal is running from" not in page.text_content("#meta")
         assert "Next, OceanVal reads the simulation, and shows you what it found." not in page.text_content("#bar")
-        page.set_viewport_size({"width": 390, "height": 844})
-        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        page.set_viewport_size({"width": 1280, "height": 720})
         assert page.locator(".ndown-row").evaluate(
             "node => getComputedStyle(node).display"
         ) == "grid"
@@ -6138,11 +6137,6 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
         page.wait_for_function(f"document.querySelectorAll('#files-list .picker__file').length === {len(in_run)}")
         assert page.text_content("#files-title") == "Temperature, 2001–2003: files"
         page.click("#files-close")
-
-        # the page does not scroll sideways on a phone
-        page.set_viewport_size({"width": 390, "height": 844})
-        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        page.set_viewport_size({"width": 1400, "height": 1000})
 
         # Yes goes on, through where the matchups go, to the report options, and Back shows the dates again
         number = app.model_check.number
@@ -7056,20 +7050,7 @@ def test_the_matchups_grid_in_a_browser(browser, tmp_path):
         assert page.locator("#progress-grid th").count() == 8
         assert fits()
 
-        # on a phone the grid scrolls in its box, never the page
-        page.set_viewport_size({"width": 390, "height": 800})
-        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        # and fits it, without the extraction columns: the count is under the circle
-        page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="matchup"] .matchup-grid__count')
-        assert page.locator("#progress-grid th").all_text_contents() == [
-            "Variable", "Data source", "Matchup", "Time", "Interim report", "Time elapsed",
-        ]
-        assert cell(3, "extraction").count() == 0
-        assert cell(3, "observations").count() == 0
-        assert cell(3, "matchup").locator(".identify__spinner").count() == 1
-        assert cell(3, "matchup").locator(".matchup-grid__count").text_content() == "7/20"
-        assert fits()
-        # and back again
+        # and back to a wide one
         page.set_viewport_size({"width": 1100, "height": 800})
         page.wait_for_selector('#progress-grid tbody tr:nth-child(3) [data-column="extraction"] .matchup-grid__count')
         assert cell(3, "matchup").locator(".matchup-grid__count").count() == 0
@@ -7203,17 +7184,6 @@ def test_the_analyses_grid_in_a_browser(browser, tmp_path):
         assert cell(1, "report").locator("a").get_attribute("href").endswith("notebooks/001_chl.html")
         assert cell(2, "report").get_attribute("data-state") == "working"
 
-        # it fits a phone's width, every analysis in sight, without the report's column
-        page.set_viewport_size({"width": 390, "height": 800})
-        page.wait_for_function("document.querySelectorAll('#progress-grid [data-column=\"report\"]').length === 0")
-        assert page.locator("#progress-grid thead th").all_text_contents() == [
-            "Variable", "Climatology", "Long-term series", "Transects", "Time",
-        ]
-        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        assert page.evaluate("(() => { const grid = document.getElementById('progress-grid'); "
-                             "return grid.scrollWidth <= grid.clientWidth; })()")
-        # and back again
-        page.set_viewport_size({"width": 1100, "height": 800})
         page.wait_for_selector('#progress-grid tbody tr:nth-child(1) [data-column="report"] a')
     finally:
         app.close()
@@ -7414,9 +7384,6 @@ def test_finding_key_information_in_a_browser(browser, tmp_path):
             app._notify()
         page.wait_for_function("document.querySelector('#prepare-years').textContent.includes('1981')")
         assert page.text_content("#prepare-years") == "Found output for the years 1981 to 2017"
-
-        page.set_viewport_size({"width": 390, "height": 844})
-        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     finally:
         app.close()
 
@@ -7883,10 +7850,6 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert bar("Back").is_visible()
         assert bar("Yes, continue").is_visible()
         assert page.locator("#actions button:has-text('Stop')").count() == 0
-        # beside the answers, without the page scrolling sideways on a phone
-        page.set_viewport_size({"width": 390, "height": 844})
-        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        page.set_viewport_size({"width": 1280, "height": 720})
         bar("Back").click()
         to_units()
         assert temperature.input_value() == "0.5"
@@ -8656,6 +8619,7 @@ def test_taking_a_simulation_out_of_the_analyze_list_in_a_browser(browser, tmp_p
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
         page.click("#home-analyze")
+        page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
         _forget_in_a_list(page, "#f-simdir-recent", "#f-simdir-recent-toggle", tmp_path)
         assert page.input_value("#f-simdir") == ""
@@ -8673,7 +8637,8 @@ def test_taking_a_simulation_out_of_the_compare_simulations_lists_in_a_browser(b
         page = browser.new_page()
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         _forget_in_a_list(page, "#sc-dir_1-recent", "#sc-dir_1-recent-toggle", tmp_path)
         assert page.input_value("#sc-dir_1") == ""
@@ -8691,7 +8656,8 @@ def test_a_simulation_taken_out_in_one_compare_simulations_box_goes_from_the_oth
     try:
         page = browser.new_page()
         page.goto(url)
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         page.click("#sc-dir_1-recent-toggle")
         page.locator("#sc-dir_1-recent .combo__option").first.locator(".combo__remove").click()
