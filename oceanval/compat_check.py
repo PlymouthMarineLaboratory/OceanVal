@@ -311,7 +311,8 @@ def _mean(ds, found, emit):
         return _row(
             emit, "mean", WARNING,
             "The grid has no cell areas (no cell bounds). OceanVal will regrid to a regular lon-lat grid to "
-            "calculate spatial averages, and the report will say so.",
+            "calculate spatial averages, and the report will say so. "
+            "This will result in a marginal approximation of spatial averages.",
         )
     return _row(emit, "mean", OK, "The grid has cell areas, so spatial averages are weighted by them.")
 
