@@ -262,6 +262,9 @@ def _regrid(ds, unify, key, layer):
     # bilinear, unless unify says otherwise (Compare simulations' choice)
     method = unify.get("regrid", "bil")
     progress = unify.get("progress") or (lambda stage: None)
+    if unify["method"] == "baseline" and unify["is_baseline"] and unify.get("crop"):
+        # the baseline's grid is cropped to where FVCOM output, regridded to it, has cells
+        crop_to(ds, (unify["crop"][0], unify["crop"][1]))
     if unify["method"] == "box" or (not unify["is_baseline"] and not unify.get("same_grid")):
         # only the part of the simulation near the target is regridded
         box = _target_box(unify, key, layer)
@@ -309,6 +312,8 @@ def prepare(folder, unify, key, layer, fields, progress=None):
             os.remove(path)
     if unify["method"] == "baseline":
         base = fields[unify["baseline"]].copy()
+        if unify.get("crop"):
+            crop_to(base, (unify["crop"][0], unify["crop"][1]))
         with warnings.catch_warnings(record=True):
             base.to_nc(grid_path(folder, key, layer), zip=False, overwrite=True)
             # the cells with values, not the whole grid (see oceanval.extent)
@@ -329,7 +334,7 @@ def prepare(folder, unify, key, layer, fields, progress=None):
         if unify["method"] == "baseline" and sim != unify["baseline"]:
             # on the baseline's grid already: regridding would only spread its missing cells
             with warnings.catch_warnings(record=True):
-                here_unify["same_grid"] = same_grid(field.to_xarray(), fields[unify["baseline"]].to_xarray())
+                here_unify["same_grid"] = same_grid(field.to_xarray(), base.to_xarray())
             same[sim] = here_unify["same_grid"]
         apply(ds, here_unify, key, layer, masked=False)
         with warnings.catch_warnings(record=True):

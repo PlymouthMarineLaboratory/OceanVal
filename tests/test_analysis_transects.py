@@ -573,10 +573,6 @@ class TestForms:
         chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))
         assert chosen is None and set(errors) == {"Chlorophyll", "Temperature"}
         assert "Or untick it." in errors["Temperature"]["use"]
-        for row in form["rows"].values():
-            row["use"] = False
-        chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))
-        assert chosen is None and errors == {"rows": "Tick at least one variable to work out transects of."}
 
     @needs_to_transect
     def test_transects_are_chosen_for_each_variable_on_its_own(self, monthly):

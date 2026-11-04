@@ -170,19 +170,23 @@ def fvcom_mesh(cartesian=False):
     return glon[keep], glat[keep], np.array(triangles).T + 1
 
 
-def fvcom_file(path, first_day=0, n_times=3, cartesian=False):
+def fvcom_file(path, first_day=0, n_times=3, cartesian=False, offset=0.0, trend=0.0):
     """An FVCOM file of the mesh above, written as FVCOM writes them (with
     netCDF4, as xarray will not write a 2-D variable named after one of its
     dimensions): temp on the nodes (5 sigma layers) equal to 10 + lon + the
     layer + the day, zeta on the nodes, u on the elements equal to the
     element's number, h, and FVCOM's times. cartesian: lon and lat are 0,
-    and the positions are x and y in metres."""
+    and the positions are x and y in metres. offset is added to temp, and
+    trend for each year after 2012."""
     lon, lat, nv = fvcom_mesh()
     n_node, n_nele = len(lon), nv.shape[1]
     days = first_day + np.arange(n_times)
     siglay = np.repeat((-(np.arange(5) + 0.5) / 5)[:, None], n_node, axis=1)
     siglev = np.repeat((-np.arange(6) / 5)[:, None], n_node, axis=1)
-    temp = 10 + lon[None, None, :] + np.arange(5)[None, :, None] + days[:, None, None]
+    import datetime
+
+    years_on = np.array([(datetime.date(2012, 1, 1) + datetime.timedelta(days=int(day))).year - 2012 for day in days])
+    temp = 10 + lon[None, None, :] + np.arange(5)[None, :, None] + days[:, None, None] + offset + trend * years_on[:, None, None]
     lonc, latc = lon[nv - 1].mean(axis=0), lat[nv - 1].mean(axis=0)
     with netCDF4.Dataset(path, "w") as ds:
         for name, size in (("node", n_node), ("nele", n_nele), ("three", 3), ("siglay", 5), ("siglev", 6), ("time", None)):
@@ -208,7 +212,7 @@ def fvcom_file(path, first_day=0, n_times=3, cartesian=False):
         # FVCOM's integer time has units xarray cannot decode
         add("Itime2", ("time",), np.zeros(n_times), dtype="i4", units="msec since 00:00:00")
         add("zeta", ("time", "node"), np.zeros((n_times, n_node)) + 0.5, units="meters", long_name="Water Surface Elevation")
-        add("temp", ("time", "siglay", "node"), temp, units="degrees_C", long_name="temperature")
+        add("temp", ("time", "siglay", "node"), temp, units="degrees_C", long_name="temperature", coordinates="time lat lon")
         add("u", ("time", "siglay", "nele"), np.broadcast_to(np.arange(n_nele, dtype="f4"), (n_times, 5, n_nele)),
             units="meters s-1", long_name="Eastward Water Velocity")
     return path
@@ -219,6 +223,28 @@ def fvcom_simulation(root, files=4, cartesian=False):
     os.makedirs(root, exist_ok=True)
     for number in range(files):
         fvcom_file(os.path.join(root, f"estuary_{number + 1:04d}.nc"), first_day=3 * number, cartesian=cartesian)
+    return root
+
+
+def fvcom_months(root, months=((2012, 1), (2012, 2), (2012, 3), (2012, 4), (2013, 1), (2013, 2)), offset=0.0, trend=0.0):
+    """Daily FVCOM output under root, a file for each of months ((year,
+    month)), filed as root/<year>/estuary_<year><month>.nc: the files of
+    fvcom_file, whose surface temp is 10 + lon + the days since 2012-01-01
+    (+ offset, + trend for each year after 2012). Returns root."""
+    import calendar
+    import datetime
+
+    for year, month in months:
+        folder = os.path.join(root, str(year))
+        os.makedirs(folder, exist_ok=True)
+        first = (datetime.date(year, month, 1) - datetime.date(2012, 1, 1)).days
+        fvcom_file(
+            os.path.join(folder, f"estuary_{year}{month:02d}.nc"),
+            first_day=first,
+            n_times=calendar.monthrange(year, month)[1],
+            offset=offset,
+            trend=trend,
+        )
     return root
 
 

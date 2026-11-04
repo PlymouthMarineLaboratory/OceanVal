@@ -257,3 +257,8 @@ def test_every_map_puts_the_land_beneath_the_data(path):
 
 def test_land_below_is_imported_where_the_notebooks_start():
     assert "from oceanval.map_land import land_below\n" in Path("oceanval/data/chunk_start.pytemplate").read_text()
+
+
+def test_the_notebooks_use_the_inline_backend_whatever_the_ipython_profile_says():
+    # a profile with c.InteractiveShellApp.matplotlib = "tk" left the report's figures unshown (Agg)
+    assert "\n%matplotlib inline\n" in Path("oceanval/data/chunk_start.pytemplate").read_text()

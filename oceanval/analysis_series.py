@@ -551,6 +551,29 @@ def months_per_year(times):
     return 12 if any(len(months) > 1 for months in by_year.values()) else 1
 
 
+def mesh_series(row, files, layer, years, time_shift, area, masks_for):
+    """The domain, region and station series of row's variable, raw FVCOM
+    output, in layer, from the mean of each month of each year on its own
+    mesh (see oceanval.fvcom_climatology), each mean weighted by the areas of
+    the mesh's cells (see oceanval.mesh_means): (region rows, notes, station
+    rows, found), as region_values and station_values give them."""
+    from oceanval import fvcom_climatology, mesh_means
+    from oceanval.analysis import file_years
+
+    where = fvcom_climatology.location(files[0], row["parts"])
+    series = mesh_means.Series(
+        mesh_means.MeshCells(files[0], where), area["region_file"], area["lon_lim"], area["lat_lim"],
+        area["stations"], masks_for,
+    )
+    for time, field in fvcom_climatology.monthly_means(
+        files, row["parts"], list(years), time_shift, row.get("as_missing"), row.get("cores", 1), layer, file_years(row)
+    ):
+        series.add(time, field)
+    region_rows, notes = series.region_rows()
+    rows, found = series.station_rows() if area["stations"] else ([], {})
+    return region_rows, notes, rows, found
+
+
 def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks_for):
     """The long-term and seasonal series that row asks for (see
     check_arguments, with its files and times added by analyze), saved in
@@ -579,22 +602,25 @@ def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks
     for layer in layers:
         what = ", ".join(sorted({kind.replace("_", "-") for kind in kinds}))
         _say(f"Working out the {what} series of {row['name']}: {LAYER_TITLES[layer].lower()}")
-        ds_thickness = None
-        if layer in WATER_COLUMN:
-            if row["pattern"] not in thickness_for:
-                thickness_for[row["pattern"]] = thickness_data(thickness, row["files"])
-            ds_thickness = thickness_for[row["pattern"]]
-        ds = monthly_means_of(files, row, layer, (start, end), time_shift, row["levels"], ds_thickness)
         units = integral_units(row["units"]) if layer == "integral" else row["units"]
-        _labelled(ds, row, units, LAYER_TITLES[layer].lower())
-        ds.run()
-        times = [(time.year, time.month) for time in ds.times]
-        rows, found = [], {}
-        if area["stations"]:
-            rows, found = station_values(ds[0], row["key"], area["stations"], times)
-        region_rows, notes = region_values(
-            ds, row["key"], times, area["region_file"], area["lon_lim"], area["lat_lim"], masks_for
-        )
+        if row.get("fvcom"):
+            region_rows, notes, rows, found = mesh_series(row, files, layer, (start, end), time_shift, area, masks_for)
+        else:
+            ds_thickness = None
+            if layer in WATER_COLUMN:
+                if row["pattern"] not in thickness_for:
+                    thickness_for[row["pattern"]] = thickness_data(thickness, row["files"])
+                ds_thickness = thickness_for[row["pattern"]]
+            ds = monthly_means_of(files, row, layer, (start, end), time_shift, row["levels"], ds_thickness)
+            _labelled(ds, row, units, LAYER_TITLES[layer].lower())
+            ds.run()
+            times = [(time.year, time.month) for time in ds.times]
+            rows, found = [], {}
+            if area["stations"]:
+                rows, found = station_values(ds[0], row["key"], area["stations"], times)
+            region_rows, notes = region_values(
+                ds, row["key"], times, area["region_file"], area["lon_lim"], area["lat_lim"], masks_for
+            )
         frame = _frame(region_rows + rows)
         names = list(dict.fromkeys(name for kind, name, *_ in region_rows if kind == "region"))
         for kind in kinds:

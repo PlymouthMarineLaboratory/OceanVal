@@ -14,6 +14,7 @@ import xarray as xr
 import oceanval
 from oceanval import sim_compare
 from conftest import quietly, same_as_analyze
+from viewer_simulations import fvcom_months, fvcom_simulation
 from simulations import (
     B_LATS,
     B_LONS,
@@ -22,6 +23,7 @@ from simulations import (
     COMPARE_TRANSECT,
     COMPARE_YEARS as YEARS,
     EVERY_OPTION,
+    FVCOM_COMPARE_OPTIONS,
     TREND_A,
     TREND_B,
     write_analysis_simulation,
@@ -159,7 +161,7 @@ class TestTimesAreReadOnce:
         from oceanval import analysis
 
         asked = []
-        monkeypatch.setattr(analysis, "stream_time_res", lambda files: asked.append(files))
+        monkeypatch.setattr(analysis, "stream_time_res", lambda files, fvcom=None: asked.append(files))
         rows = self.rows()
         analysis.locate_rows(rows, sims[0], 1, [], [], None)
         assert asked == [] and rows[0]["time_res"]
@@ -178,9 +180,9 @@ class TestTimesAreReadOnce:
         given_to = {}
         original = sim_compare.locate_rows
 
-        def spy(rows, sim_dir, *arguments):
+        def spy(rows, sim_dir, *arguments, **options):
             given_to[sim_dir] = arguments[-1]
-            return original(rows, sim_dir, *arguments)
+            return original(rows, sim_dir, *arguments, **options)
 
         monkeypatch.setattr(sim_compare, "locate_rows", spy)
         arguments = given(sims, out_dir=str(tmp_path))
@@ -1053,3 +1055,188 @@ class TestDomainMask:
                 with xr.open_dataset(os.path.join(folder, name)) as ds:
                     assert (np.isfinite(ds["temperature"].values[0]) == wanted[None, :]).all()
         assert set(info["variables"][0]["kinds"]) >= {"climatology", "long_term", "seasonal", "map_changes"}
+
+
+class TestFVCOM:
+    """Raw FVCOM output (oceanval.fvcom_climatology), compared on its own mesh: two
+    simulations on one mesh, whose results must be what analyze() gives each alone."""
+
+    @staticmethod
+    def given_fvcom(sims, **changes):
+        a, b = sims
+        arguments = dict(
+            simulations=[
+                {"name": "Base run", "sim_dir": a, "n_dirs_down": 1},
+                {"name": "Warm run", "sim_dir": b, "n_dirs_down": 1},
+            ],
+            view=False,
+            cores=1,
+            **FVCOM_COMPARE_OPTIONS,
+        )
+        arguments["variables"] = {name: {"Base run": model, "Warm run": model} for name, model in arguments["variables"].items()}
+        arguments.update(changes)
+        return arguments
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def compared(cls, compared_fvcom, tmp_path_factory):
+        """The comparison with every option: (its folder, its info)."""
+        out = tmp_path_factory.mktemp("compare_fvcom")
+        return out, compare_quietly(cls.given_fvcom(compared_fvcom, out_dir=str(out)))
+
+    def test_base_run_is_what_analyze_gives(self, compared, analysed_fvcom_a):
+        out, _ = compared
+        same_as_analyze(os.path.join(results(out), "base_run"), analysed_fvcom_a[0])
+
+    def test_warm_run_is_what_analyze_gives(self, compared, analysed_fvcom_b):
+        out, _ = compared
+        same_as_analyze(os.path.join(results(out), "warm_run"), analysed_fvcom_b[0])
+
+    def test_the_comparison_says_it_is_fvcom_on_one_mesh(self, compared):
+        out, info = compared
+        assert info["fvcom"] is True and info["same_grid"] is True and info["unify"] is None
+        assert "FVCOM" in info["unify_text"] and "mesh" in info["unify_text"]
+        saved = sim_compare.load(results(out))
+        assert saved["fvcom"] is True
+        for key in ("base_run", "warm_run"):
+            with open(os.path.join(results(out), key, "analysis.json")) as file:
+                assert json.load(file)["fvcom"] is True
+
+    def test_b_rises_faster_than_a_on_the_same_cells(self, compared):
+        out, _ = compared
+        with xr.open_dataset(os.path.join(results(out), "base_run", "temperature_surface_annual.nc")) as a, xr.open_dataset(
+            os.path.join(results(out), "warm_run", "temperature_surface_annual.nc")
+        ) as b:
+            assert a["temperature"].shape == b["temperature"].shape
+            # only January and February have a second year, a trend higher, of the four months of the climatology
+            # (the mean of their two years is half of it)
+            assert np.allclose(b["temperature"].values - a["temperature"].values, (TREND_B - TREND_A) / 2 * 2 / 4, atol=1e-4)
+
+    def test_no_thickness_is_asked_for(self, compared_fvcom, tmp_path):
+        info = compare_quietly(self.given_fvcom(compared_fvcom, out_dir=str(tmp_path)))
+        assert info["variables"][0]["sims"]["Base run"]["climatology"]["layers"]["integral"]["mesh"]
+
+    def test_the_simulations_must_share_a_mesh(self, tmp_path):
+        degrees = fvcom_months(str(tmp_path / "degrees"), months=((2012, 1),))
+        metres = fvcom_simulation(str(tmp_path / "metres"), cartesian=True)
+        with pytest.raises(ValueError, match="is not that of Base run"):
+            oceanval.compare_simulations(
+                simulations=[
+                    {"name": "Base run", "sim_dir": degrees, "n_dirs_down": 1},
+                    {"name": "Warm run", "sim_dir": metres, "n_dirs_down": 0},
+                ],
+                variables={"Temperature": "temp"},
+                climatology={"Temperature": {"start": 2012, "end": 2012, "surface": True}},
+                cores=1, view=False, out_dir=str(tmp_path / "out"),
+            )
+
+    @pytest.mark.parametrize(
+        "extra, message",
+        [
+            ({"unify": {"baseline": "Base run"}}, "unify does not work with FVCOM output"),
+            ({"unit_conversions": {"Temperature": {"Warm run": {"multiplier": 1, "adder": 0}}}}, "unit_conversions do not work with FVCOM output"),
+        ],
+    )
+    def test_what_cannot_be_done_to_a_mesh_is_refused(self, compared_fvcom, tmp_path, extra, message):
+        arguments = self.given_fvcom(compared_fvcom, out_dir=str(tmp_path), **extra)
+        with pytest.raises(ValueError, match=message):
+            oceanval.compare_simulations(**arguments)
+
+    def test_a_domain_mask_is_refused(self, compared_fvcom, tmp_path):
+        mask = str(tmp_path / "mask.nc")
+        TestDomainMask.write_mask(mask)
+        arguments = self.given_fvcom(compared_fvcom, out_dir=str(tmp_path / "out"), domain_mask=mask)
+        with pytest.raises(ValueError, match="domain_mask does not work with FVCOM output"):
+            oceanval.compare_simulations(**arguments)
+
+
+class TestFVCOMWithOtherOutput:
+    """Raw FVCOM output compared with output on a grid (oceanval.sim_fvcom): regridded onto the
+    grid's, cropped to the mesh, and then ordinary output on a grid."""
+
+    @staticmethod
+    def given_mixed(mixed, **changes):
+        fvcom_dir, fvcom_down, grid_dir, grid_down = mixed
+        arguments = dict(
+            simulations=[
+                {"name": "Mesh", "sim_dir": fvcom_dir, "n_dirs_down": fvcom_down},
+                {"name": "Grid", "sim_dir": grid_dir, "n_dirs_down": grid_down},
+            ],
+            variables={"Temperature": {"Mesh": "temp", "Grid": "thetao"}},
+            climatology={"Temperature": {"start": 2012, "end": 2013, "surface": True, "bottom": True, "water_column": "mean"}},
+            long_term={"Temperature": {"start": 2012, "end": 2013, "surface": True}},
+            thickness="e3t",
+            unit_conversions={"Temperature": {"Grid": {"multiplier": 1, "adder": 0}}},
+            view=False,
+            cores=1,
+        )
+        arguments.update(changes)
+        return arguments
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def compared(cls, mixed_simulations, tmp_path_factory):
+        out = tmp_path_factory.mktemp("compare_mixed")
+        return out, compare_quietly(cls.given_mixed(mixed_simulations, out_dir=str(out)))
+
+    def test_the_comparison_is_on_the_grid_cropped_to_the_mesh(self, compared):
+        out, info = compared
+        assert info["fvcom"] is False and info["fvcom_regridded"] == ["Mesh"]
+        assert info["unify"]["baseline"] == "Grid" and info["same_grid"] is True
+        # the mesh covers 1 degree of the grid's 1.5 each way, and the crop is a degree wider than the mesh
+        lon, lat = info["unify"]["crop"]
+        assert lon[0] == pytest.approx(-6.0) and lon[1] == pytest.approx(-3.0)
+        assert "mesh" in info["unify_text"] and "regridded" in info["unify_text"]
+        saved = sim_compare.load(results(out))
+        assert saved["fvcom_regridded"] == ["Mesh"]
+        with open(os.path.join(results(out), "mesh", "analysis.json")) as file:
+            assert json.load(file)["fvcom"] is False
+        assert {sim["name"]: sim["thickness"] for sim in saved["simulations"]} == {"Mesh": "z_level", "Grid": "e3t"}
+
+    def test_the_surface_is_the_meshs_at_the_nearest_node_in_the_cells_of_both(self, compared):
+        out, _ = compared
+        mesh = field(out, "mesh", "temperature_surface_annual.nc")
+        grid = field(out, "grid", "temperature_surface_annual.nc")
+        assert mesh.shape == grid.shape
+        wanted = np.isfinite(mesh.values) & np.isfinite(grid.values)
+        assert (np.isfinite(mesh.values) == np.isfinite(grid.values)).all() and wanted.any()
+        # 10 + lon + the mean of the four months' mean days (15, 45, 381, 410.5) and the 2013 trend of 2 each
+        expected = 10 + 213.875 + mesh["lon"].values[None, None, :] + 0 * mesh.values
+        assert np.allclose(mesh.values[wanted], expected[wanted], atol=1e-3)
+        # nothing beyond the mesh, which is 5-4 W
+        lons = np.broadcast_to(mesh["lon"].values[None, None, :], mesh.shape)[wanted]
+        assert lons.min() >= -5.05 and lons.max() <= -3.95
+
+    def test_the_bottom_and_the_water_column_are_there(self, compared):
+        out, _ = compared
+        surface = field(out, "mesh", "temperature_surface_annual.nc")
+        bottom = field(out, "mesh", "temperature_bottom_annual.nc")
+        assert np.isfinite(bottom.values).sum() == np.isfinite(surface.values).sum()
+        # the grid's levels are 0.5, 2 and 6.5 m: only where the water is shallow is the deepest below the top layer
+        shown = np.isfinite(bottom.values)
+        assert (bottom.values[shown] >= surface.values[shown] - 1e-4).all()
+        assert (bottom.values[shown] > surface.values[shown] + 0.5).any()
+        assert np.isfinite(field(out, "mesh", "temperature_mean_annual.nc").values).any()
+
+    def test_the_regridded_files_are_kept_in_the_results(self, compared):
+        out, _ = compared
+        folder = os.path.join(results(out), sim_compare.FVCOM_REGRIDDED)
+        assert glob.glob(os.path.join(folder, "**", "fvcom_values.nc"), recursive=True)
+
+    @pytest.mark.parametrize(
+        "extra, message",
+        [
+            ({"unify": {"lon": [-6, -3], "lat": [49, 52], "res": 0.5}}, "unify can only be"),
+            ({"unify": {"baseline": "Mesh"}}, "is FVCOM output, which is regridded"),
+        ],
+    )
+    def test_what_cannot_be_done_with_a_mesh_and_a_grid_is_refused(self, mixed_simulations, tmp_path, extra, message):
+        with pytest.raises(ValueError, match=message):
+            oceanval.compare_simulations(**self.given_mixed(mixed_simulations, out_dir=str(tmp_path), **extra))
+
+    def test_a_domain_mask_is_refused(self, mixed_simulations, tmp_path):
+        mask = str(tmp_path / "mask.nc")
+        TestDomainMask.write_mask(mask)
+        arguments = self.given_mixed(mixed_simulations, out_dir=str(tmp_path / "out"), domain_mask=mask)
+        with pytest.raises(ValueError, match="domain_mask does not work when FVCOM output"):
+            oceanval.compare_simulations(**arguments)

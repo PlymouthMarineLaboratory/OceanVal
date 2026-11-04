@@ -130,6 +130,59 @@ def analysed_transects_b(compared_daily, tmp_path_factory):
     )
 
 
+@pytest.fixture(scope="session")
+def compared_fvcom(tmp_path_factory):
+    """Two raw FVCOM simulations on one mesh: A, and B, which rises faster."""
+    from simulations import TREND_A, TREND_B
+    from viewer_simulations import fvcom_months
+
+    base = tmp_path_factory.mktemp("compared_fvcom")
+    return (
+        fvcom_months(str(base / "a"), trend=TREND_A),
+        fvcom_months(str(base / "b"), trend=TREND_B),
+    )
+
+
+@pytest.fixture(scope="session")
+def mixed_simulations(tmp_path_factory):
+    """FVCOM output (the mesh of viewer_simulations.fvcom_mesh, a file a month) and monthly
+    output on a grid of 0.1 degrees over it, whose nodes are the grid's cells: (the FVCOM
+    directory, its n_dirs_down, the grid's directory, its n_dirs_down)."""
+    import numpy as np
+    from simulations import write_analysis_simulation
+    from viewer_simulations import fvcom_months
+
+    base = tmp_path_factory.mktemp("mixed_simulations")
+    months = ((2012, 1), (2012, 2), (2013, 1), (2013, 2))
+    fvcom_dir = fvcom_months(str(base / "mesh"), months=months, trend=2.0)
+    write_analysis_simulation(
+        str(base / "grid"),
+        years=(2012, 2013),
+        daily=False,
+        lats=[float(x) for x in np.round(np.arange(49.8, 51.25, 0.1), 6)],
+        lons=[float(x) for x in np.round(np.arange(-5.2, -3.75, 0.1), 6)],
+    )
+    return fvcom_dir, 1, str(base / "grid"), 1
+
+
+def _analysed_fvcom(tmp_path_factory, name, sim_dir):
+    from simulations import FVCOM_COMPARE_OPTIONS
+
+    return _analysed(tmp_path_factory, name, sim_dir, **FVCOM_COMPARE_OPTIONS)
+
+
+@pytest.fixture(scope="session")
+def analysed_fvcom_a(compared_fvcom, tmp_path_factory):
+    """The FVCOM A alone, with every option (FVCOM_COMPARE_OPTIONS)."""
+    return _analysed_fvcom(tmp_path_factory, "analysed_fvcom_a", compared_fvcom[0])
+
+
+@pytest.fixture(scope="session")
+def analysed_fvcom_b(compared_fvcom, tmp_path_factory):
+    """The FVCOM B alone, with every option (FVCOM_COMPARE_OPTIONS)."""
+    return _analysed_fvcom(tmp_path_factory, "analysed_fvcom_b", compared_fvcom[1])
+
+
 def same_as_analyze(compared, analysed):
     """The results of a simulation in a comparison (compared, its folder)
     are those of analyze() of it alone (analysed, its results folder): the

@@ -70,6 +70,13 @@ LABELS = {
     "transects": "transects",
 }
 
+# what the window says of raw FVCOM output
+FVCOM_NOTE = (
+    "This is raw FVCOM output, mapped on its own mesh: the cell thickness of the water column is worked out from "
+    "the sigma levels (siglev), h and zeta, the spatial means are weighted by the areas of the mesh's cells, and "
+    "transects are interpolated from the mesh."
+)
+
 
 def _same_simulation(old, new):
     keys = ("simdir", "ndown", "exclude", "require")
@@ -219,8 +226,6 @@ class AnalyzeSteps:
             )
             if not found:
                 error = "No netCDF files OceanVal could read were found."
-            elif analysis.looks_like_fvcom(found[0]["files"][0]):
-                error = "Analyze does not work with FVCOM output yet."
             else:
                 picker = analysis_forms.picker_state(found)
                 ersem = recipes_gui.is_likely_nemo_ersem(picker["available"])
@@ -245,6 +250,8 @@ class AnalyzeSteps:
                     picker=picker,
                     presets=preset_names,
                     ersem=ersem,
+                    # raw FVCOM output, worked out on its own mesh
+                    fvcom=any(stream.get("fvcom") for stream in found),
                 )
                 if not self._analyze_missing_set:
                     # as in validate, ERSEM output has zeros where there is no water
@@ -388,7 +395,8 @@ class AnalyzeSteps:
         request = {
             "sim_dir": self.analyze_setup["simdir"],
             "years": [model_check.NO_START, model_check.NO_END],
-            "fvcom": False,
+            # the times of raw FVCOM output are read as matchup(fvcom=True) reads them
+            "fvcom": self._analyze_fvcom(),
             "time_shift": shift or 0,
             "rows": rows,
             "files": files,
@@ -553,7 +561,7 @@ class AnalyzeSteps:
             available = (self.analyze_found or {}).get("picker", {}).get("available", [])
             chosen, thickness, errors = analysis_forms.check_climatology(
                 form, placed, self._known_years(found), set(available), self.cwd, LABELS[kind],
-                series=kind == "long_term",
+                series=kind == "long_term", fvcom=self._analyze_fvcom(),
             )
             if errors:
                 return None, errors
@@ -561,7 +569,7 @@ class AnalyzeSteps:
         if kind == "map_changes":
             available = (self.analyze_found or {}).get("picker", {}).get("available", [])
             chosen, thickness, errors = analysis_forms.check_map_changes(
-                form, placed, self._known_years(found), set(available), self.cwd
+                form, placed, self._known_years(found), set(available), self.cwd, fvcom=self._analyze_fvcom()
             )
             if errors:
                 return None, errors
@@ -569,7 +577,7 @@ class AnalyzeSteps:
         if kind == "transects":
             available = (self.analyze_found or {}).get("picker", {}).get("available", [])
             chosen, errors = analysis_forms.check_transects(
-                form, placed, self._known_years(found), set(available), self.cwd
+                form, placed, self._known_years(found), set(available), self.cwd, fvcom=self._analyze_fvcom()
             )
             return (None, errors) if errors else (chosen, {})
         chosen, errors = analysis_forms.check_phenology(
@@ -578,6 +586,11 @@ class AnalyzeSteps:
         if errors:
             return None, errors
         return {"rows": chosen}, {}
+
+    def _analyze_fvcom(self):
+        """Whether the simulation Analyze is working on is raw FVCOM output.
+        Called with the lock held."""
+        return bool((self.analyze_found or {}).get("fvcom"))
 
     def analyze_option(self, kind, form):
         """A pop-out's Confirm, with its boxes. The time series' also hold the
@@ -873,6 +886,9 @@ class AnalyzeSteps:
             "missing_probed": self.analyze_missing_probed,
             "figure_code": self.analyze_figure_code,
             "nemo_ersem": bool((found or {}).get("ersem")),
+            # raw FVCOM output, worked out on its own mesh, which needs no cell thickness
+            "fvcom": self._analyze_fvcom(),
+            "fvcom_note": FVCOM_NOTE,
             "daily": time_resolution.DAILY,
             "z_level": analysis.Z_LEVEL,
             # what the info buttons of the pop-outs say (see oceanval.analysis_examples)

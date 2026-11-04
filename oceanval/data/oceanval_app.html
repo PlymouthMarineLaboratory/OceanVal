@@ -2014,6 +2014,7 @@
   <section id="view-analyze-options" hidden>
     <div id="ao-page-1">
     <p class="sc-analyze-note" id="ao-compare-note" hidden>Everything you choose is worked out for <strong>every</strong> simulation, over the same years, which must be years all of them have, and the cell thickness (a variable in each simulation's output, or a file) is the same in all of them.</p>
+    <p class="sc-analyze-note" id="ao-fvcom-note" role="note" hidden></p>
     <p class="lede" id="ao-select">Select one or more of the analyses</p>
     <div class="choices is-two analyze-options">
       <button type="button" class="choice" id="ao-climatology" aria-haspopup="dialog">
@@ -2548,6 +2549,7 @@
         <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
         <p class="analyze-msg" id="clim-thickness-msg"></p>
       </div>
+      <p class="analyze-dialog__intro" id="clim-fvcom-thickness" hidden>For FVCOM output the cell thickness is worked out from its sigma levels (<code>siglev</code>), bathymetry (<code>h</code>) and surface elevation (<code>zeta</code>), at each time.</p>
       <div class="analyze-stations" id="clim-area" hidden>
         <h3>Regional subdomains and area <span class="own-opt">Optional</span></h3>
         <p class="analyze-dialog__intro">The time series are always worked out for the model's domain as a whole. Choose regional subdomains, as in the validation, to work them out for each region too, and cut a box out of the domain if you want only part of it. The long-term time series and the seasonal cycles share these, and the stations are not cut by the box.</p>
@@ -2653,6 +2655,7 @@
         <tbody class="analyze-all" id="chg-all"></tbody>
         <tbody id="chg-body"></tbody>
       </table>
+      <p class="analyze-dialog__intro" id="chg-fvcom-thickness" hidden>For FVCOM output the cell thickness is worked out from its sigma levels (<code>siglev</code>), bathymetry (<code>h</code>) and surface elevation (<code>zeta</code>), at each time.</p>
       <div class="analyze-thickness" id="chg-thickness-row" hidden>
         <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
         <p class="analyze-msg" id="chg-thickness-msg"></p>
@@ -2681,6 +2684,7 @@
         <p class="analyze-msg" id="trans-thickness-msg"></p>
         <p class="analyze-dialog__intro">A vertical section needs to know where each cell is. With <code>z_level</code> the model's levels are the depths. With a thickness, each cell is placed at its depth, from the top of the water column, and the section is put on evenly spaced depths.</p>
       </div>
+      <p class="analyze-dialog__intro" id="trans-fvcom-thickness" hidden>For FVCOM output each sigma layer of a vertical section is placed at its depth from its share of the sigma levels (<code>siglev</code>) of the mean depth of the water (<code>h</code> + <code>zeta</code>), so no thickness is needed.</p>
       <div class="transect-vars" id="trans-body"></div>
     </div>
     <div class="picker__foot">
@@ -4244,6 +4248,7 @@
     } else if (view === "simcompare_variables") {
       scVars.built = false;
       scVars.busy = false;
+      scVars.message = "";
       $("scv-rows").replaceChildren();
     } else if (view === "simcompare_units") {
       // the units are confirmed afresh every time this step is reached
@@ -5972,6 +5977,9 @@
     $("ao-page-2").hidden = analyzePage.number !== 2;
     $("ao-page-3").hidden = analyzePage.number !== 3;
     $("ao-compare-note").hidden = state.action !== "simcompare";
+    // raw FVCOM output, worked out on its own mesh
+    $("ao-fvcom-note").hidden = !state.analyze.fvcom;
+    $("ao-fvcom-note").textContent = state.analyze.fvcom ? state.analyze.fvcom_note : "";
     for (const kind of ANALYSES) {
       const tile = $(`ao-${kind}`);
       const chosen = Boolean(state.analyze.chosen[kind]);
@@ -6339,6 +6347,7 @@
       const water = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} through the water column` });
       water.checked = column && Boolean(box.water_column);
       water.disabled = !column;
+      const noColumn = () => el("small", { text: "No depth levels" });
       const how = el("select", { class: "s-select", "aria-label": `How to take ${row.name} through the water column` },
         el("option", { value: "", text: "Choose…" }),
         el("option", { value: "mean", text: "Vertical mean" }), el("option", { value: "integral", text: "Depth integral" }));
@@ -6359,10 +6368,10 @@
         el("td", {}, withInfo(el("label", { class: "tick-label" }, surface, "Surface"), kind, "surface", `the surface option of ${row.name}`)),
         el("td", {}, column
           ? withInfo(el("label", { class: "tick-label" }, bottom, "Bottom"), kind, "bottom", `the bottom option of ${row.name}`)
-          : el("small", { text: "No depth levels" })),
+          : noColumn()),
         el("td", {}, column
           ? el("div", {}, withInfo(el("label", { class: "tick-label" }, water, "Water column"), kind, "water_column", `the water column option of ${row.name}`), how)
-          : el("small", { text: "No depth levels" })),
+          : noColumn()),
         ...(series ? [el("td", {}, rolling), el("td", {}, show)] : []));
       const refresh = () => {
         how.disabled = !water.checked;
@@ -6657,13 +6666,19 @@
 
   function refreshThickness() {
     if (analyzeDialog.kind === "transects") {
-      // a vertical section, of a variable that is ticked
+      // a vertical section, of a variable that is ticked: raw FVCOM output's layers are placed from its mesh
       const vertical = Object.values(analyzeDialog.rows).some((section) => section.use.checked && section.cards.some((card) => card.vertical.checked || card.vertical_trends.value));
-      $("trans-thickness-row").hidden = !vertical;
+      const fvcom = Boolean(state.analyze.fvcom);
+      $("trans-thickness-row").hidden = !vertical || fvcom;
+      $("trans-fvcom-thickness").hidden = !vertical || !fvcom;
       return;
     }
     const any = Object.values(analyzeDialog.rows).some((row) => row.use.checked && row.water && row.water.checked);
-    $(`${dialogPrefix(analyzeDialog.kind)}-thickness-row`).hidden = !any;
+    // raw FVCOM output's cell thickness is worked out from its mesh (see oceanval.fvcom_climatology)
+    const fvcom = Boolean(state.analyze.fvcom);
+    $(`${dialogPrefix(analyzeDialog.kind)}-thickness-row`).hidden = !any || fvcom;
+    const note = $(`${dialogPrefix(analyzeDialog.kind)}-fvcom-thickness`);
+    if (note) note.hidden = !any || !fvcom;
   }
 
   // the cell thickness of another of the pop-outs that has been confirmed: there is one for all of them
@@ -11387,7 +11402,7 @@
   }
 
   // ---- the variables, and the model variable holding each in each simulation ----
-  const scVars = { rows: [], built: false, busy: false };
+  const scVars = { rows: [], built: false, busy: false, message: "" };
   const scPicked = (sim) => sim.picker || { available: [], long_names: {}, levels: {} };
 
   function scVariableRow(row) {
@@ -11398,7 +11413,7 @@
     if (item.filled) name.classList.add("is-oceanval");
     item.nameBox = name;
     item.nameMsg = el("p", { class: "analyze-msg" });
-    const yours = () => { item.server = {}; item.hint = ""; };
+    const yours = () => { item.server = {}; item.hint = ""; scVars.message = ""; };
     const cells = sims.map((sim) => {
       const box = el("input", { class: "s-input is-mono", type: "text", value: item.models[sim.name] || "", placeholder: "e.g. thetao",
         spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": `The model variable holding it in ${sim.name}` });
@@ -11519,7 +11534,7 @@
       if (here.name === "" && !rowWrong && item.name.trim()) complete += 1;
       if (rowWrong) wrong = true;
     });
-    $("scv-msg").textContent = "";
+    $("scv-msg").textContent = scVars.message;
     const next = $("scv-continue");
     if (next) {
       next.disabled = scVars.busy || wrong || !complete;
@@ -11552,6 +11567,7 @@
 
   async function submitScVariables() {
     scVars.busy = true;
+    scVars.message = "";
     refreshScVariables();
     const sent = scVars.rows.slice();
     const reply = await post("api/simcompare_variables", { rows: readScRows() });
@@ -11559,7 +11575,7 @@
     if (!reply.ok) {
       const errors = reply.errors || {};
       sent.forEach((item, index) => { item.server = errors[String(index)] || {}; });
-      if (errors.rows) $("scv-msg").textContent = errors.rows;
+      if (errors.rows) scVars.message = errors.rows;
       if (reply.error) toast(reply.error);
     }
     refreshScVariables();
