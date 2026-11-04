@@ -383,11 +383,12 @@ FVCOM_TEXT = (
 
 def fvcom_problems(rows_by_sim, names, unify, domain_mask, conversions):
     """What stops raw FVCOM output being compared, as a list of sentences (empty if
-    nothing does, or if none of the output is FVCOM). It is compared on its own mesh:
-    only with other FVCOM output, on the same mesh, never regridded (unify),
-    masked by a lon-lat file (domain_mask) or converted (unit_conversions). FVCOM
-    output with output that is not is regridded onto the grid of one of the others,
-    and what stops that is told by sim_fvcom.problems_of."""
+    nothing does, or if none of the output is FVCOM). It is compared on its own mesh
+    (unify None): only with other FVCOM output, on the same mesh, never masked by a
+    lon-lat file (domain_mask) or converted (unit_conversions). With a unify, a
+    lon-lat box, it is regridded to it. FVCOM output with output that is not is
+    regridded onto the grid of one of the others (or a box), and what stops that
+    is told by sim_fvcom.problems_of."""
     from oceanval import fvcom_climatology
 
     is_fvcom = {name: any(row.get("fvcom") for row in rows_by_sim[name]) for name in names}
@@ -398,14 +399,12 @@ def fvcom_problems(rows_by_sim, names, unify, domain_mask, conversions):
         return sim_fvcom.problems_of(rows_by_sim, names, unify, domain_mask)
     problems = []
     if unify is not None:
-        problems.append(
-            "unify does not work with FVCOM output: a mesh cannot be regridded, and the simulations are "
-            "compared on their own cells (which must be the same mesh)."
-        )
+        # regridded to a lon-lat box (see oceanval.sim_fvcom)
+        problems.extend(sim_fvcom.problems_of(rows_by_sim, names, unify, None))
     if domain_mask is not None:
         problems.append(
             "domain_mask does not work with FVCOM output: a mesh cannot be masked by a lon-lat file, "
-            "and the simulations are compared on their own cells."
+            "and the simulations are compared on their own cells or on the lon-lat box of unify."
         )
     if conversions:
         problems.append("unit_conversions do not work with FVCOM output: give the variable in the same units in every simulation.")
@@ -511,9 +510,14 @@ def compare_simulations(
         missing in all of them (judged from each one's second time step, or its first
         if it has only one), so
         every simulation is compared over exactly the same cells. Raw FVCOM
-        output beside output on a grid is regridded onto the grid of the first
-        simulation that is not FVCOM (cropped to the mesh), or of the baseline
-        you name, which cannot be FVCOM: leave unify out, or give a baseline.
+        output, a mesh of triangles, is regridded (nearest neighbour, as matchup
+        does) when unify is given, and is then ordinary output: onto the lon-lat
+        box, or onto the grid of the baseline you name, which cannot be FVCOM. If
+        every simulation is FVCOM, leaving unify out compares them on their
+        own mesh (which must be the same), and only the lon-lat box can be
+        given. Beside output on a grid, FVCOM must be regridded: if unify is left
+        out, onto the grid of the first simulation that is not FVCOM (cropped to
+        the mesh).
     domain_mask : str or None
         Compare only part of the domain: the path of a netCDF file with a single
         variable at a single time step, 1 in the cells wanted and 0 or missing
@@ -620,9 +624,11 @@ def compare_simulations(
         problems.extend(fvcom_problems(rows_by_sim, names, unify, domain_mask, conversions))
     fvcom_sims = sim_fvcom.names_on_mesh(rows_by_sim, names)
     # some of the simulations are FVCOM output and some are not: it is regridded to the grid of one of the others
+    # (or to a box), and FVCOM output on its own is regridded to the box of unify, if there is one
     mixed = not problems and sim_fvcom.is_mixed(rows_by_sim, names)
-    fvcom = not problems and not mixed and any(row.get("fvcom") for row in rows_by_sim[names[0]])
-    if mixed:
+    regridded = not problems and bool(fvcom_sims) and (mixed or unify is not None)
+    fvcom = not problems and not regridded and any(row.get("fvcom") for row in rows_by_sim[names[0]])
+    if regridded:
         unify = sim_fvcom.unify_of(unify, rows_by_sim, names)
     if not problems:
         for number, row in enumerate(rows_by_sim[names[0]]):
@@ -644,7 +650,7 @@ def compare_simulations(
             counts = {
                 name: rows_by_sim[name][number]["levels"]
                 for name in names
-                if not (mixed and name in fvcom_sims)
+                if not (regridded and name in fvcom_sims)
             }
             if LEVELS in layers_of(row) and len(set(counts.values())) > 1:
                 problems.append(
@@ -662,7 +668,7 @@ def compare_simulations(
 
     thickness_for = {name: {} for name in names}
     cells = None
-    if mixed:
+    if regridded:
         sim_fvcom.regrid_rows(
             rows_by_sim, sims, unify, os.path.join(results_dir, FVCOM_REGRIDDED), layers_of, int(cores)
         )
@@ -728,7 +734,7 @@ def compare_simulations(
         },
         "unify_text": FVCOM_TEXT
         if fvcom
-        else sim_unify.describe(unify) + (" " + sim_fvcom.describe(fvcom_sims, unify["baseline"]) if mixed else ""),
+        else sim_unify.describe(unify) + (" " + sim_fvcom.describe(fvcom_sims, unify, mixed) if regridded else ""),
         "domain_mask": None if mask_kept is None else os.path.relpath(mask_kept["path"], results_dir),
         "domain_mask_text": describe_mask(mask_kept),
         "same_grid": same_grid,
@@ -739,7 +745,7 @@ def compare_simulations(
         "stations": {name: {"lon": lon, "lat": lat} for name, (lon, lat) in area["stations"].items()},
         "figure_code": bool(figure_code),
         "fvcom": fvcom,
-        "fvcom_regridded": fvcom_sims if mixed else [],
+        "fvcom_regridded": fvcom_sims if regridded else [],
         "variables": variables_info,
     }
 

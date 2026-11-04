@@ -2269,6 +2269,7 @@
       <p class="group__msg" id="scg-need-msg"></p>
     </fieldset>
     <div id="scg-how" hidden>
+      <p class="sc-grid-note" id="scg-fvcom-note" hidden><strong>FVCOM output is a mesh of triangles.</strong> It is regridded to the grid chosen (nearest neighbour, as the matchups regrid it) when the comparison runs, so only the cells inside the mesh have values, and the unified grid is not previewed. Variables below the surface are interpolated from the sigma layers to the depths of the levels of the first simulation that is not FVCOM, or, if all of them are, 0 to 150 m every 5 m.</p>
       <p class="sc-grid-note" id="scg-note"><strong>Cells with no value in any one simulation are made missing in all of them.</strong> Once the simulations are on one grid, a cell that is missing in one simulation (land, say, or a place it has no water) is set to missing in every simulation, so that all of them are compared over exactly the same cells. This is judged from the first time step of each simulation's output, for each variable and each layer.</p>
       <fieldset class="group card sc-choice" style="margin-top:18px">
         <legend>How should they be put on one grid? <span class="own-req">Required</span></legend>
@@ -11815,7 +11816,7 @@
 
   function scReadGrids() {
     const checked = (name) => { const radio = document.querySelector(`input[name="${name}"]:checked`); return radio ? radio.value : ""; };
-    const form = { need: checked("scg-need"), method: checked("scg-method"), baseline: $("scg-baseline-select").value, regrid: $("scg-regrid-select").value,
+    const form = { need: scState().mixed ? "yes" : checked("scg-need"), method: checked("scg-method"), baseline: $("scg-baseline-select").value, regrid: $("scg-regrid-select").value,
       domain_mask: scMaskForm.domain_mask, domain_mask_path: scMaskForm.domain_mask_path };
     for (const box of SC_GRID_BOXES) form[box] = $(`scg-${box}`).value;
     return form;
@@ -11829,9 +11830,17 @@
     $("scg-method-box").checked = form.method === "box";
     $("scg-method-baseline").checked = form.method === "baseline";
     const sims = scState().sims;
+    // FVCOM output is a mesh: it is regridded to the baseline's grid, so it cannot be the baseline
+    const meshes = scState().fvcom || [];
+    const onGrids = sims.filter((sim) => !meshes.includes(sim.name));
     $("scg-baseline-select").replaceChildren(el("option", { value: "", text: "Choose a simulation…" }),
-      ...sims.map((sim) => el("option", { value: sim.name, text: sim.name })));
+      ...onGrids.map((sim) => el("option", { value: sim.name, text: sim.name })));
     $("scg-baseline-select").value = form.baseline || "";
+    if (scState().mixed && !form.method) {
+      // the FVCOM output must go to a grid: the first simulation on one to start
+      $("scg-method-baseline").checked = true;
+      if (!$("scg-baseline-select").value && onGrids.length) $("scg-baseline-select").value = onGrids[0].name;
+    }
     $("scg-regrid-select").replaceChildren(el("option", { value: "", text: "Bilinear (default)" }),
       ...Object.entries(scState().regrid_methods || {}).filter(([value]) => value !== "bil").map(([value, text]) => el("option", { value, text })));
     $("scg-regrid-select").value = form.regrid || "";
@@ -11864,15 +11873,19 @@
         el("p", { class: "group__msg", id: `scg-${index + 1}-msg`, role: "status" }),
         el("div", { class: "ag-map", id: `scg-map-${index + 1}` }));
     });
-    cards.push(el("section", { class: "card ag-card", id: "scg-card-unified", "aria-labelledby": "scg-title-unified" },
+    // a mesh is not previewed: there is no unified grid to show if any simulation is FVCOM
+    const preview = !(scState().fvcom || []).length;
+    if (preview) cards.push(el("section", { class: "card ag-card", id: "scg-card-unified", "aria-labelledby": "scg-title-unified" },
       el("h3", { class: "ag-card__title", id: "scg-title-unified", text: "Unified grid" }),
       el("p", { class: "ag-card__line", text: "The cells every simulation has a value in once they are on one grid. This is of each simulation's first variable at the surface, at the time step its map shows; the run works it out for every variable and layer." }),
       el("p", { class: "group__msg", id: "scg-unified-msg", role: "status" }),
       el("div", { class: "ag-map", id: "scg-map-unified" })));
     $("scg-grid").replaceChildren(...cards);
     for (let number = 1; number <= sims.length; number++) scResized.observe($(`scg-map-${number}`));
-    scResized.observe($("scg-map-unified"));
-    emptyMap("scg-map-unified", "Choose how to put the simulations on one grid, then Generate unified grid.");
+    if (preview) {
+      scResized.observe($("scg-map-unified"));
+      emptyMap("scg-map-unified", "Choose how to put the simulations on one grid, then Generate unified grid.");
+    }
     sims.forEach((sim, index) => askScPanel(index + 1));
   }
 
@@ -11886,6 +11899,11 @@
     if (reply.step && $(`scg-step-${number}`)) {
       $(`scg-step-${number}`).textContent = `Time step: ${reply.step} of the file`;
       $(`scg-step-${number}`).hidden = false;
+    }
+    if (reply.mesh) {
+      message(`scg-${number}-msg`, [line(reply.error)]);
+      emptyMap(`scg-map-${number}`, "A mesh of triangles: not drawn here.");
+      return;
     }
     if (!reply.ok) {
       message(`scg-${number}-msg`, [line(reply.error || "The map could not be drawn.", "error")], true);
@@ -11919,6 +11937,11 @@
     if (!grids || grids.status === "reading") {
       same.className = "group__msg";
       same.replaceChildren(line("OceanVal is looking at the simulations' grids…"));
+    } else if ((scState().fvcom || []).length) {
+      same.className = "group__msg";
+      same.replaceChildren(line(scState().mixed
+        ? "Some of the simulations are FVCOM output, a mesh of triangles, which has to be regridded: choose the grid it is put on."
+        : "The simulations are FVCOM output, on meshes of triangles. They can be compared on the mesh as it is, or regridded to a lon-lat grid."));
     } else if (grids.same === true) {
       same.className = "group__msg";
       same.replaceChildren(line("The simulations appear to be on the same grid.", "ok"));
@@ -11959,6 +11982,14 @@
   function refreshScGrids() {
     if (state.view !== "simcompare_grids") return;
     const { form, errors } = scGridsProblems();
+    const meshes = scState().fvcom || [];
+    const mixed = Boolean(scState().mixed);
+    // FVCOM beside output on a grid has no "no", and on its own has no baseline: see oceanval.sim_fvcom
+    $("scg-need-group").hidden = mixed;
+    $("scg-method-baseline").closest("label").hidden = meshes.length > 0 && !mixed;
+    $("scg-generate").hidden = meshes.length > 0;
+    $("scg-fvcom-note").hidden = !meshes.length;
+    $("scg-dm-group").hidden = meshes.length > 0;
     $("scg-how").hidden = form.need !== "yes";
     $("scg-box").hidden = !(form.need === "yes" && form.method === "box");
     $("scg-baseline").hidden = !(form.need === "yes" && form.method === "baseline");
@@ -11971,8 +12002,10 @@
     const no = $("scg-no");
     no.hidden = form.need !== "no";
     if (form.need === "no") {
-      no.className = "group__msg" + (grids.same === false ? " is-warn" : "");
-      no.replaceChildren(grids.same === false
+      no.className = "group__msg" + (grids.same === false && !meshes.length ? " is-warn" : "");
+      no.replaceChildren(meshes.length
+        ? line("The simulations will be compared on their own mesh, as it is.")
+        : grids.same === false
         ? line("The simulations are on different grids, and they will not be put on one: the maps are of each simulation's own grid, and the means over the domain, the regions and the transects are over the cells each simulation has, so they are not over exactly the same area.", "warn")
         : line("The simulations will be used on the grids they have."));
     }

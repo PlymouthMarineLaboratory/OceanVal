@@ -532,6 +532,9 @@ def fvcom_matchup_files(
         variant += "_" + hashlib.md5(json.dumps(levels).encode()).hexdigest()[:8]
     if grid:
         variant += "_" + hashlib.md5(os.path.abspath(grid).encode()).hexdigest()[:8]
+    elif lon_lim is not None and lat_lim is not None:
+        # a different box is a different regridding
+        variant += "_" + hashlib.md5(json.dumps([lon_lim, lat_lim]).encode()).hexdigest()[:8]
 
     registry = session_info.setdefault("fvcom_files", dict())
     todo = [ff for ff in paths if (variant, ff) not in registry or not os.path.exists(registry[(variant, ff)])]

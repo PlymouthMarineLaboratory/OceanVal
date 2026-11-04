@@ -1464,8 +1464,8 @@ def test_the_domain_mask_is_asked_in_a_browser(browser, tmp_path):
 
 
 class TestFVCOM:
-    """Raw FVCOM output (oceanval.fvcom_climatology): compared on its mesh, so there is no
-    grids step and no thickness is asked for."""
+    """Raw FVCOM output (oceanval.fvcom_climatology): compared on its mesh, or regridded to the grid
+    the grids step chooses (oceanval.sim_fvcom). On its mesh no thickness is asked for."""
 
     @pytest.fixture
     def fvcom_sims(self, tmp_path):
@@ -1490,23 +1490,54 @@ class TestFVCOM:
         assert post(app, "/api/simcompare_sims", {"form": self.form(first, second)}) == (200, {"ok": True})
         wait_for(lambda: app._sc_all_read())
 
-    def test_the_steps_go_from_the_files_to_the_options(self, app, fvcom_sims):
+    def to_grids(self, app, fvcom_sims):
         self.to_variables(app, *fvcom_sims)
         assert all(found["fvcom"] for found in app.sc_found.values())
         rows = [{"name": "Temperature", "models": {"Base run": "temp", "Fine run": "temp"}}]
         assert post(app, "/api/simcompare_variables", {"rows": rows}) == (200, {"ok": True})
         wait_for(lambda: app._sc_checks_done())
         assert post(app, "/api/simcompare_files") == (200, {"ok": True})
-        # a mesh is not regridded or masked: there is no grids step
+        wait_for(lambda: (app.sc_grids or {}).get("status") == "done")
+        return state(app)["simcompare"]
+
+    def test_the_grids_step_is_asked_and_no_keeps_the_mesh(self, app, fvcom_sims):
+        shown = self.to_grids(app, fvcom_sims)
+        assert app.view == "simcompare_grids"
+        # both are meshes: there is a No, and the extents are the meshes' own
+        assert shown["fvcom"] == ["Base run", "Fine run"] and shown["mixed"] is False
+        assert set(shown["grids"]["extents"]) == {"Base run", "Fine run"}
+        assert post(app, "/api/simcompare_grids", {"form": {"need": "no"}}) == (200, {"ok": True})
         assert app.view == "analyze_options"
         assert app.sc_unify is None and app.sc_domain_mask is None
-        shown = state(app)["analyze"]
-        assert shown["fvcom"] is True
-        # Back from the options goes to the files, not the grids
+        assert state(app)["analyze"]["fvcom"] is True
+        # Back from the options goes to the grids
         assert post(app, "/api/back", {})[0] == 200
-        assert app.view == "simcompare_files"
+        assert app.view == "simcompare_grids"
 
-    def test_fvcom_is_compared_with_other_output_on_the_others_grid(self, app, mixed_simulations, runs):
+    def test_a_box_regrids_the_mesh_and_a_thickness_is_not_looked_for(self, app, fvcom_sims):
+        self.to_grids(app, fvcom_sims)
+        form = {"need": "yes", "method": "box", "lon_min": "-6", "lon_max": "-3", "lat_min": "49", "lat_max": "52", "res": "0.1"}
+        assert post(app, "/api/simcompare_grids", {"form": form}) == (200, {"ok": True})
+        assert app.view == "analyze_options"
+        assert app.sc_unify == {"lon": [-6.0, -3.0], "lat": [49.0, 52.0], "res": 0.1}
+        shown = state(app)["analyze"]
+        # regridded: ordinary output, with levels of its own
+        assert shown["fvcom"] is False and app.analyze_found["picker"]["available"] == []
+
+    def test_a_baseline_is_refused_for_meshes_alone(self, app, fvcom_sims):
+        self.to_grids(app, fvcom_sims)
+        status, reply = post(app, "/api/simcompare_grids", {"form": {"need": "yes", "method": "baseline", "baseline": "Base run"}})
+        assert status == 400 and "lon-lat box" in reply["errors"]["method"]
+        assert app.view == "simcompare_grids"
+
+    def test_the_unified_grid_is_not_previewed_for_a_mesh(self, app, fvcom_sims):
+        self.to_grids(app, fvcom_sims)
+        status, reply = post(app, "/api/simcompare_panel", {"number": 1})
+        assert reply["ok"] is False and reply["mesh"] is True
+        status, reply = post(app, "/api/simcompare_generate", {"form": {"need": "yes", "method": "box"}})
+        assert status == 400 and "not previewed" in reply["error"]
+
+    def mixed_to_grids(self, app, mixed_simulations):
         fvcom_dir, _, grid_dir, _ = mixed_simulations
         to_sims(app)
         form = {
@@ -1525,15 +1556,38 @@ class TestFVCOM:
         assert post(app, "/api/simcompare_units", {"conversions": blank, "confirmed": True}) == (200, {"ok": True})
         wait_for(lambda: app._sc_checks_done())
         assert post(app, "/api/simcompare_files") == (200, {"ok": True})
-        # the grid is the other simulation's, so there is no grids step
-        assert app.view == "analyze_options" and app.sc_unify == {"baseline": "Grid"}
+        wait_for(lambda: (app.sc_grids or {}).get("status") == "done")
+        return state(app)["simcompare"]
+
+    def test_with_other_output_the_grids_step_has_no_no(self, app, mixed_simulations):
+        shown = self.mixed_to_grids(app, mixed_simulations)
+        assert app.view == "simcompare_grids"
+        assert shown["fvcom"] == ["Mesh"] and shown["mixed"] is True
+        # no "no" is needed: the answer is yes whatever is sent, and the choice of grid is still asked
+        status, reply = post(app, "/api/simcompare_grids", {"form": {"need": "no"}})
+        assert status == 400 and "method" in reply["errors"]
+        status, reply = post(app, "/api/simcompare_grids", {"form": {"need": "yes", "method": "baseline", "baseline": "Mesh"}})
+        assert status == 400 and "FVCOM" in reply["errors"]["baseline"]
+
+    def test_fvcom_is_compared_with_other_output_on_the_others_grid(self, app, mixed_simulations):
+        self.mixed_to_grids(app, mixed_simulations)
+        form = {"need": "no", "method": "baseline", "baseline": "Grid", "regrid": "nn"}
+        assert post(app, "/api/simcompare_grids", {"form": form}) == (200, {"ok": True})
+        assert app.view == "analyze_options" and app.sc_unify == {"baseline": "Grid", "regrid": "nn"}
         assert app.sc_domain_mask is None
         # FVCOM output regridded to a grid needs a thickness like any other output, from the one that is not FVCOM
         shown = state(app)["analyze"]
         assert shown["fvcom"] is False
         assert "e3t" in app.analyze_found["picker"]["available"] and "temp" not in app.analyze_found["picker"]["available"]
         assert post(app, "/api/back", {})[0] == 200
-        assert app.view == "simcompare_files"
+        assert app.view == "simcompare_grids"
+
+    def test_with_other_output_a_box_can_be_chosen_too(self, app, mixed_simulations):
+        self.mixed_to_grids(app, mixed_simulations)
+        form = {"method": "box", "lon_min": "-6", "lon_max": "-3", "lat_min": "49", "lat_max": "52", "res": "0.25"}
+        assert post(app, "/api/simcompare_grids", {"form": form}) == (200, {"ok": True})
+        assert app.sc_unify == {"lon": [-6.0, -3.0], "lat": [49.0, 52.0], "res": 0.25}
+        assert "e3t" in app.analyze_found["picker"]["available"]
 
     def test_fvcom_is_refused_with_other_output_only_as_the_mesh_requires(self, app, tmp_path, sims):
         # a mesh in metres has no longitudes and latitudes to regrid from
@@ -1568,7 +1622,8 @@ def test_a_refusal_of_the_variables_stays_on_the_page(browser, tmp_path):
         page = browser.new_page(viewport={"width": 1280, "height": 1000})
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        page.click("#home-simcompare")
+        page.click("#home-analyze")
+        page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
         page.fill("#sc-name_1", "Base run")
         page.fill("#sc-dir_1", "base")
@@ -1593,5 +1648,32 @@ def test_a_refusal_of_the_variables_stays_on_the_page(browser, tmp_path):
         cells.nth(2).fill("temp ")
         page.wait_for_function("() => document.querySelector('#scv-msg').textContent === ''")
         assert app.view == "simcompare_variables"
+    finally:
+        app.close()
+
+
+def test_the_grids_page_with_fvcom_and_other_output(browser, tmp_path, mixed_simulations):
+    """The FVCOM output must go to a grid, so there is no Yes/No: the baseline is the first simulation on
+    a grid, the mesh is not offered as one, and there is no preview, mask or FVCOM map."""
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    try:
+        TestFVCOM().mixed_to_grids(app, mixed_simulations)
+        page = browser.new_page(viewport={"width": 1280, "height": 1000})
+        page.goto(url)
+        page.wait_for_selector("#view-simcompare-grids:not([hidden])", timeout=60000)
+        page.wait_for_function("() => document.querySelector('#scg-how') && !document.querySelector('#scg-how').hidden")
+        assert page.is_hidden("#scg-need-group")
+        assert page.is_checked("#scg-method-baseline")
+        assert page.eval_on_selector_all("#scg-baseline-select option", "(options) => options.map((o) => o.value)") == ["", "Grid"]
+        assert page.input_value("#scg-baseline-select") == "Grid"
+        assert page.is_visible("#scg-fvcom-note")
+        assert page.is_hidden("#scg-generate") and page.is_hidden("#scg-dm-group")
+        assert "regridded" in page.inner_text("#scg-same") or "regrid" in page.inner_text("#scg-same")
+        # Continue is allowed as it stands
+        page.wait_for_function("() => !document.querySelector('#scg-continue').disabled")
+        page.click("#scg-continue")
+        page.wait_for_function("() => !document.querySelector('#view-analyze-options').hidden", timeout=60000)
+        assert app.sc_unify == {"baseline": "Grid"}
     finally:
         app.close()

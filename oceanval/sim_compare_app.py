@@ -51,9 +51,11 @@ from oceanval import (
     analysis,
     analysis_forms,
     extent,
+    fvcom,
     grid_align,
     missing_probe,
     model_check,
+    netcdf_lock,
     sim_compare,
     sim_compare_forms,
     sim_unify,
@@ -573,25 +575,9 @@ class SimCompareSteps:
                     "error": " ".join(problems)
                     + " The simulations are compared over the years they all have: choose variables whose output overlaps.",
                 }
-            if self._sc_is_fvcom():
-                # a mesh is not regridded or masked: the simulations are compared on it as it is
-                self.sc_unify = None
-                self.sc_domain_mask = None
-                self.sc_grids = None
-                self._sc_make_analyze_found()
-                self._enter_analyze_options()
-            elif self._sc_mesh_sims():
-                # FVCOM output is regridded onto the grid of the first simulation that is not FVCOM (see oceanval.sim_fvcom)
-                names = [sim["name"] for sim in self.sc_sims]
-                first = next(name for name in names if name not in self._sc_mesh_sims())
-                self.sc_unify = {"baseline": first}
-                self.sc_domain_mask = None
-                self.sc_grids = None
-                self._sc_make_analyze_found()
-                self._enter_analyze_options()
-            else:
-                self.view = "simcompare_grids"
-                self._sc_look_at_grids()
+            # the grids step, FVCOM output included: it is regridded to the grid chosen (see oceanval.sim_fvcom)
+            self.view = "simcompare_grids"
+            self._sc_look_at_grids()
             self._notify()
         return 200, {"ok": True}
 
@@ -606,6 +592,14 @@ class SimCompareSteps:
             return []
         return [name for name, rows in self.sc_placed.items() if any(row.get("fvcom") for row in rows)]
 
+    def _sc_regridded_sims(self):
+        """The simulations whose FVCOM output is regridded to the grid chosen: those of
+        _sc_mesh_sims, or all of them if every simulation is FVCOM and the grids step
+        said yes (all FVCOM and no is the native mesh). Called with the lock held."""
+        if self._sc_is_fvcom():
+            return list(self.sc_placed) if self.sc_unify is not None else []
+        return self._sc_mesh_sims()
+
     # ---- the grids ----
 
     def _sc_look_at_grids(self):
@@ -615,18 +609,37 @@ class SimCompareSteps:
             return
         self._sc_grids_number += 1
         number = self._sc_grids_number
-        self.sc_grids = {"status": "reading", "same": None, "extents": {}}
+        self.sc_grids = {"status": "reading", "same": None, "extents": {}, **self._sc_fvcom_kinds()}
         parts = sim_compare.first_parts(self.sc_placed, self.sc_sims)
         threading.Thread(
-            target=self._sc_grids_found, args=(number, parts), name="oceanval-simcompare-grids", daemon=True
+            target=self._sc_grids_found,
+            args=(number, parts, self._sc_fvcom_kinds()),
+            name="oceanval-simcompare-grids",
+            daemon=True,
         ).start()
 
-    def _sc_grids_found(self, number, parts):
+    def _sc_fvcom_kinds(self):
+        """What the grids step needs to know about FVCOM output: the simulations that are
+        a mesh, and whether some of the others are not (then it must be regridded to a
+        grid: there is no "no"). Called with the lock held."""
+        meshes = [
+            name for name, rows in (self.sc_placed or {}).items() if any(row.get("fvcom") for row in rows)
+        ]
+        return {"fvcom": meshes, "mixed": bool(meshes) and len(meshes) < len(self.sc_placed)}
+
+    def _sc_grids_found(self, number, parts, kinds):
         extents = {}
         same = True
         first = None
         try:
             for name, (path, variable) in parts.items():
+                if name in kinds["fvcom"]:
+                    # a mesh is not on a grid CDO can read: its nodes' extent, and it is always regridded
+                    with netcdf_lock.LOCK:
+                        lon, lat = fvcom.fvcom_extent(path)
+                    extents[name] = {"lon": lon, "lat": lat}
+                    same = False
+                    continue
                 # a model file can be many GB: only one level of one time step is read
                 data = extent.first_slice(path, variable)
                 lonlat = None if data is None else extent.lonlat(data)
@@ -648,7 +661,7 @@ class SimCompareSteps:
         with self._lock:
             if number != self._sc_grids_number:
                 return
-            self.sc_grids = {"status": "done", "same": same, "extents": extents}
+            self.sc_grids = {"status": "done", "same": same, "extents": extents, **kinds}
             self._notify()
 
     def simcompare_grids(self, form):
@@ -656,12 +669,15 @@ class SimCompareSteps:
         with self._lock:
             if self.view != "simcompare_grids":
                 return 409, {"ok": False, "error": "This step is over."}
+            kinds = self._sc_fvcom_kinds()
             self.sc_unify_form = sim_compare_forms.clean_unify(form)
             names = [sim["name"] for sim in self.sc_sims]
-            unify, errors = sim_compare_forms.check_unify(self.sc_unify_form, names)
+            unify, errors = sim_compare_forms.check_unify(self.sc_unify_form, names, **kinds)
             from oceanval.app import check_domain_mask
 
             domain_mask = check_domain_mask(self.sc_unify_form, self.cwd, errors)
+            if kinds["fvcom"] and domain_mask is not None:
+                errors["domain_mask"] = "A mask can not be used when a simulation is FVCOM output."
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
@@ -731,6 +747,14 @@ class SimCompareSteps:
                 return 400, {"ok": False, "error": "There is no such simulation."}
         if variable is None:
             return 200, {"ok": False, "error": "The model variable of this simulation could not be told."}
+        with self._lock:
+            is_mesh = name in self._sc_fvcom_kinds()["fvcom"]
+        if is_mesh:
+            return 200, {
+                "ok": False,
+                "mesh": True,
+                "error": "This is FVCOM output, a mesh of triangles: it is regridded to the grid chosen when the comparison runs.",
+            }
         found = None
         try:
             missing, note = self._sc_missing(files, variable)
@@ -776,6 +800,13 @@ class SimCompareSteps:
                 return 409, {"ok": False, "error": "This step is over."}
             names = [sim["name"] for sim in self.sc_sims or []]
             sources = {name: self._sc_field_source(name) for name in names}
+            kinds = self._sc_fvcom_kinds()
+        if kinds["fvcom"]:
+            # a mesh can not be read by CDO: the run itself regrids it, and it is not previewed
+            return 400, {
+                "ok": False,
+                "error": "The unified grid is not previewed when a simulation is FVCOM output: it is regridded when the comparison runs.",
+            }
         unify, errors = sim_compare_forms.check_unify(form, names)
         if unify is None and not errors:
             errors = {"need": "Say yes to put the simulations on one grid."}
@@ -824,9 +855,10 @@ class SimCompareSteps:
         is looked for among. Called with the lock held."""
         found = [self.sc_found[sim["name"]] for sim in self.sc_sims]
         # the thickness of FVCOM output regridded to another's grid is that of its levels, so it is not looked for in it
-        meshes = self._sc_mesh_sims()
+        meshes = self._sc_regridded_sims()
         pickers = [self.sc_found[sim["name"]]["picker"] for sim in self.sc_sims if sim["name"] not in meshes]
-        available = sorted(set.intersection(*(set(picker["available"]) for picker in pickers)))
+        # every simulation FVCOM output regridded: the levels are the regridded ones, and there is no thickness to name
+        available = sorted(set.intersection(*(set(picker["available"]) for picker in pickers))) if pickers else []
         ersem = any(one.get("ersem") for one in found)
         self.analyze_found = {
             "status": "done",
@@ -841,7 +873,7 @@ class SimCompareSteps:
             "presets": [],
             "ersem": ersem,
             # raw FVCOM output, worked out on its own mesh
-            "fvcom": self._sc_is_fvcom(),
+            "fvcom": self._sc_is_fvcom() and not self._sc_regridded_sims(),
         }
         if not self._analyze_missing_set:
             # as in validate, ERSEM output has zeros where there is no water
@@ -922,8 +954,7 @@ class SimCompareSteps:
                 self.sc_unify_form = sim_compare_forms.clean_unify(sent["form"])
             self.view = "simcompare_files"
         elif self.view == "analyze_options":
-            # FVCOM output has no grids step, whether or not it is compared with output that is not
-            self.view = "simcompare_files" if self._sc_is_fvcom() or self._sc_mesh_sims() else "simcompare_grids"
+            self.view = "simcompare_grids"
         else:
             return None
         self._notify()
@@ -980,6 +1011,8 @@ class SimCompareSteps:
             "suggested_shift": time_stamps.describe(time_stamps.SUGGESTED),
             "unify_form": self.sc_unify_form,
             "grids": self.sc_grids,
+            # raw FVCOM output, which the grids step regrids (see oceanval.sim_fvcom)
+            **self._sc_fvcom_kinds(),
             "stage": self.sc_stage,
             "regrid_methods": sim_unify.METHODS,
             # what the grids step draws of each simulation: its first variable's first file

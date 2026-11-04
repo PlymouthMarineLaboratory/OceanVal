@@ -340,23 +340,31 @@ def _number(text):
         return None
 
 
-def check_unify(form, names):
+def check_unify(form, names, fvcom=(), mixed=False):
     """The grids step's boxes (see clean_unify) as compare_simulations()'s unify:
     (unify, errors). unify is None for "no", and errors maps the boxes that cannot
-    be used to the reason, "need" to the question's, and "method" to the second's."""
+    be used to the reason, "need" to the question's, and "method" to the second's.
+    fvcom are the simulations that are raw FVCOM output (a mesh): if all of them
+    are, only a box is a grid to put them on, and mixed says that some of the
+    others are not, so there is no "no": the FVCOM output is put on some grid."""
     errors = {}
     regrid = {"regrid": form["regrid"]} if form.get("regrid") else {}
-    if not form["need"]:
+    need = "yes" if mixed else form["need"]
+    if not need:
         return None, {"need": "Say whether the simulations' grids need to be put on one grid."}
-    if form["need"] == "no":
+    if need == "no":
         return None, {}
     if not form["method"]:
         return None, {"method": "Choose how to put the simulations on one grid."}
     if form["method"] == "baseline":
+        if fvcom and not mixed:
+            return None, {"method": "FVCOM output on its own can only be put on a lon-lat box."}
         if not form["baseline"]:
             return None, {"baseline": "Choose the simulation whose grid the others are put on."}
         if form["baseline"] not in names:
             return None, {"baseline": "This is not one of the simulations."}
+        if form["baseline"] in fvcom:
+            return None, {"baseline": "This is FVCOM output, a mesh: choose a simulation on a grid."}
         return {"baseline": form["baseline"], **regrid}, {}
     values = {}
     for box in UNIFY_BOXES:

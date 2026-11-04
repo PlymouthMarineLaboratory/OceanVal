@@ -1133,13 +1133,73 @@ class TestFVCOM:
     @pytest.mark.parametrize(
         "extra, message",
         [
-            ({"unify": {"baseline": "Base run"}}, "unify does not work with FVCOM output"),
+            ({"unify": {"baseline": "Base run"}}, "can only be put on a lon-lat grid"),
             ({"unit_conversions": {"Temperature": {"Warm run": {"multiplier": 1, "adder": 0}}}}, "unit_conversions do not work with FVCOM output"),
         ],
     )
     def test_what_cannot_be_done_to_a_mesh_is_refused(self, compared_fvcom, tmp_path, extra, message):
         arguments = self.given_fvcom(compared_fvcom, out_dir=str(tmp_path), **extra)
         with pytest.raises(ValueError, match=message):
+            oceanval.compare_simulations(**arguments)
+
+    BOX = {"lon": [-6, -3], "lat": [49, 52], "res": 0.1}
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def on_a_box(cls, compared_fvcom, tmp_path_factory):
+        """The two simulations put on a lon-lat box: (its folder, its info)."""
+        out = tmp_path_factory.mktemp("compare_fvcom_box")
+        a, b = compared_fvcom
+        arguments = dict(
+            simulations=[
+                {"name": "Base run", "sim_dir": a, "n_dirs_down": 1},
+                {"name": "Warm run", "sim_dir": b, "n_dirs_down": 1},
+            ],
+            variables={"Temperature": {"Base run": "temp", "Warm run": "temp"}},
+            climatology={"Temperature": {"start": 2012, "end": 2013, "surface": True, "bottom": True, "water_column": "mean"}},
+            long_term={"Temperature": {"start": 2012, "end": 2013, "surface": True}},
+            unify=cls.BOX,
+            view=False,
+            cores=1,
+            out_dir=str(out),
+        )
+        return out, compare_quietly(arguments)
+
+    def test_a_box_regrids_the_mesh_to_a_lon_lat_grid(self, on_a_box):
+        out, info = on_a_box
+        assert info["fvcom"] is False and info["fvcom_regridded"] == ["Base run", "Warm run"]
+        assert info["same_grid"] is True and info["unify"]["method"] == "box"
+        assert "mesh" in info["unify_text"] and "regridded" in info["unify_text"] and "lon-lat" in info["unify_text"]
+        saved = sim_compare.load(results(out))
+        assert {sim["name"]: sim["thickness"] for sim in saved["simulations"]} == {"Base run": "z_level", "Warm run": "z_level"}
+        for key in ("base_run", "warm_run"):
+            with open(os.path.join(results(out), key, "analysis.json")) as file:
+                assert json.load(file)["fvcom"] is False
+
+    def test_the_box_results_are_on_the_boxs_grid_in_the_same_cells(self, on_a_box):
+        out, _ = on_a_box
+        a = field(out, "base_run", "temperature_surface_annual.nc")
+        b = field(out, "warm_run", "temperature_surface_annual.nc")
+        assert a.shape == b.shape
+        shown = np.isfinite(a.values)
+        assert shown.any() and (shown == np.isfinite(b.values)).all()
+        # only the cells inside the mesh, 5-4 W, have values, and the second simulation is warmer
+        lons = np.broadcast_to(a["lon"].values[None, None, :], a.shape)[shown]
+        assert lons.min() >= -5.15 and lons.max() <= -3.85
+        assert (b.values[shown] > a.values[shown]).all()
+
+    def test_the_box_has_the_bottom_and_the_water_column(self, on_a_box):
+        out, _ = on_a_box
+        surface = field(out, "base_run", "temperature_surface_annual.nc")
+        assert np.isfinite(field(out, "base_run", "temperature_bottom_annual.nc").values).any()
+        assert np.isfinite(field(out, "base_run", "temperature_mean_annual.nc").values).any()
+        assert np.isfinite(surface.values).any()
+
+    def test_a_domain_mask_is_refused_with_a_box_too(self, compared_fvcom, tmp_path):
+        mask = str(tmp_path / "mask.nc")
+        TestDomainMask.write_mask(mask)
+        arguments = self.given_fvcom(compared_fvcom, out_dir=str(tmp_path / "out"), domain_mask=mask, unify=self.BOX)
+        with pytest.raises(ValueError, match="domain_mask does not work with FVCOM output"):
             oceanval.compare_simulations(**arguments)
 
     def test_a_domain_mask_is_refused(self, compared_fvcom, tmp_path):
@@ -1226,13 +1286,30 @@ class TestFVCOMWithOtherOutput:
     @pytest.mark.parametrize(
         "extra, message",
         [
-            ({"unify": {"lon": [-6, -3], "lat": [49, 52], "res": 0.5}}, "unify can only be"),
             ({"unify": {"baseline": "Mesh"}}, "is FVCOM output, which is regridded"),
         ],
     )
     def test_what_cannot_be_done_with_a_mesh_and_a_grid_is_refused(self, mixed_simulations, tmp_path, extra, message):
         with pytest.raises(ValueError, match=message):
             oceanval.compare_simulations(**self.given_mixed(mixed_simulations, out_dir=str(tmp_path), **extra))
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def on_a_box(cls, mixed_simulations, tmp_path_factory):
+        out = tmp_path_factory.mktemp("compare_mixed_box")
+        box = {"lon": [-6, -3], "lat": [49, 52], "res": 0.25}
+        return out, compare_quietly(cls.given_mixed(mixed_simulations, out_dir=str(out), unify=box))
+
+    def test_a_box_is_allowed(self, on_a_box):
+        out, info = on_a_box
+        assert info["fvcom"] is False and info["fvcom_regridded"] == ["Mesh"]
+        assert info["unify"]["method"] == "box" and info["same_grid"] is True
+        assert "lon-lat" in info["unify_text"] and "first simulation that is not FVCOM" in info["unify_text"]
+        mesh = field(out, "mesh", "temperature_surface_annual.nc")
+        grid = field(out, "grid", "temperature_surface_annual.nc")
+        assert mesh.shape == grid.shape
+        shown = np.isfinite(mesh.values)
+        assert shown.any() and (shown == np.isfinite(grid.values)).all()
 
     def test_a_domain_mask_is_refused(self, mixed_simulations, tmp_path):
         mask = str(tmp_path / "mask.nc")
