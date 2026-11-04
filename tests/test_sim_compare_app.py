@@ -105,7 +105,7 @@ class TestLanding:
     def test_there_is_a_third_tile(self, app):
         page = get(app, "/")[1]
         assert 'data-action="simcompare"' in page and 'data-action="analyze"' in page
-        assert 'class="choices is-four"' in page
+        assert 'class="choices is-five"' in page
         assert state(app)["view"] == "home"
 
     def test_the_tile_goes_to_the_simulations_and_back(self, app):

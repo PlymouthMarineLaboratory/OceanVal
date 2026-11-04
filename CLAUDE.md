@@ -598,10 +598,32 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   modification time are unchanged) so `index_times` reads the rest. `locate_rows` also asks a stream for its time resolution only to
   choose between streams, and reads a calendar once per pattern.
 
+### Help | Examples: is my data compatible with OceanVal? (`oceanval/compat_check.py`)
+
+- The landing page's first tile (`#home-help`, views `help` → `help_compatible`, `App.choose`/`_step_back`) holds the **compatibility check**
+  of one model file: a grid of six questions, each with a turning circle (`gridMark`, the matchup grid's marks plus `warning`), then a tick,
+  a warning or a cross, and a message under it. `compat_check.ROWS`: `cdo` (`cdo sinfo` runs and finds a variable on a grid; a crash is
+  `cdo_check`'s wording), `regrid` (the first time step at the surface, to 360x180 by `bil` and `nn`; one failing is a warning, with
+  `explain()`'s sentence; **a generic grid says in words it cannot be regridded**), `mean` (`analysis_series.robust_spatial_mean`: no cell
+  areas is a warning), `time` (`time_stamps._read`/`_evidence`: dates, resolution, calendar, end-stamped times), `interactive` (the viewer's
+  own `viewer_plots.map_plot` of `viewer_catalogue`, drawn by the page's `drawMap`) and `climatology` (Analyze's `pub_plot` map of the
+  surface's mean over the file's first 12 steps, a PNG). Only the sea surface is used (`surface_level` of the catalogue).
+- **Everything runs in a child process** (`Compat`, run as `compat_check.main`; killed by `cancel`, Back, restart and quit, and by `STEP_TIMEOUT`
+  without news): CDO can crash and nctoolkit's pools can hang. Its events are `MARKER` lines on stdout; `/api/compat_check` (`compat_start`),
+  `/api/compat_variable`, `/api/compat_clear`, GET `/api/compat/plot` (the Bokeh item is not in the state, it is large) and GET
+  `/api/compat/list`. **The variable is asked first when the file has more than one** (status `choose`, the page's `variableBox`; the child
+  waits on stdin, and nobody is timed while they choose).
+- **FVCOM is told first** (`create_recipes._looks_like_fvcom`): it should be compatible, CDO cannot read it, so `cdo`, `regrid` and `mean` are
+  skipped, and so is `climatology` (Analyze does not work with FVCOM output yet); `time` and `interactive` are made.
+- **The path box lists what can be chosen as it is typed** (`compat_check.listing`, like a terminal's tab completion but also for files): a
+  directory (with or without its "/") lists its folders then its `.nc` files in natural order (links followed, hidden and broken ones left
+  out, at most `MOST_ENTRIES`), the start of a name the ones that begin so; a click on a folder goes into it, on a file fills the box. Check
+  waits for a file (the server checks again). Its note says what is there, in the page's `compatNote`.
+
 ### View simulation output (`oceanval/viewer_*.py`)
 
-- Ported from the standalone ncviewer (2026-10-28): the landing page's **first** tile (`#home-viewer`, `data-action="viewer"`,
-  `viewer_app.VIEWER`); the landing page is **two by two** (`.choices.is-four`, one column at ≤640px). Mixin
+- Ported from the standalone ncviewer (2026-10-28): the landing page's **second** tile (`#home-viewer`, `data-action="viewer"`,
+  `viewer_app.VIEWER`; Help | Examples is first); the landing page's five tiles wrap (`.choices.is-five`, one column at ≤640px). Mixin
   `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
   (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
   logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own; only
@@ -656,7 +678,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `OceanVal` only where file names are case sensitive, as on macOS/Windows the two are one file and pip
   failed to upgrade over them): a
   127.0.0.1 server with a token, whose page (`data/oceanval_app.html`) opens on a landing
-  page (view `home`, two by two) of View simulation output, Analyze, Compare simulations (see above) and Validate, which leads to the validation page
+  page (view `home`, five tiles) of Help | Examples (see above), View simulation output, Analyze, Compare simulations (see above) and Validate, which leads to the validation page
   (view `start`) for choosing matchup+validate / matchup only / validate, the simulation (live-checked via `/api/probe`),
   the create_recipes window, and a progress panel for the run (its console is shown only if the run fails).
 - **Whether a browser is opened** is `recipes_gui._can_open_browser`: `OCEANVAL_BROWSER` 1/0 decides if set; else `BROWSER` (VS Code's

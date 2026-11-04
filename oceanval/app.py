@@ -75,7 +75,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store
-from oceanval import cdo_check, depths, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, compat_check, depths, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
     POINT_RECIPE_CATALOGUE,
@@ -1778,6 +1778,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         self._cdo_check = None
         self._cdo_number = 0
         self._cdo_failed = None
+        # Help | Examples' check of whether one file is compatible (see compat_check)
+        self._compat = None
         self.run = None
         self.run_label = None
         self.status = None
@@ -2033,6 +2035,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "simcompare": self._simcompare_state(),
                 "viewer": self._viewer_state(),
                 "cdo_check": self._cdo_check_state(),
+                "compat": self._compat.state() if self._compat is not None else None,
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -2632,6 +2635,20 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = "simcompare_sims"
                 self._notify()
                 return True
+            if action == "help":
+                # the landing page's Help | Examples tile
+                if self.view != "home":
+                    return False
+                self.view = "help"
+                self._notify()
+                return True
+            if action == "help_compatible":
+                # Help | Examples' first tile
+                if self.view != "help":
+                    return False
+                self.view = "help_compatible"
+                self._notify()
+                return True
             if action not in ACTIONS + ("demo",) or self.view not in ("start", "finished"):
                 return False
             self._end_demo()
@@ -2771,6 +2788,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "register_kind": "start",
             "register_point": "register_kind",
             "register_gridded": "register_kind",
+            "help": "home",
+            "help_compatible": "help",
         }
         if self.demo is not None and self.demo["status"] != "downloading":
             earlier["demo"] = "start"
@@ -2813,6 +2832,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if isinstance(sent.get("form"), dict):
                 self.register_forms[kind] = recipe_forms.clean(kind, sent["form"])
             self._cancel_register_check()
+        if self.view == "help_compatible":
+            # the check of a file is stopped, and not kept
+            self._drop_compat()
         self.view = earlier[self.view]
         if self.view == "start":
             self._end_demo()
@@ -3087,6 +3109,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             page, self.recipes_page = self.recipes_page, None
             reading, self._output_years = self._output_years, None
             self._drop_cdo_check()
+            self._drop_compat()
             self._own_sim = None
             self._own_sim_number += 1
             draft, self._draft_dir = self._draft_dir, None
@@ -5088,6 +5111,66 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         if check is not None:
             check.cancel()
 
+    # ---- Help | Examples: is my data compatible with OceanVal? ----
+
+    def _drop_compat(self):
+        """Stop the check of a file, if there is one, and forget what it found.
+        Called with the lock held."""
+        check, self._compat = self._compat, None
+        if check is not None:
+            check.cancel()
+
+    def compat_start(self, path):
+        """Start the check of the file at path (typed into the page; relative to
+        the directory worked in), in place of any earlier one. A reply of
+        {"ok": False, "error": text} says why there is nothing to check."""
+        text = path.strip() if isinstance(path, str) else ""
+        if not text:
+            return 200, {"ok": False, "error": "Enter the path of a model output file."}
+        full = recipe_checks.resolve(text, self.cwd)
+        if os.path.isdir(full):
+            return 200, {"ok": False, "error": "That is a directory. Enter the path of one file."}
+        if not os.path.isfile(full):
+            return 200, {"ok": False, "error": "There is no file at that path."}
+        with self._lock:
+            if self.view != "help_compatible" or self.closed.is_set():
+                return 409, {"ok": False, "error": "This step is over."}
+            self._drop_compat()
+            self._compat = compat_check.Compat(full, self._notify).start()
+            self._notify()
+        return 200, {"ok": True}
+
+    def compat_variable(self, variable):
+        """The variable the user chose for a file that has more than one."""
+        with self._lock:
+            check = self._compat
+            if self.view != "help_compatible" or check is None:
+                return 409, {"ok": False, "error": "This step is over."}
+        if not check.choose(variable if isinstance(variable, str) else ""):
+            return 200, {"ok": False, "error": "Choose one of the file's variables."}
+        return 200, {"ok": True}
+
+    def compat_listing(self, path):
+        """What can be chosen from the path typed so far in the compatibility check's box
+        (see compat_check.listing): it lists the machine oceanval runs on, which the browser
+        need not be on."""
+        return compat_check.listing(path, self.cwd)
+
+    def compat_plot(self):
+        """The interactive map of the check of a file: {"ok", "item" (a Bokeh json_item)}."""
+        check = self._compat
+        item = check.item() if check is not None else None
+        if item is None:
+            return {"ok": False, "error": "There is no map."}
+        return {"ok": True, "item": item}
+
+    def compat_clear(self):
+        """Forget the check of a file (the path was edited)."""
+        with self._lock:
+            self._drop_compat()
+            self._notify()
+        return True
+
     def _cdo_check_state(self):
         """What the page is told of the check of the files with CDO: whether it
         is going, and, once a file has crashed it, what to tell the user. The
@@ -5562,6 +5645,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._drop_model_check()
             self._drop_analyze_check()
             self._drop_cdo_check()
+            self._drop_compat()
             reading, self._output_years = self._output_years, None
             viewed = self._viewer_drop()
             self._notify()
@@ -5692,6 +5776,8 @@ class _Handler(recipes_gui._Handler):
             "/api/simcompare_check_files",
             "/api/viewer/catalogue",
             "/api/viewer/plot",
+            "/api/compat/plot",
+            "/api/compat/list",
             "/api/viewer/limits",
             "/api/viewer/missing",
             "/bokeh.min.js",
@@ -5743,6 +5829,10 @@ class _Handler(recipes_gui._Handler):
             self._reply_json(200, self.app.viewer_summary())
         elif url.path == "/api/viewer/plot":
             self._reply_json(200, self.app.viewer_plot(query))
+        elif url.path == "/api/compat/list":
+            self._reply_json(200, self.app.compat_listing(query.get("path", "")))
+        elif url.path == "/api/compat/plot":
+            self._reply_json(200, self.app.compat_plot())
         elif url.path == "/api/viewer/limits":
             self._reply_json(200, self.app.viewer_limits(query))
         elif url.path == "/api/viewer/missing":
@@ -5902,6 +5992,12 @@ class _Handler(recipes_gui._Handler):
                 *app.add_own_data(payload.get("kind"), payload.get("form"))
             )
             return
+        if path == "/api/compat_variable":
+            self._reply_json(*self.app.compat_variable(payload.get("variable")))
+            return
+        if path == "/api/compat_check":
+            self._reply_json(*app.compat_start(payload.get("path")))
+            return
         if path == "/api/own_inspect":
             self._reply_json(*app.own_inspect(payload.get("obs_path")))
             return
@@ -5959,6 +6055,7 @@ class _Handler(recipes_gui._Handler):
             "/api/simcompare_time_shift": lambda: app.simcompare_time_shift(payload.get("choice")),
             # with what the step's boxes hold
             "/api/back": lambda: app.back(payload),
+            "/api/compat_clear": app.compat_clear,
             "/api/restart_all": app.reset,
             "/api/stop": app.stop,
             "/api/refilter": lambda: app.refilter(

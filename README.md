@@ -95,7 +95,7 @@ oceanval
 
 ```
 
-This opens the OceanVal app in your web browser. Its first page offers four boxes: **View simulation output** (search a simulation's netCDF files and map any variable in them, at the time, depth and years you choose, or play it as an animation; regular, curvilinear, tripolar and unstructured grids, such as the native grids of the CMIP6 ocean models, and FVCOM meshes are all drawn on longitudes and latitudes with their coastlines), **Analyze simulations**, **Compare simulations** and **Validate simulations**.
+This opens the OceanVal app in your web browser. Its first page offers five boxes: **Help | Examples** (whose first tool checks whether a model output file is compatible with OceanVal), **View simulation output** (search a simulation's netCDF files and map any variable in them, at the time, depth and years you choose, or play it as an animation; regular, curvilinear, tripolar and unstructured grids, such as the native grids of the CMIP6 ocean models, and FVCOM meshes are all drawn on longitudes and latitudes with their coastlines), **Analyze simulations**, **Compare simulations** and **Validate simulations**.
 
 
 

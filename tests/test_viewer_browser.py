@@ -769,9 +769,9 @@ def test_years_are_forgotten_with_new_files(page, simulation):
     assert tab.input_value("#vw-first") == "" and tab.input_value("#vw-last") == ""
 
 
-@pytest.mark.parametrize("width", [1300, 900, 400])
-def test_the_landing_page_is_two_by_two(browser, tmp_path, width):
-    """Four tiles, two by two, and one above another on a phone."""
+@pytest.mark.parametrize("width, rows", [(1300, 2), (900, 3), (400, 5)])
+def test_the_landing_page_has_five_tiles_that_wrap(browser, tmp_path, width, rows):
+    """Five tiles: three and two on a wide window, two a row on a narrow one, and one above another on a phone."""
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
     url = app.start()
@@ -779,10 +779,10 @@ def test_the_landing_page_is_two_by_two(browser, tmp_path, width):
         tab = browser.new_page(viewport={"width": width, "height": 900})
         tab.goto(url)
         tab.wait_for_selector("#view-home:not([hidden])")
-        boxes = [tab.locator(f"#home-{name}").bounding_box() for name in ("viewer", "analyze", "simcompare", "validate")]
-        rows = sorted({round(box["y"]) for box in boxes})
-        assert len(rows) == (4 if width <= 640 else 2)
-        # the first is View simulation output, at the top left
+        names = ("help", "viewer", "analyze", "simcompare", "validate")
+        boxes = [tab.locator(f"#home-{name}").bounding_box() for name in names]
+        assert len({round(box["y"]) for box in boxes}) == rows
+        # Help | Examples is first, at the top left
         assert boxes[0]["y"] == min(box["y"] for box in boxes) and boxes[0]["x"] == min(box["x"] for box in boxes)
         # nothing is wider than the window
         assert tab.evaluate("document.documentElement.scrollWidth") <= width

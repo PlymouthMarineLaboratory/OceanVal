@@ -29,6 +29,21 @@ For example, files could be named YYYY/MM/model_output_YYYYMMDD.nc. OceanVal wil
 
 
 
+Check that your data is compatible
+----------------------------------
+
+The OceanVal app can check one of your model output files before you start. Run ``oceanval``, open **Help | Examples** and choose **Is my data compatible with OceanVal?**. Type the path of a file in the box: if you type a directory, the folders and netCDF files in it are listed as you type, and you pick one. If the file has more than one variable, you choose the one to check. OceanVal then answers, with a turning circle while it works and then a tick, a warning or a cross, and a message under each:
+
+* **Can CDO open my data?** ``cdo sinfo`` must run without crashing and find a variable on a grid. A crash means the data may not be CF-compliant; try another CDO version.
+* **Can my data be regridded?** The first time step at the surface is regridded to a 360x180 grid, by bilinear and by nearest-neighbour interpolation. If only one works you are warned, with CDO's reason. A *generic* grid, with no longitudes and latitudes CDO can use, cannot be regridded.
+* **Can a spatial average be calculated from my data?** A grid without cell areas gets a warning: OceanVal will regrid it to work out spatial averages, and the report says so.
+* **Is the time axis understood?** The dates, the time resolution and the calendar are read; times that look like the ends of their periods are flagged.
+* **Can my data be plotted interactively?** The map View simulation output draws, which you can zoom and pan.
+* **Can my data be plotted as a climatology?** The map Analyze simulations draws: the sea surface's climatology, a mean over the file's first 12 time steps.
+
+FVCOM output is recognised first. It should be compatible, as OceanVal regrids it itself, so the CDO, regridding and spatial-average checks are skipped (as is the climatology map, as Analyze simulations does not work with FVCOM output yet), and the time check and interactive plot are made.
+
+
 Gridded observational data
 ---------------------------
 

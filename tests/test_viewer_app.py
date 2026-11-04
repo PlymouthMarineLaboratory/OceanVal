@@ -69,7 +69,7 @@ def _limits(app, **params):
 
 def test_the_tile_is_first_on_the_landing_page(app):
     page = get(app, "/")[1]
-    assert 'class="choices is-four"' in page
+    assert 'class="choices is-five"' in page
     assert page.index('data-action="viewer"') < page.index('data-action="analyze"') < page.index('data-action="validate_menu"')
     assert "View simulation output" in page and "Interactively view netCDF files" in page
 
