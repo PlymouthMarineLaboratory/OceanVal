@@ -315,13 +315,9 @@ PANEL_WIDTH = 12.0
 PANEL_FONT = 14
 
 
-def _panel_size(path, panels, ncol=None, bar_rows=0):
-    """The size, in inches, of a figure of `panels` maps of the grid in path, in
-    ncol columns (default: up to 4): PANEL_WIDTH wide, with the maps as tall as their
-    shape needs, and room for each one's title and a colour bar: one at the right
-    for all the maps, or, with bar_rows, one below each of that many rows."""
-    ncol = ncol or (4 if panels > 3 else panels)
-    nrow = int(np.ceil(panels / ncol))
+def map_aspect(path):
+    """The width over the height of a map of the grid in path, as it is drawn: a degree of
+    longitude is cos(mid latitude) of one of latitude, a global map is 2, metres are as they are."""
     try:
         lon, lat = _valid_lon_lat(path)
     except StopIteration:
@@ -329,16 +325,23 @@ def _panel_size(path, panels, ncol=None, bar_rows=0):
         with xr.open_dataset(path, decode_times=False) as ds:
             x, y = np.asarray(ds["x"].values, dtype="float64"), np.asarray(ds["y"].values, dtype="float64")
         y_span = float(np.nanmax(y) - np.nanmin(y))
-        aspect = (float(np.nanmax(x) - np.nanmin(x)) / y_span) if y_span > 0 else 1.5
-    else:
-        lon = np.where(lon > 180, lon - 360, lon)
-        lon_span, lat_span = float(np.nanmax(lon) - np.nanmin(lon)), float(np.nanmax(lat) - np.nanmin(lat))
-        if lon_span > 340 and lat_span > 160:
-            aspect = 2.0
-        else:
-            mid_lat = 0.5 * float(np.nanmax(lat) + np.nanmin(lat))
-            aspect = lon_span * np.cos(np.radians(mid_lat)) / lat_span if lat_span > 0 else 1.5
-    aspect = min(max(float(aspect), 0.6), 2.5)
+        return (float(np.nanmax(x) - np.nanmin(x)) / y_span) if y_span > 0 else 1.5
+    lon = np.where(lon > 180, lon - 360, lon)
+    lon_span, lat_span = float(np.nanmax(lon) - np.nanmin(lon)), float(np.nanmax(lat) - np.nanmin(lat))
+    if lon_span > 340 and lat_span > 160:
+        return 2.0
+    mid_lat = 0.5 * float(np.nanmax(lat) + np.nanmin(lat))
+    return lon_span * np.cos(np.radians(mid_lat)) / lat_span if lat_span > 0 else 1.5
+
+
+def _panel_size(path, panels, ncol=None, bar_rows=0):
+    """The size, in inches, of a figure of `panels` maps of the grid in path, in
+    ncol columns (default: up to 4): PANEL_WIDTH wide, with the maps as tall as their
+    shape needs, and room for each one's title and a colour bar: one at the right
+    for all the maps, or, with bar_rows, one below each of that many rows."""
+    ncol = ncol or (4 if panels > 3 else panels)
+    nrow = int(np.ceil(panels / ncol))
+    aspect = min(max(float(map_aspect(path)), 0.6), 2.5)
     map_width = (PANEL_WIDTH - (0.4 if bar_rows else 1.6)) / ncol
     return [PANEL_WIDTH, round(nrow * (map_width / aspect + 0.55) + 0.9 * bar_rows + 0.3, 1)]
 

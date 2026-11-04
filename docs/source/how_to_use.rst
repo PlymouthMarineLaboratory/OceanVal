@@ -452,7 +452,7 @@ Everything is saved in `oceanval_analysis` in `out_dir`: the fields as netCDF, w
 Comparing simulations side by side
 ----------------------------------
 
-`oceanval.compare_simulations` does everything `analyze` does for two to five simulations, and builds one HTML report with them side by side: the maps are a panel for each simulation on one colour scale, and the time series have a colour for each simulation.
+`oceanval.compare_simulations` does everything `analyze` does for two to five simulations, and builds one HTML report with them side by side: the maps are a panel for each simulation on one colour scale, and the time series have a colour for each simulation. With exactly two simulations, the climatology's maps also show the difference: the annual mean is drawn for both and as the first simulation minus the second (named above its map), and the monthly maps are a row for each simulation and one for the difference, each named to the right of it. The differences share a colour scale symmetric about zero, and if the simulations are on different grids (and were not unified) the second is regridded to the first's for the difference only.
 
 .. code:: ipython3
 

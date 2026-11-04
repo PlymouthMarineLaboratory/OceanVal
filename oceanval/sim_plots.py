@@ -13,12 +13,14 @@ the scale all the simulations share.
 """
 
 import os
+import textwrap
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from oceanval import analysis_plots as ap
+from oceanval.quiet_nc import nc
 from oceanval.analysis import PEAK_DAY, PEAK_VALUE
 from oceanval.analysis_plots import (
     CYCLE_AXIS,
@@ -26,6 +28,7 @@ from oceanval.analysis_plots import (
     NOT_STATIONS,
     YEAR_TICKS,
     Drawn,
+    _Code,
     _all_values,
     _call,
     _code,
@@ -208,9 +211,12 @@ def _mesh_panels_code(key, label, comment, sims, paths, limits, colours, font_ex
 def annual_maps(results_dir, key, layer):
     """The map of the annual mean of a variable's climatology in one layer, a panel
     for each simulation, on one colour scale (the 2nd to the 98th percentile of all of
-    them)."""
+    them). Of two simulations it is the maps of both and the first minus the second (see
+    annual_difference_maps)."""
     info = load(results_dir)
     variable = entry(info, key)
+    if difference_pair(info, variable, layer):
+        return annual_difference_maps(results_dir, key, layer)
     sims = _having(variable, "climatology")
     saved = _own(variable, sims[0])["climatology"]["layers"][layer]
     paths = [
@@ -240,6 +246,362 @@ def monthly_maps(results_dir, key, layer, sim):
         for other in _having(variable, "climatology")
     ]
     return ap.monthly_maps(folder_of(results_dir, info, sim), key, layer, limits=_shared_limits(paths, key))
+
+
+# ---- the maps of two simulations, and the first minus the second ----
+
+# the font size of these figures, and how many months are across a figure of the months
+DIFFERENCE_FONT = 12
+DIFFERENCE_COLUMNS = 4
+# the colour map of a difference
+DIFFERENCE_COLOURS = "RdBu_r"
+# the space between the maps, in inches: 5 mm
+GAP = 0.2
+# the room, in inches, for a map's title above it, for the names of the rows to the right of them, and
+# for the colour bars (one under the other) below them
+TITLE_ROOM, NAMES_ROOM, BAR_ROOM = 0.4, 0.8, 0.9
+
+
+def pair_size(path, columns, rows, side=0.3, bars=1, titles=1):
+    """The size of a figure of rows of columns of maps of the grid in path, in inches: ap.PANEL_WIDTH wide,
+    each map as tall as its shape makes it, GAP apart, with room for `titles` rows of titles, `side` to the right and
+    `bars` colour bars below. Also the width of a map."""
+    width = (ap.PANEL_WIDTH - side - 0.2 - (columns - 1) * GAP) / columns
+    height = width / min(max(float(ap.map_aspect(path)), 0.3), 3.5)
+    return [ap.PANEL_WIDTH, round(rows * height + titles * TITLE_ROOM + bars * BAR_ROOM + 0.2, 1)]
+
+
+# the layout of the figures: the maps are this far apart (the padding of constrained layout is each side)
+SPACING = 'fig.get_layout_engine().set(w_pad=GAP / 2, h_pad=GAP / 2, wspace=0, hspace=0)'
+
+
+def difference_pair(info, variable, layer):
+    """The two simulations whose maps of a variable's climatology in a layer are drawn
+    with their difference, (first, second), or None: when exactly two simulations are
+    compared, both have the layer, with the same months, and it is not raw FVCOM output
+    (which is drawn on its mesh)."""
+    names = names_of(info)
+    if len(names) != 2:
+        return None
+    layers = []
+    for sim in names:
+        own = variable["sims"].get(sim, {}).get("climatology")
+        saved = own["layers"].get(layer) if own else None
+        if saved is None or saved.get("mesh"):
+            return None
+        layers.append(saved)
+    if layers[0]["months"] != layers[1]["months"]:
+        return None
+    return names[0], names[1]
+
+
+def has_difference(results_dir, key, layer):
+    """Whether the maps of a variable's climatology in a layer are drawn with the
+    first simulation minus the second (see difference_pair)."""
+    info = load(results_dir)
+    return difference_pair(info, entry(info, key), layer) is not None
+
+
+def difference_title(first, second):
+    """What the first minus the second is called, e.g. "Base run minus Warm run"."""
+    return f"{first} minus {second}"
+
+
+def _pair_files(results_dir, info, variable, layer, kind):
+    """The files of the two simulations' maps (kind: "annual" or "monthly") and their names."""
+    pair = difference_pair(info, variable, layer)
+    paths = [
+        _path(folder_of(results_dir, info, sim), _own(variable, sim)["climatology"]["layers"][layer][kind]) for sim in pair
+    ]
+    return pair, paths
+
+
+def _open_pair_code(paths, key, regrid_second):
+    """The code that opens the maps of two simulations as ds_first and ds_second, and makes
+    ds_difference, the first minus the second. If the simulations are on different grids,
+    the second is regridded to the first's for it (bilinear)."""
+    lines = ["# open the map of each simulation"]
+    for name, path in zip(("first", "second"), paths):
+        lines += [
+            f"ds_{name} = nc.open_data({_py(path)}, checks=False)",
+            f"ds_{name}.subset(variables={_py(key)})",
+            f"ds_{name}.run()",
+        ]
+    lines.append("# the difference: the first simulation minus the second")
+    if regrid_second:
+        lines += [
+            "# the simulations are on different grids, so the second is regridded to the first's for it",
+            "ds_on_first = ds_second.copy()",
+            f'ds_on_first.regrid(grid={_py(paths[0])}, method="bil")',
+            "ds_on_first.run()",
+        ]
+    else:
+        lines.append("ds_on_first = ds_second")
+    lines += ["ds_difference = ds_first.copy()", "ds_difference.subtract(ds_on_first)", "ds_difference.run()"]
+    return "\n".join(lines)
+
+
+def _difference_values(paths, key, regrid_second):
+    """The values of the first simulation's map minus the second's, worked out by
+    the code of _open_pair_code."""
+    namespace = {"nc": nc}
+    exec(compile(_open_pair_code(paths, key, regrid_second), "<difference>", "exec"), namespace)
+    return np.asarray(namespace["ds_difference"].to_xarray()[key].values, dtype="float64")
+
+
+def _pair_scales(paths, key, regrid_second):
+    """The colour scales of two simulations' maps and their difference:
+    ((limits, extend) shared by the simulations, (limits, extend) of the difference,
+    symmetric about zero)."""
+    return (
+        _scale(_all_values(paths, key)),
+        _scale(_difference_values(paths, key, regrid_second), diverging=True),
+    )
+
+
+def _wrapped(label, width=28):
+    """label on lines of at most width characters, to fit under a colour bar below one map."""
+    return textwrap.fill(label, width)
+
+
+def _bars_code():
+    """The code that makes the colour bars below the maps, for the bars list (the first and last
+    of the maps (panels) the bar is below, its label, whether it has arrows at its ends, the
+    number of a map whose colours it shows, and how thin the bar is: 1 for a bar below one row of maps, less
+    below more of them)."""
+    return "\n".join(
+        [
+            "    # a colour bar below the maps that share a colour scale: the colours of one of them are used",
+            "    fig = plt.gcf()",
+            "    for first, last, label, extend, source, thin in bars:",
+            "        below = panels[first:last]",
+            "        image = next(x for x in panels[source].get_children() if hasattr(x, \"get_clim\") and x.get_array() is not None)",
+            "        # a bar below a single map is wider than one below several, and has fewer ticks, so that they do not collide",
+            "        single = last - first == 1",
+            '        bar = fig.colorbar(\n            image, ax=below, location="bottom", extend=extend, shrink=0.9 if single else 0.6,\n            fraction=0.15 * thin, pad=0.1 * thin,\n        )',
+            "        bar.set_label(label)",
+            "        bar.locator = MaxNLocator(nbins=4 if single else 6)",
+            "        bar.update_ticks()",
+        ]
+    )
+
+
+def _pair_figure(key, comment, paths, regrid_second, scales, size, draw, calendar=False):
+    """The function that makes the code of a figure of two simulations and their difference
+    from the plot grids to regrid them to (None if they are drawn as they are, see _drawn_maps);
+    draw is the code that draws the figure, from the open maps and the settings."""
+    (limits, _), (difference_limits, _) = scales
+    imports = ap.MAP_IMPORTS + "from matplotlib.ticker import MaxNLocator\n" + ("import calendar\n" if calendar else "")
+
+    def code_for(grids):
+        return _code(
+            imports,
+            comment,
+            "# the colour scale the simulations share (the 2nd to the 98th percentile of both of them) and the one\n"
+            "# the differences share (symmetric about zero, up to the 98th percentile of their size)\n"
+            f"limits = {_py(limits)}\n"
+            f"difference_limits = {_py(difference_limits)}",
+            "# the figure's size, in inches, and its font size: the report shows it at about the width of its page\n"
+            f"size = {_py(size)}\n"
+            f"font_size = {DIFFERENCE_FONT}",
+            _open_pair_code(paths, key, regrid_second),
+            _grids_code(grids),
+            draw,
+        )
+
+    return code_for
+
+
+def _grids_code(grids):
+    """The code that regrids the maps of two simulations and their difference to regular lon-lat
+    grids, as _plot_grid says, if grids is not None."""
+    if grids is None:
+        return ""
+    return "\n".join(
+        [
+            "# the model's grid cannot be drawn as it is, so each map is regridded to a regular lon-lat grid",
+            "datasets = [ds_first, ds_second, ds_difference]",
+            f"grids = {_py(grids)}",
+            "for ds_map, grid in zip(datasets, grids):",
+            "    ds_map.to_latlon(**grid)",
+            "    ds_map.run()",
+        ]
+    )
+
+
+def _pair_grids(paths):
+    """The plot grids of the maps of two simulations and their difference: the difference is on the grid
+    of the first."""
+    first, second = _plot_grid(paths[0]), _plot_grid(paths[1])
+    return [first, second, first]
+
+
+def _plot_options(key, extra):
+    """The options every map of a pair of simulations is drawn with."""
+    options = {"var": key, "legend_position": None, "fig": _Code("fig")}
+    if ap._takes_grid_labels():
+        options["grid_labels"] = False
+    options.update(extra)
+    return options
+
+
+def annual_difference_maps(results_dir, key, layer):
+    """The map of the annual mean of a variable's climatology in one layer in two
+    simulations and the first minus the second, in a row: the simulations on one colour
+    scale, the difference, titled "first minus second", on another, symmetric about zero.
+    If the simulations are not on the same grid, the second is regridded to the first's
+    for the difference (Drawn.found["difference_regridded"])."""
+    info = load(results_dir)
+    variable = entry(info, key)
+    pair, paths = _pair_files(results_dir, info, variable, layer, "annual")
+    saved = _own(variable, pair[0])["climatology"]["layers"][layer]
+    regrid_second = info.get("same_grid") is not True
+    scales = _pair_scales(paths, key, regrid_second)
+    title = difference_title(*pair)
+    name = variable["name"]
+    bars = [
+        (0, 2, legend(name, saved["units"]), scales[0][1], 0, 1),
+        (2, 3, _wrapped(legend(f"{name}, {title}", saved["units"])), scales[1][1], 2, 1),
+    ]
+    size = pair_size(paths[0], 3, 1)
+
+    options = _plot_options(
+        key,
+        {
+            "limits": _Code("[limits, limits, difference_limits][index]"),
+            "colours": _Code('["auto", "auto", colours_of_difference][index]'),
+            "title": _Code("title"),
+            "gs": _Code("grid[0, index]"),
+        },
+    )
+    draw = "\n".join(
+        [
+            "# the title of each map, and the colour map of the difference",
+            f"titles = {_py([*pair, title])}",
+            f"colours_of_difference = {_py(DIFFERENCE_COLOURS)}",
+            "# each colour bar: the first and last of the maps it is below, its label, whether it has arrows at its",
+            "# ends, and the number of a map with its colours",
+            f"bars = {_py([tuple(bar) for bar in bars])}",
+            "# the space between the maps, in inches: 5 mm",
+            f"GAP = {GAP}",
+            'with plt.rc_context({"font.size": font_size}):',
+            '    fig = plt.figure(figsize=size, layout="constrained")',
+            "    # the maps are 5 mm apart",
+            "    " + SPACING,
+            "    grid = fig.add_gridspec(1, 3)",
+            "    for index, (title, ds_map) in enumerate(zip(titles, [ds_first, ds_second, ds_difference])):",
+            "\n".join("        " + line for line in _call("ds_map.pub_plot", options).split("\n")),
+            "    panels = list(fig.axes)",
+            "    # the title of the difference is the one to look for",
+            '    panels[2].title.set_fontweight("bold")',
+            _bars_code(),
+        ]
+    )
+    comment = (
+        f"# the annual mean of {name}'s climatology in {pair[0]} and {pair[1]}, and the difference between them: "
+        f"{saved['title'].lower()}"
+    )
+    code_for_figure = _pair_figure(key, comment, paths, regrid_second, scales, size, draw)
+
+    def code_for(regrid):
+        return code_for_figure(_pair_grids(paths) if regrid else None)
+
+    drawn = _drawn_maps(code_for, info, "annual_maps")
+    drawn.found = {"difference_regridded": regrid_second, "pair": list(pair)}
+    return drawn
+
+
+def monthly_difference_maps(results_dir, key, layer):
+    """The maps of each month's mean of a variable's climatology in one layer in two
+    simulations and the first minus the second: the months across, in blocks of
+    DIFFERENCE_COLUMNS, and for each block a row of the first simulation, one of the second
+    and one of the difference, each named on the right. The simulations share one colour
+    scale and the differences another (see annual_difference_maps)."""
+    info = load(results_dir)
+    variable = entry(info, key)
+    pair, paths = _pair_files(results_dir, info, variable, layer, "monthly")
+    saved = _own(variable, pair[0])["climatology"]["layers"][layer]
+    regrid_second = info.get("same_grid") is not True
+    scales = _pair_scales(paths, key, regrid_second)
+    title = difference_title(*pair)
+    name = variable["name"]
+    months = int(saved["months"])
+    ncol = min(DIFFERENCE_COLUMNS, months)
+    blocks = int(np.ceil(months / ncol))
+    # both colour bars are below all the maps, one under the other (the one made last is the upper)
+    thin = round(1 / (3 * blocks), 3)
+    bars = [
+        (0, months * 3, legend(f"{name}, {title}", saved["units"]), scales[1][1], 2, thin),
+        (0, months * 3, legend(name, saved["units"]), scales[0][1], 0, thin),
+    ]
+    # a row of maps for the first simulation, the second and the difference in every block, and room for the colour bars
+    size = pair_size(paths[0], ncol, 3 * blocks, side=NAMES_ROOM, bars=2, titles=0)
+    # the names of the rows, wrapped so that a long name stays beside its row
+    rows = [textwrap.fill(label, 24) for label in (*pair, title)]
+
+    options = _plot_options(
+        key,
+        {
+            "limits": _Code("[limits, limits, difference_limits][kind]"),
+            "colours": _Code('["auto", "auto", colours_of_difference][kind]'),
+            "title": _Code("calendar.month_abbr[time.month] if kind == 0 else None"),
+            "gs": _Code("grid[3 * block + kind, column]"),
+        },
+    )
+    draw = "\n".join(
+        [
+            "# the name of each row, which is written to the right of it, and the colour map of the difference",
+            f"rows = {_py(rows)}",
+            f"colours_of_difference = {_py(DIFFERENCE_COLOURS)}",
+            f"ncol = {ncol}",
+            "datasets = [ds_first, ds_second, ds_difference]",
+            "# each colour bar: the first and last of the maps it is below, its label, whether it has arrows at its",
+            "# ends, and the number of a map with its colours",
+            f"bars = {_py([tuple(bar) for bar in bars])}",
+            "# the space between the maps, in inches: 5 mm",
+            f"GAP = {GAP}",
+            'with plt.rc_context({"font.size": font_size}):',
+            '    fig = plt.figure(figsize=size, layout="constrained")',
+            "    # the maps are 5 mm apart",
+            "    " + SPACING,
+            "    # for each block of months a row for each of the simulations and the difference",
+            f"    grid = fig.add_gridspec({3 * blocks}, ncol)",
+            "    maps = {}",
+            "    for index, time in enumerate(ds_first.times):",
+            "        block, column = divmod(index, ncol)",
+            "        for kind, ds_all in enumerate(datasets):",
+            "            ds_month = ds_all.copy()",
+            "            ds_month.subset(time=index)",
+            "            ds_month.run()",
+            "\n".join("            " + line for line in _call("ds_month.pub_plot", options).split("\n")),
+            "            maps[3 * block + kind, column] = fig.axes[-1]",
+            "    panels = list(maps.values())",
+            "    # the name of each row, to the right of its last map, or of where it would be in the last block",
+            f"    for row in range({3 * blocks}):",
+            "        label = rows[row % 3]",
+            "        ax = maps.get((row, ncol - 1))",
+            "        if ax is None:",
+            "            ax = fig.add_subplot(grid[row, ncol - 1])",
+            '            ax.axis("off")',
+            "        ax.text(",
+            '            1.04, 0.5, label, transform=ax.transAxes, rotation=270, va="center", ha="left",',
+            '            fontweight="bold" if row % 3 == 2 else "normal",',
+            "        )",
+            _bars_code(),
+        ]
+    )
+    comment = (
+        f"# the climatology of {name}, month by month, in {pair[0]} and {pair[1]}, and the difference between them: "
+        f"{saved['title'].lower()}"
+    )
+    code_for_figure = _pair_figure(key, comment, paths, regrid_second, scales, size, draw, calendar=True)
+
+    def code_for(regrid):
+        return code_for_figure(_pair_grids(paths) if regrid else None)
+
+    drawn = _drawn_maps(code_for, info, "monthly_difference_maps")
+    drawn.found = {"difference_regridded": regrid_second, "pair": list(pair)}
+    return drawn
 
 
 def change_maps(results_dir, key, layer, sim):

@@ -182,6 +182,20 @@ def regridded_text(regridded):
     return ""
 
 
+def difference_text(found):
+    """How the difference maps of two simulations were made, as a sentence: the first minus the
+    second, in the cells where both have values, with the second regridded to the first's grid if
+    they are on different ones (found is the Drawn.found of sim_plots.annual_difference_maps)."""
+    first, second = found["pair"]
+    text = f" The difference is **{first} minus {second}**, drawn on a colour scale of its own, symmetric about zero."
+    if found.get("difference_regridded"):
+        text += (
+            f" The simulations are on different grids, so {second} was regridded (bilinear) to the grid of {first} "
+            "to work out the difference."
+        )
+    return text
+
+
 def conversions_text(variable, first):
     """How the simulations that give variable in other units than the first
     simulation, first, were converted into its units, as a sentence, or "" if

@@ -28,7 +28,7 @@ from viewer_simulations import fvcom_months  # noqa: E402
 B_LATS = list(np.arange(49.5, 53.6, 0.5))
 B_LONS = list(np.arange(-4.5, 0.6, 0.5))
 SERIES = {"Temperature": {"start": 2012, "end": 2014, "surface": True, "bottom": True, "water_column": "mean"}}
-CASES = ("daily", "series", "transects", "changes", "fvcom")
+CASES = ("daily", "grids", "series", "transects", "changes", "fvcom")
 
 
 @pytest.fixture(scope="module")
@@ -38,6 +38,10 @@ def comparisons(tmp_path_factory):
     daily = [str(root / f"daily_{name}") for name in "ab"]
     write_analysis_simulation(daily[0], years=(2013, 2014), trend=1.0)
     write_analysis_simulation(daily[1], years=(2013, 2014), trend=2.0, lats=B_LATS, lons=B_LONS)
+    # two simulations on different grids, which are not put on one
+    grids = [str(root / f"grids_{name}") for name in "ab"]
+    write_analysis_simulation(grids[0], years=(2013, 2014), trend=1.0)
+    write_analysis_simulation(grids[1], years=(2013, 2014), trend=2.0, lats=B_LATS, lons=B_LONS)
     monthly = [str(root / f"monthly_{name}") for name in "abc"]
     write_analysis_simulation(monthly[0], years=(2012, 2013, 2014), daily=False, trend=1.0, east_west=0.5)
     write_analysis_simulation(monthly[1], years=(2012, 2013, 2014), daily=False, trend=2.0, east_west=0.5)
@@ -60,8 +64,13 @@ def comparisons(tmp_path_factory):
             },
             phenology={"Chlorophyll": {"start": 2013, "end": 2014}}, thickness="e3t",
         ),
+        "grids": dict(
+            simulations=sims(grids), variables={"Temperature": "thetao"}, thickness="e3t",
+            climatology={"Temperature": {"start": 2013, "end": 2014, "surface": True}},
+        ),
         "series": dict(
             simulations=sims(monthly), variables={"Temperature": "thetao"}, long_term=SERIES, seasonal=SERIES,
+            climatology={"Temperature": {"start": 2012, "end": 2014, "surface": True}},
             thickness="e3t", subregions=regions, stations={"Near": [-3.1, 51.2], "Far": [-0.2, 52.8]},
         ),
         "transects": dict(
@@ -103,6 +112,10 @@ def figures(info):
         if first["climatology"]:
             for layer in first["climatology"]["layers"]:
                 yield sp.annual_maps, (key, layer)
+                if len(sims) == 2:
+                    # two simulations: one figure of the months, with the difference
+                    yield sp.monthly_difference_maps, (key, layer)
+                    continue
                 for sim in sims:
                     yield sp.monthly_maps, (key, layer, sim)
         if first["map_changes"]:
@@ -223,19 +236,41 @@ def test_a_panel_for_the_domain_and_each_region(comparisons):
 
 
 def test_the_maps_of_the_simulations_share_a_scale(comparisons):
+    # two simulations: both on one scale, and the differences on another
     results = comparisons["daily"]
     figure = sp.annual_maps(results, "temperature", "surface")
     plt.close("all")
-    assert "the colour scale all the simulations share" in figure.code
+    assert "the colour scale the simulations share" in figure.code
     for sim in ("Base run", "Warm run"):
         assert f'"{sim}"' in figure.code
-    # the simulations of the monthly maps share one too
-    one = sp.monthly_maps(results, "temperature", "surface", "Base run").code
-    other = sp.monthly_maps(results, "temperature", "surface", "Warm run").code
+    # every month of the figure of the months has the same one
+    monthly = sp.monthly_difference_maps(results, "temperature", "surface")
+    plt.close("all")
+    assert "the colour scale the simulations share" in monthly.code
+    # more: the maps of each simulation's months are on the one scale all share
+    series = comparisons["series"]
+    one = sp.monthly_maps(series, "temperature", "surface", "Base run").code
+    other = sp.monthly_maps(series, "temperature", "surface", "Warm run").code
     plt.close("all")
     assert [line for line in one.splitlines() if line.startswith("limits = ")] == [
         line for line in other.splitlines() if line.startswith("limits = ")
     ]
+
+
+def test_the_maps_of_a_pair_are_5_mm_apart(comparisons):
+    results = comparisons["daily"]
+    for function in (sp.annual_maps, sp.monthly_difference_maps):
+        function(results, "temperature", "surface")
+        fig = plt.gcf()
+        fig.canvas.draw()
+        width, _ = fig.get_size_inches()
+        maps = [a.get_position() for a in fig.axes if a.get_label() != "<colorbar>" and a.get_position().width > 0.05]
+        starts = sorted({round(box.x0 * width, 2) for box in maps})
+        map_width = max(box.width for box in maps) * width
+        plt.close("all")
+        for left, right in zip(starts, starts[1:]):
+            assert abs((right - left - map_width) - sp.GAP) < 0.03
+    assert abs(sp.GAP * 25.4 - 5) < 0.1
 
 
 def test_the_peaks_are_found_for_each_simulation(comparisons):
@@ -244,3 +279,76 @@ def test_the_peaks_are_found_for_each_simulation(comparisons):
     assert set(cycle.found["peaks"]) == {"Base run", "Warm run"} == set(cycle.found["notes"])
     for peak in cycle.found["peaks"].values():
         assert 1 <= peak["day"] <= 366 and ap.day_text(peak["month_day"])
+
+
+def parsed(code, name):
+    """The value of the line `name = ...` of a script."""
+    line = next(x for x in code.splitlines() if x.startswith(f"{name} = "))
+    return ast.literal_eval(line[len(name) + 3:])
+
+
+def test_two_simulations_are_drawn_with_their_difference(comparisons):
+    results = comparisons["daily"]
+    info = sim_compare.load(results)
+    variable = sp.entry(info, "temperature")
+    assert sp.difference_pair(info, variable, "surface") == ("Base run", "Warm run")
+    assert sp.has_difference(results, "temperature", "surface")
+    for figure in (sp.annual_maps(results, "temperature", "surface"), sp.monthly_difference_maps(results, "temperature", "surface")):
+        plt.close("all")
+        assert figure.found["pair"] == ["Base run", "Warm run"]
+        assert "Base run minus Warm run" in figure.code
+        assert 'ds_difference.subtract(ds_on_first)' in figure.code
+        # the simulations are on one grid, so nothing is regridded for the difference
+        assert figure.found["difference_regridded"] is False and ".regrid(" not in figure.code
+        low, high = parsed(figure.code, "difference_limits")
+        assert low == -high and high > 0
+        assert parsed(figure.code, "limits")[0] < parsed(figure.code, "limits")[1]
+    # the months are rows of the first simulation, the second and the difference, named to the right
+    monthly = sp.monthly_difference_maps(results, "temperature", "surface")
+    plt.close("all")
+    assert parsed(monthly.code, "rows") == ["Base run", "Warm run", "Base run minus Warm run"]
+    assert "rotation=270" in monthly.code
+
+
+def test_the_difference_is_the_first_minus_the_second(comparisons):
+    import xarray as xr
+
+    results = comparisons["daily"]
+    info = sim_compare.load(results)
+    variable = sp.entry(info, "temperature")
+    pair, paths = sp._pair_files(results, info, variable, "surface", "annual")
+    values = sp._difference_values(paths, "temperature", False)
+    with xr.open_dataset(paths[0]) as one, xr.open_dataset(paths[1]) as other:
+        expected = np.asarray(one["temperature"].values, dtype="float64") - np.asarray(other["temperature"].values, dtype="float64")
+    assert np.allclose(np.squeeze(values), np.squeeze(expected), equal_nan=True)
+    assert np.nanmean(values) < 0  # the warm run is the second
+
+
+def test_the_second_is_regridded_to_the_first_if_they_are_on_different_grids(comparisons):
+    results = comparisons["grids"]
+    info = sim_compare.load(results)
+    assert info["same_grid"] is False
+    for figure in (sp.annual_maps(results, "temperature", "surface"), sp.monthly_difference_maps(results, "temperature", "surface")):
+        plt.close("all")
+        assert figure.found["difference_regridded"] is True
+        assert "ds_on_first.regrid(grid=" in figure.code
+    assert "regridded" in oceanval.sim_report.difference_text(figure.found)
+
+
+def test_three_simulations_are_drawn_as_before(comparisons):
+    results = comparisons["series"]
+    info = sim_compare.load(results)
+    variable = sp.entry(info, "temperature")
+    assert len(info["simulations"]) == 3
+    assert sp.difference_pair(info, variable, "surface") is None
+    figure = sp.annual_maps(results, "temperature", "surface")
+    plt.close("all")
+    assert figure.found == {} and "minus" not in figure.code
+    assert sp.monthly_maps(results, "temperature", "surface", "Cold run").code
+    plt.close("all")
+
+
+def test_raw_fvcom_output_is_drawn_on_its_mesh_without_a_difference(comparisons):
+    results = comparisons["fvcom"]
+    info = sim_compare.load(results)
+    assert not sp.has_difference(results, "temperature", "surface")

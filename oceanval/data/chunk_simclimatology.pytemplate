@@ -17,6 +17,26 @@ for layer, saved in clim["layers"].items():
     layer_units = ap.unit_html(saved["units"])
     drawn = sp.annual_maps(results_dir, variable, layer)
     sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+    if drawn.found.get("pair"):
+        # two simulations: both maps and the first minus the second
+        display(md(
+            f"**Figure {i_figure}**: Annual mean {where} {name} ({layer_units}), {years}, in each simulation, and the difference between them. "
+            "The simulations share one colour scale, from the 2nd to the 98th percentile of both of them."
+            + sr.difference_text(drawn.found)
+            + regridded_text(drawn.regridded)
+        ))
+        i_figure += 1
+        drawn = sp.monthly_difference_maps(results_dir, variable, layer)
+        sp.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+        display(md(
+            f"**Figure {i_figure}**: Mean {where} {name} ({layer_units}) in each month of the year, {years}: a row of maps for "
+            "each simulation and one of the difference between them, named to the right of each row. "
+            "Both simulations share one colour scale in every month, from the 2nd to the 98th percentile of both of them."
+            + sr.difference_text(drawn.found)
+            + regridded_text(drawn.regridded)
+        ))
+        i_figure += 1
+        continue
     display(md(
         f"**Figure {i_figure}**: Annual mean {where} {name} ({layer_units}), {years}, in each simulation. "
         "The simulations share one colour scale, from the 2nd to the 98th percentile of all of them."
