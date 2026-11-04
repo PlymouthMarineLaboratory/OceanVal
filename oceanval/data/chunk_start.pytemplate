@@ -1,3 +1,5 @@
+%matplotlib inline
+
 import pandas as pd
 import importlib
 import re

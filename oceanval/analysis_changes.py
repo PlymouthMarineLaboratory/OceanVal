@@ -161,7 +161,7 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
     layers = {}
     for layer in asked["layers"]:
         ds_thickness = None
-        if layer in WATER_COLUMN:
+        if layer in WATER_COLUMN and not row.get("fvcom"):
             if row["pattern"] not in thickness_for:
                 thickness_for[row["pattern"]] = thickness_data(thickness, row["files"], row.get("as_missing"))
             ds_thickness = thickness_for[row["pattern"]]
@@ -173,15 +173,27 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
                 f"Working out the map of {row['name']}, {LAYER_TITLES[layer].lower()}, "
                 f"{period['title'].lower()} period ({period['start']}-{period['end']})"
             )
-            ds = climatology_of(
-                period["files"], row, layer, (period["start"], period["end"]), time_shift, row["levels"], ds_thickness
-            )
-            with warnings.catch_warnings(record=True):
-                ds.tmean()
-                ds.run()
-            _labelled(ds, row, units, f"{LAYER_TITLES[layer].lower()}, mean of {period['start']}-{period['end']}")
+            what = f"{LAYER_TITLES[layer].lower()}, mean of {period['start']}-{period['end']}"
             path = os.path.join(results_dir, f"{row['key']}_{layer}_{period['name']}.nc")
-            _save(ds, path)
+            if row.get("fvcom"):
+                # raw FVCOM output, on its own mesh (see oceanval.fvcom_climatology)
+                from oceanval import fvcom_climatology
+                from oceanval.analysis import file_years
+
+                mesh, _ = fvcom_climatology.work_out(
+                    period["files"], row["parts"], [period["start"], period["end"]], row["key"], None, path, units,
+                    f"{row['name']}, {what}", time_shift=time_shift, as_missing=row.get("as_missing"),
+                    cores=row.get("cores", 1), layer=layer, file_years=file_years(row),
+                )
+            else:
+                ds = climatology_of(
+                    period["files"], row, layer, (period["start"], period["end"]), time_shift, row["levels"], ds_thickness
+                )
+                with warnings.catch_warnings(record=True):
+                    ds.tmean()
+                    ds.run()
+                _labelled(ds, row, units, what)
+                _save(ds, path)
             saved[period["name"]] = path
         changes = []
         for number, period in enumerate(asked["periods"][1:], start=1):
@@ -205,6 +217,8 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
             "futures": [os.path.basename(saved[x["name"]]) for x in asked["periods"][1:]],
             "changes": changes,
         }
+        if row.get("fvcom"):
+            layers[layer]["mesh"] = mesh
     return {
         "plot": asked["plot"],
         "change": asked["change"],

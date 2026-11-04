@@ -162,6 +162,9 @@ def _mesh_mask(ff, ds):
     trifinder = Triangulation(lon, lat, nv.T - 1).get_trifinder()
 
     ds_xr = ds.to_xarray()
+    if "lon" not in ds_xr.coords:
+        # a grid of its own (NEMO's), with two-dimensional longitudes and latitudes
+        return _mesh_mask_curvilinear(trifinder, ds_xr)
     glon, glat = np.meshgrid(ds_xr["lon"].values, ds_xr["lat"].values)
     glon = np.where(glon > 180, glon - 360, glon)
     inside = trifinder(glon, glat) != -1
@@ -173,6 +176,22 @@ def _mesh_mask(ff, ds):
         name="mask",
     )
     return nc.from_xarray(mask.to_dataset())
+
+
+def _mesh_mask_curvilinear(trifinder, ds_xr):
+    """The mask of _mesh_mask for a grid whose longitudes and latitudes are arrays over its cells"""
+    from oceanval import extent
+
+    field = extent.field_of(ds_xr)
+    lon, lat = extent._lonlat_variables(ds_xr)
+    first = field.isel({dim: 0 for dim in field.dims if dim not in set(lon.dims) | set(lat.dims)}, drop=True)
+    glon = lon.broadcast_like(first).transpose(*first.dims).values.astype("float64")
+    glat = lat.broadcast_like(first).transpose(*first.dims).values.astype("float64")
+    glon = np.where(glon > 180, glon - 360, glon)
+    inside = trifinder(glon, glat) != -1
+    mask = first.copy(data=np.where(inside, 0, np.nan).astype("float32"))
+    mask.attrs = {}
+    return nc.from_xarray(mask.rename("mask").to_dataset())
 
 
 def fvcom_regrid(ff=None, new_grid=None, vv=None, lons=None, lats=None, res=None, model_res = None, missing = None, levels = None):
@@ -279,7 +298,8 @@ def fvcom_regrid(ff=None, new_grid=None, vv=None, lons=None, lats=None, res=None
         if lon_max > 180:
             lon_max = lon_max - 360
 
-        ds2.subset(lon=[lon_min, lon_max], lat=[lat_min, lat_max])
+        if new_grid is None:
+            ds2.subset(lon=[lon_min, lon_max], lat=[lat_min, lat_max])
 
         # if multiple is False:
         return ds2
@@ -287,7 +307,7 @@ def fvcom_regrid(ff=None, new_grid=None, vv=None, lons=None, lats=None, res=None
 
 def fvcom_preprocess(
     variables=None, paths=None, lon_lim=None, lat_lim=None, res=0.05, out_dir=None,
-    model_res = None, missing = None, z_level = False, levels = None,
+    model_res = None, missing = None, z_level = False, levels = None, grid = None,
 ):
     """
     Preprocess FVCOM data for gridding and regridding.
@@ -323,6 +343,9 @@ def fvcom_preprocess(
     levels : list
         Depth levels (m, positive down) to interpolate to. Supplying levels implies z_level=True.
         Defaults to the WOA23 standard depths, down to the maximum model depth.
+    grid : str
+        The path of a netCDF file whose grid the output is put on, instead of a lon-lat grid
+        of lon_lim, lat_lim and res.
 
     """
     # check if out_dir is None
@@ -376,8 +399,8 @@ def fvcom_preprocess(
                 if vv not in ds_variables:
                     continue
                 ds2 = fvcom_regrid(
-                    ff=ff, new_grid=None, vv=vv, lons=lon_lim, lats=lat_lim, res=res, model_res = model_res, missing = missing,
-                    levels = levels,
+                    ff=ff, new_grid=grid, vv=vv, lons=None if grid else lon_lim, lats=None if grid else lat_lim, res=res,
+                    model_res = model_res, missing = missing, levels = levels,
                 )
                 ds_vv.append(ds2)
             ds_vv.merge("time")
@@ -439,7 +462,7 @@ def check_matchup_settings(res, min_depth, max_depth, dz):
 matchup_levels = matchup_depths()
 
 
-def _matchup_file(ff, variables, out_dir, vertical, res, lon_lim, lat_lim, levels=None):
+def _matchup_file(ff, variables, out_dir, vertical, res, lon_lim, lat_lim, levels=None, grid=None):
     fvcom_preprocess(
         variables=variables,
         paths=[ff],
@@ -448,6 +471,7 @@ def _matchup_file(ff, variables, out_dir, vertical, res, lon_lim, lat_lim, level
         res=res,
         out_dir=out_dir,
         levels=(matchup_levels if levels is None else levels) if vertical else None,
+        grid=grid,
     )
 
 
@@ -482,14 +506,15 @@ def _run_matchup_file(args):
 
 
 def fvcom_matchup_files(
-    paths, variables, out_dir, vertical, res, lon_lim, lat_lim, cores=1, levels=None
+    paths, variables, out_dir, vertical, res, lon_lim, lat_lim, cores=1, levels=None, grid=None
 ):
     """
     Regrid FVCOM files for matchup, one output file per input file.
 
     Surface values are used if vertical is False, otherwise values are interpolated
     to levels, which are 0-150 m every 5 m unless given. Files already done for the
-    same settings in this matchup are reused.
+    same settings in this matchup are reused. With grid, the path of a netCDF file,
+    the output is on its grid (nearest neighbour), not on a lon-lat grid of res.
 
     Returns
     -------
@@ -505,14 +530,17 @@ def fvcom_matchup_files(
         levels = matchup_levels
     if vertical:
         variant += "_" + hashlib.md5(json.dumps(levels).encode()).hexdigest()[:8]
+    if grid:
+        variant += "_" + hashlib.md5(os.path.abspath(grid).encode()).hexdigest()[:8]
 
     registry = session_info.setdefault("fvcom_files", dict())
-    todo = [ff for ff in paths if (variant, ff) not in registry]
+    todo = [ff for ff in paths if (variant, ff) not in registry or not os.path.exists(registry[(variant, ff)])]
 
     if len(todo) > 0:
         description = f"{levels[0]:g}-{levels[-1]:g} m" if vertical else "surface"
+        where = "onto the model grid" if grid else f"{res[0]:g} x {res[1]:g} degrees"
         print(
-            f"Regridding {len(todo)} FVCOM files ({description}, {res[0]:g} x {res[1]:g} degrees)"
+            f"Regridding {len(todo)} FVCOM files ({description}, {where})"
         )
         jobs = dict()
         for ff in todo:
@@ -526,7 +554,7 @@ def fvcom_matchup_files(
             for ff in todo:
                 results[ff] = executor.submit(
                     _run_matchup_file,
-                    [ff, variables, jobs[ff], vertical, res, lon_lim, lat_lim, levels],
+                    [ff, variables, jobs[ff], vertical, res, lon_lim, lat_lim, levels, grid],
                 )
             for ff, result in results.items():
                 registry[(variant, ff)] = result.result()

@@ -117,6 +117,8 @@ def _panels_code(variable_name, key, label, comment, sims, paths, limits, regrid
     datasets in paths, on one colour scale (limits), with nctoolkit's panel_plot."""
     columns = min(ncol, len(sims))
     size = ap._panel_size(paths[0], len(sims), columns)
+    if _on_mesh(paths[0]):
+        return _mesh_panels_code(key, label, comment, sims, paths, limits, colours, font_extra, columns, size)
     maps = [(sim, path, _plot_grid(path) if regrid else None) for sim, path in zip(sims, paths)]
     font = (
         "# the figure's size, in inches, and its font size: the report shows it at about the width of its page\n"
@@ -152,6 +154,46 @@ def _panels_code(variable_name, key, label, comment, sims, paths, limits, regrid
         scale,
         font,
         open_maps,
+        draw,
+        font_extra,
+    )
+
+
+def _on_mesh(path):
+    """Whether the file in path is raw FVCOM output, on its own mesh (see oceanval.mesh_maps)."""
+    import xarray as xr
+
+    with xr.open_dataset(path, decode_times=False) as ds:
+        return bool(ds.attrs.get("mesh"))
+
+
+def _mesh_panels_code(key, label, comment, sims, paths, limits, colours, font_extra, columns, size):
+    """_panels_code of raw FVCOM output: each simulation's map is drawn on its own mesh
+    (see oceanval.mesh_maps.mesh_sim_plot), on one colour scale under one colour bar."""
+    maps = [(sim, path) for sim, path in zip(sims, paths)]
+    font = (
+        "# the figure's size, in inches, and its font size: the report shows it at about the width of its page\n"
+        f"size = {_py(size)}\n"
+        f"font_size = {ap.PANEL_FONT}"
+    )
+    scale = (
+        "# the colour scale all the simulations share: the 2nd to the 98th percentile of all of them\n"
+        f"limits = {_py(limits)}"
+        if limits is not None
+        else "# the colour scale all the simulations share: None leaves it to oceanval\nlimits = None"
+    )
+    options = {"ncol": columns, "limits": ap._Code("limits"), "legend": label, "grid_labels": False, "size": ap._Code("size")}
+    if colours:
+        options["colours"] = colours
+    call = _call("mesh_sim_plot", options, args=(ap._Code("maps"), key))
+    draw = 'with plt.rc_context({"font.size": font_size}):\n' + "\n".join("    " + line for line in call.split("\n"))
+    return _code(
+        "import matplotlib.pyplot as plt\nfrom oceanval.mesh_maps import mesh_sim_plot\n",
+        comment,
+        ap.MESH_NOTE,
+        _listing("maps", maps, "each simulation's name and the file of its map"),
+        scale,
+        font,
         draw,
         font_extra,
     )

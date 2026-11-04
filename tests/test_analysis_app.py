@@ -1026,7 +1026,6 @@ def test_analyze_in_a_browser(browser, tmp_path):
         assert not use.is_checked() and not surface.is_checked()
         assert page.locator("#clim-all > tr").count() == 0
         assert "required" in page.inner_text("#clim-dialog thead").lower()
-        assert page.is_enabled("#clim-confirm") and page.inner_text("#clim-msg") == ""
         assert page.locator("#clim-body input.is-year").first.get_attribute("placeholder") == "2013"
         # with the variable unticked there is nothing to confirm, and a layer ticked ticks it
         assert page.is_disabled("#clim-confirm") and "Tick at least one variable" in page.inner_text("#clim-msg")
@@ -1062,12 +1061,13 @@ def test_analyze_in_a_browser(browser, tmp_path):
         assert page.is_hidden("#title")
         # the last page is not reached until the cores are given
         assert page.is_disabled("#ao-next") and page.locator("#ao-run").count() == 0
+        # the cores are marked as required until they are given, the figure code is not
+        assert "required" in page.inner_text("#ao-cores-group legend").lower()
         page.select_option("#ao-cores", "2")
-        assert page.is_disabled("#ao-next")
+        # an unanswered figure code question is no, so the cores are all that is needed
+        assert page.is_enabled("#ao-next")
         page.check("#ao-code-yes")
         wait_for(lambda: app.analyze_figure_code == "yes")
-        # the cores are marked as required, the figure code is not
-        assert "required" in page.inner_text("#ao-cores-group legend").lower()
         assert "required" not in page.inner_text("#ao-code-group legend").lower()
         # where the output is saved is the last page, which has the buttons that run the analysis
         assert page.is_enabled("#ao-next") and page.locator("#ao-run").count() == 0
@@ -1600,7 +1600,7 @@ def test_trends_are_not_offered_for_one_year_of_output(browser, tmp_path):
 
 
 @needs_to_transect
-def test_the_absolute_trend_needs_three_years(browser, tmp_path):
+def test_two_years_are_enough_for_every_way_of_showing_the_changes(browser, tmp_path):
     page, app, card, errors = open_transects_in_browser(browser, tmp_path, (2013, 2014))
     try:
         assert "Only one year" not in card.inner_text()
@@ -1608,7 +1608,7 @@ def test_the_absolute_trend_needs_three_years(browser, tmp_path):
             trends = card.locator("select").nth(number)
             assert trends.is_enabled()
             disabled = {o.get_attribute("value"): o.is_disabled() for o in trends.locator("option").all() if o.get_attribute("value")}
-            assert disabled == {"absolute": True, "absolute_change": False, "percentage_change": False}
+            assert disabled == {"absolute": False, "absolute_change": False, "percentage_change": False}
         assert errors == []
     finally:
         app.close()
@@ -1840,6 +1840,11 @@ def test_a_variable_ticked_with_no_layer_is_said_in_a_browser(browser, tmp_path)
         temperature.locator("input[type=checkbox]").nth(1).check()
         temperature.locator("input.is-year").nth(0).fill("2013")
         temperature.locator("input.is-year").nth(1).fill("2014")
+        # the second variable is ticked, with its years, but no layer
+        chlorophyll = page.locator("#clim-body > tr").nth(1)
+        chlorophyll.locator("input[type=checkbox]").nth(0).check()
+        chlorophyll.locator("input.is-year").nth(0).fill("2013")
+        chlorophyll.locator("input.is-year").nth(1).fill("2014")
         page.click("#clim-confirm")
         page.wait_for_function("() => document.querySelectorAll('#clim-body .analyze-msg')[1].textContent !== ''")
         assert "untick the variable" in page.locator("#clim-body > tr").nth(1).locator(".analyze-msg").inner_text()

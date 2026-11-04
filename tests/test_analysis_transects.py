@@ -552,11 +552,11 @@ class TestForms:
     def check(self, placed, form):
         return analysis_forms.check_transects(form, placed, lambda name: (2010, 2015), {"e3t", "thetao"}, ".")
 
-    def test_the_form_starts_with_every_variable_ticked_and_nothing_else(self, monthly):
+    def test_the_form_starts_with_nothing_ticked(self, monthly):
         placed = self.placed(monthly)
         form = analysis_forms.default_transects(placed)
         # each variable has transects of its own, one with nothing in it, which is not one
-        assert form["rows"]["Temperature"] == {"use": True, "transects": [analysis_forms.blank_transect()]}
+        assert form["rows"]["Temperature"] == {"use": False, "transects": [analysis_forms.blank_transect()]}
         assert analysis_forms.blank_transect() == {
             "start_lon": "", "start_lat": "", "end_lon": "", "end_lat": "",
             "climatology": False, "climatology_start": "", "climatology_end": "",
@@ -564,14 +564,15 @@ class TestForms:
             "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
             "vertical_trends": "", "vertical_trends_start": "", "vertical_trends_end": "", "vertical_trends_window": "1",
         }
+        # nothing is ticked to start with
+        chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))
+        assert chosen is None and errors == {"rows": "Tick at least one variable to work out transects of."}
         # a variable ticked needs a transect, or the tick taken off
+        for row in form["rows"].values():
+            row["use"] = True
         chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))
         assert chosen is None and set(errors) == {"Chlorophyll", "Temperature"}
         assert "Or untick it." in errors["Temperature"]["use"]
-        for row in form["rows"].values():
-            row["use"] = False
-        chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))
-        assert chosen is None and errors == {"rows": "Tick at least one variable to work out transects of."}
 
     @needs_to_transect
     def test_transects_are_chosen_for_each_variable_on_its_own(self, monthly):

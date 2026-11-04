@@ -1103,17 +1103,17 @@ class TestForms:
         assert chosen == {"Chlorophyll": {"start": 2013, "end": 2014}}
         assert errors == {"Temperature": {"use": "Its output is not daily."}}
 
-    def test_the_forms_start_with_every_variable_ticked_and_nothing_else(self, daily):
+    def test_the_forms_start_with_nothing_ticked(self, daily):
         placed = self.placed(daily)
         climatology = analysis_forms.default_climatology(placed, lambda name: (2013, 2014))
         assert climatology["rows"]["Temperature"] == {
-            "use": True, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            "use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
             "window": "1", "show": "absolute",
         }
         res = {"Chlorophyll": "1d", "Temperature": "monthly"}
         phenology = analysis_forms.default_phenology(placed, lambda name: (2013, 2014), res.get)
         # only a variable with daily output can have its phenology
-        assert {name: row["use"] for name, row in phenology["rows"].items()} == {"Chlorophyll": True, "Temperature": False}
+        assert {name: row["use"] for name, row in phenology["rows"].items()} == {"Chlorophyll": False, "Temperature": False}
         assert all(row["start"] == "" and row["end"] == "" for row in phenology["rows"].values())
 
     def test_the_water_column_needs_a_way_to_take_it(self, daily):

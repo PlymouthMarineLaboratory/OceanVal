@@ -22,12 +22,13 @@ from oceanval import analysis_plots as ap  # noqa: E402
 from oceanval import analysis_report, sim_compare  # noqa: E402
 from conftest import no_book  # noqa: E402
 from oceanval import sim_plots as sp  # noqa: E402
-from simulations import write_analysis_regions, write_analysis_simulation  # noqa: E402
+from simulations import FVCOM_COMPARE_OPTIONS, TREND_A, TREND_B, write_analysis_regions, write_analysis_simulation  # noqa: E402
+from viewer_simulations import fvcom_months  # noqa: E402
 
 B_LATS = list(np.arange(49.5, 53.6, 0.5))
 B_LONS = list(np.arange(-4.5, 0.6, 0.5))
 SERIES = {"Temperature": {"start": 2012, "end": 2014, "surface": True, "bottom": True, "water_column": "mean"}}
-CASES = ("daily", "series", "transects", "changes")
+CASES = ("daily", "series", "transects", "changes", "fvcom")
 
 
 @pytest.fixture(scope="module")
@@ -80,6 +81,9 @@ def comparisons(tmp_path_factory):
             map_changes={"Temperature": dict(periods, plot="absolute_changes", change="percentage", surface=True)},
         ),
     }
+    # raw FVCOM output on one mesh, with every analysis: its maps are drawn on the mesh, a panel for each simulation
+    fvcom = [fvcom_months(str(root / f"fvcom_{name}"), trend=trend) for name, trend in (("a", TREND_A), ("b", TREND_B))]
+    runs["fvcom"] = dict(simulations=sims(fvcom), **FVCOM_COMPARE_OPTIONS)
     found = {}
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(analysis_report, "InterimBook", no_book([]))

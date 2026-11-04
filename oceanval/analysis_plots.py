@@ -291,6 +291,8 @@ def annual_map(results_dir, key, layer):
     variable = entry(info, key)
     saved = variable["climatology"]["layers"][layer]
     path = _path(results_dir, saved["annual"])
+    if saved.get("mesh"):
+        return _mesh_annual_map(path, key, variable, saved, info)
     options = {"var": key, "robust": True, "legend": legend(variable["name"], saved["units"])}
     if _takes_grid_labels():
         options["grid_labels"] = True
@@ -320,14 +322,22 @@ def _panel_size(path, panels, ncol=None, bar_rows=0):
     for all the maps, or, with bar_rows, one below each of that many rows."""
     ncol = ncol or (4 if panels > 3 else panels)
     nrow = int(np.ceil(panels / ncol))
-    lon, lat = _valid_lon_lat(path)
-    lon = np.where(lon > 180, lon - 360, lon)
-    lon_span, lat_span = float(np.nanmax(lon) - np.nanmin(lon)), float(np.nanmax(lat) - np.nanmin(lat))
-    if lon_span > 340 and lat_span > 160:
-        aspect = 2.0
+    try:
+        lon, lat = _valid_lon_lat(path)
+    except StopIteration:
+        # a mesh in metres has no longitudes and latitudes: its x and y give its shape
+        with xr.open_dataset(path, decode_times=False) as ds:
+            x, y = np.asarray(ds["x"].values, dtype="float64"), np.asarray(ds["y"].values, dtype="float64")
+        y_span = float(np.nanmax(y) - np.nanmin(y))
+        aspect = (float(np.nanmax(x) - np.nanmin(x)) / y_span) if y_span > 0 else 1.5
     else:
-        mid_lat = 0.5 * float(np.nanmax(lat) + np.nanmin(lat))
-        aspect = lon_span * np.cos(np.radians(mid_lat)) / lat_span if lat_span > 0 else 1.5
+        lon = np.where(lon > 180, lon - 360, lon)
+        lon_span, lat_span = float(np.nanmax(lon) - np.nanmin(lon)), float(np.nanmax(lat) - np.nanmin(lat))
+        if lon_span > 340 and lat_span > 160:
+            aspect = 2.0
+        else:
+            mid_lat = 0.5 * float(np.nanmax(lat) + np.nanmin(lat))
+            aspect = lon_span * np.cos(np.radians(mid_lat)) / lat_span if lat_span > 0 else 1.5
     aspect = min(max(float(aspect), 0.6), 2.5)
     map_width = (PANEL_WIDTH - (0.4 if bar_rows else 1.6)) / ncol
     return [PANEL_WIDTH, round(nrow * (map_width / aspect + 0.55) + 0.9 * bar_rows + 0.3, 1)]
@@ -382,6 +392,8 @@ def monthly_maps(results_dir, key, layer, limits=None):
     path = _path(results_dir, saved["monthly"])
     limits = _limits(path, key) if limits is None else limits
     label = legend(variable["name"], saved["units"])
+    if saved.get("mesh"):
+        return _mesh_monthly_maps(path, key, variable, saved, info, limits, label)
     if limits is None:
         scale = "# the colour scale all the months share: None leaves it to nctoolkit\nlimits = None"
     else:
@@ -421,6 +433,68 @@ def monthly_maps(results_dir, key, layer, limits=None):
         )
 
     return _map(code_for, path, info, "monthly_maps")
+
+
+# ---- the maps of raw FVCOM output, on its own mesh (see oceanval.mesh_maps) ----
+
+MESH_NOTE = "# raw FVCOM output, mapped on its own triangular mesh (see oceanval.mesh_maps)"
+
+
+def _mesh_annual_map(path, key, variable, saved, info):
+    """annual_map of raw FVCOM output."""
+    options = {"robust": True, "legend": legend(variable["name"], saved["units"]), "grid_labels": True}
+    code = _code(
+        "import matplotlib.pyplot as plt\nfrom oceanval.mesh_maps import mesh_plot\n",
+        f"# the annual mean of {variable['name']}'s climatology: {saved['title'].lower()}",
+        MESH_NOTE,
+        "# the colours run from the 2nd to the 98th percentile of the map (robust=True)",
+        _call("mesh_plot", options, args=(path, key)),
+    )
+    _run(code, "annual_map")
+    return Drawn(code, False, {}, _about(info))
+
+
+def _mesh_monthly_maps(path, key, variable, saved, info, limits, label):
+    """monthly_maps of raw FVCOM output."""
+    if limits is None:
+        scale = "# the colour scale all the months share: None leaves it to oceanval\nlimits = None"
+    else:
+        scale = (
+            "# the colour scale all the months share: the 2nd to the 98th percentile of all of them\n"
+            f"limits = {_py(limits)}"
+        )
+    size = _panel_size(path, int(saved["months"]))
+    font = (
+        "# the figure's size, in inches, and its font size: the report shows it at about the width of its page\n"
+        f"size = {_py(size)}\n"
+        f"font_size = {PANEL_FONT}"
+    )
+    panels = "\n".join(
+        [
+            "# a map of each month of the year: the months the climatology has",
+            "with netCDF4.Dataset(" + _py(path) + ") as ds:",
+            '    months = [int(month) for month in ds.variables["month"][:]]',
+            "titles = [calendar.month_abbr[month] for month in months]",
+            "ncol = 4 if len(titles) > 3 else len(titles)",
+        ]
+    )
+    call = _call(
+        "mesh_panel_plot",
+        {"ncol": _Code("ncol"), "limits": _Code("limits"), "legend": label, "grid_labels": False, "size": _Code("size")},
+        args=(path, key, _Code("titles")),
+    )
+    draw = 'with plt.rc_context({"font.size": font_size}):\n' + "\n".join("    " + line for line in call.split("\n"))
+    code = _code(
+        "import calendar\n\nimport matplotlib.pyplot as plt\nimport netCDF4\nfrom oceanval.mesh_maps import mesh_panel_plot\n",
+        f"# the climatology of {variable['name']}, month by month: {saved['title'].lower()}",
+        MESH_NOTE,
+        scale,
+        font,
+        panels,
+        draw,
+    )
+    _run(code, "monthly_maps")
+    return Drawn(code, False, {}, _about(info))
 
 
 def _all_values(paths, key):
@@ -541,6 +615,30 @@ def change_maps(results_dir, key, layer, also=None):
         ]
     )
 
+    if saved.get("mesh"):
+        # raw FVCOM output: each map drawn on its own mesh into the same places, without a colour bar of its own
+        mesh_options = {"limits": _Code("limits[index]"), "colours": _Code("colours[index]"), "title": _Code("title"),
+                        "legend_position": None, "grid_labels": False, "fig": _Code("fig"),
+                        "gs": _Code("grid[row, start:start + 2]")}
+        mesh_draw = "\n".join(
+            [
+                '    fig = plt.figure(figsize=size, layout="constrained")',
+                f"    grid = fig.add_gridspec({nrow}, {2 * ncol})",
+                "    for index, (title, path) in enumerate(maps):",
+                "        row, start = places[index]",
+                "\n".join("        " + line for line in _call("mesh_plot", mesh_options, args=(_Code("path"), key)).split("\n")),
+            ]
+        )
+        code = _code(
+            "import matplotlib.pyplot as plt\nfrom matplotlib.ticker import MaxNLocator\nfrom oceanval.mesh_maps import mesh_plot\n",
+            f"# the maps of {variable['name']} in each period, and the changes between them: {saved['title'].lower()}",
+            MESH_NOTE,
+            listing, setup, font,
+            'with plt.rc_context({"font.size": font_size}):\n' + mesh_draw + "\n" + colour_bars,
+        )
+        _run(code, "change_maps")
+        return Drawn(code, False, {}, _about(info))
+
     def code_for(grid):
         lines = [
             "# open each map",
@@ -572,6 +670,13 @@ def domain_mean(path, variable):
     about a grid whose cell areas could not be worked out ("" if all was well)."""
     from oceanval.analysis_series import robust_spatial_mean
 
+    with xr.open_dataset(path, decode_times=False) as ds_xr:
+        on_mesh = bool(ds_xr.attrs.get("mesh"))
+    if on_mesh:
+        # raw FVCOM output, on its own mesh, which CDO cannot read: weighted by the areas of its cells
+        from oceanval.mesh_means import domain_mean as mesh_domain_mean
+
+        return mesh_domain_mean(path, variable)
     ds = nc.open_data(path, checks=False)
     with warnings.catch_warnings(record=True):
         ds.subset(variables=variable)
@@ -616,17 +721,8 @@ def peak_day_map(results_dir, key):
                "legend": "Day of the seasonal peak"}
     if _takes_grid_labels():
         options["grid_labels"] = True
-
-    def code_for(grid):
-        return _code(
-            MAP_IMPORTS,
-            f"# the day of the year of the seasonal peak of surface {variable['name']}",
-            _open_code(path, PEAK_DAY, grid),
-            "# the day each month starts on in the model's calendar, and the months' names",
-            f"month_starts = {_py(starts)}",
-            f"month_names = {_py(names)}",
-            "# the colours are cyclic, so the end of the year is close in colour to its start",
-            _call("ds.pub_plot", options),
+    month_bar = "\n".join(
+        [
             "# the colour bar is labelled by month",
             "fig = plt.gcf()",
             'bars = [ax for ax in fig.axes if not hasattr(ax, "projection")]',
@@ -638,6 +734,39 @@ def peak_day_map(results_dir, key):
             "    else:",
             "        bar.set_xticks(month_starts)",
             "        bar.set_xticklabels(month_names)",
+        ]
+    )
+    months = "\n".join(
+        [
+            "# the day each month starts on in the model's calendar, and the months' names",
+            f"month_starts = {_py(starts)}",
+            f"month_names = {_py(names)}",
+        ]
+    )
+    if variable["phenology"].get("mesh"):
+        mesh_options = {"limits": [1, days], "colours": "twilight", "legend": "Day of the seasonal peak",
+                        "grid_labels": True}
+        code = _code(
+            "import matplotlib.pyplot as plt\nfrom oceanval.mesh_maps import mesh_plot\n",
+            f"# the day of the year of the seasonal peak of surface {variable['name']}",
+            MESH_NOTE,
+            months,
+            "# the colours are cyclic, so the end of the year is close in colour to its start",
+            _call("mesh_plot", mesh_options, args=(path, PEAK_DAY)),
+            month_bar,
+        )
+        _run(code, "peak_day_map")
+        return Drawn(code, False, {}, _about(info))
+
+    def code_for(grid):
+        return _code(
+            MAP_IMPORTS,
+            f"# the day of the year of the seasonal peak of surface {variable['name']}",
+            _open_code(path, PEAK_DAY, grid),
+            months,
+            "# the colours are cyclic, so the end of the year is close in colour to its start",
+            _call("ds.pub_plot", options),
+            month_bar,
         )
 
     return _map(code_for, path, info, "peak_day_map")
@@ -649,6 +778,17 @@ def peak_value_map(results_dir, key):
     variable = entry(info, key)
     path = _path(results_dir, variable["phenology"]["file"])
     options = {"var": PEAK_VALUE, "robust": True, "legend": legend(f"Peak {variable['name']}", variable["units"])}
+    if variable["phenology"].get("mesh"):
+        mesh_options = {"robust": True, "legend": options["legend"], "grid_labels": True}
+        code = _code(
+            "import matplotlib.pyplot as plt\nfrom oceanval.mesh_maps import mesh_plot\n",
+            f"# the seasonal peak of surface {variable['name']}: the highest value of its daily climatology",
+            MESH_NOTE,
+            "# the colours run from the 2nd to the 98th percentile of the map (robust=True)",
+            _call("mesh_plot", mesh_options, args=(path, PEAK_VALUE)),
+        )
+        _run(code, "peak_value_map")
+        return Drawn(code, False, {}, _about(info))
 
     def code_for(grid):
         return _code(
@@ -1288,6 +1428,14 @@ def _n_depths():
     return N_DEPTHS
 
 
+def _depth_source(saved):
+    """What the depths of the cells of a section are worked out from."""
+    if saved["depths"] == "sigma":
+        # raw FVCOM output (see oceanval.fvcom_transects)
+        return "the mean depth of the water (h + zeta) and each sigma layer's share of it (from siglev)"
+    return "the cell thickness"
+
+
 def transect_text(variable, index, option):
     """What the report says of one option of one transect of a variable's entry
     in what analyze() saved: {"title", "method", "caption"}."""
@@ -1308,9 +1456,9 @@ def transect_text(variable, index, option):
         thing, at = name, "at each point along the transect and at each of the depths shown"
         in_section = " in the water column"
         depths = (
-            f" Each cell is put at its depth, worked out from the cell thickness, and the section is put on {_n_depths()} evenly spaced depths, "
+            f" Each cell is put at its depth, worked out from {_depth_source(saved)}, and the section is put on {_n_depths()} evenly spaced depths, "
             "of which the heat maps show some."
-            if saved["depths"] == "thickness"
+            if saved["depths"] in ("thickness", "sigma")
             else " The heat maps show some of the model's depths."
         )
     else:
@@ -1334,8 +1482,8 @@ def transect_text(variable, index, option):
             f"The annual mean of {name} is the mean of its monthly means over {years}, at each point along the transect and each depth, "
             "in a section through the water column."
             + (
-                f" Each cell is put at its depth, worked out from the cell thickness, and the section is put on {_n_depths()} evenly spaced depths."
-                if saved["depths"] == "thickness"
+                f" Each cell is put at its depth, worked out from {_depth_source(saved)}, and the section is put on {_n_depths()} evenly spaced depths."
+                if saved["depths"] in ("thickness", "sigma")
                 else ""
             )
         )

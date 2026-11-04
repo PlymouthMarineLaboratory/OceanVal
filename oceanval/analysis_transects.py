@@ -23,10 +23,14 @@ The monthly means are taken first, as for the climatology and the time series,
 then extracted along the line with nctoolkit's to_transect, and what is worked
 out from them is saved as a small CSV for the report's figures to draw (see
 oceanval.analysis_plots). The lines are checked as validate's transect is (see
-oceanval.transects).
+oceanval.transects). Raw FVCOM output, which CDO cannot read, has its monthly
+means worked out on its mesh and put on a strip of a lon-lat grid along each
+line, which to_transect extracts the line from (see oceanval.fvcom_transects).
 """
 
 import os
+import shutil
+import tempfile
 import warnings
 
 import numpy as np
@@ -36,6 +40,7 @@ import xarray as xr
 from oceanval import domain_mask, sim_unify, transects
 from oceanval.analysis import SURFACE, Z_LEVEL, _say, _time_dim, _year, monthly_means_of, thickness_data
 from oceanval.analysis_series import EARTH_KM, _grid, _spacing, months_per_year
+from oceanval.quiet_nc import nc
 
 CLIMATOLOGY = "climatology"
 VERTICAL = "vertical"
@@ -174,24 +179,34 @@ def check_lines(lines, name):
 # ---- the line ----
 
 
+def line_length(line):
+    """The length of a transect in km."""
+    start, end = transects.line_ends(line)
+    if transects.direction(line) == "north-south":
+        return abs(end[1] - start[1]) * np.pi / 180 * EARTH_KM
+    return abs(end[0] - start[0]) * np.pi / 180 * EARTH_KM * np.cos(np.radians(start[1]))
+
+
+def steps_of(length, spacing):
+    """How many points to sample a transect length km long at, a grid's cells
+    being spacing km apart, or STEPS_UNKNOWN if spacing says nothing."""
+    if not np.isfinite(spacing) or spacing <= 0:
+        return STEPS_UNKNOWN
+    return int(min(max(round(length / spacing) + 1, 2), MOST_STEPS))
+
+
 def steps_for(path, key, line):
     """How many points to sample a transect at: about one for each grid cell
     of the model it crosses, from the grid of the variable key in the file
     path, as finer steps add nothing the grid does not have."""
-    start, end = transects.line_ends(line)
-    if transects.direction(line) == "north-south":
-        length = abs(end[1] - start[1]) * np.pi / 180 * EARTH_KM
-    else:
-        length = abs(end[0] - start[0]) * np.pi / 180 * EARTH_KM * np.cos(np.radians(start[1]))
+    length = line_length(line)
     try:
         with xr.open_dataset(path, decode_times=False) as data:
             lon, lat = _grid(data, data[key])
         spacing = _spacing(lon, lat)
     except (KeyError, StopIteration, ValueError):
         return STEPS_UNKNOWN
-    if not np.isfinite(spacing) or spacing <= 0:
-        return STEPS_UNKNOWN
-    return int(min(max(round(length / spacing) + 1, 2), MOST_STEPS))
+    return steps_of(length, spacing)
 
 
 def unified_steps(row, line):
@@ -531,6 +546,19 @@ def _units(units, option, how=None):
     return units
 
 
+def _strip_depths(path, line, steps, ends):
+    """The depth of each cell along a transect of raw FVCOM output, by depth
+    then position, from the thickness of its layers on the line's strip (see
+    oceanval.fvcom_transects)."""
+    from oceanval.fvcom_transects import THICKNESS
+
+    ds = nc.open_data(path, checks=False)
+    ds.to_transect(start=ends[0], end=ends[1], nsteps=steps)
+    ds.run()
+    _, _, values = _along(ds.current[0], THICKNESS, line, True)
+    return cell_depths(values[0])
+
+
 def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
     """The transects that row asks for (see check_arguments, with its files
     and times added by analyze), saved in results_dir. Returns what INFO_FILE
@@ -540,7 +568,20 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
     analyze()'s, which says whether the model is on fixed depth levels
     (Z_LEVEL), whose levels are the depths of the cells, or where to read the
     cell thickness from, which places each cell at its depth; thickness_for
-    keeps what it was read as, for each file pattern."""
+    keeps what it was read as, for each file pattern. Raw FVCOM output (row's
+    "fvcom") needs no thickness: each line is extracted from a strip of a
+    lon-lat grid along it (see oceanval.fvcom_transects)."""
+    if not row.get("fvcom"):
+        return _work_out(row, results_dir, time_shift, thickness, thickness_for)
+    folder = tempfile.mkdtemp(prefix="oceanval_fvcom_transects_")
+    try:
+        return _work_out(row, results_dir, time_shift, None, thickness_for, folder)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_folder=None):
+    """work_out, with strip_folder where raw FVCOM output's strips are kept."""
     asked = row["transects"]
     thickness_for = {} if thickness_for is None else thickness_for
     present = {
@@ -550,9 +591,8 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
         if asked["start"] <= int(y) <= asked["end"]
     }
     per_year = months_per_year(present)
-    # the monthly means of each layer, once, over every year any transect asks of it
-    monthly = {}
-    extracted_for = {}
+    # the years of each layer: every year any transect asks of it
+    layer_years = {}
     for vertical in (False, True):
         used = [
             line[option]
@@ -560,31 +600,60 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
             for option in (VERTICAL_OPTIONS if vertical else SURFACE_OPTIONS)
             if line[option]
         ]
-        if not used:
-            continue
-        _say(
-            f"Working out the transects of {row['name']}: "
-            + ("through the water column" if vertical else "at the surface")
+        if used:
+            layer_years[vertical] = (min(x["start"] for x in used), max(x["end"] for x in used))
+    fvcom = strip_folder is not None
+    monthly = {}
+    if fvcom:
+        # raw FVCOM output: the monthly means on the mesh, put on a strip along each line
+        from oceanval import fvcom_climatology, fvcom_transects
+        from oceanval.analysis import file_years
+
+        _say(f"Working out the transects of {row['name']} on the FVCOM mesh")
+        needs = [
+            (number, line, {vertical: any(line[option] for option in (VERTICAL_OPTIONS if vertical else SURFACE_OPTIONS))
+                            for vertical in (False, True)})
+            for number, line in enumerate(asked["lines"], start=1)
+        ]
+        fvcom_steps, strips = fvcom_transects.banded(
+            row, asked["files"], needs, layer_years, time_shift, strip_folder, file_years(row)
         )
-        years = (min(x["start"] for x in used), max(x["end"] for x in used))
-        ds = monthly_means_of(asked["files"], row, LEVELS if vertical else SURFACE, years, time_shift, row["levels"])
-        ds.run()
-        monthly[vertical] = (ds, [(time.year, time.month) for time in ds.times])
+    else:
+        # the monthly means of each layer, once
+        for vertical, years in layer_years.items():
+            _say(
+                f"Working out the transects of {row['name']}: "
+                + ("through the water column" if vertical else "at the surface")
+            )
+            ds = monthly_means_of(asked["files"], row, LEVELS if vertical else SURFACE, years, time_shift, row["levels"])
+            ds.run()
+            monthly[vertical] = (ds, [(time.year, time.month) for time in ds.times])
+    extracted_for = {}
     saved = []
     for number, line in enumerate(asked["lines"], start=1):
-        steps = unified_steps(row, line) if row.get("unify") or row.get("domain_mask") else None
-        if steps is None:
-            steps = steps_for(row["files"][0], row["parts"][0], line)
+        if fvcom:
+            steps = fvcom_steps[number]
+        else:
+            steps = unified_steps(row, line) if row.get("unify") or row.get("domain_mask") else None
+            if steps is None:
+                steps = steps_for(row["files"][0], row["parts"][0], line)
         ends = transects.line_ends(line)
         along = {}
-        for vertical, (ds, times) in monthly.items():
+        for vertical in layer_years:
             if not any(line[option] for option in (VERTICAL_OPTIONS if vertical else SURFACE_OPTIONS)):
                 continue
+            if fvcom:
+                path, times, thickness_path = strips[(number, vertical)]
+                ds = nc.open_data(path, checks=False)
+            else:
+                ds, times = monthly[vertical]
             extracted = ds.copy()
             extracted.to_transect(start=ends[0], end=ends[1], nsteps=steps)
             extracted.run()
             positions, depths, values = _along(extracted.current[0], row["key"], line, vertical)
-            if vertical and thickness != Z_LEVEL:
+            if vertical and fvcom:
+                depths = _strip_depths(thickness_path, line, steps, ends)
+            elif vertical and thickness != Z_LEVEL:
                 depths = _depths_along(row, line, steps, ends, thickness, thickness_for)
             along[vertical] = (positions, depths, values, times)
             extracted_for[vertical] = extracted
@@ -619,7 +688,9 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
                 # the first and last of the years the heat map shows (with a rolling mean, the end of the first window)
                 "years": [int(frame["year"].min()), int(frame["year"].max())] if "year" in frame and len(frame) else None,
                 "units": _units(row["units"], option, how),
-                "depths": None if option not in VERTICAL_OPTIONS else ("levels" if thickness == Z_LEVEL else "thickness"),
+                "depths": None if option not in VERTICAL_OPTIONS else (
+                    "sigma" if fvcom else "levels" if thickness == Z_LEVEL else "thickness"
+                ),
                 "csv": csv,
                 "months": int(frame["month"].nunique()) if "month" in frame else 0,
                 # no part of it has values: it is all on land, or outside the model
@@ -638,10 +709,14 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
                 "options": options,
             }
         )
-    return {
+    out = {
         "start": asked["start"],
         "end": asked["end"],
         "files": len(asked["files"]),
         "dates": asked["dates"],
         "lines": saved,
     }
+    if fvcom:
+        # the part of the FVCOM mesh the values were interpolated from
+        out["mesh"] = fvcom_climatology.location(asked["files"][0], row["parts"])
+    return out

@@ -233,6 +233,8 @@ def check_rows(rows, found, time_res_of=analysis.stream_time_res):
                     "files": list(stream["files"]),
                     "time_res": res,
                     "streams": len(holding),
+                    # raw FVCOM output, worked out on its own mesh
+                    "fvcom": bool(stream.get("fvcom")),
                 },
                 **analysis.describe_variable(model_variable, stream),
             )
@@ -405,10 +407,11 @@ def _check_series_options(box, start, end, found):
     return window, box["show"]
 
 
-def check_climatology(form, placed, known_years, available, cwd, label="climatology", series=False):
+def check_climatology(form, placed, known_years, available, cwd, label="climatology", series=False, fvcom=False):
     """Check the climatology pop-out's boxes (see clean_climatology). series is
     True for the long-term series' pop-out, which also has a rolling mean and a
-    way of showing the series.
+    way of showing the series. fvcom: the output is raw FVCOM output, whose
+    cell thickness analyze() works out itself, so none is asked for.
     known_years(name) is the first and last years of a variable's output,
     or None; available the model's variable names, which a thickness can be
     one of. Returns (climatology, thickness, errors): climatology as
@@ -444,7 +447,7 @@ def check_climatology(form, placed, known_years, available, cwd, label="climatol
             chosen[row["name"]]["show"] = show
         column = column or box["water_column"]
     thickness = None
-    if column:
+    if column and not fvcom:
         thickness = check_thickness(form["thickness"], available, cwd, errors)
     if not chosen and not errors:
         errors["rows"] = f"Tick Surface, Bottom, Water column, or more than one, for at least one variable to work out the {label} of."
@@ -520,10 +523,12 @@ def clean_map_changes(form, placed):
     return {"rows": rows, "thickness": str(form.get("thickness") or "").strip()}
 
 
-def check_map_changes(form, placed, known_years, available, cwd):
-    """Check the map changes pop-out's boxes (see clean_map_changes). Returns
-    (map_changes, thickness, errors): map_changes as analyze() takes it,
-    errors {name: {box: reason}}, "thickness" and "rows"."""
+def check_map_changes(form, placed, known_years, available, cwd, fvcom=False):
+    """Check the map changes pop-out's boxes (see clean_map_changes). fvcom:
+    the output is raw FVCOM output, whose cell thickness analyze() works out
+    itself, so none is asked for. Returns (map_changes, thickness, errors):
+    map_changes as analyze() takes it, errors {name: {box: reason}},
+    "thickness" and "rows"."""
     errors = {}
     chosen = {}
     column = False
@@ -567,7 +572,7 @@ def check_map_changes(form, placed, known_years, available, cwd):
         }
         column = column or box["water_column"]
     thickness = None
-    if column:
+    if column and not fvcom:
         thickness = check_thickness(form["thickness"], available, cwd, errors)
     if not chosen and not errors:
         errors["rows"] = "Tick Surface, Bottom, Water column, or more than one, for at least one variable to map the changes of."
@@ -635,11 +640,13 @@ def clean_transects(form, placed):
     return {"rows": rows, "thickness": str(form.get("thickness") or "").strip()}
 
 
-def check_transects(form, placed, known_years, available=(), cwd="."):
+def check_transects(form, placed, known_years, available=(), cwd=".", fvcom=False):
     """Check the transects pop-out's boxes (see clean_transects).
     known_years(name) is the first and last years of a variable's output, or
     None; available the model's variable names, which the cell thickness, which
-    a vertical transect needs, can be one of. Returns (chosen, errors): chosen
+    a vertical transect needs, can be one of. fvcom: the output is raw FVCOM
+    output, whose layers' thickness analyze() works out from its mesh, so none
+    is asked for. Returns (chosen, errors): chosen
     is {"rows": {name: [transect, ...]}, "thickness"}, the variables ticked with
     their transects as analyze() takes them, and the thickness (None if no
     transect is vertical). errors
@@ -735,7 +742,7 @@ def check_transects(form, placed, known_years, available=(), cwd="."):
     if not chosen and not errors:
         errors["rows"] = "Tick at least one variable to work out transects of."
     thickness = None
-    if any(line["vertical"] or line["vertical_trends"] for lines in chosen.values() for line in lines):
+    if not fvcom and any(line["vertical"] or line["vertical_trends"] for lines in chosen.values() for line in lines):
         thickness = check_thickness(form["thickness"], set(available), cwd, errors)
     if errors:
         return None, errors

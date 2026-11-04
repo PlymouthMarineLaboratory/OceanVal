@@ -254,6 +254,17 @@ def methods(info):
         "The water column's vertical mean weights each layer by its thickness; its depth integral multiplies each layer by its thickness and sums them, so a concentration per cubic metre becomes an amount per square metre. "
         "The maps of the simulations share one colour scale, from the 2nd to the 98th percentile of all of them.",
     ]
+    if info.get("fvcom"):
+        methods_.append(
+            "**FVCOM output.** The simulations are raw FVCOM output, on an unstructured mesh of triangles that every simulation shares, "
+            "which is read as it is, not regridded: the surface is the top sigma layer and the bottom the deepest sigma layer with a value, "
+            "and the maps are drawn on the mesh itself, a value on the nodes shaded linearly across each triangle and one on the elements "
+            "filling its triangle, with the triangles that have a value missing left out. Through the water column, each layer is weighted "
+            "by its thickness, its share of the sigma levels (siglev) of the depth of the water, h + zeta, at each time. The spatial means "
+            "of the time series and the phenology's daily cycle are weighted by the areas of the mesh's cells, a region takes the cells "
+            "whose positions are in it, and a station is the nearest node or element with values. The simulations are compared cell by "
+            "cell on this one mesh."
+        )
     converted = [variable for variable in variables if variable.get("conversions")]
     if converted:
         first = info["simulations"][0]["name"]

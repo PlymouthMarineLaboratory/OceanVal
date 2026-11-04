@@ -229,7 +229,9 @@ class TestSimulations:
 
         monkeypatch.setattr(analysis, "_looks_like_fvcom", looks)
         to_variables(app)
-        assert len(held) == 2 and all(held)
+        # once for each stream of each simulation, as its variables are read
+        streams = sum(len(found["streams"]) for found in app.sc_found.values())
+        assert len(held) == streams and held and all(held)
 
     def test_a_simulation_that_cannot_be_read(self, app, tmp_path, sims):
         os.makedirs(tmp_path / "empty" / "2013")
@@ -1446,5 +1448,139 @@ def test_the_domain_mask_is_asked_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#view-analyze-options:not([hidden])")
         assert app.sc_domain_mask == mask
         assert not errors, errors
+    finally:
+        app.close()
+
+
+class TestFVCOM:
+    """Raw FVCOM output (oceanval.fvcom_climatology): compared on its mesh, so there is no
+    grids step and no thickness is asked for."""
+
+    @pytest.fixture
+    def fvcom_sims(self, tmp_path):
+        from viewer_simulations import fvcom_months
+
+        months = ((2012, 1), (2012, 2), (2013, 1), (2013, 2))
+        fvcom_months(str(tmp_path / "fa"), months)
+        fvcom_months(str(tmp_path / "fb"), months, trend=2.0)
+        return "fa", "fb"
+
+    @staticmethod
+    def form(first, second):
+        return {
+            "rows": [
+                {"name": "Base run", "simdir": first, "ndown": "1", "exclude": "", "require": ""},
+                {"name": "Fine run", "simdir": second, "ndown": "1", "exclude": "", "require": ""},
+            ]
+        }
+
+    def to_variables(self, app, first, second):
+        to_sims(app)
+        assert post(app, "/api/simcompare_sims", {"form": self.form(first, second)}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_all_read())
+
+    def test_the_steps_go_from_the_files_to_the_options(self, app, fvcom_sims):
+        self.to_variables(app, *fvcom_sims)
+        assert all(found["fvcom"] for found in app.sc_found.values())
+        rows = [{"name": "Temperature", "models": {"Base run": "temp", "Fine run": "temp"}}]
+        assert post(app, "/api/simcompare_variables", {"rows": rows}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_checks_done())
+        assert post(app, "/api/simcompare_files") == (200, {"ok": True})
+        # a mesh is not regridded or masked: there is no grids step
+        assert app.view == "analyze_options"
+        assert app.sc_unify is None and app.sc_domain_mask is None
+        shown = state(app)["analyze"]
+        assert shown["fvcom"] is True
+        # Back from the options goes to the files, not the grids
+        assert post(app, "/api/back", {})[0] == 200
+        assert app.view == "simcompare_files"
+
+    def test_fvcom_is_compared_with_other_output_on_the_others_grid(self, app, mixed_simulations, runs):
+        fvcom_dir, _, grid_dir, _ = mixed_simulations
+        to_sims(app)
+        form = {
+            "rows": [
+                {"name": "Mesh", "simdir": fvcom_dir, "ndown": "1", "exclude": "", "require": ""},
+                {"name": "Grid", "simdir": grid_dir, "ndown": "1", "exclude": "", "require": ""},
+            ]
+        }
+        assert post(app, "/api/simcompare_sims", {"form": form}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_all_read())
+        rows = [{"name": "Temperature", "models": {"Mesh": "temp", "Grid": "thetao"}}]
+        assert post(app, "/api/simcompare_variables", {"rows": rows}) == (200, {"ok": True})
+        # degrees_C and degC: said to be the same
+        assert app.view == "simcompare_units"
+        blank = {row["key"]: {"multiplier": "", "adder": ""} for row in app.sc_unit_rows}
+        assert post(app, "/api/simcompare_units", {"conversions": blank, "confirmed": True}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_checks_done())
+        assert post(app, "/api/simcompare_files") == (200, {"ok": True})
+        # the grid is the other simulation's, so there is no grids step
+        assert app.view == "analyze_options" and app.sc_unify == {"baseline": "Grid"}
+        assert app.sc_domain_mask is None
+        # FVCOM output regridded to a grid needs a thickness like any other output, from the one that is not FVCOM
+        shown = state(app)["analyze"]
+        assert shown["fvcom"] is False
+        assert "e3t" in app.analyze_found["picker"]["available"] and "temp" not in app.analyze_found["picker"]["available"]
+        assert post(app, "/api/back", {})[0] == 200
+        assert app.view == "simcompare_files"
+
+    def test_fvcom_is_refused_with_other_output_only_as_the_mesh_requires(self, app, tmp_path, sims):
+        # a mesh in metres has no longitudes and latitudes to regrid from
+        from viewer_simulations import fvcom_simulation
+
+        metres = fvcom_simulation(str(tmp_path / "metres"), cartesian=True)
+        to_sims(app)
+        form = {
+            "rows": [
+                {"name": "Base run", "simdir": "base", "ndown": "1", "exclude": "", "require": ""},
+                {"name": "Fine run", "simdir": metres, "ndown": "0", "exclude": "", "require": ""},
+            ]
+        }
+        assert post(app, "/api/simcompare_sims", {"form": form}) == (200, {"ok": True})
+        wait_for(lambda: app._sc_all_read())
+        rows = [{"name": "Temperature", "models": {"Base run": "thetao", "Fine run": "temp"}}]
+        status, reply = post(app, "/api/simcompare_variables", {"rows": rows})
+        assert status == 400 and "in metres" in reply["errors"]["rows"]
+        assert app.view == "simcompare_variables"
+
+
+def test_a_refusal_of_the_variables_stays_on_the_page(browser, tmp_path):
+    """FVCOM on a mesh in metres cannot be regridded to another's grid: the reason is said under the table
+    and stays there, as the buttons are redrawn."""
+    from viewer_simulations import fvcom_simulation
+
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    metres = fvcom_simulation(str(tmp_path / "metres"), cartesian=True)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    try:
+        page = browser.new_page(viewport={"width": 1280, "height": 1000})
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-simcompare")
+        page.wait_for_selector("#view-simcompare-sims:not([hidden])")
+        page.fill("#sc-name_1", "Base run")
+        page.fill("#sc-dir_1", "base")
+        page.fill("#sc-ndown_1", "1")
+        page.fill("#sc-name_2", "Mesh")
+        page.fill("#sc-dir_2", metres)
+        page.fill("#sc-ndown_2", "0")
+        page.wait_for_function("() => document.querySelector('#sc-m-2').innerText.includes('netCDF files')")
+        page.click("#sc-continue")
+        page.wait_for_selector("#scv-main:not([hidden])", timeout=60000)
+        cells = page.locator("#scv-rows > tr").first.locator("input.s-input")
+        cells.nth(0).fill("Temperature")
+        cells.nth(1).fill("thetao")
+        cells.nth(2).fill("temp")
+        cells.nth(2).press("Escape")
+        page.wait_for_function("() => !document.querySelector('#scv-continue').disabled")
+        page.click("#scv-continue")
+        page.wait_for_function("() => document.querySelector('#scv-msg').textContent.includes('in metres')")
+        page.wait_for_function("() => !document.querySelector('#scv-continue').disabled")
+        assert "in metres" in page.inner_text("#scv-msg")
+        # typing in a box takes it away
+        cells.nth(2).fill("temp ")
+        page.wait_for_function("() => document.querySelector('#scv-msg').textContent === ''")
+        assert app.view == "simcompare_variables"
     finally:
         app.close()

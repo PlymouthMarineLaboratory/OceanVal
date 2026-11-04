@@ -18,6 +18,8 @@ MOST_FILES = 10
 LEAST_SHARE = 0.01
 # the vertical dimensions are found by their names, as analysis._variables_of
 _VERTICAL = ("depth", "lev", "sig", "s_rho", "z")
+# the horizontal dimension of an unstructured grid: FVCOM's nodes and elements
+_UNSTRUCTURED = ("node", "nele")
 
 
 def _spread(items, most):
@@ -43,9 +45,10 @@ def _surface(variable, ds, step=0):
         if _is_time(dim, ds):
             index[dim] = step
     others = [dim for dim in variable.dims if dim not in index]
-    # the last two (one, for an unstructured grid) dimensions are horizontal
-    vertical = [dim for dim in others[:-2] if any(word in dim.lower() for word in _VERTICAL)]
-    vertical += [dim for dim in others[:-2] if dim not in vertical]
+    # the last two (one, for an unstructured grid, as FVCOM's node or nele) dimensions are horizontal
+    horizontal = 1 if others and others[-1] in _UNSTRUCTURED else 2
+    vertical = [dim for dim in others[:-horizontal] if any(word in dim.lower() for word in _VERTICAL)]
+    vertical += [dim for dim in others[:-horizontal] if dim not in vertical]
     for dim in vertical:
         if dim in ds.variables and np.issubdtype(ds[dim].dtype, np.number) and ds[dim].ndim == 1:
             index[dim] = int(np.nanargmin(np.abs(ds[dim].values)))
@@ -55,13 +58,23 @@ def _surface(variable, ds, step=0):
     return values if values.ndim >= 1 else None
 
 
+def _open(path):
+    """The file at path, opened by xarray. FVCOM's siglay and siglev are 2-D
+    but named after their dimension, which xarray will not open, so raw FVCOM
+    output is opened without them (its first sigma layer is the surface)."""
+    try:
+        return xr.open_dataset(path, decode_times=False)
+    except ValueError:
+        return xr.open_dataset(path, decode_times=False, drop_variables=["siglay", "siglev"])
+
+
 def _slices(files, name, steps):
     """The surface of variable name at the first time step of each of files (or
     at `steps` of the first, if it is the only one) as a list of arrays."""
     out = []
     for path in files:
         # the window probes in a thread of its own, beside others that read files
-        with netcdf_lock.LOCK, xr.open_dataset(path, decode_times=False) as ds:
+        with netcdf_lock.LOCK, _open(path) as ds:
             if name not in ds.variables:
                 continue
             variable = ds[name]

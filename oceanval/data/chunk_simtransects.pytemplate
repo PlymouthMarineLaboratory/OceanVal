@@ -8,7 +8,13 @@ md(
     f"The model's {name} was extracted along {count} transect{'s' if count != 1 else ''}, straight lines that run north-south or east-west, "
     f"from its monthly means in each simulation, {sr.files_text(entry, 'transects')}. "
     "Each month of each year is averaged first, so a month of daily output counts as much as a month of monthly output. "
-    "The model's values were bilinearly interpolated onto evenly spaced points along each transect, using nctoolkit's to_transect. "
+    + (
+        "The model's values were interpolated from its FVCOM mesh (linearly within each triangle for values on the nodes, the triangle's own value "
+        "for values on the elements) onto evenly spaced points along each transect, about one for each triangle it crosses, put on a narrow strip "
+        "of a longitude-latitude grid along the line and extracted from it using nctoolkit's to_transect. "
+        if tr.get("mesh")
+        else "The model's values were bilinearly interpolated onto evenly spaced points along each transect, using nctoolkit's to_transect. "
+    )
     + sr.dates_text(entry, "transects")
 )
 

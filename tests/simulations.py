@@ -325,3 +325,35 @@ def write_fvcom(root):
         {"units": "days since 1858-11-17 00:00:00"},
     )
     dataset.to_netcdf(os.path.join(folder, "run_avg_0001.nc"))
+
+
+# raw FVCOM output (viewer_simulations.fvcom_months), two simulations on the one mesh that compare_simulations()
+# is tested with, and analyze() is run on alone to check that each simulation of a comparison gets what analyze()
+# gives it: Temperature on the nodes, Velocity on the elements, every analysis. B rises faster than A.
+FVCOM_YEARS = {"start": 2012, "end": 2013}
+FVCOM_COMPARE_OPTIONS = dict(
+    variables={"Temperature": "temp", "Velocity": "u"},
+    climatology={
+        "Temperature": dict(FVCOM_YEARS, surface=True, bottom=True, water_column="integral"),
+        "Velocity": dict(FVCOM_YEARS, surface=True, water_column="mean"),
+    },
+    phenology={"Temperature": FVCOM_YEARS},
+    long_term={"Temperature": dict(FVCOM_YEARS, surface=True)},
+    seasonal={"Velocity": dict(FVCOM_YEARS, surface=True)},
+    stations={"Middle": [-4.52, 50.31]},
+    map_changes={
+        "Temperature": {
+            "historical": {"start": 2012, "end": 2012},
+            "future": [{"start": 2013, "end": 2013}],
+            "plot": "absolute_changes",
+            "change": "absolute",
+            "surface": True,
+        }
+    },
+    transects={
+        "Temperature": [
+            {"start": [-5.0, 50.25], "end": [-4.0, 50.25], "climatology": FVCOM_YEARS, "vertical": FVCOM_YEARS}
+        ],
+        "Velocity": [{"start": [-4.47, 50.0], "end": [-4.47, 51.0], "climatology": FVCOM_YEARS}],
+    },
+)

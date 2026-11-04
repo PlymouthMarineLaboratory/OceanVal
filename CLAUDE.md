@@ -396,6 +396,53 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   has CDO write one level of one time step of one variable first and opens only that, `analysis.peak` reads a band of rows at a time,
   `analysis_series.station_values` a year of times at a time; `tests/test_sim_compare.py::TestSameGridIsLookedAtLightly`
   fails if a data variable is read).
+- **Raw FVCOM output in Analyze** (everything, at the surface, the bottom and through the water column; the user's
+  steps, 2026-10-29): CDO cannot read FVCOM's mesh, so `analysis.streams` marks such a stream `"fvcom"` (`_variables_of` →
+  `fvcom_climatology.variables`: the variables on `node`/`nele`, not `viewer_mesh.MESH_VARIABLES`), `locate_rows` sets `row["fvcom"]` and
+  reads its times with `index_times(fvcom=True)`, and refuses the water column (of any layered kind) and a vertical transect of a variable with a
+  part not on `siglay` (`fvcom_climatology.not_layered`: on `siglev`, as `km`, or 2-D, as `zeta` in `temp+zeta`). `_work_out` gets each layer
+  from `_fvcom_climatology` → **`oceanval/fvcom_climatology.py`**: netCDF4 reads a block of times at a time (`BLOCK_VALUES`; the one
+  exception to "only nctoolkit/CDO reads model output", and never a whole file) and takes each time step to its layer as nctoolkit would:
+  the surface is `siglay` 0, the bottom the deepest layer with a value of each part (`_deepest`, CDO's `bottomvalue`; the layers above are
+  read only while some cells are missing), the water column `vertical_integration`'s `sum(x·dz)` and `vertical_mean`'s that over `sum(dz)`
+  of the layers with a value (`_column`). **A year is read at a time** (`monthly_means`, from the files `analysis.file_years(row)` says hold
+  it), so no more than a year of monthly fields is held, and `_Climate` adds up each year's means. **The thickness is never asked for** (`analyze()` checks `require_thickness` after `locate_rows`,
+  without the FVCOM rows; `check_climatology(fvcom=)` in the window): `dz` = the layer's share of `siglev` (`siglev_center` on the elements
+  if there) × (`h` + `zeta`) **at each time step** (`_shares` × `_depth_of_water`, not the first time's, as tides move `zeta`; no `zeta` is 0; on the
+  elements the mean of the three nodes' depth, through `nv`; not above 0 is a dry cell, missing). Then sums per (year, month) and cell, each
+  year's monthly mean then the mean of each month, as `climatology_of`; `cores` processes run the file **as a script by path** (`python -I`,
+  importing no OceanVal at module level, as a spawned worker of the package would re-run the user's script; a job carries its `layer`).
+  Its results keep the usual names (`<key>_<layer>_monthly/annual.nc`, the integral's units by `integral_units`) on `(time, node|nele)` with
+  the mesh (`lon`, `lat`, `nv`, ...) and `month`, and the layer has `"mesh"`; `info["fvcom"]`. **`oceanval/mesh_maps.py`** (`mesh_plot`,
+  `mesh_panel_plot`, pyfvcom2's tripcolor of `Triangulation(lon, lat, nv.T - 1)`: gouraud on nodes, flat on elements, a triangle with a value
+  missing masked, land beneath, true proportions, plain axes for a mesh in metres) draws them: `analysis_plots.annual_map`/`monthly_maps`
+  write scripts that import it (a third OceanVal import allowed in copied scripts), and so do the peak maps and `change_maps`
+  (`mesh_plot(legend_position=None)` into the same gridspec, the shared bars made as before). **The phenology** is
+  `fvcom_climatology.daily_climatology` (sums by day, `file_sums(by=DAY)`, each year's daily mean then the mean of each (month, day), dated in
+  the last year that has it, as CDO; a band of cells at a time beyond `DAILY_VALUES`), then `analysis.peak`, which keeps the mesh when the
+  file has `attrs["mesh"]`. **Map changes**: each period is `fvcom_climatology.work_out(monthly=None)`, then the usual xarray `derive`.
+  **The series and every spatial mean** are **`oceanval/mesh_means.py`** (numpy/netCDF4; pyfvcom2 has no area code): `MeshCells` (an
+  element's area its spherical triangle's, Van Oosterom–Strackee, in the plane for a mesh in metres; a node's a third of each triangle's
+  it is a corner of, FVCOM's `art1` control volume), `weighted_mean` (area alone, as `spatial_mean`), and `Series`, fed a month at a
+  time by `analysis_series.mesh_series` (domain, the `lon_lim`/`lat_lim` box, regions by the 1-D lon/lat grid cell each cell's position is
+  in, never regridding; stations the nearest of `STATION_CANDIDATES` cells with values, refused beyond `STATION_CELLS` of its sides), giving
+  the same rows as `region_values`/`station_values`, so the CSVs and their figures are unchanged. `analysis_plots.domain_mean` (the daily
+  cycle's) sends a file with `attrs["mesh"]` to `mesh_means.domain_mean`. A mesh in metres has only Full Domain series
+  (`analysis.check_mesh_area`) and no transects (`locate_rows`). **Transects** are **`oceanval/fvcom_transects.py`** (`banded`, called by
+  `analysis_transects.work_out` when `row["fvcom"]`): `to_transect` is a bilinear `regrid` onto the line's points, which CDO cannot do from
+  a mesh, so the monthly means of only the cells the lines need (`monthly_means(pick=)`; `fvcom_climatology.LEVELS`, every sigma layer, for
+  a section) are interpolated as the maps shade them (`weights`: barycentric on the nodes, the triangle's value on the elements, NaN outside
+  the mesh or by a missing corner) onto a **strip** of a lon-lat grid per line (`strip`: two rows a hair either side of each point and two
+  columns either side of the line, so bilinear remapping gives each point's value back exactly and spreads no missing value; one row per
+  point did), saved with an explicit `_FillValue` in a temporary folder, then extracted by `to_transect` as any output is; the rest of
+  `analysis_transects` is unchanged. Steps: the median side of the triangles the line crosses (`steps`, `analysis_transects.steps_of`). A
+  section's depths: the layers' thickness (`_shares` × the mean of `fvcom_climatology.DEPTH`, h + zeta, over the months) on the strip, through
+  `to_transect` and `cell_depths` (`_strip_depths`; `saved["depths"] == "sigma"`); no thickness is asked for (`check_transects(fvcom=)`).
+  The window: `state.analyze.fvcom`/`fvcom_note`, the thickness rows hidden and `#clim-fvcom-thickness`/`#chg-fvcom-thickness`/
+  `#trans-fvcom-thickness` saying how it is worked out (`refreshThickness`; `check_climatology`/`check_map_changes(fvcom=)`), the dates check with `fvcom: True`; `missing_probe` reads
+  FVCOM's first sigma layer. `compare_simulations` works with it too (below). Tests: `tests/test_fvcom_analysis.py`
+  (`viewer_simulations.fvcom_months`; values worked out by hand, uneven `siglev` and a changing `zeta`, the areas, regions, stations and a
+  peak day per node and transects of a field linear on the mesh included), the `fvcom` case of `test_analysis_plots.py` (every FVCOM figure).
 - **A model's extent is that of its cells with values, never of its whole coordinate arrays** (`oceanval/extent.py`: `valid_lonlat`
   of a field's first time and top level, `first_slice`/`of_file` for a model file, read through CDO first). NEMO puts the cells of
   the land processors it leaves out at lon -1, lat -1 (36 k of AMM7's 111 k cells), so a whole grid's min/max can be lat -1 to 65.
@@ -528,6 +575,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   session fixtures `compared_monthly`/`compared_daily` and `analysed_*` in `tests/conftest.py` are run once a session,
   checked as analyze tests in `tests/test_analysis.py` (`TestTheSimulationsOfAComparison`), and `tests/test_sim_compare.py`
   compares one simulation of its comparisons with them (`conftest.same_as_analyze`: the same files, each identical).
+- **Raw FVCOM output in Compare** (`compare_simulations`, the window's Compare tile): all simulations FVCOM, on **one mesh**, or none; **a mix is regridded**, below. Where all are FVCOM (`sim_compare.fvcom_problems`, before any work: a different mesh (`fvcom_climatology.mesh_arrays`/`same_mesh`: `lon`, `lat`, `nv`... only, never a data variable), a variable on the nodes in one and the elements in another, `unify`, `domain_mask` and `unit_conversions` are ValueErrors). Each simulation is `_work_out` as `analyze()` does it (`row["cores"]` set, `require_thickness` after `locate_rows` without the FVCOM rows, `check_mesh_area`), so its results are `analyze()`'s exactly (`info["fvcom"]` in each `analysis.json` and in `comparison.json`; `same_grid` is True = same mesh; `unify_text` is `FVCOM_TEXT`). The combined maps of a climatology's annual mean and of the phenology are `mesh_maps.mesh_sim_plot` (`sim_plots._mesh_panels_code`: a mesh panel for each simulation, one shared scale and bar); the rest read CSVs or delegate to `analysis_plots`' mesh branches. Window: `placed` rows carry `fvcom`; the variables step runs the mesh checks (outside the lock); with FVCOM the files step skips the grids step (`_sc_is_fvcom`, Back from the options goes to the files) and `analyze_found["fvcom"]` hides the thickness rows. Tests: `TestFVCOM` in `test_sim_compare.py` (`same_as_analyze` against the `analysed_fvcom_a/b` session fixtures of `conftest.py`, options `simulations.FVCOM_COMPARE_OPTIONS`, `fvcom_months(trend=, offset=)`), the `fvcom` case of `test_sim_plots.py`, `TestFVCOM` in `test_sim_compare_app.py`.
+- **FVCOM beside output on a grid in Compare** (`oceanval/sim_fvcom.py`; the user's rule, 2026-11-03: Continue on the variables step did nothing for FVCOM + NEMO-ERSEM): some simulations raw FVCOM, some not is allowed (`sim_fvcom.problems_of`: no box `unify`, no baseline that is FVCOM, no `domain_mask`, no mesh in metres, no simulation with some variables FVCOM and some not). `compare_simulations` sets `unify = {"baseline": first non-FVCOM simulation, "crop": box}` (`sim_fvcom.unify_of`; `crop` is `sim_unify.padded_box` of the meshes' extent, which `sim_unify.prepare`/`_regrid` crop the baseline to, so the baseline's grid is that of the FVCOM output regridded to it), then `sim_fvcom.regrid_rows` (after the folder is made, before `make_common_grid`) regrids each FVCOM row's files with `fvcom.fvcom_matchup_files(grid=, levels=)` (nearest neighbour onto a cropped surface field of the baseline's, written as `results/fvcom_regridded/<key>_grid.nc`; `fvcom._mesh_mask_curvilinear` for a grid with 2-D lon/lat; **surface only unless some layer other than the surface is asked for, then interpolated to the baseline's own depths, so every simulation has the same levels**) and makes the row ordinary output: `row["fvcom"]` False, `row["fvcom_regridded"]` True, every file list of the row (`files`, `series_files`, each entry's and period's `files`, `times`) swapped to the regridded files, and the simulation's `thickness` `"z_level"` (whatever it was given). `info["fvcom"]` is False and `info["fvcom_regridded"]` names the simulations; `unify_text` adds `sim_fvcom.TEXT`. A new file list on a row must be added to `_needed`/`_swap_files`. The window skips the grids step (`_sc_mesh_sims`; `sc_unify = {"baseline": ...}`; the thickness is looked for in the non-FVCOM simulations only) and `unit_conversions` work. Tests: `TestFVCOMWithOtherOutput` (fixture `mixed_simulations`), `test_sim_compare_app.py::TestFVCOM`. The variables step's refusal message is `scVars.message`, kept until a box is edited (`refreshScVariables` used to clear it, so a refusal was silent).
+
 - Combined figures are `oceanval/sim_plots.py`, with the same contract as Analyze's: each is drawn by its own script
   (colours and files as literals), `tests/test_sim_plots.py` redraws each in a fresh process and compares pixels. Maps are
   a panel for each simulation on **one colour scale**; series are lines coloured by simulation, **a panel for each
