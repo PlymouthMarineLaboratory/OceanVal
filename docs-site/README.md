@@ -31,7 +31,10 @@ assets/
 media/               The app's demo video and poster, and the landing page's hero
                       animation (oceanval-hero.mp4 + poster, 1920x1080, a few MB, a looping
                       ~26 s cut of the promo video, made by
-                      oceanval_promo/web.py). Deliberately outside assets/, which
+                      oceanval_promo/web.py), and the Viewing simulations page's
+                      demo (oceanval-viewer-demo.mp4 + poster, ~21 s, 2 MB, made
+                      by oceanval_promo/record_viewer.py + viewer_demo.py from the
+                      real COBE2 THREDDS dataset). Deliberately outside assets/, which
                       every archive snapshot copies - the videos would be
                       duplicated into each release; the snapshot's index.html
                       points its src/poster at the live media/ instead.

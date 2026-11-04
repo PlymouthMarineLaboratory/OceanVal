@@ -89,6 +89,20 @@
   <div class="docs-content">
     <p><strong>View simulation output</strong> lets you look at what a simulation&rsquo;s netCDF files hold, and map any variable in them at the time, depth and years you choose. Run <code>oceanval</code> in a terminal and choose <strong>View simulation output</strong>. Nothing is written but a record of the files&rsquo; times, and only the map on show is ever read from the files: one time step at one depth of one file, so output of many GB stays quick to look at.</p>
 
+    <div class="code-card hero-video-card">
+      <div class="code-card__bar">
+        <div class="code-card__dots"><span></span><span></span><span></span></div>
+        <span class="code-card__label">oceanval</span>
+        <button class="hero-video__toggle" id="hero-video-toggle" type="button" aria-label="Pause the animation">
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="7 4 20 12 7 20"/></svg>
+        </button>
+      </div>
+      <video id="hero-video" class="hero-video" autoplay muted loop playsinline preload="auto" width="1920" height="1080" poster="media/oceanval-viewer-demo-poster.jpg" aria-label="A short animation of the OceanVal viewer: choosing View simulation output, giving the web address of a sea surface temperature dataset, mapping the sst variable, adding coastlines, switching to the viridis colour map and choosing the years 2000 to 2009.">
+        <source src="media/oceanval-viewer-demo.mp4" type="video/mp4">
+      </video>
+    </div>
+
     <h2 id="setup">Choosing the simulation</h2>
     <ol>
       <li>Give the <strong>directory</strong> the output is in (or the path of a single file) and how many directories down its files are. OceanVal fills the number in when it recognises the folders. The arrow in the directory box lists simulations you have viewed before.</li>
