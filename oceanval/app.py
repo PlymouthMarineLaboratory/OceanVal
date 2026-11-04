@@ -5302,7 +5302,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         found["more"] = max(0, len(files) - _MOST_FILES)
         return found
 
-    def browse(self, path):
+    def browse(self, path, files=False):
         """What one directory holds, for the page's folder browser and the
         folders it suggests as a path is typed: its folders, how many netCDF
         files are directly in it, and whether it has matchups.
@@ -5311,6 +5311,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         directory, the nearest one above it is listed instead, and exact is
         False. The listing is of the machine oceanval runs on, which the
         browser need not be on, so it cannot use a folder picker of its own.
+
+        With files, the netCDF files are listed too (nc_list, each with the
+        path to put in a box as shown), for choosing one file.
         """
         requested = _path(path.strip() or ".", self.cwd)
         directory = requested
@@ -5334,7 +5337,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 {"label": "Home", "path": os.path.expanduser("~")},
             ],
         }
-        folders, files, csv_files = [], [], 0
+        folders, nc_names, csv_files = [], [], 0
         try:
             with os.scandir(directory) as entries:
                 for entry in entries:
@@ -5343,7 +5346,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                             if not entry.name.startswith("."):
                                 folders.append(entry.name)
                         elif entry.name.endswith(".nc"):
-                            files.append(entry.name)
+                            nc_names.append(entry.name)
                         elif entry.name.endswith(".csv"):
                             csv_files += 1
                     except OSError:
@@ -5363,9 +5366,20 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             for name in folders[:_MOST_FOLDERS]
         ]
         found["more"] = max(0, len(folders) - _MOST_FOLDERS)
-        found["nc_files"] = len(files)
+        found["nc_files"] = len(nc_names)
         found["csv_files"] = csv_files
-        found["example"] = min(files) if files else None
+        found["example"] = min(nc_names) if nc_names else None
+        if files:
+            ordered = sorted(nc_names, key=lambda name: (name.lower(), name))
+            found["nc_list"] = [
+                {
+                    "name": name,
+                    "path": os.path.join(directory, name),
+                    "shown": _shown(os.path.join(directory, name), self.cwd),
+                }
+                for name in ordered[:_MOST_FILES]
+            ]
+            found["nc_more"] = max(0, len(ordered) - _MOST_FILES)
         found["has_matchups"] = "oceanval_matchups" in folders
         # a validation, for the compare step
         found["has_results"] = "oceanval_results" in folders
@@ -5838,7 +5852,7 @@ class _Handler(recipes_gui._Handler):
         elif url.path == "/api/viewer/missing":
             self._reply_json(200, self.app.viewer_missing_guess(query))
         elif url.path == "/api/browse":
-            self._reply_json(200, self.app.browse(query.get("path", "")))
+            self._reply_json(200, self.app.browse(query.get("path", ""), query.get("files") == "1"))
         elif url.path == "/api/matchups":
             self._reply_json(200, self.app.matchups_found(query.get("data_dir", "")))
         elif url.path == "/api/files":

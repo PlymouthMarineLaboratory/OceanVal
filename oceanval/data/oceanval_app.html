@@ -1308,6 +1308,7 @@
               <input class="s-input is-mono" id="compat-path" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="compat-options" placeholder="/path/to/model_output.nc, or a directory to see what is in it" spellcheck="false" autocapitalize="off" autocomplete="off">
               <ul class="combo__list" id="compat-options" role="listbox" aria-label="Folders and netCDF files" hidden></ul>
             </div>
+            <button type="button" class="btn btn--ghost btn--field" data-browse="compat-path">Browse…</button>
             <button type="submit" class="btn btn--primary btn--field" id="compat-start">Check</button>
           </div>
           <p class="compat-path-note" id="compat-path-note" role="status"></p>
@@ -2792,6 +2793,7 @@
   const PICTURES = {
     compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M6.5 14v3M17.5 10v7M6.5 9v1"/></svg>',
     folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6m0 0-5 5m5-5 5 5"/></svg>',
     chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7.5 14.5 3.5-4 3 3 5-6"/></svg>',
     match: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13m0 0-3.5-3.5M17 8l-3.5 3.5"/><path d="M20 16H7m0 0 3.5-3.5M7 16l3.5 3.5"/></svg>',
@@ -9138,12 +9140,19 @@
   // ---- directories: a folder browser, and folders suggested as a path is typed ----
   // Both list the machine oceanval runs on, which this browser need not be on,
   // so it cannot use a folder picker of its own.
-  function browse(path) {
-    return fetch(`api/browse?${query({ path })}`, { cache: "no-store" }).then((response) => response.json());
+  function browse(path, files) {
+    return fetch(`api/browse?${query(files ? { path, files: 1 } : { path })}`, { cache: "no-store" }).then((response) => response.json());
   }
 
   // what the folder browser says about the directory shown, for each box
   const DESCRIBE = {
+    "compat-path": {
+      title: "Choose a model output file",
+      files: true,
+      describe: (listing) => listing.nc_files
+        ? [`${listing.nc_files} netCDF file${listing.nc_files === 1 ? "" : "s"} in here. Click one to choose it.`, "ok"]
+        : ["No netCDF files in here. Open a folder to look for one.", ""],
+    },
     "f-simdir": {
       title: "Choose the directory with the simulation output",
       describe: (listing) => listing.nc_files
@@ -9213,6 +9222,10 @@
   function openPicker(input, opener) {
     Object.assign(picker, { input, opener, listing: null });
     $("picker-title").textContent = DESCRIBE[input.id].title;
+    const things = DESCRIBE[input.id].files ? "folders and files" : "folders";
+    $("picker-filter").placeholder = `Filter these ${things}`;
+    $("picker-filter").setAttribute("aria-label", `Filter these ${things}`);
+    $("picker-choose").hidden = Boolean(DESCRIBE[input.id].files);
     $("picker-list").replaceChildren(el("p", { class: "picker__empty", text: "Opening…" }));
     $("picker-info").replaceChildren();
     $("picker").hidden = false;
@@ -9232,7 +9245,7 @@
     const number = ++picker.number;
     let listing;
     try {
-      listing = await browse(path);
+      listing = await browse(path, DESCRIBE[picker.input.id].files);
     } catch (error) {
       return;
     }
@@ -9276,6 +9289,14 @@
     $("picker-choose").disabled = Boolean(listing.error);
   }
 
+  function chooseValue(value) {
+    const { input } = picker;
+    closePicker();
+    input.value = value;
+    // as if it had been typed, so everything that follows the box sees it
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
   function folderRow(picture, text, onclick, extra = "") {
     return el("button", { type: "button", class: `picker__row${extra}`, onclick, title: text },
       el("span", { html: PICTURES[picture], "aria-hidden": "true", style: "display:contents" }), el("span", { text }));
@@ -9290,8 +9311,15 @@
     }
     const folders = listing.folders.filter((folder) => !words || folder.name.toLowerCase().includes(words));
     rows.push(...folders.map((folder) => folderRow("folder", folder.name, () => showFolder(folder.path))));
-    if (!folders.length && !listing.error) {
-      rows.push(el("p", { class: "picker__empty", text: words ? "No folders here match." : "No folders in here." }));
+    const files = DESCRIBE[picker.input.id].files
+      ? (listing.nc_list || []).filter((file) => !words || file.name.toLowerCase().includes(words)) : [];
+    rows.push(...files.map((file) => folderRow("file", file.name, () => chooseValue(file.shown))));
+    if (!folders.length && !files.length && !listing.error) {
+      const things = DESCRIBE[picker.input.id].files ? "folders or files" : "folders";
+      rows.push(el("p", { class: "picker__empty", text: words ? `No ${things} here match.` : `No ${things} in here.` }));
+    }
+    if (listing.nc_more) {
+      rows.push(el("p", { class: "picker__empty", text: `…and ${listing.nc_more} more files, not listed. Type the path in the box instead.` }));
     }
     if (listing.more) {
       rows.push(el("p", { class: "picker__empty", text: `…and ${listing.more} more folders, not listed. Type the path in the box instead.` }));
@@ -9302,12 +9330,9 @@
   $("picker-filter").addEventListener("input", () => { if (picker.listing) renderFolders(); });
   $("picker-cancel").addEventListener("click", closePicker);
   $("picker-choose").addEventListener("click", () => {
-    const { input, listing } = picker;
+    const { listing } = picker;
     if (!listing || listing.error) return;
-    closePicker();
-    input.value = listing.shown;
-    // as if it had been typed, so everything that follows the box sees it
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    chooseValue(listing.shown);
   });
   // outside the card
   $("picker").addEventListener("click", (event) => { if (event.target === $("picker")) closePicker(); });

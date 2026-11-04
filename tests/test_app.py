@@ -886,6 +886,17 @@ class TestOutputChecks:
 class TestBrowsing:
     """The folder browser, and the folders suggested as a path is typed."""
 
+    def test_files_are_listed_only_when_asked_for(self, tmp_path):
+        for name in ("b.nc", "A.nc", "notes.txt"):
+            (tmp_path / name).write_text("")
+        app = App(cwd=str(tmp_path))
+
+        assert "nc_list" not in app.browse("")
+        found = app.browse("", files=True)
+        assert [file["name"] for file in found["nc_list"]] == ["A.nc", "b.nc"]
+        assert found["nc_list"][1]["shown"] == "b.nc"
+        assert found["nc_more"] == 0
+
     def test_a_directory(self, tmp_path):
         for name in ("b", "A", "c", ".hidden", "oceanval_matchups"):
             (tmp_path / "run" / name).mkdir(parents=True)

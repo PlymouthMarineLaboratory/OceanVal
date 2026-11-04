@@ -681,6 +681,26 @@ def test_the_path_box_lists_what_can_be_chosen(page_of, tmp_path):
     assert tab.is_enabled("#compat-start")
 
 
+def test_the_path_box_can_be_browsed(page_of, tmp_path):
+    tab, app = page_of
+    folder = tmp_path / "output"
+    (folder / "sub").mkdir(parents=True)
+    regular(folder / "run_2.nc")
+    tab.fill("#compat-path", f"{folder}/")
+    tab.click("[data-browse=compat-path]")
+    tab.wait_for_selector("#picker:not([hidden])")
+    # a file is chosen by clicking it; there is no choosing of a directory
+    assert tab.is_hidden("#picker-choose")
+    tab.click("#picker-list .picker__row >> text=sub")
+    tab.wait_for_selector("#picker-list .picker__empty")
+    tab.click("#picker-crumbs .crumb >> text=output")
+    tab.click("#picker-list .picker__row >> text=run_2.nc")
+    tab.wait_for_selector("#picker", state="hidden")
+    assert tab.input_value("#compat-path").endswith("run_2.nc")
+    tab.wait_for_function("document.getElementById('compat-path-note').textContent.startsWith('A netCDF file')")
+    assert tab.is_enabled("#compat-start")
+
+
 def test_the_path_box_is_used_from_the_keyboard(page_of, tmp_path):
     tab, app = page_of
     folder = tmp_path / "output"
