@@ -207,10 +207,12 @@ class TestIndexTimesInWorkers:
         matchall.index_times(files, workers=workers)
         assert shared_out["shared"] == []
 
-    def test_by_default_there_are_as_many_workers_as_cores(self, monkeypatch):
+    def test_by_default_there_are_half_the_cores_to_at_most_6(self, monkeypatch):
         # raising=False: macOS has no sched_getaffinity
-        monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0, 1, 2, 3, 4}, raising=False)
-        assert matchall._index_workers() == 5
+        monkeypatch.setattr(os, "sched_getaffinity", lambda pid: set(range(8)), raising=False)
+        assert matchall._index_workers() == 4
+        monkeypatch.setattr(os, "sched_getaffinity", lambda pid: set(range(64)), raising=False)
+        assert matchall._index_workers() == 6
         assert matchall._index_workers(2) == 2
         assert matchall._index_workers(0) == 0
 

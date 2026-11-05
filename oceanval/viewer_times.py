@@ -65,13 +65,15 @@ def natural_key(path):
 
 def default_cores():
     """The processes the times are read by in the background: half the cores
-    this process may use (and at least 1), so the window keeps the rest."""
+    this process may use, and at most 6 (and at least 1), so the window keeps
+    the rest. This is file_workers.workers(), which this file, run as a script
+    importing nothing of OceanVal, cannot use (a test checks they agree)."""
     try:
         cores = len(os.sched_getaffinity(0))
     except AttributeError:
         # macOS and Windows
         cores = os.cpu_count() or 1
-    return max(1, cores // 2)
+    return max(1, min(6, cores // 2))
 
 
 def _score(name, attrs, dimensions):

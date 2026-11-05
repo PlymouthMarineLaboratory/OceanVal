@@ -33,7 +33,7 @@ from oceanval.session import session_info
 from oceanval.parsers import Validator, definitions, point_files
 from tqdm import tqdm
 from oceanval.utils import extension_of_directory
-from oceanval import cdo_check
+from oceanval import cdo_check, file_workers
 from oceanval import domain_mask as domain_mask_mod
 from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
@@ -936,15 +936,12 @@ for line in sys.stdin:
 
 def _index_workers(workers=None):
     """How many worker processes index_times may use: workers if given,
-    otherwise the cores this process may use, which respects the limits a
-    job scheduler sets. This is not matchup's cores option, which limits the
+    otherwise file_workers.workers() (at most 6, and half the cores this
+    process may use). This is not matchup's cores option, which limits the
     heavy nctoolkit work; reading the times needs little memory."""
     if workers is not None:
         return max(int(workers), 0)
-    try:
-        return len(os.sched_getaffinity(0))
-    except AttributeError:
-        return os.cpu_count() or 1
+    return file_workers.workers()
 
 
 def _read_times(ff, fvcom, time_name):

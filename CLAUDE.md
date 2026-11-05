@@ -332,6 +332,18 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   COBE2's THREDDS server rate limits (HTTP 429): `data_store.download_instead` swaps in the
   plain file download (`DOWNLOADS`) when it turns requests away or fails, with or without a store.
 
+### How many workers read the simulation's files (`oceanval/file_workers.py`)
+
+- Every read of what is in a simulation's files (times, years, `cdo sinfo`, sizes, modification times) uses `file_workers.workers()`:
+  **min(6, half the cores this process may use), at least 1** (the user's rule, 2026-11-05). It imports nothing of OceanVal, as the scripts run
+  by path (`output_years`, `viewer_times`) cannot use it: the parent passes the count in the request (`output_years.Reading`), and
+  `viewer_times.default_cores` has its own copy of the rule (`tests/test_viewer_times.py` checks they agree). Used by `output_years.Reading`,
+  `viewer_times`, `cdo_check._workers`, `matchall._index_workers` (an explicit `workers=` still wins).
+- HDF5/netCDF reads stay in spawn pools or worker subprocesses (h5py holds a global lock, so threads would not run in parallel).
+  Only thread-safe waiting work uses threads: `file_workers.stat_all` (`os.stat` of every file by a `ThreadPoolExecutor`, with `stopped=`),
+  used by `output_years.signature`, `model_check.save_times_index`/`load_times_index` and the bank's size sum. A new loop of `os.stat`/`getsize`
+  over a simulation's files must use it.
+
 ### `cdo sinfo` on every model file (`oceanval/cdo_check.py`)
 
 - `cdo sinfo file.nc` must never segfault; a file it crashes on means OceanVal **cannot work with the data** (everything reads model files

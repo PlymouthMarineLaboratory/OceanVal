@@ -315,20 +315,21 @@ def group(paths):
     return streams
 
 
-def signature(paths):
+def signature(paths, workers=None):
     """What changes when the files in paths, or the way their years are found
     (RULE), do: the rule, how many files there are, their total size and the
     latest modification time; with each one's modification time, as {path:
-    seconds}."""
+    seconds}. The files are looked at by several threads (this is called by
+    OceanVal's own process, not the script, so file_workers can be used)."""
+    from oceanval import file_workers
+
     mtimes = {}
     size = 0
     latest = 0
-    for path in paths:
-        with contextlib.suppress(OSError):
-            stat = os.stat(path)
-            mtimes[path] = stat.st_mtime
-            size += stat.st_size
-            latest = max(latest, stat.st_mtime_ns)
+    for path, stat in file_workers.stat_all(paths, workers).items():
+        mtimes[path] = stat.st_mtime
+        size += stat.st_size
+        latest = max(latest, stat.st_mtime_ns)
     return [RULE, len(paths), size, latest], mtimes
 
 
@@ -339,11 +340,14 @@ class Reading:
     so the same files are not read again. done(result) is called from the
     thread with years_of_streams' result, or {"years": None, "error": ...}."""
 
-    def __init__(self, key, paths, done, workers=4):
+    def __init__(self, key, paths, done, workers=None):
+        from oceanval import file_workers
+
         self.key = key
         self.paths = list(paths)
         self.done = done
-        self.workers = workers
+        # the script is told how many; it cannot work it out (it imports nothing of OceanVal)
+        self.workers = workers or file_workers.workers()
         self.process = None
         self.cancelled = False
         self.result = None

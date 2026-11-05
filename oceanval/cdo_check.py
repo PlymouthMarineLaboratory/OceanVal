@@ -20,7 +20,7 @@ import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from oceanval import prompts
+from oceanval import file_workers, prompts
 
 # where to find other versions of CDO
 LINK = "https://anaconda.org/conda-forge/cdo"
@@ -29,8 +29,6 @@ LINK = "https://anaconda.org/conda-forge/cdo"
 TIMEOUT = 300
 # the files named in the message
 LISTED = 5
-# the most files looked at at once: they may be on a network disk
-MOST_WORKERS = 4
 # set False to turn the check off (the tests do, those of this module excepted)
 ENABLED = True
 
@@ -43,11 +41,8 @@ UNKNOWN = "unknown"
 
 
 def _workers():
-    try:
-        cores = len(os.sched_getaffinity(0))
-    except AttributeError:
-        cores = os.cpu_count() or 1
-    return max(1, min(MOST_WORKERS, cores // 2))
+    """How many files are looked at at once (file_workers.workers)."""
+    return file_workers.workers()
 
 
 def crashed(returncode, stderr=""):

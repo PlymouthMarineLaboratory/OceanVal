@@ -75,7 +75,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store
-from oceanval import cdo_check, compat_check, depths, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, compat_check, depths, file_workers, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     DOMAIN_REGIONS,
     POINT_RECIPE_CATALOGUE,
@@ -3760,12 +3760,11 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             )
             if not paths:
                 return finish("failed", "There are no netCDF files that far down that pass the file filters.")
-            size = 0
-            for path in paths:
-                if work["cancelled"]:
-                    return
-                with contextlib.suppress(OSError):
-                    size += os.path.getsize(path)
+            # one stat for each file, by several threads at once (a network disk waits)
+            sizes = file_workers.stat_all(paths, stopped=lambda: work["cancelled"])
+            if work["cancelled"]:
+                return
+            size = sum(stat.st_size for stat in sizes.values())
             # the variables, as Analyze lists them: those of the first file of each stream
             found_streams = analysis.streams(
                 directory, depth, words["exclude"] or None, words["require"] or None,

@@ -101,3 +101,12 @@ def test_half_the_cores(monkeypatch):
     assert times.default_cores() == 4
     monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0}, raising=False)
     assert times.default_cores() == 1
+
+
+@pytest.mark.parametrize("cores", [1, 2, 4, 12, 16, 64])
+def test_the_script_and_the_package_choose_alike(monkeypatch, cores):
+    # viewer_times imports nothing of OceanVal, so it has its own copy of the rule
+    from oceanval import file_workers
+
+    monkeypatch.setattr(os, "sched_getaffinity", lambda pid: set(range(cores)), raising=False)
+    assert times.default_cores() == file_workers.workers()

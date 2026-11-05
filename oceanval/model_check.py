@@ -30,6 +30,8 @@ import tempfile
 import threading
 import time
 
+from oceanval import file_workers
+
 MARKER = "\x1eoceanval-check "
 
 # ---- the times of the files ----
@@ -258,19 +260,14 @@ def _days_text(days):
     return ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in runs)
 
 
-def _stat(path):
-    info = os.stat(path)
-    return info.st_size, info.st_mtime_ns
-
-
 def save_times_index(path, times):
     """Save the times of the files in times ({path: DataFrame}), with each
     file's size and modification time, for load_times_index."""
     index = {}
+    stats = file_workers.stat_all(times)
     for file, df in times.items():
-        with contextlib.suppress(OSError):
-            size, mtime = _stat(file)
-            index[file] = {"size": size, "mtime_ns": mtime, "times": df}
+        if file in stats:
+            index[file] = {"size": stats[file].st_size, "mtime_ns": stats[file].st_mtime_ns, "times": df}
     partial = path + ".partial"
     with open(partial, "wb") as file:
         pickle.dump({"version": 1, "files": index}, file)
@@ -291,15 +288,18 @@ def load_times_index(path, paths):
     found = {}
     if not isinstance(files, dict):
         return {}
+    entries = {}
     for file in paths:
         # saved by absolute path, and matchup's can be relative
         entry = files.get(file) or files.get(os.path.abspath(file))
-        if not isinstance(entry, dict):
-            continue
+        if isinstance(entry, dict):
+            entries[file] = entry
+    stats = file_workers.stat_all(entries)
+    for file, entry in entries.items():
         try:
-            if _stat(file) == (entry["size"], entry["mtime_ns"]):
+            if file in stats and (stats[file].st_size, stats[file].st_mtime_ns) == (entry["size"], entry["mtime_ns"]):
                 found[file] = entry["times"]
-        except (OSError, KeyError):
+        except KeyError:
             continue
     return found
 
