@@ -2499,7 +2499,7 @@ class TestServer:
         assert post(app, "/recipes/cancel")[0] == 200
         # back to where own data was asked about
         wait_for(lambda: app.view == "own_data")
-        assert app.setup_form == SETUP_FORM
+        assert app.setup_form == dict(SETUP_FORM, name="")
         assert runs == []
         assert not (tmp_path / "matchup.py").exists()
 
