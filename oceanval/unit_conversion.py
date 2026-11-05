@@ -263,7 +263,9 @@ def _words(text):
 def _temperature(text, variable):
     """pint's name for a temperature's units, or None if they are not one."""
     degree = "°" in text or "º" in text
-    words = _words(text.replace("°", " ").replace("º", " "))
+    # deg.C and degrees-C as well as degrees_C: the same separators as the
+    # report's (tidiers.CELSIUS)
+    words = _words(re.sub(r"[°º.\-]", " ", text))
     match = _TEMPERATURE.fullmatch(words)
     if match is None:
         return None

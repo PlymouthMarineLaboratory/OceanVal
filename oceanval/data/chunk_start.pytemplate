@@ -48,7 +48,7 @@ except:
 depth_levels = depth_labels(depth_bins)
 
 # in one line
-from oceanval.tidiers import fix_unit, df_display, md, md_basic
+from oceanval.tidiers import fix_unit, celsius, df_display, md, md_basic
 
 warnings.filterwarnings('ignore')
 

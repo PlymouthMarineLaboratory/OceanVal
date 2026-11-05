@@ -19,7 +19,10 @@ _WORLD_MAP = None
 def _strip_html(text):
     if text is None:
         return ""
-    return re.sub(r"<[^>]+>", "", str(text))
+    from oceanval.tidiers import celsius
+
+    # degrees_C, deg_C, Celsius... are all shown as °C
+    return celsius(re.sub(r"<[^>]+>", "", str(text)))
 
 
 def world_map():

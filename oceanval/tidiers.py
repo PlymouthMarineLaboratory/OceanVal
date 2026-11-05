@@ -8,6 +8,29 @@ definitions = Validator()
 tidy_info = {}
 
 
+# Celsius as files and datasets write it: degC, deg_C, degrees_C, Degree Celsius,
+# DEGREES-CELSIUS, "° C", Celsius, centigrade. Case is ignored. A bare "C" is not
+# one (it may be carbon), and the letter after the C must not go on, so
+# degrees_north and degCm2 are left alone.
+CELSIUS = re.compile(
+    r"(?<![A-Za-z])(?:"
+    r"deg(?:rees?)?[\s_.\-]*(?:celsius|centigrade|c)"
+    r"|[°º][\s_.\-]*c"
+    r"|celsius|centigrade"
+    r")(?![A-Za-z])",
+    re.IGNORECASE,
+)
+# the same, only between brackets, for prose: "(deg_C)", "[degrees C]"
+CELSIUS_IN_BRACKETS = re.compile(
+    r"([(\[])\s*" + CELSIUS.pattern + r"\s*([)\]])", re.IGNORECASE
+)
+
+
+def celsius(x):
+    """x with every way of writing degrees Celsius made °C."""
+    return CELSIUS.sub("°C", x)
+
+
 def fix_unit(x):
     x = x.replace("/m^3", "m<sup>-3</sup>") 
     x = x.replace("/m**3", "m<sup>-3</sup>") 
@@ -25,9 +48,8 @@ def fix_unit(x):
     x = x.replace("CO2", "CO<sub>2</sub>")
     # fix /yr
     x = x.replace("/yr", "year<sup>-1</sup>")
-    # degC
-    x = x.replace("degC", "°C")
-    x = x.replace("degrees C", "°C")
+    # degC, degrees_C, deg_C, degree_Celsius...
+    x = celsius(x)
 
 
     return x
@@ -130,8 +152,7 @@ def md_basic(x):
     return md_markdown(x)
 
 def md(x, number = False):
-    x = x.replace("(degC)", "(°C)")
-    x = x.replace("(degrees C)", "(°C)")
+    x = CELSIUS_IN_BRACKETS.sub(r"\1°C\2", x)
 
     #model - observation
     x = x.replace("model - observation", "model-observation")

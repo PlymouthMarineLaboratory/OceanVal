@@ -116,7 +116,7 @@ z_max = (
 )
 # fix the units
 
-ds_both.set_units({"observation": ds_both.contents.query("variable == 'model'").reset_index().unit.values[0]})
+ds_both.set_units({"observation": celsius(str(ds_both.contents.query("variable == 'model'").reset_index().unit.values[0]))})
 # chang longname
 # try:
 #     ds_both.set_longnames({"observation": ds_both.contents.query("variable == 'model'").reset_index().long_name.values[0]}) 
