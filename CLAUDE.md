@@ -279,7 +279,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   the same file, a Name→Directory map the user fills on purpose (not recorded automatically, unlike `sim_dirs`). `add_to_bank` refuses, with the
   reason, a name (casefolded) already there (for the same directory: "Already in the bank."; for another) and a directory already there under another
   name: nothing is ever replaced. Paths are made absolute (a web address is kept as it is). The window: `state()["bank"]` (`App._bank_state`, with `exists`),
-  `POST /api/bank_add` (relative to `App.cwd`) and `/api/bank_remove`; view `bank` (Help | Examples' second tile `#help-bank`, beside the compatibility check; the landing page has four tiles, 2 x 2,
+  `POST /api/bank_add` (relative to `App.cwd`) and `/api/bank_remove`; view `bank` (Tools & checks' second tile `#help-bank`, beside the compatibility check; the landing page has four tiles, 2 x 2,
   Back → `help`; `#view-bank` lists each and a × removes it, never touching files). **Add to bank + the Name drop-down are `makeBankList(nameId, dirId, buttonId)`**
   (every Compare row, `sc-name_N`/`sc-dir_N`/`sc-bank_N`, the button left of the boxes; and Analyze's setup page, `f-name`/`f-simdir`/`f-bank`, a Name box with no
   label below the directory, placeholder "Give it a name, e.g. ...", `setup["name"]`, never an `analyze()` argument): the arrow lists
@@ -695,7 +695,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   modification time are unchanged) so `index_times` reads the rest. `locate_rows` also asks a stream for its time resolution only to
   choose between streams, and reads a calendar once per pattern.
 
-### Help | Examples: is my data compatible with OceanVal? (`oceanval/compat_check.py`)
+### Tools & checks: is my data compatible with OceanVal? (`oceanval/compat_check.py`)
 
 - The landing page's first tile (`#home-help`, views `help` → `help_compatible`, `App.choose`/`_step_back`) holds the **compatibility check**
   of one model file: a grid of six questions, each with a turning circle (`gridMark`, the matchup grid's marks plus `warning`), then a tick,
@@ -720,7 +720,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 ### View simulation output (`oceanval/viewer_*.py`)
 
 - Ported from the standalone ncviewer (2026-10-28): the landing page's first tile (`#home-viewer`, `data-action="viewer"`,
-  `viewer_app.VIEWER`; Help | Examples is last); the landing page's four tiles are 2 x 2 (`.choices.is-four`). Mixin
+  `viewer_app.VIEWER`; Tools & checks is last); the landing page's four tiles are 2 x 2 (`.choices.is-four`). Mixin
   `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
   (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
   logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own; only
@@ -775,7 +775,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `OceanVal` only where file names are case sensitive, as on macOS/Windows the two are one file and pip
   failed to upgrade over them): a
   127.0.0.1 server with a token, whose page (`data/oceanval_app.html`) opens on a landing
-  page (view `home`, four tiles, 2 x 2: View simulation output, Analyze simulations, Validate, Help | Examples (see above)) - Analyze simulations (action `analyze_menu`, view `analyze_menu`: two tiles with no subtitles, **Analyze one simulation** = `analyze` and **Analyze and compare up to 5 simulations** = `simcompare` (see above); Back from either's first step returns to that menu, and from the menu to `home`) and Validate, which leads to the validation page
+  page (view `home`, four tiles, 2 x 2: View simulation output, Analyze simulations, Validate, Tools & checks (see above)) - Analyze simulations (action `analyze_menu`, view `analyze_menu`: two tiles with no subtitles, **Analyze one simulation** = `analyze` and **Analyze and compare up to 5 simulations** = `simcompare` (see above); Back from either's first step returns to that menu, and from the menu to `home`) and Validate, which leads to the validation page
   (view `start`) for choosing matchup+validate / matchup only / validate, the simulation (live-checked via `/api/probe`),
   the create_recipes window, and a progress panel for the run (its console is shown only if the run fails).
 - **Whether a browser is opened** is `recipes_gui._can_open_browser`: `OCEANVAL_BROWSER` 1/0 decides if set; else `BROWSER` (VS Code's

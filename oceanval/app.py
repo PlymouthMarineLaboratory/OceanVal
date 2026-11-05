@@ -1783,7 +1783,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         self._cdo_check = None
         self._cdo_number = 0
         self._cdo_failed = None
-        # Help | Examples' check of whether one file is compatible (see compat_check)
+        # Tools & checks' check of whether one file is compatible (see compat_check)
         self._compat = None
         self.run = None
         self.run_label = None
@@ -2650,21 +2650,21 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self._notify()
                 return True
             if action == "bank":
-                # Help | Examples' Simulation bank tile
+                # Tools & checks' Simulation bank tile
                 if self.view != "help":
                     return False
                 self.view = "bank"
                 self._notify()
                 return True
             if action == "help":
-                # the landing page's Help | Examples tile
+                # the landing page's Tools & checks tile
                 if self.view != "home":
                     return False
                 self.view = "help"
                 self._notify()
                 return True
             if action == "help_compatible":
-                # Help | Examples' first tile
+                # Tools & checks' first tile
                 if self.view != "help":
                     return False
                 self.view = "help_compatible"
@@ -5324,7 +5324,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         if check is not None:
             check.cancel()
 
-    # ---- Help | Examples: is my data compatible with OceanVal? ----
+    # ---- Tools & checks: is my data compatible with OceanVal? ----
 
     def _drop_compat(self):
         """Stop the check of a file, if there is one, and forget what it found.

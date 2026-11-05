@@ -782,7 +782,7 @@ def test_the_landing_page_has_five_tiles_that_wrap(browser, tmp_path, width, row
         names = ("help", "viewer", "analyze", "simcompare", "validate")
         boxes = [tab.locator(f"#home-{name}").bounding_box() for name in names]
         assert len({round(box["y"]) for box in boxes}) == rows
-        # Help | Examples is first, at the top left
+        # Tools & checks is first, at the top left
         assert boxes[0]["y"] == min(box["y"] for box in boxes) and boxes[0]["x"] == min(box["x"] for box in boxes)
         # nothing is wider than the window
         assert tab.evaluate("document.documentElement.scrollWidth") <= width

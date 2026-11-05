@@ -1,4 +1,4 @@
-"""Help | Examples: is my data compatible with OceanVal? (oceanval.compat_check)
+"""Tools & checks: is my data compatible with OceanVal? (oceanval.compat_check)
 
 The checks of one model file: CDO can open it, it can be regridded, a spatial
 average can be worked out, its times are understood and it can be plotted.

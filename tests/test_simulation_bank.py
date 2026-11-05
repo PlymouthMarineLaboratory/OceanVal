@@ -320,7 +320,7 @@ def test_the_bank_in_a_browser(browser, tmp_path, oceanvalcache):
     try:
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        # the bank is not on the landing page: it is Help | Examples' second tile
+        # the bank is not on the landing page: it is Tools & checks' second tile
         assert page.locator("#view-home .choice").count() == 4
         assert page.locator("#home-bank").count() == 0
 

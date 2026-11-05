@@ -599,7 +599,7 @@
   .matchup-grid td[data-state="failed"] .icon { color: var(--danger); }
   .matchup-grid td[data-state="none"] { color: var(--muted); }
   .matchup-grid td[data-state="warning"] .icon { color: var(--amber); }
-  /* Help | Examples: is my data compatible with OceanVal? */
+  /* Tools & checks: is my data compatible with OceanVal? */
   .compat-grid table { min-width: 0; }
   .compat-grid td.is-state { width: 64px; }
   .compat-grid td.is-question { width: auto; }
@@ -1298,8 +1298,8 @@
       </button>
       <button type="button" class="choice" data-action="help" id="home-help">
         <span class="choice__icon" data-icon="help"></span>
-        <span class="choice__title">Help | Examples</span>
-        <span class="choice__text">Guides, worked examples, compatibility checks and the simulation bank</span>
+        <span class="choice__title">Tools &amp; checks</span>
+        <span class="choice__text">Check your model files are compatible&nbsp;| Simulation bank</span>
       </button>
     </div>
   </section>
@@ -1330,7 +1330,7 @@
   </section>
 
   <section id="view-help" hidden>
-    <p class="lede">Guides, worked examples and tools to check your data before you run OceanVal.</p>
+    <p class="lede">Tools to check your data before you run OceanVal, and to keep your simulations by name.</p>
     <div class="choices">
       <button type="button" class="choice" data-action="help_compatible" id="help-compatible">
         <span class="choice__icon" data-icon="compatible"></span>
@@ -3081,7 +3081,7 @@
       case "home": return "";  // the cards speak for themselves
       case "start": return "";
       case "analyze_menu": return "";
-      case "help": return "Help | Examples";
+      case "help": return "Tools & checks";
       case "bank": return "Simulation bank";
       case "help_compatible": return "Is my data compatible with OceanVal?";
       case "demo": return "Try OceanVal with a demo";
@@ -3188,7 +3188,7 @@
       // to the landing page
       actions.push(button("Back", "ghost", () => post("api/back")));
     } else if (view === "help" || view === "help_compatible" || view === "bank") {
-      // to the landing page, or back to Help | Examples
+      // to the landing page, or back to Tools & checks
       actions.push(button("Back", "ghost", () => post("api/back")));
     } else if (view === "setup") {
       // an analysis keeps its boxes, for when it is reached again
@@ -10828,7 +10828,7 @@
     }
   }
 
-  // ---- Help | Examples: is my data compatible with OceanVal? ----
+  // ---- Tools & checks: is my data compatible with OceanVal? ----
   // each question has a mark beside it: a hollow ring to come, a turning circle, a tick, a warning, a cross, or a dash
   const COMPAT_MARKS = { waiting: "todo", working: "working", ok: "done", warning: "warning", failed: "failed", skipped: "none" };
   const COMPAT_SAID = {

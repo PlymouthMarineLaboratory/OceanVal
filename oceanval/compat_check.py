@@ -1,6 +1,6 @@
 """An interactive check of whether a model output file is compatible with OceanVal.
 
-The window's Help | Examples → "Is my data compatible with OceanVal?" asks for
+The window's Tools & checks → "Is my data compatible with OceanVal?" asks for
 one file, and for one of its variables if it has more than one, and answers six
 questions about that variable, a row each, in this order:
 
