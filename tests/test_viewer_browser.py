@@ -791,14 +791,19 @@ def test_the_landing_page_has_five_tiles_that_wrap(browser, tmp_path, width, row
         app.close()
 
 
-def test_the_simulation_box_lists_those_used_before(page, simulation):
-    """A simulation viewed is listed by the arrow in the simulation box, as one analysed or matched up is."""
+def test_the_simulation_box_lists_the_bank(page, simulation):
+    """The arrow in the simulation box lists the simulations in the bank, as for Analyze and Validate."""
+    from oceanval import user_cache
+
     tab, app = page
+    user_cache.add_to_bank("Viewed", simulation)
     _open_viewer(tab, simulation)
     tab.click("#vw-back")
     tab.wait_for_selector("#view-setup:not([hidden])")
     tab.fill("#f-simdir", "")
     tab.click("#f-simdir-recent-toggle")
-    assert tab.locator("#f-simdir-recent .combo__head").text_content() == "Used before"
+    assert tab.locator("#f-simdir-recent .combo__head").text_content() == "In the simulation bank"
     tab.locator("#f-simdir-recent .combo__option", has_text=simulation).first.click()
     assert tab.input_value("#f-simdir") == simulation
+    assert tab.input_value("#f-name") == "Viewed"
+

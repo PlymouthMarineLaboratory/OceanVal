@@ -108,6 +108,12 @@ class SimCompareSteps:
         self.sc_rows = None
         # the variables as analysis_forms.check_rows placed them, by simulation
         self.sc_placed = None
+        # what to treat as missing in each simulation, as the options step's rows were
+        # last left ({"apply", "from", "to"}), whether the user has set them, and
+        # what the probe of each simulation's data found ({name: value or None})
+        self.sc_missing_rows = [sim_compare_forms.blank_missing_row()]
+        self._sc_missing_set = False
+        self.sc_missing_probed = {}
         # whether the files' times look like ends, and what was chosen:
         # {"status": "checking", "asked" or "none", "rows", "choice"}
         self.sc_shift = None
@@ -171,6 +177,7 @@ class SimCompareSteps:
         the lock held."""
         self.sc_placed = None
         self.analyze_placed = None
+        self._sc_missing_forget()
         self.sc_unit_rows = None
         self.sc_unit_boxes = {}
         self.sc_conversions = None
@@ -882,14 +889,68 @@ class SimCompareSteps:
             # raw FVCOM output, worked out on its own mesh
             "fvcom": self._sc_is_fvcom() and not self._sc_regridded_sims(),
         }
-        if not self._analyze_missing_set:
-            # as in validate, ERSEM output has zeros where there is no water
-            self.analyze_missing = {"from": "0", "to": "0"} if ersem else {"from": "", "to": ""}
-            self.analyze_missing_probed = False
+        self._sc_missing_rebuild()
+
+    # ---- what to treat as missing: a row for each simulation, or for all ----
+
+    def _sc_missing_forget(self):
+        """The missing values of the simulations before, once they change. Called
+        with the lock held."""
+        self.sc_missing_rows = [sim_compare_forms.blank_missing_row()]
+        self._sc_missing_set = False
+        self.sc_missing_probed = {}
+
+    def _sc_missing_auto(self):
+        """What OceanVal found or assumes is missing, a row for each simulation:
+        [{"apply", "from", "to", "source"}], source "found" (in the data, to be
+        checked) or "ersem" (as in validate, ERSEM output has zeros where there is
+        no water). Called with the lock held."""
+        auto = []
+        for sim in self.sc_sims or []:
+            value = self.sc_missing_probed.get(sim["name"])
+            if value is not None:
+                auto.append({"apply": sim["name"], "from": value, "to": value, "source": "found"})
+            elif (self.sc_found.get(sim["name"]) or {}).get("ersem"):
+                auto.append({"apply": sim["name"], "from": "0", "to": "0", "source": "ersem"})
+        return auto
+
+    def _sc_missing_rebuild(self):
+        """The rows, from what is found or assumed, until the user has set them.
+        Called with the lock held."""
+        if self._sc_missing_set:
+            return
+        rows = [{key: row[key] for key in ("apply", "from", "to")} for row in self._sc_missing_auto()]
+        self.sc_missing_rows = rows or [sim_compare_forms.blank_missing_row()]
+
+    def _sc_probe_missing(self):
+        """Look for each simulation's missing value, in a thread each, unless the
+        user has set the rows. Called with the lock held."""
+        if self._sc_missing_set or not self.sc_placed:
+            return
+        self._analyze_probe_number += 1
+        self.sc_missing_probed = {}
+        self._sc_missing_rebuild()
+        for name, rows in self.sc_placed.items():
+            row = rows[0]
+            threading.Thread(
+                target=self._sc_probe_missing_thread,
+                args=(self._analyze_probe_number, name, list(row["files"]), row["parts"][0]),
+                name="oceanval-simcompare-missing",
+                daemon=True,
+            ).start()
+
+    def _sc_probe_missing_thread(self, number, name, files, variable):
+        value = missing_probe.probe(files, variable)
+        with self._lock:
+            if number != self._analyze_probe_number or self._sc_missing_set:
+                return
+            self.sc_missing_probed[name] = value
+            self._sc_missing_rebuild()
+            self._notify()
 
     # ---- the run ----
 
-    def simcompare_run(self, chosen, thicknesses, cores, figure_code, as_missing, area, save=False):
+    def simcompare_run(self, chosen, thicknesses, cores, figure_code, as_missing, area, save=False, as_missing_by_sim=None):
         """Write the comparison script, and run it, or, with save, only write it,
         to be run later. Called with the lock held, from analyze_run, which has
         checked the analyses; returns the HTTP status and the reply, and the run
@@ -916,6 +977,7 @@ class SimCompareSteps:
             area=area,
             cores=cores,
             as_missing=as_missing,
+            as_missing_by_sim=as_missing_by_sim,
             figure_code=figure_code,
             transects=chosen["transects"],
             map_changes=chosen["map_changes"]["rows"] if chosen["map_changes"] else None,

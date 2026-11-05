@@ -935,7 +935,21 @@
   .sc-sim__title { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; font-size: 15px; }
   .sc-sim__title .sc-remove { margin-left: auto; }
   .sc-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; flex: none; }
-  .sc-sim .form__row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px; }
+  .sc-sim .form__row { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) 150px; }
+  /* Add to bank: left of the boxes, level with them */
+  .sc-sim .form__row > .btn--field, .path-field > .btn--bank { align-self: end; white-space: nowrap; }
+  .btn--bank:disabled { cursor: default; }
+  /* the Simulation bank page */
+  .bank table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .bank th, .bank td { padding: 12px 14px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
+  .bank th { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .bank td.bank__dir { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+  .bank td.bank__remove { width: 48px; text-align: right; }
+  .bank__missing { display: block; color: var(--muted); font: 400 12px/16px var(--font-body); }
+  .bank__empty { margin: 0; padding: 22px 14px; color: var(--muted); }
+  #row-f-name { margin-top: 10px; }
+  .combo__name { font: 500 14px/18px var(--font-body); }
+  .combo__sub { display: block; color: var(--muted); font: 400 12px/16px var(--font-mono); }
   .sc-sim details { margin: 10px 0 0; }
   .sc-sim summary { color: var(--muted); font-size: 13px; cursor: pointer; }
   .sc-sim .group__msg { margin-top: 8px; }
@@ -1003,6 +1017,8 @@
   .analyze-dialog #multi-count { color: var(--ink); font-weight: 400; }
   .analyze-msg.is-warn { color: var(--amber); }
   .analyze-msg:empty { display: none; }
+  #ao-missing-rows .s-select.is-required { border-color: var(--red-field-line); }
+  #ao-missing-rows .span-row .s-input { min-width: 0; flex: 1; }
   .analyze-remove, .analyze-add { padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); font: 600 18px/1 var(--font-body); cursor: pointer; }
   .analyze-remove:hover, .analyze-add:hover { background: var(--line); color: var(--ink); }
   .analyze-remove:focus-visible, .analyze-add:focus-visible { outline: none; box-shadow: var(--focus); }
@@ -1270,8 +1286,19 @@
       <button type="button" class="choice" data-action="help" id="home-help">
         <span class="choice__icon" data-icon="help"></span>
         <span class="choice__title">Help | Examples</span>
-        <span class="choice__text">Guides, worked examples and compatibility checks</span>
+        <span class="choice__text">Guides, worked examples, compatibility checks and the simulation bank</span>
       </button>
+    </div>
+  </section>
+
+  <section id="view-bank" hidden>
+    <p class="lede">The simulations you have added to the bank. In Analyze and Compare simulations, the arrow in the Name box lists them. Removing one only forgets its name and directory: no files are touched.</p>
+    <div class="card bank">
+      <table aria-label="Simulations in the bank">
+        <thead><tr><th>Name</th><th>Directory</th><th aria-label="Remove"></th></tr></thead>
+        <tbody id="bank-rows"></tbody>
+      </table>
+      <p class="bank__empty" id="bank-empty" hidden>Nothing is in the bank yet. Use Add to bank when you set up Analyze or Compare simulations.</p>
     </div>
   </section>
 
@@ -1295,6 +1322,11 @@
         <span class="choice__icon" data-icon="compatible"></span>
         <span class="choice__title">Is my data compatible with OceanVal?</span>
         <span class="choice__text">Check your model output and observations before you start a matchup or analysis</span>
+      </button>
+      <button type="button" class="choice" data-action="bank" id="help-bank">
+        <span class="choice__icon" data-icon="bank"></span>
+        <span class="choice__title">Simulation bank</span>
+        <span class="choice__text">Simulations you have kept, by name, to use again</span>
       </button>
     </div>
   </section>
@@ -1448,7 +1480,8 @@
     <div class="banner" id="setup-error" role="alert" hidden></div>
     <form class="setup-form" id="setup-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box">
-        <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" list="f-simdir-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations validated before" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations validated before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div><datalist id="f-simdir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="g-note bank-hint" id="f-simdir-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div></div>
+        <div class="g-row" id="row-f-name"><div class="path-field"><button type="button" class="btn btn--ghost btn--field btn--bank" id="f-bank" disabled>Add to bank</button><div class="combo" id="f-name-combo"><input class="s-input" id="f-name" placeholder="Give it a name, e.g. 'Atlantic ocean reanalysis from Project X'" aria-label="A name for this simulation, to keep it in the simulation bank" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="f-name-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="f-name-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div></div>
         <div class="g-row" id="row-f-thredds" hidden><label class="g-check" for="f-thredds"><input type="checkbox" id="f-thredds"> <span>Is the path a THREDDS (OPeNDAP) web address for one netCDF file, ending in .nc?</span></label></div>
         <div class="ndown-row">
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
@@ -2079,6 +2112,16 @@
           <input class="s-input is-num" id="ao-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
         </div>
       </div>
+      <div id="ao-missing-multi" hidden>
+        <p class="group__intro">Numbers in the files that mean there is no data, such as 0 or -999. Choose <strong>All</strong> for a value that every simulation uses, or a simulation for a value that is only its own; a simulation's own value is used in place of the one for All. Give one number, or fill in To as well for a range (both ends are included).</p>
+        <div class="analyze-table">
+          <table>
+            <colgroup><col style="width: 30%"><col><col style="width: 130px"></colgroup>
+            <thead><tr><th>Apply to</th><th>What should be treated as missing values?</th><th></th></tr></thead>
+            <tbody id="ao-missing-rows"></tbody>
+          </table>
+        </div>
+      </div>
       <p class="group__msg" id="ao-missing-msg"></p>
       <p class="group__line is-found" id="ao-missing-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data before you continue.</p>
       <p class="group__line is-ersem" id="ao-missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
@@ -2117,8 +2160,8 @@
         <div class="sc-sim" id="sc-row-1">
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-1"></span>Simulation 1<button type="button" class="analyze-remove sc-remove" id="sc-remove-1" title="Remove this simulation" aria-label="Remove simulation 1" hidden>×</button></h3>
           <div class="form__row">
-            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_1" placeholder="e.g. Control" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" list="sc-dir_1-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div><datalist id="sc-dir_1-folders"></datalist></div>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_1" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_1">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_1-combo"><input class="s-input" id="sc-name_1" placeholder="e.g. Control" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_1-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_1-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="g-note bank-hint" id="sc-dir_1-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_1" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
@@ -2132,8 +2175,8 @@
         <div class="sc-sim" id="sc-row-2">
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-2"></span>Simulation 2<button type="button" class="analyze-remove sc-remove" id="sc-remove-2" title="Remove this simulation" aria-label="Remove simulation 2" hidden>×</button></h3>
           <div class="form__row">
-            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_2" placeholder="e.g. New mixing" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" list="sc-dir_2-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div><datalist id="sc-dir_2-folders"></datalist></div>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_2" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_2">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_2-combo"><input class="s-input" id="sc-name_2" placeholder="e.g. New mixing" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_2-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_2-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="g-note bank-hint" id="sc-dir_2-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_2" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
@@ -2147,8 +2190,8 @@
         <div class="sc-sim" id="sc-row-3" hidden>
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-3"></span>Simulation 3<button type="button" class="analyze-remove sc-remove" id="sc-remove-3" title="Remove this simulation" aria-label="Remove simulation 3">×</button></h3>
           <div class="form__row">
-            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_3" placeholder="" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" list="sc-dir_3-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div><datalist id="sc-dir_3-folders"></datalist></div>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_3" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_3">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_3-combo"><input class="s-input" id="sc-name_3" placeholder="" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_3-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_3-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="g-note bank-hint" id="sc-dir_3-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_3" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
@@ -2162,8 +2205,8 @@
         <div class="sc-sim" id="sc-row-4" hidden>
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-4"></span>Simulation 4<button type="button" class="analyze-remove sc-remove" id="sc-remove-4" title="Remove this simulation" aria-label="Remove simulation 4">×</button></h3>
           <div class="form__row">
-            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_4" placeholder="" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" list="sc-dir_4-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div><datalist id="sc-dir_4-folders"></datalist></div>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_4" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_4">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_4-combo"><input class="s-input" id="sc-name_4" placeholder="" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_4-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_4-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="g-note bank-hint" id="sc-dir_4-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_4" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
@@ -2177,8 +2220,8 @@
         <div class="sc-sim" id="sc-row-5" hidden>
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-5"></span>Simulation 5<button type="button" class="analyze-remove sc-remove" id="sc-remove-5" title="Remove this simulation" aria-label="Remove simulation 5">×</button></h3>
           <div class="form__row">
-            <label class="g-row"><span class="g-label is-required">Name <span class="own-req">Required</span></span><input class="s-input" id="sc-name_5" placeholder="" spellcheck="false" autocomplete="off"></label>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" list="sc-dir_5-folders" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations used before" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations used before" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div><datalist id="sc-dir_5-folders"></datalist></div>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_5" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_5">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_5-combo"><input class="s-input" id="sc-name_5" placeholder="" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_5-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_5-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="g-note bank-hint" id="sc-dir_5-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_5" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
           <details><summary>Only use some of the files</summary>
@@ -2797,6 +2840,8 @@
   const initial = JSON.parse($("state").textContent);
   const token = initial.token;
   let state = initial.state;
+  // the simulation bank's name boxes: each refills its list and button when the bank or the boxes change
+  const bankLists = [];
 
   const PICTURES = {
     compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M6.5 14v3M17.5 10v7M6.5 9v1"/></svg>',
@@ -2808,6 +2853,7 @@
     report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 14.5 2 2 4-4.5"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11.5v5M9.5 14h5"/></svg>',
+    bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6.5c0 1.66 3.58 3 8 3s8-1.34 8-3V5.5M4 12v6.5c0 1.66 3.58 3 8 3s8-1.34 8-3V12"/></svg>',
     viewer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     analyze: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M7 12l2-2.5 2 1.5 2.5-3"/></svg>',
     climatology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>',
@@ -2955,28 +3001,6 @@
     }
   }
 
-  // an entry of a list of directories used before: the entry picks it, the x takes it out of the history
-  async function forgetRecent(dir, refill) {
-    const reply = await post("api/forget_sim_dir", { path: dir });
-    if (!reply.ok) {
-      toast(reply.error || "Could not remove it.");
-      return;
-    }
-    state.setup.recent = (state.setup.recent || []).filter((other) => other !== dir);
-    refill();
-  }
-
-  function recentEntry(dir, pick, forget) {
-    return el("li", {
-      class: "combo__option combo__option--removable", role: "option", "aria-selected": "false", title: dir, text: dir,
-      // mousedown, so the box keeps its focus
-      onmousedown: (event) => { event.preventDefault(); pick(dir); },
-    }, el("button", {
-      type: "button", class: "combo__remove", tabindex: "-1", title: "Remove from the list", "aria-label": `Remove ${dir} from the list`,
-      onmousedown: (event) => { event.preventDefault(); event.stopPropagation(); forget(dir); },
-    }));
-  }
-
   function showDone(kind) {
     document.querySelectorAll("input, button, select").forEach((control) => { control.disabled = true; });
     const closed = kind === "closed";
@@ -3002,6 +3026,7 @@
       case "start": return "";
       case "analyze_menu": return "";
       case "help": return "Help | Examples";
+      case "bank": return "Simulation bank";
       case "help_compatible": return "Is my data compatible with OceanVal?";
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
@@ -3106,7 +3131,7 @@
     } else if (view === "start" || view === "analyze_menu") {
       // to the landing page
       actions.push(button("Back", "ghost", () => post("api/back")));
-    } else if (view === "help" || view === "help_compatible") {
+    } else if (view === "help" || view === "help_compatible" || view === "bank") {
       // to the landing page, or back to Help | Examples
       actions.push(button("Back", "ghost", () => post("api/back")));
     } else if (view === "setup") {
@@ -4191,7 +4216,7 @@
 
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
-    analyze_menu: "view-analyze-menu", help: "view-help", help_compatible: "view-help-compatible",
+    analyze_menu: "view-analyze-menu", bank: "view-bank", help: "view-help", help_compatible: "view-help-compatible",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
     simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
@@ -4377,6 +4402,8 @@
     renderServerTrouble();
     renderCdoFailed();
     if (state.view === "help_compatible") renderCompatible();
+    if (state.view === "bank") renderBank();
+    bankLists.forEach((again) => again());
     if (state.view === "point_data") refreshOwn("point");
     if (state.view === "gridded_data") refreshOwn("gridded");
     if (state.view === "own_future") refreshOwnFuture();
@@ -4572,7 +4599,7 @@
   }
 
   // ---- 2: the simulation ----
-  const SETUP_FIELDS = ["simdir", "ndown", "exclude", "require", "start", "end"];
+  const SETUP_FIELDS = ["name", "simdir", "ndown", "exclude", "require", "start", "end"];
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require"]);
   const setup = {};
@@ -4595,96 +4622,7 @@
     segmented.append(el("label", {}, input, el("span", { text: label })));
   }
 
-  // simulations validated before, in a list opened by the arrow inside the box
-  const recentBox = $("f-simdir");
-  const recentToggle = $("f-simdir-recent-toggle");
-  const recentList = $("f-simdir-recent");
-  let recentActive = -1;
-
-  function recentOptions() { return [...recentList.querySelectorAll(".combo__option")]; }
-
-  function showRecent(open) {
-    recentList.hidden = !open;
-    recentToggle.setAttribute("aria-expanded", String(open));
-    recentActive = -1;
-    recentOptions().forEach((option) => option.classList.remove("is-active"));
-  }
-
-  function markRecent(index) {
-    const options = recentOptions();
-    recentActive = (index + options.length) % options.length;
-    options.forEach((option, number) => {
-      option.classList.toggle("is-active", number === recentActive);
-      option.setAttribute("aria-selected", String(number === recentActive));
-    });
-    options[recentActive].scrollIntoView({ block: "nearest" });
-  }
-
-  function pickRecent(dir) {
-    showRecent(false);
-    recentBox.value = dir;
-    recentBox.dispatchEvent(new Event("input", { bubbles: true }));
-    recentBox.focus();
-  }
-
-  function fillRecent() {
-    const recent = state.setup.recent || [];
-    recentToggle.hidden = !recent.length;
-    $("f-simdir-combo").classList.toggle("has-recent", recent.length > 0);
-    recentList.replaceChildren(
-      el("li", { class: "combo__head", role: "presentation", text: simulationOnly() ? "Used before" : "Validated before" }),
-      ...recent.map((dir) => recentEntry(dir, pickRecent, forgetFromRecent)),
-    );
-    showRecent(false);
-  }
-
-  // the list stays open for the next one
-  function forgetFromRecent(dir) {
-    return forgetRecent(dir, () => {
-      fillRecent();
-      if ((state.setup.recent || []).length) showRecent(true);
-    });
-  }
-
-  recentToggle.addEventListener("mousedown", (event) => event.preventDefault());
-  recentToggle.addEventListener("click", () => {
-    showRecent(recentList.hidden);
-    recentBox.focus();
-  });
-  recentBox.addEventListener("keydown", (event) => {
-    if (recentToggle.hidden) return;
-    if (recentList.hidden) {
-      // a plain arrow is left to the folders suggested as you type
-      if (event.key === "ArrowDown" && event.altKey) {
-        event.preventDefault();
-        showRecent(true);
-      }
-      return;
-    }
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      markRecent(recentActive + (event.key === "ArrowDown" ? 1 : -1));
-    } else if (event.key === "Enter" && recentActive >= 0) {
-      event.preventDefault();
-      pickRecent(recentOptions()[recentActive].textContent);
-    } else if (event.key === "Delete" && recentActive >= 0) {
-      event.preventDefault();
-      const at = recentActive;
-      forgetFromRecent(recentOptions()[at].textContent).then(() => {
-        if (recentOptions().length) markRecent(Math.min(at, recentOptions().length - 1));
-      });
-    } else if (event.key === "Escape" || event.key === "Tab") {
-      if (event.key === "Escape") event.preventDefault();
-      showRecent(false);
-    }
-  });
-  recentBox.addEventListener("input", () => { if (!recentList.hidden) showRecent(false); });
-  document.addEventListener("mousedown", (event) => {
-    if (!recentList.hidden && !$("f-simdir-combo").contains(event.target)) showRecent(false);
-  });
-
   function fillSetup() {
-    fillRecent();
     Object.assign(setup, state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
     // viewing can be given a web address, which the tick says it is
@@ -4975,6 +4913,7 @@
   }
 
   function refreshSetup() {
+    bankLists.forEach((again) => again());
     const errors = setupProblems();
     for (const name of SETUP_FIELDS) {
       const invalid = Boolean(errors[name]);
@@ -5460,8 +5399,8 @@
 
   // the + and × of a variable row, in one box: + adds a blank row below this one, × removes it
   // (the last row removed is replaced by a blank one, whose × refresh greys, so there is always a + to add with)
-  function variablePill(item, list, make, refresh) {
-    const add = el("button", { type: "button", class: "analyze-add", text: "+", title: "Add a variable below this one", "aria-label": "Add a variable below this one" });
+  function variablePill(item, list, make, refresh, words = { add: "Add a variable below this one", remove: "Remove this variable" }) {
+    const add = el("button", { type: "button", class: "analyze-add", text: "+", title: words.add, "aria-label": words.add });
     add.addEventListener("click", () => {
       const next = make({});
       list.rows.splice(list.rows.indexOf(item) + 1, 0, next);
@@ -5469,7 +5408,8 @@
       refresh();
       next.nameBox.focus();
     });
-    const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: "Remove this variable", "aria-label": "Remove this variable" });
+    const remove = el("button", { type: "button", class: "analyze-remove", text: "×", title: words.remove, "aria-label": words.remove });
+    item.addButton = add;
     remove.addEventListener("click", () => {
       const body = item.tr.parentNode;
       list.rows.splice(list.rows.indexOf(item), 1);
@@ -6193,6 +6133,10 @@
   // ---- what to treat as missing, which OceanVal assumes for an ERSEM simulation, as validate does ----
   let missingTimer = null;
   function fillMissing() {
+    const several = state.action === "simcompare";
+    $("ao-missing-multi").hidden = !several;
+    $("ao-missing-group").querySelector(".g-row").hidden = several;
+    if (several) { fillMissingRows(); return; }
     const active = document.activeElement;
     const missing = state.analyze.missing || {};
     if (active !== $("ao-missing_from") && active !== $("ao-missing_to") && missingTimer === null) {
@@ -6216,8 +6160,107 @@
     });
   }
 
+  // ---- a comparison's: a row for each simulation, or for all of them ----
+  const missingList = { rows: [] };
+  let missingRowsTimer = null;
+
+  const MISSING_WORDS = { add: "Add a row below this one", remove: "Remove this row" };
+
+  function missingRowItem(row) {
+    const item = { name: "" };
+    const choose = el("select", { class: "s-select", "aria-label": "What the missing value applies to" },
+      el("option", { value: "", text: "" }),
+      ...[ALL_SIMULATIONS, ...(state.analyze.missing_targets || [])].map((name) => el("option", { value: name, text: name })));
+    choose.value = row.apply || "";
+    const from = el("input", { class: "s-input is-num", type: "text", value: row.from || "", placeholder: "value",
+      "aria-label": "Treat as missing: the value, or the start of a range", spellcheck: "false", autocomplete: "off", autocapitalize: "off" });
+    const to = el("input", { class: "s-input is-num", type: "text", value: row.to || "", placeholder: "to",
+      "aria-label": "Treat as missing: the end of a range", spellcheck: "false", autocomplete: "off", autocapitalize: "off" });
+    item.nameBox = choose;
+    item.choose = choose;
+    item.from = from;
+    item.to = to;
+    item.tr = el("tr", {},
+      el("td", {}, choose),
+      el("td", {}, el("div", { class: "span-row" }, from, el("span", { class: "dash", text: "–" }), to)),
+      el("td", {}, variablePill(item, missingList, missingRowItem, sendMissingRows, MISSING_WORDS)));
+    for (const box of [choose, from, to]) box.addEventListener(box === choose ? "change" : "input", sendMissingRows);
+    return item;
+  }
+
+  const readMissingRows = () => missingList.rows.map((item) => ({ apply: item.choose.value, from: item.from.value, to: item.to.value }));
+  const missingRowBlank = (row) => !row.apply && !row.from.trim() && !row.to.trim();
+
+  // the pill: × is greyed on a lone blank row; + stops when every target has a row; the choice is red while it has a value and no target
+  function refreshMissingRows() {
+    const most = (state.analyze.missing_targets || []).length + 1;
+    const rows = readMissingRows();
+    missingList.rows.forEach((item, index) => {
+      const row = rows[index];
+      item.removeButton.disabled = missingList.rows.length === 1 && missingRowBlank(row);
+      item.addButton.disabled = missingList.rows.length >= most;
+      item.choose.classList.toggle("is-required", !row.apply && Boolean(row.from.trim() || row.to.trim()));
+    });
+    fillMissingClasses();
+  }
+
+  function sendMissingRows() {
+    refreshMissingRows();
+    clearTimeout(missingRowsTimer);
+    missingRowsTimer = setTimeout(async () => {
+      const reply = await post("api/analyze_option", { kind: "missing", form: { rows: readMissingRows() } });
+      missingRowsTimer = null;
+      showMissingRowErrors(reply.ok ? {} : (reply.errors || {}).rows || {});
+    }, 350);
+  }
+
+  function showMissingRowErrors(errors) {
+    const lines = Object.keys(errors).map((index) => {
+      const row = errors[index];
+      return `Row ${Number(index) + 1}: ${row.apply || row.missing_from || row.missing_to}`;
+    });
+    $("ao-missing-msg").textContent = lines.join(" ");
+  }
+
+  function fillMissingRows() {
+    const rows = state.analyze.missing_rows || [];
+    const body = $("ao-missing-rows");
+    const typing = body.contains(document.activeElement) || missingRowsTimer !== null;
+    const shown = JSON.stringify(readMissingRows());
+    const sent = JSON.stringify(rows.map((row) => ({ apply: row.apply, from: row.from, to: row.to })));
+    // rebuilt only for what the server holds, never under the user's hands
+    if (!typing && (shown !== sent || missingList.rows.length !== rows.length || missingTargetsKey !== (state.analyze.missing_targets || []).join("\n"))) {
+      missingTargetsKey = (state.analyze.missing_targets || []).join("\n");
+      missingList.rows = rows.map((row) => missingRowItem(row));
+      body.replaceChildren(...missingList.rows.map((item) => item.tr));
+    }
+    refreshMissingRows();
+  }
+  let missingTargetsKey = null;
+  const ALL_SIMULATIONS = "All";
+
   // typing over what OceanVal assumed makes it the user's
   function fillMissingClasses() {
+    if (state.action === "simcompare") {
+      const auto = state.analyze.missing_auto || [];
+      const rows = readMissingRows();
+      let found = false, assumed = false;
+      missingList.rows.forEach((item, index) => {
+        const row = rows[index];
+        const match = auto.find((one) => one.apply === row.apply && one.from === row.from.trim() && one.to === row.to.trim());
+        for (const box of [item.from, item.to]) {
+          box.classList.toggle("is-found", Boolean(match) && match.source === "found");
+          box.classList.toggle("is-ersem", Boolean(match) && match.source === "ersem");
+        }
+        found = found || Boolean(match) && match.source === "found";
+        assumed = assumed || Boolean(match) && match.source === "ersem";
+      });
+      $("ao-missing-found").textContent = "OceanVal found the values in amber in the model data. Please check that they are the values for missing data before you continue.";
+      $("ao-missing-ersem").textContent = "The simulations whose values are coloured like this appear to be ERSEM simulations and these values are assumed.";
+      $("ao-missing-found").hidden = !found;
+      $("ao-missing-ersem").hidden = !assumed;
+      return;
+    }
     const missing = state.analyze.missing || {};
     const from = $("ao-missing_from").value, to = $("ao-missing_to").value;
     // found in the model's data (oceanval.missing_probe): amber, to be checked
@@ -7239,7 +7282,9 @@
       }
       if (errors.cores) $("ao-cores-msg").textContent = errors.cores;
       if (errors.figure_code) $("ao-code-msg").textContent = errors.figure_code;
-      if (errors.missing) {
+      if (errors.missing && errors.missing.rows) {
+        showMissingRowErrors(errors.missing.rows);
+      } else if (errors.missing) {
         $("ao-missing-msg").textContent = errors.missing.missing_from || errors.missing.missing_to || "";
       }
       toast(reply.error || failure);
@@ -9483,6 +9528,8 @@
   for (const id of Object.keys(DESCRIBE)) {
     const input = $(id);
     const options = $(`${id}-folders`);
+    // the simulation directory boxes have the bank's arrow, and no list of folders
+    if (!options) continue;
     let timer = null;
     let number = 0;
     input.addEventListener("input", () => {
@@ -11111,78 +11158,139 @@
   const scSwatch = (colour) => el("span", { class: "sc-swatch", style: `background:${colour}` });
   const scNamed = (name, colour) => el("span", { class: "sc-name" }, scSwatch(colour), name);
 
-  // a drop-down of the directories used before, for one of the directory boxes
-  function makeRecent(boxId) {
-    const box = $(boxId), toggle = $(`${boxId}-recent-toggle`), list = $(`${boxId}-recent`), combo = $(`${boxId}-combo`);
-    let active = -1;
-    const options = () => [...list.querySelectorAll(".combo__option")];
-    const show = (open) => {
-      list.hidden = !open;
-      toggle.setAttribute("aria-expanded", String(open));
-      active = -1;
-      options().forEach((option) => option.classList.remove("is-active"));
-    };
-    const mark = (index) => {
-      const all = options();
-      active = (index + all.length) % all.length;
-      all.forEach((option, number) => {
-        option.classList.toggle("is-active", number === active);
-        option.setAttribute("aria-selected", String(number === active));
-      });
-      all[active].scrollIntoView({ block: "nearest" });
-    };
-    const pick = (dir) => {
-      show(false);
-      box.value = dir;
+  // ---- the simulation bank: names and directories kept on purpose (see oceanval.user_cache) ----
+  const bankEntries = () => state.bank || [];
+  // a directory as the bank keeps it: relative to the directory OceanVal works in, no trailing slash
+  const bankKey = (dir) => {
+    let text = dir.trim();
+    if (text && !/^(\/|~|https?:)/i.test(text)) text = `${state.cwd}/${text}`.replace(/\/\.(?=\/|$)/g, "");
+    return text.replace(/\/+$/, "");
+  };
+
+  async function addToBank(name, dir) {
+    const reply = await post("api/bank_add", { name, path: dir });
+    if (reply.bank) state.bank = reply.bank;
+    toast(reply.ok ? `Added ${name.trim()} to the simulation bank.` : (reply.error || "Could not add it to the bank."));
+    bankLists.forEach((again) => again());
+  }
+
+    // the Name box and the Directory box each have an arrow listing the bank, and the Add to bank button sits beside the
+  // names; a pick in either list fills both boxes
+  function makeBankList(nameId, dirId, buttonId) {
+    const box = $(nameId), dirBox = $(dirId), button = $(buttonId);
+    const hint = $(`${dirId}-hint`);
+    const pick = (entry) => {
+      lists.forEach((one) => one.show(false));
+      dirBox.value = entry.path;
+      dirBox.dispatchEvent(new Event("input", { bubbles: true }));
+      box.value = entry.name;
       box.dispatchEvent(new Event("input", { bubbles: true }));
       box.focus();
     };
-    toggle.addEventListener("mousedown", (event) => event.preventDefault());
-    toggle.addEventListener("click", () => { show(list.hidden); box.focus(); });
-    box.addEventListener("keydown", (event) => {
-      if (toggle.hidden) return;
-      if (list.hidden) {
-        if (event.key === "ArrowDown" && event.altKey) { event.preventDefault(); show(true); }
-        return;
-      }
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        mark(active + (event.key === "ArrowDown" ? 1 : -1));
-      } else if (event.key === "Enter" && active >= 0) {
-        event.preventDefault();
-        pick(options()[active].textContent);
-      } else if (event.key === "Delete" && active >= 0) {
-        event.preventDefault();
-        const at = active;
-        forget(options()[at].textContent).then(() => {
-          if (options().length) mark(Math.min(at, options().length - 1));
+    // one drop-down: its arrow, its list and the box it opens from
+    const dropDown = (input, toggle, list, combo) => {
+      let active = -1;
+      const options = () => [...list.querySelectorAll(".combo__option")];
+      const show = (open) => {
+        list.hidden = !open;
+        toggle.setAttribute("aria-expanded", String(open));
+        active = -1;
+        options().forEach((option) => option.classList.remove("is-active"));
+      };
+      const mark = (index) => {
+        const all = options();
+        active = (index + all.length) % all.length;
+        all.forEach((option, number) => {
+          option.classList.toggle("is-active", number === active);
+          option.setAttribute("aria-selected", String(number === active));
         });
-      } else if (event.key === "Escape" || event.key === "Tab") {
-        if (event.key === "Escape") event.preventDefault();
+        all[active].scrollIntoView({ block: "nearest" });
+      };
+      toggle.addEventListener("mousedown", (event) => event.preventDefault());
+      toggle.addEventListener("click", () => { show(list.hidden); input.focus(); });
+      input.addEventListener("keydown", (event) => {
+        if (toggle.hidden) return;
+        if (list.hidden) {
+          if (event.key === "ArrowDown" && event.altKey) { event.preventDefault(); show(true); }
+          return;
+        }
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          mark(active + (event.key === "ArrowDown" ? 1 : -1));
+        } else if (event.key === "Enter" && active >= 0) {
+          event.preventDefault();
+          pick(bankEntries()[active]);
+        } else if (event.key === "Escape" || event.key === "Tab") {
+          if (event.key === "Escape") event.preventDefault();
+          show(false);
+        }
+      });
+      input.addEventListener("input", () => { if (!list.hidden) show(false); });
+      document.addEventListener("mousedown", (event) => { if (!list.hidden && !combo.contains(event.target)) show(false); });
+      const fill = (entries) => {
+        toggle.hidden = !entries.length;
+        combo.classList.toggle("has-recent", entries.length > 0);
+        list.replaceChildren(
+          el("li", { class: "combo__head", role: "presentation", text: "In the simulation bank" }),
+          ...entries.map((entry) => el("li", {
+            class: "combo__option", role: "option", "aria-selected": "false", title: entry.path,
+            // mousedown, so the box keeps its focus
+            onmousedown: (event) => { event.preventDefault(); pick(entry); },
+          }, el("span", { class: "combo__name", text: entry.name }), el("span", { class: "combo__sub", text: entry.path }))));
         show(false);
-      }
-    });
-    box.addEventListener("input", () => { if (!list.hidden) show(false); });
-    document.addEventListener("mousedown", (event) => { if (!list.hidden && !combo.contains(event.target)) show(false); });
-    const fill = () => {
-      const recent = state.setup.recent || [];
-      toggle.hidden = !recent.length;
-      combo.classList.toggle("has-recent", recent.length > 0);
-      list.replaceChildren(
-        el("li", { class: "combo__head", role: "presentation", text: "Used before" }),
-        ...recent.map((dir) => recentEntry(dir, pick, forget)));
-      show(false);
+      };
+      return { show, fill };
     };
-    // every box offers the same directories, and the list stays open for the next one
-    const forget = (dir) => forgetRecent(dir, () => {
-      scSims.fillRecent.forEach((again) => again());
-      if ((state.setup.recent || []).length) show(true);
-    });
-    return fill;
+    const lists = [
+      dropDown(box, $(`${nameId}-bank-toggle`), $(`${nameId}-bank`), $(`${nameId}-combo`)),
+      dropDown(dirBox, $(`${dirId}-recent-toggle`), $(`${dirId}-recent`), $(`${dirId}-combo`)),
+    ];
+    button.addEventListener("click", () => { addToBank(box.value, dirBox.value); });
+    let listed = "";
+    const refresh = () => {
+      const entries = bankEntries();
+      const signature = JSON.stringify(entries);
+      if (signature !== listed) {
+        listed = signature;
+        lists.forEach((one) => one.fill(entries));
+        // the directory's question says where the bank is
+        hint.hidden = !entries.length;
+      }
+      const name = box.value.trim(), dir = dirBox.value.trim();
+      const kept = Boolean(name && dir) && entries.some((entry) =>
+        entry.name.toLowerCase() === name.toLowerCase() && bankKey(entry.path) === bankKey(dir));
+      button.textContent = kept ? "In bank" : "Add to bank";
+      button.disabled = kept || !name || !dir;
+      button.title = kept ? "This simulation is in the bank already." : (!name || !dir ? "Give the simulation a name and a directory first." : "Keep this name and directory in the simulation bank.");
+    };
+    bankLists.push(refresh);
+    refresh();
   }
 
+  // the Simulation bank page
+  function renderBank() {
+    const entries = bankEntries();
+    $("bank-empty").hidden = entries.length > 0;
+    $("bank-rows").replaceChildren(...entries.map((entry) => el("tr", {},
+      el("td", { text: entry.name }),
+      el("td", { class: "bank__dir" }, entry.path,
+        entry.exists ? null : el("span", { class: "bank__missing", text: "This directory was not found." })),
+      el("td", { class: "bank__remove" }, el("button", {
+        type: "button", class: "analyze-remove", text: "×", title: "Remove from the bank", "aria-label": `Remove ${entry.name} from the bank`,
+        onclick: async () => {
+          const reply = await post("api/bank_remove", { name: entry.name });
+          if (reply.ok) state.bank = reply.bank;
+          else toast(reply.error || "Could not remove it.");
+          renderBank();
+          bankLists.forEach((again) => again());
+        },
+      })))));
+  }
+
+  makeBankList("f-name", "f-simdir", "f-bank");
+
   // ---- the simulations ----
-  const scSims = { shown: 2, errors: {}, probes: {}, pending: {}, timers: {}, numbers: {}, auto: {}, fillRecent: [], busy: false };
+  const scSims = { shown: 2, errors: {}, probes: {}, pending: {}, timers: {}, numbers: {}, auto: {}, busy: false };
   const SC_BOXES = { name: "name", simdir: "dir", ndown: "ndown", exclude: "exclude", require: "require" };
 
   function scReadSims() {
@@ -11228,7 +11336,6 @@
     scSims.auto = {};
     $("sc-sims-error").hidden = true;
     scShowRows();
-    scSims.fillRecent.forEach((fill) => fill());
     for (let n = 1; n <= scSims.shown; n++) scAskProbe(n, 0);
     refreshScSims();
   }
@@ -11306,6 +11413,7 @@
 
   function refreshScSims() {
     if (state.view !== "simcompare_sims") return;
+    bankLists.forEach((again) => again());
     const problems = scSimsProblems();
     for (let n = 1; n <= scSims.shown; n++) {
       const here = problems.rows[n] || {};
@@ -11358,7 +11466,7 @@
   }
 
   for (let n = 1; n <= SC_MOST; n++) {
-    scSims.fillRecent.push(makeRecent(`sc-dir_${n}`));
+    makeBankList(`sc-name_${n}`, `sc-dir_${n}`, `sc-bank_${n}`);
     depthBox($(`sc-ndown_${n}`));
     for (const id of Object.values(SC_BOXES)) {
       const box = $(`sc-${id}_${n}`);

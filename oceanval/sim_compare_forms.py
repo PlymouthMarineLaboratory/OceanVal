@@ -390,11 +390,83 @@ def check_unify(form, names, fvcom=(), mixed=False):
     return unify, {}
 
 
+# ---- what to treat as missing ----
+
+ALL = "All"
+
+
+def blank_missing_row():
+    return {"apply": "", "from": "", "to": ""}
+
+
+def clean_missing_rows(rows):
+    """The missing values page's rows as sent: a list of {"apply", "from", "to"}
+    of strings, whatever was sent."""
+    out = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        out.append({key: str(row.get(key) or "").strip() for key in ("apply", "from", "to")})
+    return out
+
+
+def check_missing_rows(rows, names, final=True):
+    """The values to treat as missing, from the rows of the options step:
+    (as_missing for all, {simulation: as_missing}, errors). Each row says what
+    it applies to (All, or a simulation's name) and gives a value, or a range as
+    From and To. A simulation's own row wins over the All row. Rows with nothing
+    in them are left out. errors is {row number: {box: reason}} with the boxes
+    apply, missing_from and missing_to; with final False (while the boxes are
+    being filled in) a row with only one of an Apply to and a value is not an
+    error yet."""
+    rows = clean_missing_rows(rows)
+    everyone, own, errors = None, {}, {}
+    seen = {}
+    for number, row in enumerate(rows):
+        if not (row["apply"] or row["from"] or row["to"]):
+            continue
+        problems = {}
+        target = row["apply"]
+        if target and target != ALL and target not in names:
+            problems["apply"] = f"{target} is not one of the simulations."
+        elif target and target in seen:
+            problems["apply"] = f"{target} is already set in row {seen[target] + 1}."
+        elif target:
+            seen[target] = number
+        elif row["from"] or row["to"]:
+            if final:
+                problems["apply"] = "Choose what this applies to."
+        value = None
+        if row["from"] or row["to"] or final:
+            value, boxes = analysis_forms.check_missing(row["from"], row["to"])
+            if boxes:
+                problems.update(boxes)
+            elif value is None and not problems and (final or row["from"] or row["to"]):
+                problems["missing_from"] = "Fill in the value, or the start of a range."
+        if problems:
+            errors[number] = problems
+        elif value is not None and target:
+            if target == ALL:
+                everyone = value
+            else:
+                own[target] = value
+    return everyone, own, errors
+
+
 # ---- the run ----
 
 
 def arguments(
-    sims, placed_by_sim, shifts, unify, out_dir, times_index=None, domain_mask=None, unit_conversions=None, **analyses
+    sims,
+    placed_by_sim,
+    shifts,
+    unify,
+    out_dir,
+    times_index=None,
+    domain_mask=None,
+    unit_conversions=None,
+    as_missing_by_sim=None,
+    **analyses,
 ):
     """compare_simulations()'s arguments, from the steps. sims are check_sims's,
     shifts {simulation: days or None}, times_index {simulation: the path of the
@@ -425,6 +497,8 @@ def arguments(
             entry["time_shift"] = shifts[sim["name"]]
         if (times_index or {}).get(sim["name"]):
             entry["times_index"] = times_index[sim["name"]]
+        if (as_missing_by_sim or {}).get(sim["name"]) is not None:
+            entry["as_missing"] = as_missing_by_sim[sim["name"]]
         simulations.append(entry)
     result = {"simulations": simulations, "variables": variables}
     result.update(out)

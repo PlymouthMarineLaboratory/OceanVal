@@ -8198,16 +8198,21 @@ def test_choosing_directories_in_a_browser(browser, tmp_path):
         assert page.input_value("#f-simdir") == "sim"
         assert page.input_value("#f-ndown") == ""
 
+        # the simulation directory has the bank's arrow and the folder picker, and no second list of folders
         page.fill("#f-simdir", "si")
-        page.wait_for_function(
-            "document.querySelectorAll('#f-simdir-folders option').length === 2"
-        )
-        assert page.eval_on_selector_all(
-            "#f-simdir-folders option", "options => options.map(o => o.value)"
-        ) == ["sim/", "sim_old/"]
+        assert page.evaluate("document.getElementById('f-simdir').list") is None
+        assert page.locator("#f-simdir-folders").count() == 0
 
         page.click("#actions >> text=Back")
         page.click('button.choice[data-action="validate"]')
+        # the other directory boxes still suggest the folders in what has been typed
+        page.fill("#v-data_dir", "si")
+        page.wait_for_function(
+            "document.querySelectorAll('#v-data_dir-folders option').length === 2"
+        )
+        assert page.eval_on_selector_all(
+            "#v-data_dir-folders option", "options => options.map(o => o.value)"
+        ) == ["sim/", "sim_old/"]
         # concise or detailed is the last option, and concise to start with, with
         # only the depth bins after it, as the matchups may be through the water column
         assert page.evaluate(
@@ -8506,10 +8511,10 @@ class TestLeftovers:
             app.close()
 
 
-def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path):
-    """The arrow inside the simulation directory box lists the simulations
-    validated before, and picking one fills the box in. It is not there while
-    nothing has been matched up."""
+def test_choosing_a_simulation_from_the_bank_in_a_browser(browser, tmp_path):
+    """The arrow inside the simulation directory box lists the simulations in the
+    bank, and picking one fills the directory and the name in. It is not there while
+    the bank is empty, and directories used before are not listed."""
     from oceanval import user_cache
 
     write_simulation(tmp_path / "sim")
@@ -8522,10 +8527,17 @@ def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path)
         page.click('button.choice[data-action="matchup"]')
         assert page.is_hidden("#f-simdir-recent-toggle")
 
+        # matched up before is not the bank
         user_cache.record_sim_dir(str(tmp_path / "sim"))
+        page.goto(url)
+        assert page.is_hidden("#f-simdir-recent-toggle")
+        assert page.is_hidden("#f-simdir-hint")
+
+        user_cache.add_to_bank("Control", str(tmp_path / "sim"))
         # the window is still on the setup step, as the server keeps the view
         page.goto(url)
         assert page.is_visible("#f-simdir-recent-toggle")
+        assert "Use the drop-down for simulations in the bank" in page.inner_text("label[for=f-simdir]")
         # one box: the list is inside the directory's own
         assert page.locator("#view-setup select").count() == 0
         assert page.is_hidden("#f-simdir-recent")
@@ -8536,111 +8548,65 @@ def test_choosing_a_simulation_matched_up_before_in_a_browser(browser, tmp_path)
         assert page.is_hidden("#f-simdir-recent")
 
         page.click("#f-simdir-recent-toggle")
-        assert page.locator("#f-simdir-recent .combo__option").all_text_contents() == [
+        assert page.locator("#f-simdir-recent .combo__head").text_content() == "In the simulation bank"
+        assert page.locator("#f-simdir-recent .combo__option .combo__sub").all_text_contents() == [
             str(tmp_path / "sim")
         ]
         page.click("#f-simdir-recent .combo__option")
         assert page.is_hidden("#f-simdir-recent")
         assert page.input_value("#f-simdir") == str(tmp_path / "sim")
+        assert page.input_value("#f-name") == "Control"
         # as if it had been typed: the live check is asked (the years wait for the depth)
         page.wait_for_function("!document.querySelector('#ndown-found').classList.contains('is-finding')")
 
         # and from the keyboard
         page.fill("#f-simdir", "")
+        page.fill("#f-name", "")
+        page.focus("#f-simdir")
         page.keyboard.press("Alt+ArrowDown")
         page.keyboard.press("ArrowDown")
         page.keyboard.press("Enter")
         assert page.input_value("#f-simdir") == str(tmp_path / "sim")
+        assert page.input_value("#f-name") == "Control"
         assert page.is_hidden("#f-simdir-recent")
     finally:
         app.close()
 
 
-def _recent_dirs(tmp_path, names):
-    """Simulation directories that exist and have been matched up, the first
-    named the earliest."""
+def test_the_bank_is_offered_for_every_action_that_asks_for_a_simulation(browser, tmp_path):
+    """Analyze and Validate (and viewing) share the setup page: each can name a simulation, keep it in the
+    bank and pick from it."""
     from oceanval import user_cache
 
-    for name in names:
-        (tmp_path / name).mkdir()
-        user_cache.record_sim_dir(str(tmp_path / name))
-    return [str(tmp_path / name) for name in reversed(names)]
-
-
-def _forget_in_a_list(page, list_id, toggle_id, tmp_path):
-    """Take the entries of a list of directories used before out with the x,
-    then with the Delete key: the list stays open for the next."""
-    from oceanval import user_cache
-
-    page.click(toggle_id)
-    options = page.locator(f"{list_id} .combo__option")
-    # the x is not part of an entry's text
-    assert options.all_text_contents() == [str(tmp_path / name) for name in ("c", "b", "a")]
-    options.nth(1).locator(".combo__remove").click()
-    page.wait_for_function(f"document.querySelectorAll('{list_id} .combo__option').length === 2")
-    assert page.is_visible(list_id)
-    assert options.all_text_contents() == [str(tmp_path / name) for name in ("c", "a")]
-    assert user_cache.recent_sim_dirs() == [str(tmp_path / name) for name in ("c", "a")]
-
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("Delete")
-    page.wait_for_function(f"document.querySelectorAll('{list_id} .combo__option').length === 1")
-    assert user_cache.recent_sim_dirs() == [str(tmp_path / "c")]
-    # the next entry is marked
-    page.wait_for_selector(f"{list_id} .combo__option.is-active")
-    assert page.locator(f"{list_id} .combo__option.is-active").all_text_contents() == [str(tmp_path / "c")]
-
-    options.first.locator(".combo__remove").click()
-    page.wait_for_function(f"document.querySelectorAll('{list_id} .combo__option').length === 0")
-    assert user_cache.recent_sim_dirs() == []
-    assert page.is_hidden(toggle_id)
-    assert page.is_hidden(list_id)
-
-
-def test_taking_a_simulation_out_of_the_validate_list_in_a_browser(browser, tmp_path):
-    """The x beside a simulation validated before takes it out of the history,
-    and does not choose it."""
-    _recent_dirs(tmp_path, ["a", "b", "c"])
-    app = App(cwd=str(tmp_path))
-    app.choose("validate_menu")
-    url = app.start()
-    errors = []
-    try:
-        page = browser.new_page()
-        page.on("pageerror", lambda error: errors.append(str(error)))
-        page.goto(url)
-        page.click('button.choice[data-action="matchup"]')
-        page.wait_for_selector("#view-setup:not([hidden])")
-        _forget_in_a_list(page, "#f-simdir-recent", "#f-simdir-recent-toggle", tmp_path)
-        # none of it chose a directory
-        assert page.input_value("#f-simdir") == ""
-        assert errors == []
-    finally:
-        app.close()
-
-
-def test_taking_a_simulation_out_of_the_analyze_list_in_a_browser(browser, tmp_path):
-    _recent_dirs(tmp_path, ["a", "b", "c"])
+    user_cache.add_to_bank("Control", str(tmp_path))
     app = App(cwd=str(tmp_path))
     url = app.start()
-    errors = []
     try:
         page = browser.new_page()
-        page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
         page.click("#home-analyze")
         page.click("#menu-analyze")
         page.wait_for_selector("#view-setup:not([hidden])")
-        _forget_in_a_list(page, "#f-simdir-recent", "#f-simdir-recent-toggle", tmp_path)
-        assert page.input_value("#f-simdir") == ""
-        assert errors == []
+        assert page.is_visible("#f-name") and page.is_visible("#f-bank")
+        assert page.is_visible("#f-simdir-recent-toggle")
+        page.click("button:has-text('Back')")
+        page.click("button:has-text('Back')")
+        page.click("#home-validate")
+        page.click('button.choice[data-action="matchup"]')
+        page.wait_for_selector("#view-setup:not([hidden])")
+        assert page.is_visible("#f-name") and page.is_visible("#f-bank")
+        assert page.is_visible("#f-simdir-recent-toggle")
     finally:
         app.close()
 
 
-def test_taking_a_simulation_out_of_the_compare_simulations_lists_in_a_browser(browser, tmp_path):
-    _recent_dirs(tmp_path, ["a", "b", "c"])
+def test_the_compare_simulations_lists_are_the_bank_in_every_row(browser, tmp_path):
+    from oceanval import user_cache
+
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+        user_cache.add_to_bank(name.upper(), str(tmp_path / name))
+    user_cache.record_sim_dir(str(tmp_path / "used"))
     app = App(cwd=str(tmp_path))
     url = app.start()
     errors = []
@@ -8651,31 +8617,15 @@ def test_taking_a_simulation_out_of_the_compare_simulations_lists_in_a_browser(b
         page.click("#home-analyze")
         page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
-        _forget_in_a_list(page, "#sc-dir_1-recent", "#sc-dir_1-recent-toggle", tmp_path)
-        assert page.input_value("#sc-dir_1") == ""
-        # and so are the other boxes' lists
-        assert page.is_hidden("#sc-dir_2-recent-toggle")
+        for row in (1, 2):
+            page.click(f"#sc-dir_{row}-recent-toggle")
+            assert page.locator(f"#sc-dir_{row}-recent .combo__option .combo__sub").all_text_contents() == [
+                str(tmp_path / "a"), str(tmp_path / "b")
+            ]
+            page.click(f"#sc-dir_{row}-recent .combo__option >> nth=1")
+            assert page.input_value(f"#sc-dir_{row}") == str(tmp_path / "b")
+            assert page.input_value(f"#sc-name_{row}") == "B"
         assert errors == []
-    finally:
-        app.close()
-
-
-def test_a_simulation_taken_out_in_one_compare_simulations_box_goes_from_the_others(browser, tmp_path):
-    _recent_dirs(tmp_path, ["a", "b"])
-    app = App(cwd=str(tmp_path))
-    url = app.start()
-    try:
-        page = browser.new_page()
-        page.goto(url)
-        page.click("#home-analyze")
-        page.click("#menu-simcompare")
-        page.wait_for_selector("#view-simcompare-sims:not([hidden])")
-        page.click("#sc-dir_1-recent-toggle")
-        page.locator("#sc-dir_1-recent .combo__option").first.locator(".combo__remove").click()
-        page.wait_for_function(
-            "document.querySelectorAll('#sc-dir_2-recent .combo__option').length === 1"
-        )
-        assert page.locator("#sc-dir_2-recent .combo__option").all_text_contents() == [str(tmp_path / "a")]
     finally:
         app.close()
 

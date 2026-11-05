@@ -4,7 +4,9 @@ For now that is the simulation directories you have matched up, which the
 oceanval window offers again when you set up a run, and the years the output
 of the simulations set up covers (see oceanval.output_years), which are read
 again only when their files change, and which first-time messages the window
-has shown (``seen``, e.g. the note on the data store when Validate is first opened).
+has shown (``seen``, e.g. the note on the data store when Validate is first opened),
+and the simulation bank: the names and directories of simulations the user has chosen to
+keep (``bank``), which the window offers when a simulation is set up.
 
 The file is in your home directory (or is the file the ``OCEANVALCACHE``
 environment variable names, if it is set). OceanVal never ships it and does not
@@ -60,7 +62,7 @@ def _load(where):
     """The whole file, as it is, and why it cannot be used (None if it can).
     A missing file is an empty one."""
     if not os.path.exists(where):
-        return {"version": VERSION, "sim_dirs": []}, None
+        return {"version": VERSION, "sim_dirs": [], "bank": []}, None
     try:
         with open(where, encoding="utf-8") as handle:
             data = json.load(handle)
@@ -68,6 +70,8 @@ def _load(where):
             raise ValueError("it should hold a JSON object")
         if not isinstance(data.get("sim_dirs", []), list):
             raise ValueError('"sim_dirs" should be a list')
+        if not isinstance(data.get("bank", []), list):
+            raise ValueError('"bank" should be a list')
         version = data.get("version", VERSION)
         if not isinstance(version, int) or version > VERSION:
             raise ValueError(f"it is from a newer OceanVal (version {version})")
@@ -75,6 +79,7 @@ def _load(where):
         return None, f"{error}"
     data.setdefault("version", VERSION)
     data.setdefault("sim_dirs", [])
+    data.setdefault("bank", [])
     return data, None
 
 
@@ -157,6 +162,108 @@ def forget_sim_dir(sim_dir):
         if len(entries) == len(data["sim_dirs"]):
             return True
         data["sim_dirs"] = entries
+        _write(where, data)
+        return True
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False
+
+
+# ---- the simulation bank: names and directories kept on purpose ----
+
+
+def _bank_path(sim_dir):
+    sim_dir = str(sim_dir).strip()
+    if sim_dir.lower().startswith(("http://", "https://")):
+        return sim_dir
+    return os.path.abspath(os.path.expanduser(sim_dir))
+
+
+def _bank_entries(entries):
+    found = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        name, where = entry.get("name"), entry.get("path")
+        if isinstance(name, str) and name.strip() and isinstance(where, str) and where:
+            found.append({"name": name.strip(), "path": where})
+    return found
+
+
+def bank():
+    """The simulations in the bank, as [{"name", "path"}], in the order they were added."""
+    where = path()
+    try:
+        data, problem = _load(where)
+    except Exception:
+        return []
+    if problem:
+        with contextlib.suppress(Exception):
+            _say(where, os.stat(where).st_mtime_ns, f"the file could not be read, so it was ignored: {problem}")
+        return []
+    return _bank_entries(data["bank"])
+
+
+def add_to_bank(name, sim_dir):
+    """Keep a simulation's name and directory in the bank. Returns (True, "") or
+    (False, why): it is refused when the name is already there (for this directory
+    or another) or the directory is already there under another name, so nothing
+    in the bank is ever replaced."""
+    try:
+        name = str(name or "").strip()
+        if not name or not str(sim_dir or "").strip():
+            return False, "Give the simulation a name and a directory first."
+        sim_dir = _bank_path(sim_dir)
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was added to it: {problem}")
+            return False, "The OceanVal cache file could not be used, so nothing was added to the bank."
+        for entry in _bank_entries(data["bank"]):
+            same_name = entry["name"].casefold() == name.casefold()
+            same_dir = entry["path"] == sim_dir
+            if same_name and same_dir:
+                return False, "Already in the bank."
+            if same_name:
+                return False, f"The name '{entry['name']}' is already in the bank for {entry['path']}."
+            if same_dir:
+                return False, f"{sim_dir} is already in the bank as '{entry['name']}'."
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        data["bank"] = list(data["bank"]) + [{"name": name, "path": sim_dir, "added": now}]
+        _write(where, data)
+        return True, ""
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False, "The simulation could not be added to the bank."
+
+
+def remove_from_bank(name):
+    """Take a simulation out of the bank by name, leaving all else in the file.
+    Returns whether it is now not in it (also when it never was)."""
+    try:
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was removed from it: {problem}")
+            return False
+        name = str(name or "").strip().casefold()
+        entries = [
+            entry for entry in data["bank"]
+            if not (isinstance(entry, dict) and str(entry.get("name", "")).strip().casefold() == name)
+        ]
+        if len(entries) == len(data["bank"]):
+            return True
+        data["bank"] = entries
         _write(where, data)
         return True
     except Exception as error:

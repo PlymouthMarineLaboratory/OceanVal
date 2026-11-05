@@ -506,6 +506,9 @@ class AnalyzeSteps:
     def _probe_missing(self):
         """Look for the model's missing value in a thread, unless the user
         has set the boxes. Called with the lock held."""
+        if self.action == SIMCOMPARE:
+            self._sc_probe_missing()
+            return
         if self._analyze_missing_set or not self.analyze_placed:
             return
         self._analyze_probe_number += 1
@@ -600,6 +603,20 @@ class AnalyzeSteps:
                 kind not in KINDS and kind not in ("cores", "missing", "figure_code")
             ):
                 return 409, {"ok": False, "error": "This step is over."}
+            if kind == "missing" and self.action == SIMCOMPARE:
+                # a row for each simulation, or for all of them
+                given = form if isinstance(form, dict) else {}
+                self.sc_missing_rows = sim_compare_forms.clean_missing_rows(given.get("rows")) or [
+                    sim_compare_forms.blank_missing_row()
+                ]
+                self._sc_missing_set = True
+                _, _, errors = sim_compare_forms.check_missing_rows(
+                    self.sc_missing_rows, [sim["name"] for sim in self.sc_sims], final=False
+                )
+                self._notify()
+                if errors:
+                    return 400, {"ok": False, "errors": {"rows": errors}}
+                return 200, {"ok": True}
             if kind == "missing":
                 given = form if isinstance(form, dict) else {}
                 self.analyze_missing = {
@@ -696,9 +713,16 @@ class AnalyzeSteps:
             figure_code, error = analysis_forms.check_figure_code(self.analyze_figure_code)
             if error:
                 return 400, {"ok": False, "errors": {"figure_code": error}, "error": error}
-            as_missing, errors = analysis_forms.check_missing(
-                self.analyze_missing["from"], self.analyze_missing["to"]
-            )
+            as_missing_by_sim = None
+            if self.action == SIMCOMPARE:
+                as_missing, as_missing_by_sim, row_errors = sim_compare_forms.check_missing_rows(
+                    self.sc_missing_rows, [sim["name"] for sim in self.sc_sims]
+                )
+                errors = {"rows": row_errors} if row_errors else {}
+            else:
+                as_missing, errors = analysis_forms.check_missing(
+                    self.analyze_missing["from"], self.analyze_missing["to"]
+                )
             if errors:
                 return 400, {"ok": False, "errors": {"missing": errors}, "error": "What is treated as missing needs putting right."}
             area = None
@@ -721,7 +745,8 @@ class AnalyzeSteps:
             if self.action == SIMCOMPARE:
                 self.sc_paths = paths
                 reply, run = self.simcompare_run(
-                    chosen, thicknesses, cores, figure_code, as_missing, area, save=save
+                    chosen, thicknesses, cores, figure_code, as_missing, area, save=save,
+                    as_missing_by_sim=as_missing_by_sim,
                 )
                 if run is None:
                     return reply
@@ -884,6 +909,10 @@ class AnalyzeSteps:
             "cpu_count": os.cpu_count(),
             "missing": self.analyze_missing,
             "missing_probed": self.analyze_missing_probed,
+            # a comparison's: a row for each simulation or for all, the ones OceanVal filled in, and where they can apply
+            "missing_rows": self.sc_missing_rows if self.action == SIMCOMPARE else None,
+            "missing_auto": self._sc_missing_auto() if self.action == SIMCOMPARE else [],
+            "missing_targets": [sim["name"] for sim in self.sc_sims or []] if self.action == SIMCOMPARE else [],
             "figure_code": self.analyze_figure_code,
             "nemo_ersem": bool((found or {}).get("ersem")),
             # raw FVCOM output, worked out on its own mesh, which needs no cell thickness

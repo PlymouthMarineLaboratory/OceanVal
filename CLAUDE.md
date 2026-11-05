@@ -275,6 +275,17 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `#validate-intro`, a pop-out with a Close button, `POST /api/validate_intro_seen`) the window says OceanVal downloads observational data and that the
   Preferences gear (the same `OceanValGUI.COG` icon) sets the data store folder to keep it; it is recorded on closing, and not shown if a data store is set.
   An unreadable cache counts as seen. The tests' `browser` fixture closes it unless `window.__keepValidateIntro`.
+- **The simulation bank** (`user_cache.bank`/`add_to_bank`/`remove_from_bank`; the user's design, 2026-11-05): a `"bank"` list of `{name, path, added}` in
+  the same file, a Name→Directory map the user fills on purpose (not recorded automatically, unlike `sim_dirs`). `add_to_bank` refuses, with the
+  reason, a name (casefolded) already there (for the same directory: "Already in the bank."; for another) and a directory already there under another
+  name: nothing is ever replaced. Paths are made absolute (a web address is kept as it is). The window: `state()["bank"]` (`App._bank_state`, with `exists`),
+  `POST /api/bank_add` (relative to `App.cwd`) and `/api/bank_remove`; view `bank` (Help | Examples' second tile `#help-bank`, beside the compatibility check; the landing page has four tiles, 2 x 2,
+  Back → `help`; `#view-bank` lists each and a × removes it, never touching files). **Add to bank + the Name drop-down are `makeBankList(nameId, dirId, buttonId)`**
+  (every Compare row, `sc-name_N`/`sc-dir_N`/`sc-bank_N`, the button left of the boxes; and Analyze's setup page, `f-name`/`f-simdir`/`f-bank`, a Name box with no
+  label below the directory, placeholder "Give it a name, e.g. ...", `setup["name"]`, never an `analyze()` argument): the arrow lists
+  the bank (**both the Name and the Directory arrows list only the bank**: the old "used before" lists are gone from the page, though `sim_dirs` is still recorded; the setup page's lists serve Analyze, Validate/Matchup and Viewer alike, so the Name box and Add to bank are on all of them) and a pick in either fills Directory then Name through `input` events; **the simulation directory boxes (`#f-simdir`, `#sc-dir_N`) have no `list=`/datalist** (the browser's own folder suggestions would be a second drop-down; Browse… stays, and the type-ahead loop skips a box with no `<id>-folders`, so other directory boxes keep theirs); the directory's question (`#f-simdir-hint`, `#sc-dir_N-hint`) says "(Use the drop-down for simulations in the bank)" while the bank has entries; the button is disabled until both are filled and reads "In bank" when this exact pair is
+  there (`bankKey` resolves a relative directory against `state.cwd`); results are toasts. Every such box is in `bankLists`, refreshed by `render`,
+  `refreshSetup` and `refreshScSims`. Tests: `tests/test_simulation_bank.py`.
 - The package never ships or creates the file ahead of use, and writes are read-merge-write: other
   keys and entries survive, and an unreadable or newer-version file is left untouched. It must
   never raise, as a cache must not stop a run.

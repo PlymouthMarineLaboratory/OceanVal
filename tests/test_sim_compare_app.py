@@ -959,6 +959,88 @@ class TestOptionsAndRun:
         assert get(app, "/simcompare/wrong/notebooks/000_overview.html")[0] == 403
 
 
+class TestMissingValues:
+    """What to treat as missing: a row for each simulation, or for All."""
+
+    def run_with(self, app, rows):
+        to_options(app)
+        post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})
+        post(app, "/api/analyze_option", {"kind": "cores", "form": {"cores": "1"}})
+        post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})
+        if rows is not None:
+            post(app, "/api/analyze_option", {"kind": "missing", "form": {"rows": rows}})
+        return post(app, "/api/analyze_run", OUTPUT)
+
+    def given(self, app):
+        call = ast.parse(open(os.path.join(app.cwd, "comparison.py")).read()).body[-1].value
+        return {keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords}
+
+    def test_each_simulation_is_looked_at_and_gets_its_own_row(self, app, sims, monkeypatch):
+        from oceanval import analysis_app
+
+        monkeypatch.setattr(
+            analysis_app.missing_probe, "probe", lambda files, name: "1e+20" if "base" in files[0] else None
+        )
+        shown = to_options(app)
+        wait_for(lambda: len(state(app)["analyze"]["missing_rows"]) == 2 or app.sc_missing_probed.keys() == {"Base run", "Fine run"})
+        shown = state(app)["analyze"]
+        assert shown["missing_targets"] == ["Base run", "Fine run"]
+        by_name = {row["apply"]: row for row in shown["missing_auto"]}
+        assert by_name["Base run"] == {"apply": "Base run", "from": "1e+20", "to": "1e+20", "source": "found"}
+        assert [row["apply"] for row in shown["missing_rows"]] == [row["apply"] for row in shown["missing_auto"]]
+
+    def test_a_row_starts_blank_with_nothing_found(self, app, sims, monkeypatch):
+        from oceanval import analysis_app
+
+        monkeypatch.setattr(analysis_app.missing_probe, "probe", lambda files, name: None)
+        monkeypatch.setattr(app, "_sc_missing_auto", lambda: [])
+        to_options(app)
+        assert state(app)["analyze"]["missing_rows"] == [{"apply": "", "from": "", "to": ""}]
+
+    def test_what_the_user_sets_is_not_replaced_by_what_is_found(self, app, sims, monkeypatch):
+        from oceanval import analysis_app
+
+        monkeypatch.setattr(analysis_app.missing_probe, "probe", lambda files, name: "-9")
+        to_options(app)
+        mine = [{"apply": "All", "from": "5", "to": ""}]
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"rows": mine}}) == (200, {"ok": True})
+        wait_for(lambda: len(app.sc_missing_probed) == 2)
+        assert state(app)["analyze"]["missing_rows"] == mine
+
+    def test_a_value_needs_something_to_apply_to_to_run(self, app, sims, runs):
+        status, reply = self.run_with(app, [{"apply": "", "from": "0", "to": "0"}])
+        assert status == 400 and runs == []
+        assert reply["errors"]["missing"]["rows"] == {"0": {"apply": "Choose what this applies to."}}
+
+    def test_while_the_boxes_are_filled_in_only_numbers_and_repeats_are_errors(self, app, sims):
+        to_options(app)
+        rows = [{"apply": "", "from": "0", "to": ""}, {"apply": "Fine run", "from": "", "to": ""}]
+        assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"rows": rows}}) == (200, {"ok": True})
+        rows = [{"apply": "Fine run", "from": "x", "to": ""}, {"apply": "Fine run", "from": "1", "to": ""}]
+        status, reply = post(app, "/api/analyze_option", {"kind": "missing", "form": {"rows": rows}})
+        assert status == 400
+        assert set(reply["errors"]["rows"]) == {"0", "1"} and "missing_from" in reply["errors"]["rows"]["0"]
+
+    def test_each_simulation_has_its_own_value_in_the_script(self, app, sims, runs):
+        rows = [
+            {"apply": "All", "from": "-9", "to": ""},
+            {"apply": "Fine run", "from": "0", "to": "1"},
+            {"apply": "", "from": "", "to": ""},
+        ]
+        assert self.run_with(app, rows) == (200, {"ok": True})
+        given = self.given(app)
+        assert given["as_missing"] == -9.0
+        base, fine = given["simulations"]
+        assert "as_missing" not in base and fine["as_missing"] == [0.0, 1.0]
+        checked = sim_compare.check_simulations(given["simulations"], as_missing=given["as_missing"])
+        assert [sim["as_missing"] for sim in checked] == [-9.0, [0.0, 1.0]]
+
+    def test_no_row_means_no_missing_value(self, app, sims, runs):
+        assert self.run_with(app, [{"apply": "", "from": "", "to": ""}]) == (200, {"ok": True})
+        given = self.given(app)
+        assert "as_missing" not in given and all("as_missing" not in sim for sim in given["simulations"])
+
+
 class TestPhenology:
     """Phenology needs daily output in every simulation."""
 
@@ -1191,7 +1273,7 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        assert page.locator("#view-home .choice").count() == 4
+        assert page.locator("#view-home .choice").count() == 5
         page.click("#home-analyze")
         page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
@@ -1303,7 +1385,7 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         os.makedirs(tmp_path / "other" / analysis.FOLDER)
         for kind, form in (
             ("climatology", {"rows": {"Temperature": {"use": True, "start": "2013", "end": "2014", "surface": True}}}),
-            ("cores", {"cores": "1"}), ("missing", {"from": "0", "to": "0"}), ("figure_code", {"choice": "no"}),
+            ("cores", {"cores": "1"}), ("missing", {"rows": [{"apply": "All", "from": "0", "to": "0"}]}), ("figure_code", {"choice": "no"}),
         ):
             assert post(app, "/api/analyze_option", {"kind": kind, "form": form})[0] == 200
         page.wait_for_function("() => !document.querySelector('#ao-continue').disabled")
@@ -1360,6 +1442,63 @@ class TestClosingTheBrowser:
             assert app.closed_reason == "The browser window was closed."
         finally:
             release.set()
+
+
+def test_the_missing_values_are_set_for_each_simulation_in_a_browser(browser, app, sims, monkeypatch):
+    from oceanval import analysis_app
+
+    monkeypatch.setattr(
+        analysis_app.missing_probe, "probe", lambda files, name: "1e+20" if "base" in files[0] else None
+    )
+    to_options(app)
+    wait_for(lambda: set(app.sc_missing_probed) == {"Base run", "Fine run"})
+    post(app, "/api/analyze_option", {"kind": "climatology", "form": CLIMATOLOGY})
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.goto(app.url)
+        page.wait_for_selector("#view-analyze-options:not([hidden])")
+        page.wait_for_function("() => !document.querySelector('#ao-continue').disabled")
+        page.click("#ao-continue")
+        page.wait_for_selector("#ao-page-2:not([hidden])")
+        # one table, not the single From-To of Analyze
+        assert page.is_visible("#ao-missing-multi") and page.is_hidden("#ao-missing_from")
+        rows = page.locator("#ao-missing-rows > tr")
+        # the value found in the data of the first simulation is in its row, in amber, and says so
+        assert page.locator("#ao-missing-rows select").first.input_value() == "Base run"
+        assert page.locator("#ao-missing-rows input").first.input_value() == "1e+20"
+        assert page.locator("#ao-missing-rows input").first.evaluate("node => node.classList.contains('is-found')")
+        assert page.is_visible("#ao-missing-found")
+        # the choices of Apply to: nothing, All and each simulation
+        options = page.locator("#ao-missing-rows select").first.locator("option").all_inner_texts()
+        assert options == ["", "All", "Base run", "Fine run"]
+        # + adds a row below with Apply to empty; a value with nothing to apply to is red
+        before = rows.count()
+        rows.first.locator(".analyze-add").click()
+        assert rows.count() == before + 1
+        added = rows.nth(1)
+        assert added.locator("select").input_value() == ""
+        added.locator("input").first.fill("-9")
+        assert added.locator("select").evaluate("node => node.classList.contains('is-required')")
+        added.locator("select").select_option("All")
+        assert not added.locator("select").evaluate("node => node.classList.contains('is-required')")
+        # the choice reaches the server
+        wait_for(lambda: {"apply": "All", "from": "-9", "to": ""} in app.sc_missing_rows)
+        # a target twice is told
+        added.locator("select").select_option("Base run")
+        page.wait_for_function("() => document.querySelector('#ao-missing-msg').textContent.includes('already set')")
+        # x removes a row, and on the only row it clears it
+        rows.nth(1).locator(".analyze-remove").click()
+        wait_for(lambda: len(app.sc_missing_rows) == 1)
+        rows.first.locator(".analyze-remove").click()
+        assert rows.count() == 1 and rows.first.locator("select").input_value() == ""
+        assert rows.first.locator("input").first.input_value() == ""
+        assert rows.first.locator(".analyze-remove").is_disabled()
+        wait_for(lambda: app.sc_missing_rows == [{"apply": "", "from": "", "to": ""}])
+        assert errors == []
+    finally:
+        page.close()
 
 
 def test_the_grids_step_shows_each_simulation_and_a_preview_in_a_browser(browser, app, sims, monkeypatch):

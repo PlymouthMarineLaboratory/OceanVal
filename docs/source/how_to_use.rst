@@ -382,7 +382,9 @@ The `model_dict` should map a short name for each model to the directory contain
 Viewing a simulation's output
 -----------------------------
 
-In the OceanVal app, the **View simulation output** box on the first page (the first of four, two by two) maps what a simulation's netCDF files hold, with no Python. Only the map on show is ever read: one time step at one depth of one file, so output of many GB stays quick to look at.
+The **Simulation bank** (the second tile of Help | Examples) keeps simulations by name and directory. On Compare simulations' first step, *Add to bank* beside a row's Name and Directory boxes keeps that pair; in Analyze one simulation, give the simulation a name in the box below the directory and use *Add to bank*. A name already in the bank, or a directory already in it under another name, is refused with the reason. The arrow in the Name box then lists the bank, and picking one fills in the name and directory. The Simulation bank page lists everything kept and removes any you no longer want (only the name and directory are forgotten, never the files). The bank is stored in ``~/.oceanvalcache``.
+
+In the OceanVal app, the **View simulation output** box on the first page (the first of four tiles, two by two) maps what a simulation's netCDF files hold, with no Python. Only the map on show is ever read: one time step at one depth of one file, so output of many GB stays quick to look at.
 
 Its first page is the same as for Analyze and Validate: the directory, how many directories down the files are (filled in, in amber, when OceanVal recognises the folders: `YYYY/MM/**.nc` is 2, `MM/*.nc` is 1, files with no subdirectories 0), the file filters (**Skip file names containing**, which starts empty), and the arrow in the directory box listing the simulations used before, which a simulation viewed is added to. Below them, **Missing values** (optional) are numbers in the files that mean there is no data, such as 0 or -999: one number, or a range with **To** filled in too. They apply to every variable.
 

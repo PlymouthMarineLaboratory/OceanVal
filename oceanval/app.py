@@ -269,6 +269,8 @@ def default_setup_form():
         "end": "",
         "exclude": "",
         "require": "",
+        # only Analyze asks for it: what to call the simulation in the bank
+        "name": "",
     }
 
 
@@ -1996,6 +1998,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     ],
                     "output_years": self._output_years_state(),
                 },
+                "bank": self._bank_state(),
                 "validate": {
                     "form": self.validate_form,
                     "depth_defaults": default_depth_boxes(),
@@ -2642,6 +2645,13 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = "simcompare_sims"
                 self._notify()
                 return True
+            if action == "bank":
+                # Help | Examples' Simulation bank tile
+                if self.view != "help":
+                    return False
+                self.view = "bank"
+                self._notify()
+                return True
             if action == "help":
                 # the landing page's Help | Examples tile
                 if self.view != "home":
@@ -2796,6 +2806,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "register_point": "register_kind",
             "register_gridded": "register_kind",
             "help": "home",
+            "bank": "help",
             "analyze_menu": "home",
             "help_compatible": "help",
         }
@@ -3611,6 +3622,41 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 return False
             self._notify()
             return True
+
+    def _bank_state(self):
+        """The simulation bank as the page shows it: name, directory, and whether
+        the directory is still there (a web address is taken to be)."""
+        return [
+            dict(
+                entry,
+                exists=entry["path"].lower().startswith(("http://", "https://"))
+                or os.path.isdir(entry["path"]),
+            )
+            for entry in user_cache.bank()
+        ]
+
+    def bank_add(self, name, sim_dir):
+        """Keep a simulation's name and directory in the bank: (status, reply)."""
+        if not isinstance(name, str) or not isinstance(sim_dir, str):
+            return 400, {"ok": False, "error": "Give the simulation a name and a directory first."}
+        with self._lock:
+            if sim_dir.strip() and not sim_dir.strip().lower().startswith(("http://", "https://")):
+                sim_dir = _path(sim_dir.strip(), self.cwd)
+            added, why = user_cache.add_to_bank(name, sim_dir)
+            if not added:
+                return 200, {"ok": False, "error": why, "bank": self._bank_state()}
+            self._notify()
+            return 200, {"ok": True, "bank": self._bank_state()}
+
+    def bank_remove(self, name):
+        """Take a simulation out of the bank (its files are not touched)."""
+        if not isinstance(name, str) or not name:
+            return 400, {"ok": False, "error": "Say which simulation to remove."}
+        with self._lock:
+            if not user_cache.remove_from_bank(name):
+                return 200, {"ok": False, "error": "Could not remove it from the bank."}
+            self._notify()
+            return 200, {"ok": True, "bank": self._bank_state()}
 
     def next_own_data(self):
         """Move on from the point data step, to the gridded data step, and
@@ -6044,6 +6090,12 @@ class _Handler(recipes_gui._Handler):
                     payload.get("variable"), payload.get("key"), payload.get("where")
                 )
             )
+            return
+        if path == "/api/bank_add":
+            self._reply_json(*app.bank_add(payload.get("name"), payload.get("path")))
+            return
+        if path == "/api/bank_remove":
+            self._reply_json(*app.bank_remove(payload.get("name")))
             return
         if path == "/api/demo_download":
             self._reply_json(*app.demo_download(payload.get("model"), payload.get("variables")))
