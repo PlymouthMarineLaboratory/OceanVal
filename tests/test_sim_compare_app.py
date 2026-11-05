@@ -1706,3 +1706,91 @@ def test_the_grids_page_with_fvcom_and_other_output(browser, tmp_path, mixed_sim
         assert app.sc_unify == {"baseline": "Grid"}
     finally:
         app.close()
+
+
+def open_compare_variables(browser, tmp_path, exclude_second=""):
+    """The Compare variables page of two simulations, in a browser: (page, app)."""
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    write_analysis_simulation(str(tmp_path / "fine"), years=(2013, 2014), daily=False)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    page.goto(url)
+    page.click("#home-analyze")
+    page.click("#menu-simcompare")
+    page.wait_for_selector("#view-simcompare-sims:not([hidden])")
+    for number, (name, folder) in enumerate([("Base run", "base"), ("Fine run", "fine")], start=1):
+        page.fill(f"#sc-name_{number}", name)
+        page.fill(f"#sc-dir_{number}", folder)
+        page.fill(f"#sc-ndown_{number}", "1")
+    if exclude_second:
+        page.locator("#sc-row-2 details summary").click()
+        page.fill("#sc-exclude_2", exclude_second)
+    page.wait_for_function("() => document.querySelector('#sc-m-2').innerText.includes('netCDF files')")
+    page.wait_for_function("() => !document.querySelector('#sc-continue').disabled")
+    page.click("#sc-continue")
+    page.wait_for_selector("#scv-main:not([hidden])", timeout=60000)
+    return page, app
+
+
+def add_every_compare_variable(page):
+    page.click("#scv-add-multiple")
+    page.wait_for_selector("#multi-dialog:not([hidden])")
+    for cell in page.locator("#multi-grid .multi-cell:not([disabled])").all():
+        cell.click()
+    page.click("#multi-confirm")
+
+
+def compare_rows(page):
+    """[(name, [model variable in each simulation])] of the rows of the page."""
+    return page.evaluate(
+        """() => [...document.querySelectorAll('#scv-rows > tr')].map((row) => {
+            const boxes = [...row.querySelectorAll('input.s-input')];
+            return [boxes[0].value, boxes.slice(1).map((box) => box.value)];
+        })"""
+    )
+
+
+def test_add_multiple_variables_in_compare_fills_the_other_simulations(browser, tmp_path):
+    page, app = open_compare_variables(browser, tmp_path)
+    try:
+        picker = state(app)["simcompare"]["sims"][0]["picker"]
+        # the button names the first simulation and starts under its variable boxes
+        assert page.inner_text("#scv-add-multiple") == "Add multiple variables from Base run"
+        button = page.locator("#scv-add-multiple").bounding_box()
+        box = page.locator("#scv-rows > tr").first.locator("input.s-input").nth(1).bounding_box()
+        assert abs(button["x"] - box["x"]) <= 3
+        add_every_compare_variable(page)
+        rows = compare_rows(page)
+        assert sorted(row[1][0] for row in rows) == sorted(picker["available"])
+        # the same variables are in the second simulation, so its boxes are filled, in red and bold
+        assert all(row[1][0] == row[1][1] for row in rows)
+        assert page.locator("#scv-rows > tr:first-child input.s-input").nth(2).evaluate("(box) => box.classList.contains('is-oceanval')")
+        # the name is the first simulation's long_name where it has one
+        for name, (variable, _) in rows:
+            assert name.startswith(picker["long_names"].get(variable) or variable)
+        # nothing is left to fill, so the page can go on; those already held cannot be added again
+        page.wait_for_function("() => !document.querySelector('#scv-continue').disabled")
+        page.click("#scv-add-multiple")
+        page.wait_for_selector("#multi-dialog:not([hidden])")
+        assert page.locator("#multi-grid .multi-cell:not([disabled])").count() == 0
+        page.click("#multi-cancel")
+    finally:
+        page.close()
+        app.close()
+
+
+def test_add_multiple_variables_in_compare_leaves_missing_ones_blank(browser, tmp_path):
+    page, app = open_compare_variables(browser, tmp_path, exclude_second="ptrc_T")
+    try:
+        assert not any(name.startswith("P") for name in state(app)["simcompare"]["sims"][1]["picker"]["available"])
+        add_every_compare_variable(page)
+        rows = {row[1][0]: row[1][1] for row in compare_rows(page)}
+        assert rows["thetao"] == "thetao"
+        assert rows["P1_Chl"] == "" and rows["P2_Chl"] == ""
+        # the blank boxes are flagged and the page cannot go on until they are filled
+        assert page.is_disabled("#scv-continue")
+        assert "Give the model variable" in page.inner_text("#scv-rows")
+    finally:
+        page.close()
+        app.close()
