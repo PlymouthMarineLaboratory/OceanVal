@@ -29,25 +29,19 @@
   }
   .choice:hover { border-color: var(--teal-200); box-shadow: var(--shadow-lg); transform: translateY(-2px); }
   .choice:focus-visible { outline: none; border-color: var(--teal-400); box-shadow: var(--focus), var(--shadow-md); }
-  .choice__icon {
-    display: grid;
-    place-items: center;
-    width: 46px;
-    height: 46px;
-    margin-bottom: 4px;
-    border-radius: 12px;
-    background: var(--teal-50);
-    color: var(--teal-600);
-  }
-  .choice__icon svg { width: 24px; height: 24px; }
+  /* a bare symbol, no box: thin strokes, in the accent colour */
+  /* the space under a symbol is the tile's gap plus this margin: half what it was (the title and text keep the gap) */
+  .choice__icon { display: flex; margin-bottom: -3px; color: var(--teal-600); }
+  .choice__icon svg { width: 16px; height: 16px; stroke-width: 1.5; }
+  .choice__icon svg * { stroke-width: 1.5; }
   .choice__title { font: 600 20px/1.3 var(--font-head); letter-spacing: -0.2px; }
   .choice__text { color: var(--muted); font-size: 16px; line-height: 1.5; }
   /* the demo, below the four, across both columns */
-  .choice.is-demo { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 18px; padding-top: 22px; border-style: dashed; border-color: var(--teal-200); background: var(--teal-50); box-shadow: none; }
-  .choice.is-demo .choice__icon { flex: none; margin: 0; background: var(--bg); }
+  .choice.is-demo { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 9px; padding-top: 22px; border-style: dashed; border-color: var(--teal-200); background: var(--teal-50); box-shadow: none; }
+  .choice.is-demo .choice__icon { flex: none; margin: 0; }
   .choice.is-demo .choice__body { display: grid; gap: 4px; }
   /* registering recipes of your own: across both columns, between the four and the demo */
-  .choice.is-register { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 18px; padding-top: 22px; }
+  .choice.is-register { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 9px; padding-top: 22px; }
   .choice.is-register .choice__icon { flex: none; margin: 0; }
   .choice.is-register .choice__body { display: grid; gap: 4px; }
 
@@ -102,9 +96,9 @@
   #view-own:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
   #view-own .own-question { margin: 0 0 32px; font: 600 34px/1.25 var(--font-head); letter-spacing: -0.4px; text-align: center; }
   #view-own .choices.is-two { width: 100%; max-width: 980px; gap: 28px; }
-  #view-own .choice { align-items: center; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: center; text-align: center; }
-  #view-own .choice__icon { width: 64px; height: 64px; margin-bottom: 6px; border-radius: 16px; }
-  #view-own .choice__icon svg { width: 32px; height: 32px; }
+  #view-own .choice { align-items: flex-start; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: flex-start; text-align: left; }
+  #view-own .choice__icon { margin-bottom: -4px; }
+  #view-own .choice__icon svg { width: 21px; height: 21px; }
   #view-own .choice__title { font-size: 24px; }
   #view-own .choice__text { font-size: 16px; }
   /* the answer given before, when the step is reached again */
@@ -823,9 +817,9 @@
   /* ---- the landing page: Analyze or Validate ---- */
   #view-home:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
   #view-home .choices.is-two { width: 100%; max-width: 980px; gap: 28px; }
-  #view-home .choice { align-items: center; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: center; text-align: center; }
-  #view-home .choice__icon { width: 64px; height: 64px; margin-bottom: 6px; border-radius: 16px; }
-  #view-home .choice__icon svg { width: 32px; height: 32px; }
+  #view-home .choice { align-items: flex-start; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: flex-start; text-align: left; }
+  #view-home .choice__icon { margin-bottom: -4px; }
+  #view-home .choice__icon svg { width: 21px; height: 21px; }
   #view-home .choice__title { font-size: 26px; }
   #view-home .choice__text { font-size: 16px; }
 
@@ -833,16 +827,16 @@
   /* ---- the Analyze simulations menu: two tiles in the middle of the page, 3x the usual space between, text 1.5x ---- */
   #view-analyze-menu:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
   #view-analyze-menu .choices { width: 100%; max-width: 1100px; gap: 54px; }
-  #view-analyze-menu .choice { align-items: center; justify-content: center; text-align: center; aspect-ratio: auto; min-height: 260px; gap: 18px; }
+  #view-analyze-menu .choice { align-items: flex-start; justify-content: flex-start; text-align: left; aspect-ratio: auto; min-height: 260px; gap: 18px; }
   #view-analyze-menu .choice__title { font-size: 30px; }
-  #view-analyze-menu .choice__icon { width: 69px; height: 69px; border-radius: 18px; }
-  #view-analyze-menu .choice__icon svg { width: 36px; height: 36px; }
+  #view-analyze-menu .choice__icon { margin-bottom: -7px; }
+  #view-analyze-menu .choice__icon svg { width: 24px; height: 24px; }
 
   /* ---- the landing page has four tiles, two by two ---- */
   #view-home .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: center; width: 100%; max-width: 1032px; gap: 36px; }
   #view-home .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
-  #view-home .choices.is-four .choice__icon { width: 96px; height: 96px; margin-bottom: 10px; border-radius: 24px; }
-  #view-home .choices.is-four .choice__icon svg { width: 48px; height: 48px; }
+  #view-home .choices.is-four .choice__icon { margin-bottom: -6px; }
+  #view-home .choices.is-four .choice__icon svg { width: 32px; height: 32px; }
   #view-home .choices.is-four .choice__title { font-size: 36px; }
   #view-home .choices.is-four .choice__text { font-size: 22px; }
 
@@ -2900,29 +2894,29 @@
   const bankLists = [];
 
   const PICTURES = {
-    compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M6.5 14v3M17.5 10v7M6.5 9v1"/></svg>',
+    compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg>',
     folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>',
-    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6m0 0-5 5m5-5 5 5"/></svg>',
-    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7.5 14.5 3.5-4 3 3 5-6"/></svg>',
-    match: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13m0 0-3.5-3.5M17 8l-3.5 3.5"/><path d="M20 16H7m0 0 3.5-3.5M7 16l3.5 3.5"/></svg>',
-    report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 14.5 2 2 4-4.5"/></svg>',
-    play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
-    recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11.5v5M9.5 14h5"/></svg>',
-    bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6.5c0 1.66 3.58 3 8 3s8-1.34 8-3V5.5M4 12v6.5c0 1.66 3.58 3 8 3s8-1.34 8-3V12"/></svg>',
-    viewer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
-    analyze: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M7 12l2-2.5 2 1.5 2.5-3"/></svg>',
-    climatology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>',
-    phenology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M4 17c3 0 4-10 8-10s5 10 8 10"/><path d="M12 4v3" stroke-dasharray="1.5 2"/></svg>',
-    longterm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7 16 3-2.5 3 1 4-5 2-1.5"/><path d="M17 8h3v3"/></svg>',
-    seasonal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c1.5-6 3.5-6 6 0s4.5 6 6 0c1-3 2-4.2 3-4.5"/><path d="M3 20h18"/><path d="M8 20v-1.5M12 20v-1.5M16 20v-1.5"/></svg>',
-    changes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="7.5" height="14" rx="1.5"/><rect x="14" y="5" width="7.5" height="14" rx="1.5" stroke-dasharray="2.5 2"/><path d="M10.5 12h3m0 0-1.5-1.5M13.5 12l-1.5 1.5"/><path d="M5 15c1-3 2-3 3-5" opacity=".6"/></svg>',
-    simcompare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9m5 11V4m5 16v-8m5 8V7"/><path d="M3 20h18" opacity=".45"/></svg>',
-    transect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6 17.6 6.4"/><path d="M3 3v6M3 3h6" opacity=".45"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6m0 0-5 5m5-5 5 5"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7.5 14.5 3.5-4 3 3 5-6"/></svg>',
+    match: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13m0 0-3.5-3.5M17 8l-3.5 3.5"/><path d="M20 16H7m0 0 3.5-3.5M7 16l3.5 3.5"/></svg>',
+    report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="m9 12.5 2.2 2.2L15.2 10"/></svg>',
+    play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
+    recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 9v6M9 12h6"/></svg>',
+    bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13"/></svg>',
+    viewer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    analyze: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>',
+    climatology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+    phenology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M4 17c3 0 4-10 8-10s5 10 8 10"/></svg>',
+    longterm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7 16 3-2.5 3 1 4-5 2-1.5"/></svg>',
+    seasonal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c2.5-7 5.5-7 9 0s6.5 7 9 0"/></svg>',
+    changes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="7.5" height="14" rx="1.5"/><rect x="14" y="5" width="7.5" height="14" rx="1.5"/><path d="M10.5 12h3m0 0-1.5-1.5M13.5 12l-1.5 1.5"/></svg>',
+    simcompare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9m5 11V4m5 16v-8m5 8V7"/></svg>',
+    transect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6 17.6 6.4"/></svg>',
     warn: ICONS.warn,
-    check: ICONS.check,
-    help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.9 2.1c-.9.6-1.4 1.1-1.4 2.2"/><path d="M12 17.2v.1"/></svg>',
-    compatible: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8.5 13.5h4M8.5 16.5h4"/><circle cx="16.5" cy="15.5" r="3"/><path d="m15.2 15.5 1 1 1.8-2"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.3 4.3L19 7.2"/></svg>',
+    help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.9 2.1c-.9.6-1.4 1.1-1.4 2.2"/><path d="M12 17.2v.1"/></svg>',
+    compatible: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.8 2.8L16 9.5"/></svg>',
   };
   document.querySelectorAll("[data-icon]").forEach((node) => { node.innerHTML = PICTURES[node.dataset.icon]; });
 
