@@ -101,7 +101,7 @@ def test_missing_values_on_the_files_page(page, simulation):
     tab.wait_for_function("() => document.querySelector('#view-viewer:not([hidden])')", timeout=60000)
     assert app.viewer_missing == [(10.0, 12.5)]
     # going back shows it again
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
     assert tab.input_value("#missing-from-0") == "10"
     assert tab.input_value("#missing-to-0") == "12.5"
@@ -219,7 +219,7 @@ def test_the_path_of_one_file_can_be_given(page, tmp_path):
     tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
     assert [len(stream["files"]) for stream in app.viewer_catalogue.streams] == [1]
     # back to a directory: the depth is asked and found again
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
     tab.fill("#f-simdir", root)
     tab.wait_for_function("() => !document.querySelector('#f-ndown').disabled && document.querySelector('#f-ndown').value === '0'")
@@ -294,7 +294,7 @@ def test_viewer(page, simulation):
     assert tab.is_hidden("#vw-plot-error")
     # nothing but the map: no other plots to choose
     assert tab.locator("#vw-kind, #vw-point, #vw-c-cell").count() == 0
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
 
 
@@ -404,7 +404,7 @@ def test_another_simulation_is_drawn_after_back(page, simulation, tmp_path):
 
     view(simulation)
     assert len(asked) == 1
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
     view(other)
     assert len(asked) == 2
@@ -459,7 +459,7 @@ def test_sum_of_variables(page, simulation):
     # unticking the box leaves nothing chosen
     tab.uncheck(f"{row('sossheig')} input")
     assert tab.locator("#vw-list li input:checked").count() == 0
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
 
 
@@ -613,7 +613,7 @@ def test_fvcom_output(page, tmp_path, monkeypatch):
     assert "values on the elements" in tab.text_content("#vw-info")
     assert tab.is_hidden("#vw-plot-error")
     # not for other output
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
     assert tab.is_hidden("#vw-fvcom-credit")
 
@@ -761,7 +761,7 @@ def test_years_are_forgotten_with_new_files(page, simulation):
     _open_viewer(tab, simulation)
     _times_in(tab, app)
     tab.fill("#vw-first", "2001")
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
     tab.click("#continue")
     tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
@@ -798,7 +798,7 @@ def test_the_simulation_box_lists_the_bank(page, simulation):
     tab, app = page
     user_cache.add_to_bank("Viewed", simulation)
     _open_viewer(tab, simulation)
-    tab.click("#vw-back")
+    tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
     tab.fill("#f-simdir", "")
     tab.click("#f-simdir-recent-toggle")

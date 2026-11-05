@@ -73,7 +73,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 /* keeps whatever gets focus clear of the sticky action bar */
-html { -webkit-text-size-adjust: 100%; scroll-padding-bottom: 96px; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: var(--masthead-h, 80px); scroll-padding-bottom: 96px; }
 body {
   margin: 0;
   min-height: 100vh;
@@ -90,7 +90,9 @@ code { font-family: var(--font-mono); }
 
 /* ---- header ---- */
 .masthead {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 6;
   overflow: hidden;
   color: #fff;
   background: var(--masthead-bg);
@@ -428,6 +430,11 @@ input.tick { cursor: pointer; }
 .settings-open:focus-visible, .info-open:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
 .restart-open__icon { display: inline-flex; width: 17px; height: 17px; }
 .restart-open__icon svg { width: 100%; height: 100%; }
+/* the arrow beside Restart: greyed out and not pressable where there is no step back (the first page) */
+.back-open__icon { display: inline-flex; width: 18px; height: 18px; }
+.back-open__icon svg { width: 100%; height: 100%; }
+.back-open:disabled { opacity: 0.35; cursor: not-allowed; }
+.back-open:disabled:hover { border-color: rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.08); }
 /* the pop-up that asks whether to start again from the first page */
 .restart__card { max-width: 480px; }
 .restart__body { padding: 22px 22px 6px; }

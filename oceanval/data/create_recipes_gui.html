@@ -15,7 +15,7 @@
   col.c-chosen { width: 22%; }
   thead th {
     position: sticky;
-    top: 0;
+    top: var(--masthead-h, 80px);
     z-index: 2;
     padding: 13px 16px;
     background: var(--surface-soft);
@@ -1606,6 +1606,12 @@
       writeButton.textContent = busy ? (app ? "Starting…" : "Writing…") : writeLabel;
       cancelButton.textContent = "Back";
     }
+    // in the app, Back is the arrow at the top of the page (beside Restart), not a button of the bar: it does what Back did
+    // here (the second page goes to the first, the first leaves for the app's simulation step), and waits while busy
+    if (app) {
+      cancelButton.hidden = true;
+      OceanValGUI.setBack(busy ? null : { handler: () => cancelButton.click() });
+    }
   }
 
   function showPage(kind, focus = null) {
@@ -1873,6 +1879,8 @@
     post,
     settingsPath: app ? "../api/settings" : "settings",
     behind: () => [document.querySelector(".masthead"), document.querySelector("main"), document.querySelector(".bar")],
+    // only in the app, whose steps it goes back through
+    back: Boolean(app),
     // only in the app, whose first page it goes back to
     restart: app ? {
       running: () => false,

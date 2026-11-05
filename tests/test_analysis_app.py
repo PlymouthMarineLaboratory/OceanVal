@@ -1092,7 +1092,7 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.fill("#ao-out", "mine.py")
         assert page.is_enabled("#ao-run")
         # Back keeps what was typed
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#ao-page-2:not([hidden])")
         page.click("#ao-next")
         assert page.input_value("#ao-out") == "mine.py"
@@ -1105,8 +1105,8 @@ def test_analyze_in_a_browser(browser, tmp_path):
         page.fill("#ao-out", "mine.py")
         page.wait_for_function("document.querySelector('#ao-m-out .group__line.is-warn') === null")
         # Back goes to the tiles, which keep what was chosen
-        page.click("#actions button:has-text('Back')")
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
+        page.click("#back-open")
         page.wait_for_selector("#ao-page-1:not([hidden])")
         assert page.is_hidden("#ao-page-2") and page.locator("#ao-run").count() == 0
         assert page.is_enabled("#ao-continue") and page.locator("#ao-climatology.is-chosen").count() == 1
@@ -2037,7 +2037,7 @@ def test_the_names_drop_down_the_larger_pop_outs_and_the_missing_value_in_a_brow
         page.fill("#ao-missing_from", "0")
         assert "is-found" not in page.get_attribute("#ao-missing_from", "class")
         assert page.is_hidden("#ao-missing-found")
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#ao-page-1:not([hidden])")
         # the pop-outs are 30% larger than the 1000px they were
         for option, dialog in (("climatology", "clim-dialog"), ("transects", "trans-dialog")):

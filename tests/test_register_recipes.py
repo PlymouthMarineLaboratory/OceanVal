@@ -582,7 +582,7 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         page.wait_for_function("!document.querySelector('#register-save').disabled")
 
         # Back keeps what was entered
-        page.click("#actions >> text=Back")
+        page.click("#back-open")
         page.wait_for_selector("#view-register-kind:not([hidden])")
         page.click("#register-gridded")
         page.wait_for_selector("#view-register-gridded:not([hidden])")
@@ -610,7 +610,7 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         assert user_recipes.get("nitrate", "mysat", str(tmp_path)) is None
 
         # point data is on this machine only
-        page.click("#actions >> text=Back")
+        page.click("#back-open")
         page.click("#register-point")
         page.wait_for_selector("#view-register-point:not([hidden])")
         assert page.locator("#r-point-location").count() == 0
@@ -682,7 +682,7 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         page.wait_for_function("!document.querySelector('#future-save').disabled")
 
         # Back keeps the form, and what was typed here
-        page.click("#actions >> text=Back")
+        page.click("#back-open")
         page.wait_for_selector("#own-form-point")
         assert page.input_value("#o-point-name") == "dic"
         page.click("#own-future-point")

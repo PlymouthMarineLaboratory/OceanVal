@@ -113,6 +113,7 @@ const OceanValGUI = (() => {
   const COG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
   const RESTART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
   const INFO = ICONS.info;
+  const BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></svg>';
 
   const CHROME_HTML = `
 <div class="picker prefs" id="preferences" hidden>
@@ -192,7 +193,10 @@ const OceanValGUI = (() => {
   // restart: { go, running }, for a page that can start again from the first
   // page. go() asks the app to forget everything (and moves the page on),
   // returning whether it did; running() is whether a run would be stopped.
-  function mountChrome({ state, post, settingsPath, behind, onSaved = () => {}, restart = null }) {
+  //
+  // back: true, for a page that goes back a step: the arrow to the left of Restart, greyed out until the page gives it
+  // something to do with setBack({handler, title}) (and again with null where there is nothing to go back to)
+  function mountChrome({ state, post, settingsPath, behind, onSaved = () => {}, restart = null, back = false }) {
     const brand = document.querySelector(".brand");
     brand.append(...[
       el("button", { type: "button", class: "settings-open", id: "settings-open", "aria-haspopup": "dialog",
@@ -201,10 +205,14 @@ const OceanValGUI = (() => {
       el("button", { type: "button", class: "info-open", id: "info-open", "aria-haspopup": "dialog",
         "aria-controls": "info", "aria-label": "About OceanVal", title: "About OceanVal" },
         el("span", { class: "info-open__icon", "aria-hidden": "true", html: INFO })),
+      back ? el("button", { type: "button", class: "info-open back-open", id: "back-open", "aria-label": "Back", title: "Back", disabled: true,
+        onclick: () => { if (backAction) backAction.handler(); } },
+        el("span", { class: "back-open__icon", "aria-hidden": "true", html: BACK })) : null,
       restart ? el("button", { type: "button", class: "info-open restart-open", id: "restart-open", "aria-haspopup": "dialog",
         "aria-controls": "restart-confirm", "aria-label": "Restart", title: "Restart" },
         el("span", { class: "restart-open__icon", "aria-hidden": "true", html: RESTART })) : null,
     ].filter(Boolean));
+    keepMastheadHeight();
     document.body.insertAdjacentHTML("beforeend", CHROME_HTML);
 
     const hideBehind = (hidden) => { behind().forEach((node) => { node.inert = hidden; }); };
@@ -397,6 +405,27 @@ const OceanValGUI = (() => {
 
   // the button's pop-up: starting again from the first page throws away what
   // was entered, so it is asked about (one sentence and two buttons), with Cancel the default
+  // what the arrow beside Restart does now: {handler, title}, or null where it cannot be pressed
+  let backAction = null;
+  function setBack(action) {
+    backAction = action || null;
+    const button = $("back-open");
+    if (!button) return;
+    button.disabled = !backAction;
+    button.title = (backAction && backAction.title) || "Back";
+  }
+
+  // the header stays at the top as the page scrolls, so what else sticks to the top (a table's head, the viewer's
+  // side panel) sits below it by --masthead-h, which is its height now (the page's title can wrap)
+  function keepMastheadHeight() {
+    const masthead = document.querySelector(".masthead");
+    if (!masthead) return;
+    const set = () => document.documentElement.style.setProperty("--masthead-h", `${masthead.offsetHeight}px`);
+    set();
+    if (window.ResizeObserver) new ResizeObserver(set).observe(masthead);
+    else window.addEventListener("resize", set);
+  }
+
   function mountRestart({ restart, hideBehind }) {
     const cancel = el("button", { type: "button", class: "btn btn--ghost", id: "restart-cancel", text: "Cancel" });
     const confirm = el("button", { type: "button", class: "btn btn--primary", id: "restart-go", text: "Restart" });
@@ -957,7 +986,7 @@ const OceanValGUI = (() => {
   syncRequired();
 
   return {
-    ICONS, COG, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, variableBox, searchMatcher,
+    ICONS, COG, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, setBack, variableBox, searchMatcher,
     withChoices, choicesOpen, closeChoices, syncRequired,
   };
 })();

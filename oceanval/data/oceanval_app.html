@@ -853,7 +853,7 @@
   body.is-viewer main.wrap { max-width: none; padding: 16px; }
   .vw { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (max-width: 860px) { .vw { grid-template-columns: minmax(0, 1fr); } }
-  .vw-side { display: grid; gap: 16px; padding: 16px; max-height: calc(100vh - 170px); overflow-y: auto; position: sticky; top: 16px; }
+  .vw-side { display: grid; gap: 16px; padding: 16px; max-height: calc(100vh - var(--masthead-h, 80px) - 110px); overflow-y: auto; position: sticky; top: calc(var(--masthead-h, 80px) + 16px); }
   @media (max-width: 860px) { .vw-side { position: static; max-height: none; } }
   .vw-head { margin: 0 0 6px; font: 600 13px/1.3 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
   .vw-list { margin: 8px 0 0; padding: 4px; list-style: none; max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); }
@@ -3146,6 +3146,15 @@
     return el("button", { type: "button", class: `btn btn--${kind}`, text, onclick, ...props });
   }
 
+  // Back is the arrow beside Restart, at the top of the page, not a button of the bar: each view says here what going back
+  // does (its handler keeps the boxes as they were entered, or steps within the view), and a view that says nothing has
+  // nothing to go back to, so the arrow is greyed out. Returns null, so it can stand where the bar's button was.
+  let backAction = null;
+  function backTo(handler, props = {}) {
+    backAction = props.disabled ? null : { handler, title: props.title };
+    return null;
+  }
+
   let stopArmed = null;
   let barShown = null;
   function renderBar() {
@@ -3169,24 +3178,25 @@
     barShown = key;
     const summary = $("summary");
     const actions = [];
+    backAction = null;
     let asked = null;
     if (view === "demo") {
       const busy = state.demo.status === "downloading";
-      actions.push(button("Back", "ghost", () => post("api/back"), { disabled: busy }),
+      actions.push(backTo(() => post("api/back"), { disabled: busy }),
         button(demoDownloaded() ? "Continue" : busy ? "Downloading…" : "Download and continue",
           "primary", startDemo, { id: "demo-start", disabled: busy || !demoPick.variables.length }));
     } else if (view === "demo_instructions") {
-      actions.push(button("Back", "ghost", () => post("api/back")),
+      actions.push(backTo(() => post("api/back")),
         button("Continue", "primary", () => post("api/demo_continue"), { id: "demo-continue" }));
     } else if (view === "start" || view === "analyze_menu") {
       // to the landing page
-      actions.push(button("Back", "ghost", () => post("api/back")));
+      actions.push(backTo(() => post("api/back")));
     } else if (view === "help" || view === "help_compatible" || view === "bank") {
       // to the landing page, or back to Tools & checks
-      actions.push(button("Back", "ghost", () => post("api/back")));
+      actions.push(backTo(() => post("api/back")));
     } else if (view === "setup") {
       // an analysis keeps its boxes, for when it is reached again
-      actions.push(button("Back", "ghost", () => post("api/back", simulationOnly() ? { form: setupForm() } : {})),
+      actions.push(backTo(() => post("api/back", simulationOnly() ? { form: setupForm() } : {})),
         button("Continue", "primary", submitSetup, { id: "continue" }));
     } else if (view === "viewer_scanning" || view === "viewer") {
       // to the setup page, as it was left; what is being read is stopped
@@ -3194,34 +3204,34 @@
         actions.push(el("a", { class: "vw-credit", id: "vw-fvcom-credit", href: "https://github.com/PlymouthMarineLaboratory/pyfvcom2",
           target: "_blank", rel: "noopener noreferrer", text: "Plotting is influenced by pyfvcom2" }));
       }
-      actions.push(button("Back", "ghost", () => { stopPlay(); post("api/back"); }, { id: "vw-back" }));
+      actions.push(backTo(() => { stopPlay(); post("api/back"); }, { id: "vw-back" }));
     } else if (view === "analyze_variables") {
       // with the rows, which are shown again as they are
-      actions.push(button("Back", "ghost", () => post("api/back", { rows: readAnalyzeRows() })),
+      actions.push(backTo(() => post("api/back", { rows: readAnalyzeRows() })),
         button("Continue", "primary", submitAnalyzeVariables, { id: "av-continue", disabled: true }));
     } else if (view === "analyze_files") {
-      actions.push(button("Back", "ghost", () => post("api/back")),
+      actions.push(backTo(() => post("api/back")),
         button("Continue", "primary", async () => {
           const reply = await post("api/analyze_files");
           if (!reply.ok) toast(reply.error || "That cannot be done now.");
         }, { id: "af-continue", disabled: !analyzeFilesReady() }));
     } else if (view === "analyze_options") {
       if (analyzePage.number === 3) {
-        actions.push(button("Back", "ghost", () => { analyzePage.number = 2; render(); $("ao-cores").focus(); }),
+        actions.push(backTo(() => { analyzePage.number = 2; render(); $("ao-cores").focus(); }),
           button("Save Python script to run later", "ghost", saveAnalysisScript, { id: "ao-save", disabled: true }),
           button(state.action === "simcompare" ? "Run the comparison" : "Run the analysis", "primary", runAnalysis, { id: "ao-run", disabled: true }));
       } else if (analyzePage.number === 2) {
-        actions.push(button("Back", "ghost", () => { analyzePage.number = 1; render(); $("ao-climatology").focus(); }),
+        actions.push(backTo(() => { analyzePage.number = 1; render(); $("ao-climatology").focus(); }),
           button("Continue", "primary", () => { analyzePage.number = 3; render(); fillOutput(); $("ao-out_dir").focus(); }, { id: "ao-next", disabled: true }));
       } else {
-        actions.push(button("Back", "ghost", () => post("api/back")),
+        actions.push(backTo(() => post("api/back")),
           button("Continue", "primary", () => { analyzePage.number = 2; render(); $("ao-cores").focus(); }, { id: "ao-continue", disabled: true }));
       }
     } else if (view === "simcompare_sims") {
-      actions.push(button("Back", "ghost", () => post("api/back", { form: scReadSims() })),
+      actions.push(backTo(() => post("api/back", { form: scReadSims() })),
         button("Continue", "primary", submitScSims, { id: "sc-continue", disabled: true }));
     } else if (view === "simcompare_variables") {
-      actions.push(button("Back", "ghost", () => post("api/back", { rows: readScRows() })),
+      actions.push(backTo(() => post("api/back", { rows: readScRows() })),
         button("Continue", "primary", submitScVariables, { id: "scv-continue", disabled: true }));
     } else if (view === "simcompare_units") {
       // a page for each simulation converted: Back and Continue go between them, then the steps either side
@@ -3229,56 +3239,56 @@
       confirm.addEventListener("change", scUnitsButton);
       asked = el("label", { class: "summary__question tick-label summary__confirm" }, "Tick if you are happy with the units", confirm);
       const last = scUnits.page >= scUnits.sims.length - 1;
-      actions.push(button("Back", "ghost", () => (scUnits.page > 0 ? scUnitsTo(scUnits.page - 1)
+      actions.push(backTo(() => (scUnits.page > 0 ? scUnitsTo(scUnits.page - 1)
         : post("api/back", { conversions: unitsBoxes(".scu-body input") }))),
       button("Continue", "primary", () => (last ? submitScUnits() : scUnitsTo(scUnits.page + 1)), { id: "scu-continue", disabled: true }));
     } else if (view === "simcompare_files") {
-      actions.push(button("Back", "ghost", () => post("api/back")),
+      actions.push(backTo(() => post("api/back")),
         button("Continue", "primary", async () => {
           const reply = await post("api/simcompare_files");
           if (!reply.ok) toast(reply.error || "That cannot be done now.");
         }, { id: "scf-continue", disabled: !scFilesReady() }));
     } else if (view === "simcompare_grids") {
-      actions.push(button("Back", "ghost", () => post("api/back", { form: scReadGrids() })),
+      actions.push(backTo(() => post("api/back", { form: scReadGrids() })),
         button("Continue", "primary", submitScGrids, { id: "scg-continue", disabled: true }));
     } else if (view === "register_kind") {
-      actions.push(button("Back", "ghost", () => post("api/back")));
+      actions.push(backTo(() => post("api/back")));
       if (state.register.saved.length) actions.push(button("Finish", "primary", () => post("api/register_done")));
     } else if (view === "register_point" || view === "register_gridded") {
       const kind = view === "register_point" ? "point" : "gridded";
       // with the boxes, which are shown again as they are
-      actions.push(button("Back", "ghost", () => post("api/back", { form: readRegister(kind) })));
+      actions.push(backTo(() => post("api/back", { form: readRegister(kind) })));
       if (state.register.saved.length) actions.push(button("Finish", "ghost", () => post("api/register_done")));
       actions.push(button("Save the recipe", "primary", () => submitRegister(kind), { id: "register-save", disabled: true }));
     } else if (view === "own_data") {
-      actions.push(button("Back", "ghost", () => post("api/back")));
+      actions.push(backTo(() => post("api/back")));
     } else if (view === "point_data" || view === "gridded_data") {
       const kind = view === "point_data" ? "point" : "gridded";
       const added = state.own.entries[kind].length;
-      actions.push(button("Back", "ghost", () => post("api/back")),
+      actions.push(backTo(() => post("api/back")),
         button(added ? "Continue" : "Skip", "primary", () => post("api/own_next"), { id: "own-next" }));
     } else if (view === "own_future") {
       // with what was typed, which is shown again for the same data
-      actions.push(button("Back", "ghost", () => post("api/back", { boxes: readFuture() })),
+      actions.push(backTo(() => post("api/back", { boxes: readFuture() })),
         button("Add this data for use now and in future", "primary", submitFuture, { id: "future-save", disabled: true }));
     } else if (view === "validate") {
-      actions.push(button("Back", "ghost", () => post("api/back", { form: validateForm })),
+      actions.push(backTo(() => post("api/back", { form: validateForm })),
         button("Build the report", "primary", submitValidate, { id: "build" }));
     } else if (view === "report_options") {
       // matchup waits on whether the matchups are right until these are chosen,
       // so Back shows them again; without it, they are made already
       const waiting = Boolean(state.question);
       // with the boxes, which are shown again as they are
-      if (waiting) actions.push(button("Back", "ghost", () => post("api/back", { form: validateForm })),
+      if (waiting) actions.push(backTo(() => post("api/back", { form: validateForm })),
         button("Stop and store Python script for later", "ghost", submitSaveScript, { id: "save-script" }));
       actions.push(button(!waiting ? "Build the report" : "Match up and validate",
         "primary", submitValidate, { id: "build" }));
     } else if (view === "point_time_res") {
       // to the matchups, whose question is still being asked, with the boxes
-      actions.push(button("Back", "ghost", () => post("api/back", { form: readPointTimeRes() })),
+      actions.push(backTo(() => post("api/back", { form: readPointTimeRes() })),
         button("Continue", "primary", submitPointTimeRes, { id: "ptr-continue" }));
     } else if (view === "compare") {
-      actions.push(button("Back", "ghost", () => post("api/back")),
+      actions.push(backTo(() => post("api/back")),
         button("Compare", "primary", submitCompare, { id: "compare" }));
     } else if (view === "units_table") {
       // to the recipes window, as it was left, with the boxes, which are shown again as they are
@@ -3288,12 +3298,12 @@
         confirm.addEventListener("change", unitsButton);
         asked = el("label", { class: "summary__question tick-label summary__confirm" }, "Tick if you are happy with the units", confirm);
       }
-      actions.push(button("Back", "ghost", () => post("api/back", { conversions: unitsBoxes() })),
+      actions.push(backTo(() => post("api/back", { conversions: unitsBoxes() })),
         button("Continue", "primary", submitUnits, { id: "units-continue", disabled: true }));
     } else if (view === "output") {
       // to the matchups, with the boxes, which are shown again as they are; to validate too,
       // the report options come next, and matchup alone carries on from here
-      actions.push(button("Back", "ghost", () => post("api/back", { form: output })),
+      actions.push(backTo(() => post("api/back", { form: output })),
         button(state.action === "matchup" ? "Match up" : "Continue", "primary", submitMatchupOutput,
           { id: "output-run", disabled: true }));
     } else if (view === "running") {
@@ -3301,8 +3311,9 @@
       // has matched nothing up, so can be stopped to go back to the units
       const question = state.question;
       const matchups = Boolean(question && question.details && question.details.kind === "matchups");
-      const back = state.run.back ? button("Back", "ghost", () => post("api/back"),
-        { title: "Stop before anything is matched up, and go back to the units" }) : null;
+      // Back is the arrow at the top; where the bar had Back instead of Stop, it has neither now but the arrow
+      const hasBack = Boolean(state.run.back);
+      const backTitle = { title: "Stop before anything is matched up, and go back to the units" };
       const stop = button(stopArmed ? "Stop the run?" : "Stop", stopArmed ? "danger" : "ghost", () => {
         if (!stopArmed) {
           // a second click stops it
@@ -3317,24 +3328,23 @@
       }, { id: "stop" });
       if (question && question.details && question.details.kind === "time_shift") {
         // Back keeps the choice, for when it is asked again
-        const backKeeping = state.run.back ? button("Back", "ghost", () => post("api/back", { form: readTimeShift() }),
-          { title: "Stop before anything is matched up, and go back to the units" }) : null;
-        actions.push(backKeeping || stop,
+        if (hasBack) backTo(() => post("api/back", { form: readTimeShift() }), backTitle);
+        actions.push(hasBack ? null : stop,
           button("Continue", "primary", () => send(question.id, readTimeShift().mode === "shift" ? "y" : "n"),
             { id: "ts-continue" }));
       } else if (matchups) {
-        // the answer to whether the matchups are right, beside its question, after Back,
-        // or Stop where there is no Back
+        // the answer to whether the matchups are right, beside its question, with Stop where there is no Back
         asked = el("span", { class: "summary__question", id: "review-question", text: "Are you happy with these file selections?" });
-        actions.push(back || stop, button("Yes, continue", "primary", () => send(question.id, "y")));
+        if (hasBack) backTo(() => post("api/back"), backTitle);
+        actions.push(hasBack ? null : stop, button("Yes, continue", "primary", () => send(question.id, "y")));
       } else {
-        if (back) actions.push(back);
+        if (hasBack) backTo(() => post("api/back"), backTitle);
         actions.push(stop);
       }
     } else if (view === "finished" || view === "script_saved") {
       if (state.run.back) {
         // a run that failed: back to the units, with what was entered kept
-        actions.push(button("Back", "ghost", () => post("api/back"),
+        actions.push(backTo(() => post("api/back"),
           { title: "Go back to the units, keeping what you entered" }));
       }
       actions.push(button("Quit", "ghost", async () => {
@@ -3368,9 +3378,11 @@
     const viewing = view === "setup" && action === "viewer";
     summary.replaceChildren(...(asked ? [asked] : []), ...(view === "setup" && !viewing ? [howFiles] : []),
       ...(viewing ? [el("span", { text: "Continue reads the variables, and the times of the files are read after." })] : []));
-    $("actions").replaceChildren(...actions);
-    $("bar-main").hidden = actions.length === 0;
-    $("bar").hidden = actions.length === 0 && $("server-trouble").hidden;
+    OceanValGUI.setBack(backAction);
+    const shown = actions.filter(Boolean);
+    $("actions").replaceChildren(...shown);
+    $("bar-main").hidden = shown.length === 0;
+    $("bar").hidden = shown.length === 0 && $("server-trouble").hidden;
     if (view === "setup") refreshSetup();
     if (view === "output") refreshMatchupOutput();
     if (view === "analyze_variables") refreshAnalyzeVariables();
@@ -11203,6 +11215,8 @@
     behind: () => BEHIND,
     // the first page shows or hides the demo
     onSaved: render,
+    // the arrow left of Restart: each view says what it does (backTo in renderBar), greyed out where it has nothing to do
+    back: true,
     // starting again forgets everything the app and the page held, so the page
     // is loaded afresh from the app's clean state
     restart: {

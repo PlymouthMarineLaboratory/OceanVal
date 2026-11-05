@@ -885,6 +885,13 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - Every question OceanVal asks goes through `oceanval/prompts.py` (`ask`, `interactive`,
   `answered_by`) — never call `input()`/`isatty()` directly, or the window can't answer it. In
   the child process a question is a `QUESTION_MARKER` line on stdout, answered on stdin.
+- **Back is an arrow at the top, left of Restart** (the user's design, 2026-11-05; `#back-open`, `mountChrome(back=)` and `OceanValGUI.setBack` in
+  `data/gui.js`; in the recipes window too, where it stands for the footer's `#cancel` while hosted by the app, which hides that button; the
+  standalone `create_recipes()` window keeps its Cancel and has no arrow). **No view has a Back button in the bottom bar any more**: `renderBar` makes
+  each view's Back with `backTo(handler, props)`, which registers it for the arrow (keeping each handler and what it sends as before), and a view that
+  registers none leaves the arrow **greyed out** (a real `disabled`), the first page's too. A new step with a Back must call `backTo`. The bar is hidden
+  where Back was its only button. **The header is sticky** (`.masthead`), and `--masthead-h` (kept by `keepMastheadHeight`) is its height: anything else
+  that sticks to the top of the page sits below it (`.vw-side`, the recipes table's head). Tests click `#back-open`.
 - **Restart** (the circular arrow beside the **i**, `mountChrome(restart=)` in `data/gui.js`, in the recipes window too) asks in a pop-up
   (`#restart-confirm`: only the sentence "Begin again with a clean slate" and the Cancel and Restart buttons, Cancel the default), then posts `/api/restart_all` →
   `App.reset`, which goes to `home` from **any** view with everything entered forgotten (forms, own data, recipes/units state, the run,

@@ -5524,7 +5524,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         # the point datasets' page, from which the units are next
         page.click("#write")
         assert page.text_content("#page-title") == "Point data selection"
-        assert page.text_content("#cancel") == "Back"
+        assert page.is_hidden("#cancel") and page.is_enabled("#back-open")
         assert page.text_content("#write") == "Continue"
         if page.is_disabled("#write"):
             page.fill("#s-point_start", "2011")
@@ -5550,11 +5550,10 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
             "Variable", "Years", "Simulation variable", "Observation source", "File pattern to be used",
             "Time resolution", "Dates",
         ]
-        # the answers are in the bar, Back first, and none are in the card
+        # the answer is in the bar, and none are in the card; Back is the arrow at the top
         assert page.locator("#review button:not(.btn--text):not(#review-refilter)").count() == 0
-        assert [button.text_content() for button in page.locator("#actions button").all()] == [
-            "Back", "Yes, continue",
-        ]
+        assert [button.text_content() for button in page.locator("#actions button").all()] == ["Yes, continue"]
+        assert page.is_enabled("#back-open")
         assert page.locator("text=No, stop the run").count() == 0
         # the mapping is introduced first, and the question is in the bar, just left of its buttons
         assert page.text_content("#review-title") == (
@@ -5630,7 +5629,8 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         cores_y = page.locator("#f-cores").bounding_box()["y"]
         assert cores_y < page.locator("#f-missing_from").bounding_box()["y"] < page.locator("#f-lon_min").bounding_box()["y"]
         assert "Empty: the whole domain." in page.text_content("#m-subset")
-        assert [button.text_content() for button in page.locator("#actions button").all()] == ["Back", "Match up"]
+        assert [button.text_content() for button in page.locator("#actions button").all()] == ["Match up"]
+        assert page.is_enabled("#back-open")
         assert page.is_disabled("#output-run")
         page.select_option("#f-cores", "1")
         page.wait_for_function("!document.getElementById('output-run').disabled")
@@ -5951,9 +5951,9 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         assert "matching up" not in page.text_content("#console-text")
 
         # Back shows where the matchups go, and then the matchups again, to be answered afresh
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#view-output:not([hidden])")
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#review:not([hidden])")
         assert page.is_enabled("#actions button:has-text('Yes')")
         page.click("#actions button:has-text('Yes')")
@@ -6155,9 +6155,9 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
         through_output(page)
         page.wait_for_selector("#view-validate:not([hidden])")
         pick_cores(page)
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#view-output:not([hidden])")
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#review:not([hidden])")
         assert app.model_check.number == number
         assert rows.count() == 3
@@ -6540,9 +6540,9 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_enabled("#build")
 
         # Back keeps them
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#view-output:not([hidden])")
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
         through_output(page)
@@ -6733,9 +6733,9 @@ def test_the_output_is_only_shown_when_a_run_fails(browser, tmp_path):
         page.wait_for_selector("#run:not([hidden])")
         assert page.is_hidden("#progress")
         assert "matching up" in page.text_content("#console-text")
-        # Quit and Start again are always there; Back only when the choices to go back to are kept
+        # Quit and Start again are always there; the arrow at the top can go back only when the choices to go back to are kept
         page.wait_for_selector("#bar button:has-text('Start again')")
-        assert page.locator("#bar button:has-text('Back')").count() == 0
+        assert page.is_disabled("#back-open")
     finally:
         app.close()
 
@@ -7652,8 +7652,8 @@ def test_the_demo_grid_in_a_browser(browser, tmp_path, fetched):
         assert fetched == urls
 
         # back, the same boxes are ticked, and their files are there already
-        page.click("#actions button:has-text('Back')")
-        page.click("#actions button:has-text('Back')")
+        page.click("#back-open")
+        page.click("#back-open")
         page.wait_for_selector("#demo-grid")
         assert page.locator("#demo-grid input:checked").count() == 2
         assert page.text_content("#demo-start") == "Continue"
@@ -7838,7 +7838,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert page.locator('input[aria-label^="Simulation variable for"]').first.get_attribute("list") is None
         assert page.locator("#model-variables").count() == 0
         # Back to the gridded datasets' page, which keeps what was entered
-        page.click("#cancel")
+        page.click("#back-open")
         assert page.text_content("#page-title") == "Gridded data selection"
         assert page.input_value("#s-clim_start") == "2011"
         page.check(nsbc)
@@ -7858,10 +7858,10 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
 
         # Back from the matchups stops the run before anything is matched up
         page.wait_for_selector("#review:not([hidden])", timeout=90000)
-        assert bar("Back").is_visible()
+        assert page.is_enabled("#back-open")
         assert bar("Yes, continue").is_visible()
         assert page.locator("#actions button:has-text('Stop')").count() == 0
-        bar("Back").click()
+        page.locator("#back-open").click()
         to_units()
         assert temperature.input_value() == "0.5"
         assert look(temperature)[1] == "400"
@@ -7873,11 +7873,11 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert "matching up" not in page.text_content("#console-text")
 
         # the recipes window, as it was left: on the point datasets' page
-        bar("Back").click()
+        page.locator("#back-open").click()
         page.wait_for_url("**/recipes/**", timeout=90000)
         assert page.text_content("#page-title") == "Point data selection"
         assert (page.input_value("#s-point_start"), page.input_value("#s-point_end")) == ("2011", "2012")
-        page.click("#cancel")
+        page.click("#back-open")
         assert page.is_checked(nsbc)
         assert page.input_value(nsbc_start) == "2012"
         page.click("#write")
@@ -7911,10 +7911,10 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.check("#v-pdf")
         page.select_option("#v-subregions", "global")
         # Back keeps them, and where the matchups are saved
-        bar("Back").click()
+        page.locator("#back-open").click()
         to_output()
         assert page.input_value("#f-out") == "mine.py"
-        bar("Back").click()
+        page.locator("#back-open").click()
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
         to_output()
@@ -7927,23 +7927,23 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert page.input_value("#v-missing_from") == "0"
 
         # and back all the way to the simulation
-        bar("Back").click()
+        page.locator("#back-open").click()
         to_output()
-        bar("Back").click()
+        page.locator("#back-open").click()
         page.wait_for_selector("#review:not([hidden])")
-        bar("Back").click()
+        page.locator("#back-open").click()
         to_units()
-        bar("Back").click()
+        page.locator("#back-open").click()
         page.wait_for_url("**/recipes/**", timeout=90000)
         # Back to the gridded datasets' page, and Back from it
-        page.click("#cancel")
-        page.click("#cancel")
+        page.click("#back-open")
+        page.click("#back-open")
         page.wait_for_selector("#view-own:not([hidden])", timeout=60000)
         # the answer given before
         assert "is-chosen" in page.get_attribute("#own-no", "class")
         assert page.is_visible("#own-no .choice__tag")
         assert page.is_hidden("#own-yes .choice__tag")
-        bar("Back").click()
+        page.locator("#back-open").click()
         page.wait_for_selector("#view-setup:not([hidden])")
         assert (page.input_value("#f-simdir"), page.input_value("#f-ndown")) == ("sim", "2")
         assert validated == []
@@ -8203,7 +8203,7 @@ def test_choosing_directories_in_a_browser(browser, tmp_path):
         assert page.evaluate("document.getElementById('f-simdir').list") is None
         assert page.locator("#f-simdir-folders").count() == 0
 
-        page.click("#actions >> text=Back")
+        page.click("#back-open")
         page.click('button.choice[data-action="validate"]')
         # the other directory boxes still suggest the folders in what has been typed
         page.fill("#v-data_dir", "si")
@@ -8589,8 +8589,8 @@ def test_the_bank_is_offered_for_every_action_that_asks_for_a_simulation(browser
         page.wait_for_selector("#view-setup:not([hidden])")
         assert page.is_visible("#f-name") and page.is_visible("#f-bank")
         assert page.is_visible("#f-simdir-recent-toggle")
-        page.click("button:has-text('Back')")
-        page.click("button:has-text('Back')")
+        page.click("#back-open")
+        page.click("#back-open")
         page.click("#home-validate")
         page.click('button.choice[data-action="matchup"]')
         page.wait_for_selector("#view-setup:not([hidden])")
@@ -9010,3 +9010,39 @@ class TestInfo:
             assert page.is_hidden("#info")
         finally:
             app.close()
+
+
+def test_back_is_an_arrow_left_of_restart(browser, tmp_path):
+    """Back is the arrow to the left of Restart at the top of the page, not a button of the bar: greyed out on the
+    first page, where there is nothing to go back to, and pressable on the next, where it returns to it. The
+    header stays at the top as the page scrolls, so the arrow is always there."""
+    app = App(cwd=str(tmp_path))
+    app.leftovers_asked = True
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        # the first page: to the left of Restart, and greyed out
+        assert page.get_attribute("#back-open", "aria-label") == "Back"
+        assert page.evaluate("document.getElementById('back-open').nextElementSibling.id") == "restart-open"
+        assert page.is_disabled("#back-open")
+        assert float(page.evaluate("getComputedStyle(document.getElementById('back-open')).opacity")) < 0.5
+
+        page.click("#home-validate")
+        page.wait_for_selector("#view-start:not([hidden])")
+        assert page.is_enabled("#back-open")
+        assert float(page.evaluate("getComputedStyle(document.getElementById('back-open')).opacity")) == 1
+        # the bar has no Back of its own
+        assert page.locator("#actions button:has-text('Back')").count() == 0
+        page.click("#back-open")
+        page.wait_for_selector("#view-home:not([hidden])")
+        assert page.is_disabled("#back-open")
+
+        # the header stays at the top of a long page, with the arrow in it
+        page.evaluate("document.body.style.minHeight = '4000px'")
+        page.evaluate("window.scrollTo(0, 1500)")
+        assert page.locator(".masthead").bounding_box()["y"] == 0
+        assert page.locator("#restart-open").is_visible() and page.locator("#back-open").is_visible()
+    finally:
+        app.close()

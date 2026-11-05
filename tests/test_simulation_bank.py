@@ -353,8 +353,8 @@ def test_the_bank_in_a_browser(browser, tmp_path, oceanvalcache):
         assert page.input_value("#sc-dir_2") == str(tmp_path / "base")
 
         # the page lists it, and removing it empties the cache's bank
-        page.click("button:has-text('Back')")
-        page.click("button:has-text('Back')")
+        page.click("#back-open")
+        page.click("#back-open")
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-help")
         page.wait_for_selector("#view-help:not([hidden])")
@@ -368,10 +368,10 @@ def test_the_bank_in_a_browser(browser, tmp_path, oceanvalcache):
         assert user_cache.bank() == []
 
         # Analyze: the name box is there for an analysis only
-        page.click("button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#view-help:not([hidden])")
         assert page.is_visible("#help-bank")
-        page.click("button:has-text('Back')")
+        page.click("#back-open")
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
         page.click("#menu-analyze")
@@ -584,9 +584,9 @@ def test_the_simulation_directory_boxes_have_one_drop_down_each(browser, tmp_pat
         # Analyze, Validate and Viewing share the setup page
         for tile, choice in (("#home-analyze", "#menu-analyze"), ("#home-validate", 'button.choice[data-action="matchup"]'),
                              ("#home-viewer", None)):
-            page.click("button:has-text('Back')")
-            if page.is_visible("button:has-text('Back')"):
-                page.click("button:has-text('Back')")
+            page.click("#back-open")
+            if page.is_enabled("#back-open"):
+                page.click("#back-open")
             page.wait_for_selector("#view-home:not([hidden])")
             page.click(tile)
             if choice:
