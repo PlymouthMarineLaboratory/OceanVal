@@ -6,7 +6,8 @@ of the simulations set up covers (see oceanval.output_years), which are read
 again only when their files change, and which first-time messages the window
 has shown (``seen``, e.g. the note on the data store when Validate is first opened),
 and the simulation bank: the names and directories of simulations the user has chosen to
-keep (``bank``), which the window offers when a simulation is set up.
+keep (``bank``), which the window offers when a simulation is set up, each with the info
+(files, years, size) the user has had extracted for it, if any.
 
 The file is in your home directory (or is the file the ``OCEANVALCACHE``
 environment variable names, if it is set). OceanVal never ships it and does not
@@ -191,8 +192,53 @@ def _bank_entries(entries):
             continue
         name, where = entry.get("name"), entry.get("path")
         if isinstance(name, str) and name.strip() and isinstance(where, str) and where:
-            found.append({"name": name.strip(), "path": where})
+            kept = {"name": name.strip(), "path": where}
+            info = _bank_info(entry.get("info"))
+            if info is not None:
+                kept["info"] = info
+            found.append(kept)
     return found
+
+
+def _bank_info(info):
+    """What extracting a simulation's info kept, if it is well formed, else None:
+    {"ndown", "exclude", "require", "files", "variables", "years", "size", "extracted"}.
+    variables (how many) is None when it could not be found or the info is from before
+    it was kept; that alone does not make the info badly formed."""
+    if not isinstance(info, dict):
+        return None
+    ndown, files, size = info.get("ndown"), info.get("files"), info.get("size")
+    for number in (ndown, files, size):
+        if isinstance(number, bool) or not isinstance(number, int) or number < 0:
+            return None
+    variables = info.get("variables")
+    if isinstance(variables, bool) or not isinstance(variables, int) or variables < 0:
+        variables = None
+    years = info.get("years")
+    if years is not None:
+        if (
+            not isinstance(years, (list, tuple))
+            or len(years) != 2
+            or not all(isinstance(year, int) and not isinstance(year, bool) for year in years)
+        ):
+            return None
+        years = [years[0], years[1]]
+    words = {}
+    for key in ("exclude", "require"):
+        value = info.get(key) or []
+        if not isinstance(value, list) or not all(isinstance(word, str) for word in value):
+            return None
+        words[key] = list(value)
+    return {
+        "ndown": ndown,
+        "exclude": words["exclude"],
+        "require": words["require"],
+        "files": files,
+        "variables": variables,
+        "years": years,
+        "size": size,
+        "extracted": str(info.get("extracted") or ""),
+    }
 
 
 def bank():
@@ -245,6 +291,40 @@ def add_to_bank(name, sim_dir):
                 warning=f"could not update {path()}: {error}",
             )
         return False, "The simulation could not be added to the bank."
+
+
+def set_bank_info(name, info):
+    """Keep what extracting a bank simulation's info found (see _bank_info for the
+    keys; the time is added here) with its entry, leaving all else in the file.
+    Returns (True, "") or (False, why): it is refused when the simulation is not in
+    the bank (it may have been removed meanwhile) or the info is not well formed."""
+    try:
+        info = _bank_info(dict(info, extracted=datetime.datetime.now().isoformat(timespec="seconds")))
+        if info is None:
+            return False, "The simulation's info was not in the form expected."
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was added to it: {problem}")
+            return False, "The OceanVal cache file could not be used, so the info was not kept."
+        wanted = str(name or "").strip().casefold()
+        found = False
+        for entry in data["bank"]:
+            if isinstance(entry, dict) and str(entry.get("name", "")).strip().casefold() == wanted:
+                entry["info"] = info
+                found = True
+        if not found:
+            return False, "That simulation is no longer in the bank."
+        _write(where, data)
+        return True, ""
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False, "The simulation's info could not be kept."
 
 
 def remove_from_bank(name):

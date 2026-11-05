@@ -947,6 +947,19 @@
   .bank td.bank__remove { width: 48px; text-align: right; }
   .bank__missing { display: block; color: var(--muted); font: 400 12px/16px var(--font-body); }
   .bank__empty { margin: 0; padding: 22px 14px; color: var(--muted); }
+  /* under the simulations in the bank, at the left */
+  .bank__add-row { margin: 14px 0 0; text-align: left; }
+  .bank td.bank__info { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .bank td.bank__add { text-align: left; }
+  .bank td.bank__regenerate { width: 1%; white-space: nowrap; text-align: right; }
+  /* the pop-out that asks for what to read a bank simulation's info from */
+  .bank-info__form { display: grid; gap: 14px; padding: 4px 22px 8px; }
+  .bank-info__form .g-row { margin: 0; }
+  .bank-info__where { margin: 0; font: 400 13px/18px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+  .bank-info__count { margin: 0; min-height: 20px; }
+  .bank-info__count.is-finding { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); }
+  .bank-info__count.is-error { color: var(--red-ink, var(--ink)); font-weight: 600; }
+  .bank-info__count .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
   #row-f-name { margin-top: 10px; }
   .combo__name { font: 500 14px/18px var(--font-body); }
   .combo__sub { display: block; color: var(--muted); font: 400 12px/16px var(--font-mono); }
@@ -1292,14 +1305,15 @@
   </section>
 
   <section id="view-bank" hidden>
-    <p class="lede">The simulations you have added to the bank. In Analyze and Compare simulations, the arrow in the Name box lists them. Removing one only forgets its name and directory: no files are touched.</p>
+    <p class="lede">The simulations you have added to the bank. In Analyze and Compare simulations, the arrow in the Name box lists them. Add simulation info to see how many files and variables a simulation has, the years they cover and how big it is. Removing one only forgets its name, directory and info: no files are touched.</p>
     <div class="card bank">
       <table aria-label="Simulations in the bank">
-        <thead><tr><th>Name</th><th>Directory</th><th aria-label="Remove"></th></tr></thead>
+        <thead><tr><th>Name</th><th>Directory</th><th>Number of files</th><th>Number of variables</th><th>Years</th><th>Size of simulation</th><th aria-label="Regenerate the info"></th><th aria-label="Remove"></th></tr></thead>
         <tbody id="bank-rows"></tbody>
       </table>
-      <p class="bank__empty" id="bank-empty" hidden>Nothing is in the bank yet. Use Add to bank when you set up Analyze or Compare simulations.</p>
+      <p class="bank__empty" id="bank-empty" hidden>Nothing is in the bank yet. Use Add to the bank below, or Add to bank when you set up Analyze or Compare simulations.</p>
     </div>
+    <p class="bank__add-row"><button type="button" class="btn btn--primary" id="bank-add-open" aria-haspopup="dialog">Add to the bank</button></p>
   </section>
 
   <section id="view-analyze-menu" hidden>
@@ -2500,6 +2514,22 @@
   </div>
 </div>
 
+<div class="picker" id="bank-add" hidden>
+  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="bank-add-title">
+    <div class="picker__head">
+      <h2 id="bank-add-title">Add to the bank</h2>
+    </div>
+    <div class="bank-info__form">
+      <div class="g-row"><label class="g-label is-required" for="bank-add-name">Name <span class="own-req">Required</span></label><input class="s-input" id="bank-add-name" placeholder="Give it a name, e.g. 'Atlantic ocean reanalysis from Project X'" spellcheck="false" autocomplete="off"></div>
+      <div class="g-row"><label class="g-label is-required" for="bank-add-dir">Directory <span class="own-req">Required</span></label><div class="path-field"><input class="s-input is-mono" id="bank-add-dir" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="bank-add-dir">Browse…</button></div></div>
+      <p class="bank-info__count" id="bank-add-note" role="status"></p>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost" id="bank-add-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="bank-add-confirm" disabled>Add to the bank</button>
+    </div>
+  </div>
+</div>
 <div class="picker" id="picker" hidden>
   <div class="picker__card" role="dialog" aria-modal="true" aria-labelledby="picker-title">
     <div class="picker__head">
@@ -2513,6 +2543,32 @@
     <div class="picker__foot">
       <button type="button" class="btn btn--ghost" id="picker-cancel">Cancel</button>
       <button type="button" class="btn btn--primary" id="picker-choose">Choose this directory</button>
+    </div>
+  </div>
+</div>
+
+<div class="picker" id="bank-info" hidden>
+  <div class="picker__card" role="dialog" aria-modal="true" aria-labelledby="bank-info-title">
+    <div class="picker__head">
+      <h2 id="bank-info-title">Simulation info</h2>
+    </div>
+    <div class="bank-info__form">
+      <p class="bank-info__where" id="bank-info-where"></p>
+      <div class="ndown-row">
+        <label class="g-label is-required" for="bank-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
+        <input class="s-input is-num" id="bank-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" autocomplete="off">
+      </div>
+      <div class="form__row is-pair">
+        <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="bank-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+        <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="bank-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+      </div>
+      <p class="bank-info__count" id="bank-info-count" role="status"></p>
+      <p class="group__intro" id="bank-info-view-row" hidden><button type="button" class="link" id="bank-info-view" aria-haspopup="dialog">Click here to view the files in a random subdirectory of the listed directory</button></p>
+    </div>
+    <div class="picker__foot">
+      <span class="bank-info__count is-finding" id="bank-info-working" role="status" hidden><span class="identify__spinner" aria-hidden="true"></span>Reading the files…</span>
+      <button type="button" class="btn btn--ghost" id="bank-info-close">Close</button>
+      <button type="button" class="btn btn--primary" id="bank-info-extract" disabled>Extract simulation info</button>
     </div>
   </div>
 </div>
@@ -4403,6 +4459,7 @@
     renderCdoFailed();
     if (state.view === "help_compatible") renderCompatible();
     if (state.view === "bank") renderBank();
+    renderBankExtract();
     bankLists.forEach((again) => again());
     if (state.view === "point_data") refreshOwn("point");
     if (state.view === "gridded_data") refreshOwn("gridded");
@@ -9228,6 +9285,12 @@
         ? [`${listing.nc_files} netCDF file${listing.nc_files === 1 ? "" : "s"} in here. Click one to choose it.`, "ok"]
         : ["No netCDF files in here. Open a folder to look for one.", ""],
     },
+    "bank-add-dir": {
+      title: "Choose the directory with the simulation output",
+      describe: (listing) => listing.nc_files
+        ? [`${listing.nc_files} netCDF file${listing.nc_files === 1 ? "" : "s"} directly in here, e.g. ${listing.example}.`, "ok"]
+        : ["No netCDF files directly in here, which is fine if they are in folders below it.", ""],
+    },
     "f-simdir": {
       title: "Choose the directory with the simulation output",
       describe: (listing) => listing.nc_files
@@ -9305,13 +9368,16 @@
     $("picker-info").replaceChildren();
     $("picker").hidden = false;
     BEHIND.forEach((node) => { node.inert = true; });
+    // opened over the pop-out that adds to the bank, which waits behind it
+    $("bank-add").inert = true;
     // the directory in the box, or the nearest one above it
     showFolder(input.value.trim());
   }
 
   function closePicker() {
     $("picker").hidden = true;
-    BEHIND.forEach((node) => { node.inert = false; });
+    $("bank-add").inert = false;
+    if ($("bank-add").hidden && $("bank-info").hidden) BEHIND.forEach((node) => { node.inert = false; });
     picker.number += 1;
     if (picker.opener) picker.opener.focus();
   }
@@ -9436,7 +9502,8 @@
   });
 
   // ---- a look at the simulation's file names, in a directory chosen at random ----
-  const sample = { opener: null, path: null, number: 0 };
+  // `source` says which directory and depth to look at when it is not the setup page's (the bank's pop-out)
+  const sample = { opener: null, path: null, number: 0, source: null };
 
   async function showSample(avoid) {
     const number = ++sample.number;
@@ -9446,7 +9513,8 @@
     $("sample-another").disabled = true;
     let found;
     try {
-      const response = await fetch(`api/files?${query({ simdir: setup.simdir, ndown: setup.ndown, avoid: avoid || "" })}`, { cache: "no-store" });
+      const where = sample.source ? sample.source() : { simdir: setup.simdir, ndown: setup.ndown };
+      const response = await fetch(`api/files?${query({ simdir: where.simdir, ndown: where.ndown, avoid: avoid || "" })}`, { cache: "no-store" });
       found = await response.json();
     } catch (error) {
       return;
@@ -9475,17 +9543,21 @@
     $("sample-another").disabled = found.directories < 2;
   }
 
-  function openSample() {
-    sample.opener = $("view-files");
+  function openSample(opener, source) {
+    sample.opener = opener || $("view-files");
+    sample.source = source || null;
     $("sample").hidden = false;
     BEHIND.forEach((node) => { node.inert = true; });
+    // opened over the bank's pop-out, which waits behind it
+    $("bank-info").inert = true;
     showSample("");
     $("sample-close").focus();
   }
 
   function closeSample() {
     $("sample").hidden = true;
-    BEHIND.forEach((node) => { node.inert = false; });
+    $("bank-info").inert = false;
+    if ($("bank-info").hidden) BEHIND.forEach((node) => { node.inert = false; });
     sample.number += 1;
     if (sample.opener) sample.opener.focus();
   }
@@ -9513,7 +9585,7 @@
     }
   });
 
-  $("view-files").addEventListener("click", openSample);
+  $("view-files").addEventListener("click", () => openSample($("view-files"), null));
   $("sample-another").addEventListener("click", () => showSample(sample.path));
   $("sample-close").addEventListener("click", closeSample);
   $("sample").addEventListener("click", (event) => { if (event.target === $("sample")) closeSample(); });
@@ -11172,6 +11244,84 @@
     if (reply.bank) state.bank = reply.bank;
     toast(reply.ok ? `Added ${name.trim()} to the simulation bank.` : (reply.error || "Could not add it to the bank."));
     bankLists.forEach((again) => again());
+    return reply;
+  }
+
+  // ---- the pop-out that adds a simulation to the bank from the bank page ----
+  const bankAdd = { opener: null, number: 0, timer: null, finding: false, missing: false, error: "" };
+
+  function openBankAdd(opener) {
+    Object.assign(bankAdd, { opener, finding: false, missing: false, error: "" });
+    $("bank-add-name").value = "";
+    $("bank-add-dir").value = "";
+    $("bank-add").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    refreshBankAdd();
+    $("bank-add-name").focus();
+  }
+
+  function closeBankAdd() {
+    bankAdd.number += 1;
+    clearTimeout(bankAdd.timer);
+    $("bank-add").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+    if (bankAdd.opener && document.contains(bankAdd.opener)) bankAdd.opener.focus();
+  }
+
+  function refreshBankAdd() {
+    const note = $("bank-add-note");
+    note.className = "bank-info__count";
+    note.replaceChildren();
+    if (bankAdd.error) {
+      note.classList.add("is-error");
+      note.textContent = bankAdd.error;
+    } else if (bankAdd.finding) {
+      note.classList.add("is-finding");
+      note.replaceChildren(el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Looking for the directory");
+    } else if (bankAdd.missing) {
+      note.classList.add("is-error");
+      note.textContent = "There is no directory at this path.";
+    }
+    const named = $("bank-add-name").value.trim() !== "" && $("bank-add-dir").value.trim() !== "";
+    $("bank-add-confirm").disabled = !named || bankAdd.finding || bankAdd.missing;
+  }
+
+  // a directory that is not there is caught as it is typed (a web address is taken as it is)
+  function checkBankAddDirectory() {
+    clearTimeout(bankAdd.timer);
+    const number = ++bankAdd.number;
+    const directory = $("bank-add-dir").value.trim();
+    bankAdd.error = "";
+    bankAdd.missing = false;
+    bankAdd.finding = directory !== "" && !isWebAddress(directory);
+    refreshBankAdd();
+    if (!bankAdd.finding) return;
+    bankAdd.timer = setTimeout(async () => {
+      let found;
+      try {
+        const response = await fetch(`api/probe?${query({ simdir: directory, ndown: "0", out: "", exclude: "", require: "", out_dir: "" })}`, { cache: "no-store" });
+        found = await response.json();
+      } catch (error) {
+        if (number === bankAdd.number) { bankAdd.finding = false; refreshBankAdd(); }
+        return;
+      }
+      if (number !== bankAdd.number || $("bank-add").hidden) return;
+      bankAdd.finding = false;
+      bankAdd.missing = found.directory === "missing";
+      refreshBankAdd();
+    }, 300);
+  }
+
+  async function confirmBankAdd() {
+    $("bank-add-confirm").disabled = true;
+    const reply = await addToBank($("bank-add-name").value, $("bank-add-dir").value);
+    if (reply.ok) {
+      closeBankAdd();
+      renderBank();
+    } else {
+      bankAdd.error = reply.error || "Could not add it to the bank.";
+      refreshBankAdd();
+    }
   }
 
     // the Name box and the Directory box each have an arrow listing the bank, and the Add to bank button sits beside the
@@ -11268,6 +11418,8 @@
   }
 
   // the Simulation bank page
+  const isWebAddress = (path) => /^https?:\/\//i.test(path);
+
   function renderBank() {
     const entries = bankEntries();
     $("bank-empty").hidden = entries.length > 0;
@@ -11275,6 +11427,7 @@
       el("td", { text: entry.name }),
       el("td", { class: "bank__dir" }, entry.path,
         entry.exists ? null : el("span", { class: "bank__missing", text: "This directory was not found." })),
+      ...bankInfoCells(entry),
       el("td", { class: "bank__remove" }, el("button", {
         type: "button", class: "analyze-remove", text: "×", title: "Remove from the bank", "aria-label": `Remove ${entry.name} from the bank`,
         onclick: async () => {
@@ -11286,6 +11439,200 @@
         },
       })))));
   }
+
+  // the four cells on the right: empty, with a button to add the info, until it has been extracted
+  function bankInfoCells(entry) {
+    const info = entry.info;
+    const none = el("td", { class: "bank__regenerate" });
+    if (isWebAddress(entry.path)) return [...["", "", "", ""].map(() => el("td", { class: "bank__info", text: "—" })), none];
+    if (!info) {
+      return [el("td", { class: "bank__add", colspan: "4" }, el("button", {
+        type: "button", class: "btn btn--ghost", text: "Add simulation info",
+        "aria-label": `Add simulation info for ${entry.name}`, "aria-haspopup": "dialog",
+        onclick: (event) => openBankInfo(entry, event.currentTarget),
+      })), none];
+    }
+    return [
+      el("td", { class: "bank__info", text: info.files.toLocaleString("en-GB") }),
+      el("td", { class: "bank__info", text: info.variables === null || info.variables === undefined ? "—" : info.variables.toLocaleString("en-GB") }),
+      el("td", { class: "bank__info", text: info.years ? (info.years[0] === info.years[1] ? String(info.years[0]) : `${info.years[0]}–${info.years[1]}`) : "—" }),
+      el("td", { class: "bank__info", text: formatBytes(info.size) }),
+      // to the right of everything: the info can be made again, if a mistake was made
+      el("td", { class: "bank__regenerate" }, el("button", {
+        type: "button", class: "btn btn--ghost", text: "Regenerate",
+        title: "Extract the info again, with the same or different settings",
+        "aria-label": `Regenerate the info of ${entry.name}`, "aria-haspopup": "dialog",
+        onclick: (event) => openBankInfo(entry, event.currentTarget),
+      })),
+    ];
+  }
+
+  // ---- the pop-out that asks what to read a bank simulation's info from ----
+  const bankInfo = { entry: null, opener: null, number: 0, timer: null, probe: null, finding: false,
+    detected: false, extracting: false, error: "" };
+  depthBox($("bank-ndown"));
+
+  function openBankInfo(entry, opener) {
+    const info = entry.info;
+    Object.assign(bankInfo, { entry, opener, probe: null, finding: false, detected: false, extracting: false, error: "" });
+    $("bank-info-title").textContent = `Simulation info: ${entry.name}`;
+    $("bank-info-where").textContent = entry.path;
+    $("bank-ndown").value = info ? String(info.ndown) : "";
+    $("bank-exclude").value = info ? info.exclude.join(" ") : "";
+    $("bank-require").value = info ? info.require.join(" ") : "";
+    $("bank-info").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    refreshBankInfo();
+    askBankProbe(0);
+    $("bank-ndown").focus();
+  }
+
+  function closeBankInfo() {
+    if (bankInfo.extracting) post("api/bank_extract_cancel");
+    bankInfo.extracting = false;
+    bankInfo.number += 1;
+    $("bank-info").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+    if (bankInfo.opener && document.contains(bankInfo.opener)) bankInfo.opener.focus();
+  }
+
+  const bankDepth = () => {
+    const text = $("bank-ndown").value.trim();
+    return /^\d+$/.test(text) ? Number(text) : null;
+  };
+
+  function askBankProbe(delay) {
+    clearTimeout(bankInfo.timer);
+    // an answer to an earlier check still on its way is dropped
+    const number = ++bankInfo.number;
+    bankInfo.finding = true;
+    refreshBankInfo();
+    bankInfo.timer = setTimeout(async () => {
+      let found;
+      try {
+        const response = await fetch(`api/probe?${query({
+          simdir: bankInfo.entry.path, ndown: $("bank-ndown").value, out: "", exclude: $("bank-exclude").value,
+          require: $("bank-require").value, out_dir: "",
+        })}`, { cache: "no-store" });
+        found = await response.json();
+      } catch (error) {
+        if (number === bankInfo.number) { bankInfo.finding = false; refreshBankInfo(); }
+        return;
+      }
+      if (number !== bankInfo.number || $("bank-info").hidden) return;
+      bankInfo.finding = false;
+      bankInfo.probe = found;
+      // a blank box is filled from the folders' layout, as the setup page does; typing makes it the user's
+      if (!$("bank-ndown").value.trim() && found.layout) {
+        $("bank-ndown").value = String(found.layout.ndown);
+        bankInfo.detected = true;
+        askBankProbe(0);
+        return;
+      }
+      refreshBankInfo();
+    }, delay);
+  }
+
+  function refreshBankInfo() {
+    const found = bankInfo.probe;
+    const depth = bankDepth();
+    const count = $("bank-info-count");
+    count.className = "bank-info__count";
+    count.replaceChildren();
+    let files = 0;
+    if (bankInfo.error) {
+      count.classList.add("is-error");
+      count.textContent = bankInfo.error;
+    } else if (bankInfo.finding) {
+      count.classList.add("is-finding");
+      count.replaceChildren(el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Finding files");
+    } else if (found && found.directory === "missing") {
+      count.classList.add("is-error");
+      count.textContent = "There is no directory at this path.";
+    } else if (found && found.directory === "found" && depth !== null) {
+      files = found.files || 0;
+      const filtered = found.all_files !== null && found.all_files !== found.files;
+      if (files > 0) {
+        count.textContent = filtered
+          ? `${files} of the ${found.all_files} netCDF files found pass the file filters`
+          : `${files} netCDF file${files === 1 ? "" : "s"} found`;
+      } else {
+        count.classList.add("is-error");
+        count.textContent = found.all_files > 0
+          ? `None of the ${found.all_files} netCDF files ${depthText(depth)} pass the file filters.`
+          : `No netCDF files ${depthText(depth)}.`;
+      }
+    }
+    $("bank-ndown").classList.toggle("is-detected", bankInfo.detected && !bankInfo.finding);
+    $("bank-info-view-row").hidden = !(found && found.directory === "found" && depth !== null && !bankInfo.finding);
+    for (const id of ["bank-ndown", "bank-exclude", "bank-require"]) $(id).disabled = bankInfo.extracting;
+    $("bank-info-working").hidden = !bankInfo.extracting;
+    $("bank-info-extract").disabled = bankInfo.extracting || bankInfo.finding || files === 0;
+  }
+
+  async function extractBankInfo() {
+    bankInfo.error = "";
+    bankInfo.extracting = true;
+    refreshBankInfo();
+    const reply = await post("api/bank_extract", {
+      name: bankInfo.entry.name, ndown: $("bank-ndown").value, exclude: $("bank-exclude").value, require: $("bank-require").value,
+    });
+    if (!reply.ok) {
+      bankInfo.extracting = false;
+      bankInfo.error = reply.error || "Could not extract the info.";
+      refreshBankInfo();
+    }
+  }
+
+  // how the extraction ended, from the state
+  function renderBankExtract() {
+    const done = state.bank_extract;
+    if (!bankInfo.extracting || $("bank-info").hidden || !done || done.name !== bankInfo.entry.name) return;
+    if (done.status === "working") return;
+    const name = bankInfo.entry.name;
+    bankInfo.extracting = false;
+    post("api/bank_extract_clear");
+    if (done.status === "done") {
+      closeBankInfo();
+      renderBank();
+      toast(`Extracted the info of ${name}.`);
+    } else {
+      bankInfo.error = done.error || "Could not extract the info.";
+      refreshBankInfo();
+    }
+  }
+
+  $("bank-add-open").addEventListener("click", () => openBankAdd($("bank-add-open")));
+  $("bank-add-name").addEventListener("input", () => { bankAdd.error = ""; refreshBankAdd(); });
+  $("bank-add-dir").addEventListener("input", checkBankAddDirectory);
+  $("bank-add-confirm").addEventListener("click", confirmBankAdd);
+  $("bank-add-cancel").addEventListener("click", closeBankAdd);
+  $("bank-add").addEventListener("click", (event) => { if (event.target === $("bank-add")) closeBankAdd(); });
+  $("bank-add").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeBankAdd();
+    }
+  });
+  for (const id of ["bank-ndown", "bank-exclude", "bank-require"]) {
+    $(id).addEventListener("input", () => {
+      bankInfo.error = "";
+      if (id === "bank-ndown") bankInfo.detected = false;
+      askBankProbe(300);
+    });
+  }
+  $("bank-info-extract").addEventListener("click", extractBankInfo);
+  $("bank-info-close").addEventListener("click", closeBankInfo);
+  $("bank-info-view").addEventListener("click", () => openSample($("bank-info-view"), () => ({
+    simdir: bankInfo.entry.path, ndown: $("bank-ndown").value,
+  })));
+  $("bank-info").addEventListener("click", (event) => { if (event.target === $("bank-info")) closeBankInfo(); });
+  $("bank-info").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeBankInfo();
+    }
+  });
 
   makeBankList("f-name", "f-simdir", "f-bank");
 

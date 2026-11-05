@@ -89,6 +89,87 @@ class TestTheBankInTheCache:
         assert oceanvalcache.read_text() == '{"version": 99, "bank": []}'
 
 
+class TestTheInfoOfASimulation:
+    INFO = {"ndown": 1, "exclude": ["restart"], "require": [], "files": 4, "variables": 7, "years": [2013, 2014], "size": 1234}
+
+    def test_an_entry_has_no_info_until_it_is_extracted(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        assert "info" not in user_cache.bank()[0]
+
+    def test_info_is_kept_with_its_entry(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path / "a"))
+        user_cache.add_to_bank("Other", str(tmp_path / "b"))
+        assert user_cache.set_bank_info("control", self.INFO) == (True, "")
+        first, second = user_cache.bank()
+        assert first["info"]["files"] == 4 and first["info"]["years"] == [2013, 2014]
+        assert first["info"]["exclude"] == ["restart"] and first["info"]["extracted"]
+        assert "info" not in second
+
+    def test_the_number_of_variables_is_kept(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        user_cache.set_bank_info("Control", self.INFO)
+        assert user_cache.bank()[0]["info"]["variables"] == 7
+
+    @pytest.mark.parametrize("variables", [None, -1, "many", True, 2.5])
+    def test_variables_that_are_missing_or_wrong_do_not_spoil_the_info(self, oceanvalcache, tmp_path, variables):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        info = {k: v for k, v in self.INFO.items() if k != "variables"} if variables is None else dict(self.INFO, variables=variables)
+        assert user_cache.set_bank_info("Control", info)[0]
+        kept = user_cache.bank()[0]["info"]
+        assert kept["variables"] is None and kept["files"] == 4
+
+    def test_info_kept_before_the_variables_were_has_none(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        data = json.loads(oceanvalcache.read_text())
+        data["bank"][0]["info"] = {k: v for k, v in self.INFO.items() if k != "variables"}
+        oceanvalcache.write_text(json.dumps(data))
+        assert user_cache.bank()[0]["info"]["variables"] is None
+
+    def test_info_without_years_is_kept(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        assert user_cache.set_bank_info("Control", dict(self.INFO, years=None))[0]
+        assert user_cache.bank()[0]["info"]["years"] is None
+
+    def test_info_for_a_simulation_not_in_the_bank_is_refused(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        ok, why = user_cache.set_bank_info("Gone", self.INFO)
+        assert not ok and "no longer in the bank" in why
+        assert "info" not in user_cache.bank()[0]
+
+    @pytest.mark.parametrize("bad", [
+        dict(INFO, files=-1), dict(INFO, size="big"), dict(INFO, years=[2013]), dict(INFO, exclude="restart"),
+        dict(INFO, ndown=True),
+    ])
+    def test_info_that_is_not_well_formed_is_refused(self, oceanvalcache, tmp_path, bad):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        assert not user_cache.set_bank_info("Control", bad)[0]
+        assert "info" not in user_cache.bank()[0]
+
+    def test_a_badly_formed_info_in_the_file_is_ignored(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        data = json.loads(oceanvalcache.read_text())
+        data["bank"][0]["info"] = {"files": "many"}
+        oceanvalcache.write_text(json.dumps(data))
+        assert user_cache.bank() == [{"name": "Control", "path": str(tmp_path)}]
+
+    def test_the_rest_of_the_file_is_kept(self, oceanvalcache, tmp_path):
+        user_cache.record_sim_dir(str(tmp_path / "used"))
+        user_cache.add_to_bank("Control", str(tmp_path))
+        user_cache.set_bank_info("Control", self.INFO)
+        assert user_cache.recent_sim_dirs() == [str(tmp_path / "used")]
+
+    def test_a_file_that_cannot_be_used_is_left_alone(self, oceanvalcache, tmp_path):
+        oceanvalcache.write_text('{"version": 99, "bank": []}')
+        assert not user_cache.set_bank_info("Control", self.INFO)[0]
+        assert oceanvalcache.read_text() == '{"version": 99, "bank": []}'
+
+    def test_removing_the_simulation_removes_its_info(self, oceanvalcache, tmp_path):
+        user_cache.add_to_bank("Control", str(tmp_path))
+        user_cache.set_bank_info("Control", self.INFO)
+        user_cache.remove_from_bank("Control")
+        assert "info" not in oceanvalcache.read_text()
+
+
 @pytest.fixture
 def app(tmp_path):
     app = App(cwd=str(tmp_path))
@@ -137,6 +218,97 @@ class TestTheWindow:
         form = dict(analysis_forms.default_setup_form(str(tmp_path)), name="Control", simdir="base", ndown="1")
         arguments, errors = analysis_forms.check_setup(form, str(tmp_path))
         assert not errors and "name" not in arguments
+
+
+def _wait_for_extraction(app, name, seconds=60):
+    import time
+
+    stop = time.monotonic() + seconds
+    while time.monotonic() < stop:
+        said = get_json(app, "/api/state")[1]["bank_extract"]
+        if said and said["name"] == name and said["status"] != "working":
+            return said
+        time.sleep(0.1)
+    raise AssertionError("the info was not extracted")
+
+
+class TestExtractingTheInfo:
+    @pytest.fixture
+    def banked(self, app, tmp_path):
+        write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+        post(app, "/api/bank_add", {"name": "Control", "path": "base"})
+        return app
+
+    def test_nothing_is_extracted_to_start_with(self, banked):
+        state = get_json(banked, "/api/state")[1]
+        assert state["bank_extract"] is None
+        assert "info" not in state["bank"][0]
+
+    def test_the_files_years_and_size_are_kept(self, banked, tmp_path):
+        import os
+
+        assert post(banked, "/api/bank_extract", {"name": "control", "ndown": "1"})[1]["ok"]
+        assert _wait_for_extraction(banked, "Control")["status"] == "done"
+        info = get_json(banked, "/api/state")[1]["bank"][0]["info"]
+        files = sorted((tmp_path / "base").glob("*/*.nc"))
+        assert info["files"] == len(files) == 4
+        assert info["years"] == [2013, 2014]
+        # thetao and e3t in grid_T, P1_Chl and P2_Chl in ptrc_T
+        assert info["variables"] == 4
+        assert info["size"] == sum(os.path.getsize(f) for f in files)
+        assert (info["ndown"], info["exclude"], info["require"]) == (1, [], [])
+        assert user_cache.bank()[0]["info"]["files"] == 4
+
+    def test_the_file_filters_decide_what_is_counted(self, banked, tmp_path):
+        post(banked, "/api/bank_extract", {"name": "Control", "ndown": "1", "require": "grid_T", "exclude": "x_y"})
+        assert _wait_for_extraction(banked, "Control")["status"] == "done"
+        info = user_cache.bank()[0]["info"]
+        assert info["files"] == 2 and info["require"] == ["grid_T"] and info["exclude"] == ["x_y"]
+        # only that stream's variables
+        assert info["variables"] == 2
+
+    def test_files_that_cannot_be_read_leave_the_variables_unknown(self, app, tmp_path):
+        (tmp_path / "bad").mkdir()
+        (tmp_path / "bad" / "a_2013.nc").write_text("not a netCDF file")
+        post(app, "/api/bank_add", {"name": "Bad", "path": "bad"})
+        post(app, "/api/bank_extract", {"name": "Bad", "ndown": "0"})
+        assert _wait_for_extraction(app, "Bad")["status"] == "done"
+        info = user_cache.bank()[0]["info"]
+        assert info["files"] == 1 and info["variables"] is None
+
+    def test_the_page_is_told_it_is_over_and_can_clear_it(self, banked):
+        post(banked, "/api/bank_extract", {"name": "Control", "ndown": "1"})
+        _wait_for_extraction(banked, "Control")
+        post(banked, "/api/bank_extract_clear")
+        assert get_json(banked, "/api/state")[1]["bank_extract"] is None
+
+    def test_no_files_at_that_depth_fails_and_keeps_nothing(self, banked):
+        post(banked, "/api/bank_extract", {"name": "Control", "ndown": "0"})
+        said = _wait_for_extraction(banked, "Control")
+        assert said["status"] == "failed" and "no netCDF files" in said["error"]
+        assert "info" not in user_cache.bank()[0]
+
+    @pytest.mark.parametrize("ndown", ["", "-1", "two", "1.5"])
+    def test_a_depth_that_is_not_a_whole_number_is_refused(self, banked, ndown):
+        reply = post(banked, "/api/bank_extract", {"name": "Control", "ndown": ndown})[1]
+        assert not reply["ok"] and "whole number" in reply["error"]
+
+    def test_a_simulation_not_in_the_bank_is_refused(self, banked):
+        reply = post(banked, "/api/bank_extract", {"name": "Nope", "ndown": "1"})[1]
+        assert not reply["ok"] and "not in the bank" in reply["error"]
+
+    def test_a_missing_directory_is_refused(self, app):
+        post(app, "/api/bank_add", {"name": "Gone", "path": "nowhere"})
+        assert "no directory" in post(app, "/api/bank_extract", {"name": "Gone", "ndown": "0"})[1]["error"]
+
+    def test_a_web_address_is_refused(self, app):
+        post(app, "/api/bank_add", {"name": "Remote", "path": "https://example.org/data.nc"})
+        assert "web address" in post(app, "/api/bank_extract", {"name": "Remote", "ndown": "0"})[1]["error"]
+
+    def test_restarting_forgets_it(self, banked):
+        post(banked, "/api/bank_extract", {"name": "Control", "ndown": "1"})
+        banked.reset()
+        assert get_json(banked, "/api/state")[1]["bank_extract"] is None
 
 
 def test_the_bank_in_a_browser(browser, tmp_path, oceanvalcache):
@@ -211,6 +383,176 @@ def test_the_bank_in_a_browser(browser, tmp_path, oceanvalcache):
         page.click("#f-bank")
         page.wait_for_function("() => document.querySelector('#f-bank').textContent === 'In bank'")
         assert user_cache.bank() == [{"name": "Analysed", "path": str(tmp_path / "base")}]
+    finally:
+        page.close()
+        app.close()
+
+
+def test_adding_simulation_info_in_a_browser(browser, tmp_path, oceanvalcache):
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    user_cache.add_to_bank("Control", str(tmp_path / "base"))
+    user_cache.add_to_bank("Remote", "https://example.org/data.nc")
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    try:
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-help")
+        page.click("#help-bank")
+        page.wait_for_selector("#view-bank:not([hidden])")
+        heads = [text.title() if text else text for text in page.locator("#view-bank thead th").all_inner_texts()]
+        assert heads[:2] == ["Name", "Directory"]
+        assert heads[2:6] == ["Number Of Files", "Number Of Variables", "Years", "Size Of Simulation"]
+        assert heads[6:] == ["", ""]
+        # missing to start with, and a button to add them (not for a web address)
+        row = page.locator("#bank-rows tr").first
+        assert row.locator("td.bank__info").count() == 0
+        assert row.locator("button:has-text('Add simulation info')").count() == 1
+        assert page.locator("#bank-rows tr").nth(1).locator("button:has-text('Add simulation info')").count() == 0
+
+        row.locator("button:has-text('Add simulation info')").click()
+        page.wait_for_selector("#bank-info:not([hidden])")
+        # nothing is counted until the depth is given; this layout is not one OceanVal fills in
+        assert page.input_value("#bank-ndown") == "" and page.is_disabled("#bank-info-extract")
+        assert page.is_hidden("#bank-info-view-row")
+        page.fill("#bank-ndown", "1")
+        page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('4 netCDF files found')")
+        assert page.is_enabled("#bank-info-extract")
+        page.fill("#bank-require", "grid_T")
+        page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('2 of the 4')")
+        page.fill("#bank-require", "")
+        page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('4 netCDF files found')")
+
+        # a look at a random subdirectory, above the pop-out, and back
+        page.click("#bank-info-view")
+        page.wait_for_selector("#sample:not([hidden])")
+        page.wait_for_function("() => document.querySelector('#sample-list').textContent.includes('grid_T.nc')")
+        page.click("#sample-close")
+        assert page.is_hidden("#sample") and page.is_visible("#bank-info")
+        assert page.evaluate("document.getElementById('bank-info').inert") is False
+        # still behind the pop-out
+        assert page.evaluate("document.querySelector('main').inert") is True
+
+        page.click("#bank-info-extract")
+        page.wait_for_selector("#bank-info", state="hidden")
+        row = page.locator("#bank-rows tr").first
+        cells = row.locator("td.bank__info").all_inner_texts()
+        assert cells[0] == "4" and cells[1] == "4" and cells[2] == "2013–2014"
+        assert cells[3].startswith(("1", "2", "3", "4", "5", "6", "7", "8", "9")) and "B" in cells[3]
+        assert row.locator("button:has-text('Add simulation info')").count() == 0
+        assert user_cache.bank()[0]["info"]["files"] == 4
+
+        # Regenerate, the last button on the right but for the ×, opens it again with what was used
+        assert row.locator("td").nth(6).locator("button:has-text('Regenerate')").count() == 1
+        row.locator("button:has-text('Regenerate')").click()
+        page.wait_for_selector("#bank-info:not([hidden])")
+        assert page.input_value("#bank-ndown") == "1"
+        page.fill("#bank-require", "grid_T")
+        page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('2 of the 4')")
+        page.click("#bank-info-extract")
+        page.wait_for_selector("#bank-info", state="hidden")
+        assert page.locator("#bank-rows tr").first.locator("td.bank__info").first.inner_text() == "2"
+        # grid_T only: thetao and e3t
+        assert page.locator("#bank-rows tr").first.locator("td.bank__info").nth(1).inner_text() == "2"
+        assert user_cache.bank()[0]["info"]["require"] == ["grid_T"]
+        assert page.evaluate("document.querySelector('main').inert") is False
+    finally:
+        page.close()
+        app.close()
+
+
+def test_adding_to_the_bank_from_the_bank_page(browser, tmp_path, oceanvalcache):
+    write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
+    write_analysis_simulation(str(tmp_path / "fine"), years=(2013, 2014), daily=False)
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    page = browser.new_page(viewport={"width": 1280, "height": 1000})
+    try:
+        page.goto(url)
+        page.wait_for_selector("#view-home:not([hidden])")
+        page.click("#home-help")
+        page.wait_for_selector("#view-help:not([hidden])")
+        # only the bank page shows it, under the simulations at the left (not in the bar), also with the bank empty
+        assert page.is_hidden("#bank-add-open")
+        page.click("#help-bank")
+        page.wait_for_selector("#view-bank:not([hidden])")
+        assert page.locator("#view-bank #bank-add-open").count() == 1
+        assert page.locator("#bar #bank-add-open").count() == 0
+        assert page.inner_text("#bank-add-open") == "Add to the bank"
+        assert page.is_visible("#bank-empty")
+
+        def under_the_table_at_the_left():
+            card = page.locator("#view-bank .card.bank").bounding_box()
+            button = page.locator("#bank-add-open").bounding_box()
+            assert button["y"] >= card["y"] + card["height"]
+            assert abs(button["x"] - card["x"]) <= 2
+
+        under_the_table_at_the_left()
+
+        page.click("#bank-add-open")
+        page.wait_for_selector("#bank-add:not([hidden])")
+        assert page.evaluate("document.querySelector('main').inert") is True
+        assert page.is_disabled("#bank-add-confirm")
+        page.fill("#bank-add-name", "Control")
+        assert page.is_disabled("#bank-add-confirm")
+
+        # a directory that is not there is caught as it is typed
+        page.fill("#bank-add-dir", "nowhere")
+        page.wait_for_function("() => document.querySelector('#bank-add-note').textContent.includes('no directory')")
+        assert page.is_disabled("#bank-add-confirm")
+
+        # Browse: the folder browser is above the pop-out, which waits behind it, then is as it was
+        page.click("[data-browse='bank-add-dir']")
+        page.wait_for_selector("#picker:not([hidden])")
+        assert page.evaluate("document.getElementById('bank-add').inert") is True
+        page.click("#picker-cancel")
+        page.wait_for_selector("#picker", state="hidden")
+        assert page.evaluate("document.getElementById('bank-add').inert") is False
+        assert page.evaluate("document.querySelector('main').inert") is True
+
+        # a real directory (relative to where OceanVal works) turns the check off and allows it
+        page.fill("#bank-add-dir", "base")
+        page.wait_for_function("() => !document.querySelector('#bank-add-confirm').disabled")
+        assert page.inner_text("#bank-add-note") == ""
+        page.click("#bank-add-confirm")
+        page.wait_for_selector("#bank-add", state="hidden")
+        assert page.evaluate("document.querySelector('main').inert") is False
+        assert user_cache.bank() == [{"name": "Control", "path": str(tmp_path / "base")}]
+        row = page.locator("#bank-rows tr")
+        assert row.count() == 1 and "Control" in row.first.inner_text()
+        assert row.first.locator("button:has-text('Add simulation info')").count() == 1
+        under_the_table_at_the_left()
+
+        # a refusal is said in the pop-out, which stays open; a new name and directory then add
+        page.click("#bank-add-open")
+        page.fill("#bank-add-name", "control")
+        page.fill("#bank-add-dir", "fine")
+        page.wait_for_function("() => !document.querySelector('#bank-add-confirm').disabled")
+        page.click("#bank-add-confirm")
+        page.wait_for_function("() => document.querySelector('#bank-add-note').textContent.includes('already in the bank')")
+        assert page.is_visible("#bank-add") and len(user_cache.bank()) == 1
+        page.fill("#bank-add-name", "Fine")
+        assert page.inner_text("#bank-add-note") == ""
+        page.click("#bank-add-confirm")
+        page.wait_for_selector("#bank-add", state="hidden")
+        assert [entry["name"] for entry in user_cache.bank()] == ["Control", "Fine"]
+        assert page.locator("#bank-rows tr").count() == 2
+        # still under the list, which has grown
+        under_the_table_at_the_left()
+
+        # a web address needs no directory; Escape closes without adding
+        page.click("#bank-add-open")
+        page.fill("#bank-add-name", "Remote")
+        page.fill("#bank-add-dir", "https://example.org/data.nc")
+        page.wait_for_function("() => !document.querySelector('#bank-add-confirm').disabled")
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#bank-add", state="hidden")
+        assert len(user_cache.bank()) == 2
+        assert page.evaluate("document.querySelector('main').inert") is False
+        # the pop-out starts empty each time
+        page.click("#bank-add-open")
+        assert page.input_value("#bank-add-name") == "" and page.input_value("#bank-add-dir") == ""
     finally:
         page.close()
         app.close()

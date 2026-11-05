@@ -1773,6 +1773,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # the years the output of the simulation in the simulation step covers,
         # read from its files' times as it is typed in (see _read_output_years)
         self._output_years = None
+        # the info of a bank simulation being extracted (see bank_extract): its
+        # name, the status the page is shown, and the reading of the files' years
+        self._bank_extract = None
         # `cdo sinfo` on every file of the simulation(s) chosen, in the background
         # (see _start_cdo_check): the simulations it is for, the check, and what the
         # page is told. A file it crashes on stops everything (see _cdo_fault)
@@ -1999,6 +2002,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     "output_years": self._output_years_state(),
                 },
                 "bank": self._bank_state(),
+                "bank_extract": self._bank_extract_state(),
                 "validate": {
                     "form": self.validate_form,
                     "depth_defaults": default_depth_boxes(),
@@ -3127,6 +3131,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             run, self.run = self.run, None
             page, self.recipes_page = self.recipes_page, None
             reading, self._output_years = self._output_years, None
+            self._drop_bank_extract()
             self._drop_cdo_check()
             self._drop_compat()
             self._own_sim = None
@@ -3624,8 +3629,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             return True
 
     def _bank_state(self):
-        """The simulation bank as the page shows it: name, directory, and whether
-        the directory is still there (a web address is taken to be)."""
+        """The simulation bank as the page shows it: name, directory, whether
+        the directory is still there (a web address is taken to be) and, once
+        extracted, its info (see bank_extract)."""
         return [
             dict(
                 entry,
@@ -3657,6 +3663,159 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 return 200, {"ok": False, "error": "Could not remove it from the bank."}
             self._notify()
             return 200, {"ok": True, "bank": self._bank_state()}
+
+    def _bank_extract_state(self):
+        """What the page is told of the extraction of a bank simulation's info:
+        None if none was asked for, else {"name", "status": "working" | "done" |
+        "failed", "error"}."""
+        entry = self._bank_extract
+        if entry is None:
+            return None
+        return {"name": entry["name"], "status": entry["status"], "error": entry["error"]}
+
+    def _drop_bank_extract(self):
+        """Forget the extraction being done, if any, and stop reading its files.
+        The caller holds the lock."""
+        entry, self._bank_extract = self._bank_extract, None
+        if entry is not None:
+            entry["cancelled"] = True
+            reading = entry.get("reading")
+            if reading is not None:
+                reading.cancel()
+        return entry
+
+    def bank_extract(self, name, ndown, exclude="", require=""):
+        """Start finding the info of a simulation in the bank - how many files it
+        has, the years they cover and their total size - for the files ndown
+        directories below its directory that pass the file filters (exclude and
+        require, as words separated by spaces). It is kept with the simulation
+        in the bank (user_cache.set_bank_info) and the page is told through
+        state()["bank_extract"]. Returns (status, reply)."""
+        if not isinstance(name, str) or not name.strip():
+            return 400, {"ok": False, "error": "Say which simulation to extract the info of."}
+        wanted = name.strip().casefold()
+        entry = next((e for e in user_cache.bank() if e["name"].casefold() == wanted), None)
+        if entry is None:
+            return 200, {"ok": False, "error": "That simulation is not in the bank."}
+        if viewer_catalogue.is_url(entry["path"]):
+            return 200, {"ok": False, "error": "The info of a web address cannot be extracted."}
+        if not os.path.isdir(entry["path"]):
+            return 200, {"ok": False, "error": "There is no directory at this path."}
+        try:
+            depth = int(str(ndown).strip())
+            if depth < 0:
+                raise ValueError
+        except ValueError:
+            return 200, {"ok": False, "error": "Say how many directories down the files are: a whole number, 0 or more."}
+        words = {
+            "exclude": str(exclude or "").split(),
+            "require": str(require or "").split(),
+        }
+        with self._lock:
+            current = self._bank_extract
+            if current is not None and current["status"] == "working":
+                return 200, {"ok": False, "error": "The info of a simulation is being extracted already."}
+            work = {
+                "name": entry["name"], "status": "working", "error": None,
+                "cancelled": False, "reading": None,
+            }
+            self._bank_extract = work
+            self._notify()
+        threading.Thread(
+            target=self._bank_extract_run,
+            args=(work, entry["path"], depth, words),
+            name="oceanval-bank-extract",
+            daemon=True,
+        ).start()
+        return 200, {"ok": True}
+
+    def bank_extract_cancel(self):
+        """Stop extracting a bank simulation's info (the pop-out was closed)."""
+        with self._lock:
+            self._drop_bank_extract()
+            self._notify()
+        return 200, {"ok": True}
+
+    def bank_extract_clear(self):
+        """The page has shown how the extraction ended: forget it."""
+        with self._lock:
+            entry = self._bank_extract
+            if entry is not None and entry["status"] != "working":
+                self._bank_extract = None
+                self._notify()
+        return 200, {"ok": True}
+
+    def _bank_extract_run(self, work, directory, depth, words):
+        """The thread of bank_extract."""
+
+        def finish(status, error=None):
+            with self._lock:
+                if self._bank_extract is work and not work["cancelled"]:
+                    work["status"], work["error"] = status, error
+                    self._notify()
+
+        try:
+            paths = simulation_paths(
+                directory, depth, exclude=words["exclude"] or None, require=words["require"] or None
+            )
+            if not paths:
+                return finish("failed", "There are no netCDF files that far down that pass the file filters.")
+            size = 0
+            for path in paths:
+                if work["cancelled"]:
+                    return
+                with contextlib.suppress(OSError):
+                    size += os.path.getsize(path)
+            # the variables, as Analyze lists them: those of the first file of each stream
+            found_streams = analysis.streams(
+                directory, depth, words["exclude"] or None, words["require"] or None,
+                stopped=lambda: work["cancelled"],
+            )
+            if work["cancelled"]:
+                return
+            variables = (
+                len({name for stream in found_streams for name in stream["variables"]})
+                if found_streams else None
+            )
+            # the years in the files' times; the names' if those cannot be read
+            key = _simulation({"simdir": directory, "ndown": depth, **words})
+            done = threading.Event()
+            found = {}
+
+            def got(result):
+                found.update(result or {})
+                done.set()
+
+            reading = output_years.Reading(key, paths, got)
+            with self._lock:
+                if work["cancelled"]:
+                    return
+                work["reading"] = reading
+            reading.start()
+            # a cancelled reading never says it is done
+            while not done.wait(0.2):
+                if work["cancelled"]:
+                    return
+            if work["cancelled"]:
+                return
+            years = found.get("years") or None
+            if years is None:
+                years = simulation_years(directory, paths)
+            ok, why = user_cache.set_bank_info(
+                work["name"],
+                {
+                    "ndown": depth,
+                    "exclude": words["exclude"],
+                    "require": words["require"],
+                    "files": len(paths),
+                    "variables": variables,
+                    "years": [int(years[0]), int(years[1])] if years else None,
+                    "size": size,
+                },
+            )
+            finish("done" if ok else "failed", None if ok else why)
+        except Exception as error:
+            finish("failed", f"{type(error).__name__}: {error}")
 
     def next_own_data(self):
         """Move on from the point data step, to the gridded data step, and
@@ -5715,6 +5874,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._drop_cdo_check()
             self._drop_compat()
             reading, self._output_years = self._output_years, None
+            self._drop_bank_extract()
             viewed = self._viewer_drop()
             self._notify()
         if viewed is not None:
@@ -6096,6 +6256,17 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/bank_remove":
             self._reply_json(*app.bank_remove(payload.get("name")))
+            return
+        if path == "/api/bank_extract":
+            self._reply_json(*app.bank_extract(
+                payload.get("name"), payload.get("ndown"), payload.get("exclude", ""), payload.get("require", ""),
+            ))
+            return
+        if path == "/api/bank_extract_cancel":
+            self._reply_json(*app.bank_extract_cancel())
+            return
+        if path == "/api/bank_extract_clear":
+            self._reply_json(*app.bank_extract_clear())
             return
         if path == "/api/demo_download":
             self._reply_json(*app.demo_download(payload.get("model"), payload.get("variables")))

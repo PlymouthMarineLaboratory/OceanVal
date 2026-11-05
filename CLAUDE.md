@@ -286,6 +286,21 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   the bank (**both the Name and the Directory arrows list only the bank**: the old "used before" lists are gone from the page, though `sim_dirs` is still recorded; the setup page's lists serve Analyze, Validate/Matchup and Viewer alike, so the Name box and Add to bank are on all of them) and a pick in either fills Directory then Name through `input` events; **the simulation directory boxes (`#f-simdir`, `#sc-dir_N`) have no `list=`/datalist** (the browser's own folder suggestions would be a second drop-down; Browse… stays, and the type-ahead loop skips a box with no `<id>-folders`, so other directory boxes keep theirs); the directory's question (`#f-simdir-hint`, `#sc-dir_N-hint`) says "(Use the drop-down for simulations in the bank)" while the bank has entries; the button is disabled until both are filled and reads "In bank" when this exact pair is
   there (`bankKey` resolves a relative directory against `state.cwd`); results are toasts. Every such box is in `bankLists`, refreshed by `render`,
   `refreshSetup` and `refreshScSims`. Tests: `tests/test_simulation_bank.py`.
+  **Add to the bank from the bank page** (the user's request, 2026-11-05): a primary **Add to the bank** button (`#bank-add-open`, in `#view-bank` directly under the table card, at the left, there when the bank is empty
+  too; the user's correction: not in the footer bar, which has Back only) opens `#bank-add` (`openBankAdd`: `bank-add-name`, `bank-add-dir` with Browse… through
+  `DESCRIBE["bank-add-dir"]`, a status line `bank-add-note`). It uses the shared `addToBank` (which now returns the reply; `/api/bank_add`, no new server
+  code), shows a refusal in the pop-out and leaves it open, and blocks a directory that is not there by an `/api/probe` check as it is typed (a web address
+  skips it). `#bank-add` is before `#picker` in the page so the folder browser sits above it, and `openPicker`/`closePicker` make it inert meanwhile.
+  **Simulation info** (the user's design, 2026-11-05): the bank page's right-hand columns **Number of files / Number of variables / Years / Size of simulation** are empty until extracted;
+  an entry with no `info` has a single **Add simulation info** button across the four cells (none for a web address, which shows dashes), and an entry with
+  it has a **Regenerate** button in its own column right of them (before the ×), which reopens the same pop-out `#bank-info` with the settings used. The pop-out
+  (`openBankInfo`; `bank-ndown` a `depthBox` filled from `folder_layout` when blank, `bank-exclude`, `bank-require`) counts files live through `/api/probe`
+  (never a probe of its own), offers the random-subdirectory viewer by reusing `#sample` (`openSample(opener, source)`; it sits above `#bank-info`, which is made
+  inert meanwhile) and has **Extract simulation info** at the bottom. `App.bank_extract` (`/api/bank_extract`, `_cancel`, `_clear`; state `bank_extract`
+  = `{name, status, error}`, `renderBankExtract`) runs a thread: the filtered files by `simulation_paths`, their sizes summed, the variables (`analysis.streams`: the distinct names in the first file of each stream, as Analyze lists them; `None`, shown "—", if none can be read, which does not fail the extraction), the years from the files' times by
+  `output_years.Reading` (its own, not `_output_years`, which is the setup page's), else `simulation_years` from the names; `user_cache.set_bank_info` keeps
+  `{ndown, exclude, require, files, variables, years, size, extracted}` as the entry's optional `"info"` (`_bank_info` drops a badly formed one, so `bank()` entries with no
+  info are still exactly `{name, path}`). Closing the pop-out, Restart and quit stop it (`_drop_bank_extract`). Nothing in Analyze/Compare uses the info yet.
 - The package never ships or creates the file ahead of use, and writes are read-merge-write: other
   keys and entries survive, and an unreadable or newer-version file is left untouched. It must
   never raise, as a cache must not stop a run.
