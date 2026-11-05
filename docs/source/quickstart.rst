@@ -109,7 +109,7 @@ freeze): it carries on, the terminal prints the link to open the window
 again, and ``oceanval`` quits once the run is over. **Stop**, **Quit** and
 Ctrl+C stop a run at once.
 
-**Preferences**, a tile of **Tools & checks** on the first page, sets whether the first
+**Preferences**, a tile of **Tools & info** on the first page, sets whether the first
 page offers **Try a demo**, and the **data store** (below). Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
 your home directory (or the file ``OCEANVALRC`` names), and read each time the
 window opens. **About OceanVal**, the tile beside it, shows the version of OceanVal, links to the website and

@@ -107,8 +107,8 @@ def test_the_first_time_validate_is_opened_the_data_store_is_mentioned(browser, 
         page.wait_for_selector("#validate-intro:not([hidden])")
         text = page.inner_text("#validate-intro-text")
         assert "downloads observational data" in text and "Preferences" in text
-        # it points to Tools & checks, as Preferences is no longer a button of the header
-        assert "Tools & checks" in text
+        # it points to Tools & info, as Preferences is no longer a button of the header
+        assert "Tools & info" in text
         assert page.query_selector("#validate-intro-text svg") is None
         assert page.locator(".masthead .brand #settings-open").count() == 0
         page.screenshot(path=SHOT) if SHOT else None

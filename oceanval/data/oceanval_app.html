@@ -37,8 +37,14 @@
   .choice__title { font: 600 20px/1.3 var(--font-head); letter-spacing: -0.2px; }
   .choice__text { color: var(--muted); font-size: 16px; line-height: 1.5; }
   /* the demo, below the four, across both columns */
-  .choice.is-demo { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 9px; padding-top: 22px; border-style: dashed; border-color: var(--teal-200); background: var(--teal-50); box-shadow: none; }
+  .demo-tile { grid-column: 1 / -1; position: relative; }
+  .choice.is-demo { width: 100%; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 9px; padding-top: 22px; border-style: dashed; border-color: var(--teal-200); background: var(--teal-50); box-shadow: none; }
   .choice.is-demo .choice__icon { flex: none; margin: 0; }
+  /* the x at the top right of the demo tile: a close button, drawn by CSS so it has no text */
+  .demo-close { position: absolute; top: 10px; right: 12px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
+  .demo-close::before { content: ""; width: 14px; height: 14px; background: linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat, linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat; transform: rotate(45deg); }
+  .demo-close:hover { background: var(--teal-50); color: var(--ink); }
+  .demo-close:focus-visible { outline: none; box-shadow: var(--focus); }
   .choice.is-demo .choice__body { display: grid; gap: 4px; }
   /* registering recipes of your own: across both columns, between the four and the demo */
   .choice.is-register { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 9px; padding-top: 22px; }
@@ -1297,7 +1303,7 @@
       </button>
       <button type="button" class="choice" data-action="help" id="home-help">
         <span class="choice__icon" data-icon="help"></span>
-        <span class="choice__title">Tools &amp; checks</span>
+        <span class="choice__title">Tools &amp; info</span>
         <span class="choice__text">Check your model files are compatible&nbsp;| Simulation bank&nbsp;| Preferences&nbsp;| About</span>
       </button>
     </div>
@@ -1493,13 +1499,16 @@
           <span class="choice__text">Add observations of your own, point or gridded, as recipes in a <code>.oceanvalrc</code> file, to use in matchups like OceanVal's built-in ones.</span>
         </span>
       </button>
-      <button type="button" class="choice is-demo" id="choice-demo" data-action="demo">
-        <span class="choice__icon" data-icon="play"></span>
-        <span class="choice__body">
-          <span class="choice__title">Try a demo</span>
-          <span class="choice__text">Download a climate model's sea surface temperature, and walk through matching up and validating one year of it, with the options filled in for you.</span>
-        </span>
-      </button>
+      <div class="demo-tile" id="demo-tile">
+        <button type="button" class="choice is-demo" id="choice-demo" data-action="demo">
+          <span class="choice__icon" data-icon="play"></span>
+          <span class="choice__body">
+            <span class="choice__title">Try a demo</span>
+            <span class="choice__text">Download a climate model's sea surface temperature, and walk through matching up and validating one year of it, with the options filled in for you.</span>
+          </span>
+        </button>
+        <button type="button" class="demo-close" id="demo-close" aria-haspopup="dialog" aria-label="Close the demo" title="Close"></button>
+      </div>
     </div>
   </section>
 
@@ -2890,6 +2899,18 @@
 
 <!-- CDO crashed on the simulation's files: nothing can be done with them, so there is no way on from here but starting again -->
 <!-- the directories down OceanVal filled in from the folders' layout (tellFolderStructure) -->
+<div class="picker" id="demo-hide" hidden>
+  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="demo-hide-title">
+    <div class="picker__head">
+      <h2 id="demo-hide-title">Do you never want to see the demo again?</h2>
+    </div>
+    <p class="picker__info" id="demo-hide-text">Choose No to close it this time only. You can show it again in Tools &amp; info, under Preferences.</p>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost" id="demo-hide-no">No</button>
+      <button type="button" class="btn btn--primary" id="demo-hide-yes">Yes</button>
+    </div>
+  </div>
+</div>
 <div class="picker" id="validate-intro" hidden>
   <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="validate-intro-title" aria-describedby="validate-intro-text">
     <div class="picker__head">
@@ -3093,7 +3114,7 @@
     // one element, as .picker__info is a flex row and would put each piece of text in a column of its own
     $("validate-intro-text").replaceChildren(el("span", {},
       "OceanVal downloads observational data when it validates your simulation. If you want that data saved for future use, "
-      + "go to Tools & checks, then Preferences, and set the data store folder."));
+      + "go to Tools & info, then Preferences, and set the data store folder."));
     dialog.hidden = false;
     $("validate-intro-continue").focus();
   }
@@ -4546,7 +4567,7 @@
   }
 
   function render() {
-    $("choice-demo").hidden = state.user_settings.values.show_demo === false;
+    $("demo-tile").hidden = state.user_settings.values.show_demo === false || demoClosed;
     if (state.view !== shownView) enterView(state.view);
     renderHeader();
     renderBar();
@@ -4609,6 +4630,35 @@
       post("api/demo_detail", { concise });
     });
   });
+
+  // ---- the x of the demo tile: asks whether the demo is never to be offered again ----
+  let demoClosed = false;  // closed for this visit only (a new page offers it again)
+  function openDemoHide() {
+    $("demo-hide").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    $("demo-hide-no").focus();
+  }
+  function closeDemoHide() {
+    $("demo-hide").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+  }
+  $("demo-close").addEventListener("click", openDemoHide);
+  // No: closed this time only
+  $("demo-hide-no").addEventListener("click", () => { closeDemoHide(); demoClosed = true; render(); });
+  // Yes: kept in the preferences, which can show it again
+  $("demo-hide-yes").addEventListener("click", async () => {
+    $("demo-hide-yes").disabled = true;
+    const reply = await post("api/settings", { settings: { show_demo: false } });
+    $("demo-hide-yes").disabled = false;
+    closeDemoHide();
+    if (!reply.ok) { toast(reply.error || "Your preference could not be saved."); return; }
+    state.user_settings.values = reply.settings;
+    render();
+    toast("The demo is hidden. Tools & info, under Preferences, shows it again.");
+  });
+  // Escape or a click beside the box changes nothing
+  $("demo-hide").addEventListener("click", (event) => { if (event.target === $("demo-hide")) closeDemoHide(); });
+  $("demo-hide").addEventListener("keydown", (event) => { if (event.key === "Escape") { event.preventDefault(); closeDemoHide(); } });
 
   // ---- 1: choosing what to do ----
   document.querySelectorAll("#view-start .choice, #view-home .choice, #view-help .choice, #view-analyze-menu .choice").forEach((choice) => {

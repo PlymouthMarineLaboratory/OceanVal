@@ -8729,6 +8729,46 @@ class TestSettings:
         finally:
             app.close()
 
+    def test_the_x_of_the_demo_tile_asks_whether_to_hide_it_for_good(self, browser, oceanvalrc, tmp_path):
+        app = App(cwd=str(tmp_path))
+        app.choose("validate_menu")
+        url = app.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-start:not([hidden])")
+            assert page.is_visible("#demo-close") and page.is_hidden("#demo-hide")
+            # the x is a sibling of the tile's button, not inside it
+            assert page.locator("#choice-demo #demo-close").count() == 0
+
+            # Escape leaves everything as it was
+            page.click("#demo-close")
+            assert page.is_visible("#demo-hide")
+            assert page.text_content("#demo-hide-title") == "Do you never want to see the demo again?"
+            page.keyboard.press("Escape")
+            assert page.is_hidden("#demo-hide") and page.is_visible("#choice-demo")
+
+            # No: closed this time only, and nothing saved
+            page.click("#demo-close")
+            page.click("#demo-hide-no")
+            assert page.is_hidden("#choice-demo")
+            assert not oceanvalrc.exists()
+            page.reload()
+            page.wait_for_selector("#view-start:not([hidden])")
+            assert page.is_visible("#choice-demo")
+
+            # Yes: saved, so it is gone from then on, and Preferences shows it again
+            page.click("#demo-close")
+            page.click("#demo-hide-yes")
+            page.wait_for_selector("#demo-hide", state="hidden")
+            assert page.is_hidden("#choice-demo")
+            assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
+            page.reload()
+            page.wait_for_selector("#view-start:not([hidden])")
+            assert page.is_hidden("#choice-demo")
+        finally:
+            app.close()
+
     def test_tools_and_checks_has_four_tiles(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
         url = _tools_page(app)
