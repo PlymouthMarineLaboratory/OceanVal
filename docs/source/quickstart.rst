@@ -109,14 +109,13 @@ freeze): it carries on, the terminal prints the link to open the window
 again, and ``oceanval`` quits once the run is over. **Stop**, **Quit** and
 Ctrl+C stop a run at once.
 
-The cog beside the OceanVal name at the top left of every page of the window
-(**Preferences**) sets whether the first
+**Preferences**, a tile of **Tools & checks** on the first page, sets whether the first
 page offers **Try a demo**, and the **data store** (below). Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
 your home directory (or the file ``OCEANVALRC`` names), and read each time the
-window opens. The **i** beside it shows the version of OceanVal, links to the website and
+window opens. **About OceanVal**, the tile beside it, shows the version of OceanVal, links to the website and
 GitHub, and the built-in datasets.
 
-The circular arrow beside the **i** (**Restart**) goes back to the first page from any step. It asks first,
+The circular arrow at the top left (**Restart**), beside the **Back** arrow, goes back to the first page from any step. It asks first,
 as everything you entered in the window is then discarded (a run in progress is stopped), so that you start
 from a clean slate. Your Preferences, your own recipes in ``.oceanvalrc`` and the simulations OceanVal remembers are kept.
 

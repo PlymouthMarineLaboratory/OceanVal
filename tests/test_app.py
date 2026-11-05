@@ -7310,7 +7310,7 @@ def test_the_domain_chosen_is_filled_and_bigger_than_the_other(browser, tmp_path
         app.close()
 
 
-def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc, tmp_path):
+def test_the_recipes_page_has_no_cog_or_info_in_its_header(browser, oceanvalrc, tmp_path):
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
@@ -7327,24 +7327,11 @@ def test_the_preferences_and_info_are_on_the_fine_tune_page(browser, oceanvalrc,
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
         assert page.text_content("#page-title") == "Gridded data selection"
-        assert page.locator(".masthead .brand #settings-open").count() == 1
-        assert page.locator(".masthead .brand #info-open").count() == 1
-
-        page.click("#settings-open")
-        assert page.is_visible("#preferences")
-        page.uncheck("#settings-show-demo")
-        page.click("#settings-apply")
-        page.wait_for_selector("#preferences", state="hidden")
-        # saved through the app, which keeps it for its other pages
-        assert app.state()["user_settings"]["values"]["show_demo"] is False
-        assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
-
-        page.click("#info-open")
-        assert page.is_visible("#info")
-        assert page.text_content("#info-version") == f"Version {app.state()['oceanval_version']}"
-        assert page.locator("#info-point tbody tr").count() == 10
-        page.click("#info-close")
-        assert page.is_hidden("#info")
+        # Preferences and About are pages of Tools & checks now
+        assert page.locator(".masthead .brand #settings-open").count() == 0
+        assert page.locator(".masthead .brand #info-open").count() == 0
+        assert page.locator("#preferences").count() == 0 and page.locator("#info").count() == 0
+        assert page.locator("#back-open").count() == 1 and page.locator("#restart-open").count() == 1
     finally:
         app.close()
 
@@ -8634,6 +8621,28 @@ def test_the_compare_simulations_lists_are_the_bank_in_every_row(browser, tmp_pa
 NO_STORE = {"data_store": "", "data_store_use": "always"}
 
 
+def _tools_page(app):
+    """Start the window on Tools & checks, where Preferences and About are."""
+    app.choose("help")
+    return app.start()
+
+
+def _open_preferences(page):
+    page.wait_for_selector("#view-help:not([hidden])")
+    page.click("#help-preferences")
+    page.wait_for_selector("#view-preferences:not([hidden])")
+
+
+def _to_validate(page):
+    """Back from Preferences to Tools & checks, and from there to the first page and the Validate tile."""
+    page.click("#back-open")
+    page.wait_for_selector("#view-help:not([hidden])")
+    page.click("#back-open")
+    page.wait_for_selector("#view-home:not([hidden])")
+    page.click("#home-validate")
+    page.wait_for_selector("#view-start:not([hidden])")
+
+
 class TestSettings:
     """The window's settings, saved in the home .oceanvalrc from its panel."""
 
@@ -8667,39 +8676,40 @@ class TestSettings:
         assert post(app, "/api/settings", {"settings": {"show_demo": False}}, token="wrong")[0] == 403
         assert not oceanvalrc.exists()
 
-    def test_the_settings_panel_in_a_browser(self, browser, oceanvalrc, tmp_path):
+    def test_the_preferences_page_in_a_browser(self, browser, oceanvalrc, tmp_path):
         app = App(cwd=str(tmp_path))
-        app.choose("validate_menu")
-        url = app.start()
+        url = _tools_page(app)
         try:
             page = browser.new_page()
             page.goto(url)
-            page.wait_for_selector("#view-start:not([hidden])")
-            assert page.is_visible("#choice-demo")
-
-            # Cancel leaves everything as it was
-            page.click("#settings-open")
-            assert page.is_visible("#preferences")
+            # not in the header any more: a tile of Tools & checks
+            page.wait_for_selector("#view-help:not([hidden])")
+            assert page.locator(".masthead .brand #settings-open").count() == 0
+            _open_preferences(page)
+            assert app.view == "preferences"
+            assert page.text_content("#title") == "Preferences"
             assert page.is_checked("#settings-show-demo")
+
+            # Back leaves everything as it was
             page.uncheck("#settings-show-demo")
-            page.click("#settings-cancel")
-            assert page.is_hidden("#preferences")
+            _to_validate(page)
             assert page.is_visible("#choice-demo")
             assert not oceanvalrc.exists()
-            assert page.evaluate("document.activeElement.id") == "settings-open"
 
-            # opened again, it shows what is saved, not what was cancelled
-            page.click("#settings-open")
+            # opened again, it shows what is saved, not what was left
+            page.click("#back-open")
+            page.click("#home-help")
+            _open_preferences(page)
             assert page.is_checked("#settings-show-demo")
-            page.keyboard.press("Escape")
-            assert page.is_hidden("#preferences")
 
-            page.click("#settings-open")
             page.uncheck("#settings-show-demo")
             page.click("#settings-apply")
-            page.wait_for_selector("#preferences", state="hidden")
+            page.wait_for_function("document.getElementById('settings-apply').disabled === false")
+            # saved, and the page stays
+            assert page.is_visible("#view-preferences")
+            assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
+            _to_validate(page)
             assert page.is_hidden("#choice-demo")
-            assert json.loads(oceanvalrc.read_text())["settings"] == {"show_demo": False}
 
             # and are there when the page is opened again
             page.reload()
@@ -8707,14 +8717,46 @@ class TestSettings:
             assert page.is_hidden("#choice-demo")
 
             # back to the default
-            page.click("#settings-open")
+            page.click("#back-open")
+            page.click("#home-help")
+            _open_preferences(page)
             page.check("#settings-show-demo")
             page.click("#settings-apply")
-            page.wait_for_selector("#preferences", state="hidden")
+            page.wait_for_function("document.getElementById('settings-apply').disabled === false")
+            _to_validate(page)
             assert page.is_visible("#choice-demo")
             assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(244, 250, 250)"
         finally:
             app.close()
+
+    def test_tools_and_checks_has_four_tiles(self, browser, tmp_path):
+        app = App(cwd=str(tmp_path))
+        url = _tools_page(app)
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#view-help:not([hidden])")
+            assert page.locator("#view-help .choice").evaluate_all("nodes => nodes.map(n => n.id)") == [
+                "help-compatible", "help-bank", "help-preferences", "help-about"]
+            # two by two
+            boxes = page.locator("#view-help .choice").evaluate_all(
+                "nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y)]; })")
+            assert boxes[0][1] == boxes[1][1] and boxes[2][1] == boxes[3][1] and boxes[2][1] > boxes[0][1]
+            assert boxes[0][0] == boxes[2][0] and boxes[1][0] == boxes[3][0]
+        finally:
+            app.close()
+
+    def test_the_preferences_and_about_pages_go_back_to_tools_and_checks(self, tmp_path):
+        app = App(cwd=str(tmp_path))
+        assert app.choose("help")
+        for tile in ("preferences", "about"):
+            assert app.choose(tile)
+            assert app.view == tile
+            assert app.back()
+            assert app.view == "help"
+        # only from Tools & checks
+        app.back()
+        assert not app.choose("about")
 
     def test_a_data_store_is_kept_with_its_folder_made(self, app, oceanvalrc, tmp_path):
         folder = tmp_path / "store"
@@ -8747,13 +8789,11 @@ class TestSettings:
         folder = tmp_path / "store"
         folder.mkdir()
         app = App(cwd=str(tmp_path))
-        app.choose("validate_menu")
-        url = app.start()
+        url = _tools_page(app)
         try:
             page = browser.new_page()
             page.goto(url)
-            page.wait_for_selector("#view-start:not([hidden])")
-            page.click("#settings-open")
+            _open_preferences(page)
             assert page.input_value("#settings-data-store") == ""
             assert "No data store" in page.text_content("#settings-data-store-status")
             assert not page.is_visible("#settings-data-store-size")
@@ -8776,20 +8816,22 @@ class TestSettings:
             page.click("#settings-apply")
             page.wait_for_selector("#settings-error:not([hidden])")
             assert "full path" in page.text_content("#settings-error")
-            assert page.is_visible("#preferences")
+            assert page.is_visible("#view-preferences")
             assert not oceanvalrc.exists()
 
             page.fill("#settings-data-store", str(folder))
             page.check('input[name="settings-data-store-use"][value="fallback"]')
             page.click("#settings-apply")
-            page.wait_for_selector("#preferences", state="hidden")
+            page.wait_for_selector("#settings-data-store-size:not([hidden])")
             saved = json.loads(oceanvalrc.read_text())["settings"]
             assert saved["data_store"] == str(folder)
             assert saved["data_store_use"] == "fallback"
             assert (folder / "oceanval_datastore").is_dir()
 
             # opened again, it says where the store is and how much it holds
-            page.click("#settings-open")
+            page.click("#back-open")
+            page.click("#help-preferences")
+            page.wait_for_selector("#view-preferences:not([hidden])")
             assert page.input_value("#settings-data-store") == str(folder)
             assert page.is_checked('input[name="settings-data-store-use"][value="fallback"]')
             status = page.text_content("#settings-data-store-status")
@@ -8803,7 +8845,7 @@ class TestSettings:
             page.fill("#settings-data-store", "")
             assert uses.nth(1).is_disabled()
             page.click("#settings-apply")
-            page.wait_for_selector("#preferences", state="hidden")
+            page.wait_for_function("!document.getElementById('settings-data-store-size') || document.getElementById('settings-data-store-size').hidden")
             assert json.loads(oceanvalrc.read_text())["settings"]["data_store"] == ""
             # and what it held is left as it was
             assert (folder / "oceanval_datastore").is_dir()
@@ -8814,13 +8856,11 @@ class TestSettings:
         folder = tmp_path / "store"
         folder.mkdir()
         app = App(cwd=str(tmp_path))
-        app.choose("validate_menu")
-        url = app.start()
+        url = _tools_page(app)
         try:
             page = browser.new_page()
             page.goto(url)
-            page.wait_for_selector("#view-start:not([hidden])")
-            page.click("#settings-open")
+            _open_preferences(page)
             button = page.locator("#settings-data-store-check")
             assert button.text_content() == "Run a check on the data store"
             # nothing to check until a folder is saved
@@ -8829,9 +8869,7 @@ class TestSettings:
             assert button.is_disabled()
             assert "Apply a folder first" in page.text_content("#settings-data-store-check-hint")
             page.click("#settings-apply")
-            page.wait_for_selector("#preferences", state="hidden")
-
-            page.click("#settings-open")
+            page.wait_for_function("!document.getElementById('settings-data-store-check').disabled")
             assert not button.is_disabled()
             assert "nothing is changed, removed or fixed" in page.text_content("#settings-data-store-check-hint")
             assert page.is_hidden("#settings-data-store-result")
@@ -8884,20 +8922,18 @@ class TestSettings:
 
     def test_a_settings_problem_is_shown_in_the_panel(self, browser, oceanvalrc, tmp_path):
         app = App(cwd=str(tmp_path))
-        app.choose("validate_menu")
-        url = app.start()
+        url = _tools_page(app)
         try:
             page = browser.new_page()
             page.goto(url)
-            page.wait_for_selector("#view-start:not([hidden])")
             # a file that cannot be read is not written over
             oceanvalrc.write_text("{ not json")
-            page.click("#settings-open")
+            _open_preferences(page)
             page.uncheck("#settings-show-demo")
             page.click("#settings-apply")
             page.wait_for_selector("#settings-error:not([hidden])")
             assert "could not be read" in page.text_content("#settings-error")
-            assert page.is_visible("#preferences")
+            assert page.is_visible("#view-preferences")
             assert oceanvalrc.read_text() == "{ not json"
         finally:
             app.close()
@@ -8959,9 +8995,9 @@ class TestInfo:
             page = browser.new_page()
             page.goto(url)
             page.wait_for_selector("#view-start:not([hidden])")
-            # beside Info, in the header
+            # right of Back, in the header
             ids = page.evaluate("[...document.querySelector('.brand').querySelectorAll('button')].map(b => b.id)")
-            assert ids[ids.index("info-open") + 1] == "restart-open"
+            assert ids == ["back-open", "restart-open"]
             assert page.is_hidden("#restart-confirm")
             page.click("#restart-open")
             assert page.is_visible("#restart-confirm")
@@ -8985,29 +9021,35 @@ class TestInfo:
         finally:
             app.close()
 
-    def test_the_info_panel_in_a_browser(self, browser, tmp_path):
+    def test_the_about_page_in_a_browser(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
-        app.choose("validate_menu")
-        url = app.start()
+        url = _tools_page(app)
         try:
             page = browser.new_page()
             page.goto(url)
-            page.wait_for_selector("#view-start:not([hidden])")
-            assert page.is_hidden("#info")
-            page.click("#info-open")
-            assert page.is_visible("#info")
+            page.wait_for_selector("#view-help:not([hidden])")
+            assert page.locator("#info-open").count() == 0
+            page.click("#help-about")
+            page.wait_for_selector("#view-about:not([hidden])")
+            assert app.view == "about"
+            assert page.text_content("#title") == "About OceanVal"
             assert page.text_content("#info-version") == f"Version {app.state()['oceanval_version']}"
             assert page.get_attribute("#info-website", "href") == "https://PlymouthMarineLaboratory.github.io/OceanVal/"
             assert page.get_attribute("#info-github", "href") == "https://github.com/PlymouthMarineLaboratory/oceanVal"
             assert page.locator("#info-gridded tbody tr").count() == 19
             assert page.locator("#info-point tbody tr").count() == 10
             assert page.locator("#info-gridded tbody tr", has_text="GLODAPv2.2016b").first.is_visible()
-            page.keyboard.press("Escape")
-            assert page.is_hidden("#info")
-            assert page.evaluate("document.activeElement.id") == "info-open"
-            page.click("#info-open")
-            page.click("#info-close")
-            assert page.is_hidden("#info")
+            # the credit, under the tables
+            credit = page.locator("#view-about .info__credit")
+            assert "Environmental Intelligence group at Plymouth Marine Laboratory" in credit.text_content()
+            assert "GNU GPLv3 license" in credit.text_content()
+            assert credit.locator("a[href='https://pml.ac.uk/']").count() == 1
+            assert page.evaluate("img => img.naturalWidth", credit.locator("img").element_handle()) > 0
+            assert credit.bounding_box()["y"] > page.locator("#info-point").bounding_box()["y"]
+            # Back goes to Tools & checks
+            page.click("#back-open")
+            page.wait_for_selector("#view-help:not([hidden])")
+            assert app.view == "help"
         finally:
             app.close()
 

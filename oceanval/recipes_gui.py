@@ -46,7 +46,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import data_store, netcdf_lock, own_data, time_res, user_recipes, user_settings
+from oceanval import netcdf_lock, own_data, time_res, user_recipes
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -867,21 +867,6 @@ class _Handler(http.server.BaseHTTPRequestHandler):
                 self._reply_json(200, {"ok": True})
             finally:
                 self.page.finish()
-        elif path == "/settings":
-            # the Preferences panel, when the window is not one of the app's pages
-            try:
-                saved = user_settings.save(
-                    payload.get("settings") if isinstance(payload, dict) else None
-                )
-            except (OSError, ValueError) as error:
-                self._reply_json(400, {"ok": False, "error": f"{error}"})
-            else:
-                self._reply_json(
-                    200, {"ok": True, "settings": dict(saved), "data_store": data_store.panel(saved)}
-                )
-        elif path == "/data_store_check":
-            # looks at the saved data store, and changes nothing
-            self._reply_json(*data_store.check_reply(user_settings.load()))
         else:
             self._reply_json(404, {"ok": False, "error": "Not found"})
 
@@ -995,10 +980,6 @@ class RecipePage:
             own[kind][index] = arguments
 
     def html(self):
-        # app imports this module, so it is imported only now
-        import oceanval
-        from oceanval import app
-
         state = {
             "rows": self._rows_now(),
             "available": sorted(self.available, key=lambda v: (v.lower(), v)),
@@ -1015,14 +996,6 @@ class RecipePage:
             ],
             "woa23_periods": _WOA23_PERIODS,
             "cpu_count": os.cpu_count(),
-            # for the header's Preferences and About panels, as the app has them
-            "oceanval_version": oceanval.__version__,
-            "datasets": app.BUILTIN_DATASETS,
-            "user_settings": {
-                "values": user_settings.load(),
-                "path": user_settings.path(),
-                "data_store": data_store.panel(user_settings.load()),
-            },
         }
         return render_page("create_recipes_gui.html", state)
 

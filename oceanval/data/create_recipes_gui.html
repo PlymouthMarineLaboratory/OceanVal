@@ -1872,12 +1872,8 @@
   });
 
 
-  // ---- the preferences and the info, from the buttons beside the wordmark ----
-  // in the app they are saved by the app, which keeps them for its other pages
+  // ---- Back and Restart, beside the wordmark (only in the app) ----
   OceanValGUI.mountChrome({
-    state: () => state,
-    post,
-    settingsPath: app ? "../api/settings" : "settings",
     behind: () => [document.querySelector(".masthead"), document.querySelector("main"), document.querySelector(".bar")],
     // only in the app, whose steps it goes back through
     back: Boolean(app),

@@ -699,8 +699,6 @@
   .picker__info code { overflow-wrap: anywhere; }
   #files-intro { margin-bottom: 10px; }
   .picker__card--narrow { max-width: 540px; }
-  #validate-intro-text .settings-open__icon { display: inline-block; width: 1em; height: 1em; vertical-align: -0.15em; }
-  #validate-intro-text svg { width: 100%; height: 100%; }
   /* above any other pop-out, and not closed by the backdrop or Escape */
   .picker--blocking { z-index: 60; }
   #cdo-failed-list { max-height: 160px; overflow: auto; }
@@ -814,14 +812,17 @@
   .review__legend + .review__issues { margin-top: 14px; }
   .review__issues li + li { margin-top: 4px; }
 
+  /* the Validate page's symbols are half as big again as the default 16px */
+  #view-start .choice__icon svg { width: 24px; height: 24px; }
+
   /* ---- the landing page: Analyze or Validate ---- */
-  #view-home:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
+  #view-home:not([hidden]), #view-help:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
   #view-home .choices.is-two { width: 100%; max-width: 980px; gap: 28px; }
-  #view-home .choice { align-items: flex-start; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: flex-start; text-align: left; }
-  #view-home .choice__icon { margin-bottom: -4px; }
-  #view-home .choice__icon svg { width: 21px; height: 21px; }
-  #view-home .choice__title { font-size: 26px; }
-  #view-home .choice__text { font-size: 16px; }
+  #view-home .choice, #view-help .choice { align-items: flex-start; aspect-ratio: auto; gap: 14px; min-height: 260px; padding: 36px 34px; justify-content: flex-start; text-align: left; }
+  #view-home .choice__icon, #view-help .choice__icon { margin-bottom: -4px; }
+  #view-home .choice__icon svg, #view-help .choice__icon svg { width: 21px; height: 21px; }
+  #view-home .choice__title, #view-help .choice__title { font-size: 26px; }
+  #view-home .choice__text, #view-help .choice__text { font-size: 16px; }
 
 
   /* ---- the Analyze simulations menu: two tiles in the middle of the page, 3x the usual space between, text 1.5x ---- */
@@ -832,13 +833,15 @@
   #view-analyze-menu .choice__icon { margin-bottom: -7px; }
   #view-analyze-menu .choice__icon svg { width: 24px; height: 24px; }
 
-  /* ---- the landing page has four tiles, two by two ---- */
-  #view-home .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: center; width: 100%; max-width: 1032px; gap: 36px; }
-  #view-home .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
-  #view-home .choices.is-four .choice__icon { margin-bottom: -6px; }
-  #view-home .choices.is-four .choice__icon svg { width: 32px; height: 32px; }
-  #view-home .choices.is-four .choice__title { font-size: 36px; }
-  #view-home .choices.is-four .choice__text { font-size: 22px; }
+  /* ---- the landing page and Tools & checks have four tiles, two by two ---- */
+  #view-home .choices.is-four, #view-help .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: center; width: 100%; max-width: 1032px; gap: 36px; }
+  #view-home .choices.is-four .choice, #view-help .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
+  /* Tools & checks has only a symbol and a title in each tile: centred up and down, still left-aligned */
+  #view-help .choices.is-four .choice { justify-content: center; }
+  #view-home .choices.is-four .choice__icon, #view-help .choices.is-four .choice__icon { margin-bottom: -6px; }
+  #view-home .choices.is-four .choice__icon svg, #view-help .choices.is-four .choice__icon svg { width: 32px; height: 32px; }
+  #view-home .choices.is-four .choice__title, #view-help .choices.is-four .choice__title { font-size: 36px; }
+  #view-home .choices.is-four .choice__text, #view-help .choices.is-four .choice__text { font-size: 22px; }
 
   /* ---- View simulation output (see oceanval.viewer_app) ---- */
   /* the setup page's missing values, asked there for viewing only */
@@ -1293,7 +1296,7 @@
       <button type="button" class="choice" data-action="help" id="home-help">
         <span class="choice__icon" data-icon="help"></span>
         <span class="choice__title">Tools &amp; checks</span>
-        <span class="choice__text">Check your model files are compatible&nbsp;| Simulation bank</span>
+        <span class="choice__text">Check your model files are compatible&nbsp;| Simulation bank&nbsp;| Preferences&nbsp;| About</span>
       </button>
     </div>
   </section>
@@ -1310,6 +1313,75 @@
     <p class="bank__add-row"><button type="button" class="btn btn--primary" id="bank-add-open" aria-haspopup="dialog">Add to the bank</button></p>
   </section>
 
+  <section id="view-preferences" hidden>
+    <div class="card prefs__card">
+      <div class="prefs__head">
+        <p class="prefs__where" id="settings-where"></p>
+      </div>
+      <div class="prefs__body">
+        <fieldset class="prefs__group">
+          <legend class="prefs__legend">Demo</legend>
+          <p class="prefs__hint">Should the first page offer the demo?</p>
+          <label class="prefs__check"><input type="checkbox" class="tick" id="settings-show-demo">Yes, show &ldquo;Try a demo&rdquo; on the first page</label>
+        </fieldset>
+        <fieldset class="prefs__group" id="settings-data-store-group">
+          <legend class="prefs__legend">Data store</legend>
+          <p class="prefs__hint">A folder to keep the built-in observational data OceanVal downloads (WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES), so that later matchups need not download it again. Your own data is never kept in it. Everything is kept in an <code>oceanval_datastore</code> folder inside the one you give, which must already exist. Leave it empty to keep nothing.</p>
+          <label class="g-label" for="settings-data-store">Folder</label>
+          <input type="text" class="s-input is-mono prefs__path" id="settings-data-store" placeholder="The folder's full path, e.g. /data/me" spellcheck="false" autocomplete="off" aria-describedby="settings-data-store-status">
+          <p class="prefs__status" id="settings-data-store-status" aria-live="polite"></p>
+          <p class="prefs__size" id="settings-data-store-size" aria-live="polite" hidden></p>
+          <div class="prefs__check-row">
+            <button type="button" class="btn btn--ghost" id="settings-data-store-check" disabled>Run a check on the data store</button>
+            <span class="prefs__hint-inline" id="settings-data-store-check-hint">It only looks: nothing is changed, removed or fixed.</span>
+          </div>
+          <div class="check" id="settings-data-store-result" aria-live="polite" hidden></div>
+          <div class="prefs__choices" id="settings-data-store-uses" role="radiogroup" aria-label="How matchups use the data store"></div>
+          <p class="prefs__note" id="settings-data-store-note">Choose a disk with a reasonable amount of free space: the data store grows as more data is kept in it, and can come to several GB.</p>
+        </fieldset>
+        <p class="prefs__error" id="settings-error" role="alert" hidden></p>
+      </div>
+      <div class="prefs__foot">
+        <button type="button" class="btn btn--primary" id="settings-apply">Apply</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-about" hidden>
+    <div class="card prefs__card">
+      <div class="prefs__head">
+        <p class="prefs__where" id="info-version"></p>
+      </div>
+      <div class="prefs__body">
+        <fieldset class="prefs__group">
+          <legend class="prefs__legend">Links</legend>
+          <ul class="info__links">
+            <li><a href="https://PlymouthMarineLaboratory.github.io/OceanVal/" target="_blank" rel="noopener" id="info-website">The OceanVal website</a></li>
+            <li><a href="https://github.com/PlymouthMarineLaboratory/oceanVal" target="_blank" rel="noopener" id="info-github">OceanVal on GitHub</a></li>
+          </ul>
+        </fieldset>
+        <fieldset class="prefs__group">
+          <legend class="prefs__legend">Built-in datasets</legend>
+          <p class="prefs__hint">The observational datasets OceanVal can compare a simulation with. Water-column means the whole water column can be validated, not just the surface.</p>
+          <h3 class="info__subtitle">Gridded data</h3>
+          <div class="info__table-wrap" id="info-gridded"></div>
+          <h3 class="info__subtitle">Point data</h3>
+          <div class="info__table-wrap" id="info-point"></div>
+        </fieldset>
+        <footer class="info__credit">
+          <div class="info__credit-row">
+            <a href="https://pml.ac.uk/" target="_blank" rel="noopener" class="info__credit-logo"><img id="info-logo" alt="Plymouth Marine Laboratory"></a>
+            <span>Developed by the Environmental Intelligence group at Plymouth Marine Laboratory</span>
+          </div>
+          <div class="info__credit-row info__credit-legal">
+            <span>Released under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GNU GPLv3 license</a>.</span>
+            <span class="info__badge">GPLv3</span>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </section>
+
   <section id="view-analyze-menu" hidden>
     <div class="choices">
       <button type="button" class="choice" data-action="analyze" id="menu-analyze">
@@ -1324,17 +1396,22 @@
   </section>
 
   <section id="view-help" hidden>
-    <p class="lede">Tools to check your data before you run OceanVal, and to keep your simulations by name.</p>
-    <div class="choices">
+    <div class="choices is-four">
       <button type="button" class="choice" data-action="help_compatible" id="help-compatible">
         <span class="choice__icon" data-icon="compatible"></span>
         <span class="choice__title">Is my data compatible with OceanVal?</span>
-        <span class="choice__text">Check your model output and observations before you start a matchup or analysis</span>
       </button>
       <button type="button" class="choice" data-action="bank" id="help-bank">
         <span class="choice__icon" data-icon="bank"></span>
-        <span class="choice__title">Simulation bank</span>
-        <span class="choice__text">Simulations you have kept, by name, to use again</span>
+        <span class="choice__title">View the simulation bank</span>
+      </button>
+      <button type="button" class="choice" data-action="preferences" id="help-preferences">
+        <span class="choice__icon" data-icon="preferences"></span>
+        <span class="choice__title">Preferences</span>
+      </button>
+      <button type="button" class="choice" data-action="about" id="help-about">
+        <span class="choice__icon" data-icon="about"></span>
+        <span class="choice__title">About OceanVal</span>
       </button>
     </div>
   </section>
@@ -1388,7 +1465,7 @@
   <section id="view-start" hidden>
     <div class="choices">
       <button type="button" class="choice" data-action="matchup_validate">
-        <span class="choice__icon" data-icon="chart"></span>
+        <span class="choice__icon" data-icon="matchvalidate"></span>
         <span class="choice__title">Match up new data and validate</span>
         <span class="choice__text">Read a simulation's output, choose the observations to compare it with, match them up, and build the validation report.</span>
       </button>
@@ -1398,7 +1475,7 @@
         <span class="choice__text">Match a simulation up with observations now, and build the report later, from the same matchups.</span>
       </button>
       <button type="button" class="choice" data-action="validate">
-        <span class="choice__icon" data-icon="report"></span>
+        <span class="choice__icon" data-icon="validateexisting"></span>
         <span class="choice__title">Validate using existing data</span>
         <span class="choice__text">Build the validation report from matchups made earlier.</span>
       </button>
@@ -2894,16 +2971,18 @@
   const bankLists = [];
 
   const PICTURES = {
-    compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg>',
+    compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5.5 8 5 3 5v12c5 0 7.5.5 9 1.5"/><path d="M12 6.5C13.5 5.5 16 5 21 5v12c-5 0-7.5.5-9 1.5"/><path d="M12 6.5V9"/><path d="M5.5 8h3.5M5.5 10.5h2.5M15 8h3.5M15 10.5h3.5"/><circle cx="11" cy="13" r="3.5" fill="var(--bg)"/><path d="M13.6 15.6 17.5 19.5"/></svg>',
     folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6m0 0-5 5m5-5 5 5"/></svg>',
     chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="m7.5 14.5 3.5-4 3 3 5-6"/></svg>',
-    match: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13m0 0-3.5-3.5M17 8l-3.5 3.5"/><path d="M20 16H7m0 0 3.5-3.5M7 16l3.5 3.5"/></svg>',
+    match: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h9v11H3z"/><path d="M12 4h9v11h-9z"/><path d="M5.5 14.5h4.5m0 0-1.75-1.75M10 14.5l-1.75 1.75"/><path d="M18.5 9.5H14m0 0 1.75-1.75M14 9.5l1.75 1.75"/></svg>',
+    matchvalidate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="5" rx="6.5" ry="2.5"/><path d="M3.5 5v14c0 1.4 2.9 2.5 6.5 2.5M16.5 5v4M3.5 10c0 1.4 2.9 2.5 6.5 2.5M3.5 15c0 1.4 2.9 2.5 6.5 2.5"/><circle cx="16" cy="14.5" r="4.5" fill="var(--bg)"/><path d="M13.7 14.7l1.6 1.6 3-3.2M19.3 17.8 22 20.5"/></svg>',
+    validateexisting: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><path d="M7.3 10.7l2.4 2.4 4.6-4.9M15.6 15.6 21 21"/></svg>',
     report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="m9 12.5 2.2 2.2L15.2 10"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 9v6M9 12h6"/></svg>',
-    bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13"/></svg>',
+    bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9 12 3l9 6z"/><path d="M6 12v6M10 12v6M14 12v6M18 12v6"/><path d="M4 18.5h16"/><path d="M2.5 21.5h19"/></svg>',
     viewer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     analyze: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>',
     climatology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
@@ -2916,7 +2995,9 @@
     warn: ICONS.warn,
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.3 4.3L19 7.2"/></svg>',
     help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.9 2.1c-.9.6-1.4 1.1-1.4 2.2"/><path d="M12 17.2v.1"/></svg>',
-    compatible: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.8 2.8L16 9.5"/></svg>',
+    preferences: OceanValGUI.COG,
+    about: OceanValGUI.ICONS.info,
+    compatible: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7.25v2.25a1.75 1.75 0 1 1 0 3.5v1.5H8.5a1.75 1.75 0 1 1-3.5 0H3z"/><path d="M13.75 3H21v7.25h-7.25v-1.5a1.75 1.75 0 1 0 0-3.5z"/><path d="M3 13.75h2a1.75 1.75 0 1 0 3.5 0h1.75v1.5a1.75 1.75 0 1 1 0 3.5V21H3z"/><path d="M13.75 13.75H21V21h-7.25v-2.25a1.75 1.75 0 1 0 0-3.5z"/></svg>',
   };
   document.querySelectorAll("[data-icon]").forEach((node) => { node.innerHTML = PICTURES[node.dataset.icon]; });
 
@@ -3007,11 +3088,10 @@
       return;
     }
     vi.open = true;
-    const gear = el("span", { class: "settings-open__icon", "aria-label": "Preferences", html: OceanValGUI.COG });
     // one element, as .picker__info is a flex row and would put each piece of text in a column of its own
     $("validate-intro-text").replaceChildren(el("span", {},
       "OceanVal downloads observational data when it validates your simulation. If you want that data saved for future use, "
-      + "click the Preferences\u00a0", gear, " button and set the data store folder."));
+      + "go to Tools & checks, then Preferences, and set the data store folder."));
     dialog.hidden = false;
     $("validate-intro-continue").focus();
   }
@@ -3075,8 +3155,10 @@
       case "home": return "";  // the cards speak for themselves
       case "start": return "";
       case "analyze_menu": return "";
-      case "help": return "Tools & checks";
+      case "help": return "";  // the tiles speak for themselves
       case "bank": return "Simulation bank";
+      case "preferences": return "Preferences";
+      case "about": return "About OceanVal";
       case "help_compatible": return "Is my data compatible with OceanVal?";
       case "demo": return "Try OceanVal with a demo";
       case "demo_instructions": return "Instructions";
@@ -3191,7 +3273,7 @@
     } else if (view === "start" || view === "analyze_menu") {
       // to the landing page
       actions.push(backTo(() => post("api/back")));
-    } else if (view === "help" || view === "help_compatible" || view === "bank") {
+    } else if (view === "help" || view === "help_compatible" || view === "bank" || view === "preferences" || view === "about") {
       // to the landing page, or back to Tools & checks
       actions.push(backTo(() => post("api/back")));
     } else if (view === "setup") {
@@ -4278,7 +4360,7 @@
 
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
-    analyze_menu: "view-analyze-menu", bank: "view-bank", help: "view-help", help_compatible: "view-help-compatible",
+    analyze_menu: "view-analyze-menu", bank: "view-bank", preferences: "view-preferences", about: "view-about", help: "view-help", help_compatible: "view-help-compatible",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
     simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
@@ -4314,6 +4396,11 @@
       $("compat-path-note").textContent = "";
       if ($("compat-path").value) askCompatListing(0);
       $("compat-path").focus();
+    } else if (view === "preferences") {
+      fillPreferences();
+      $("settings-show-demo").focus();
+    } else if (view === "about") {
+      fillAbout();
     } else if (view === "home") {
       $("home-viewer").focus();
     } else if (view === "analyze_menu") {
@@ -11211,10 +11298,7 @@
   OceanValGUI.mountChrome({
     state: () => state,
     post,
-    settingsPath: "api/settings",
     behind: () => BEHIND,
-    // the first page shows or hides the demo
-    onSaved: render,
     // the arrow left of Restart: each view says what it does (backTo in renderBar), greyed out where it has nothing to do
     back: true,
     // starting again forgets everything the app and the page held, so the page
@@ -11237,6 +11321,150 @@
   const scColour = (index) => scState().colours[index % scState().colours.length];
   const scSwatch = (colour) => el("span", { class: "sc-swatch", style: `background:${colour}` });
   const scNamed = (name, colour) => el("span", { class: "sc-name" }, scSwatch(colour), name);
+
+  // ---- Preferences and About, pages of Tools & checks (the preferences are kept by oceanval.user_settings) ----
+  function storeBytes(n) {
+    if (n === null || n === undefined) return null;
+    const units = ["bytes", "KB", "MB", "GB", "TB"];
+    let i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i += 1; }
+    return `${i === 0 ? n : n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
+  }
+
+  let checkingDataStore = false;
+
+  // what a check of the data store found: a line saying how it went, and then each kind of thing found with what it is
+  function showDataStoreCheck(check) {
+    const out = $("settings-data-store-result");
+    const { problems, notes } = check;
+    const looked = `Looked at ${check.pieces} piece${check.pieces === 1 ? "" : "s"} (${storeBytes(check.bytes)}).`;
+    const kind = problems ? "problem" : notes ? "note" : "ok";
+    const said = problems
+      ? `${problems} problem${problems === 1 ? "" : "s"} found${notes ? `, and ${notes} thing${notes === 1 ? "" : "s"} to know about` : ""}.`
+      : notes ? `No problems found, but ${notes} thing${notes === 1 ? "" : "s"} to know about.` : "No problems found.";
+    out.replaceChildren(
+      el("p", { class: `check__summary check__summary--${kind}` },
+        el("strong", { text: `${problems ? "Problems: " : notes ? "Notes: " : "All clear: "}` }), `${said} ${looked}`),
+      ...check.groups.map((group) => el("section", { class: `check__group check__group--${group.level}` },
+        el("h4", { class: "check__title" },
+          el("span", { class: "check__badge", text: group.level === "problem" ? "Problem" : "Note" }),
+          `${group.title} (${group.count})`),
+        el("ul", { class: "check__list" }, ...group.items.map((item) => el("li", { text: item }))))),
+      el("p", { class: "check__foot", text: `Checked at ${check.checked.replace("T", " ")}. Nothing was changed.` }));
+    out.hidden = false;
+  }
+
+  async function runDataStoreCheck() {
+    const button = $("settings-data-store-check");
+    const out = $("settings-data-store-result");
+    checkingDataStore = true;
+    button.disabled = true;
+    out.replaceChildren(el("p", { class: "check__foot", text: "Checking the data store..." }));
+    out.hidden = false;
+    const reply = await post("api/data_store_check", {});
+    checkingDataStore = false;
+    showDataStore();
+    if (!reply.ok) {
+      out.replaceChildren(el("p", { class: "check__summary check__summary--problem", text: reply.error || "The data store could not be checked." }));
+      out.hidden = false;
+      return;
+    }
+    showDataStoreCheck(reply.check);
+  }
+
+  // the data store: where it is, or will be once applied, and how it is used, which cannot be chosen without a folder
+  function showDataStore() {
+    const typed = $("settings-data-store").value.trim();
+    const { values, data_store: info = {} } = state.user_settings;
+    const status = $("settings-data-store-status");
+    const size = $("settings-data-store-size");
+    const applied = typed && typed === values.data_store && info.root;
+    size.hidden = !applied;
+    // a check is of the folder saved, so of one applied; what was found is of the folder as it was
+    $("settings-data-store-check").disabled = !applied || checkingDataStore;
+    $("settings-data-store-check-hint").textContent = applied
+      ? "It only looks: nothing is changed, removed or fixed."
+      : "Apply a folder first: the check is of the data store that is saved.";
+    if (!applied) $("settings-data-store-result").hidden = true;
+    if (!typed) {
+      status.replaceChildren("No data store: built-in observational data is downloaded each time it is needed.");
+    } else if (applied) {
+      const free = storeBytes(info.free);
+      status.replaceChildren("Kept in ", el("code", { text: info.root }), ".", free ? ` ${free} free on that disk.` : "");
+      size.replaceChildren("Size of the data store: ", el("strong", { text: storeBytes(info.size || 0) }));
+    } else {
+      status.replaceChildren("Once applied, it is kept in ", el("code", { text: `${typed.replace(/\/+$/, "")}/oceanval_datastore` }), ".");
+    }
+    $("settings-data-store-uses").querySelectorAll("input").forEach((input) => { input.disabled = !typed; });
+    $("settings-data-store-uses").classList.toggle("is-disabled", !typed);
+  }
+
+  // what is saved, each time the page is opened: Back leaves it as it was
+  function fillPreferences() {
+    const { values, path } = state.user_settings;
+    $("settings-where").replaceChildren("Saved in ", el("code", { text: path }), ", and used each time OceanVal's window opens.");
+    $("settings-show-demo").checked = values.show_demo !== false;
+    $("settings-data-store").value = values.data_store || "";
+    const uses = (state.user_settings.data_store || {}).uses || [];
+    $("settings-data-store-uses").replaceChildren(...uses.map(([key, label, note]) => el("label", { class: "prefs__check prefs__use" },
+      el("input", { type: "radio", name: "settings-data-store-use", value: key, checked: key === (values.data_store_use || "always") }),
+      el("span", {}, label, note ? el("small", { text: note }) : null))));
+    $("settings-data-store-result").hidden = true;
+    showDataStore();
+    $("settings-error").hidden = true;
+    $("settings-apply").disabled = false;
+  }
+
+  async function applyPreferences() {
+    const settings = {
+      show_demo: $("settings-show-demo").checked,
+      data_store: $("settings-data-store").value.trim(),
+    };
+    const use = $("settings-data-store-uses").querySelector("input:checked");
+    if (use) settings.data_store_use = use.value;
+    $("settings-apply").disabled = true;
+    const reply = await post("api/settings", { settings });
+    $("settings-apply").disabled = false;
+    if (!reply.ok) {
+      $("settings-error").textContent = reply.error || "Your preferences could not be saved.";
+      $("settings-error").hidden = false;
+      return;
+    }
+    state.user_settings.values = reply.settings;
+    if (reply.data_store) state.user_settings.data_store = reply.data_store;
+    $("settings-error").hidden = true;
+    // the first page shows or hides the demo
+    render();
+    showDataStore();
+    toast("Preferences saved.");
+  }
+
+  $("settings-apply").addEventListener("click", applyPreferences);
+  $("settings-data-store").addEventListener("input", showDataStore);
+  $("settings-data-store-check").addEventListener("click", runDataStoreCheck);
+
+  // the website, GitHub and the built-in datasets
+  function datasetTable(rows) {
+    const head = ["Region", "Variable", "Dataset", "Water-column", "Units"];
+    return el("table", { class: "info__table" },
+      el("thead", {}, el("tr", {}, ...head.map((name) => el("th", { scope: "col", text: name })))),
+      el("tbody", {}, ...rows.map((row) => el("tr", {},
+        el("td", { text: row.region }),
+        el("td", { text: row.variable }),
+        el("td", {}, row.url
+          ? el("a", { href: row.url, target: "_blank", rel: "noopener", text: row.dataset })
+          : row.dataset),
+        el("td", { class: row.water_column ? null : "is-no", text: row.water_column ? "Yes" : "No" }),
+        el("td", {}, el("code", { text: row.units }))))));
+  }
+
+  function fillAbout() {
+    const datasets = state.datasets || [];
+    $("info-gridded").replaceChildren(datasetTable(datasets.filter((row) => !row.point)));
+    $("info-point").replaceChildren(datasetTable(datasets.filter((row) => row.point)));
+    $("info-version").textContent = `Version ${state.oceanval_version}`;
+    $("info-logo").src = OceanValGUI.PML_LOGO;
+  }
 
   // ---- the simulation bank: names and directories kept on purpose (see oceanval.user_cache) ----
   const bankEntries = () => state.bank || [];

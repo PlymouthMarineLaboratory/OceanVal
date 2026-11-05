@@ -273,7 +273,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   that posts `/api/forget_sim_dir` → `App.forget_sim_dir` → `user_cache.forget_sim_dir`; Delete does the same for the marked entry.
 - `user_cache.has_seen(name)`/`record_seen(name)` keep a `"seen"` map of first-time messages. The first time Validate is opened (`state.validate_intro`,
   `#validate-intro`, a pop-out with a Close button, `POST /api/validate_intro_seen`) the window says OceanVal downloads observational data and that the
-  Preferences gear (the same `OceanValGUI.COG` icon) sets the data store folder to keep it; it is recorded on closing, and not shown if a data store is set.
+  Preferences page (Tools & checks → Preferences; the text names the path, there is no gear any more) sets the data store folder to keep it; it is recorded on closing, and not shown if a data store is set.
   An unreadable cache counts as seen. The tests' `browser` fixture closes it unless `window.__keepValidateIntro`.
 - **The simulation bank** (`user_cache.bank`/`add_to_bank`/`remove_from_bank`; the user's design, 2026-11-05): a `"bank"` list of `{name, path, added}` in
   the same file, a Name→Directory map the user fills on purpose (not recorded automatically, unlike `sim_dirs`). `add_to_bank` refuses, with the
@@ -892,7 +892,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   registers none leaves the arrow **greyed out** (a real `disabled`), the first page's too. A new step with a Back must call `backTo`. The bar is hidden
   where Back was its only button. **The header is sticky** (`.masthead`), and `--masthead-h` (kept by `keepMastheadHeight`) is its height: anything else
   that sticks to the top of the page sits below it (`.vw-side`, the recipes table's head). Tests click `#back-open`.
-- **Restart** (the circular arrow beside the **i**, `mountChrome(restart=)` in `data/gui.js`, in the recipes window too) asks in a pop-up
+- **Restart** (the circular arrow beside Back, `mountChrome(restart=)` in `data/gui.js`, in the recipes window too) asks in a pop-up
   (`#restart-confirm`: only the sentence "Begin again with a clean slate" and the Cancel and Restart buttons, Cancel the default), then posts `/api/restart_all` →
   `App.reset`, which goes to `home` from **any** view with everything entered forgotten (forms, own data, recipes/units state, the run,
   the draft script folder, Analyze/Compare state); the page then reloads, so its own objects are fresh. Kept: `settings`, `leftovers`,
@@ -901,10 +901,13 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   generation counters, which `reset` bumps: **a new thread that sets `view` after waiting must check them**. **Start again**
   (the button on `finished`/`script_saved`) is the same: it posts `/api/restart_all` and reloads, so nothing of the run just
   finished is kept (the user's rule, 2026-10-25; there is no separate `restart()`).
-- The window's Info panel (the **i** beside Settings) shows the version as `oceanval.__version__`, which is the
+- **Preferences and About are pages of Tools & checks** (the user's design, 2026-11-05: the gear and the **i** are gone from the header, in the standalone `create_recipes()` window too, whose `/settings`/`/data_store_check` handlers and
+  `user_settings`/`datasets` state went with them; `OceanValGUI.mountChrome` is only Back and Restart). They are Tools & checks' third and fourth tiles (`#help-preferences`, `#help-about`; the page is `.choices.is-four`, 2 x 2, styled
+  like the landing page's), views `preferences` and `about` (`App.choose`, valid only from `help`; Back → `help`; sections `#view-preferences`, `#view-about`, filled by `fillPreferences`/`fillAbout` in `enterView`). **Preferences**:
+  Apply saves (`POST api/settings`, a toast, the page stays) and Back leaves unsaved changes; the data store check is `api/data_store_check`. **About** shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.
-  It ends with a credit (`.info__credit`): the PML logo and "Developed by the Environmental Intelligence group at Plymouth Marine Laboratory" (as the website's footer), then "Released under the GNU GPLv3 license." and a GPLv3 badge. The logo is a `data:` URI that `recipes_gui.render_page` puts in for `__OCEANVAL_PML_LOGO__` in `gui.js`.
+  It ends with a credit (`.info__credit`): the PML logo and "Developed by the Environmental Intelligence group at Plymouth Marine Laboratory" (as the website's footer), then "Released under the GNU GPLv3 license." and a GPLv3 badge. The logo is a `data:` URI that `recipes_gui.render_page` puts in for `__OCEANVAL_PML_LOGO__` in `gui.js` (`OceanValGUI.PML_LOGO`, set as the `<img>`'s `src`).
 - **The browser never offers what was typed before** (the user's rule, 2026-10-30): every typed box has `autocomplete="off"`,
   in the markup and, for boxes the pages make later, by the guard at the end of `data/gui.js` (`forget`, a `MutationObserver`
   and `focusin`). Never `chrome-off`, which Chrome ignores. Only the simulation directories are remembered, by OceanVal

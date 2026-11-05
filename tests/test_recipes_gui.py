@@ -17,7 +17,7 @@ import xarray as xr
 
 import oceanval
 import oceanval.recipes_gui as recipes_gui
-from oceanval import user_recipes, user_settings
+from oceanval import user_recipes
 from oceanval.create_recipes import RECIPE_VARIABLES, default_selection, replaced_recipes
 from oceanval.recipes_gui import (
     RecipePage,
@@ -272,33 +272,11 @@ class TestErsemDetection:
                 assert "recipe:" not in dataset["details"]
 
 
-def _panels_work(page, oceanvalrc):
-    """The cog and the i beside the wordmark open their panels on this page,
-    and Apply saves the settings."""
-    assert page.locator(".masthead .brand #settings-open").count() == 1
-    assert page.locator(".masthead .brand #info-open").count() == 1
-    assert page.is_hidden("#preferences")
-    page.click("#settings-open")
-    assert page.is_visible("#preferences")
-    # the data store is set here too
-    assert page.is_visible("#settings-data-store")
-    assert page.locator('input[name="settings-data-store-use"]').count() == 2
-    assert "reasonable amount of free space" in page.text_content("#settings-data-store-note")
-    assert page.text_content("#settings-data-store-check") == "Run a check on the data store"
-    assert page.locator("#settings-themes").count() == 0
-    page.uncheck("#settings-show-demo")
-    page.click("#settings-apply")
-    page.wait_for_selector("#preferences", state="hidden")
-    assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
-    assert page.evaluate("document.activeElement.id") == "settings-open"
-
-    page.click("#info-open")
-    assert page.is_visible("#info")
-    assert page.text_content("#info-version") == f"Version {oceanval.__version__}"
-    assert page.locator("#info-gridded tbody tr").count() > 0
-    page.keyboard.press("Escape")
-    assert page.is_hidden("#info")
-    assert page.evaluate("document.activeElement.id") == "info-open"
+def _no_panels_in_the_header(page):
+    """Preferences and About are pages of the app's Tools & checks: the cog and the i are not beside the wordmark."""
+    assert page.locator(".masthead .brand #settings-open").count() == 0
+    assert page.locator(".masthead .brand #info-open").count() == 0
+    assert page.locator("#preferences").count() == 0 and page.locator("#info").count() == 0
     # Restart is only for the pages the oceanval window hosts, which have a first page to go back to
     assert page.locator("#restart-open").count() == 0
 
@@ -307,46 +285,6 @@ def test_the_pages_carry_the_logos_inline():
     html = recipes_gui.render_page("create_recipes_gui.html", {})
     assert "data:image/jpeg;base64," in html
     assert "__OCEANVAL_PML_LOGO__" not in html
-
-
-def test_the_info_panel_credits_pml_and_gives_the_licence(browser, oceanvalrc):
-    recipe_page = RecipePage(
-        recipe_rows({"temperature": "thetao"}, "nwes"),
-        {"thetao"},
-        CONTEXT,
-        lambda *chosen: "/out/matchup.py",
-    )
-    url = recipe_page.start()
-    try:
-        page = browser.new_page()
-        page.goto(url)
-        page.click("#info-open")
-        credit = page.locator("#info .info__credit")
-        assert "Environmental Intelligence group at Plymouth Marine Laboratory" in credit.text_content()
-        assert "GNU GPLv3 license" in credit.text_content()
-        assert credit.locator("a[href='https://pml.ac.uk/']").count() == 1
-        assert all(page.evaluate("img => img.naturalWidth", img.element_handle()) > 0
-                   for img in credit.locator("img").all())
-        # at the bottom, under the tables
-        assert credit.bounding_box()["y"] > page.locator("#info-point").bounding_box()["y"]
-    finally:
-        recipe_page.close()
-
-
-def test_the_preferences_and_info_are_in_the_window_too(browser, oceanvalrc):
-    recipe_page = RecipePage(
-        recipe_rows({"temperature": "thetao"}, "nwes"),
-        {"thetao"},
-        CONTEXT,
-        lambda *chosen: "/out/matchup.py",
-    )
-    url = recipe_page.start()
-    try:
-        page = browser.new_page()
-        page.goto(url)
-        _panels_work(page, oceanvalrc)
-    finally:
-        recipe_page.close()
 
 
 def _get(page, query=""):
@@ -614,18 +552,6 @@ class TestServer:
         assert status == 400
         assert set(reply["setting_errors"]) == {"cores", "lon_max", "lat_min", "lat_max"}
         assert page.written == []
-
-    def test_the_data_store_check_is_answered_here_too(self, page, tmp_path):
-        status, reply = _post(page.url, "/data_store_check", {})
-        assert status == 400 and "no data store" in reply["error"]
-        folder = tmp_path / "store"
-        folder.mkdir()
-        user_settings.save({"data_store": str(folder)})
-        (folder / "oceanval_datastore" / "mine.txt").write_text("mine")
-        status, reply = _post(page.url, "/data_store_check", {"data_store": "/"})
-        assert status == 200
-        assert reply["check"]["problems"] == 1
-        assert (folder / "oceanval_datastore" / "mine.txt").read_text() == "mine"
 
     def test_point_options_that_cannot_be_used_are_sent_back(self, page):
         rows = [{

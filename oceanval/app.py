@@ -2663,6 +2663,13 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = "help"
                 self._notify()
                 return True
+            if action in ("preferences", "about"):
+                # Tools & checks' third and fourth tiles
+                if self.view != "help":
+                    return False
+                self.view = action
+                self._notify()
+                return True
             if action == "help_compatible":
                 # Tools & checks' first tile
                 if self.view != "help":
@@ -2813,6 +2820,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "bank": "help",
             "analyze_menu": "home",
             "help_compatible": "help",
+            "preferences": "help",
+            "about": "help",
         }
         if self.demo is not None and self.demo["status"] != "downloading":
             earlier["demo"] = "start"
