@@ -466,6 +466,11 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   netCDF-C/HDF5 are not thread-safe and xarray gives each file a lock of its own, so two of the window's threads opening
   files at once (the grids and the missing-value probe did) crash it with a segmentation fault. A new read in a thread of
   the window (xarray, netCDF4, nctoolkit's `contents`) must take it; CDO runs in its own process and needs none.
+  **HDF5 prints its error stack per thread**, so a thread of the window that makes a file (nctoolkit's `from_xarray`, the unified grid's mask)
+  printed `HDF5-DIAG ... unable to open file ... No such file or directory` for a file only probed (the Compare grids step, FVCOM + NEMO).
+  `netcdf_lock.silence_hdf5()` calls `H5Eset_auto2(H5E_DEFAULT, NULL, NULL)` on the libhdf5 netCDF4 loaded (found in `/proc/self/maps`:
+  **h5py is a pip wheel with its own libhdf5, so `h5py._errors.silence_errors()` changes the wrong library**); `recipes_gui._Server` calls
+  `netcdf_lock.silence_new_threads()` so every thread of a window does it first, and `grid_align.unified` calls it too. Errors still raise.
 - Long-term (annual) and seasonal (monthly) time series are `oceanval/analysis_series.py`: the
   monthly means per layer (`analysis.monthly_means_of`, which `climatology_of` also uses), then
   domain/region/station means saved as small CSVs (year/month integers, so 360-day calendars

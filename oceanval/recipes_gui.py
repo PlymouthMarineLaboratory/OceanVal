@@ -46,7 +46,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import data_store, own_data, time_res, user_recipes, user_settings
+from oceanval import data_store, netcdf_lock, own_data, time_res, user_recipes, user_settings
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -792,6 +792,12 @@ def hosted_by(host):
 class _Server(http.server.ThreadingHTTPServer):
     # a page still open in the browser must not hold up closing the server
     block_on_close = False
+
+    def __init__(self, *args, **kwargs):
+        # the threads of a window (its requests, its readers) read and make netCDF files: HDF5 would print its
+        # errors from each for a file it only probes (see netcdf_lock.silence_hdf5)
+        netcdf_lock.silence_new_threads()
+        super().__init__(*args, **kwargs)
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):

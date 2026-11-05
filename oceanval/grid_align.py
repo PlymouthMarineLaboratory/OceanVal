@@ -164,6 +164,7 @@ def unified(fields, baseline, method, box=None, progress=None, meshes=None):
     if method not in REGRID_METHODS:
         raise ValueError("Choose a regridding method.")
     meshes = meshes or {}
+    netcdf_lock.silence_hdf5()
     if box is None and baseline in meshes:
         raise ValueError("An FVCOM simulation cannot be the baseline grid. Choose another simulation's.")
     unify = {"method": "baseline", "baseline": baseline, "regrid": method} if box is None else {**box, "regrid": method}
