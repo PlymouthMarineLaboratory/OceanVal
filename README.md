@@ -79,10 +79,10 @@ Alternatively, install the conda environment and package using the following com
 To update an installed development version to the latest code on GitHub, activate the same conda environment and run:
 
 ```sh
-pip install --force-reinstall git+https://github.com/PlymouthMarineLaboratory/oceanval.git
+pip install --force-reinstall --no-deps git+https://github.com/PlymouthMarineLaboratory/oceanval.git
 ```
 
-`--force-reinstall` installs the latest code even when pip thinks the installed version is up to date. It also reinstalls the dependencies, so the update can take a few minutes.
+`--force-reinstall` installs the latest code even when pip thinks the installed version is up to date, and `--no-deps` leaves the dependencies alone, so the update takes seconds and your conda environment is not disturbed. If a release adds a dependency, recreate the environment from `oceanval.yml`, or run the command once without `--no-deps`.
 
 
 
