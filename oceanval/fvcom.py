@@ -410,6 +410,8 @@ def fvcom_preprocess(
             os.remove(ff_out)
         ds_all.merge("variables")
         # ds_all.tmean(["year", "month", "day"])
+        # a finite missing value: CDO 2.4.1's bottomvalue finds nothing in a file whose missing value is NaN
+        ds_all.set_fill(z_fill)
         ds_all.to_nc(ff_out, zip=True)
 
 

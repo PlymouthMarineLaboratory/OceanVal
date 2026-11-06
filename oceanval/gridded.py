@@ -423,6 +423,7 @@ def model_dataset(
         ds_model.subset(years=sim_years)
     surface.choose(ds_model, selection, fast)
     if more_than_one_level and not fast:
+        surface.finite_missing(ds_model)
         ds_model.cdo_command("topvalue")
     if time_shift:
         ds_model.shift(days=time_shift)
@@ -838,6 +839,7 @@ def gridded_matchup(
                                 # the first level, which is the surface at 0 m
                                 ds_obs.top()
                             else:
+                                surface.finite_missing(ds_obs)
                                 ds_obs.cdo_command("topvalue")
 
 
@@ -1007,11 +1009,13 @@ def gridded_matchup(
                     contents = ds_model_surface.contents
                     nlevels = contents.nlevels[0]
                     if nlevels > 1:
+                        surface.finite_missing(ds_model_surface)
                         ds_model_surface.cdo_command("topvalue")
                     ds_obs_surface = ds_obs.copy()
                     contents = ds_obs_surface.contents
                     nlevels = contents.nlevels[0]
                     if nlevels > 1: 
+                        surface.finite_missing(ds_obs_surface)
                         ds_obs_surface.cdo_command("topvalue")
                     _regrid_onto_common_grid(ds_model_surface, ds_obs_surface)
 

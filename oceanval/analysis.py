@@ -757,15 +757,21 @@ def _pick_level(ds, layer, levels):
         # the first value from the top that is not missing, as matchup takes the surface. Not nctoolkit's
         # top() (-sellevidx,1), which keeps a vertical dimension of one level that every later step would
         # have to cope with, and which was no faster on a month of daily output of 71 variables
+        surface.finite_missing(ds)
         ds.cdo_command("topvalue")
     elif layer == BOTTOM:
         # the deepest value that is not missing, whatever level that is in each cell
+        # CDO 2.4.1's bottomvalue (and topvalue) finds nothing when the missing value is NaN (as in regridded
+        # FVCOM output), so the missing value is made a finite one first; CDO 2.6 does not need it
+        surface.finite_missing(ds)
         ds.bottom(choice="value")
 
 
 def _reduce_column(ds, layer, thickness):
     """Take the vertical mean or integral of ds, if layer is one."""
     if layer in WATER_COLUMN:
+        if layer == "mean":
+            surface.finite_missing(ds)
         how = ds.vertical_mean if layer == "mean" else ds.vertical_integration
         # not thickness == Z_LEVEL: a dataset's == compares its values
         if isinstance(thickness, str) and thickness == Z_LEVEL:

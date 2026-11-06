@@ -695,6 +695,7 @@ def mm_match(
             if more_than_one_level:
                 if layer == "surface":
                     if not fast:
+                        surface.finite_missing(ds)
                         ds.cdo_command("topvalue")
                 else:
                     if session_info["invert"]:

@@ -87,8 +87,8 @@ class TestOrderOfTheChain:
     @pytest.mark.parametrize(
         "layer, order",
         [
-            ("surface", ("-selname", "-topvalue", "-setrtomiss", "-chname")),
-            ("bottom", ("-selname", "-setrtomiss", "-bottomvalue", "-chname")),
+            ("surface", ("-selname", "-setmissval", "-topvalue", "-setrtomiss", "-chname")),
+            ("bottom", ("-selname", "-setrtomiss", "-setmissval", "-bottomvalue", "-chname")),
         ],
     )
     def test_the_variable_is_chosen_then_the_level_then_the_name(self, daily, monkeypatch, layer, order):
@@ -99,7 +99,7 @@ class TestOrderOfTheChain:
     def test_a_sum_is_made_of_the_levels_chosen(self, daily, monkeypatch):
         files = sorted(glob.glob(os.path.join(daily, "*", "*ptrc_T.nc")))
         command = self.chain(monkeypatch, files, ["P1_Chl", "P2_Chl"], (2013, 2014), "surface", missing=[0, 0])
-        assert self.first_applied(command, "-selname", "-topvalue", "-setrtomiss", "-expr"), command
+        assert self.first_applied(command, "-selname", "-setmissval", "-topvalue", "-setrtomiss", "-expr"), command
 
     @pytest.mark.parametrize("parts, last", [(["thetao"], "-chname"), (["P1_Chl", "P2_Chl"], "-expr")])
     def test_a_comparisons_conversion_of_units_is_last(self, daily, monkeypatch, parts, last):
@@ -1109,3 +1109,38 @@ class TestForms:
     def test_figure_code_is_true_or_false(self, tmp_path):
         with pytest.raises(ValueError, match="figure_code must be True or False"):
             oceanval.analyze(str(tmp_path), {"Temperature": "thetao"}, cores=1, figure_code="yes")
+
+
+class TestTheBottomOfANaNFilledFile:
+    """CDO 2.4.1's topvalue and bottomvalue find nothing, and vertmean is wrong, when the missing value is NaN
+    (regridded FVCOM output is): surface.finite_missing is asked for before each."""
+
+    @pytest.mark.parametrize(
+        "layer, expected",
+        [("bottom", [11.0, 12.0, 13.0]), ("surface", [10.0, 10.0, 10.0]), ("mean", [10.5, 11.0, 11.5])],
+    )
+    def test_the_value_is_found(self, tmp_path, layer, expected):
+        import numpy as np
+        import xarray as xr
+        from oceanval.quiet_nc import nc
+
+        values = np.full((1, 5, 3, 3), np.nan, "f4")
+        for j in range(3):
+            # the seabed is one level lower in each row: 10, 11, ... down to it
+            values[0, : j + 2, j, :] = (10 + np.arange(j + 2))[:, None]
+        data = xr.Dataset(
+            {"t": (("time", "depth", "lat", "lon"), values)},
+            coords={"time": [0], "depth": [3.0, 10, 50, 200, 1000], "lat": [0.0, 1, 2], "lon": [0.0, 1, 2]},
+        )
+        data.lon.attrs = {"units": "degrees_east", "standard_name": "longitude"}
+        data.lat.attrs = {"units": "degrees_north", "standard_name": "latitude"}
+        data.depth.attrs = {"units": "m", "positive": "down", "axis": "Z"}
+        data.time.attrs = {"units": "days since 2000-01-01"}
+        path = str(tmp_path / "nan.nc")
+        data.to_netcdf(path, encoding={"t": {"_FillValue": np.float32("nan")}})
+        ds = nc.open_data(path, checks=False)
+        analysis._pick_level(ds, layer, 5)
+        analysis._reduce_column(ds, layer, analysis.Z_LEVEL)
+        ds.run()
+        found = ds.to_xarray()["t"].values.squeeze()
+        assert found[:, 0].tolist() == expected

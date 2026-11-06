@@ -56,6 +56,19 @@ SURFACE_AXIS = "surface_zaxis.txt"
 _found = {}
 
 
+# the missing value CDO is given before it picks a level or takes a vertical mean (see finite_missing)
+FINITE_MISSING = 1e20
+
+
+def finite_missing(ds):
+    """Make the missing value of ds a finite one (FINITE_MISSING). CDO 2.4.1's topvalue and bottomvalue find
+    nothing, and vertmean gives wrong values, when the missing value is NaN, as in a file xarray wrote or in
+    FVCOM output regridded by OceanVal; CDO 2.6 is right with either. Ask for it just before the operator
+    (nctoolkit applies the last one asked for last). The values are not changed. Returns ds."""
+    ds.cdo_command(f"setmissval,{FINITE_MISSING}")
+    return ds
+
+
 def axis_file():
     """The path of the description of a surface vertical axis. nctoolkit runs
     its commands in a shell and rewrites "cdo " in them, so a path with a space
@@ -215,6 +228,7 @@ def _first_level_is_surface(path, names, nlevels):
         choose(one, names, True, [0])
         top = nc.open_data(path, checks=False)
         top.cdo_command(f"-select,name={','.join(names)},timestep=1")
+        finite_missing(top)
         top.cdo_command("topvalue")
         with chunk_cache(small_cache_helps(path, names, nlevels)), warnings.catch_warnings(record=True):
             one.run()
