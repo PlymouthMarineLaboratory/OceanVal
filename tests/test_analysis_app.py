@@ -525,7 +525,8 @@ class TestOptions:
         assert post(app, "/api/analyze_option", {"kind": "missing", "form": {"from": "0", "to": "0"}})[0] == 200
         assert post(app, "/api/analyze_option", {"kind": "figure_code", "form": {"choice": "no"}})[0] == 200
         assert get_json(app, "/api/state")[1]["analyze"]["output"] == {
-            "out_dir": app.cwd, "out": "analysis.py", "out_typed": False, "replace_analysis": False}
+            "out_dir": app.cwd, "out": "analysis.py", "out_typed": False, "replace_analysis": False,
+            "add_to_history": "no", "work_name": "", "overwrite_history": False}
         os.makedirs(os.path.join(app.cwd, analysis.FOLDER))
         # which the user must tick to replace, having named the directory
         status, reply = post(app, "/api/analyze_run", {"form": {"out_dir": app.cwd, "out": "analysis.py"}})
