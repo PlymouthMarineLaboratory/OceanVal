@@ -24,7 +24,7 @@ import threading
 
 from oceanval.quiet_nc import nc
 
-from oceanval.parsers import point_files, read_point
+from oceanval.parsers import gridded_files, point_files, read_point
 
 LOCATIONS = ("disk", "thredds", "url")
 
@@ -103,17 +103,19 @@ def _look(first, last, opener):
 def _disk(text, cwd):
     path = resolve(text, cwd)
     if glob.has_magic(path) and not os.path.exists(path):
-        # matchup opens a pattern as it is, which only works for netCDF files
+        # a pattern is expanded by glob.glob, and only netCDF files are used
         if not path.endswith(".nc"):
             raise CheckFailed("A pattern has to end in .nc, as in obs/chl_*.nc.")
-        files = sorted(glob.glob(path))
+        files = gridded_files(path)
         if not files:
             raise CheckFailed("No files match this pattern.")
     elif os.path.isdir(path):
         try:
-            files = sorted(nc.create_ensemble(path))
+            files = gridded_files(path)
         except ValueError:
-            raise CheckFailed("There are no netCDF files in this directory.")
+            files = []
+        if not files:
+            raise CheckFailed("There are no netCDF files in this directory or below it.")
     elif os.path.isfile(path):
         if not path.endswith(".nc"):
             raise CheckFailed("The file has to end in .nc.")
@@ -163,6 +165,7 @@ def inspect_gridded(location, obs_path, cwd=None):
     return {
         "obs_path": stored,
         "files": len(files),
+        "paths": list(files),
         "sample": files[0],
         "variables": variables,
         "years": years,

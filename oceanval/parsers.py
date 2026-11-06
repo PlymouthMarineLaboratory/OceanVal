@@ -31,6 +31,26 @@ def read_point(ff, nrows = None):
     raise ValueError(f"Could not read file {ff} with any of the following compression types: {compressions}.")
 
 
+def gridded_files(obs_path):
+    """The netCDF files of gridded observations, sorted.
+
+    A path with a wildcard is expanded with ``glob.glob`` (never nctoolkit's
+    glob, and ``**`` goes through subdirectories); a directory is searched
+    recursively (nctoolkit's glob, ``dir/**/*.nc``); a file is used as it is.
+    A path with no files gives an empty list.
+    """
+    if glob.has_magic(obs_path) and not os.path.exists(obs_path):
+        return sorted(glob.glob(obs_path, recursive=True))
+    if os.path.isdir(obs_path):
+        obs_path = os.path.join(obs_path, "**", "*.nc")
+    elif os.path.isfile(obs_path):
+        return [obs_path]
+    try:
+        return sorted(nc.glob(obs_path, recursive=True))
+    except ValueError:
+        return []
+
+
 def point_files(obs_path):
     """The csv files of a point comparison's observations.
 
@@ -587,12 +607,13 @@ class Validator:
             if isinstance(obs_path, list):
                 sample_file = obs_path[0]
             else:
-                if glob.has_magic(obs_path) and not os.path.exists(obs_path):
-                    sample_file = sorted(glob.glob(obs_path))[0]
-                elif obs_path.endswith(".nc"):
+                if obs_path.endswith(".nc") and not glob.has_magic(obs_path):
                     sample_file = obs_path
                 else:
-                    sample_file = nc.glob(obs_path)[0]
+                    files = gridded_files(obs_path)
+                    if not files:
+                        raise ValueError(f"No netCDF files found for {obs_path}")
+                    sample_file = files[0]
             try:
                 if thredds is True:
                     ds = nc.open_thredds(sample_file)

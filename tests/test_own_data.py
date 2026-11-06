@@ -247,6 +247,18 @@ class TestGridded:
         assert errors == {}
         assert arguments["obs_path"] == "https://example.org/data.nc"
 
+    def test_a_directory_is_searched_below_too(self, tmp_path):
+        (tmp_path / "a" / "b").mkdir(parents=True)
+        _, errors = own_data.check_entry(
+            "gridded", dict(self.GRIDDED, obs_path=str(tmp_path), file_check=False), cwd=str(tmp_path)
+        )
+        assert "obs_path" in errors
+        (tmp_path / "a" / "b" / "x.nc").write_bytes(b"")
+        _, errors = own_data.check_entry(
+            "gridded", dict(self.GRIDDED, obs_path=str(tmp_path), file_check=False), cwd=str(tmp_path)
+        )
+        assert "obs_path" not in errors
+
     def test_no_file_matches(self, tmp_path):
         _, errors = own_data.check_entry(
             "gridded",

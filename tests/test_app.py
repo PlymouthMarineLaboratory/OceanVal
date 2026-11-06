@@ -2487,6 +2487,7 @@ class TestServer:
             assert by_name["chl"]["units"] == "mg m-3"
             assert reply["sample"].endswith("chl_2011.nc")
         assert reply["files"] == 2
+        assert len(reply["paths"]) == 2 and all(p.endswith(".nc") for p in reply["paths"])
 
         reply = post(app, "/api/own_inspect", {"obs_path": "nothing/here"})[1]
         assert not reply["ok"] and reply["error"] == "There is no file or directory at this path."

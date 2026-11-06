@@ -2626,6 +2626,19 @@
   </div>
 </div>
 
+<div class="picker" id="obs-files" hidden>
+  <div class="picker__card" role="dialog" aria-modal="true" aria-labelledby="obs-files-title">
+    <div class="picker__head">
+      <h2 id="obs-files-title">All the observation files</h2>
+    </div>
+    <p class="picker__info" id="obs-files-intro"></p>
+    <div class="picker__list" id="obs-files-list" tabindex="-1" aria-label="Files"></div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--primary" id="obs-files-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Map phenologies opened when no variable has daily output (openNoDaily) -->
 <div class="picker" id="no-daily" hidden>
   <div class="picker__card picker__card--narrow" role="alertdialog" aria-modal="true" aria-labelledby="no-daily-title" aria-describedby="no-daily-text">
@@ -7361,7 +7374,7 @@
     },
     gridded: {
       noun: "gridded dataset",
-      lede: "Gridded data are netCDF files, on a grid. Add each dataset in turn, then continue. Each is registered with add_gridded_comparison in the matchup script.",
+      lede: "Gridded data are netCDF files, on a grid: one file, a pattern, or a directory, which is searched for .nc files in all its subdirectories too. Add each dataset in turn, then continue. Each is registered with add_gridded_comparison in the matchup script.",
     },
   };
   const own = { point: {}, gridded: {} };
@@ -7404,12 +7417,25 @@
       const number = field.kind !== "text";
       input = el("input", { type: "text", class: "s-input" + (mono ? " is-mono" : number ? " is-num" : ""), id,
         placeholder: field.placeholder || "", spellcheck: "false", autocapitalize: "off", autocomplete: "off",
-        list: field.name === "name" ? "own-variable-options" : null,
+        list: field.name === "name" ? "own-variable-options" : field.name === "obs_path" ? `${id}-folders` : null,
         "aria-describedby": described });
       read = () => input.value;
       reset = () => { input.value = ""; };
       mark = (bad) => { input.classList.toggle("is-invalid", bad); input.setAttribute("aria-invalid", String(bad)); };
-      wrapper.append(label(), input);
+      if (field.name === "obs_path") {
+        // the folders in what has been typed are listed as it is typed (the folder type-ahead below), and Browse… opens the folder browser
+        wrapper.append(label(), el("div", { class: "path-field" }, input,
+          el("button", { type: "button", class: "btn btn--ghost btn--field", "data-browse": id, text: "Browse…" })),
+          el("datalist", { id: `${id}-folders` }));
+        if (kind === "gridded") {
+          wrapper.append(el("div", { class: "own-files-row" },
+            el("button", { type: "button", class: "btn btn--ghost btn--field", id: "own-list-files", disabled: true, text: "List all files",
+              onclick: () => openObsFiles() }),
+            el("span", { class: "own-help", id: "own-files-note" })));
+        }
+      } else {
+        wrapper.append(label(), input);
+      }
       // what these two boxes list as they are typed in is said under them (see setPick)
       if (field.name === "model_variable" || field.name === "obs_variable") {
         slot = el("div", { class: "own-pick", id: `${id}-pick` });
@@ -7491,7 +7517,7 @@
 
   // the box's list of variables (OceanValGUI.variableBox), made once
   function listIn(control, multi, available = [], longNames = {}) {
-    if (!control.variables) control.variables = OceanValGUI.variableBox(control.input, { multi });
+    if (!control.variables) control.variables = OceanValGUI.variableBox(control.input, { multi, keepSearch: multi });
     control.variables.update({ available, longNames });
   }
 
@@ -7511,7 +7537,15 @@
       ? [note(`Click in the box to choose from the simulation's ${plural(found.available.length, "variable")}; several are summed with +.`)] : []));
   }
 
-  const observed = { path: null, token: 0, timer: null };
+  const observed = { path: null, token: 0, timer: null, paths: [], files: 0 };
+
+  // "List all files": the button is there once the observations have been read
+  function showObsFiles(paths, files) {
+    observed.paths = paths;
+    observed.files = files;
+    $("own-list-files").disabled = !files;
+    $("own-files-note").textContent = files ? `${plural(files, "file")} found, searching the folders below too.` : "";
+  }
 
   function lookAtObservations() {
     const control = own.gridded.obs_variable;
@@ -7522,10 +7556,12 @@
       if (observed.path !== null) { setPick(control); listIn(control, false); }
       observed.path = null;
       observed.token += 1;
+      showObsFiles([], 0);
       return;
     }
     if (observed.path === path) return;
     observed.path = path;
+    showObsFiles([], 0);
     const token = ++observed.token;
     setPick(control, note("Reading the observations…"));
     listIn(control, false);
@@ -7533,6 +7569,7 @@
       const reply = await post("api/own_inspect", { obs_path: path });
       if (token !== observed.token) return;
       if (!reply.ok) return setPick(control, ...(reply.error ? [note(reply.error)] : []));
+      showObsFiles(reply.paths || [], reply.files);
       const longNames = Object.fromEntries(reply.variables.map((variable) => [variable.name, variable.long_name || ""]));
       listIn(control, false, reply.variables.map((variable) => variable.name), longNames);
       const file = reply.sample.split("/").pop();
@@ -9372,6 +9409,18 @@
       : "The analysis is saved in oceanval_analysis, inside it.", ""],
   };
   // the directories of recipes of your own
+  DESCRIBE["o-point-obs_path"] = {
+    title: "Choose the directory of csv files",
+    describe: (listing) => listing.csv_files
+      ? [`${listing.csv_files} csv file${listing.csv_files === 1 ? "" : "s"} directly in here.`, "ok"]
+      : ["No csv files directly in here.", "warn"],
+  };
+  DESCRIBE["o-gridded-obs_path"] = {
+    title: "Choose the directory of netCDF files",
+    describe: (listing) => listing.nc_files
+      ? [`${listing.nc_files} netCDF file${listing.nc_files === 1 ? "" : "s"} directly in here, e.g. ${listing.example}. Folders below it are searched too.`, "ok"]
+      : ["No netCDF files directly in here, which is fine if they are in folders below it.", ""],
+  };
   DESCRIBE["r-point-obs_path"] = {
     title: "Choose the directory of csv files",
     describe: (listing) => listing.csv_files
@@ -9617,6 +9666,28 @@
       event.preventDefault();
       closeHow();
     }
+  });
+
+  function openObsFiles() {
+    const shown = observed.paths;
+    $("obs-files-intro").textContent = `${plural(observed.files, "file")}, in the folder and all the folders below it`
+      + (observed.files > shown.length ? ` (the first ${shown.length} are listed)` : "") + ".";
+    $("obs-files-list").replaceChildren(...shown.map((path) => el("div", { class: "picker__row" }, el("span", { text: path, title: path }))));
+    $("obs-files").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    $("obs-files-close").focus();
+  }
+
+  function closeObsFiles() {
+    $("obs-files").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+    $("own-list-files").focus();
+  }
+
+  $("obs-files-close").addEventListener("click", closeObsFiles);
+  $("obs-files").addEventListener("click", (event) => { if (event.target === $("obs-files")) closeObsFiles(); });
+  $("obs-files").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); closeObsFiles(); }
   });
 
   $("view-files").addEventListener("click", () => openSample($("view-files"), null));

@@ -3112,6 +3112,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._notify()
         return 200, {"ok": True}
 
+    # the most files "List all files" shows for the user's own gridded data
+    OWN_FILES_LISTED = 5000
+
     def own_inspect(self, obs_path):
         """What is in gridded observations of your own, for the Observation
         variable's pick-list: the variables of the first file of a netCDF file,
@@ -3137,6 +3140,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "ok": True,
             "sample": found["sample"],
             "files": found["files"],
+            "paths": found["paths"][: self.OWN_FILES_LISTED],
             "variables": found["variables"],
         }
 

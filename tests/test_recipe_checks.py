@@ -50,6 +50,14 @@ class TestGridded:
         found = inspect_gridded("disk", pattern)
         assert found["files"] == 2 and found["obs_path"] == pattern
 
+    def test_a_directory_is_searched_below_too(self, tmp_path):
+        import shutil
+
+        deep = tmp_path / "a" / "b"
+        deep.mkdir(parents=True)
+        shutil.copy(NITRATE, deep / "x.nc")
+        assert inspect_gridded("disk", str(tmp_path))["files"] == 1
+
     def test_a_relative_path_is_from_the_directory_worked_in(self):
         found = inspect_gridded("disk", "nitrate/model_2000.nc", cwd=os.path.dirname(NITRATE_DIR))
         assert found["obs_path"] == NITRATE
@@ -354,3 +362,30 @@ class TestForms:
         assert "Check the data first" in recipe_forms.check_save("gridded", remote, str(tmp_path), other)[1]["obs_path"]
         failed = {"signature": signature, "ok": False, "error": "no server"}
         assert recipe_forms.check_save("gridded", remote, str(tmp_path), failed)[1]["obs_path"] == "no server"
+
+
+class TestGriddedFiles:
+    def test_a_wildcard_is_expanded_by_glob_not_nctoolkit(self, tmp_path, monkeypatch):
+        import oceanval.parsers as parsers
+
+        (tmp_path / "a" / "b").mkdir(parents=True)
+        for name in ("b.nc", "a.nc"):
+            (tmp_path / name).write_bytes(b"")
+        (tmp_path / "a" / "b" / "c.nc").write_bytes(b"")
+
+        def boom(*args, **kwargs):
+            raise AssertionError("nc.glob was used for a wildcard")
+
+        monkeypatch.setattr(parsers.nc, "glob", boom)
+        assert parsers.gridded_files(str(tmp_path / "*.nc")) == [str(tmp_path / "a.nc"), str(tmp_path / "b.nc")]
+        assert len(parsers.gridded_files(str(tmp_path / "**" / "*.nc"))) == 3
+        assert parsers.gridded_files(str(tmp_path / "none_*.nc")) == []
+
+    def test_a_directory_still_uses_nctoolkit_glob(self, tmp_path, monkeypatch):
+        import oceanval.parsers as parsers
+
+        (tmp_path / "x.nc").write_bytes(b"")
+        calls = []
+        monkeypatch.setattr(parsers.nc, "glob", lambda path, recursive=True: calls.append(path) or [path])
+        parsers.gridded_files(str(tmp_path))
+        assert calls

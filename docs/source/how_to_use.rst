@@ -83,7 +83,7 @@ To register a gridded observational dataset, you will need to specify the follow
 - `name`: A name for the dataset, e.g. "temperature". This is so that OceanVal can keep track of things.
 - `source`: The source of the observational data (e.g. "CMEMS").
 - `model_variable`: A string specifying the name of the model variable to compare against the observations.
-- `obs_path`: The path to the directory containing the observational data files.
+- `obs_path`: The path to the directory containing the observational data files (subdirectories are searched too), a pattern such as `obs/*.nc`, or a single file.
 - `obs_variable`: A string specifying the name of the variable in the observational data files.
 - `climatology`: A boolean indicating whether the observational data is a climatology.
 

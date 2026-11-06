@@ -256,7 +256,7 @@ const OceanValGUI = (() => {
     let rows = [];
     let built = false;
     let active = -1;
-    // keepSearch (Analyze and Compare simulations): a click adds the name and the search typed before it stays, so
+    // keepSearch (Analyze, Compare simulations and the own gridded data's model variable): a click adds the name and the search typed before it stays, so
     // more of its rows can be ticked. kept is that search while the box holds only names; typing clears it.
     // Without keepSearch a click replaces the half-typed search and every row is shown again.
     let kept = null;

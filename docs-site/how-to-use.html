@@ -159,7 +159,7 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()<
       <li><code class="param-name">name</code> <span class="param-tag">required</span><p>A name for the dataset, e.g. "temperature".</p></li>
       <li><code class="param-name">source</code> <span class="param-tag">required</span><p>The source of the observational data, e.g. "CMEMS".</p></li>
       <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations.</p></li>
-      <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to the directory containing the observational data files.</p></li>
+      <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to the directory containing the observational data files (subdirectories are searched too), a pattern such as obs/*.nc, or a single file.</p></li>
       <li><code class="param-name">obs_variable</code><p>Name of the variable in the observational files. If omitted, OceanVal assumes a single variable is present.</p></li>
       <li><code class="param-name">climatology</code> <span class="param-tag">required</span><p>Whether the observational data is a climatology.</p></li>
     </ul>

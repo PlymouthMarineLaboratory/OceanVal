@@ -123,6 +123,9 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   it; when a month of `matchup_dict.pkl`'s `months` never matched, `gridded_template.ipynb`'s `annual_note` names the months in each annual caption.
   The seasonal and regional sections need only more than one month (`_gridded_seasonal`, the template's `n_times < 2`; they go together, as the
   regional cells use `chunk_seasonal`'s `ds_ts`), and with fewer than 12 their captions say which months (`months_note`, `cor_note`).
+- **User gridded data** (`obs_path`): a directory is searched recursively for `.nc` files by `parsers.gridded_files` (nctoolkit's `glob` on
+  `dir/**/*.nc`; a path with a wildcard is expanded by `glob.glob`, never `nc.glob`, and the matchup gets that list); `recipe_checks._disk`, `own_data.check_entry`, `add_gridded_comparison` and `gridded.py` (`_obs_files`) all use it. The own data
+  step's gridded model variable box uses `variableBox(keepSearch)` like Analyze's rows.
 - **FVCOM output** is regridded by `fvcom_matchup_files`, to `matchup(fvcom_res=0.05)` degrees for point matchups (gridded ones keep
   half the observations' resolution) and, for vertical ones, the depths `fvcom.matchup_depths(fvcom_min_depth=0, fvcom_max_depth=150, fvcom_dz=5)`
   (`session_info["fvcom_res"]`/`["fvcom_levels"]`, also read by `gridded.py`); the levels are in the cache key of the regridded files. The

@@ -18,7 +18,7 @@ import threading
 import warnings
 
 from oceanval import session
-from oceanval.parsers import Validator, point_files
+from oceanval.parsers import Validator, gridded_files, point_files
 
 KINDS = ("point", "gridded")
 
@@ -179,8 +179,8 @@ GRIDDED_FIELDS = [
         "obs_path",
         "Observations",
         required=True,
-        help="A netCDF file, a pattern that matches several (e.g. obs/*.nc), "
-        "or a URL. A list of paths can be given in the script itself.",
+        help="A netCDF file, a directory (searched recursively for .nc files), "
+        "a pattern that matches several (e.g. obs/*.nc), or a URL. A list of paths can be given in the script itself.",
         placeholder="path/to/observations.nc",
     ),
     _field(
@@ -412,8 +412,13 @@ def check_entry(kind, form, existing=(), cwd=None):
                 else:
                     arguments["obs_path"] = path
             elif obs_path != "auto":
-                if not glob.glob(path):
-                    errors["obs_path"] = "No files match this path."
+                found = gridded_files(path)
+                if not found:
+                    errors["obs_path"] = (
+                        "There are no netCDF files in this directory or below it."
+                        if os.path.isdir(path)
+                        else "No files match this path."
+                    )
                 else:
                     arguments["obs_path"] = path
 

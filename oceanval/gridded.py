@@ -37,6 +37,18 @@ from oceanval.parsers import Validator, definitions
 COMMON_RES = 0.5
 
 
+def _obs_files(path):
+    """Observation files: a wildcard is expanded by glob.glob, a directory searched recursively."""
+    from oceanval.parsers import gridded_files
+
+    files = gridded_files(path)
+    if not files:
+        raise ValueError(
+            f"No files match {path}" if glob.has_magic(path) else f"There are no netCDF files in {path}"
+        )
+    return files
+
+
 def _failure_log():
     """Path of the log listing gridded variables that could not be matched up."""
     return session_info.get("out_dir", "") + "oceanval_matchups/matchup_failures.log"
@@ -281,8 +293,10 @@ def _obs_resolution(comparison, downloaded=None):
     obs_path = comparison["obs_path"]
     if isinstance(obs_path, (list, tuple)):
         obs_path = obs_path[0]
-    if not comparison["thredds"] and not obs_path.endswith(".nc"):
-        obs_path = nc.create_ensemble(obs_path)[0]
+    if not comparison["thredds"] and not _is_url(obs_path) and (
+        not obs_path.endswith(".nc") or glob.has_magic(obs_path)
+    ):
+        obs_path = _obs_files(obs_path)[0]
     if not comparison["thredds"] and _is_url(obs_path):
         # xarray cannot read a plain file over http, so it has to be
         # downloaded. nctoolkit deletes a download once no DataSet holds it,
@@ -761,10 +775,10 @@ def gridded_matchup(
                         on_observing("gridded", vv, vv_source)
                     thredds = comparison["thredds"]
                     if thredds == False:
-                        if dir_var.endswith(".nc"):
+                        if dir_var.endswith(".nc") and not glob.has_magic(dir_var):
                             vv_file = dir_var
                         else:
-                            vv_file = nc.create_ensemble(dir_var)
+                            vv_file = _obs_files(dir_var)
                     else:
                         vv_file = dir_var  # thredds URL
 
