@@ -895,7 +895,8 @@ class TestForms:
         assert not {"domain", "start", "end", "overwrite", "previous", "out_dir", "out"} & set(arguments)
         paths, errors = analysis_forms.check_output(form, str(tmp_path))
         assert errors == {}
-        assert paths == {"out_dir": str(tmp_path), "out": os.path.join(str(tmp_path), "analysis.py")}
+        assert paths == {"out_dir": str(tmp_path), "out": os.path.join(str(tmp_path), "analysis.py"),
+                         "history_name": None}
 
     def test_what_oceanval_could_fill_in(self, daily):
         rows = analysis_forms.prefill(analysis.streams(daily, 1))

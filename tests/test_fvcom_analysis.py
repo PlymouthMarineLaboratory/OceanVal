@@ -861,13 +861,13 @@ class TestWindow:
         assert post(app, "/api/analyze_option", {"kind": "phenology", "form": {"rows": {"Temperature": years}}}) == (
             200, {"ok": True})
         # the bottom and the water column, with no thickness asked for: it is worked out from the mesh
-        column = {"rows": {"Temperature": dict(years, surface=True, bottom=True, water_column=True, how="mean")},
+        column = {"rows": {"Temperature": dict(years, surface=True, bottom=True, mean=True)},
                   "thickness": ""}
         assert post(app, "/api/analyze_option", {"kind": "climatology", "form": column}) == (200, {"ok": True})
         changes = {"rows": {"Temperature": {
             "use": True, "historical_start": "2012", "historical_end": "2012", "future1_start": "2013",
             "future1_end": "2013", "future2_start": "", "future2_end": "", "plot": "absolute", "change": "absolute",
-            "surface": False, "bottom": False, "water_column": True, "how": "integral"}}, "thickness": ""}
+            "surface": False, "bottom": False, "mean": False, "integral": True}}, "thickness": ""}
         assert post(app, "/api/analyze_option", {"kind": "map_changes", "form": changes}) == (200, {"ok": True})
         for kind, form in (("cores", {"cores": "1"}), ("missing", {"from": "", "to": ""}), ("figure_code", {"choice": "no"})):
             assert post(app, "/api/analyze_option", {"kind": kind, "form": form})[0] == 200
