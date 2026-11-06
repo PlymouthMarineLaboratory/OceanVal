@@ -16,7 +16,7 @@ import xarray as xr
 
 from simulations import write_fvcom
 
-from oceanval import matchall, model_check
+from oceanval import file_workers, matchall, model_check
 from oceanval.model_check import (
     ModelCheck, date_report, files_in_years, load_times_index, save_times_index, year_groups,
 )
@@ -158,6 +158,8 @@ class TestIndexTimesInWorkers:
         workers started and the calls to share out."""
         monkeypatch.setattr(matchall, "_INDEX_HEAD", (1, 0.0))
         monkeypatch.setattr(matchall, "_PARALLEL_FROM", 0.0)
+        # a machine with few cores (macOS runners have 3) would read everything here
+        monkeypatch.setattr(file_workers, "workers", lambda: 3)
         record = {"shared": [], "processes": []}
         shared = matchall._read_times_in_workers
         popen = subprocess.Popen
