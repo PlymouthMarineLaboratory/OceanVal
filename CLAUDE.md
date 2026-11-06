@@ -442,6 +442,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `select,timestep=` for every layer (`seltimestep` reads every time step of the month), measured on the user's files at 8 s -> 1.6 s
   for six days of one variable, 0.35 s with the surface read from the first level.
   `tests/test_analysis.py::TestOrderOfTheChain` checks the chain's order (`ds.history`) without running it.
+  **A NaN missing value breaks CDO 2.4.1's `topvalue`, `bottomvalue` and `vertmean`** (all-missing, all-missing, wrong values; `vertmin`/`vertmax`/`vertsum`
+  and CDO 2.6 are fine): files xarray wrote, and the FVCOM output OceanVal regrids, have one. Ask for `surface.finite_missing(ds)` (`setmissval,1e20`)
+  just before each of those operators (`analysis._pick_level`/`_reduce_column`, `matchall`, `gridded`, `surface`'s probe) - a new `topvalue`/`bottom`/
+  `vertical_mean` must do so too - and `fvcom.fvcom_preprocess` writes its files with a finite fill. `TestTheBottomOfANaNFilledFile` checks it.
   **A file a month**: when each file holds the times of one month of one year and no month is in two files
   (`time_res.one_month_per_file`, on the shifted times; `row["month_per_file"]` set in `locate_rows`, `month_per_file` in
   `gridded_matchup` from its final `paths`), `monthly_means_of`/`gridded.model_dataset` end the chain with `tmean(align="left")`,
