@@ -183,8 +183,9 @@ class TestTheBook:
 
 
 def test_the_report_of_analyze(daily, tmp_path, monkeypatch):
-    """Each variable's page is built once it is worked out, with a note that
-    the report is interim until the last is in."""
+    """The report, built as validate() builds its own, with a page for each
+    variable and the overview first. Each variable's page is built once it is
+    worked out, with a note that the report is interim until the last is in."""
     bound = []
     original = analysis_report.InterimBook._bind
 
@@ -196,10 +197,15 @@ def test_the_report_of_analyze(daily, tmp_path, monkeypatch):
     monkeypatch.setattr(analysis_report.InterimBook, "_bind", bind)
     out = str(tmp_path / "out")
     landing = oceanval.analyze(
-        daily, TWO, climatology=CLIMATOLOGY, n_dirs_down=1, out_dir=out, cores=1, view=False,
+        daily, TWO,
+        climatology={"Temperature": {"start": 2013, "end": 2014, "surface": True, "water_column": "mean"}},
+        phenology={"Chlorophyll": {"start": 2013, "end": 2014}},
+        n_dirs_down=1, thickness="e3t", out_dir=out, cores=1, view=False,
     )
     folder = os.path.join(out, analysis.FOLDER)
     assert landing == analysis.landing_page(folder)
+    assert landing == os.path.join(pages_of(folder), "000_overview.html")
+    assert os.path.realpath(os.path.join(folder, analysis.REPORT_LINK)) == os.path.realpath(landing)
     # interim with the first variable, then complete
     assert bound[0] == (["001_chlorophyll"], True)
     assert bound[-1] == (["001_chlorophyll", "002_temperature"], False)
@@ -209,14 +215,24 @@ def test_the_report_of_analyze(daily, tmp_path, monkeypatch):
     overview = read(landing)
     assert "Traceback" not in overview and "Temperature" in overview and "Chlorophyll" in overview
     assert "It covers 2 variables" in overview
+    assert "Gaps in the output" in overview and "Methods" in overview
     for page in pages:
         text = read(os.path.join(pages_of(folder), page))
         assert BANNER not in text and "Traceback" not in text
         # the navigation to every page
         assert all(f'href="{other}"' in text for other in pages)
+    chlorophyll = read(os.path.join(pages_of(folder), "001_chlorophyll.html"))
+    # only what was chosen: phenology, but no climatology
+    assert "Phenology" in chlorophyll and "Climatology" not in chlorophyll
+    assert "Day of the year of the seasonal peak" in chlorophyll and "Figure 3" in chlorophyll
     temperature = read(os.path.join(pages_of(folder), "002_temperature.html"))
-    # a figure of each, numbered from 1 on each page
-    assert "Climatology" in temperature and "Figure 1" in temperature
+    assert "Climatology" in temperature
+    assert "Water column: vertical mean" in temperature and "Phenology" not in temperature
+    # figures are numbered from 1 on each page, as on validate's
+    assert "Figure 1" in temperature and "Figure 4" in temperature and "Figure 5" not in temperature
+    # no code to reproduce the figures unless it is asked for
+    assert "oceanval-copy-code" not in chlorophyll + temperature
+    assert json.load(open(os.path.join(folder, analysis.RESULTS, analysis.INFO_FILE)))["figure_code"] is False
     assert not os.path.exists(os.path.join(folder, analysis.REPORT, "_build", "raw"))
 
 

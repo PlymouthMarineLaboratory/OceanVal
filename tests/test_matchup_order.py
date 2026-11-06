@@ -51,44 +51,6 @@ def register(gridded_vertical, point_vertical):
         )
 
 
-def test_non_vertical_first_gridded_before_point(monkeypatch):
-    register([("foo", True), ("bar", False)], [("foo", True), ("bar", False)])
-
-    calls = []
-    real = matchall.gridded_matchup
-
-    def recorded(var_choice=None, **kwargs):
-        # what point matchups are made by the time each gridded run starts
-        calls.append(
-            (
-                sorted(var_choice),
-                os.path.exists(POINT_SURFACE),
-                os.path.exists(POINT_ALL),
-            )
-        )
-        return real(var_choice=var_choice, **kwargs)
-
-    monkeypatch.setattr(matchall, "gridded_matchup", recorded)
-
-    oceanval.matchup(
-        sim_dir="data/example",
-        start=2000,
-        end=2000,
-        ask=False,
-        thickness="data/example/e3t.nc",
-        cores=1,
-    )
-
-    # gridded non-vertical, then point non-vertical, then gridded vertical,
-    # then point vertical
-    assert calls == [
-        ([("temperature", "bar")], False, False),
-        ([("temperature", "foo")], True, False),
-    ]
-    assert os.path.exists(POINT_ALL)
-    assert os.path.exists("oceanval_matchups/gridded/temperature/foo_temperature_vertical.nc")
-
-
 def test_failures_of_the_first_gridded_run_are_kept(monkeypatch):
     register([("foo", True), ("bar", False)], [("bar", False)])
 
@@ -121,8 +83,26 @@ def test_failures_of_the_first_gridded_run_are_kept(monkeypatch):
     assert failures == ["bar", "foo"]
 
 
-def test_the_window_is_told_of_each_matchup_in_the_order_made():
+def test_non_vertical_first_gridded_before_point_and_the_window_is_told_of_each_in_the_order_made(monkeypatch):
+    """One matchup run (they take a minute or two each) for the order the matchups are made in and what the
+    window is told of them."""
     register([("foo", True), ("bar", False)], [("foo", True), ("bar", False)])
+
+    calls = []
+    real = matchall.gridded_matchup
+
+    def recorded(var_choice=None, **kwargs):
+        # what point matchups are made by the time each gridded run starts
+        calls.append(
+            (
+                sorted(var_choice),
+                os.path.exists(POINT_SURFACE),
+                os.path.exists(POINT_ALL),
+            )
+        )
+        return real(var_choice=var_choice, **kwargs)
+
+    monkeypatch.setattr(matchall, "gridded_matchup", recorded)
     told = []
 
     with prompts.told_by(told.append):
@@ -134,6 +114,15 @@ def test_the_window_is_told_of_each_matchup_in_the_order_made():
             thickness="data/example/e3t.nc",
             cores=1,
         )
+
+    # gridded non-vertical, then point non-vertical, then gridded vertical,
+    # then point vertical
+    assert calls == [
+        ([("temperature", "bar")], False, False),
+        ([("temperature", "foo")], True, False),
+    ]
+    assert os.path.exists(POINT_ALL)
+    assert os.path.exists("oceanval_matchups/gridded/temperature/foo_temperature_vertical.nc")
 
     keys = [
         live.matchup_key("gridded", "temperature", "bar"),

@@ -13,19 +13,21 @@ import xarray as xr
 
 import oceanval
 from oceanval import sim_compare
-from conftest import quietly, same_as_analyze
+from oceanval import analysis
+from conftest import fvcom_arguments, quietly, same_as_analyze
 from viewer_simulations import fvcom_months, fvcom_simulation
 from simulations import (
+    ANALYSIS_LEVEL_VALUES,
+    ANALYSIS_THICKNESS,
     B_LATS,
     B_LONS,
     COMPARE_CLIMATOLOGY as CLIMATOLOGY,
     COMPARE_LONG_TERM,
-    COMPARE_TRANSECT,
     COMPARE_YEARS as YEARS,
-    EVERY_OPTION,
-    FVCOM_COMPARE_OPTIONS,
     TREND_A,
     TREND_B,
+    analysis_peak_day,
+    every_option,
     write_analysis_simulation,
 )
 
@@ -67,6 +69,13 @@ def results(out):
 def field(out, sim_key, name):
     with xr.open_dataset(os.path.join(results(out), sim_key, name)) as ds:
         return ds["temperature"].load()
+
+
+def values(path, variable):
+    """A variable's values in path, one row for each time."""
+    with xr.open_dataset(path) as ds:
+        data = ds[variable].values
+    return data.reshape(data.shape[0], -1) if data.ndim > 2 else data.reshape(1, -1)
 
 
 class TestTimesAreReadOnce:
@@ -567,6 +576,65 @@ def compare_quietly(arguments):
     return quietly(oceanval.compare_simulations, **arguments)
 
 
+class TestTheSimulationsOfAComparison:
+    """analyze() of one of the simulations compared below,
+    with the comparison's options (the analysed_* fixtures of conftest.py,
+    run once a session): what it gives, which the comparison must give that
+    simulation too. thetao is its level's value plus the month, plus the
+    simulation's trend for each year after 2012."""
+
+    def test_the_monthly_climatology_and_long_term_series_of_b(self, analysed_monthly_b):
+        found, info = analysed_monthly_b
+        assert [v["key"] for v in info["variables"]] == ["temperature"]
+        annual = values(os.path.join(found, "temperature_surface_annual.nc"), "temperature")
+        # 10 + the mean of the months (6.5) + the trend over 2012-2014 (mean of 0, 1, 2 years)
+        assert annual.shape[-1] == len(B_LATS) * len(B_LONS)
+        assert np.allclose(annual, 10 + 6.5 + TREND_B, atol=1e-4)
+        frame = pd.read_csv(os.path.join(found, "temperature_surface_long_term.csv"))
+        domain = frame[frame.name == "Full Domain"].groupby("year").value.mean()
+        assert domain.loc[2012] == pytest.approx(10 + 6.5, abs=1e-4)
+        assert domain.loc[2014] == pytest.approx(10 + 6.5 + 2 * TREND_B, abs=1e-4)
+
+    def test_every_option_of_a(self, analysed_daily_a):
+        found, info = analysed_daily_a
+        assert [v["key"] for v in info["variables"]] == ["temperature", "chlorophyll"]
+        assert {
+            "temperature_surface_monthly.nc",
+            "chlorophyll_surface_daily.nc",
+            "temperature_surface_change1.nc",
+            "temperature_surface_seasonal.csv",
+        } <= set(os.listdir(found))
+
+        def annual(layer):
+            return values(os.path.join(found, f"temperature_{layer}_annual.nc"), "temperature")
+
+        # each month's days are its number, and the mean year is a year after the first
+        assert np.allclose(annual("surface"), ANALYSIS_LEVEL_VALUES[0] + 6.5 + TREND_A, atol=1e-4)
+        assert np.allclose(annual("bottom"), ANALYSIS_LEVEL_VALUES[-1] + 6.5 + TREND_A, atol=1e-4)
+        column = np.average(ANALYSIS_LEVEL_VALUES, weights=ANALYSIS_THICKNESS)
+        assert np.allclose(annual("mean"), column + 6.5 + TREND_A, atol=1e-4)
+        change = values(os.path.join(found, "temperature_surface_change1.nc"), "temperature")
+        assert np.allclose(change, 2 * TREND_A, atol=1e-4)
+        with xr.open_dataset(os.path.join(found, "chlorophyll_phenology.nc")) as ds:
+            days = ds[analysis.PEAK_DAY].values
+        # a day out in places for the leap year
+        assert days[:, 0] == pytest.approx([analysis_peak_day(row) for row in range(days.shape[0])], abs=1.5)
+        stations = pd.read_csv(os.path.join(found, "temperature_surface_long_term.csv"))
+        assert "Station" in set(stations.name)
+
+    def test_a_transect_of_every_kind_of_a(self, analysed_daily_a):
+        if not transects_available():
+            pytest.skip("needs nctoolkit 1.3.6 or later")
+        found, info = analysed_daily_a
+        options = info["variables"][0]["transects"]["lines"][0]["options"]
+        assert set(options) == {"climatology", "vertical", "trends"}
+        frames = {name: pd.read_csv(os.path.join(found, option["csv"])) for name, option in options.items()}
+        for month, value in zip(frames["climatology"].month, frames["climatology"].value):
+            assert value == pytest.approx(ANALYSIS_LEVEL_VALUES[0] + month + TREND_A, abs=1e-4)
+        for _, part in frames["trends"].groupby("position"):
+            assert part.sort_values("year").value.diff().dropna().to_numpy() == pytest.approx(TREND_A)
+
+
 @pytest.fixture(scope="module")
 def out(sims, tmp_path_factory):
     out = tmp_path_factory.mktemp("own")
@@ -588,23 +656,22 @@ class TestEachSimulationOnItsOwn:
             assert "temperature_surface_monthly.nc" in os.listdir(os.path.join(results(folder), key))
 
     def test_each_has_its_own_answers_on_its_own_grid(self, out):
+        """Warm run's values are analyze()'s (test_warm_run_is_what_analyze_gives), which
+        TestTheSimulationsOfAComparison checks: here Base run's, and that each keeps its grid."""
         folder, _ = out
         a = field(folder, "base_run", "temperature_surface_annual.nc")
         b = field(folder, "warm_run", "temperature_surface_annual.nc")
         # 10 + the mean of the months (6.5) + the trend over 2012-2014 (mean of 0, 1, 2 years)
         assert float(a.mean()) == pytest.approx(10 + 6.5 + TREND_A * 1, abs=1e-4)
-        assert float(b.mean()) == pytest.approx(10 + 6.5 + TREND_B * 1, abs=1e-4)
         assert a.shape[-2:] == (4, 5)
         assert b.shape[-2:] == (len(B_LATS), len(B_LONS))
 
     def test_the_series_are_per_simulation(self, out):
         folder, _ = out
-        for key, trend in (("base_run", TREND_A), ("warm_run", TREND_B)):
-            frame = pd.read_csv(os.path.join(results(folder), key, "temperature_surface_long_term.csv"))
-            domain = frame[frame.name == "Full Domain"]
-            annual = domain.groupby("year").value.mean()
-            assert annual.loc[2012] == pytest.approx(10 + 6.5, abs=1e-4)
-            assert annual.loc[2014] == pytest.approx(10 + 6.5 + 2 * trend, abs=1e-4)
+        frame = pd.read_csv(os.path.join(results(folder), "base_run", "temperature_surface_long_term.csv"))
+        annual = frame[frame.name == "Full Domain"].groupby("year").value.mean()
+        assert annual.loc[2012] == pytest.approx(10 + 6.5, abs=1e-4)
+        assert annual.loc[2014] == pytest.approx(10 + 6.5 + 2 * TREND_A, abs=1e-4)
 
     def test_the_info_says_what_was_compared(self, out):
         folder, built = out
@@ -621,12 +688,6 @@ class TestEachSimulationOnItsOwn:
         assert set(variable["sims"]) == {"Base run", "Warm run"}
         assert saved["unify_text"].startswith("The simulations were not put on a common grid")
 
-    def test_the_directories_are_remembered(self, sims, tmp_path, no_report):
-        from oceanval import user_cache
-
-        oceanval.compare_simulations(**given(sims, out_dir=str(tmp_path)))
-        assert set(sims) <= set(user_cache.recent_sim_dirs())
-
     def test_a_comparison_is_replaced_whole(self, sims, tmp_path, no_report):
         oceanval.compare_simulations(**given(sims, out_dir=str(tmp_path)))
         stale = os.path.join(results(tmp_path), "stale.txt")
@@ -634,12 +695,15 @@ class TestEachSimulationOnItsOwn:
         oceanval.compare_simulations(**given(sims, out_dir=str(tmp_path)))
         assert not os.path.exists(stale)
 
-    def test_the_window_is_told_of_each_analysis_in_each_simulation(self, sims, tmp_path, no_report):
-        from oceanval import prompts
+    def test_the_window_is_told_of_each_analysis_in_each_simulation_and_the_directories_are_remembered(
+        self, sims, tmp_path, no_report
+    ):
+        from oceanval import prompts, user_cache
 
         told = []
         with prompts.told_by(told.append):
             oceanval.compare_simulations(**given(sims, out_dir=str(tmp_path)))
+        assert set(sims) <= set(user_cache.recent_sim_dirs())
         assert told[0] == {
             "kind": "analyses",
             "simulations": 2,
@@ -715,7 +779,8 @@ class TestUnified:
         rewrite(b, b_land)
         return str(a), str(b)
 
-    def run(self, holes, out, unify, **options):
+    @staticmethod
+    def run(holes, out, unify, **options):
         return compare_quietly(
             given(
                 holes,
@@ -727,10 +792,17 @@ class TestUnified:
             )
         )
 
-    def test_a_baseline_gives_every_simulation_its_grid_and_cells(self, holes, tmp_path):
-        info = self.run(holes, tmp_path, {"baseline": "Base run"})
-        a = field(tmp_path, "base_run", "temperature_surface_monthly.nc")
-        b = field(tmp_path, "warm_run", "temperature_surface_monthly.nc")
+    @pytest.fixture(scope="class")
+    @classmethod
+    def on_baseline(cls, holes, tmp_path_factory):
+        """The comparison on Base run's grid: (its folder, its info)."""
+        out = tmp_path_factory.mktemp("holes_on_baseline")
+        return out, cls.run(holes, out, {"baseline": "Base run"})
+
+    def test_a_baseline_gives_every_simulation_its_grid_and_cells(self, on_baseline):
+        out, info = on_baseline
+        a = field(out, "base_run", "temperature_surface_monthly.nc")
+        b = field(out, "warm_run", "temperature_surface_monthly.nc")
         assert a.shape == b.shape
         assert (np.isnan(a.values) == np.isnan(b.values)).all()
         # A's own land, and B's, are missing in both; the sea is not
@@ -754,12 +826,12 @@ class TestUnified:
         b = field(tmp_path, "warm_run", "temperature_surface_monthly.nc")
         assert (np.isnan(a.values) == np.isnan(b.values)).all()
 
-    def test_the_series_are_of_the_same_cells(self, holes, tmp_path):
+    def test_the_series_are_of_the_same_cells(self, on_baseline):
         """The means are over the same cells, so the same trend in A and B differs only by what they rise by."""
-        self.run(holes, tmp_path, {"baseline": "Base run"})
+        out, _ = on_baseline
         means = {}
         for key in ("base_run", "warm_run"):
-            frame = pd.read_csv(os.path.join(results(tmp_path), key, "temperature_surface_long_term.csv"))
+            frame = pd.read_csv(os.path.join(results(out), key, "temperature_surface_long_term.csv"))
             means[key] = frame[frame.name == "Full Domain"].groupby("year").value.mean()
         # the same cells, and the temperature is the same in every cell but for the trend
         assert means["warm_run"].loc[2012] == pytest.approx(means["base_run"].loc[2012], abs=1e-3)
@@ -793,7 +865,8 @@ class TestTheMaskIsFromTheSecondTimeStep:
             ds.to_netcdf(path, encoding={"thetao": {"_FillValue": np.float32(-1e20)}})
         return str(root)
 
-    def run(self, directories, out, **options):
+    @staticmethod
+    def run(directories, out, **options):
         return compare_quietly(
             given(
                 directories,
@@ -807,28 +880,50 @@ class TestTheMaskIsFromTheSecondTimeStep:
     @pytest.fixture(scope="class")
     @classmethod
     def empty_first(cls, tmp_path_factory):
-        base = tmp_path_factory.mktemp("empty_first")
-        a, b = base / "a", base / "b"
-        write_analysis_simulation(str(a), years=YEARS, daily=False, trend=TREND_A)
-        return str(a), cls.emptied(base, "b")
+        """B's first time step is empty: (the comparison's folder, its info, the CDO commands it ran)."""
+        import nctoolkit as nc
 
-    def test_an_empty_first_time_step_does_not_make_everything_missing(self, empty_first, tmp_path):
-        info = self.run(empty_first, tmp_path)
+        base = tmp_path_factory.mktemp("empty_first")
+        a = base / "a"
+        write_analysis_simulation(str(a), years=YEARS, daily=False, trend=TREND_A)
+        directories = (str(a), cls.emptied(base, "b"))
+        from oceanval import surface
+
+        seen, checking = [], []
+        original = nc.DataSet.cdo_command
+
+        def recorded(self, command, *a, **k):
+            if not checking:
+                seen.append(command)
+            return original(self, command, *a, **k)
+
+        # whether the surface is the first level is told from a file's first time step, once for each file
+        # (surface.first_level_is_surface keeps the answer), which is not the mask's
+        check = surface._first_level_is_surface
+
+        def surface_check(*a, **k):
+            checking.append(True)
+            try:
+                return check(*a, **k)
+            finally:
+                checking.pop()
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(nc.DataSet, "cdo_command", recorded)
+            patch.setattr(surface, "_first_level_is_surface", surface_check)
+            info = cls.run(directories, base / "out")
+        return base / "out", info, seen
+
+    def test_an_empty_first_time_step_does_not_make_everything_missing(self, empty_first):
+        out, info, _ = empty_first
         shared, cells = info["shared_cells"]["temperature"]["surface"]
         assert shared == cells > 0
         for key in ("base_run", "warm_run"):
-            data = field(tmp_path, key, "temperature_surface_monthly.nc")
+            data = field(out, key, "temperature_surface_monthly.nc")
             assert np.isfinite(data.values).all()
 
-    def test_the_masks_time_step_is_asked_of_cdo(self, empty_first, tmp_path, monkeypatch):
-        import nctoolkit as nc
-
-        seen = []
-        original = nc.DataSet.cdo_command
-        monkeypatch.setattr(
-            nc.DataSet, "cdo_command", lambda self, command, *a, **k: seen.append(command) or original(self, command, *a, **k)
-        )
-        self.run(empty_first, tmp_path)
+    def test_the_masks_time_step_is_asked_of_cdo(self, empty_first):
+        _, _, seen = empty_first
         # the mask is made first, of one time step, the second; the analyses' own reads choose no time step
         steps = [command for command in seen if "timestep=" in command]
         assert steps and all(command.endswith("timestep=2") for command in steps), steps
@@ -865,30 +960,36 @@ class TestTheMaskIsFromTheSecondTimeStep:
 
 
 class TestEveryOption:
-    """Everything analyze() does, for two daily simulations on different grids."""
-
-    @pytest.fixture(scope="class")
-    @classmethod
-    def daily(cls, compared_daily):
-        return compared_daily
-
-    OPTIONS = EVERY_OPTION
+    """Everything analyze() does, with a transect of every kind, for two daily simulations on different grids:
+    as they are (Base run's results are then analyze()'s, analysed_daily_a), and on Base run's grid."""
 
     @pytest.fixture(scope="class")
     @classmethod
     def as_they_are(cls, compared_daily, tmp_path_factory):
         """The comparison with every option and nothing unified: (its folder, its info)."""
         out = tmp_path_factory.mktemp("every_option")
-        return out, compare_quietly(given(compared_daily, out_dir=str(out), **cls.OPTIONS))
+        return out, compare_quietly(given(compared_daily, out_dir=str(out), **every_option()))
 
-    @pytest.mark.parametrize("unify", [None, {"baseline": "Base run"}, {"lon": [-4, 0], "lat": [50, 53], "res": 1}])
-    def test_each_simulation_has_each_result(self, daily, tmp_path, unify, request):
-        if unify is None:
-            out, info = request.getfixturevalue("as_they_are")
-        else:
-            out, info = tmp_path, compare_quietly(given(daily, unify=unify, out_dir=str(tmp_path), **self.OPTIONS))
+    @pytest.fixture(scope="class")
+    @classmethod
+    def on_baseline(cls, compared_daily, tmp_path_factory):
+        """The comparison with every option on Base run's grid: (its folder, its info). A box goes the same way
+        once its grid is made (TestUnified.test_a_box_gives_every_simulation_the_box)."""
+        out = tmp_path_factory.mktemp("every_option_on_baseline")
+        return out, compare_quietly(given(compared_daily, unify={"baseline": "Base run"}, out_dir=str(out), **every_option()))
+
+    def test_base_run_is_what_analyze_gives(self, as_they_are, analysed_daily_a):
+        """With nothing unified, masked or converted, a simulation's results are
+        those of analyze() of it alone (TestTheSimulationsOfAComparison checks them)."""
+        out, _ = as_they_are
+        same_as_analyze(os.path.join(results(out), "base_run"), analysed_daily_a[0])
+
+    @pytest.mark.parametrize("compared", ["as_they_are", "on_baseline"])
+    def test_each_simulation_has_each_result(self, compared, request):
+        out, info = request.getfixturevalue(compared)
         assert [v["key"] for v in info["variables"]] == ["temperature", "chlorophyll"]
-        for key in ("base_run", "warm_run"):
+        # Base run's, as they are, are analyze()'s (test_base_run_is_what_analyze_gives)
+        for key in ("warm_run",) if compared == "as_they_are" else ("base_run", "warm_run"):
             files = set(os.listdir(os.path.join(results(out), key)))
             assert {
                 "temperature_surface_monthly.nc",
@@ -901,66 +1002,36 @@ class TestEveryOption:
                 "temperature_surface_long_term.csv",
                 "temperature_surface_seasonal.csv",
             } <= files
+            if transects_available():
+                assert any("transect_1_vertical" in name for name in files)
+                assert any("transect_1_trends" in name for name in files)
 
-    def test_base_run_is_what_analyze_gives(self, as_they_are, analysed_daily_a):
-        """With nothing unified, masked or converted, a simulation's results are
-        those of analyze() of it alone (tests/test_analysis.py's)."""
-        out, _ = as_they_are
-        same_as_analyze(os.path.join(results(out), "base_run"), analysed_daily_a[0])
-
-    def test_the_phenology_is_of_the_same_cells(self, daily, tmp_path):
-        compare_quietly(given(daily, unify={"baseline": "Base run"}, out_dir=str(tmp_path), **self.OPTIONS))
-        with xr.open_dataset(os.path.join(results(tmp_path), "base_run", "chlorophyll_phenology.nc")) as a, xr.open_dataset(
-            os.path.join(results(tmp_path), "warm_run", "chlorophyll_phenology.nc")
+    def test_the_phenology_is_of_the_same_cells(self, on_baseline):
+        out, _ = on_baseline
+        with xr.open_dataset(os.path.join(results(out), "base_run", "chlorophyll_phenology.nc")) as a, xr.open_dataset(
+            os.path.join(results(out), "warm_run", "chlorophyll_phenology.nc")
         ) as b:
             assert a["peak_day"].shape == b["peak_day"].shape
             assert (np.isnan(a["peak_day"].values) == np.isnan(b["peak_day"].values)).all()
             # A peaks about 60 + 30 for each row north (a day out for the leap year); B has its own rows
             assert a["peak_day"].values[:, 0] == pytest.approx([60, 90, 120, 150], abs=1.5)
 
-    def test_transects_of_both_on_the_common_grid(self, daily, tmp_path, request):
-        from oceanval import transects
-
-        if not transects.available():
+    def test_transects_of_both_on_the_common_grid(self, as_they_are, on_baseline):
+        if not transects_available():
             pytest.skip("needs nctoolkit 1.3.6 or later")
-        for unify in (None, {"baseline": "Base run"}):
-            out = tmp_path / ("none" if unify is None else "baseline")
-            info = compare_quietly(
-                given(
-                    daily,
-                    unify=unify,
-                    variables={"Temperature": "thetao"},
-                    climatology=None,
-                    transects={"Temperature": [COMPARE_TRANSECT]},
-                    thickness="e3t",
-                    out_dir=str(out),
-                )
-            )
-            for key in ("base_run", "warm_run"):
-                files = os.listdir(os.path.join(results(out), key))
-                assert any("transect_1_vertical" in name for name in files)
-                assert any("transect_1_trends" in name for name in files)
-            assert info["variables"][0]["kinds"] == ["transects"]
-            steps = {
-                sim: own["transects"]["lines"][0]["steps"] for sim, own in info["variables"][0]["sims"].items()
-            }
-            if unify is None:
-                # each is sampled as its own grid has it
-                assert steps["Base run"] != steps["Warm run"]
-                # and the Warm run's are those of analyze() of it alone (tests/test_analysis.py's)
-                same_as_analyze(os.path.join(results(out), "warm_run"), request.getfixturevalue("analysed_transects_b")[0])
-            else:
-                # on one grid, every simulation has the same points
-                assert len(set(steps.values())) == 1
+
+        def steps(info):
+            return {sim: own["transects"]["lines"][0]["steps"] for sim, own in info["variables"][0]["sims"].items()}
+
+        # each is sampled as its own grid has it
+        alone = steps(as_they_are[1])
+        assert alone["Base run"] != alone["Warm run"]
+        # on one grid, every simulation has the same points
+        assert len(set(steps(on_baseline[1]).values())) == 1
 
 
 class TestDomainMask:
     """compare_simulations(domain_mask=): every simulation is put on the mask's grid and masked by it, as matchup's is."""
-
-    @pytest.fixture(scope="class")
-    @classmethod
-    def daily(cls, compared_daily):
-        return compared_daily
 
     @staticmethod
     def write_mask(path, west=-2.0, name="wanted"):
@@ -993,11 +1064,11 @@ class TestDomainMask:
         assert "nearest neighbour" in info["domain_mask_text"]
         assert info["same_grid"] is True
 
-    def test_without_one_nothing_is_masked(self, sims, tmp_path):
-        info = compare_quietly(given(sims, out_dir=str(tmp_path)))
+    def test_without_one_nothing_is_masked(self, out):
+        folder, info = out
         assert info["domain_mask"] is None and info["domain_mask_text"] is None
-        assert not os.path.exists(os.path.join(results(tmp_path), "domain_mask.nc"))
-        assert np.isfinite(field(tmp_path, "base_run", "temperature_surface_annual.nc").values).all()
+        assert not os.path.exists(os.path.join(results(folder), "domain_mask.nc"))
+        assert np.isfinite(field(folder, "base_run", "temperature_surface_annual.nc").values).all()
 
     def test_a_file_that_is_not_a_mask_is_refused_before_any_work(self, sims, tmp_path):
         with pytest.raises(ValueError, match="domain_mask"):
@@ -1013,42 +1084,31 @@ class TestDomainMask:
         ds.run()
         assert np.isfinite(ds.to_xarray()["temp"].values).all()
 
-    def test_transects_are_taken_on_the_masks_grid(self, daily, tmp_path):
-        from oceanval import transects
+    WEST = -3.0
 
-        if not transects.available():
+    @pytest.fixture(scope="class")
+    @classmethod
+    def every_analysis(cls, compared_daily, tmp_path_factory):
+        """The daily simulations compared with every option and a transect, masked west of WEST: (its folder, its info)."""
+        out = tmp_path_factory.mktemp("masked_every_option")
+        mask = cls.write_mask(out / "mask.nc", west=cls.WEST)
+        return out, compare_quietly(given(compared_daily, domain_mask=mask, out_dir=str(out), **every_option()))
+
+    def test_transects_are_taken_on_the_masks_grid(self, every_analysis):
+        if not transects_available():
             pytest.skip("needs nctoolkit 1.3.6 or later")
-        mask = self.write_mask(tmp_path / "mask.nc", west=-3.0)
-        line = {
-            "start": [-2.0, 50.0],
-            "end": [-2.0, 53.0],
-            "climatology": {"start": 2012, "end": 2014},
-            "vertical": {"start": 2012, "end": 2014},
-        }
-        info = compare_quietly(
-            given(
-                daily,
-                domain_mask=mask,
-                climatology=None,
-                transects={"Temperature": [line]},
-                thickness="e3t",
-                out_dir=str(tmp_path),
-            )
-        )
+        out, info = every_analysis
         steps = {sim: own["transects"]["lines"][0]["steps"] for sim, own in info["variables"][0]["sims"].items()}
         # both are sampled as the mask's grid has it
         assert len(set(steps.values())) == 1
         for key in ("base_run", "warm_run"):
-            assert any("transect_1_vertical" in name for name in os.listdir(os.path.join(results(tmp_path), key)))
+            assert any("transect_1_vertical" in name for name in os.listdir(os.path.join(results(out), key)))
 
-    def test_every_analysis_is_of_the_masked_cells(self, daily, tmp_path):
-        mask = self.write_mask(tmp_path / "mask.nc")
-        info = compare_quietly(
-            given(daily, domain_mask=mask, out_dir=str(tmp_path), **TestEveryOption.OPTIONS)
-        )
-        wanted = np.array([-4.0, -3.0, -2.0, -1.0, 0.0]) >= -2.0
+    def test_every_analysis_is_of_the_masked_cells(self, every_analysis):
+        out, info = every_analysis
+        wanted = np.array([-4.0, -3.0, -2.0, -1.0, 0.0]) >= self.WEST
         for key in ("base_run", "warm_run"):
-            folder = os.path.join(results(tmp_path), key)
+            folder = os.path.join(results(out), key)
             with xr.open_dataset(os.path.join(folder, "chlorophyll_phenology.nc")) as ds:
                 assert (np.isfinite(ds["peak_day"].values) == wanted[None, :]).all()
             for name in ("temperature_surface_annual.nc", "temperature_bottom_annual.nc", "temperature_mean_annual.nc"):
@@ -1059,38 +1119,20 @@ class TestDomainMask:
 
 class TestFVCOM:
     """Raw FVCOM output (oceanval.fvcom_climatology), compared on its own mesh: two
-    simulations on one mesh, whose results must be what analyze() gives each alone."""
+    simulations on one mesh, whose results must be what analyze() gives each alone
+    (Base run's are checked; Warm run's are worked out by the same code)."""
 
-    @staticmethod
-    def given_fvcom(sims, **changes):
-        a, b = sims
-        arguments = dict(
-            simulations=[
-                {"name": "Base run", "sim_dir": a, "n_dirs_down": 1},
-                {"name": "Warm run", "sim_dir": b, "n_dirs_down": 1},
-            ],
-            view=False,
-            cores=1,
-            **FVCOM_COMPARE_OPTIONS,
-        )
-        arguments["variables"] = {name: {"Base run": model, "Warm run": model} for name, model in arguments["variables"].items()}
-        arguments.update(changes)
-        return arguments
+    given_fvcom = staticmethod(fvcom_arguments)
 
     @pytest.fixture(scope="class")
     @classmethod
-    def compared(cls, compared_fvcom, tmp_path_factory):
-        """The comparison with every option: (its folder, its info)."""
-        out = tmp_path_factory.mktemp("compare_fvcom")
-        return out, compare_quietly(cls.given_fvcom(compared_fvcom, out_dir=str(out)))
+    def compared(cls, fvcom_comparison):
+        """The comparison with every option (conftest.fvcom_comparison, which test_sim_plots.py draws too): (its folder, its info)."""
+        return fvcom_comparison
 
     def test_base_run_is_what_analyze_gives(self, compared, analysed_fvcom_a):
         out, _ = compared
         same_as_analyze(os.path.join(results(out), "base_run"), analysed_fvcom_a[0])
-
-    def test_warm_run_is_what_analyze_gives(self, compared, analysed_fvcom_b):
-        out, _ = compared
-        same_as_analyze(os.path.join(results(out), "warm_run"), analysed_fvcom_b[0])
 
     def test_the_comparison_says_it_is_fvcom_on_one_mesh(self, compared):
         out, info = compared
@@ -1112,8 +1154,8 @@ class TestFVCOM:
             # (the mean of their two years is half of it)
             assert np.allclose(b["temperature"].values - a["temperature"].values, (TREND_B - TREND_A) / 2 * 2 / 4, atol=1e-4)
 
-    def test_no_thickness_is_asked_for(self, compared_fvcom, tmp_path):
-        info = compare_quietly(self.given_fvcom(compared_fvcom, out_dir=str(tmp_path)))
+    def test_no_thickness_is_asked_for(self, compared):
+        _, info = compared
         assert info["variables"][0]["sims"]["Base run"]["climatology"]["layers"]["integral"]["mesh"]
 
     def test_the_simulations_must_share_a_mesh(self, tmp_path):

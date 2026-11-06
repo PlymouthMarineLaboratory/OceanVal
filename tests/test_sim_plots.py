@@ -22,8 +22,7 @@ from oceanval import analysis_plots as ap  # noqa: E402
 from oceanval import analysis_report, sim_compare  # noqa: E402
 from conftest import no_book  # noqa: E402
 from oceanval import sim_plots as sp  # noqa: E402
-from simulations import FVCOM_COMPARE_OPTIONS, TREND_A, TREND_B, write_analysis_regions, write_analysis_simulation  # noqa: E402
-from viewer_simulations import fvcom_months  # noqa: E402
+from simulations import write_analysis_regions, write_analysis_simulation  # noqa: E402
 
 B_LATS = list(np.arange(49.5, 53.6, 0.5))
 B_LONS = list(np.arange(-4.5, 0.6, 0.5))
@@ -32,8 +31,9 @@ CASES = ("daily", "grids", "series", "transects", "changes", "fvcom")
 
 
 @pytest.fixture(scope="module")
-def comparisons(tmp_path_factory):
-    """A comparison with each kind of figure, without its report: {case: its results directory}."""
+def comparisons(tmp_path_factory, fvcom_comparison):
+    """A comparison with each kind of figure, without its report: {case: its results directory}. The FVCOM
+    one is conftest.fvcom_comparison, which tests/test_sim_compare.py checks."""
     root = tmp_path_factory.mktemp("sim_figures")
     daily = [str(root / f"daily_{name}") for name in "ab"]
     write_analysis_simulation(daily[0], years=(2013, 2014), trend=1.0)
@@ -90,9 +90,6 @@ def comparisons(tmp_path_factory):
             map_changes={"Temperature": dict(periods, plot="absolute_changes", change="percentage", surface=True)},
         ),
     }
-    # raw FVCOM output on one mesh, with every analysis: its maps are drawn on the mesh, a panel for each simulation
-    fvcom = [fvcom_months(str(root / f"fvcom_{name}"), trend=trend) for name, trend in (("a", TREND_A), ("b", TREND_B))]
-    runs["fvcom"] = dict(simulations=sims(fvcom), **FVCOM_COMPARE_OPTIONS)
     found = {}
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(analysis_report, "InterimBook", no_book([]))
@@ -100,6 +97,8 @@ def comparisons(tmp_path_factory):
             out = str(root / case)
             oceanval.compare_simulations(out_dir=out, cores=1, view=False, **arguments)
             found[case] = os.path.join(out, sim_compare.FOLDER, sim_compare.RESULTS)
+    # raw FVCOM output on one mesh, with every analysis: its maps are drawn on the mesh, a panel for each simulation
+    found["fvcom"] = os.path.join(str(fvcom_comparison[0]), sim_compare.FOLDER, sim_compare.RESULTS)
     return found
 
 
@@ -141,15 +140,37 @@ def figures(info):
                     yield sp.station_plot, (key, kind, layer)
 
 
-def png_now():
-    buffer = io.BytesIO()
-    plt.gcf().savefig(buffer, format="png", bbox_inches="tight")
-    plt.close("all")
-    return buffer.getvalue()
-
-
 def pixels(data):
     return mpimg.imread(io.BytesIO(data), format="png")
+
+
+# every figure is drawn by running its script in a Python of its own, which takes seconds, so each is drawn once
+_DRAWN = {}
+
+
+def draw(function, results, *args):
+    """function(results, *args), drawn once in a session: (its Drawn, the figure as a PNG, its layout: the
+    figure's width in inches and each axes' (label, left, width) as a fraction of it), or Nones if it drew nothing."""
+    key = (results, function.__name__, args)
+    if key not in _DRAWN:
+        figure = function(results, *args)
+        if figure is None:
+            _DRAWN[key] = (None, None, None)
+        else:
+            # the PNG as the figure is shown, first, then where its axes are once it is drawn
+            fig = plt.gcf()
+            buffer = io.BytesIO()
+            fig.savefig(buffer, format="png", bbox_inches="tight")
+            fig.canvas.draw()
+            layout = (fig.get_size_inches()[0], [(a.get_label(), a.get_position().x0, a.get_position().width) for a in fig.axes])
+            plt.close("all")
+            _DRAWN[key] = (figure, buffer.getvalue(), layout)
+    return _DRAWN[key]
+
+
+def drawn(function, results, *args):
+    """The Drawn of function(results, *args) (see draw)."""
+    return draw(function, results, *args)[0]
 
 
 RUN_EACH = """
@@ -169,11 +190,11 @@ def test_each_figure_is_drawn_by_the_code_it_copies(comparisons, case, tmp_path)
     info = sim_compare.load(results)
     drawn, shown, scripts = [], [], []
     for function, args in figures(info):
-        figure = function(results, *args)
+        figure, image, _ = draw(function, results, *args)
         if figure is None:
             assert function is sp.station_plot
             continue
-        shown.append(png_now())
+        shown.append(image)
         drawn.append((function.__name__, args, figure))
         path = str(tmp_path / f"figure_{len(scripts)}.py")
         text = ap.script(figure, f"Figure {len(scripts) + 1} on the {case} page")
@@ -212,7 +233,7 @@ def test_every_simulation_has_its_own_colour(comparisons):
     info = sim_compare.load(comparisons["series"])
     assert list(info["colours"]) == ["Base run", "Warm run", "Cold run"]
     assert len(set(info["colours"].values())) == 3
-    figure = sp.long_term_plot(comparisons["series"], "temperature", "surface")
+    figure = drawn(sp.long_term_plot, comparisons["series"], "temperature", "surface")
     plt.close("all")
     for colour in info["colours"].values():
         assert colour in figure.code
@@ -220,16 +241,16 @@ def test_every_simulation_has_its_own_colour(comparisons):
 
 def test_a_panel_for_the_domain_and_each_region(comparisons):
     results = comparisons["series"]
-    figure = sp.long_term_plot(results, "temperature", "surface")
+    figure = drawn(sp.long_term_plot, results, "temperature", "surface")
     plt.close("all")
     assert figure.found == {"regions": 2}
     assert 'panels = ["Full Domain", ' in figure.code
-    stations = sp.station_plot(results, "temperature", "seasonal", "surface")
+    stations = drawn(sp.station_plot, results, "temperature", "seasonal", "surface")
     assert stations.found == {"names": ["Near", "Far"]}
     assert not hasattr(sp, "seasonal_series_plot")
     assert 'cycle = frame.groupby(["simulation", "kind", "name", "month"]' in stations.code
     plt.close("all")
-    cycle = sp.seasonal_cycle_regions(results, "temperature", "bottom")
+    cycle = drawn(sp.seasonal_cycle_regions, results, "temperature", "bottom")
     plt.close("all")
     assert set(cycle.found["means"]) == {"Base run", "Warm run", "Cold run"}
     assert sorted(cycle.found["means"]["Warm run"]) == list(range(1, 13))
@@ -238,19 +259,19 @@ def test_a_panel_for_the_domain_and_each_region(comparisons):
 def test_the_maps_of_the_simulations_share_a_scale(comparisons):
     # two simulations: both on one scale, and the differences on another
     results = comparisons["daily"]
-    figure = sp.annual_maps(results, "temperature", "surface")
+    figure = drawn(sp.annual_maps, results, "temperature", "surface")
     plt.close("all")
     assert "the colour scale the simulations share" in figure.code
     for sim in ("Base run", "Warm run"):
         assert f'"{sim}"' in figure.code
     # every month of the figure of the months has the same one
-    monthly = sp.monthly_difference_maps(results, "temperature", "surface")
+    monthly = drawn(sp.monthly_difference_maps, results, "temperature", "surface")
     plt.close("all")
     assert "the colour scale the simulations share" in monthly.code
     # more: the maps of each simulation's months are on the one scale all share
     series = comparisons["series"]
-    one = sp.monthly_maps(series, "temperature", "surface", "Base run").code
-    other = sp.monthly_maps(series, "temperature", "surface", "Warm run").code
+    one = drawn(sp.monthly_maps, series, "temperature", "surface", "Base run").code
+    other = drawn(sp.monthly_maps, series, "temperature", "surface", "Warm run").code
     plt.close("all")
     assert [line for line in one.splitlines() if line.startswith("limits = ")] == [
         line for line in other.splitlines() if line.startswith("limits = ")
@@ -260,14 +281,10 @@ def test_the_maps_of_the_simulations_share_a_scale(comparisons):
 def test_the_maps_of_a_pair_are_5_mm_apart(comparisons):
     results = comparisons["daily"]
     for function in (sp.annual_maps, sp.monthly_difference_maps):
-        function(results, "temperature", "surface")
-        fig = plt.gcf()
-        fig.canvas.draw()
-        width, _ = fig.get_size_inches()
-        maps = [a.get_position() for a in fig.axes if a.get_label() != "<colorbar>" and a.get_position().width > 0.05]
-        starts = sorted({round(box.x0 * width, 2) for box in maps})
-        map_width = max(box.width for box in maps) * width
-        plt.close("all")
+        _, _, (width, axes) = draw(function, results, "temperature", "surface")
+        maps = [(x0, w) for label, x0, w in axes if label != "<colorbar>" and w > 0.05]
+        starts = sorted({round(x0 * width, 2) for x0, _ in maps})
+        map_width = max(w for _, w in maps) * width
         for left, right in zip(starts, starts[1:]):
             # a map that is a little narrower than the others (its cells with values differ) sits in the middle of its place
             assert -0.03 < (right - left - map_width) - sp.GAP < 0.1
@@ -275,7 +292,7 @@ def test_the_maps_of_a_pair_are_5_mm_apart(comparisons):
 
 
 def test_the_peaks_are_found_for_each_simulation(comparisons):
-    cycle = sp.daily_cycle(comparisons["daily"], "chlorophyll")
+    cycle = drawn(sp.daily_cycle, comparisons["daily"], "chlorophyll")
     plt.close("all")
     assert set(cycle.found["peaks"]) == {"Base run", "Warm run"} == set(cycle.found["notes"])
     for peak in cycle.found["peaks"].values():
@@ -294,7 +311,7 @@ def test_two_simulations_are_drawn_with_their_difference(comparisons):
     variable = sp.entry(info, "temperature")
     assert sp.difference_pair(info, variable, "surface") == ("Base run", "Warm run")
     assert sp.has_difference(results, "temperature", "surface")
-    for figure in (sp.annual_maps(results, "temperature", "surface"), sp.monthly_difference_maps(results, "temperature", "surface")):
+    for figure in (drawn(sp.annual_maps, results, "temperature", "surface"), drawn(sp.monthly_difference_maps, results, "temperature", "surface")):
         plt.close("all")
         assert figure.found["pair"] == ["Base run", "Warm run"]
         assert "Base run minus Warm run" in figure.code
@@ -305,7 +322,7 @@ def test_two_simulations_are_drawn_with_their_difference(comparisons):
         assert low == -high and high > 0
         assert parsed(figure.code, "limits")[0] < parsed(figure.code, "limits")[1]
     # the months are rows of the first simulation, the second and the difference, named to the right
-    monthly = sp.monthly_difference_maps(results, "temperature", "surface")
+    monthly = drawn(sp.monthly_difference_maps, results, "temperature", "surface")
     plt.close("all")
     assert parsed(monthly.code, "rows") == ["Base run", "Warm run", "Base run minus Warm run"]
     assert "rotation=270" in monthly.code
@@ -329,7 +346,7 @@ def test_the_second_is_regridded_to_the_first_if_they_are_on_different_grids(com
     results = comparisons["grids"]
     info = sim_compare.load(results)
     assert info["same_grid"] is False
-    for figure in (sp.annual_maps(results, "temperature", "surface"), sp.monthly_difference_maps(results, "temperature", "surface")):
+    for figure in (drawn(sp.annual_maps, results, "temperature", "surface"), drawn(sp.monthly_difference_maps, results, "temperature", "surface")):
         plt.close("all")
         assert figure.found["difference_regridded"] is True
         assert "ds_on_first.regrid(grid=" in figure.code
@@ -342,10 +359,10 @@ def test_three_simulations_are_drawn_as_before(comparisons):
     variable = sp.entry(info, "temperature")
     assert len(info["simulations"]) == 3
     assert sp.difference_pair(info, variable, "surface") is None
-    figure = sp.annual_maps(results, "temperature", "surface")
+    figure = drawn(sp.annual_maps, results, "temperature", "surface")
     plt.close("all")
     assert figure.found == {} and "minus" not in figure.code
-    assert sp.monthly_maps(results, "temperature", "surface", "Cold run").code
+    assert drawn(sp.monthly_maps, results, "temperature", "surface", "Cold run").code
     plt.close("all")
 
 

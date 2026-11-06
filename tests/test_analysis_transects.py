@@ -12,7 +12,8 @@ import pytest
 import xarray as xr
 
 import oceanval
-from oceanval import analysis, analysis_forms, analysis_transects, transects
+from oceanval import analysis, analysis_forms, analysis_report, analysis_transects, cdo_check, transects
+from conftest import no_book
 from simulations import ANALYSIS_LEVEL_VALUES, ANALYSIS_LEVELS, write_analysis_simulation
 
 needs_to_transect = pytest.mark.skipif(not transects.available(), reason="nctoolkit cannot extract transects")
@@ -301,25 +302,36 @@ class TestWhatIsWorkedOut:
         assert frames["trends"].value.to_numpy() == pytest.approx((frames["trends"].year - 2010).to_numpy())
         assert sorted(frames["vertical_trends"].year.unique()) == [2012, 2013, 2014, 2015]
 
-    @needs_to_transect
-    def test_a_rolling_mean_over_a_year_that_was_left_out(self, tmp_path, no_report):
-        root = tmp_path / "sim"
-        write_analysis_simulation(str(root), years=YEARS, daily=False, trend=1.0)
-        path = glob.glob(os.path.join(str(root), "2012", "*grid_T.nc"))[0]
+    @pytest.fixture(scope="class")
+    @classmethod
+    def december_2012_missing(cls, tmp_path_factory):
+        """The changes along lines of a simulation whose 2012 has no December, with and without
+        a rolling mean: what analyze() saved of the transects."""
+        root = tmp_path_factory.mktemp("december_2012_missing")
+        sim = root / "sim"
+        write_analysis_simulation(str(sim), years=YEARS, daily=False, trend=1.0)
+        path = glob.glob(os.path.join(str(sim), "2012", "*grid_T.nc"))[0]
         with xr.open_dataset(path) as ds:
             kept = ds.isel(time=list(range(11))).load()
         kept.to_netcdf(path)
-        saved, _ = run(
-            str(root),
-            [
-                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=2)),
-                # 2012 is in neither the first nor the last two years: it does not matter to the change
-                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=2)),
-                line(NORTH_SOUTH, trends={"start": 2012, "end": 2015, "how": "absolute_change", "window": 2}),
-            ],
-            tmp_path / "out",
-        )
-        first, second, third = (x["options"]["trends"] for x in saved["lines"])
+        lines = [
+            line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute")),
+            line(NORTH_SOUTH, trends={"start": 2012, "end": 2015, "how": "absolute_change"}),
+            line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute", window=2)),
+            # 2012 is in neither the first nor the last two years: it does not matter to the change
+            line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute_change", window=2)),
+            line(NORTH_SOUTH, trends={"start": 2012, "end": 2015, "how": "absolute_change", "window": 2}),
+        ]
+        with pytest.MonkeyPatch.context() as patch:
+            # as the function-scoped no_report and no_cdo_check fixtures, which a class fixture is set up before
+            patch.setattr(analysis_report, "InterimBook", no_book([]))
+            patch.setattr(cdo_check, "ENABLED", False)
+            saved, _ = run(str(sim), lines, root / "out")
+        return [x["options"]["trends"] for x in saved["lines"]]
+
+    @needs_to_transect
+    def test_a_rolling_mean_over_a_year_that_was_left_out(self, december_2012_missing):
+        first, second, third = december_2012_missing[2:]
         assert first["notes"] == [
             "2012 was left out, as the output does not have all 12 months in it.",
             "The rolling mean is over the years there is output for.",
@@ -368,22 +380,8 @@ class TestWhatIsWorkedOut:
         assert [list(x["options"]) for x in entries["Chlorophyll"]["lines"]] == [["trends"]]
 
     @needs_to_transect
-    def test_years_without_all_their_months_are_left_out(self, tmp_path, no_report):
-        root = tmp_path / "sim"
-        write_analysis_simulation(str(root), years=YEARS, daily=False, trend=1.0)
-        path = glob.glob(os.path.join(str(root), "2012", "*grid_T.nc"))[0]
-        with xr.open_dataset(path) as ds:
-            kept = ds.isel(time=list(range(11))).load()
-        kept.to_netcdf(path)
-        saved, _ = run(
-            str(root),
-            [
-                line(NORTH_SOUTH, trends=dict(ALL_YEARS, how="absolute")),
-                line(NORTH_SOUTH, trends={"start": 2012, "end": 2015, "how": "absolute_change"}),
-            ],
-            tmp_path / "out",
-        )
-        first, second = (x["options"]["trends"] for x in saved["lines"])
+    def test_years_without_all_their_months_are_left_out(self, december_2012_missing):
+        first, second = december_2012_missing[:2]
         assert first["notes"] == ["2012 was left out, as the output does not have all 12 months in it."]
         assert second["notes"] == ["2012 does not have all 12 months of output, so there is no change."] and second["empty"]
 
@@ -410,8 +408,7 @@ class TestWhatIsWorkedOut:
                 monthly, {"Temperature": "thetao"}, transects={"Temperature": [line(NORTH_SOUTH, vertical=ALL_YEARS)]},
                 n_dirs_down=1, out_dir=str(tmp_path), cores=1, view=False,
             )
-        # nor does a surface transect
-        run(monthly, [line(NORTH_SOUTH, climatology=ALL_YEARS)], tmp_path)
+        # a surface transect does not (test_the_surface_climatology_is_the_monthly_mean_over_its_years has none)
 
     @needs_to_transect
     def test_with_a_thickness_each_cell_is_put_at_its_depth(self, monthly, tmp_path, no_report):

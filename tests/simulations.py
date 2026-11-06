@@ -132,6 +132,17 @@ COMPARE_TRANSECT = {
 }
 
 
+def every_option():
+    """EVERY_OPTION, with COMPARE_TRANSECT of the temperature too where
+    nctoolkit can draw transects (1.3.6 or later)."""
+    from oceanval import transects
+
+    options = dict(EVERY_OPTION)
+    if transects.available():
+        options["transects"] = {"Temperature": [COMPARE_TRANSECT]}
+    return options
+
+
 def analysis_peak_day(row):
     """The day of the year chl peaks on in a row of the analysis grid."""
     return 60 + 30 * row

@@ -51,9 +51,11 @@ def quietly(run, **arguments):
 
 # The simulations compare_simulations() is tested with, and analyze() of one
 # of them alone with the same options as a comparison of them: each is run
-# once in a session, by the test of analyze() (tests/test_analysis.py) that
-# checks it, and tests/test_sim_compare.py then checks that the simulation's
-# results in the comparison are the same (same_as_analyze).
+# once in a session, checked as an analysis by tests/test_sim_compare.py's
+# TestTheSimulationsOfAComparison, and the same file then checks that the
+# simulation's results in the comparison are the same (same_as_analyze). Only
+# tests/test_sim_compare.py uses them (and tests/test_sim_plots.py the
+# fvcom_comparison), so a CI group with neither file never runs them.
 
 
 def _compared(tmp_path_factory, name, daily):
@@ -106,28 +108,11 @@ def analysed_monthly_b(compared_monthly, tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def analysed_daily_a(compared_daily, tmp_path_factory):
-    """The daily A alone, with every option (EVERY_OPTION)."""
-    from simulations import EVERY_OPTION
+    """The daily A alone, with every option and a transect of every kind
+    (simulations.every_option)."""
+    from simulations import every_option
 
-    return _analysed(tmp_path_factory, "analysed_daily_a", compared_daily[0], **EVERY_OPTION)
-
-
-@pytest.fixture(scope="session")
-def analysed_transects_b(compared_daily, tmp_path_factory):
-    """The daily B alone, with a transect of every kind (COMPARE_TRANSECT)."""
-    from oceanval import transects
-    from simulations import COMPARE_TRANSECT
-
-    if not transects.available():
-        pytest.skip("needs nctoolkit 1.3.6 or later")
-    return _analysed(
-        tmp_path_factory,
-        "analysed_transects_b",
-        compared_daily[1],
-        variables={"Temperature": "thetao"},
-        transects={"Temperature": [COMPARE_TRANSECT]},
-        thickness="e3t",
-    )
+    return _analysed(tmp_path_factory, "analysed_daily_a", compared_daily[0], **every_option())
 
 
 @pytest.fixture(scope="session")
@@ -165,22 +150,43 @@ def mixed_simulations(tmp_path_factory):
     return fvcom_dir, 1, str(base / "grid"), 1
 
 
-def _analysed_fvcom(tmp_path_factory, name, sim_dir):
-    from simulations import FVCOM_COMPARE_OPTIONS
-
-    return _analysed(tmp_path_factory, name, sim_dir, **FVCOM_COMPARE_OPTIONS)
-
-
 @pytest.fixture(scope="session")
 def analysed_fvcom_a(compared_fvcom, tmp_path_factory):
     """The FVCOM A alone, with every option (FVCOM_COMPARE_OPTIONS)."""
-    return _analysed_fvcom(tmp_path_factory, "analysed_fvcom_a", compared_fvcom[0])
+    from simulations import FVCOM_COMPARE_OPTIONS
+
+    return _analysed(tmp_path_factory, "analysed_fvcom_a", compared_fvcom[0], **FVCOM_COMPARE_OPTIONS)
+
+
+def fvcom_arguments(sims, **changes):
+    """compare_simulations()'s arguments for the FVCOM simulations sims (A, B),
+    Base run and Warm run, with every option (FVCOM_COMPARE_OPTIONS)."""
+    from simulations import FVCOM_COMPARE_OPTIONS
+
+    a, b = sims
+    arguments = dict(
+        simulations=[
+            {"name": "Base run", "sim_dir": a, "n_dirs_down": 1},
+            {"name": "Warm run", "sim_dir": b, "n_dirs_down": 1},
+        ],
+        view=False,
+        cores=1,
+        **FVCOM_COMPARE_OPTIONS,
+    )
+    arguments["variables"] = {name: {"Base run": model, "Warm run": model} for name, model in arguments["variables"].items()}
+    arguments.update(changes)
+    return arguments
 
 
 @pytest.fixture(scope="session")
-def analysed_fvcom_b(compared_fvcom, tmp_path_factory):
-    """The FVCOM B alone, with every option (FVCOM_COMPARE_OPTIONS)."""
-    return _analysed_fvcom(tmp_path_factory, "analysed_fvcom_b", compared_fvcom[1])
+def fvcom_comparison(compared_fvcom, tmp_path_factory):
+    """compare_simulations() of the FVCOM simulations with every option, run
+    once a session for tests/test_sim_compare.py and tests/test_sim_plots.py:
+    (its output directory, the info it saved)."""
+    import oceanval
+
+    out = tmp_path_factory.mktemp("fvcom_comparison")
+    return out, quietly(oceanval.compare_simulations, **fvcom_arguments(compared_fvcom, out_dir=str(out)))
 
 
 def same_as_analyze(compared, analysed):
