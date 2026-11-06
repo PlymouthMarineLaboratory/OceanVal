@@ -1425,6 +1425,50 @@ def test_the_variable_searches_take_wildcards_in_a_browser(browser, tmp_path):
         app.close()
 
 
+def test_a_search_survives_a_tick_in_the_variable_box_in_a_browser(browser, tmp_path):
+    """Typing chl and ticking P1_Chl keeps the search, so P2_Chl can be ticked next; a + starts a
+    new search, which the term after it finds and can be added."""
+    page, app = open_analyze_variables_in_browser(browser, tmp_path)
+    try:
+        box = page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input")
+        shown = lambda: page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)")
+        tick = lambda name: page.locator(f'.vars__popover:not([hidden]) input[aria-label="Use {name}"]')
+        row_y = lambda name: page.locator(".vars__popover:not([hidden]) tbody tr", has=page.locator(f'input[aria-label="Use {name}"]')).bounding_box()["y"]
+        box.fill("chl")
+        assert shown() == ["P1_Chl", "P2_Chl"]
+        before = row_y("P2_Chl")
+        # the tick box itself is clicked: it shows ticked, and the rows stay where they are for the next click
+        tick("P1_Chl").click()
+        # the box holds the name, and the search is still chl: its rows are still there to tick
+        assert box.input_value() == "P1_Chl"
+        assert shown() == ["P1_Chl", "P2_Chl"]
+        assert tick("P1_Chl").is_checked() and not tick("P2_Chl").is_checked()
+        assert abs(row_y("P2_Chl") - before) < 1
+        tick("P2_Chl").click()
+        assert box.input_value() == "P1_Chl+P2_Chl"
+        assert shown() == ["P1_Chl", "P2_Chl"]
+        assert tick("P1_Chl").is_checked() and tick("P2_Chl").is_checked()
+        assert abs(row_y("P2_Chl") - before) < 1
+        # what is ticked is listed under the table, so that it does not push the rows down
+        picked = page.locator(".vars__popover:not([hidden]) .vars__picked").bounding_box()
+        assert picked["y"] > page.locator(".vars__popover:not([hidden]) .vars__scroll").bounding_box()["y"]
+        # a + starts a search of the part after it: every row until a term is typed
+        box.press_sequentially("+")
+        assert len(shown()) == 4
+        box.press_sequentially("thet")
+        assert shown() == ["thetao"]
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])").first.click()
+        assert box.input_value() == "P1_Chl+P2_Chl+thetao"
+        assert shown() == ["thetao"]
+        # a click on a ticked row takes it out, and the search still holds
+        tick("thetao").click()
+        assert box.input_value() == "P1_Chl+P2_Chl"
+        assert not tick("thetao").is_checked()
+    finally:
+        page.close()
+        app.close()
+
+
 def variable_rows_of(page):
     rows = page.locator("#av-rows > tr")
     return [rows.nth(i).locator("td").nth(1).locator("input").first.input_value() for i in range(rows.count())]
@@ -1978,10 +2022,11 @@ def test_the_transects_of_a_variable_are_copied_to_every_variable_in_a_browser(b
         app.close()
 
 
-def test_the_names_drop_down_the_larger_pop_outs_and_the_missing_value_in_a_browser(browser, tmp_path, monkeypatch):
-    """The arrow of "Environmental variable" lists the preset names, and choosing one fills
-    in the Variable name in the simulation in bold; the pop-outs are 1300px wide; and the
-    missing value found in the data is amber, until it is typed over."""
+def test_the_names_list_what_is_typed_and_the_missing_value_in_a_browser(browser, tmp_path, monkeypatch):
+    """Typing in "Environmental variable" lists the preset names that match, under the box, each
+    with the model variable it resolves to; choosing one fills in the Variable name in the
+    simulation in bold; the pop-outs are 1300px wide; and the missing value found in the data is
+    amber, until it is typed over."""
     from oceanval import missing_probe
 
     monkeypatch.setattr(missing_probe, "probe", lambda files, name: "1e+20")
@@ -2005,36 +2050,37 @@ def test_the_names_drop_down_the_larger_pop_outs_and_the_missing_value_in_a_brow
         row = page.locator("#av-rows > tr").first
         name = row.locator("td").first.locator("input")
         model = row.locator("td").nth(1).locator("input").first
-        # the arrow is the right-hand end of the box
-        box = name.bounding_box()
-        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
-        page.wait_for_selector(".year-list:not([hidden])")
-        options = page.locator(".year-list li").all_inner_texts()
-        assert any(text.startswith("Temperature") for text in options) and any(text.startswith("Salinity") for text in options)
-        # a name the model has no variable for says so
-        assert "not found in this model" in [t for t in options if t.startswith("Salinity")][0]
-        page.locator(".year-list li", has_text="Temperature").click()
+        # the names matching what is typed are listed under the box, each with the model variable it resolves to
+        shown = lambda: page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[0].textContent)")
+        name.fill("Temp")
+        assert shown() == ["Temperature"]
+        assert page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden]) td").nth(1).inner_text() == "thetao"
+        # with nothing typed every name is listed, and one the model has no variable for says so
+        name.fill("")
+        options = page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])")
+        assert any(text.startswith("Salinity") for text in options.all_inner_texts())
+        assert "not found in this model" in options.filter(has_text="Salinity").first.inner_text()
+        # a click chooses it: the name, and the model variable in bold
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])", has_text="Temperature").click()
         assert name.input_value() == "Temperature" and model.input_value() == "thetao"
         assert "is-oceanval" in name.get_attribute("class") and "is-oceanval" in model.get_attribute("class")
-        # choosing another name replaces what the drop-down filled in, and one with no model variable empties it
-        box = name.bounding_box()
-        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
-        page.locator(".year-list li", has_text="Chlorophyll").click()
+        assert page.locator(".vars__popover:not([hidden])").count() == 0
+        # choosing another name replaces what the box filled in; Enter on the first row chooses it from the keyboard
+        name.fill("Chl")
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])", has_text="Chlorophyll").click()
         assert name.input_value() == "Chlorophyll" and model.input_value() == "P1_Chl+P2_Chl"
-        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
-        page.locator(".year-list li", has_text="Salinity").click()
+        name.fill("Sal")
+        name.press("ArrowDown")
+        name.press("Enter")
+        # one with no model variable empties it, and is not bold
         assert name.input_value() == "Salinity" and model.input_value() == ""
         assert "is-oceanval" not in model.get_attribute("class")
-        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
-        page.locator(".year-list li", has_text="Temperature").click()
-        assert name.input_value() == "Temperature" and model.input_value() == "thetao"
-        # typing over it makes it the user's
+        # a model box the user typed in is not overwritten
         model.fill("e3t")
         assert "is-oceanval" not in model.get_attribute("class")
-        # a model box the user typed in is not overwritten
-        page.mouse.click(box["x"] + box["width"] - 10, box["y"] + box["height"] / 2)
-        page.locator(".year-list li", has_text="Chlorophyll").click()
-        assert name.input_value() == "Chlorophyll" and model.input_value() == "e3t"
+        name.fill("Temp")
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])", has_text="Temperature").click()
+        assert name.input_value() == "Temperature" and model.input_value() == "e3t"
         model.fill("thetao")
         name.fill("Temperature")
         page.click("#av-continue")

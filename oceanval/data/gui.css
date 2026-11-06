@@ -522,6 +522,7 @@ input.tick { cursor: pointer; }
 .vars__count { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 .vars__picked { flex: none; max-height: 112px; overflow: auto; padding: 6px 12px 8px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .vars__picked[hidden] { display: none; }
+.vars__popover.is-picked-below .vars__picked { border-top: 1px solid var(--line); border-bottom: 0; }
 .vars__picked-title { margin: 0 0 2px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .vars__picked ul { margin: 0; padding: 0; list-style: none; }
 .vars__picked li { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
@@ -533,6 +534,7 @@ input.tick { cursor: pointer; }
 .vars__picked-remove:focus-visible { outline: none; box-shadow: var(--focus); }
 .vars__scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 12px 8px; }
 .vars__none { margin: 10px 0 2px; color: var(--muted); }
+.name-box__missing { font-family: inherit; font-style: italic; color: var(--muted); }
 /* the narrow-screen layout makes the page's tables blocks; this one stays a table */
 .vars__popover table { display: table; width: 100%; border-collapse: collapse; table-layout: auto; }
 .vars__popover thead { display: table-header-group; }

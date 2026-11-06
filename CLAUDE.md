@@ -246,8 +246,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   under the box: a tick, Variable, long_name, Selected at the top, the counts) on focus, and **the box is its search**: the rows shown match the
   part being typed (`searchMatcher`; with `multi`, the part between the `+`s the caret is in). Names in the box are ticked, so `P1_Chl+` typed
   ticks P1_Chl and shows every row; `+` is just typed (never completed). A click on a row ticks it and adds it (replacing a half-typed search,
-  else `+name` at the end; single: the value, and the pop-out closes); on a ticked row or its × it is taken out; every row is shown after a
-  click. The pop-out's `mousedown` is prevented so the focus stays in the box; blur and Escape close it. Every change is an `input` event, so
+  else `+name` at the end; single: the value, and the pop-out closes); on a ticked row or its × it is taken out. With `keepSearch` (Analyze and
+  Compare simulations' rows only; the user's rule, 2026-11-06) a click keeps the search typed before it (`kept`), so the rows it finds can be
+  ticked too (`P1_Chl`, then `P2_Chl`); a typed `+` or any typing starts a new search, and only then does every row show. Its "Selected" list is under the table (`is-picked-below`), not above, so the rows do not move as more are ticked. The row's own
+  click handles every click, the tick box too: a click cancelled with `preventDefault` makes the browser put the box back as it was after `refresh()`
+  set it (the user's report, 2026-11-06: ticking was unreliable). Without keepSearch (the recipes
+  window, own data) every row is shown after a click and Selected stays above. The pop-out's `mousedown` is prevented so the focus stays in the box; blur and Escape close it. Every change is an `input` event, so
   the caller's input handler takes it. A scroll elsewhere on the page never closes it; an ancestor's scroll moves it with the box. Used by
   the Analyze/Compare variable rows, the Analyze and recipes thickness (single, z_level first), the own data steps and the recipes window's
   rows; a new variable box must use it.
@@ -540,9 +544,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `AnalyzeSteps._probe_missing`, `state.analyze.missing_probed`, shown in amber `is-found`), else for a
   NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) 0–0 in the `is-ersem` style.
   `analysis_forms.prefill` (what OceanVal could fill the variables with) is unused for that reason;
-  the "Environmental variable" box (was "Your name"; the model column is "Variable name in the simulation") instead has an arrow listing `analysis_forms.presets` (every recipe variable
-  with the model variable `create_recipes.voted_mapping` finds, `state.analyze.presets`), through the
-  `yearList` machinery (`input.onPick`); choosing one fills the model variable in red/bold unless the user typed it.
+  the "Environmental variable" box (was "Your name"; the model column is "Variable name in the simulation", with the hint "Enter variable names or search
+  terms that will look up the variable and name and descriptions in files" under its heading) has no arrow (the user's rule, 2026-11-06: the drop-down was
+  confusing): `OceanValGUI.nameBox` lists, under the box as it is typed in (and on focus), the recipe variables (hint under its heading: "Enter your own or select from available presets"; `analysis_forms.presets`, `state.analyze.presets`,
+  `sim["presets"]` for Compare) whose name or model variable the search matches, each with the model variable it resolves to (`create_recipes.voted_mapping`),
+  or "not found in this model". A click or Enter on a row sets the name (as typed, an input event) and calls `onPick`, which fills the model variable in
+  red/bold unless the user typed it.
 - The long-term series also take `window` (rolling mean of the annual means, trailing, 1 = none) and `show` (`absolute` | `absolute_change` | `percentage_change`, from the first year with a value), `analysis.SHOWS`/`_series_options`, applied in `analysis_series.smooth_and_change` after `annual_series` (the missing/incomplete years are worked out before, from the means as they are); the csv holds the values as shown and `saved["show"]`/units `%` say what they are. In the window they are two columns after Water column in the long-term pop-out only (`is-series` cells), `analysis_forms._check_series_options`.
 - Map temporal changes are `oceanval/analysis_changes.py` (`map_changes={name: {"historical":
   {start, end}, "future": [1-2 of those], "plot": "absolute"|"absolute_changes"|"changes",
@@ -589,7 +596,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   transects (`analysis_forms.default_transects`/`clean_transects`/`check_transects`; the cell
   thickness box is shared with the other pop-outs, `THICKNESS_KINDS`). Needs nctoolkit 1.3.6+ (the
   `oceanval` env's 1.3.0 reports it as validate's transect does).
-- Every start/end year box of the Analyze pop-outs (`yearBox`, transects' `optionYears`) goes through `withYears` in `oceanval_app.html`: an arrow at its right end (or Down) opens one shared `year-list` (fixed, so the pop-out body can't clip it) of `first..last` of `placed[].years` (the dates check has no year missing between). A new year box must be made with `yearBox`/`withYears`. The list itself is `OceanValGUI.withChoices` in `data/gui.js` (CSS in `gui.css`), shared with the recipes window's First/Last and the name boxes' presets (`choiceHints`, `onPick`).
+- Every start/end year box of the Analyze pop-outs (`yearBox`, transects' `optionYears`) goes through `withYears` in `oceanval_app.html`: an arrow at its right end (or Down) opens one shared `year-list` (fixed, so the pop-out body can't clip it) of `first..last` of `placed[].years` (the dates check has no year missing between). A new year box must be made with `yearBox`/`withYears`. The list itself is `OceanValGUI.withChoices` in `data/gui.js` (CSS in `gui.css`), shared with the recipes window's First/Last and the depth boxes (`choiceHints`). The environmental variable names are not in it: they are `OceanValGUI.nameBox`, a search list (above).
 - The window's Analyze steps live in `oceanval/analysis_app.py` (`AnalyzeSteps`, a mixin of
   `App`; views `analyze_variables`, `analyze_files`, `analyze_options`, which the page shows as three pages of one server view (`analyzePage` in `oceanval_app.html`: the six analyses with Continue, then cores, missing values and figure code with Continue, then where the output is saved with Run/Save; Back on the second and third is client-only); six pop-outs, the
   time series' two sharing one dialog with the climatology, the regions/area card, the

@@ -984,6 +984,7 @@
   .analyze-table .s-input { width: 100%; }
   .analyze-table .s-input.is-oceanval { color: var(--ink); font-weight: 700; }
   .analyze-msg { margin: 6px 0 0; color: var(--ink); font-size: 12.5px; line-height: 1.4; }
+  .analyze-hint { margin: 4px 0 0; color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.4; letter-spacing: 0; text-transform: none; }
   .analyze-dialog .analyze-msg { color: var(--red); font-weight: 700; }
   .analyze-dialog .analyze-msg.is-warn { color: var(--amber); }
   .analyze-dialog #multi-count { color: var(--ink); font-weight: 400; }
@@ -1967,7 +1968,7 @@
       <p class="lede" id="av-lede">Choose the variables to analyze</p>
       <div class="card analyze-table"><table>
         <colgroup><col style="width:34%"><col><col style="width:96px"></colgroup>
-        <thead><tr><th scope="col">Environmental variable</th><th scope="col">Variable name in the simulation</th><th scope="col" aria-label="Remove"></th></tr></thead>
+        <thead><tr><th scope="col">Environmental variable<p class="analyze-hint">Enter your own or select from available presets</p></th><th scope="col">Variable name in the simulation<p class="analyze-hint">Enter variable names or search terms that will look up the variable and name and descriptions in files</p></th><th scope="col" aria-label="Remove"></th></tr></thead>
         <tbody id="av-rows"></tbody>
       </table>
       </div>
@@ -5312,7 +5313,7 @@
   function variableRow(row) {
     const item = {
       name: row.name || "", model_variable: row.model_variable || "", filled: Boolean(row.filled), server: {}, hint: "",
-      // the model name was put there by the drop-down of names, so choosing another name replaces it; typing in the model box makes it the user's
+      // the model name was put there by a click on a name in the name box, so choosing another name replaces it; typing in the model box makes it the user's
       auto: false,
     };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Chlorophyll",
@@ -5330,29 +5331,30 @@
     };
     // the simulation's variables are listed as the box is typed in (a pick is an input event, so the handler below takes it)
     const picked = analyzePicker();
-    OceanValGUI.variableBox(model, { available: picked.available, longNames: picked.long_names, multi: true });
-    // the arrow of the name box lists the preset names; one that is chosen fills in the model variable the matchups would use for it
+    OceanValGUI.variableBox(model, { available: picked.available, longNames: picked.long_names, multi: true, keepSearch: true });
+    // the names matching what is typed in the name box are listed under it; a click on one fills in the model variable the matchups would use for it
     const presets = state.analyze.presets || [];
     if (presets.length) {
-      withChoices(name, presets.map((preset) => preset.name));
-      name.choiceHints = Object.fromEntries(presets.filter((preset) => !preset.model_variable).map((preset) => [preset.name, "not found in this model"]));
-      name.onPick = (value) => {
-        const preset = presets.find((one) => one.name === value);
-        if (!preset) return;
-        // what the user typed in the model box is theirs: only an empty box, or one the drop-down filled, is filled in
-        if (item.model_variable.trim() && !item.auto && !item.filled) return;
-        if (preset.model_variable) {
-          item.model_variable = model.value = preset.model_variable;
-          item.auto = item.filled = true;
-          [name, model].forEach((box) => box.classList.add("is-oceanval"));
-        } else {
-          // the model name the last choice filled in is not this one's
-          if (item.auto) item.model_variable = model.value = "";
-          item.auto = false;
-          item.hint = `OceanVal could not tell which model variable holds ${value}: type its name in the box.`;
-        }
-        refreshAnalyzeVariables();
-      };
+      OceanValGUI.nameBox(name, {
+        items: presets.map((preset) => ({ name: preset.name, found: preset.model_variable ? [preset.model_variable] : [], shown: preset.model_variable || "not found in this model" })),
+        onPick: (value) => {
+          const preset = presets.find((one) => one.name === value);
+          if (!preset) return;
+          // what the user typed in the model box is theirs: only an empty box, or one the name box filled, is filled in
+          if (item.model_variable.trim() && !item.auto && !item.filled) return;
+          if (preset.model_variable) {
+            item.model_variable = model.value = preset.model_variable;
+            item.auto = item.filled = true;
+            [name, model].forEach((box) => box.classList.add("is-oceanval"));
+          } else {
+            // the model name the last choice filled in is not this one's
+            if (item.auto) item.model_variable = model.value = "";
+            item.auto = false;
+            item.hint = `OceanVal could not tell which model variable holds ${value}: type its name in the box.`;
+          }
+          refreshAnalyzeVariables();
+        },
+      });
     }
     name.addEventListener("input", () => { item.name = name.value; yours(); refreshAnalyzeVariables(); });
     model.addEventListener("input", () => {
@@ -11852,7 +11854,7 @@
       if (item.filled && item.models[sim.name]) box.classList.add("is-oceanval");
       // the simulation's variables are listed as the box is typed in (a pick is an input event, taken below)
       const picked = scPicked(sim);
-      OceanValGUI.variableBox(box, { available: picked.available, longNames: picked.long_names, multi: true });
+      OceanValGUI.variableBox(box, { available: picked.available, longNames: picked.long_names, multi: true, keepSearch: true });
       item.boxes[sim.name] = box;
       item.msgs[sim.name] = el("p", { class: "analyze-msg" });
       box.addEventListener("input", () => {
@@ -11864,30 +11866,33 @@
       });
       return el("td", { class: "sc-model-cell", "data-label": sim.name }, box, item.msgs[sim.name]);
     });
-    // the arrow of the name box lists the names recipes know; choosing one fills in each simulation's model variable, where it is empty
+    // the names matching what is typed in the name box are listed under it; a click on one fills in each simulation's model variable, where it is empty
     const first = sims[0];
-    const names = first ? (first.presets || []).map((preset) => preset.name) : [];
+    const names = first ? (first.presets || []) : [];
     if (names.length) {
-      withChoices(name, names);
-      name.onPick = (value) => {
-        const missing = [];
-        sims.forEach((sim) => {
-          const preset = (sim.presets || []).find((one) => one.name === value);
-          const mine = (item.models[sim.name] || "").trim();
-          if (mine && !item.auto[sim.name]) return;
-          if (preset && preset.model_variable) {
-            item.models[sim.name] = item.boxes[sim.name].value = preset.model_variable;
-            item.auto[sim.name] = true;
-            item.boxes[sim.name].classList.add("is-oceanval");
-          } else {
-            if (item.auto[sim.name]) item.models[sim.name] = item.boxes[sim.name].value = "";
-            item.auto[sim.name] = false;
-            missing.push(sim.name);
-          }
-        });
-        item.hint = missing.length ? `OceanVal could not tell which model variable holds ${value} in ${missing.join(", ")}: type its name there.` : "";
-        refreshScVariables();
-      };
+      const modelIn = (sim, value) => ((sim.presets || []).find((one) => one.name === value) || {}).model_variable || "";
+      OceanValGUI.nameBox(name, {
+        items: names.map((preset) => ({ name: preset.name, found: sims.map((sim) => modelIn(sim, preset.name)).filter(Boolean), shown: sims.map((sim) => `${sim.name}: ${modelIn(sim, preset.name) || "not found"}`).join(" · ") })),
+        onPick: (value) => {
+          const missing = [];
+          sims.forEach((sim) => {
+            const preset = (sim.presets || []).find((one) => one.name === value);
+            const mine = (item.models[sim.name] || "").trim();
+            if (mine && !item.auto[sim.name]) return;
+            if (preset && preset.model_variable) {
+              item.models[sim.name] = item.boxes[sim.name].value = preset.model_variable;
+              item.auto[sim.name] = true;
+              item.boxes[sim.name].classList.add("is-oceanval");
+            } else {
+              if (item.auto[sim.name]) item.models[sim.name] = item.boxes[sim.name].value = "";
+              item.auto[sim.name] = false;
+              missing.push(sim.name);
+            }
+          });
+          item.hint = missing.length ? `OceanVal could not tell which model variable holds ${value} in ${missing.join(", ")}: type its name there.` : "";
+          refreshScVariables();
+        },
+      });
     }
     name.addEventListener("input", () => { item.name = name.value; yours(); refreshScVariables(); });
     const remove = variablePill(item, scVars, scVariableRow, refreshScVariables);
@@ -11901,8 +11906,8 @@
     $("scv-table").replaceChildren(
       el("colgroup", {}, el("col", { style: "width:22%" }), ...sims.map(() => el("col", { style: `width:${width}%` })), el("col", { style: "width:96px" })),
       el("thead", {}, el("tr", {},
-        el("th", { scope: "col" }, "Environmental variable"),
-        ...sims.map((sim, index) => el("th", { scope: "col" }, scNamed(sim.name, scColour(index)))),
+        el("th", { scope: "col" }, "Environmental variable", el("p", { class: "analyze-hint", text: "Enter your own or select from available presets" })),
+        ...sims.map((sim, index) => el("th", { scope: "col" }, scNamed(sim.name, scColour(index)), el("p", { class: "analyze-hint", text: "Enter variable names or search terms that will look up the variable and name and descriptions in files" }))),
         el("th", { scope: "col", "aria-label": "Remove" }))),
       el("tbody", { id: "scv-rows" }));
     const rows = scState().rows && scState().rows.length ? scState().rows : [{}];

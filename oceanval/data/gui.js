@@ -250,14 +250,16 @@ const OceanValGUI = (() => {
   // the oceanval window's Analyze, Compare simulations and own data steps.
   let openVariables = null;
 
-  function variableBox(input, { available = [], longNames = {}, multi = false, extra = [], what = "simulation output" } = {}) {
+  function variableBox(input, { available = [], longNames = {}, multi = false, extra = [], what = "simulation output", keepSearch = false } = {}) {
     let names = available.slice();
     let longs = { ...longNames };
     let rows = [];
     let built = false;
     let active = -1;
-    // after a click every row is shown, until the box is typed in again
-    let showAll = false;
+    // keepSearch (Analyze and Compare simulations): a click adds the name and the search typed before it stays, so
+    // more of its rows can be ticked. kept is that search while the box holds only names; typing clears it.
+    // Without keepSearch a click replaces the half-typed search and every row is shown again.
+    let kept = null;
     input.classList.add("has-vars");
     input.setAttribute("aria-haspopup", "dialog");
     input.setAttribute("aria-expanded", "false");
@@ -269,8 +271,9 @@ const OceanValGUI = (() => {
     const pickedList = el("ul");
     const picked = el("div", { class: "vars__picked", hidden: "" },
       el("p", { class: "vars__picked-title", text: "Selected" }), pickedList);
-    const popover = el("div", { class: "vars__popover", hidden: "" },
-      el("div", { class: "vars__bar" }, count, ticked), picked, scroll);
+    // with keepSearch the ticked names are listed under the table, so the rows stay where they are as more are ticked
+    const popover = el("div", { class: keepSearch ? "vars__popover is-picked-below" : "vars__popover", hidden: "" },
+      el("div", { class: "vars__bar" }, count, ticked), ...(keepSearch ? [scroll, picked] : [picked, scroll]));
     // a click in the pop-out (a row, an x, its scroll bar) leaves the focus in the box
     popover.addEventListener("mousedown", (event) => event.preventDefault());
 
@@ -302,21 +305,24 @@ const OceanValGUI = (() => {
       const used = inBox();
       if (used.includes(name)) {
         setBox(multi ? used.filter((other) => other !== name).join("+") : "");
+        if (!keepSearch) kept = "";
       } else if (!multi) {
         setBox(name);
         close();
         return;
       } else {
         const { start, end, text } = part();
-        // a half-typed search is replaced; otherwise the name is added at the end
-        if (text && !isName(text)) {
+        const typed = text && !isName(text) ? text : "";
+        // a half-typed search leaves the box, and the name takes its place; otherwise the name is added at the end
+        if (typed) {
           const value = input.value;
           setBox((value.slice(0, start) + name + value.slice(end)).split("+").map((one) => one.trim()).filter(Boolean).join("+"));
         } else {
           setBox([...used, name].join("+"));
         }
+        // with keepSearch the search stays, so the rows it finds can be ticked too (a typed name searches as well); else every row is shown
+        kept = keepSearch ? (kept ?? text) : "";
       }
-      showAll = true;
       refresh();
     }
 
@@ -324,10 +330,10 @@ const OceanValGUI = (() => {
       rows = everyName().map((name) => {
         const longName = longs[name] || "";
         const box = el("input", { type: "checkbox", class: "tick", tabindex: "-1", "aria-label": `Use ${name}` });
-        box.addEventListener("click", (event) => { event.preventDefault(); choose(name); });
         const tr = el("tr", {}, el("td", {}, box), el("td", { text: name }), el("td", { text: longName }));
-        // a click anywhere on the row ticks it
-        tr.addEventListener("click", (event) => { if (event.target !== box) choose(name); });
+        // a click anywhere on the row, the tick box too, ticks it. The click on the box is not cancelled: a
+        // cancelled one makes the browser put the box back to how it was, after refresh() has set it
+        tr.addEventListener("click", () => choose(name));
         return { name, box, fields: [name, longName], tr };
       });
       scroll.replaceChildren(
@@ -356,9 +362,10 @@ const OceanValGUI = (() => {
       if (!isOpen()) return;
       // the part being typed is a search, not a choice, until it is a variable's name
       const typing = part().text;
-      const used = inBox().filter((name) => isName(name) || showAll || name !== typing);
+      const used = inBox().filter((name) => isName(name) || name !== typing);
       const usedSet = new Set(used);
-      const searched = showAll ? "" : typing;
+      // the search is what is typed, or the one kept after a click ("" shows every row)
+      const searched = kept !== null ? kept : typing;
       // a single box holding a variable's name shows every row, with it ticked
       const wanted = searchMatcher(!multi && isName(searched) ? "" : searched);
       let shown = 0;
@@ -400,7 +407,7 @@ const OceanValGUI = (() => {
     function close() {
       if (popover.hidden) return;
       popover.hidden = true;
-      showAll = false;
+      kept = null;
       if (openVariables === close) openVariables = null;
       input.setAttribute("aria-expanded", "false");
     }
@@ -409,14 +416,14 @@ const OceanValGUI = (() => {
     input.addEventListener("click", () => { if (isOpen()) refresh(); else open(); });
     input.addEventListener("input", (event) => {
       // typed: the search is what is typed again
-      if (event.isTrusted) showAll = false;
+      if (event.isTrusted) kept = null;
       if (document.activeElement !== input) return;
       if (isOpen()) refresh(); else open();
     });
     input.addEventListener("blur", close);
     // the caret moved to another part
     input.addEventListener("keyup", (event) => {
-      if (isOpen() && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { showAll = false; refresh(); }
+      if (isOpen() && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { kept = null; refresh(); }
     });
     input.addEventListener("keydown", (event) => {
       if (!isOpen()) {
@@ -452,6 +459,130 @@ const OceanValGUI = (() => {
     };
   }
 
+  // ---- a box for an environmental variable's name, with the names that match what is typed under it ----
+  // items are {name, found, shown}: found the model variables the name
+  // resolves to (searched, with the name), shown the text of the second
+  // column. The pop-out is the variableBox's (no ticks, no Selected): it opens
+  // on focus and as the box is typed in, and its rows are those matching
+  // searchMatcher. A click on a row, or Enter on the active one, puts the name
+  // in the box as typed (an input event, so the caller's handler runs first),
+  // then calls onPick(name). Used by Analyze and Compare simulations.
+  function nameBox(input, { items = [], onPick = () => {} } = {}) {
+    let rows = [];
+    let built = false;
+    let active = -1;
+    input.classList.add("has-vars");
+    input.setAttribute("aria-haspopup", "listbox");
+    input.setAttribute("aria-expanded", "false");
+
+    const count = el("span", { class: "vars__count vars__shown", "aria-live": "polite" });
+    const none = el("p", { class: "vars__none", text: "No names match.", hidden: "" });
+    const scroll = el("div", { class: "vars__scroll" });
+    const popover = el("div", { class: "vars__popover", hidden: "" }, el("div", { class: "vars__bar" }, count), scroll);
+    popover.addEventListener("mousedown", (event) => event.preventDefault());
+
+    const isOpen = () => !popover.hidden;
+
+    function build() {
+      rows = items.map((item) => {
+        const tr = el("tr", {},
+          el("td", { text: item.name }),
+          el("td", item.found.length ? { text: item.shown } : { class: "name-box__missing", text: item.shown }));
+        tr.addEventListener("click", () => choose(item));
+        return { item, tr, fields: [item.name, ...item.found] };
+      });
+      scroll.replaceChildren(
+        el("table", {},
+          el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Environmental variable" }), el("th", { scope: "col", text: "In the simulation" }))),
+          el("tbody", {}, ...rows.map((row) => row.tr))),
+        none);
+      built = true;
+    }
+
+    function mark(index) {
+      const shown = rows.filter((row) => !row.tr.hidden);
+      rows.forEach((row) => row.tr.classList.remove("is-active"));
+      if (!shown.length) { active = -1; return; }
+      active = (index + shown.length) % shown.length;
+      const tr = shown[active].tr;
+      tr.classList.add("is-active");
+      if (tr.offsetTop < scroll.scrollTop + 30) scroll.scrollTop = Math.max(0, tr.offsetTop - 30);
+      else if (tr.offsetTop + tr.offsetHeight > scroll.scrollTop + scroll.clientHeight) scroll.scrollTop = tr.offsetTop + tr.offsetHeight - scroll.clientHeight;
+    }
+
+    function refresh() {
+      if (!isOpen()) return;
+      const wanted = searchMatcher(input.value);
+      let shown = 0;
+      for (const row of rows) {
+        row.tr.hidden = !wanted.test(row.fields);
+        if (!row.tr.hidden) shown += 1;
+      }
+      none.hidden = shown > 0;
+      count.textContent = wanted.active ? `${shown} of ${rows.length}` : `${rows.length}`;
+      active = -1;
+      rows.forEach((row) => row.tr.classList.remove("is-active"));
+      placeList(popover, input);
+    }
+
+    function open() {
+      if (input.disabled || !items.length) return;
+      if (openVariables && openVariables !== close) openVariables();
+      if (!popover.isConnected) document.body.append(popover);
+      if (!built) build();
+      popover.hidden = false;
+      openVariables = close;
+      input.setAttribute("aria-expanded", "true");
+      scroll.scrollTop = 0;
+      refresh();
+    }
+
+    function close() {
+      if (popover.hidden) return;
+      popover.hidden = true;
+      if (openVariables === close) openVariables = null;
+      input.setAttribute("aria-expanded", "false");
+    }
+
+    function choose(item) {
+      // the input event first: the caller's handler resets what it filled, then onPick fills it in
+      input.value = item.name;
+      input.setSelectionRange(item.name.length, item.name.length);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      close();
+      onPick(item.name);
+    }
+
+    input.addEventListener("focus", open);
+    input.addEventListener("click", () => { if (isOpen()) refresh(); else open(); });
+    input.addEventListener("input", () => {
+      if (document.activeElement !== input) return;
+      if (isOpen()) refresh(); else open();
+    });
+    input.addEventListener("blur", close);
+    input.addEventListener("keydown", (event) => {
+      if (!isOpen()) {
+        if (event.key === "ArrowDown") { event.preventDefault(); open(); }
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        mark(event.key === "ArrowDown" ? active + 1 : active < 0 ? -1 : active - 1);
+      } else if (event.key === "Enter" && active >= 0) {
+        event.preventDefault();
+        choose(rows.filter((row) => !row.tr.hidden)[active].item);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      } else if (event.key === "Tab") {
+        close();
+      }
+    });
+
+    return { close };
+  }
+
   // a pop-out left behind when its box moves follows it; a scroll anywhere
   // else on the page (such as a log the window writes to) leaves it alone
   document.addEventListener("scroll", (event) => {
@@ -465,12 +596,11 @@ const OceanValGUI = (() => {
   window.addEventListener("resize", () => { if (openVariables) openVariables(); });
 
   // ---- a box with a list of choices, opened by the arrow at its right-hand end ----
-  // A box with yearChoices (years, or names: see withChoices) has a list of
+  // A box with yearChoices (years, or depths: see withChoices) has a list of
   // them to pick from, and anything can still be typed in it. One list serves
   // every such box, placed under (or over) the box it was opened from, and
   // fixed, so that a pop-out's body cannot clip it. A box's choiceHints are
-  // shown beside the choices they name, and its onPick(value) is called once
-  // a choice is put in it.
+  // shown beside the choices they name.
   let choiceList = null;
   let choiceOwner = null;
   let choiceActive = -1;
@@ -522,7 +652,6 @@ const OceanValGUI = (() => {
     closeChoices();
     input.value = String(choice);
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    if (input.onPick) input.onPick(input.value);
     input.focus();
   }
 
@@ -534,8 +663,6 @@ const OceanValGUI = (() => {
     }
     choiceOwner = input;
     input.setAttribute("aria-expanded", "true");
-    // the list is also the preset names of a variable's name (input.onPick), which are not years
-    choiceList.classList.toggle("is-names", Boolean(input.onPick));
     // with hints beside the choices, they are in columns, from the left
     choiceList.classList.toggle("is-hinted", Boolean(input.choiceHints));
     choiceList.replaceChildren(...input.yearChoices.map((choice) => el("li", {
@@ -546,7 +673,7 @@ const OceanValGUI = (() => {
     placeList(choiceList, input);
     // a blank box has none chosen (Number("") is 0, a choice of a depth's)
     const typed = input.value.trim();
-    const at = typed === "" ? -1 : input.yearChoices.indexOf(input.onPick ? typed : Number(typed));
+    const at = typed === "" ? -1 : input.yearChoices.indexOf(Number(typed));
     if (at >= 0) markChoice(at);
   }
 
@@ -756,7 +883,7 @@ const OceanValGUI = (() => {
   setInterval(() => { if (!document.hidden) skipWordBoxes.forEach((refresh) => refresh()); }, 300);
 
   return {
-    ICONS, COG, PML_LOGO, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, setBack, variableBox, searchMatcher,
+    ICONS, COG, PML_LOGO, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, setBack, variableBox, nameBox, searchMatcher,
     withChoices, choicesOpen, closeChoices, syncRequired, skipWords, SKIP_WORDS,
   };
 })();

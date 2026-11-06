@@ -1278,7 +1278,7 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
-        assert page.locator("#view-home .choice").count() == 5
+        assert page.locator("#view-home .choice").count() == 4
         page.click("#home-analyze")
         page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
@@ -1338,6 +1338,22 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.locator("details.vars").count() == 0
         cells.nth(1).fill("P*_Chl")
         assert page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)") == ["P1_Chl", "P2_Chl"]
+        cells.nth(1).press("Escape")
+        # the name box lists the names that match as it is typed, with the model variable each simulation holds
+        cells.nth(0).fill("Temp")
+        listed = page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])")
+        assert listed.count() == 1 and listed.first.locator("td").first.inner_text() == "Temperature"
+        assert "Base run: thetao" in listed.first.locator("td").nth(1).inner_text()
+        cells.nth(0).press("Escape")
+        # the search of a simulation's box survives a tick, so P2_Chl can be ticked after P1_Chl
+        cells.nth(1).fill("chl")
+        # the tick boxes are clicked themselves: each shows ticked, and both rows are still there
+        page.locator('.vars__popover:not([hidden]) input[aria-label="Use P1_Chl"]').click()
+        assert cells.nth(1).input_value() == "P1_Chl"
+        assert page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)") == ["P1_Chl", "P2_Chl"]
+        page.locator('.vars__popover:not([hidden]) input[aria-label="Use P2_Chl"]').click()
+        assert cells.nth(1).input_value() == "P1_Chl+P2_Chl"
+        assert page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody input:checked')].map((box) => box.closest('tr').cells[1].textContent)") == ["P1_Chl", "P2_Chl"]
         cells.nth(1).press("Escape")
         cells.nth(0).fill("Temperature")
         cells.nth(1).fill("thetao")

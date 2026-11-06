@@ -1265,6 +1265,8 @@ class TestModelVariablesBox:
             row(page, "so").locator("td").nth(1).click()
             row(page, "thetao").locator('input[type="checkbox"]').click()
             assert box.input_value() == "so+thetao"
+            # the tick box that was clicked shows ticked
+            assert page.evaluate(TICKED) == ["so", "thetao"]
             # a ticked row is unticked by a click, and taken out of the box
             row(page, "so").click()
             assert box.input_value() == "thetao"
