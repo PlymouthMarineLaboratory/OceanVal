@@ -55,6 +55,10 @@ add_point_comparison = definitions.add_point_comparison
 add_gridded_comparison = definitions.add_gridded_comparison
 
 
+# numpy warns "All-NaN slice encountered" when a masked model field has an all-missing slice;
+# the result (NaN) is what OceanVal wants, so the warning is noise everywhere.
+warnings.filterwarnings("ignore", message="All-NaN (slice|axis) encountered", category=RuntimeWarning)
+
 # Recent ipykernel versions log a benign-but-alarming warning whenever a kernel starts on the
 # default TCP transport ("Kernel is running over TCP without encryption..."), and nbconvert's
 # notebook execution has no simple knob that reaches the KernelManager it creates to switch
