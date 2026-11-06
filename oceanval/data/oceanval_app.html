@@ -807,6 +807,21 @@
   #view-help .choices.is-four .choice__text { font-size: 22px; }
   #view-home .choices.is-four .choice__text { font-size: 25.4px; }
 
+  /* the fifth tile of Tools & checks fills the row under the four */
+  #view-help .choices.is-four .choice:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 220px; }
+  /* View previous work: its menu is styled like Tools & checks' */
+  #view-previous-work .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 1032px; margin: 0 auto; gap: 36px; justify-content: center; }
+  #view-previous-work .choices.is-four .choice { max-width: none; aspect-ratio: auto; min-height: 250px; padding: 40px 46px; gap: 16px; justify-content: center; }
+  #view-previous-work .choices.is-four .choice__title { font-size: 30px; }
+  #view-previous-work .choices.is-four .choice__text { font-size: 18px; color: var(--muted); }
+  #view-previous-work .choices.is-four .choice__icon svg { width: 32px; height: 32px; }
+  .history td a { font-weight: 600; }
+  .history td.history__saved { color: var(--muted); white-space: nowrap; }
+  .history__note { color: var(--muted); margin: 12px 2px 0; }
+  .history__bar { margin: 0 0 8px; text-align: right; }
+  /* the report fills the window below the header, so Back and Restart stay in sight */
+  .history__frame { display: block; width: 100%; height: calc(100vh - var(--masthead-h, 80px) - 120px); min-height: 480px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
+
   /* ---- View simulation output (see oceanval.viewer_app) ---- */
   /* the setup page's missing values, asked there for viewing only */
   .missing-rows { display: grid; gap: 8px; margin-bottom: 8px; }
@@ -1263,7 +1278,7 @@
       <button type="button" class="choice" data-action="help" id="home-help">
         <span class="choice__icon" data-icon="help"></span>
         <span class="choice__title">Tools &amp; info</span>
-        <span class="choice__text">Check model files are compatible with OceanVal&nbsp;| Simulation bank&nbsp;| Preferences&nbsp;| About</span>
+        <span class="choice__text">Check model files are compatible with OceanVal&nbsp;| Simulation bank&nbsp;| Previous work&nbsp;| Preferences&nbsp;| About</span>
       </button>
     </div>
   </section>
@@ -1375,7 +1390,55 @@
         <span class="choice__icon" data-icon="about"></span>
         <span class="choice__title">About OceanVal</span>
       </button>
+      <button type="button" class="choice" data-action="previous_work" id="help-history">
+        <span class="choice__icon" data-icon="history"></span>
+        <span class="choice__title">View previous work</span>
+      </button>
     </div>
+  </section>
+
+  <!-- View previous work: the four kinds of work, then a list of one kind, then a report in the window -->
+  <section id="view-previous-work" hidden>
+    <p class="lede">The work you chose to add to your OceanVal history. Choose the kind of work to see it.</p>
+    <div class="choices is-four">
+      <button type="button" class="choice" data-kind="analysis" id="history-analysis">
+        <span class="choice__icon" data-icon="analyze"></span>
+        <span class="choice__title">Analyses of one simulation</span>
+        <span class="choice__text" id="history-count-analysis"></span>
+      </button>
+      <button type="button" class="choice" data-kind="simcompare" id="history-simcompare">
+        <span class="choice__icon" data-icon="simcompare"></span>
+        <span class="choice__title">Comparisons of simulations</span>
+        <span class="choice__text" id="history-count-simcompare"></span>
+      </button>
+      <button type="button" class="choice" data-kind="validation" id="history-validation">
+        <span class="choice__icon" data-icon="report"></span>
+        <span class="choice__title">Validations</span>
+        <span class="choice__text" id="history-count-validation"></span>
+      </button>
+      <button type="button" class="choice" data-kind="comparison" id="history-comparison">
+        <span class="choice__icon" data-icon="validateexisting"></span>
+        <span class="choice__title">Comparisons of validations</span>
+        <span class="choice__text" id="history-count-comparison"></span>
+      </button>
+    </div>
+  </section>
+
+  <section id="view-previous-list" hidden>
+    <p class="lede" id="history-lede"></p>
+    <div class="card bank history">
+      <table aria-label="Previous work">
+        <thead><tr><th>Name</th><th>Saved</th><th aria-label="Remove from the history"></th></tr></thead>
+        <tbody id="history-rows"></tbody>
+      </table>
+      <p class="bank__empty" id="history-empty" hidden></p>
+    </div>
+    <p class="history__note">Removing work here only takes it out of OceanVal's history. No files are deleted.</p>
+  </section>
+
+  <section id="view-previous-report" hidden>
+    <p class="history__bar"><a class="link" id="history-open-tab" target="_blank" rel="noopener">Open in a new tab</a></p>
+    <iframe class="history__frame" id="history-frame" title="Report" sandbox="allow-scripts allow-popups allow-downloads"></iframe>
   </section>
 
   <section id="view-help-compatible" hidden>
@@ -1917,6 +1980,8 @@
           <div class="ag-map dm-map" id="dm-map-v"></div>
         </div>
       </fieldset>
+      <!-- whether to add the report to the user's history (see oceanval.history_forms) -->
+      <fieldset class="group form__wide" id="v-history-group"></fieldset>
       <button type="submit" hidden></button>
     </form>
     <p class="lede" id="v-report-dir" hidden></p>
@@ -1950,6 +2015,8 @@
         <div class="g-row"><label class="g-label" for="c-out_dir">Which directory do you want to build the comparison in?</label><div class="path-field"><input class="s-input is-mono" id="c-out_dir" list="c-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-out_dir">Browse…</button></div><datalist id="c-out_dir-folders"></datalist></div>
         <p class="group__msg" id="cm-out_dir"></p>
       </fieldset>
+      <!-- whether to add the comparison to the user's history (see oceanval.history_forms) -->
+      <fieldset class="group form__wide" id="c-history-group"></fieldset>
       <button type="submit" hidden></button>
     </form>
   </section>
@@ -2121,6 +2188,7 @@
     </div>
     <div id="ao-page-3" hidden>
     <p class="lede" id="ao-save-lede">Choose where to save the analysis</p>
+    <fieldset class="group analyze-area" id="ao-history-group"></fieldset>
     <fieldset class="group analyze-area" id="ao-out-group">
       <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
       <p class="group__msg" id="ao-m-out_dir"></p>
@@ -2467,6 +2535,20 @@
     <div class="done__icon" id="done-icon"></div>
     <h2 id="done-title" tabindex="-1"></h2>
     <p id="done-text"></p>
+  </div>
+</div>
+
+<!-- asked when a run would replace work that is in the user's history (see oceanval.history_forms) -->
+<div class="picker" id="history-overwrite" hidden>
+  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="history-overwrite-title" aria-describedby="history-overwrite-text">
+    <div class="picker__head">
+      <h2 id="history-overwrite-title">Replace work in your history?</h2>
+    </div>
+    <p class="bank-info__count" id="history-overwrite-text"></p>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost" id="history-overwrite-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="history-overwrite-confirm">Replace it</button>
+    </div>
   </div>
 </div>
 
@@ -2878,6 +2960,7 @@
     help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.9 2.1c-.9.6-1.4 1.1-1.4 2.2"/><path d="M12 17.2v.1"/></svg>',
     preferences: OceanValGUI.COG,
     about: OceanValGUI.ICONS.info,
+    history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3 4.5v4h4"/><path d="M12 7.5V12l3 2"/></svg>',
     compatible: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7.25v2.25a1.75 1.75 0 1 1 0 3.5v1.5H8.5a1.75 1.75 0 1 1-3.5 0H3z"/><path d="M13.75 3H21v7.25h-7.25v-1.5a1.75 1.75 0 1 0 0-3.5z"/><path d="M3 13.75h2a1.75 1.75 0 1 0 3.5 0h1.75v1.5a1.75 1.75 0 1 1 0 3.5V21H3z"/><path d="M13.75 13.75H21V21h-7.25v-2.25a1.75 1.75 0 1 0 0-3.5z"/></svg>',
   };
   document.querySelectorAll("[data-icon]").forEach((node) => { node.innerHTML = PICTURES[node.dataset.icon]; });
@@ -3038,6 +3121,9 @@
       case "analyze_menu": return "";
       case "help": return "";  // the tiles speak for themselves
       case "bank": return "Simulation bank";
+      case "previous_work": return "View previous work";
+      case "previous_list": return HISTORY_WORDS[state.previous && state.previous.kind] || "Previous work";
+      case "previous_report": return state.previous && state.previous.viewing ? state.previous.viewing.name : "Previous work";
       case "preferences": return "Preferences";
       case "about": return "About OceanVal";
       case "help_compatible": return "Is my data compatible with OceanVal?";
@@ -3139,7 +3225,8 @@
     if (view === "start" || view === "analyze_menu") {
       // to the landing page
       actions.push(backTo(() => post("api/back")));
-    } else if (view === "help" || view === "help_compatible" || view === "bank" || view === "preferences" || view === "about") {
+    } else if (view === "help" || view === "help_compatible" || view === "bank" || view === "preferences" || view === "about"
+      || view === "previous_work" || view === "previous_list" || view === "previous_report") {
       // to the landing page, or back to Tools & checks
       actions.push(backTo(() => post("api/back")));
     } else if (view === "setup") {
@@ -4225,7 +4312,7 @@
 
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start",
-    analyze_menu: "view-analyze-menu", bank: "view-bank", preferences: "view-preferences", about: "view-about", help: "view-help", help_compatible: "view-help-compatible",
+    analyze_menu: "view-analyze-menu", bank: "view-bank", previous_work: "view-previous-work", previous_list: "view-previous-list", previous_report: "view-previous-report", preferences: "view-preferences", about: "view-about", help: "view-help", help_compatible: "view-help-compatible",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
     simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
@@ -4414,6 +4501,7 @@
     renderCdoFailed();
     if (state.view === "help_compatible") renderCompatible();
     if (state.view === "bank") renderBank();
+    if (state.view.startsWith("previous_")) renderPrevious();
     renderBankExtract();
     bankLists.forEach((again) => again());
     if (state.view === "point_data") refreshOwn("point");
@@ -4784,6 +4872,63 @@
     const node = $(id);
     node.className = "group__msg" + (error ? " is-error" : "");
     node.replaceChildren(...lines);
+  }
+
+  // ---- whether to add the work to the user's OceanVal history, and the name to give it ----
+  // The same two questions end Analyze, Compare simulations, Validate and Compare validations (see
+  // oceanval.history_forms): a Yes/No with nothing chosen to start, and, for Yes, a name. host is an empty
+  // fieldset; prefix makes the ids (`<prefix>-history-yes`, `<prefix>-work_name`, `<prefix>-m-work_name`).
+  function historyQuestion(host, prefix, onChange) {
+    const group = host;
+    const question = `${prefix}-history-question`;
+    const radio = (value, text) => el("label", { class: "ptr-mode" },
+      el("input", { type: "radio", name: `${prefix}-history`, value, id: `${prefix}-history-${value}` }), text);
+    const name = el("input", { class: "s-input", id: `${prefix}-work_name`, spellcheck: "false", autocomplete: "off", maxlength: "80", placeholder: "e.g. Baseline run" });
+    const nameRow = el("div", { class: "g-row", id: `${prefix}-row-work_name`, hidden: true },
+      el("label", { class: "g-label is-required", for: `${prefix}-work_name` }, "Name ", el("span", { class: "own-req" }, "Required")), name);
+    const yes = radio("yes", "Yes");
+    const no = radio("no", "No");
+    const help = el("p", { class: "group__intro analyze-code__help" },
+      "With Yes, it is listed under Tools & info > View previous work, with a link to open its report. Removing it from there never deletes any files.");
+    group.append(el("legend", {}, "History"),
+      el("div", { class: "g-row" }, el("span", { class: "g-label", id: question }, ""),
+        el("div", { class: "analyze-code", role: "radiogroup", "aria-labelledby": question }, yes, no)),
+      help, nameRow, el("p", { class: "group__msg", id: `${prefix}-m-work_name` }));
+    const answer = () => (yes.querySelector("input").checked ? "yes" : no.querySelector("input").checked ? "no" : "");
+    const api = {
+      words: "analysis",
+      read: () => ({ add_to_history: answer(), work_name: name.value }),
+      // what is wrong, as far as the page can tell
+      problems() {
+        const found = {};
+        if (!answer()) found.add_to_history = "";
+        else if (answer() === "yes" && !name.value.trim()) found.work_name = "";
+        return found;
+      },
+      // the reasons the server gave, shown under the boxes
+      show(errors) {
+        const text = (errors || {}).work_name || (errors || {}).add_to_history || "";
+        message(`${prefix}-m-work_name`, text ? [line(text, "error")] : [], Boolean(text));
+        name.classList.toggle("is-invalid", Boolean((errors || {}).work_name));
+      },
+      fill(form) {
+        yes.querySelector("input").checked = (form || {}).add_to_history === "yes";
+        no.querySelector("input").checked = (form || {}).add_to_history === "no";
+        name.value = (form || {}).work_name || "";
+        api.sync();
+      },
+      sync() { nameRow.hidden = answer() !== "yes"; },
+      setWords(words) {
+        api.words = words;
+        $(question).textContent = `Do you want to add this ${words} to your OceanVal history?`;
+      },
+    };
+    const changed = () => { api.sync(); api.show({}); onChange(); };
+    yes.querySelector("input").addEventListener("change", changed);
+    no.querySelector("input").addEventListener("change", changed);
+    name.addEventListener("input", changed);
+    api.setWords("analysis");
+    return api;
   }
 
   // viewing can be given a web address, which the tick says it is: asked only when what is typed looks like one,
@@ -5861,8 +6006,15 @@
   const analyzeOutput = { filled: false, probe: null, errors: {}, timer: null, number: 0 };
 
   function readOutput() {
-    return { out_dir: $("ao-out_dir").value, out: $("ao-out").value, out_typed: Boolean(analyzeOutput.typed), replace_analysis: $("ao-replace_analysis").checked };
+    return { out_dir: $("ao-out_dir").value, out: $("ao-out").value, out_typed: Boolean(analyzeOutput.typed), replace_analysis: $("ao-replace_analysis").checked, ...analyzeHistory.read() };
   }
+
+  // whether to add the analysis or comparison to the history, and its name
+  const analyzeHistory = historyQuestion($("ao-history-group"), "ao", () => {
+    delete analyzeOutput.errors.add_to_history;
+    delete analyzeOutput.errors.work_name;
+    refreshOutput();
+  });
 
   // filled once from what the server holds, so that going back and on keeps what was typed
   function fillOutput() {
@@ -5873,6 +6025,8 @@
       $("ao-out").value = kept.out;
       analyzeOutput.typed = Boolean(kept.out_typed);
       $("ao-replace_analysis").checked = Boolean(kept.replace_analysis);
+      analyzeHistory.fill(kept);
+      analyzeHistory.setWords(comparing ? "comparison" : "analysis");
       $("ao-out_dir").placeholder = state.cwd;
       $("ao-save-lede").textContent = `Choose where to save the ${comparing ? "comparison" : "analysis"}`;
       $("ao-out-label").textContent = comparing ? "What do you want the comparison script to be called"
@@ -5913,6 +6067,7 @@
     const found = analyzeOutput.probe || {};
     if (found.out_dir === "file") errors.out_dir = "This is a file, not a directory.";
     if (!$("ao-out").value.trim()) errors.out = errors.out || "";
+    Object.assign(errors, analyzeHistory.problems());
     // an analysis (or comparison) in the directory is replaced by this one: the user must tick to say so, and have named it
     if (outputReplaced(found)) {
       if (!$("ao-out_dir").value.trim()) errors.out_dir = nameTheDirectory();
@@ -5939,6 +6094,7 @@
       if (replacing) lines.push(line(`There is ${comparing ? "a comparison" : "an analysis"} here already, from an earlier run. It will be replaced: choose another directory to keep it, or tick below to replace it.`, "warn"));
       message("ao-m-out_dir", lines);
     }
+    analyzeHistory.show(errors);
     $("ao-out_dir").classList.toggle("is-invalid", Boolean(errors.out_dir));
     $("ao-out").classList.toggle("is-invalid", Boolean(errors.out));
     if (errors.out) message("ao-m-out", [line(errors.out, "error")], true);
@@ -7144,15 +7300,23 @@
     await startAnalysis("api/analyze_save_script", "The script could not be saved.");
   }
 
-  async function startAnalysis(url, failure) {
+  async function startAnalysis(url, failure, confirmed = false) {
     $("ao-run").disabled = true;
     $("ao-save").disabled = true;
-    const reply = await post(url, { form: readOutput() });
+    const reply = await post(url, { form: { ...readOutput(), overwrite_history: confirmed } });
     if (!reply.ok) {
       const errors = reply.errors || {};
+      if (errors.overwrite_history !== undefined) {
+        // the work in the history that this replaces: only on the user's say so
+        if (await confirmHistoryOverwrite(errors.overwrite_history, state.action === "simcompare" ? "comparison" : "analysis")) {
+          return startAnalysis(url, failure, true);
+        }
+        updateRun();
+        return;
+      }
       // the page the box with the error is on
-      if (errors.out_dir !== undefined || errors.out !== undefined || errors.replace_analysis !== undefined) {
-        analyzeOutput.errors = { out_dir: errors.out_dir, out: errors.out, replace_analysis: errors.replace_analysis };
+      if (["out_dir", "out", "replace_analysis", "add_to_history", "work_name"].some((name) => errors[name] !== undefined)) {
+        analyzeOutput.errors = { out_dir: errors.out_dir, out: errors.out, replace_analysis: errors.replace_analysis, add_to_history: errors.add_to_history, work_name: errors.work_name };
         for (const name of Object.keys(analyzeOutput.errors)) if (analyzeOutput.errors[name] === undefined) delete analyzeOutput.errors[name];
       } else if (errors.cores || errors.figure_code || errors.missing) {
         analyzePage.number = 2;
@@ -8562,6 +8726,7 @@
     renderDepthBins();
     for (const name of VALIDATE_TEXT) $(`v-${name}`).value = validateForm[name];
     for (const name of VALIDATE_TICKS) $(`v-${name}`).checked = Boolean(validateForm[name]);
+    validateHistory.fill(validateForm);
     $("v-concise").value = String(Boolean(validateForm.concise));
     for (const box of $("validate-form").querySelectorAll(".is-oceanval")) box.classList.remove("is-oceanval");
     $("v-data_dir").placeholder = state.cwd;
@@ -8751,6 +8916,15 @@
     delete validateErrors.cores;
     refreshValidate();
   });
+  // whether to add the report to the history, and its name (the server keeps both in the form)
+  const validateHistory = historyQuestion($("v-history-group"), "v", () => {
+    Object.assign(validateForm, validateHistory.read());
+    delete validateErrors.add_to_history;
+    delete validateErrors.work_name;
+    refreshValidate();
+  });
+  validateHistory.setWords("validation");
+  const historyBlocked = () => Object.keys(validateHistory.problems()).length > 0;
   // whether the report options ask for matchup's cores: before anything is matched up
   const coresAsked = () => state.view === "report_options" && Boolean(state.question);
   const coresMissing = () => coresAsked() && !String(validateForm.cores || "").trim();
@@ -8781,6 +8955,7 @@
       else if (id === "vm-transect" && transect.block === "empty") message(id, [line(TRANSECT_EMPTY)]);
       else message(id, hints[id] || []);
     }
+    validateHistory.show(validateErrors);
     $("v-domain_mask_path").classList.toggle("is-invalid", Boolean(validateErrors.domain_mask_path || reportMask.error()));
     if (validateErrors.domain_mask_path && !reportMask.error()) {
       message("vm-domain_mask_path", [line(validateErrors.domain_mask_path, "error")], true);
@@ -8790,11 +8965,12 @@
     if (build) {
       // there is nothing to build until there are matchups to validate
       const noMatchups = state.view === "validate" && !validateMatchups();
-      const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing();
+      const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing() || historyBlocked();
       build.disabled = blocked || maskBlocked();
       const why = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
         : coresMissing() ? "Choose the number of cores"
         : noneTicked ? NONE_TICKED
+        : historyBlocked() ? (validateHistory.read().add_to_history ? "Name the validation to add it to your history" : "Say whether to add this validation to your history")
         : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
         : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
       build.title = why || (maskBlocked() ? "Give a domain mask file that can be used, or answer No" : "");
@@ -8808,14 +8984,23 @@
 
   async function submitValidate() {
     // Enter in a box sends the form too, past the disabled button
-    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing()) return;
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || historyBlocked()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
     validateBusy = true;
     refreshValidate();
     // the report options of a matchup and validate run, or the report from matchups made earlier
     const path = state.view === "report_options" ? "api/report" : "api/validate";
-    const reply = await post(path, { form: validateForm });
+    let reply = await post(path, { form: { ...validateForm, overwrite_history: false } });
+    if (!reply.ok && (reply.errors || {}).overwrite_history !== undefined) {
+      if (await confirmHistoryOverwrite(reply.errors.overwrite_history, "validation")) {
+        reply = await post(path, { form: { ...validateForm, overwrite_history: true } });
+      } else {
+        validateBusy = false;
+        refreshValidate();
+        return;
+      }
+    }
     validateBusy = false;
     refreshValidate();
     if (!reply.ok) {
@@ -8831,7 +9016,7 @@
 
   // stops before anything is matched up, keeping the script with the report options as they are
   async function submitSaveScript() {
-    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing()) return;
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || historyBlocked()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
     validateBusy = true;
@@ -8857,9 +9042,19 @@
   let compareErrors = {};
   let compareBusy = false;
 
+  // whether to add the comparison to the history, and its name
+  const compareHistory = historyQuestion($("c-history-group"), "c", () => {
+    Object.assign(compareForm, compareHistory.read());
+    delete compareErrors.add_to_history;
+    delete compareErrors.work_name;
+    refreshCompare();
+  });
+  compareHistory.setWords("comparison of validations");
+
   function fillCompare() {
     Object.assign(compareForm, state.compare.form);
     for (const name of COMPARE_TEXT) $(`c-${name}`).value = compareForm[name];
+    compareHistory.fill(compareForm);
     $("c-out_dir").placeholder = state.cwd;
     compareErrors = {};
     refreshCompare();
@@ -8899,28 +9094,40 @@
     $("c-out_dir").classList.toggle("is-invalid", Boolean(compareErrors.out_dir));
     if (compareErrors.out_dir) message("cm-out_dir", [line(compareErrors.out_dir, "error")], true);
     else message("cm-out_dir", [line("The comparison is built in oceanval_comparison, inside this directory. Empty: the directory you started oceanval in.")]);
-    // compare needs two simulations
+    compareHistory.show(compareErrors);
+    // compare needs two simulations, and the history question answered
     const go = $("compare");
     if (go) {
       const few = filledRows() < 2;
-      go.disabled = compareBusy || few;
-      go.title = few ? "Fill in at least two simulations" : "";
+      const unanswered = Object.keys(compareHistory.problems()).length > 0;
+      go.disabled = compareBusy || few || unanswered;
+      go.title = few ? "Fill in at least two simulations"
+        : unanswered ? (compareHistory.read().add_to_history ? "Name the comparison to add it to your history" : "Say whether to add this comparison to your history") : "";
     }
   }
 
   async function submitCompare() {
     // Enter in a box sends the form too, past the disabled button
-    if (compareBusy || filledRows() < 2) return;
+    if (compareBusy || filledRows() < 2 || Object.keys(compareHistory.problems()).length) return;
     compareBusy = true;
     refreshCompare();
-    const reply = await post("api/compare", { form: compareForm });
+    let reply = await post("api/compare", { form: { ...compareForm, overwrite_history: false } });
+    if (!reply.ok && (reply.errors || {}).overwrite_history !== undefined) {
+      if (await confirmHistoryOverwrite(reply.errors.overwrite_history, "comparison of validations")) {
+        reply = await post("api/compare", { form: { ...compareForm, overwrite_history: true } });
+      } else {
+        compareBusy = false;
+        refreshCompare();
+        return;
+      }
+    }
     compareBusy = false;
     refreshCompare();
     if (!reply.ok) {
       compareErrors = reply.errors || {};
       if (reply.error) toast(reply.error);
       refreshCompare();
-      const first = Object.keys(compareErrors).find((name) => name !== "rows");
+      const first = Object.keys(compareErrors).find((name) => name !== "rows" && $(`c-${name}`));
       if (first) $(`c-${first}`).focus();
     }
   }
@@ -11192,6 +11399,98 @@
     $("info-point").replaceChildren(datasetTable(datasets.filter((row) => row.point)));
     $("info-version").textContent = `Version ${state.oceanval_version}`;
     $("info-logo").src = OceanValGUI.PML_LOGO;
+  }
+
+  // ---- replacing work that is in the history: the server says so (errors.overwrite_history is the name of
+  // the work), and the run only goes on if the user agrees; the old work then goes from the history ----
+  function confirmHistoryOverwrite(name, words) {
+    return new Promise((resolve) => {
+      const dialog = $("history-overwrite");
+      $("history-overwrite-text").textContent = `The ${words} you are about to run will overwrite '${name}', which is in your OceanVal history. If you carry on, '${name}' is removed from your history, and its files are replaced.`;
+      const opener = document.activeElement;
+      const finish = (answer) => {
+        dialog.hidden = true;
+        $("history-overwrite-cancel").onclick = $("history-overwrite-confirm").onclick = null;
+        dialog.onkeydown = null;
+        if (opener && opener.focus) opener.focus();
+        resolve(answer);
+      };
+      $("history-overwrite-cancel").onclick = () => finish(false);
+      $("history-overwrite-confirm").onclick = () => finish(true);
+      dialog.onkeydown = (event) => { if (event.key === "Escape") { event.preventDefault(); finish(false); } };
+      dialog.hidden = false;
+      // keeping the old work is the safe default
+      $("history-overwrite-cancel").focus();
+    });
+  }
+
+  // ---- View previous work: the history of reports the user chose to keep (see oceanval.user_cache) ----
+  const HISTORY_WORDS = {
+    analysis: "Analyses of one simulation",
+    simcompare: "Comparisons of simulations",
+    validation: "Validations",
+    comparison: "Comparisons of validations",
+  };
+  const HISTORY_NONE = {
+    analysis: "No analyses are in your history yet. When you finish an Analyze run, say you want it added to your history.",
+    simcompare: "No comparisons of simulations are in your history yet. When you finish one, say you want it added to your history.",
+    validation: "No validations are in your history yet. When you finish one, say you want it added to your history.",
+    comparison: "No comparisons of validations are in your history yet. When you finish one, say you want it added to your history.",
+  };
+
+  for (const tile of document.querySelectorAll("#view-previous-work .choice")) {
+    tile.addEventListener("click", () => post("api/previous_open", { kind: tile.dataset.kind }));
+  }
+
+  // the date the work was added, as the user's computer writes dates
+  function historyDate(text) {
+    const when = new Date(text);
+    return Number.isNaN(when.getTime()) ? "" : when.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  }
+
+  let previousShown = null;
+  function renderPrevious() {
+    const previous = state.previous || {};
+    if (state.view === "previous_work") {
+      for (const kind of Object.keys(HISTORY_WORDS)) {
+        const count = ((previous.counts || {})[kind]) || 0;
+        $(`history-count-${kind}`).textContent = count ? plural(count, "report") : "Nothing yet";
+      }
+    } else if (state.view === "previous_list") {
+      const entries = previous.entries || [];
+      $("history-lede").textContent = `${HISTORY_WORDS[previous.kind] || ""}: choose a name to see its report here.`;
+      $("history-empty").hidden = entries.length > 0;
+      $("history-empty").textContent = HISTORY_NONE[previous.kind] || "";
+      $("history-rows").replaceChildren(...entries.map((entry) => el("tr", {},
+        el("td", {}, el("a", {
+          class: "link", href: "#", text: entry.name,
+          onclick: async (event) => {
+            event.preventDefault();
+            const reply = await post("api/previous_view", { id: entry.id });
+            if (!reply.ok) toast(reply.error || "Could not open it.");
+          },
+        })),
+        el("td", { class: "history__saved", text: historyDate(entry.added) }),
+        el("td", { class: "bank__remove" }, el("button", {
+          type: "button", class: "analyze-remove", text: "×", title: "Remove from your history (no files are deleted)",
+          "aria-label": `Remove ${entry.name} from your history`,
+          onclick: async () => {
+            const reply = await post("api/previous_remove", { kind: previous.kind, id: entry.id });
+            if (!reply.ok) toast(reply.error || "Could not remove it.");
+          },
+        })))));
+    } else if (state.view === "previous_report") {
+      const viewing = previous.viewing;
+      // the frame is only set again for another report, so it keeps its place while the page redraws
+      const wanted = viewing && viewing.href ? viewing.href : "about:blank";
+      if (previousShown !== wanted) {
+        previousShown = wanted;
+        $("history-frame").src = wanted;
+      }
+      $("history-open-tab").href = wanted;
+      $("history-open-tab").hidden = !viewing;
+    }
+    if (state.view !== "previous_report") previousShown = null;
   }
 
   // ---- the simulation bank: names and directories kept on purpose (see oceanval.user_cache) ----

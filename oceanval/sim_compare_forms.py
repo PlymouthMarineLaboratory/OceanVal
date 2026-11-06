@@ -6,7 +6,7 @@ step Analyze has (see oceanval.analysis_forms)."""
 
 import os
 
-from oceanval import analysis, analysis_forms, sim_compare, sim_unify
+from oceanval import analysis, analysis_forms, history_forms, sim_compare, sim_unify
 
 MOST_SIMULATIONS = sim_compare.MOST_SIMULATIONS
 # the simulation rows the step starts with
@@ -45,6 +45,7 @@ def default_output_form(cwd):
         "out": free_name(cwd, "simulation_comparison"),
         "out_typed": False,
         "replace_analysis": False,
+        **history_forms.defaults(),
     }
 
 
@@ -56,6 +57,7 @@ def clean_output_form(form, cwd):
         "out": str(form.get("out") or "").strip(),
         "out_typed": bool(form.get("out_typed")),
         "replace_analysis": bool(form.get("replace_analysis")),
+        **history_forms.clean(form),
     }
 
 
@@ -65,7 +67,9 @@ def check_output(form, cwd):
     errors), where errors maps each box that cannot be used to the reason. A
     comparison in the output directory is replaced by the new one, so the user
     must have ticked to say so, and named the directory."""
-    return analysis_forms.check_output(form, cwd, sim_compare.FOLDER, NAME_THE_DIRECTORY)
+    return analysis_forms.check_output(
+        form, cwd, sim_compare.FOLDER, NAME_THE_DIRECTORY, kind=history_forms.SIMCOMPARE
+    )
 
 
 # said when a comparison is in the directory worked in and the box is empty; the page says it too

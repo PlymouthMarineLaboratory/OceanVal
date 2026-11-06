@@ -1635,6 +1635,7 @@ def analyze(
     transects=None,
     map_changes=None,
     times_index=None,
+    name=None,
 ):
     """
     Analyze a simulation on its own, with no observations, and build an HTML
@@ -1774,6 +1775,11 @@ def analyze(
     times_index : str
         The path of the times of the files, as the window's check of their
         dates saved them, so they are not read again. Left out, they are read.
+    name : str
+        A name for this analysis, to add it to your OceanVal history, where the
+        window's Tools & info > View previous work lists it with a link to its
+        report. It must not be the name of another analysis there. Left out, the
+        analysis is not added to the history.
 
     Returns
     -------------
@@ -1813,6 +1819,7 @@ def analyze(
     out_dir = os.path.abspath(out_dir or ".")
     if os.path.isfile(out_dir):
         raise ValueError(f"out_dir, {out_dir}, is a file, not a directory.")
+    user_cache.require_free_history_name("analysis", name, os.path.join(out_dir, FOLDER, REPORT_LINK))
 
     if times_index is not None:
         if not isinstance(times_index, (str, os.PathLike)):
@@ -1881,6 +1888,7 @@ def analyze(
     _say("Finishing the report")
     landing = book.finish()
     user_cache.record_sim_dir(sim_dir)
+    user_cache.keep_work("analysis", name, os.path.join(folder, REPORT_LINK), landing)
     _say(f"The analysis is in {folder}: open {os.path.join(folder, REPORT_LINK)} to see the report")
     if view:
         webbrowser.open("file://" + os.path.abspath(landing))

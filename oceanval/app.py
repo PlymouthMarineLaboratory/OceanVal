@@ -64,7 +64,7 @@ import traceback
 import urllib.parse
 
 import oceanval
-from oceanval import domain_mask, leftovers, live, netcdf_lock, prompts, recipes_gui
+from oceanval import domain_mask, history_forms, leftovers, live, netcdf_lock, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
@@ -293,6 +293,8 @@ def default_validate_form():
         # whether part of the domain is masked out, by a file (see check_domain_mask)
         "domain_mask": "no",
         "domain_mask_path": "",
+        # whether to add the report to the user's history, and its name (see oceanval.history_forms)
+        **history_forms.defaults(),
     }
 
 
@@ -642,7 +644,7 @@ def check_validate(form, cwd):
         errors["out_dir"] = "This is a file, not a directory."
     # the options of matchups that are not there, or not ticked, are not asked about
     form, variables = choose_matchups(form, matchups, errors)
-    report, report_errors = check_report(form, cwd)
+    report, report_errors = check_report(form, cwd, arguments["out_dir"])
     arguments.update(report)
     errors.update(report_errors)
     if variables is not None:
@@ -686,10 +688,12 @@ def choose_matchups(form, matchups, errors):
 GRIDDED_ONLY = ("subregions", "subregions_file", "fixed_scale", "transect")
 
 
-def check_report(form, cwd):
+def check_report(form, cwd, out_dir=None):
     """Turn the report options step's boxes, other than its directories,
     into validate() arguments: what the last step of a matchup and validate
-    run asks, before the matchups are made.
+    run asks, before the matchups are made. out_dir is where the report will
+    be built, if it is known, so that a name the report itself has in the
+    history may be kept.
 
     Returns (arguments, errors), as check_validate does.
     """
@@ -727,6 +731,11 @@ def check_report(form, cwd):
     # validate's own default is OceanVal's bins
     if bins is not None and bins != depths.DEFAULT_DEPTH_BINS:
         arguments["depth_bins"] = [list(pair) for pair in bins]
+    # whether to add the report to the history, with its name if so
+    name, history_errors = history_forms.check(form, history_forms.VALIDATION, out_dir)
+    errors.update(history_errors)
+    if name is not None:
+        arguments["name"] = name
     return arguments, errors
 
 
@@ -826,7 +835,7 @@ def check_transect_boxes(form, errors):
 def default_compare_form():
     """The compare step's boxes, as they start: a name and a validation
     directory for each simulation, and where to build the comparison."""
-    form = {"out_dir": ""}
+    form = {"out_dir": "", **history_forms.defaults()}
     for row in range(1, COMPARE_ROWS + 1):
         form[f"name_{row}"] = ""
         form[f"dir_{row}"] = ""
@@ -880,7 +889,13 @@ def check_compare(form, cwd):
     out_dir = _path(form["out_dir"] or ".", cwd)
     if os.path.isfile(out_dir):
         errors["out_dir"] = "This is a file, not a directory."
-    return {"model_dict": model_dict, "out_dir": out_dir}, errors
+    arguments = {"model_dict": model_dict, "out_dir": out_dir}
+    # whether to add the comparison to the history, with its name if so
+    name, history_errors = history_forms.check(form, history_forms.COMPARISON, out_dir)
+    errors.update(history_errors)
+    if name is not None:
+        arguments["name"] = name
+    return arguments, errors
 
 
 def _compare_call(arguments, cwd):
@@ -1599,6 +1614,10 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # the info of a bank simulation being extracted (see bank_extract): its
         # name, the status the page is shown, and the reading of the files' years
         self._bank_extract = None
+        # View previous work: the kind of work whose list is open, and the entry being viewed
+        # (see _previous_state)
+        self.previous_kind = None
+        self.previous_id = None
         # `cdo sinfo` on every file of the simulation(s) chosen, in the background
         # (see _start_cdo_check): the simulations it is for, the check, and what the
         # page is told. A file it crashes on stops everything (see _cdo_fault)
@@ -1821,6 +1840,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 },
                 "bank": self._bank_state(),
                 "bank_extract": self._bank_extract_state(),
+                "previous": self._previous_state(),
                 "validate": {
                     "form": self.validate_form,
                     "depth_defaults": default_depth_boxes(),
@@ -2456,6 +2476,15 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = "bank"
                 self._notify()
                 return True
+            if action == "previous_work":
+                # Tools & checks' View previous work tile
+                if self.view != "help":
+                    return False
+                self.previous_kind = None
+                self.previous_id = None
+                self.view = "previous_work"
+                self._notify()
+                return True
             if action == "help":
                 # the landing page's Tools & checks tile
                 if self.view != "home":
@@ -2596,6 +2625,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "register_gridded": "register_kind",
             "help": "home",
             "bank": "help",
+            "previous_work": "help",
+            "previous_list": "previous_work",
+            "previous_report": "previous_list",
             "analyze_menu": "home",
             "help_compatible": "help",
             "preferences": "help",
@@ -2713,6 +2745,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             page, self.recipes_page = self.recipes_page, None
             reading, self._output_years = self._output_years, None
             self._drop_bank_extract()
+            self.previous_kind = None
+            self.previous_id = None
             self._drop_cdo_check()
             self._drop_compat()
             self._own_sim = None
@@ -3239,6 +3273,99 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 return 200, {"ok": False, "error": "Could not remove it from the bank."}
             self._notify()
             return 200, {"ok": True, "bank": self._bank_state()}
+
+    # ---- View previous work: the history of reports the user asked to keep ----
+
+    def _previous_folders(self, entry):
+        """The folders a history entry's report is served from."""
+        return entry["folders"] or [os.path.dirname(entry["landing"])]
+
+    def _previous_href(self, entry):
+        """The link to a history entry's report, served below /previous/<token>/<id>/."""
+        folders = [os.path.realpath(folder) for folder in self._previous_folders(entry)]
+        root = os.path.commonpath(folders)
+        landing = os.path.realpath(entry["landing"])
+        if not _inside(root, landing):
+            return None
+        relative = os.path.relpath(landing, root)
+        return f"previous/{self.token}/{entry['id']}/{urllib.parse.quote(relative)}"
+
+    def previous_target(self, entry_id):
+        """The folder the pages of a history entry are served from and the folders it may
+        serve, or (None, None) if there is no such entry (or its report has gone)."""
+        for entry in user_cache.history():
+            if entry["id"] == entry_id:
+                folders = [os.path.realpath(folder) for folder in self._previous_folders(entry)]
+                try:
+                    return os.path.commonpath(folders), folders
+                except ValueError:
+                    return None, None
+        return None, None
+
+    def _previous_state(self):
+        """What the View previous work pages show: how much work there is of each kind (on the
+        first page), the work of one kind (on the list) or the report being viewed. The cache is
+        read each time, so work whose files have been deleted is no longer there."""
+        if self.view not in ("previous_work", "previous_list", "previous_report"):
+            return None
+        found = {"kind": self.previous_kind, "counts": None, "entries": None, "viewing": None}
+        entries = user_cache.history()
+        if self.view == "previous_work":
+            found["counts"] = {kind: sum(1 for entry in entries if entry["kind"] == kind) for kind in user_cache.HISTORY_KINDS}
+        else:
+            listed = [
+                dict(
+                    id=entry["id"],
+                    name=entry["name"],
+                    added=entry["added"],
+                    href=self._previous_href(entry),
+                )
+                for entry in entries
+                if entry["kind"] == self.previous_kind
+            ]
+            if self.view == "previous_list":
+                found["entries"] = listed
+            else:
+                found["viewing"] = next((entry for entry in listed if entry["id"] == self.previous_id), None)
+        return found
+
+    def previous_open(self, kind):
+        """Open the list of one kind of work: (status, reply)."""
+        if kind not in user_cache.HISTORY_KINDS:
+            return 400, {"ok": False, "error": "That kind of work is not kept."}
+        with self._lock:
+            if self.view not in ("previous_work", "previous_list"):
+                return 409, {"ok": False, "error": "This step is over."}
+            self.previous_kind = kind
+            self.previous_id = None
+            self.view = "previous_list"
+            self._notify()
+        return 200, {"ok": True}
+
+    def previous_view(self, entry_id):
+        """Open one piece of work's report in the window: (status, reply)."""
+        with self._lock:
+            if self.view != "previous_list":
+                return 409, {"ok": False, "error": "This step is over."}
+            found = [entry for entry in user_cache.history(self.previous_kind) if entry["id"] == entry_id]
+            if not found:
+                # its files have been deleted since the list was shown
+                self._notify()
+                return 200, {"ok": False, "error": "That report is no longer there."}
+            self.previous_id = entry_id
+            self.view = "previous_report"
+            self._notify()
+        return 200, {"ok": True}
+
+    def previous_remove(self, kind, entry_id):
+        """Take a piece of work out of the history (its files are not touched): (status, reply)."""
+        if kind not in user_cache.HISTORY_KINDS or not isinstance(entry_id, str) or not entry_id:
+            return 400, {"ok": False, "error": "Say which work to remove."}
+        with self._lock:
+            if not user_cache.remove_history(kind, entry_id):
+                return 200, {"ok": False, "error": "Could not remove it from your history."}
+            self._notify()
+        return 200, {"ok": True}
 
     def _bank_extract_state(self):
         """What the page is told of the extraction of a bank simulation's info:
@@ -4191,6 +4318,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self.status = "starting"
             self.results_dir = arguments["out_dir"]
             self.console.clear()
+        # the validation in the history that this one replaces goes from it
+        history_forms.forget_overwritten(history_forms.VALIDATION, arguments["out_dir"])
         self.start_run(
             ["validate", json.dumps(arguments)], _validate_call(arguments, self.cwd)
         )
@@ -4216,6 +4345,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self.results_dir = arguments["out_dir"]
             self.compare_arguments = arguments
             self.console.clear()
+        history_forms.forget_overwritten(history_forms.COMPARISON, arguments["out_dir"])
         self.start_run(
             ["compare", json.dumps(arguments)], _compare_call(arguments, self.cwd)
         )
@@ -4576,7 +4706,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if self._report_vertical() is False:
                 form["depth_bins"] = default_depth_boxes()
         # outside the lock: reading a regions file can take a moment
-        report, report_errors = check_report(form, self.cwd)
+        report, report_errors = check_report(form, self.cwd, self.results_dir or self.out_dir)
         errors.update(report_errors)
         # only before anything is matched up
         cores, matchup = None, {}
@@ -4686,6 +4816,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self._keep_in_script(cores=cores, **matchup)
             writer = self._script_writer
             self._notify()
+        # the validation in the history that this one replaces goes from it
+        history_forms.forget_overwritten(history_forms.VALIDATION, directory)
         self._write_script(writer, report=report)
         if question is not None:
             # matchup builds an interim report with the report's options as
@@ -5579,12 +5711,14 @@ class _Handler(recipes_gui._Handler):
                 "text/plain; charset=utf-8",
             )
             return
-        root = self.app.report_root(which)
-        found = (
-            None
-            if root is None
-            else _served_file(root, page, self.app.report_folders(which))
-        )
+        if which == "previous":
+            # a report in the user's history: /previous/<token>/<id>/<page>
+            entry_id, _, page = page.partition("/")
+            root, folders = self.app.previous_target(entry_id)
+        else:
+            root = self.app.report_root(which)
+            folders = self.app.report_folders(which)
+        found = None if root is None else _served_file(root, page, folders)
         data = None
         if found is not None:
             with contextlib.suppress(OSError):
@@ -5604,7 +5738,7 @@ class _Handler(recipes_gui._Handler):
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
-        if url.path.startswith(("/interim/", "/report/", "/analysis/", "/simcompare/", "/comparison/")):
+        if url.path.startswith(("/interim/", "/report/", "/analysis/", "/simcompare/", "/comparison/", "/previous/")):
             self._report_file(url.path)
             return
         query = {
@@ -5876,6 +6010,15 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/bank_add":
             self._reply_json(*app.bank_add(payload.get("name"), payload.get("path")))
+            return
+        if path == "/api/previous_open":
+            self._reply_json(*app.previous_open(payload.get("kind")))
+            return
+        if path == "/api/previous_view":
+            self._reply_json(*app.previous_view(payload.get("id")))
+            return
+        if path == "/api/previous_remove":
+            self._reply_json(*app.previous_remove(payload.get("kind"), payload.get("id")))
             return
         if path == "/api/bank_remove":
             self._reply_json(*app.bank_remove(payload.get("name")))

@@ -22,6 +22,7 @@ from oceanval import depths
 from oceanval import prompts
 from oceanval import selection
 from oceanval import transects
+from oceanval import user_cache
 from oceanval.session import session_info
 from oceanval.utils import restrict_r_to_conda
 restrict_r_to_conda()
@@ -1455,6 +1456,7 @@ def validate(
     depth_bins=None,
     variables=None,
     previous=True,
+    name=None,
 ):
     # docstring
     """
@@ -1488,6 +1490,8 @@ def validate(
         The matchups to validate, if not all of them. Each entry is a variable, which validates it against all its sources, or "variable/source", for one, e.g. ["temperature", "nitrate/WOA23"]. Both are as named in the matchups (oceanval_matchups), and are not case sensitive. Each entry must match at least one matchup. The summary covers only the matchups validated. Default is None, which validates every matchup.
     previous : bool or list
         Whether to validate the matchups in data_dir that the last matchup() run there did not make: those of earlier runs into the same directory, which matchup() leaves there when it matches up other variables or datasets. Default is True. False validates only the matchups the last run made or kept, as it recorded them. A list validates those and the earlier matchups it picks, each entry a variable or "variable/source", as for variables, e.g. ["chlorophyll/OCCCI"]. variables then picks among the matchups validated.
+    name : str or None
+        A name for this validation, to add it to your OceanVal history, where the window's Tools & info > View previous work lists it with a link to its report. It must not be the name of another validation there. Default is None, which does not add the validation to the history.
 
     Returns
     -------
@@ -1524,6 +1528,7 @@ def validate(
     # ensure proper handling of ~
     out_dir = os.path.expanduser(out_dir)
     out_dir = os.path.abspath(out_dir)
+    user_cache.require_free_history_name("validation", name, os.path.join(out_dir, "oceanval_report.html"))
 
     book_dir = os.path.join(out_dir, "oceanval_report")
     # if it doesn't exist, create it
@@ -1838,6 +1843,7 @@ def validate(
         os.remove(f"{out_dir}/oceanval_report.html")
     # create a symlink with relative directory
     os.symlink(os.path.relpath(out_ff, out_dir), f"{out_dir}/oceanval_report.html")
+    user_cache.keep_work("validation", name, f"{out_dir}/oceanval_report.html", out_ff)
     if test is False:
         webbrowser.open("file://" + os.path.abspath(out_ff))
 
@@ -1867,7 +1873,7 @@ def rebuild(data_dir=".", pdf=False):
     webbrowser.open("file://" + os.path.abspath(out_ff))
 
 
-def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir="."):
+def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir=".", name=None):
     """
     Compare pre-validated simulations.
     This function will compare the validation output from multiple simulations.
@@ -1886,6 +1892,8 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
         Whether to also generate Word versions of the report (one per page, plus a combined oceanval_report.docx), with the maths as editable Word equations. Default is False. Requires pandoc.
     out_dir : str
         The directory to build the comparison in: it goes in oceanval_comparison, inside it. Default is the current directory.
+    name : str or None
+        A name for this comparison, to add it to your OceanVal history, where the window's Tools & info > View previous work lists it with a link to its report. It must not be the name of another comparison of validations there. Default is None, which does not add the comparison to the history.
 
     Each path in model_dict is a directory validate() built its report in (its out_dir), which holds oceanval_report and oceanval_results. The comparison reads oceanval_results, and compares the gridded datasets validated in at least two of the simulations.
     """
@@ -1905,6 +1913,10 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
     )
     book_dir = os.path.join(comparison_dir, "compare")
     notebooks_dir = os.path.join(book_dir, "notebooks")
+    landing_page = os.path.join(
+        book_dir, "_build", "html", "notebooks", "comparison_seasonal.html"
+    )
+    user_cache.require_free_history_name("comparison", name, landing_page)
 
     if os.path.exists(comparison_dir):
         if ask:
@@ -1987,9 +1999,20 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
         word=word,
     )
 
+    # the comparison links to each simulation's validation report
+    user_cache.keep_work(
+        "comparison",
+        name,
+        landing_page,
+        landing_page,
+        user_cache.history_folders(landing_page)
+        + [
+            os.path.join(path, "oceanval_report", "_build", "html")
+            for path in model_dict.values()
+            if os.path.isdir(os.path.join(path, "oceanval_report", "_build", "html"))
+        ],
+    )
     if view:
-        first_notebook_html = os.path.splitext(comparison_notebooks[0])[0] + ".html"
-        landing_page = os.path.join(book_dir, "_build", "html", "notebooks", first_notebook_html)
         webbrowser.open("file://" + os.path.abspath(landing_page))
 
 

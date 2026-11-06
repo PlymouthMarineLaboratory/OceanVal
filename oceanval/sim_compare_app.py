@@ -981,6 +981,7 @@ class SimCompareSteps:
             figure_code=figure_code,
             transects=chosen["transects"],
             map_changes=chosen["map_changes"]["rows"] if chosen["map_changes"] else None,
+            history_name=self.sc_paths.get("history_name"),
         )
         script = self.sc_paths["out"]
         try:

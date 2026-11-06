@@ -358,7 +358,7 @@ def test_the_bank_in_a_browser(browser, tmp_path, oceanvalcache):
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-help")
         page.wait_for_selector("#view-help:not([hidden])")
-        assert page.locator("#view-help .choice").count() == 4
+        assert page.locator("#view-help .choice").count() == 5
         page.click("#help-bank")
         page.wait_for_selector("#view-bank:not([hidden])")
         assert page.locator("#bank-rows tr").count() == 1

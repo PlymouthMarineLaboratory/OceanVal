@@ -7,7 +7,10 @@ again only when their files change, and which first-time messages the window
 has shown (``seen``, e.g. the note on the data store when Validate is first opened),
 and the simulation bank: the names and directories of simulations the user has chosen to
 keep (``bank``), which the window offers when a simulation is set up, each with the info
-(files, years, size) the user has had extracted for it, if any.
+(files, years, size) the user has had extracted for it, if any, and the history of
+the work the user asked to have remembered (``history``): the name and the report of
+an analysis, a comparison of simulations, a validation or a comparison of validations,
+which the window's View previous work pages list and open.
 
 The file is in your home directory (or is the file the ``OCEANVALCACHE``
 environment variable names, if it is set). OceanVal never ships it and does not
@@ -21,6 +24,7 @@ A cache must never stop a run, so nothing here raises.
 
 import contextlib
 import datetime
+import hashlib
 import json
 import os
 import tempfile
@@ -32,6 +36,9 @@ FILE_NAME = ".oceanvalcache"
 VERSION = 1
 MAX_SIM_DIRS = 20
 MAX_OUTPUT_YEARS = 50
+# the kinds of work that can be in the history, and the longest name one can have
+HISTORY_KINDS = ("analysis", "simcompare", "validation", "comparison")
+MAX_HISTORY_NAME = 80
 
 # a file that is unreadable is said so once, not on every look
 _warned = set()
@@ -63,7 +70,7 @@ def _load(where):
     """The whole file, as it is, and why it cannot be used (None if it can).
     A missing file is an empty one."""
     if not os.path.exists(where):
-        return {"version": VERSION, "sim_dirs": [], "bank": []}, None
+        return {"version": VERSION, "sim_dirs": [], "bank": [], "history": []}, None
     try:
         with open(where, encoding="utf-8") as handle:
             data = json.load(handle)
@@ -73,6 +80,8 @@ def _load(where):
             raise ValueError('"sim_dirs" should be a list')
         if not isinstance(data.get("bank", []), list):
             raise ValueError('"bank" should be a list')
+        if not isinstance(data.get("history", []), list):
+            raise ValueError('"history" should be a list')
         version = data.get("version", VERSION)
         if not isinstance(version, int) or version > VERSION:
             raise ValueError(f"it is from a newer OceanVal (version {version})")
@@ -81,6 +90,7 @@ def _load(where):
     data.setdefault("version", VERSION)
     data.setdefault("sim_dirs", [])
     data.setdefault("bank", [])
+    data.setdefault("history", [])
     return data, None
 
 
@@ -451,6 +461,213 @@ def record_seen(name):
                 warning=f"could not update {path()}: {error}",
             )
         return False
+
+
+# ---- the history of work the user asked to keep ----
+
+
+def history_id(kind, report):
+    """A short, stable id for a piece of work: its kind and the real path of its report."""
+    where = os.path.realpath(os.path.expanduser(str(report)))
+    return hashlib.sha1(f"{kind}\0{where}".encode("utf-8")).hexdigest()[:12]
+
+
+def clean_history_name(name):
+    """The name as it is kept: trimmed, on one line."""
+    return " ".join(str(name or "").split())
+
+
+def check_history_name(name):
+    """Why a name cannot be used, or "" if it can (not whether it is taken)."""
+    name = clean_history_name(name)
+    if not name:
+        return "Give it a name."
+    if len(name) > MAX_HISTORY_NAME:
+        return f"Use a name of at most {MAX_HISTORY_NAME} characters."
+    return ""
+
+
+def _history_entries(entries):
+    """The well formed entries of a history, as they are kept; anything else is ignored."""
+    found = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        kind, name, report = entry.get("kind"), entry.get("name"), entry.get("report")
+        if kind not in HISTORY_KINDS or not isinstance(name, str) or not name.strip():
+            continue
+        if not isinstance(report, str) or not report:
+            continue
+        landing = entry.get("landing")
+        folders = entry.get("folders")
+        folders = [folder for folder in folders if isinstance(folder, str) and folder] if isinstance(folders, list) else []
+        found.append(
+            {
+                "id": history_id(kind, report),
+                "kind": kind,
+                "name": name.strip(),
+                "report": report,
+                "landing": landing if isinstance(landing, str) and landing else report,
+                "folders": folders,
+                "added": str(entry.get("added") or ""),
+            }
+        )
+    return found
+
+
+def _kept_history(raw, keep):
+    """The raw entries of a history that stay: those OceanVal cannot make sense of are kept
+    exactly as they are (they may be from a newer OceanVal), the others if keep(entry)."""
+    kept = []
+    for entry in raw:
+        parsed = _history_entries([entry])
+        if not parsed or keep(parsed[0]):
+            kept.append(entry)
+    return kept
+
+
+def history(kind=None):
+    """The work in the history whose report is still there, newest first, as
+    [{"id", "kind", "name", "report", "landing", "folders", "added"}], those of one kind if
+    it is given. Work whose report has been deleted is left out (it stays in the file, in
+    case the folder is only unavailable for now)."""
+    where = path()
+    try:
+        data, problem = _load(where)
+    except Exception:
+        return []
+    if problem:
+        with contextlib.suppress(Exception):
+            _say(where, os.stat(where).st_mtime_ns, f"the file could not be read, so it was ignored: {problem}")
+        return []
+    found = []
+    for entry in _history_entries(data["history"]):
+        if kind is not None and entry["kind"] != kind:
+            continue
+        if os.path.exists(entry["report"]):
+            found.append(entry)
+    return found
+
+
+def history_problem(kind, name, report=None):
+    """Why a piece of work of this kind cannot be given this name, or "" if it can. A name
+    is taken by other work of the same kind, whatever its capitals, whose report is still
+    there; the same report again (a run repeated) may keep its name or change it."""
+    why = check_history_name(name)
+    if why:
+        return why
+    if kind not in HISTORY_KINDS:
+        return "That kind of work is not kept in the history."
+    wanted = clean_history_name(name).casefold()
+    own = history_id(kind, report) if report else None
+    for entry in history(kind):
+        if entry["name"].casefold() == wanted and entry["id"] != own:
+            return f"The name '{entry['name']}' is already used in your history. Choose another."
+    return ""
+
+
+def record_history(kind, name, report, landing=None, folders=None):
+    """Keep a piece of work in the history, at the top. Returns (True, "") or (False, why).
+    The same report again replaces its earlier entry (and may change its name); a name
+    used by other work of the same kind is refused. Entries whose reports are gone and
+    which have this name are replaced."""
+    try:
+        why = history_problem(kind, name, report)
+        if why:
+            return False, why
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was added to it: {problem}")
+            return False, "The OceanVal cache file could not be used, so the work was not added to your history."
+        name = clean_history_name(name)
+        report = os.path.abspath(os.path.expanduser(str(report)))
+        own = history_id(kind, report)
+        kept = _kept_history(
+            data["history"],
+            lambda old: old["id"] != own
+            and not (old["kind"] == kind and old["name"].casefold() == name.casefold()),
+        )
+        entry = {
+            "kind": kind,
+            "name": name,
+            "report": report,
+            "landing": os.path.realpath(str(landing or report)),
+            "folders": [os.path.realpath(str(folder)) for folder in (folders or history_folders(landing or report))],
+            "added": datetime.datetime.now().isoformat(timespec="seconds"),
+        }
+        data["history"] = [entry] + kept
+        _write(where, data)
+        return True, ""
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False, "The work could not be added to your history."
+
+
+def remove_history(kind, entry_id):
+    """Take a piece of work out of the history. Only the entry goes, never any file.
+    Returns whether the file is as it should be afterwards (True if it was not there)."""
+    try:
+        where = path()
+        data, problem = _load(where)
+        if problem:
+            _say(where, 0, f"the file could not be used, so nothing was removed from it: {problem}")
+            return False
+        kept = _kept_history(data["history"], lambda old: not (old["kind"] == kind and old["id"] == entry_id))
+        if len(kept) == len(data["history"]):
+            return True
+        data["history"] = kept
+        _write(where, data)
+        return True
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            loud_warning(
+                "OCEANVAL COULD NOT UPDATE ITS CACHE",
+                [f"{error}", "", "Your run is not affected."],
+                warning=f"could not update {path()}: {error}",
+            )
+        return False
+
+
+def require_free_history_name(kind, name, report):
+    """For the start of a run asked to be kept in the history: raise ValueError, before any
+    work, if name (None = not to be kept) cannot be used for this kind of work whose report
+    will be at report."""
+    if name is None:
+        return
+    if not isinstance(name, str):
+        raise ValueError("name must be text, the name to give this work in your OceanVal history, or left out.")
+    why = history_problem(kind, name, report)
+    if why:
+        raise ValueError(f"name: {why}")
+
+
+def keep_work(kind, name, report, landing=None, folders=None):
+    """For the end of a run asked to be kept in the history (name is not None): keep it, and
+    say so. Never raises, as a run that has worked must not fail at the end."""
+    if name is None:
+        return
+    ok, why = record_history(kind, name, report, landing, folders)
+    if ok:
+        print(f"OceanVal: added to your history as '{clean_history_name(name)}'", flush=True)
+    else:
+        print(f"OceanVal: this was not added to your history: {why}", flush=True)
+
+
+def history_folders(landing):
+    """The folder a report's pages are served from, [the ``_build/html`` folder above
+    landing], or [] if it is not in one."""
+    folder = os.path.dirname(os.path.realpath(str(landing)))
+    while folder and folder != os.path.dirname(folder):
+        if os.path.basename(folder) == "html" and os.path.basename(os.path.dirname(folder)) == "_build":
+            return [folder]
+        folder = os.path.dirname(folder)
+    return []
 
 
 def _write(where, data):

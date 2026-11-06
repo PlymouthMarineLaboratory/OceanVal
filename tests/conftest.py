@@ -284,6 +284,19 @@ def oceanvalcache(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def history_question_answered(request, monkeypatch):
+    """The question every piece of work ends with, whether to add it to the history (see
+    oceanval.history_forms), starts as "no" in the tests that are not about it, so a form they
+    send without it is still complete. tests/test_previous_work.py tests it as the user meets
+    it, with nothing chosen, as does any test marked history_question."""
+    if request.node.get_closest_marker("history_question") or request.module.__name__ == "test_previous_work":
+        return
+    from oceanval import history_forms
+
+    monkeypatch.setattr(history_forms, "DEFAULT_ANSWER", "no")
+
+
+@pytest.fixture(autouse=True)
 def oceanvaltimes(tmp_path_factory, monkeypatch):
     """Keep the user's own ~/.oceanvaltimes (the times of the files the viewer
     has read, see oceanval.viewer_times) out of the tests: each test has a
@@ -390,6 +403,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (dialog && !dialog.hidden && !window.__keepFolderStructure) {
       document.getElementById("folder-structure-continue").click();
     }
+    // the question of whether to add the work to the history is answered No, unless the test looks at it
+    for (const prefix of ["ao", "v", "c"]) {
+      const no = document.getElementById(`${prefix}-history-no`);
+      const yes = document.getElementById(`${prefix}-history-yes`);
+      if (no && yes && !no.checked && !yes.checked && !window.__keepHistoryQuestion && no.offsetParent !== null) no.click();
+    }
     const intro = document.getElementById("validate-intro");
     if (intro && !intro.hidden && !window.__keepValidateIntro) {
       document.getElementById("validate-intro-continue").click();
@@ -401,6 +420,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "history_question: the test meets the question of whether to add work to the history with nothing chosen"
+    )
     config.addinivalue_line(
         "markers", "cdo_check: turns on the check of the model files with `cdo sinfo` (see oceanval.cdo_check)"
     )

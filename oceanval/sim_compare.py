@@ -469,6 +469,7 @@ def compare_simulations(
     cores=None,
     figure_code=False,
     view=True,
+    name=None,
 ):
     """
     Compare up to five simulations of the same variables, with everything
@@ -550,6 +551,11 @@ def compare_simulations(
         button. Default is False.
     view : bool
         Open the report in a web browser once it is built.
+    name : str
+        A name for this comparison, to add it to your OceanVal history, where the
+        window's Tools & info > View previous work lists it with a link to its
+        report. It must not be the name of another comparison of simulations
+        there. Left out, the comparison is not added to the history.
 
     Returns
     -------------
@@ -575,6 +581,7 @@ def compare_simulations(
     out_dir = os.path.abspath(out_dir or ".")
     if os.path.isfile(out_dir):
         raise ValueError(f"out_dir, {out_dir}, is a file, not a directory.")
+    user_cache.require_free_history_name("simcompare", name, os.path.join(out_dir, FOLDER, REPORT_LINK))
 
     # the same analyses of the same variables in every simulation, so the rows are the same in each
     rows_by_sim = {}
@@ -820,6 +827,7 @@ def compare_simulations(
     landing = book.finish()
     for sim in sims:
         user_cache.record_sim_dir(sim["sim_dir"])
+    user_cache.keep_work("simcompare", name, os.path.join(folder, REPORT_LINK), landing)
     _say(f"The comparison is in {folder}: open {os.path.join(folder, REPORT_LINK)} to see the report")
     if view:
         webbrowser.open("file://" + os.path.abspath(landing))

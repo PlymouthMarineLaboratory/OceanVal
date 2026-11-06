@@ -16,7 +16,7 @@ import re
 
 import pandas as pd
 
-from oceanval import analysis
+from oceanval import analysis, history_forms
 from oceanval import time_res as time_resolution
 
 # the most rows the variables step takes
@@ -41,6 +41,7 @@ def default_setup_form(cwd):
         out=free_name(cwd, "analysis"),
         out_typed=False,
         replace_analysis=False,
+        **history_forms.defaults(),
     )
 
 
@@ -60,9 +61,11 @@ def check_setup(form, cwd):
     return arguments, errors
 
 
-def check_output(form, cwd, folder=analysis.FOLDER, name_the_directory=None):
-    """The last page's boxes, out_dir, out and replace_analysis: (arguments,
-    errors) with the full paths {"out_dir", "out"}, and for each box that cannot
+def check_output(form, cwd, folder=analysis.FOLDER, name_the_directory=None, kind=history_forms.ANALYSIS):
+    """The last page's boxes, out_dir, out, replace_analysis and whether to add the
+    work to the history, with its name (see oceanval.history_forms): (arguments,
+    errors) with the full paths {"out_dir", "out"} and "history_name", the name to give
+    the work in the history (None if it is not to be kept), and for each box that cannot
     be used the reason.
 
     What is in folder (an analysis's, or a comparison's: see
@@ -83,6 +86,9 @@ def check_output(form, cwd, folder=analysis.FOLDER, name_the_directory=None):
             errors["out_dir"] = name_the_directory or NAME_THE_DIRECTORY
         elif not form["replace_analysis"]:
             errors["replace_analysis"] = ""
+    name, history_errors = history_forms.check(form, kind, arguments.get("out_dir"))
+    errors.update(history_errors)
+    arguments["history_name"] = name
     return arguments, errors
 
 
@@ -918,8 +924,10 @@ def arguments(
     transects=None,
     map_changes=None,
     times_index=None,
+    history_name=None,
 ):
-    """analyze()'s arguments, from the steps. times_index is where the window's
+    """analyze()'s arguments, from the steps. history_name is the name to give the work in the
+    history, if it is to be kept (analyze()'s name). times_index is where the window's
     check of the dates saved the files' times, if they are not to be read again. area is what check_area gave,
     with the stations (see check_stations), if a time series is asked for.
     transects is what check_transects gave, if they are asked for, and
@@ -968,6 +976,8 @@ def arguments(
         out["figure_code"] = figure_code
     if times_index:
         out["times_index"] = times_index
+    if history_name:
+        out["name"] = history_name
     return out
 
 

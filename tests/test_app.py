@@ -8246,7 +8246,7 @@ class TestSettings:
         finally:
             app.close()
 
-    def test_tools_and_checks_has_four_tiles(self, browser, tmp_path):
+    def test_tools_and_checks_has_five_tiles(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
         url = _tools_page(app)
         try:
@@ -8254,12 +8254,13 @@ class TestSettings:
             page.goto(url)
             page.wait_for_selector("#view-help:not([hidden])")
             assert page.locator("#view-help .choice").evaluate_all("nodes => nodes.map(n => n.id)") == [
-                "help-compatible", "help-bank", "help-preferences", "help-about"]
-            # two by two
+                "help-compatible", "help-bank", "help-preferences", "help-about", "help-history"]
+            # two by two, and the fifth along the row under them
             boxes = page.locator("#view-help .choice").evaluate_all(
-                "nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y)]; })")
+                "nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width)]; })")
             assert boxes[0][1] == boxes[1][1] and boxes[2][1] == boxes[3][1] and boxes[2][1] > boxes[0][1]
             assert boxes[0][0] == boxes[2][0] and boxes[1][0] == boxes[3][0]
+            assert boxes[4][1] > boxes[2][1] and boxes[4][2] > boxes[0][2] * 1.5
         finally:
             app.close()
 

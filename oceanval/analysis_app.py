@@ -43,6 +43,7 @@ from oceanval import (
     missing_probe,
     model_check,
     recipes_gui,
+    history_forms,
     sim_compare_forms,
     time_stamps,
 )
@@ -54,6 +55,8 @@ CHECK_ID = "analyze"
 # the action of the Compare simulations steps (see oceanval.sim_compare_app), which
 # end in this module's options step
 SIMCOMPARE = "simcompare"
+# the last page's boxes: where the output is saved, and whether to add it to the history (its name too)
+OUTPUT_BOXES = ("out_dir", "out", "out_typed", "replace_analysis", "add_to_history", "work_name", "overwrite_history")
 
 KINDS = ("climatology", "phenology", "long_term", "seasonal", "map_changes", "transects")
 # the pop-outs that choose the surface and/or the water column, with the same boxes
@@ -747,6 +750,11 @@ class AnalyzeSteps:
                     "errors": errors,
                     "error": "Where the output is saved needs putting right.",
                 }
+            # the work in the history that this run replaces goes from it
+            if not save:
+                history_forms.forget_overwritten(
+                    history_forms.SIMCOMPARE if self.action == SIMCOMPARE else history_forms.ANALYSIS,
+                    paths["out_dir"])
             if self.action == SIMCOMPARE:
                 self.sc_paths = paths
                 reply, run = self.simcompare_run(
@@ -776,6 +784,7 @@ class AnalyzeSteps:
                     chosen["transects"],
                     chosen["map_changes"]["rows"] if chosen["map_changes"] else None,
                     times_index=times_index,
+                    history_name=paths.get("history_name"),
                 )
                 script = _path(self.analyze_setup["out"], self.cwd)
                 try:
@@ -809,7 +818,7 @@ class AnalyzeSteps:
         if isinstance(form, dict):
             kept = _form(form, analysis_forms.default_setup_form(self.cwd))
             self.analyze_setup_form = dict(
-                self.analyze_setup_form, **{name: kept[name] for name in ("out_dir", "out", "out_typed", "replace_analysis")}
+                self.analyze_setup_form, **{name: kept[name] for name in OUTPUT_BOXES}
             )
         return analysis_forms.check_output(self.analyze_setup_form, self.cwd)
 
@@ -881,7 +890,7 @@ class AnalyzeSteps:
             "output": (
                 self.sc_output_form
                 if self.action == SIMCOMPARE
-                else {name: self.analyze_setup_form[name] for name in ("out_dir", "out", "out_typed", "replace_analysis")}
+                else {name: self.analyze_setup_form[name] for name in OUTPUT_BOXES}
             ),
             "rows": self.analyze_rows,
             "refilled": self.analyze_refilled,
