@@ -791,14 +791,21 @@
 
   /* ---- the landing page and Tools & checks have four tiles, two by two ---- */
   #view-home .choices.is-four, #view-help .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: center; width: 100%; max-width: 1032px; gap: 36px; }
-  #view-home .choices.is-four .choice, #view-help .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
+  /* the landing page's tiles are 20% bigger than before (every size, gap and the grid's width x 1.2) */
+  #view-home .choices.is-four { max-width: 1238.4px; gap: 43.2px; }
+  #view-help .choices.is-four .choice, #view-home .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
+  #view-home .choices.is-four .choice { min-height: 396px; padding: 55.2px 55.2px; gap: 26.4px; }
   /* Tools & checks has only a symbol and a title in each tile: centred up and down, still left-aligned */
   #view-help .choices.is-four .choice { justify-content: center; }
   /* the space under a symbol is the gap (22px) plus this margin: 11.2px, 30% less than the 16px it was (the title and text keep the gap) */
-  #view-home .choices.is-four .choice__icon, #view-help .choices.is-four .choice__icon { margin-bottom: -10.8px; }
-  #view-home .choices.is-four .choice__icon svg, #view-help .choices.is-four .choice__icon svg { width: 32px; height: 32px; }
-  #view-home .choices.is-four .choice__title, #view-help .choices.is-four .choice__title { font-size: 36px; }
-  #view-home .choices.is-four .choice__text, #view-help .choices.is-four .choice__text { font-size: 22px; }
+  #view-help .choices.is-four .choice__icon { margin-bottom: -10.8px; }
+  #view-home .choices.is-four .choice__icon { margin-bottom: -12.96px; }
+  #view-help .choices.is-four .choice__icon svg { width: 32px; height: 32px; }
+  #view-home .choices.is-four .choice__icon svg { width: 38.4px; height: 38.4px; }
+  #view-help .choices.is-four .choice__title { font-size: 36px; }
+  #view-home .choices.is-four .choice__title { font-size: 42.2px; }
+  #view-help .choices.is-four .choice__text { font-size: 22px; }
+  #view-home .choices.is-four .choice__text { font-size: 25.4px; }
 
   /* ---- View simulation output (see oceanval.viewer_app) ---- */
   /* the setup page's missing values, asked there for viewing only */
