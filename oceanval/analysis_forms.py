@@ -11,6 +11,7 @@ transects. Where the output is saved is asked last.
 """
 
 import datetime
+import math
 import os
 import re
 
@@ -604,6 +605,8 @@ TRANSECT_BOXES = ("start_lon", "start_lat", "end_lon", "end_lat")
 TRANSECT_TICKS = ("climatology", "vertical")
 # the changes (trends), each with a drop-down for how, and a box for its rolling mean
 TRANSECT_CHANGES = ("trends", "vertical_trends")
+# the depths of a vertical section: how far apart (metres), and the deepest to show
+TRANSECT_DEPTHS = ("depth_increment", "max_depth")
 
 
 def blank_transect():
@@ -615,6 +618,7 @@ def blank_transect():
         "vertical": False, "vertical_start": "", "vertical_end": "",
         "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
         "vertical_trends": "", "vertical_trends_start": "", "vertical_trends_end": "", "vertical_trends_window": "1",
+        **{name: "" for name in TRANSECT_DEPTHS},
     }
 
 
@@ -703,6 +707,24 @@ def check_transects(form, placed, known_years, available=(), cwd=".", fvcom=Fals
                 for name, reason in years.items():
                     found[f"{option}_{name}"] = reason
                 options[option] = {"start": start, "end": end}
+            depths = {}
+            for name in TRANSECT_DEPTHS:
+                text = line[name]
+                if not text:
+                    continue
+                try:
+                    number_ = float(text)
+                except ValueError:
+                    number_ = float("nan")
+                if not math.isfinite(number_) or number_ <= 0:
+                    found[name] = "Depths are a number of metres above 0."
+                else:
+                    depths[name] = number_
+            if "depth_increment" in depths and "max_depth" in depths and depths["depth_increment"] > depths["max_depth"]:
+                found["depth_increment"] = "The increment is more than the maximum depth."
+            if depths and not (line["vertical"] or line["vertical_trends"]):
+                for name in depths:
+                    found[name] = "Depths are only used by a Vertical climatology or Vertical changes."
             if (line["vertical"] or line["vertical_trends"]) and row["levels"] < 2:
                 reason = "It has only one vertical level, so it has no section through the water column."
                 for option in ("vertical", "vertical_trends"):
@@ -743,7 +765,11 @@ def check_transects(form, placed, known_years, available=(), cwd=".", fvcom=Fals
                 found_lines[str(number)] = found
             elif ends is not None:
                 lines.append(
-                    {"start": ends["start"], "end": ends["end"], **{option: options.get(option) for option in analysis_transects.OPTIONS}}
+                    {
+                        "start": ends["start"], "end": ends["end"],
+                        **{option: options.get(option) for option in analysis_transects.OPTIONS},
+                        **depths,
+                    }
                 )
         problems = {}
         if found_lines:

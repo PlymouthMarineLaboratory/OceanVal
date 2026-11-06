@@ -1388,7 +1388,7 @@ def changes_code(paths, line, panels, grid, colours, limits, extend, label, size
     return _code(
         "import matplotlib.pyplot as plt\nimport numpy as np\nimport pandas as pd\n"
         "from matplotlib.ticker import FuncFormatter, MaxNLocator\n",
-        f"frames = [pd.read_csv(path) for path in {_py(list(paths))}]",
+        f"# places without a value are left out before anything is drawn\nframes = [pd.read_csv(path).dropna(subset=['value']) for path in {_py(list(paths))}]",
         "\n".join(position_code),
         listing,
         f"# the colours: for changes they are about zero\ncolours = {_py(colours)}\nlimits = {_py(limits)}",
@@ -1550,6 +1550,17 @@ def _n_depths():
     return N_DEPTHS
 
 
+def _depth_words(line):
+    """How the depths of a section are said in the report: "50 evenly spaced
+    depths", or those of the transect's depth_increment and max_depth (line is
+    what analyze() saved of it)."""
+    step, deepest = line.get("depth_increment"), line.get("max_depth")
+    if not step:
+        words = f"{_n_depths()} evenly spaced depths"
+        return words + (f", down to {deepest:g} m at most" if deepest else "")
+    return f"depths {step:g} m apart" + (f", down to {deepest:g} m at most" if deepest else ", down to the deepest with a value")
+
+
 def _depth_source(saved):
     """What the depths of the cells of a section are worked out from."""
     if saved["depths"] == "sigma":
@@ -1578,7 +1589,7 @@ def transect_text(variable, index, option):
         thing, at = name, "at each point along the transect and at each of the depths shown"
         in_section = " in the water column"
         depths = (
-            f" Each cell is put at its depth, worked out from {_depth_source(saved)}, and the section is put on {_n_depths()} evenly spaced depths, "
+            f" Each cell is put at its depth, worked out from {_depth_source(saved)}, and the section is put on {_depth_words(line)}, "
             "of which the heat maps show some."
             if saved["depths"] in ("thickness", "sigma")
             else " The heat maps show some of the model's depths."
@@ -1599,12 +1610,23 @@ def transect_text(variable, index, option):
         else:
             method = f"The mean of surface {name} over {years} is shown at each point along the transect."
             caption = f"Mean surface {name} ({units}) along the transect, {years}."
+    elif option == "vertical_monthly":
+        method = (
+            f"The mean of {name} in each month of the year over {years} is shown at each point along the transect and each depth, "
+            "in a section through the water column for each month."
+            + (
+                f" Each cell is put at its depth, worked out from {_depth_source(saved)}, and the section is put on {_depth_words(line)}."
+                if saved["depths"] in ("thickness", "sigma")
+                else ""
+            )
+        )
+        caption = f"Monthly climatology of {name} ({units}) through the water column along the transect, {years}."
     elif option == "vertical":
         method = (
             f"The annual mean of {name} is the mean of its monthly means over {years}, at each point along the transect and each depth, "
             "in a section through the water column."
             + (
-                f" Each cell is put at its depth, worked out from {_depth_source(saved)}, and the section is put on {_n_depths()} evenly spaced depths."
+                f" Each cell is put at its depth, worked out from {_depth_source(saved)}, and the section is put on {_depth_words(line)}."
                 if saved["depths"] in ("thickness", "sigma")
                 else ""
             )

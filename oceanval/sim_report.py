@@ -318,7 +318,9 @@ def methods(info):
             "**Transects.** Each transect is a straight line that runs north-south or east-west, with the options chosen for it and the years of each. The mean of each month of each year is taken first, as for the climatology, and extracted along the line with nctoolkit's `to_transect` (bilinear interpolation onto evenly spaced points), at the surface or, for the *vertical climatology* option, through the water column. "
             "The *surface climatology* is the mean of each month of the year over the years chosen, and the *vertical climatology* section is the annual mean at each depth. "
             "The *changes* are heat maps of the position along the transect by year, where a year with months missing is left out: the *absolute* ones show the annual means, the *absolute change* each annual mean minus the first, and the *percentage change* that as a percentage of the absolute value of the first, with a rolling mean of the annual means if one was chosen (each year is then the last of its window, and the first is the first rolling mean). In the water column they are shown at some of the depths. "
-            "The sections, the grids of months and the heat maps of the simulations share one colour scale."
+            "The *vertical climatology* also comes with a section for each month of the year. The depths of a section are those the user chose (a depth increment, down to the deepest depth with a value in any simulation, or to a maximum depth if one was given), or evenly spaced if no increment was given. "
+            "Places without values are left out before a figure is drawn. "
+            "The sections, the grids of months and the heat maps of the simulations share one colour scale. With exactly two simulations, each figure is followed by one of the first simulation minus the second, on a scale that is symmetric about zero."
         )
     if info.get("subregions"):
         which = {"nwes": "the northwest European Shelf regions", "global": "the global regions"}.get(

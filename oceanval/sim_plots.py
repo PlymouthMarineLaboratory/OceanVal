@@ -977,6 +977,85 @@ def transect_text(results_dir, key, index, option):
     return ap.transect_text(_own(variable, _having(variable, "transects")[0]), index, option)
 
 
+# how many months across a monthly section has
+MONTH_COLUMNS = 4
+
+
+def _along(x, y, at):
+    """y at the places at, linearly interpolated from (x, y) and missing outside x."""
+    order = np.argsort(x)
+    return np.interp(at, np.asarray(x)[order], np.asarray(y)[order], left=np.nan, right=np.nan)
+
+
+def on_first_grid(first, second):
+    """The values of the first simulation's frame of a transect option minus the second's,
+    as a frame of the first's places and value, or None if they have none in common. The
+    simulations need not be on the same positions or depths (each has depths of its own
+    unless a depth increment was given): the second is linearly interpolated along depth,
+    then along position, onto the first's, and is missing outside its own places, so the
+    seabed of the shallower one stays missing."""
+    keys = [name for name in ("month", "year") if name in first and name in second]
+    has_depth = "depth" in first and "depth" in second
+    parts = []
+    for group, one in first.groupby(keys) if keys else [((), first)]:
+        group = group if isinstance(group, tuple) else (group,)
+        other = second
+        for name, value in zip(keys, group):
+            other = other[other[name] == value]
+        if other.empty:
+            continue
+        if has_depth:
+            # along depth at each of the second's positions, then along position at each of the first's depths
+            depths = np.sort(one["depth"].unique())
+            columns = {}
+            for position, rows in other.groupby("position"):
+                columns[position] = _along(rows["depth"].to_numpy(), rows["value"].to_numpy(), depths)
+            if not columns:
+                continue
+            table = pd.DataFrame(columns, index=depths)
+            at = np.sort(one["position"].unique())
+            across = np.array([_along(table.columns.to_numpy(float), row, at) for row in table.to_numpy()])
+            lookup = pd.DataFrame(across, index=depths, columns=at).stack().rename("other").reset_index()
+            lookup.columns = ["depth", "position", "other"]
+            merged = one.merge(lookup, on=["depth", "position"], how="left")
+        else:
+            at = one["position"].to_numpy(float)
+            merged = one.assign(other=_along(other["position"].to_numpy(float), other["value"].to_numpy(float), at))
+        merged["value"] = merged["value"] - merged["other"]
+        parts.append(merged[[name for name in ("position", "depth", "month", "year") if name in one] + ["value"]])
+    if not parts:
+        return None
+    both = pd.concat(parts, ignore_index=True).dropna(subset=["value"])
+    return both if len(both) else None
+
+
+def transect_difference(results_dir, key, index, option):
+    """The first simulation's values along a transect minus the second's, for one option
+    (see transect_figure), saved as a CSV in results_dir: (its path, the names of the
+    two simulations), or None unless exactly two simulations have values and some
+    positions (and depths, months, years) are in both."""
+    info = load(results_dir)
+    variable = entry(info, key)
+    names = names_of(info)
+    if len(names) != 2:
+        return None
+    paths = []
+    for sim in names:
+        if sim not in variable["sims"] or "transects" not in variable["sims"][sim]:
+            return None
+        saved = ap.transect_of(_own(variable, sim), index)["options"].get(option)
+        if saved is None or saved["empty"]:
+            return None
+        paths.append(_path(folder_of(results_dir, info, sim), saved["csv"]))
+    first, second = (pd.read_csv(path).dropna(subset=["value"]) for path in paths)
+    both = on_first_grid(first, second)
+    if both is None or both.empty:
+        return None
+    path = os.path.join(results_dir, f"{key}_transect_{index}_{option}_difference.csv")
+    both.to_csv(path, index=False)
+    return path, tuple(names)
+
+
 def _grid_size(panels, width, height):
     columns = min(GRID_COLUMNS, panels)
     return columns, int(np.ceil(panels / columns)), (width * columns + 1.4, height * int(np.ceil(panels / columns)) + 0.6)
@@ -985,7 +1064,8 @@ def _grid_size(panels, width, height):
 def _sim_frames_code(info, sims, files):
     return _code(
         _simulations_listing(info, sims, files),
-        "frames = {name: pd.read_csv(path) for name, _, path in simulations}",
+        "# places without a value are left out before anything is drawn",
+        'frames = {name: pd.read_csv(path).dropna(subset=["value"]) for name, _, path in simulations}',
     )
 
 
@@ -1027,6 +1107,53 @@ def _sections_code(info, sims, files, line, limits, extend, cmap, label, size, c
         'for ax in axes.reshape(' + str(rows) + ", " + str(columns) + ")[:, 0]:",
         '    ax.set_ylabel("Depth (m)")',
         f"fig.colorbar(mesh, ax=list(axes[:len(simulations)]), extend={_py(extend)}, label={_py(label)})",
+    )
+
+
+def _monthly_sections_code(info, sims, files, line, limits, extend, cmap, label):
+    """The code of a section through the water column along a transect for each month of
+    the year, a block of panels (four across) for each simulation, on one colour scale
+    and with one colour bar."""
+    position_code, _ = ap._position_text(line)
+    position_label = ap._position_text(line)[1]
+    months = sorted({m for path in files for m in pd.read_csv(path, usecols=["month"])["month"].unique()})
+    per = int(np.ceil(len(months) / MONTH_COLUMNS))
+    size = (2.7 * MONTH_COLUMNS + 1.4, 2.4 * per * len(sims) + 0.8)
+    return _code(
+        "import calendar\n\nimport matplotlib.pyplot as plt\nimport numpy as np\nimport pandas as pd\n"
+        "from matplotlib.ticker import FuncFormatter, MaxNLocator\n",
+        _sim_frames_code(info, sims, files),
+        "\n".join(position_code),
+        f"# the colour scale all the simulations share\nlimits = {_py(limits)}",
+        f"months = {_py([int(m) for m in months])}\nper_block = {per}",
+        _call(
+            "fig, axes = plt.subplots",
+            {"nrows": per * len(sims), "ncols": MONTH_COLUMNS, "figsize": size, "sharex": True, "sharey": True,
+             "squeeze": False, "layout": "constrained"},
+        ),
+        "mesh = None",
+        "for block, (name, _, _) in enumerate(simulations):",
+        "    for number in range(per_block * " + str(MONTH_COLUMNS) + "):",
+        "        ax = axes[block * per_block + number // " + str(MONTH_COLUMNS) + ", number % " + str(MONTH_COLUMNS) + "]",
+        "        if number >= len(months):",
+        "            ax.set_visible(False)",
+        "            continue",
+        "        part = frames[name][frames[name].month == months[number]]",
+        '        grid = part.pivot(index="depth", columns="position", values="value")',
+        "        mesh = ax.pcolormesh(",
+        "            grid.columns.values, grid.index.values, np.ma.masked_invalid(grid.values),",
+        f'            cmap={_py(cmap)}, vmin=limits[0], vmax=limits[1], shading="nearest",',
+        "        ) if grid.size else mesh",
+        f"        ax.set_facecolor({_py(ap.TRANSECT_LAND)})",
+        "        ax.xaxis.set_major_locator(MaxNLocator(3))",
+        "        ax.xaxis.set_major_formatter(FuncFormatter(position_text))",
+        '        ax.set_title((name + ": " if len(simulations) > 1 else "") + calendar.month_abbr[months[number]], fontsize=9)',
+        "# the surface at the top, and the axis from the shallowest depth to the deepest",
+        "depths = pd.concat([frame.depth for frame in frames.values()])",
+        "axes[0, 0].set_ylim(depths.max(), depths.min())",
+        'for ax in axes[:, 0]:\n    ax.set_ylabel("Depth (m)")',
+        f"for ax in axes[-1]:\n    ax.set_xlabel({_py(position_label)})",
+        f"fig.colorbar(mesh, ax=axes.ravel().tolist(), extend={_py(extend)}, label={_py(label)})",
     )
 
 
@@ -1109,19 +1236,23 @@ def _lines_code(info, sims, files, line, label, ylabel):
     )
 
 
-def transect_figure(results_dir, key, index, option):
+def transect_figure(results_dir, key, index, option, difference=False):
     """The figure of one option of one transect of a variable (see
-    oceanval.analysis_transects.OPTIONS), in every simulation, or None if no
+    oceanval.analysis_transects.OPTIONS, and "vertical_monthly", the vertical climatology
+    of each month, which comes with "vertical"), in every simulation, or None if no
     simulation has values along it. Lines are a colour for each simulation, and sections,
-    grids of months and the changes' heat maps are a panel for each, on one colour scale. Drawn.found holds
-    "kind": "months", "line", "section" or "heatmaps"."""
+    grids of months and the changes' heat maps are a panel for each, on one colour scale.
+    With difference, and exactly two simulations, it is the first minus the second
+    instead (see transect_difference), on a colour scale about zero. Missing values are left
+    out before it is drawn. Drawn.found holds "kind": "months", "line", "section",
+    "monthly_sections" or "heatmaps"."""
     info = load(results_dir)
     variable = entry(info, key)
     sims, files, savedes = [], [], []
     for sim in _having(variable, "transects"):
         own = ap.transect_of(_own(variable, sim), index)
-        saved = own["options"][option]
-        if saved["empty"]:
+        saved = own["options"].get(option)
+        if saved is None or saved["empty"]:
             continue
         sims.append(sim)
         savedes.append(saved)
@@ -1131,27 +1262,49 @@ def transect_figure(results_dir, key, index, option):
     first = _own(variable, sims[0])
     line = ap.transect_of(first, index)
     saved = savedes[0]
-    frames = [pd.read_csv(path) for path in files]
+    if difference:
+        made = transect_difference(results_dir, key, index, option)
+        if made is None:
+            return None
+        path, (one, two) = made
+        title = difference_title(one, two)
+        sims, files, savedes = [title], [path], [saved]
+        info = {**info, "colours": {**info["colours"], title: "#000000"}}
+    frames = [pd.read_csv(path).dropna(subset=["value"]) for path in files]
     values = pd.concat([frame["value"] for frame in frames])
+    if values.empty:
+        return None
     value_label = legend(variable["name"], variable["units"])
+    if difference:
+        value_label = legend(f"{variable['name']}, {title}", variable["units"])
+    cmap = "RdBu_r" if difference else "viridis"
     columns, rows = min(GRID_COLUMNS, len(sims)), int(np.ceil(len(sims) / min(GRID_COLUMNS, len(sims))))
-    if option == "vertical":
-        limits, extend = _scale(values)
+    if option == "vertical_monthly":
+        limits, extend = _scale(values, diverging=difference)
+        code = _monthly_sections_code(info, sims, files, line, limits, extend, cmap, value_label)
+        kind = "monthly_sections"
+    elif option == "vertical":
+        limits, extend = _scale(values, diverging=difference)
         size = (3.6 * columns + 1.4, 3.4 * rows + 0.6)
-        code = _sections_code(info, sims, files, line, limits, extend, "viridis", value_label, size, columns, rows)
+        code = _sections_code(info, sims, files, line, limits, extend, cmap, value_label, size, columns, rows)
         kind = "section"
     elif option == "climatology" and "month" in frames[0]:
-        limits, extend = _scale(values)
+        limits, extend = _scale(values, diverging=difference)
         north_south = line["direction"] == "north-south"
         size = ((2.6 if north_south else 4.2) * columns + 1.4, (3.4 if north_south else 3.0) * rows + 0.6)
         code = _month_grids_code(info, sims, files, line, limits, extend, value_label, size, columns, rows)
+        if difference:
+            code = code.replace('"cmap": "viridis"', '"cmap": "RdBu_r"')
         kind = "months"
     elif option == "climatology":
         code = _lines_code(info, sims, files, line, f"Mean, {ap._years_range(saved['start'], saved['end'])}", value_label)
         kind = "line"
     else:
-        label, title = ap.changes_labels(saved, variable["name"], variable["units"])
+        label, title_ = ap.changes_labels(saved, variable["name"], variable["units"])
         colours, diverging = ap.changes_colours(saved)
+        if difference:
+            colours, diverging = "RdBu_r", True
+            label = value_label
         limits, extend = _scale(values, diverging=diverging)
         if option == "vertical_trends":
             # a column for each simulation, and a row for each of its depths shown
@@ -1167,8 +1320,11 @@ def transect_figure(results_dir, key, index, option):
             grid = (rows, columns)
             panels = [(column, None, sim) for column, sim in enumerate(sims)]
         code = ap.changes_code(
-            files, line, panels, grid, colours, limits, extend, label, ap.changes_size(line, grid), heading=title
+            files, line, panels, grid, colours, limits, extend, label, ap.changes_size(line, grid), heading=title_
         )
         kind = "heatmaps"
     _run(code, "sim_transect_figure")
-    return Drawn(code, False, {"kind": kind}, _about(info))
+    found = {"kind": kind}
+    if difference:
+        found["difference"] = title
+    return Drawn(code, False, found, _about(info))

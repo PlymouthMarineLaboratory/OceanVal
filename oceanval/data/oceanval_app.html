@@ -6944,6 +6944,17 @@
           el("td", {}, years[part.changes].start), el("td", {}, years[part.changes].end),
           el("td", {}, rollingRow)));
     }
+    // the depths of the Vertical part: how far apart, and (optionally) the deepest; the deepest with a value in any simulation otherwise
+    const depthBoxes = {};
+    for (const [name, label, placeholder] of [["depth_increment", "Depth increment (m)", "e.g. 10"],
+        ["max_depth", "Maximum depth (m, optional)", "deepest with values"]]) {
+      depthBoxes[name] = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[name] || "",
+        placeholder, "aria-label": `${label} of the vertical sections`, spellcheck: "false", autocomplete: "off" });
+    }
+    const depthRow = el("tr", { class: "transect-depths" },
+      el("td", {}, el("label", {}, el("span", { text: "Depth increment (m) " }), depthBoxes.depth_increment)),
+      el("td", { colspan: "3" }, el("label", {}, el("span", { text: "Maximum depth (m) " }), depthBoxes.max_depth)));
+    body.push(depthRow);
     const notes = [];
     if (noChanges) notes.push("Only one year of output: there are no changes to work out.");
     if (noLevels) notes.push("It has one vertical level: there is no Vertical section.");
@@ -6965,7 +6976,7 @@
       msg);
     const row = { card, heading, inputs, climatology: ticks.climatology, vertical: ticks.vertical,
       trends: selects.trends, vertical_trends: selects.vertical_trends, rolling: rollings.trends,
-      vertical_rolling: rollings.vertical_trends, years, msg };
+      vertical_rolling: rollings.vertical_trends, years, msg, depthBoxes };
     // an option is on when ticked (climatologies) or when a way of showing the changes is chosen
     const on = {
       climatology: () => ticks.climatology.checked, trends: () => Boolean(selects.trends.value),
@@ -6974,6 +6985,10 @@
     // what has to be given is red: the ends, one of the options, and the years of those chosen
     const refresh = () => {
       for (const input of Object.values(inputs)) input.classList.toggle("is-need", !input.value.trim());
+      // the depths only mean something for a Vertical climatology or Vertical changes
+      const vertical = on.vertical() || on.vertical_trends();
+      for (const box of Object.values(depthBoxes)) box.disabled = !vertical;
+      depthRow.classList.toggle("is-off", !vertical);
       const any = Object.keys(on).some((option) => on[option]());
       for (const part of TRANSECT_PARTS) {
         const off = part.climatology === "vertical" && noLevels;
@@ -6993,7 +7008,7 @@
     };
     for (const control of [...Object.values(ticks), ...Object.values(selects)]) control.addEventListener("change", refresh);
     for (const control of [ticks.vertical, selects.vertical_trends]) control.addEventListener("change", refreshThickness);
-    for (const input of [...Object.values(inputs), ...Object.values(rollings), ...Object.values(years).flatMap((pair) => [pair.start, pair.end])]) {
+    for (const input of [...Object.values(inputs), ...Object.values(depthBoxes), ...Object.values(rollings), ...Object.values(years).flatMap((pair) => [pair.start, pair.end])]) {
       input.addEventListener("input", refresh);
     }
     remove.addEventListener("click", () => {
@@ -7084,6 +7099,7 @@
       trends_window: row.rolling.value,
       vertical_trends: row.vertical_trends.value, vertical_trends_start: row.years.vertical_trends.start.value,
       vertical_trends_end: row.years.vertical_trends.end.value, vertical_trends_window: row.vertical_rolling.value,
+      depth_increment: row.depthBoxes.depth_increment.value, max_depth: row.depthBoxes.max_depth.value,
     }));
   }
 

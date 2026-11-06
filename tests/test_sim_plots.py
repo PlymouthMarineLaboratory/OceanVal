@@ -15,6 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.image as mpimg  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 
 import oceanval  # noqa: E402
@@ -79,7 +80,7 @@ def comparisons(tmp_path_factory, fvcom_comparison):
             transects={
                 "Temperature": [
                     {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "climatology": years},
-                    {"start": [-4.0, 51.0], "end": [0.0, 51.0], "vertical": years},
+                    {"start": [-4.0, 51.0], "end": [0.0, 51.0], "vertical": years, "depth_increment": 1, "max_depth": 6},
                     {"start": [-4.0, 51.0], "end": [0.0, 51.0], "trends": dict(years, how="absolute")},
                     {"start": [-2.0, 50.0], "end": [-2.0, 53.0], "vertical_trends": dict(years, how="absolute_change")},
                 ]
@@ -130,6 +131,9 @@ def figures(info):
                 yield sp.transect_map, (key, line["index"])
                 for option in line["options"]:
                     yield sp.transect_figure, (key, line["index"], option)
+                    if len(sims) == 2:
+                        # two simulations: the first minus the second, too
+                        yield sp.transect_figure, (key, line["index"], option, True)
         for kind in ("long_term", "seasonal"):
             if first[kind]:
                 for layer in first[kind]["layers"]:
@@ -370,3 +374,39 @@ def test_raw_fvcom_output_is_drawn_on_its_mesh_without_a_difference(comparisons)
     results = comparisons["fvcom"]
     info = sim_compare.load(results)
     assert not sp.has_difference(results, "temperature", "surface")
+
+
+class TestTransectDifference:
+    """The first simulation's transect minus the second's, when their depths are not the same."""
+
+    def test_depths_that_differ_are_interpolated_onto_the_firsts(self):
+        positions = [50.0, 51.0]
+        first = pd.DataFrame(
+            [(p, d, 10.0 + d) for p in positions for d in (1.0, 2.0, 3.0)], columns=["position", "depth", "value"]
+        )
+        # a different depth axis, and one that stops sooner: the sea floor of the second is shallower
+        second = pd.DataFrame(
+            [(p, d, 8.0 + d) for p in positions for d in (0.5, 1.5, 2.5)], columns=["position", "depth", "value"]
+        )
+        both = sp.on_first_grid(first, second)
+        assert both is not None
+        # (10 + d) - (8 + d) = 2 wherever both have values; at depth 3 the second has none
+        assert set(both.depth) == {1.0, 2.0} and np.allclose(both.value, 2.0)
+
+    def test_months_are_kept_apart(self):
+        rows = [(50.0, 1.0, month, 10.0 * month) for month in (1, 2)]
+        first = pd.DataFrame(rows, columns=["position", "depth", "month", "value"])
+        second = first.assign(value=first.value - 1)
+        both = sp.on_first_grid(first, second)
+        assert sorted(both.month) == [1, 2] and np.allclose(both.value, 1.0)
+
+    def test_a_surface_line_is_interpolated_along_the_position(self):
+        first = pd.DataFrame({"position": [50.0, 51.0, 52.0], "value": [3.0, 4.0, 5.0]})
+        second = pd.DataFrame({"position": [50.5, 51.5], "value": [1.0, 2.0]})
+        both = sp.on_first_grid(first, second)
+        assert list(both.position) == [51.0] and np.allclose(both.value, 4.0 - 1.5)
+
+    def test_nothing_in_common_is_none(self):
+        first = pd.DataFrame({"position": [50.0], "depth": [1.0], "value": [1.0]})
+        second = pd.DataFrame({"position": [70.0], "depth": [1.0], "value": [1.0]})
+        assert sp.on_first_grid(first, second) is None

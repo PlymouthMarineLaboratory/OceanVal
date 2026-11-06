@@ -775,6 +775,8 @@ def compare_simulations(
                 entries = {}
                 for sim in sims:
                     _say(f"Working out {row['name']} in the simulation {sim['name']}")
+                    # a comparison also shows the vertical climatology of each month
+                    rows_by_sim[sim["name"]][number]["monthly_sections"] = True
                     entries[sim["name"]] = _work_out(
                         rows_by_sim[sim["name"]][number],
                         os.path.join(results_dir, sim["key"]),

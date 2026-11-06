@@ -76,7 +76,10 @@ MIN_CHANGE_YEARS = 2
 LEVELS = "levels"
 
 # the keys of each transect, as analyze() takes them
-LINE_KEYS = ("start", "end") + tuple(OPTIONS)
+# the depths of a vertical section: how far apart, and the deepest to show (the deepest with
+# a value is used if it is not given)
+DEPTH_KEYS = ("depth_increment", "max_depth")
+LINE_KEYS = ("start", "end") + tuple(OPTIONS) + DEPTH_KEYS
 
 # a vertical section of a model whose cells are not at the same depths everywhere
 # is put on this many evenly spaced depths, from the shallowest to the deepest
@@ -105,6 +108,24 @@ def _option_years(entry, which):
     if end < start:
         raise ValueError(f"The end of {which}, {end}, is before its start, {start}.")
     return start, end
+
+
+def _depth_settings(line, which):
+    """The depth_increment and max_depth of a transect (which says where, for an
+    error), those given: positive numbers, the increment no more than the maximum."""
+    out = {}
+    for key in DEPTH_KEYS:
+        value = line.get(key)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or value <= 0:
+            raise ValueError(f"The {key} of {which} must be a number of metres above 0, not {value!r}.")
+        out[key] = float(value)
+    if "depth_increment" in out and "max_depth" in out and out["depth_increment"] > out["max_depth"]:
+        raise ValueError(
+            f"The depth_increment of {which}, {out['depth_increment']:g}, is more than its max_depth, {out['max_depth']:g}."
+        )
+    return out
 
 
 def check_lines(lines, name):
@@ -137,6 +158,7 @@ def check_lines(lines, name):
         except (TypeError, ValueError) as error:
             raise ValueError(f"{which}: {error}")
         out = {"start": ends["start"], "end": ends["end"], **{option: None for option in OPTIONS}}
+        out.update(_depth_settings(line, which))
         for option in OPTIONS:
             if line.get(option) is None:
                 continue
@@ -170,6 +192,8 @@ def check_lines(lines, name):
                 )
             out[option]["how"] = how
             out[option]["window"] = int(window)
+        if any(out.get(key) is not None for key in DEPTH_KEYS) and not any(out[option] for option in VERTICAL_OPTIONS):
+            raise ValueError(f'{which} has a depth increment or maximum depth, which only "vertical" and "vertical_trends" use.')
         if not any(out[option] for option in OPTIONS):
             raise ValueError(f'{which} needs at least one of "climatology", "trends", "vertical" and "vertical_trends".')
         checked.append(out)
@@ -356,20 +380,45 @@ def cell_depths(thickness):
     return np.where(thick > 0, depths, np.nan)
 
 
-def on_common_depths(depths, values, common=None):
+def depth_axis(low, high, depth=None):
+    """The depths a section is put on, from the shallowest (low) and deepest (high)
+    depth there is a value at: depth is the transect's {"depth_increment",
+    "max_depth"} (either may be missing). With an increment they are 0, the
+    increment, twice it... up to the deepest, which is high, or max_depth if that is
+    shallower; so every simulation of a comparison is on the same depths where they
+    overlap. Without one they are N_DEPTHS evenly spaced from low to the deepest."""
+    depth = depth or {}
+    top = min(high, depth["max_depth"]) if depth.get("max_depth") else high
+    step = depth.get("depth_increment")
+    if step:
+        return np.arange(0.0, top + step * 1e-6, step)
+    return np.linspace(min(low, top), top, N_DEPTHS)
+
+
+def cut_levels(depths, values, depth=None):
+    """The levels of a section on fixed depths (1-D depths, values by depth then
+    the rest) that are no deeper than the transect's max_depth."""
+    limit = (depth or {}).get("max_depth")
+    if not limit:
+        return depths, values
+    keep = depths <= limit
+    return depths[keep], values[..., keep, :] if values.ndim > 2 else values[keep]
+
+
+def on_common_depths(depths, values, common=None, depth=None):
     """values by depth then position, where each position has depths of its
-    own (depths, the same shape), on N_DEPTHS evenly spaced depths that all
-    positions share, from the shallowest to the deepest: (the depths, the
-    values). Each position is linearly interpolated between its cells, and
-    is missing outside them, where it is the seabed or the surface. common
-    is those depths, if they are already known (values of different years
-    are then on the same ones)."""
+    own (depths, the same shape), on depths that all positions share (see
+    depth_axis): (the depths, the values). Each position is linearly
+    interpolated between its cells, and is missing outside them, where it is the
+    seabed or the surface. common is those depths, if they are already known
+    (values of different years are then on the same ones)."""
     valid = np.isfinite(depths) & np.isfinite(values)
     if common is None:
         if not valid.any():
-            return np.linspace(0.0, 1.0, N_DEPTHS), np.full((N_DEPTHS, values.shape[1]), np.nan)
-        common = np.linspace(depths[valid].min(), depths[valid].max(), N_DEPTHS)
-    out = np.full((N_DEPTHS, values.shape[1]), np.nan)
+            common = np.linspace(0.0, 1.0, N_DEPTHS)
+            return common, np.full((len(common), values.shape[1]), np.nan)
+        common = depth_axis(depths[valid].min(), depths[valid].max(), depth)
+    out = np.full((len(common), values.shape[1]), np.nan)
     for position in range(values.shape[1]):
         keep = valid[:, position]
         if keep.sum() == 0:
@@ -404,12 +453,13 @@ def _in_years(values, times, start, end):
     return values[which], [times[index] for index in which]
 
 
-def derive(option, positions, depths, values, times, spec, per_year):
+def derive(option, positions, depths, values, times, spec, per_year, depth=None):
     """What the surface climatology or the vertical section of a transect
     works out from values (see _along, with their times, each (year, month)):
     (a data frame, notes). spec is the option's {"start", "end"}. The frame has
     position, then depth for the vertical, then month for the surface
-    climatology (unless the output is annual), then value. The changes are
+    climatology (unless the output is annual), then value. depth is the
+    transect's {"depth_increment", "max_depth"}. The changes are
     derive_changes."""
     start, end = spec["start"], spec["end"]
     notes = []
@@ -427,7 +477,9 @@ def derive(option, positions, depths, values, times, spec, per_year):
                 mean = np.nanmean(climatology, axis=0)
             if depths.ndim == 2:
                 # each position has its own depths
-                depths, mean = on_common_depths(depths, mean)
+                depths, mean = on_common_depths(depths, mean, depth=depth)
+            else:
+                depths, mean = cut_levels(depths, mean, depth)
             return _table(positions, depths, {"value": mean}), notes
         if len(months) > 1:
             grid_month, grid_position = np.meshgrid(months, positions, indexing="ij")
@@ -437,6 +489,33 @@ def derive(option, positions, depths, values, times, spec, per_year):
             return frame, notes
         return _table(positions, None, {"value": climatology[0]}), notes
     raise ValueError(f"{option} is not something that derive works out.")
+
+
+def derive_monthly(positions, depths, values, times, spec, depth=None):
+    """The vertical climatology of each month of the year (the mean of that month over
+    the years of spec, {"start", "end"}) of a transect, from the same values as derive
+    takes: a data frame of position, depth, month and value, on the same depths as the
+    annual section, or None if there are fewer than two months."""
+    inside, inside_times = _in_years(values, times, spec["start"], spec["end"])
+    if len(inside) == 0:
+        return None
+    months, climatology = monthly_climatology(inside, inside_times)
+    if len(months) < 2:
+        return None
+    if depths.ndim == 2:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            mean = np.nanmean(climatology, axis=0)
+        common, _ = on_common_depths(depths, mean, depth=depth)
+        climatology = np.array([on_common_depths(depths, month_values, common)[1] for month_values in climatology])
+        depths = common
+    else:
+        depths, climatology = cut_levels(depths, climatology, depth)
+    month_grid, depth_grid, position_grid = np.meshgrid(months, depths, positions, indexing="ij")
+    return pd.DataFrame(
+        {"position": position_grid.ravel(), "depth": depth_grid.ravel(), "month": month_grid.ravel(),
+         "value": np.asarray(climatology, dtype="float64").ravel()}
+    )
 
 
 def panel_depths(depths):
@@ -469,7 +548,7 @@ def _empty_changes(vertical):
     return pd.DataFrame({name: [] for name in (["position", "depth"] if vertical else ["position"]) + ["year", "value"]})
 
 
-def derive_changes(positions, years, values, spec, left_out, per_year, depths=None):
+def derive_changes(positions, years, values, spec, left_out, per_year, depths=None, depth=None):
     """The changes of a transect over the years from its annual means (see
     annual_means), as a heat map of position by year: (a data frame, notes).
     positions are along the transect and spec the option's {"start", "end",
@@ -511,9 +590,11 @@ def derive_changes(positions, years, values, spec, left_out, per_year, depths=No
             used = depths[np.isfinite(depths) & np.isfinite(values).any(axis=0)]
             if used.size == 0:
                 return _empty_changes(vertical), notes
-            common = np.linspace(used.min(), used.max(), N_DEPTHS)
+            common = depth_axis(used.min(), used.max(), depth)
             values = np.array([on_common_depths(depths, year_values, common)[1] for year_values in values])
             depths = common
+        else:
+            depths, values = cut_levels(depths, values, depth)
         keep = np.isfinite(values).any(axis=(0, 2))
         shown = [depth for depth in panel_depths(depths) if keep[int(np.abs(depths - depth).argmin())]]
         if not shown:
@@ -658,6 +739,7 @@ def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_fold
             along[vertical] = (positions, depths, values, times)
             extracted_for[vertical] = extracted
         options = {}
+        settings = {key: line[key] for key in DEPTH_KEYS if line.get(key) is not None}
         for option in OPTIONS:
             spec = line[option]
             if not spec:
@@ -672,10 +754,11 @@ def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_fold
                     year for year in range(spec["start"], spec["end"] + 1) if year not in complete_years(times, year, year, per_year)
                 ]
                 frame, notes = derive_changes(
-                    positions, series_years, series, spec, left_out, per_year, depths if vertical else None
+                    positions, series_years, series, spec, left_out, per_year, depths if vertical else None,
+                    settings,
                 )
             else:
-                frame, notes = derive(option, positions, depths, values, times, spec, per_year)
+                frame, notes = derive(option, positions, depths, values, times, spec, per_year, settings)
             csv = f"{row['key']}_transect_{number}_{option}.csv"
             frame.to_csv(os.path.join(results_dir, csv), index=False)
             how = spec.get("how")
@@ -697,6 +780,21 @@ def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_fold
                 "empty": bool(not np.isfinite(frame["value"].to_numpy(dtype="float64")).any()),
                 "notes": notes,
             }
+        if "vertical" in options and row.get("monthly_sections"):
+            # in a comparison, the section of each month comes with the annual one, from the same years
+            positions, depths, values, times = along[True]
+            frame = derive_monthly(positions, depths, values, times, line["vertical"], settings)
+            if frame is not None:
+                csv = f"{row['key']}_transect_{number}_vertical_monthly.csv"
+                frame.to_csv(os.path.join(results_dir, csv), index=False)
+                options["vertical_monthly"] = {
+                    **options["vertical"],
+                    "title": "Vertical climatology by month",
+                    "csv": csv,
+                    "months": int(frame["month"].nunique()),
+                    "empty": bool(not np.isfinite(frame["value"].to_numpy(dtype="float64")).any()),
+                    "notes": [],
+                }
         saved.append(
             {
                 "index": number,
@@ -705,6 +803,7 @@ def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_fold
                 "direction": transects.direction(line),
                 "description": transects.describe(line),
                 "steps": steps,
+                **settings,
                 "empty": all(entry["empty"] for entry in options.values()),
                 "options": options,
             }
