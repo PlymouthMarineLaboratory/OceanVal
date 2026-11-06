@@ -318,10 +318,6 @@
   .segmented input:checked + span { background: var(--teal-600); color: #fff; font-weight: 700; box-shadow: 0 0 0 2px var(--teal-600), var(--shadow-md); transform: scale(1.07); }
   .segmented input:checked + span::before { content: "\2713"; margin-right: 8px; font-weight: 800; }
   .segmented input:focus-visible + span { box-shadow: var(--focus); }
-  /* the domain's options are separate buttons, as there is no default to join them under */
-  #f-domain { gap: 18px; padding: 6px 0; border: 0; background: none; }
-  #f-domain span { padding: 9px 18px; border: 1px solid var(--line); background: var(--bg-alt); border-radius: 10px; }
-  #f-domain input:checked + span { border-color: var(--teal-600); background: var(--teal-600); color: #fff; }
 
   /* a directory box, with its Browse… button */
   .path-field { display: flex; gap: 8px; }
@@ -1538,11 +1534,6 @@
           <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         </div>
         <p class="group__msg" id="m-simulation"></p>
-      </fieldset>
-      <fieldset class="group card setup-box" id="setup-domain">
-        <legend>What spatial coverage do you need for your observational data? <span class="own-req">Required</span></legend>
-        <div class="segmented" id="f-domain" role="radiogroup" aria-label="Domain"></div>
-        <p class="group__msg">OceanVal will select appropriate datasets. These can be modified later.</p>
       </fieldset>
       <fieldset class="group card setup-box" id="setup-missing" hidden>
         <legend>Missing values <span class="g-note">(optional)</span></legend>
@@ -4582,21 +4573,11 @@
   // whether the years were filled in from the files, so can change with them
   let autoYears = false;
 
-  const segmented = $("f-domain");
-  for (const [value, label] of initial.domains) {
-    const input = el("input", { type: "radio", name: "domain", value });
-    input.addEventListener("change", () => { setup.domain = value; refreshSetup(); });
-    segmented.append(el("label", {}, input, el("span", { text: label })));
-  }
-
   function fillSetup() {
     Object.assign(setup, state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
     $("f-thredds").checked = Boolean(setup.thredds);
     refreshThredds();
-    segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
-    // an analysis, or viewing the output, has no observations, so no domain to choose
-    $("setup-domain").hidden = simulationOnly();
     // the numbers to treat as missing are asked here only for viewing (an analysis asks them with its options)
     $("setup-missing").hidden = state.action !== "viewer";
     // viewing can also be given the path of one file
@@ -4864,7 +4845,6 @@
       if (!isInteger(setup[name])) errors[name] = errors[name] || (text(name) ? `${name === "start" ? "Start" : "End"} must be a year, e.g. 2011.` : "");
     }
     if (!errors.start && !errors.end && +setup.end < +setup.start && !analyzing) errors.end = "End must not be before start.";
-    if (!setup.domain && !analyzing) errors.domain = errors.domain || "";
     if (state.action === "viewer") {
       const bad = missingRows.findIndex((row) => !missingRowOk(row));
       if (bad >= 0) errors.missing = `Missing value: ${missingRows[bad][0].trim() === "" ? "fill in From" : "that is not a number"}.`;
@@ -4964,7 +4944,6 @@
       $(`f-${name}`).classList.toggle("is-invalid", invalid);
       $(`f-${name}`).setAttribute("aria-invalid", String(invalid));
     }
-    segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
 
     // the simulation, as the live check finds it
     const simulation = [];

@@ -76,7 +76,6 @@ from oceanval import analysis_report
 from oceanval import data_store
 from oceanval import cdo_check, compat_check, depths, file_workers, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
-    DOMAIN_REGIONS,
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
     _create_recipes,
@@ -191,7 +190,6 @@ def default_setup_form():
     return {
         "simdir": "",
         "ndown": "",
-        "domain": "",
         "start": "",
         "end": "",
         "exclude": "",
@@ -495,12 +493,6 @@ def check_setup(form, cwd):
     except ValueError:
         arguments.pop("ndown", None)
         errors["ndown"] = "This must be a whole number, 0 or more."
-    if form["domain"] in DOMAIN_REGIONS:
-        arguments["domain"] = form["domain"]
-    else:
-        errors["domain"] = (
-            "Choose one of the domains." if form["domain"] else ""
-        )
     for name in ("start", "end"):
         try:
             arguments[name] = int(form[name])
@@ -1954,7 +1946,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "oceanval_app.html",
             {
                 "token": self.token,
-                "domains": [[key, region] for key, region in DOMAIN_REGIONS.items()],
                 # what has been printed can be long, so the page asks for it
                 "state": self.state(console=False),
             },

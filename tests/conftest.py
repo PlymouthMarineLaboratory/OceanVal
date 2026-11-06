@@ -326,6 +326,18 @@ def check_servers(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def domain_global(request, monkeypatch):
+    """The domain of a simulation (see oceanval.domain_detect) is global, as the
+    tests' small models are not looked at: tests/test_domain_detect.py, and
+    the tests that mark themselves with real_domain, look; the others patch
+    detect again for a domain of their own."""
+    from oceanval import domain_detect
+
+    if not request.node.get_closest_marker("real_domain"):
+        monkeypatch.setattr(domain_detect, "detect", lambda *args, **kwargs: "global")
+
+
+@pytest.fixture(autouse=True)
 def no_cdo_check(request, monkeypatch):
     """The check of every model file with `cdo sinfo` (see oceanval.cdo_check) is
     turned off, as most tests have no use for it: tests/test_cdo_check.py and the
@@ -425,4 +437,7 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "cdo_check: turns on the check of the model files with `cdo sinfo` (see oceanval.cdo_check)"
+    )
+    config.addinivalue_line(
+        "markers", "real_domain: the test works out the domain of a simulation (see oceanval.domain_detect)"
     )

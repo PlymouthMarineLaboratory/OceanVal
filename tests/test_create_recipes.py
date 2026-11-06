@@ -155,10 +155,6 @@ class TestArguments:
             ({"simdir": ".", "ndown": 1}, "Please provide out"),
             (
                 {"simdir": ".", "ndown": 1, "out": "x"},
-                "Please provide domain",
-            ),
-            (
-                {"simdir": ".", "ndown": 1, "out": "x", "domain": "global"},
                 "Please provide start",
             ),
             (

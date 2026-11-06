@@ -209,7 +209,7 @@ class TestSimulation:
         assert post(app, "/api/choose", {"action": "analyze"})[0] == 200
         state = get_json(app, "/api/state")[1]
         assert state["setup"]["form"]["out"] == "analysis.py"
-        assert state["setup"]["form"]["domain"] == ""
+        assert "domain" not in state["setup"]["form"]
         status, reply = post(app, "/api/setup", {"form": setup_form(app, "nowhere")})
         assert status == 400 and set(reply["errors"]) == {"simdir"}
         # the output is asked last, so an analysis already there is not a matter of this step

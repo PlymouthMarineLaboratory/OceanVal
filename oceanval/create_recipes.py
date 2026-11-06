@@ -1713,14 +1713,17 @@ def _create_recipes(
     out : str
         Path of the Python file to write. Required.
     domain : str
-        Either "global" or "nwes". Where a variable has a recipe in both
+        Either "global" or "nwes". If None, it is worked out from the
+        model: "nwes" when more than 80% of its cells lie inside the
+        "Full Domain" of the northwest European Shelf's sub-domains file
+        (oceanval.domain_detect), else "global". Where a variable has a recipe in both
         regions (e.g. temperature), the recipe for this domain is left
         live and the other is commented out as an alternative; a variable
         with a recipe only outside this domain still gets that one.
         "nwes" also adds the ICES in-situ point recipes (temperature,
         salinity and eight other variables), which have no global
         equivalent and so are not included at all when domain="global".
-        Required.
+        Defaults to None.
     start : int
         First year of the simulation to validate. Passed straight through
         to the generated script's matchup() call, and used to pick the
@@ -1794,10 +1797,6 @@ def _create_recipes(
         )
     if out is None:
         raise ValueError("Please provide out, the Python file to write")
-    if domain is None:
-        raise ValueError(
-            'Please provide domain, either "global" or "nwes"'
-        )
     if start is None:
         raise ValueError("Please provide start, the first year to validate")
     if end is None:
@@ -1811,11 +1810,12 @@ def _create_recipes(
         raise TypeError("ndown must be an integer")
     if ndown < 0:
         raise ValueError("ndown must be a positive integer")
-    if not isinstance(domain, str):
-        raise TypeError("domain must be a string")
-    if domain.lower() not in DOMAIN_REGIONS:
-        raise ValueError('domain must be either "global" or "nwes"')
-    domain = domain.lower()
+    if domain is not None:
+        if not isinstance(domain, str):
+            raise TypeError("domain must be a string")
+        if domain.lower() not in DOMAIN_REGIONS:
+            raise ValueError('domain must be either "global" or "nwes"')
+        domain = domain.lower()
     if isinstance(start, bool) or not isinstance(start, int):
         raise TypeError("start must be an integer")
     if isinstance(end, bool) or not isinstance(end, int):
@@ -1857,6 +1857,15 @@ def _create_recipes(
     mapping = extract_recipe_variable_mapping(
         simdir, ndown, fvcom, cwd=cwd, files=found_files, **filters
     )
+    if domain is None:
+        # northwest European Shelf if most of the model's cells are in it
+        from oceanval import domain_detect
+
+        domain = domain_detect.detect(
+            simulation_files(simdir, ndown, paths=found_files, **filters),
+            next((value for value in mapping.values() if value), None),
+            fvcom,
+        )
     # the user's own data registers these itself
     replaced = replaced_recipes(own_data, cwd)
 

@@ -14,7 +14,6 @@ from simulations import write_simulation
 from test_app import (  # noqa: F401 - the fixtures
     SETUP_FORM,
     app,
-    choose_domain,
     draft,
     get,
     get_json,
@@ -647,7 +646,6 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-yes")
         page.wait_for_selector("#own-form-point")

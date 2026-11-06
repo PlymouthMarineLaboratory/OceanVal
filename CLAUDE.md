@@ -140,6 +140,12 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   beneath the data and draws Natural Earth's lakes over it as water (no lakes, if cartopy cannot download them). Every
   map call in the templates is followed by `land_below()` (imported in `chunk_start`; `tests/test_report_templates.py` checks),
   and every Analyze/Compare script that draws one writes it out (`map_land.LAND_CODE`) and calls it last (`analysis_plots._code`).
+- **The domain (global or `nwes`) is never asked** (the user's rule, 2026-11-06; the setup page's "What spatial coverage..." question and the form's
+  `domain` key are gone). `create_recipes(domain=None)` calls `oceanval/domain_detect.detect`: `nwes` when more than 80% (`SHARE`) of the cells
+  with values of one level of one time step of the model lie inside the `FullDomain` ("Full Domain") variable of `data/nwes_subdomains.nc`, else `global`
+  (anything unreadable too; it never raises). As `domain_mask` does it, nctoolkit puts the shelf on the model's grid (`nn`, `domain_mask._no_extrapolation`
+  so a global model is not stretched over) and multiplies; raw FVCOM is looked up node by node. An explicit `domain=` is still honoured. Tests'
+  autouse `domain_global` fixture makes `detect` return `global` (mark a test `real_domain`, or patch `detect`, for another).
 - `oceanval/create_recipes.py` scans model output directories, maps model variables to
   observational variables via netCDF `long_name` matching, and writes out a matchup script with
   live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, ...).

@@ -30,7 +30,7 @@ import xarray as xr
 
 import oceanval
 from oceanval import app as app_module
-from oceanval import analysis_report, app_child, cdo_watch, leftovers, live, model_check, prompts, sim_compare
+from oceanval import analysis_report, app_child, cdo_watch, domain_detect, leftovers, live, model_check, prompts, sim_compare
 from oceanval.app import (
     App, Console, Question, Run, check_compare, check_output, check_report, check_setup, check_validate,
     default_validate_form, existing_matchups, matchups_asked_about,
@@ -43,7 +43,6 @@ from simulations import write_folders, write_fvcom, write_simulation
 SETUP_FORM = {
     "simdir": "sim",
     "ndown": "2",
-    "domain": "global",
     "start": "2011",
     "end": "2012",
     "exclude": "",
@@ -136,11 +135,6 @@ def output_continue(app, **output):
     wait_for(lambda: app.view == "output")
     status, reply = post(app, "/api/output", {"form": {**OUTPUT_FORM, "cores": "1", **output}})
     assert status == 200, reply
-
-
-def choose_domain(page, domain="global"):
-    """Choose the spatial coverage on the setup page, which has no default."""
-    page.check(f'#f-domain input[value="{domain}"]')
 
 
 def fill_gridded_years(page):
@@ -721,14 +715,13 @@ class TestRemoteAccess:
 class TestSetupChecks:
     def test_the_arguments(self, tmp_path):
         (tmp_path / "sim").mkdir()
-        arguments, errors = check_setup(dict(SETUP_FORM, domain="nwes"), str(tmp_path))
+        arguments, errors = check_setup(SETUP_FORM, str(tmp_path))
 
         assert errors == {}
         # where the output is saved is asked last (see TestOutputChecks)
         assert arguments == {
             "simdir": str(tmp_path / "sim"),
             "ndown": 2,
-            "domain": "nwes",
             "start": 2011,
             "end": 2012,
             "exclude": None,
@@ -752,8 +745,6 @@ class TestSetupChecks:
             ({"simdir": "nowhere"}, "simdir"),
             ({"ndown": "-1"}, "ndown"),
             ({"ndown": "two"}, "ndown"),
-            ({"domain": "arctic"}, "domain"),
-            ({"domain": ""}, "domain"),
             ({"start": "x"}, "start"),
             ({"end": "2010"}, "end"),
         ],
@@ -1875,7 +1866,7 @@ class TestServer:
         status, reply = post(app, "/api/setup", {"form": {"simdir": "nowhere"}})
 
         assert status == 400
-        assert set(reply["errors"]) == {"simdir", "ndown", "domain", "start", "end"}
+        assert set(reply["errors"]) == {"simdir", "ndown", "start", "end"}
         assert app.view == "setup"
 
     @pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
@@ -4428,7 +4419,7 @@ class TestBack:
         text = open(draft(app)).read()
         assert "    obs_multiplier=2,\n" in text[text.index('name="nitrate"') :].split("\n)\n")[0]
 
-    def test_leaving_the_recipes_window_keeps_what_it_held(self, app, tmp_path, runs):
+    def test_leaving_the_recipes_window_keeps_what_it_held(self, app, tmp_path, runs, monkeypatch):
         """For the window made afresh, once the simulation is read again."""
         page = self.to_recipes(app, tmp_path)
         rows = [{"variable": "temperature", "model_variable": "thetao", "selected": ["nsbc"]}]
@@ -4447,7 +4438,9 @@ class TestBack:
         assert post(app, "/recipes/cancel", {"rows": rows, "settings": {}})[0] == 200
         wait_for(lambda: app.view == "own_data")
         assert post(app, "/api/back")[0] == 200
-        assert post(app, "/api/setup", {"form": dict(SETUP_FORM, domain="nwes")})[0] == 200
+        # the simulation is now of the northwest European Shelf
+        monkeypatch.setattr(domain_detect, "detect", lambda *args, **kwargs: "nwes")
+        assert post(app, "/api/setup", {"form": SETUP_FORM})[0] == 200
         post(app, "/api/own_data", {"answer": False})
         wait_for(lambda: app.view == "recipes" and app.recipes_page is not page)
         restore = app.recipes_page.context["app"]["restore"]
@@ -5030,8 +5023,7 @@ def test_required_tags_show_only_while_empty(browser, tmp_path):
         page.wait_for_selector("#view-setup:not([hidden])")
         tag = page.locator('label[for="f-ndown"] .own-req')
         simdir = page.locator('label[for="f-simdir"] .own-req')
-        domain = page.locator("#setup-domain legend .own-req")
-        assert tag.is_visible() and simdir.is_visible() and domain.is_visible()
+        assert tag.is_visible() and simdir.is_visible()
         page.fill("#f-simdir", str(tmp_path / "sim"))
         page.wait_for_selector('label[for="f-simdir"] .own-req', state="hidden")
         assert tag.is_visible()
@@ -5042,9 +5034,6 @@ def test_required_tags_show_only_while_empty(browser, tmp_path):
         page.wait_for_selector('label[for="f-simdir"] .own-req', state="visible")
         # the tag stays in the page: only its display changes
         assert page.locator('label[for="f-ndown"]').text_content().strip().endswith("Required")
-        # a group of choices is filled once one is chosen
-        page.locator("#f-domain > *").first.click()
-        page.wait_for_selector("#setup-domain legend .own-req", state="hidden")
     finally:
         app.close()
 
@@ -5136,9 +5125,7 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         # the years are read from the files' times, for the recipes window: none are shown here
         page.wait_for_function("document.querySelector('#ndown-found').textContent.includes('2 netCDF files found')")
         assert page.text_content("#ndown-found") == "2 netCDF files found"
-        # there is no default domain: it has to be chosen too
-        assert page.is_disabled("#continue")
-        choose_domain(page)
+        # the domain is worked out, not asked
         assert page.is_enabled("#continue")
         # where the output goes is asked last
         assert page.is_hidden("#f-out_dir")
@@ -6852,41 +6839,6 @@ def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, l
         app.close()
 
 
-def test_the_domain_chosen_is_filled_and_bigger_than_the_other(browser, tmp_path):
-    """A choice between boxes must be unmistakable: the chosen one is filled
-    with the accent colour, bold, ticked and bigger."""
-    write_simulation(tmp_path / "sim")
-    app = App(cwd=str(tmp_path))
-    app.choose("validate_menu")
-    url = app.start()
-    try:
-        page = browser.new_page()
-        page.goto(url)
-        page.click('button.choice[data-action="matchup_validate"]')
-        page.fill("#f-simdir", "sim")
-        look = """node => {
-            const style = getComputedStyle(node);
-            return [style.backgroundColor, style.color, style.fontWeight, node.getBoundingClientRect().width,
-                    getComputedStyle(node, "::before").content];
-        }"""
-        chosen, other = "#f-domain input[value=global] + span", "#f-domain input[value=nwes] + span"
-        before = page.locator(other).evaluate(look)
-        page.check('#f-domain input[value="global"]')
-        page.wait_for_function(
-            "selector => getComputedStyle(document.querySelector(selector)).color === 'rgb(255, 255, 255)'",
-            arg=chosen)
-        page.wait_for_timeout(400)
-        picked, left = page.locator(chosen).evaluate(look), page.locator(other).evaluate(look)
-        assert left == before
-        assert picked[0] != left[0] and picked[1] == "rgb(255, 255, 255)" and picked[2] == "700"
-        assert picked[4] != left[4]
-        # the transform makes it bigger, though not its layout box
-        assert page.locator(chosen).evaluate("node => getComputedStyle(node).transform") != "none"
-        assert page.locator(other).evaluate("node => getComputedStyle(node).transform") == "none"
-    finally:
-        app.close()
-
-
 def test_the_recipes_page_has_no_cog_or_info_in_its_header(browser, oceanvalrc, tmp_path):
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
@@ -6899,7 +6851,6 @@ def test_the_recipes_page_has_no_cog_or_info_in_its_header(browser, oceanvalrc, 
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -7017,7 +6968,6 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -7145,7 +7095,6 @@ def test_the_recipes_window_keeps_the_app_open(browser, tmp_path, monkeypatch):
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -7183,7 +7132,6 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -7326,7 +7274,6 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -7449,7 +7396,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         app.close()
 
 
-def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, tmp_path):
+def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, tmp_path, monkeypatch):
     """What OceanVal could not keep of what the window held, once the
     simulation is read again, is said in bold."""
     write_simulation(tmp_path / "sim", tracers=True)
@@ -7472,7 +7419,8 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
         post(app, "/recipes/cancel", {"rows": rows, "settings": {"point_start": "2011", "point_end": "2012"}})
         wait_for(lambda: app.view == "own_data")
         post(app, "/api/back")
-        post(app, "/api/setup", {"form": dict(SETUP_FORM, simdir="other", domain="nwes")})
+        monkeypatch.setattr(domain_detect, "detect", lambda *args, **kwargs: "nwes")
+        post(app, "/api/setup", {"form": dict(SETUP_FORM, simdir="other")})
         post(app, "/api/own_data", {"answer": False})
         wait_for(lambda: app.view == "recipes")
 
@@ -7510,7 +7458,6 @@ def test_clearing_every_selection_in_a_browser(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-no")
         page.wait_for_url("**/recipes/**", timeout=90000)
@@ -7548,7 +7495,6 @@ def test_adding_your_own_data_in_a_browser(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-yes")
         page.wait_for_selector("#own-form-point")
@@ -7628,7 +7574,6 @@ def test_picking_the_variables_of_your_own_data_in_a_browser(browser, tmp_path):
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "2")
         page.wait_for_function("document.querySelector('#f-end').value === '2012'")
-        choose_domain(page)
         page.click("#continue")
         page.click("#own-yes")
         page.wait_for_selector("#own-form-point")

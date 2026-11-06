@@ -23,7 +23,7 @@ from oceanval import time_res as time_resolution
 MOST_ROWS = 200
 
 # the setup page's boxes that the Analyze steps have no use for
-_NOT_ANALYZED = ("domain", "start", "end")
+_NOT_ANALYZED = ("start", "end")
 
 
 def default_setup_form(cwd):
@@ -54,7 +54,7 @@ def check_setup(form, cwd):
     from oceanval.app import check_setup as check
 
     form = _form(form, default_setup_form(cwd))
-    arguments, errors = check(dict(form, domain="global", start="0", end="0"), cwd)
+    arguments, errors = check(dict(form, start="0", end="0"), cwd)
     for name in _NOT_ANALYZED:
         arguments.pop(name, None)
         errors.pop(name, None)

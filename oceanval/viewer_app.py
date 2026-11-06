@@ -73,12 +73,12 @@ def check_setup(form, cwd, find=None):
     is_file = bool(path) and (url or os.path.isfile(path))
     # a web address is used as it is, as a file is: checked as the working directory, with none down
     shared = dict(form, simdir=cwd if url else os.path.dirname(path), ndown="0") if is_file else form
-    arguments, errors = check(dict(shared, domain="global", start="0", end="0"), cwd)
+    arguments, errors = check(dict(shared, start="0", end="0"), cwd)
     if is_file:
         arguments["simdir"] = path
     elif form["thredds"]:
         errors["simdir"] = "A THREDDS address must start with https:// and end in .nc."
-    for name in ("domain", "start", "end"):
+    for name in ("start", "end"):
         arguments.pop(name, None)
         errors.pop(name, None)
     try:
