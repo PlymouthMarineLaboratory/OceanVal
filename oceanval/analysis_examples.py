@@ -1,6 +1,6 @@
 """What the Analyze window's info buttons say.
 
-Beside the options of each pop-out (Surface, Bottom, Water column, ...) the
+Beside the options of each pop-out (Surface, Bottom, Vertical mean, ...) the
 window has an i. It opens a pop-out that says in words what the option will
 plot. Nothing is drawn: a figure takes seconds, and the words say what the
 report will show.
@@ -34,16 +34,22 @@ EXAMPLES = {
                 "They are made as the surface's are: the annual mean, and each month on one colour scale.",
             ],
         },
-        "water_column": {
-            "title": "Water column",
+        "mean": {
+            "title": "Vertical mean",
             "text": [
-                "Maps of the whole water column, reduced to one value in each place. Choose how in the box under "
-                "the tick.",
-                "Vertical mean is the mean of the values through the water column, weighted by the thickness of "
-                "each cell, in the variable's units.",
-                "Depth integral is the sum of each cell's value times its thickness, in the variable's units times "
-                "metres (per square metre for a concentration), so it is largest where the water is deep.",
-                "Both need the cell thickness: the name of its variable, a file, or z_level. Each is mapped as the "
+                "Maps of the whole water column, reduced to one value in each place: the mean of the values through "
+                "the water column, weighted by the thickness of each cell, in the variable's units.",
+                "It needs the cell thickness: the name of its variable, a file, or z_level. It is mapped as the "
+                "surface is, as the annual mean and for each month.",
+            ],
+        },
+        "integral": {
+            "title": "Vertical integration",
+            "text": [
+                "Maps of the whole water column, reduced to one value in each place: the sum of each cell's value "
+                "times its thickness, in the variable's units times metres (per square metre for a concentration), "
+                "so it is largest where the water is deep.",
+                "It needs the cell thickness: the name of its variable, a file, or z_level. It is mapped as the "
                 "surface is, as the annual mean and for each month.",
             ],
         },
@@ -55,15 +61,19 @@ EXAMPLES = {
 LAYER_WORDS = {
     "surface": "at the sea surface",
     "bottom": "at the sea bed",
-    "water_column": "through the whole water column",
+    "mean": "averaged vertically through the water column",
+    "integral": "integrated vertically through the water column",
 }
 LAYER_DETAIL = {
     "surface": None,
     "bottom": None,
-    "water_column": (
-        "The water column is reduced to one value in each place in the way chosen in the box under the tick: the "
-        "vertical mean, weighted by the thickness of each cell, or the depth integral, the sum of each cell's value "
-        "times its thickness. Both need the cell thickness: the name of its variable, a file, or z_level."
+    "mean": (
+        "The vertical mean is the mean of the values through the water column, weighted by the thickness of each "
+        "cell. It needs the cell thickness: the name of its variable, a file, or z_level."
+    ),
+    "integral": (
+        "The vertical integration is the sum of each cell's value times its thickness, through the water column. "
+        "It needs the cell thickness: the name of its variable, a file, or z_level."
     ),
 }
 
@@ -85,9 +95,9 @@ CHANGES_TEXT = (
 
 
 def _layered(intro, extra):
-    """The entries of Surface, Bottom and Water column of a pop-out: intro.format(where) begins each, then what each
-    layer is, and extra, which they all have."""
-    titles = {"surface": "Surface", "bottom": "Bottom", "water_column": "Water column"}
+    """The entries of Surface, Bottom, Vertical mean and Vertical integration of a pop-out: intro.format(where)
+    begins each, then what each layer is, and extra, which they all have."""
+    titles = {"surface": "Surface", "bottom": "Bottom", "mean": "Vertical mean", "integral": "Vertical integration"}
     return {
         option: {
             "title": title,

@@ -165,7 +165,8 @@ def _series_options(entry, name, start, end):
 
 def _layers(entry, name, kind):
     """The layers of one variable's entry in a layered kind (see LAYERED):
-    SURFACE and/or BOTTOM and/or "mean" or "integral"."""
+    SURFACE and/or BOTTOM and/or "mean" and/or "integral". water_column is
+    "mean", "integral", a list of both, or None."""
     layers = []
     if entry.get("surface", False):
         layers.append(SURFACE)
@@ -173,16 +174,19 @@ def _layers(entry, name, kind):
         layers.append(BOTTOM)
     water_column = entry.get("water_column")
     if water_column not in (None, False):
-        if water_column not in WATER_COLUMN:
+        given = list(water_column) if isinstance(water_column, (list, tuple)) else [water_column]
+        if not given or any(
+            not isinstance(way, str) or way not in WATER_COLUMN for way in given
+        ) or len(set(given)) < len(given):
             raise ValueError(
                 f"The water_column of {kind}[{name!r}] must be \"mean\", "
-                f"\"integral\" or None, not {water_column!r}."
+                f"\"integral\", [\"mean\", \"integral\"] or None, not {water_column!r}."
             )
-        layers.append(water_column)
+        layers.extend(way for way in WATER_COLUMN if way in given)
     if not layers:
         raise ValueError(
             f"{kind}[{name!r}] needs surface=True, bottom=True, or a water_column of "
-            '"mean" or "integral".'
+            '"mean", "integral" or both.'
         )
     return layers
 
@@ -1652,7 +1656,8 @@ def analyze(
         and "surface" (True for the surface), "bottom" (True for the deepest
         value that is not missing, found with nctoolkit's bottom method, with
         choice="value") and/or "water_column" ("mean" for the vertical mean,
-        "integral" for the depth integral, or None), e.g.
+        "integral" for the depth integral, ["mean", "integral"] for both, or
+        None), e.g.
         {"Chlorophyll": {"start": 2000, "end": 2009, "surface": True,
         "bottom": True, "water_column": "integral"}}. The mean of each month
         of the year is worked out, and the annual mean, which is mapped.

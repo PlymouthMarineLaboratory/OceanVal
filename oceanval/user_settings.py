@@ -3,8 +3,7 @@
 They sit beside your recipes, under ``"settings"``::
 
     {"version": 1, "recipes": {...},
-     "settings": {"show_demo": false,
-                  "data_store": "/data/me", "data_store_use": "always"}}
+     "settings": {"data_store": "/data/me", "data_store_use": "always"}}
 
 ``data_store`` is the folder the data store is kept in (see
 oceanval.data_store), "" for none, and ``data_store_use`` how matchup uses it.
@@ -32,7 +31,11 @@ DATA_STORE_USES = {
     "fallback": "Only use the data store when download fails",
 }
 
-DEFAULTS = {"show_demo": True, "data_store": "", "data_store_use": "always"}
+DEFAULTS = {"data_store": "", "data_store_use": "always"}
+
+# settings there are no more of: ignored where found, and taken out of the file
+# when the settings are next saved ("show_demo" went with the demo, 2026-11-06)
+RETIRED = ("show_demo",)
 
 # a file that is unreadable is said so once, not on every look
 _warned = set()
@@ -44,8 +47,6 @@ def path():
 
 
 def _valid(name, value):
-    if name == "show_demo":
-        return isinstance(value, bool)
     if name == "data_store":
         # a folder for everywhere, so a full path
         return isinstance(value, str) and (value == "" or os.path.isabs(value))
@@ -136,6 +137,8 @@ def save(settings):
         ) from error
     stored = data.get("settings")
     stored = dict(stored) if isinstance(stored, dict) else {}
+    for name in RETIRED:
+        stored.pop(name, None)
     stored.update(settings)
     data["settings"] = stored
     user_recipes._write(where, data)

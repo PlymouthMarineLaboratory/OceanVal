@@ -556,7 +556,7 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.goto(url)
         page.wait_for_selector("#view-start:not([hidden])")
-        assert page.locator("#view-start .choice:not(.is-demo):not(.is-register)").count() == 4
+        assert page.locator("#view-start .choice:not(.is-register)").count() == 4
         page.click('button.choice[data-action="register"]')
         page.wait_for_selector("#view-register-kind:not([hidden])")
         assert page.text_content("#title") == "Which kind of data is your recipe for?"

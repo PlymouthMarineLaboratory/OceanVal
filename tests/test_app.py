@@ -866,12 +866,6 @@ class TestOutputChecks:
         # and none, if the run makes none of them
         arguments, errors = check_output(dict(OUTPUT_FORM, out_dir="old"), str(tmp_path), report=False, made=set())
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, True)
-        # nor in the demo's own folder, where every model tried keeps its matchups:
-        # this run's are made again, and no others are in the report
-        arguments, errors = check_output(
-            dict(OUTPUT_FORM, out_dir="old"), str(tmp_path), demo_dir=str(tmp_path / "old")
-        )
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
         # nothing is asked without matchups there
         for out_dir in ("empty", "new"):
             arguments, errors = check_output(dict(OUTPUT_FORM, out_dir=out_dir), str(tmp_path))
@@ -966,6 +960,26 @@ class TestBrowsing:
         assert app.sample_files("sim", "x")["ndown"] is None
         assert app.sample_files("sim", "0")["files"] == []
         assert get_json(app, "/api/files", simdir="sim", ndown="1")[1]["directories"] == 2
+
+    def test_the_random_directory_keeps_to_the_file_filters(self, app, tmp_path):
+        """Only the files the skip and include boxes let through are listed, and only
+        directories with some are chosen (the user's rule, 2026-11-06)."""
+        (tmp_path / "sim" / "2001").mkdir(parents=True)
+        (tmp_path / "sim" / "spinup").mkdir(parents=True)
+        for name in ("a_grid_T.nc", "a_restart.nc", "a_ptrc_T.nc"):
+            (tmp_path / "sim" / "2001" / name).write_text("")
+        (tmp_path / "sim" / "spinup" / "b_spinup.nc").write_text("")
+
+        for _ in range(5):
+            found = app.sample_files("sim", "1", exclude="restart spinup")
+            assert (found["path"], found["directories"]) == ("sim/2001", 1)
+            assert found["files"] == ["a_grid_T.nc", "a_ptrc_T.nc"]
+        assert app.sample_files("sim", "1", require="grid_T")["files"] == ["a_grid_T.nc"]
+        # none pass: no directory, and the page is told files were left out
+        none = app.sample_files("sim", "1", require="nothing")
+        assert (none["files"], none["directories"], none["filtered_out"]) == ([], 0, 4)
+        reply = get_json(app, "/api/files", simdir="sim", ndown="1", exclude="restart spinup")[1]
+        assert reply["files"] == ["a_grid_T.nc", "a_ptrc_T.nc"]
 
     def test_the_top_of_the_file_system(self, tmp_path):
         found = App(cwd=str(tmp_path)).browse("/")
@@ -1768,7 +1782,7 @@ class TestServer:
         # each matchup there, for the page to ask what is done with it
         found = get_json(app, "/api/probe", simdir="", ndown="", out="", out_dir="old")[1]
         assert [row["key"] for row in found["out_dir_matchups"]] == MIXED_KEYS
-        assert found["out_dir_is_demo"] is False
+        assert "out_dir_is_demo" not in found
 
     def test_the_live_check_counts_what_passes_the_file_filters(self, app, tmp_path):
         write_simulation(tmp_path / "sim", tracers=True)
@@ -4894,441 +4908,6 @@ class TestBack:
         assert app.recipes_page.context["fvcom"] is True
 
 
-# the variables of the demo's files, as CMIP6 names and describes them
-DEMO_VARIABLES = {
-    "tos": ("Sea Surface Temperature", "degC"),
-    "sos": ("Sea Surface Salinity", "0.001"),
-    "no3os": ("Surface Dissolved Nitrate Concentration", "mol m-3"),
-}
-
-
-def write_demo_file(path):
-    """A small stand-in for one of the demo's model output files: a year of
-    monthly values of the variable the file is named after, as CMIP6 names it."""
-    variable = os.path.basename(path).split("_")[0]
-    long_name, units = DEMO_VARIABLES[variable]
-    dataset = xr.Dataset(
-        {
-            variable: (
-                ("time", "j", "i"),
-                np.random.rand(12, 2, 2).astype("f4"),
-                {"long_name": long_name, "units": units},
-            )
-        }
-    )
-    dataset["time"] = (
-        "time",
-        np.arange(12) * 30.0 + 15,
-        {"units": "days since 2010-01-01", "calendar": "noleap"},
-    )
-    dataset.to_netcdf(path)
-
-
-@pytest.fixture
-def fetched(monkeypatch):
-    """The demo's downloads, which write a stand-in file rather than
-    download one. Set fetched.error to make them fail."""
-
-    class Fetched(list):
-        error = None
-
-    downloads = Fetched()
-
-    def fetch(url, path, progress, cancelled):
-        downloads.append(url)
-        if downloads.error is not None:
-            raise downloads.error
-        write_demo_file(path)
-        progress(10, 10)
-
-    monkeypatch.setattr(app_module, "_fetch", fetch)
-    return downloads
-
-
-# a choice in the demo's grid: a model, and the variables ticked for it
-NORESM = {"model": "NorESM2-LM", "variables": ["tos", "no3os", "sos"]}
-
-
-def demo_files(model, variables):
-    """The names and urls of the files the demo downloads for a choice."""
-    files = app_module.DEMO_MODELS[model]["files"]
-    return [files[variable]["name"] for variable in variables], [files[variable]["url"] for variable in variables]
-
-
-def to_setup(app):
-    """The demo, once downloaded, says what to do, and goes on from there."""
-    wait_for(lambda: app.view == "demo_instructions")
-    assert post(app, "/api/demo_continue")[0] == 200
-    assert app.view == "setup"
-
-
-def back_to_demo(app):
-    """Back from the simulation step: the instructions, then the model and variables."""
-    for _ in range(2):
-        assert post(app, "/api/back")[0] == 200
-    assert app.view == "demo"
-
-
-class TestDemo:
-    def test_the_models_are_from_three_servers(self):
-        models = app_module.DEMO_MODELS
-        assert list(models) == ["NorESM2-LM", "MPI-ESM1-2-LR", "UKESM1-0-LL"]
-        assert len({model["server"] for model in models.values()}) == 3
-        for label, model in models.items():
-            assert list(model["files"]) == list(app_module.DEMO_VARIABLES) == ["tos", "no3os", "sos"]
-            for variable, file in model["files"].items():
-                assert file["name"].startswith(f"{variable}_Omon_{label}_historical_{model['member']}_gn_")
-                assert file["url"].startswith(f"https://{model['server']}/")
-                assert file["url"].endswith("/" + file["name"])
-
-    def test_choosing_the_demo(self, app):
-        assert post(app, "/api/choose", {"action": "demo"})[0] == 200
-        _, state = get_json(app, "/api/state")
-
-        assert (state["view"], state["action"]) == ("demo", "matchup_validate")
-        demo = state["demo"]
-        assert (demo["status"], demo["downloaded"], demo["year"]) == ("idle", False, 2010)
-        # nothing is asked for until a model and its variables are ticked
-        assert (demo["model"], demo["variables"], demo["files"]) == (None, [], [])
-        assert [model["label"] for model in demo["models"]] == list(app_module.DEMO_MODELS)
-        assert demo["prefilled"] == {"setup": [], "output": [], "report": []}
-        assert demo["folder"] == os.path.join(app.cwd, "oceanval_demo")
-        # nothing is downloaded until asked for
-        assert not os.path.exists(demo["folder"])
-        assert post(app, "/api/back")[0] == 200
-        assert (app.view, app.demo) == ("start", None)
-
-    def test_the_instructions_come_after_the_download(self, app, fetched):
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        wait_for(lambda: app.view == "demo_instructions")
-        # nothing is filled in until they have been read, and they can only be left once
-        assert post(app, "/api/setup", {"form": app.setup_form})[0] == 409
-        assert post(app, "/api/demo_continue")[0] == 200
-        assert app.view == "setup"
-        assert post(app, "/api/demo_continue")[0] == 409
-
-    def test_the_matchups_of_a_model_tried_before_are_not_asked_about(self, app, fetched):
-        # every model tried keeps its matchups in the demo's folder
-        write_mixed_matchups(os.path.join(app.cwd, "oceanval_demo"))
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        wait_for(lambda: app.view == "demo_instructions")
-        assert post(app, "/api/demo_continue")[0] == 200
-        found = get_json(app, "/api/probe", simdir="", ndown="", out="", out_dir=app.output_form["out_dir"])[1]
-        assert (found["out_dir_has_matchups"], found["out_dir_is_demo"]) == (True, True)
-        # this run's are made again, and no others are in the report
-        with app._lock:
-            arguments, errors = app._check_matchup_output(app.output_form)
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
-
-    def test_the_report_is_concise_unless_detailed_is_chosen(self, app, fetched):
-        app.choose("demo")
-        assert app.demo["concise"] is True
-        post(app, "/api/demo_download", NORESM)
-        wait_for(lambda: app.view == "demo_instructions")
-        assert get_json(app, "/api/state")[1]["demo"]["concise"] is True
-        # only true or false, and only on the instructions
-        assert post(app, "/api/demo_detail", {"concise": "no"})[0] == 409
-        assert post(app, "/api/demo_detail", {})[0] == 409
-        assert post(app, "/api/demo_detail", {"concise": False})[0] == 200
-        assert get_json(app, "/api/state")[1]["demo"]["concise"] is False
-        assert post(app, "/api/demo_continue")[0] == 200
-        _, state = get_json(app, "/api/state")
-        assert state["validate"]["form"]["concise"] is False
-        assert state["validate"]["form"]["subregions"] == "global"
-        # with PDF and Word versions too
-        assert (state["validate"]["form"]["pdf"], state["validate"]["form"]["word"]) == (True, True)
-        # filled in by OceanVal, so marked as its own
-        assert state["demo"]["prefilled"]["report"] == app_module.DEMO_PREFILLED["report"]
-        # and a transect down the middle of the Pacific, from south to north
-        form = state["validate"]["form"]
-        assert form["transect"] is True
-        assert [form[name] for name in app_module.TRANSECT_BOXES] == ["180", "-70", "180", "65"]
-        if oceanval.transects.available():
-            assert app_module.check_transect_boxes(form, {}) == {"start": [180.0, -70.0], "end": [180.0, 65.0]}
-        assert post(app, "/api/demo_detail", {"concise": True})[0] == 409
-
-        # back to the instructions, the choice is still there, and can be changed
-        assert post(app, "/api/back")[0] == 200
-        assert get_json(app, "/api/state")[1]["demo"]["concise"] is False
-        assert post(app, "/api/demo_detail", {"concise": True})[0] == 200
-        assert post(app, "/api/demo_continue")[0] == 200
-        assert app.validate_form["concise"] is True
-        assert app.validate_form["subregions"] == ""
-        assert (app.validate_form["pdf"], app.validate_form["word"]) == (False, False)
-        assert app.validate_form["transect"] is False
-        assert [app.validate_form[name] for name in app_module.TRANSECT_BOXES] == [""] * 4
-
-    def test_a_report_detail_changed_by_hand_is_kept(self, app, fetched):
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        wait_for(lambda: app.view == "demo_instructions")
-        assert post(app, "/api/demo_continue")[0] == 200
-        app.validate_form["concise"] = False
-        assert "concise" not in get_json(app, "/api/state")[1]["demo"]["prefilled"]["report"]
-        assert "pdf" in get_json(app, "/api/state")[1]["demo"]["prefilled"]["report"]
-        assert post(app, "/api/back")[0] == 200
-        assert post(app, "/api/demo_detail", {"concise": False})[0] == 200
-        assert post(app, "/api/demo_continue")[0] == 200
-        # the subregions follow the choice, and the box changed by hand is kept
-        assert app.validate_form["subregions"] == "global"
-        assert app.validate_form["concise"] is False
-        assert (app.validate_form["pdf"], app.validate_form["word"]) == (True, True)
-        app.validate_form["subregions"] = "nwes"
-        assert post(app, "/api/back")[0] == 200
-        assert post(app, "/api/demo_detail", {"concise": True})[0] == 200
-        assert post(app, "/api/demo_continue")[0] == 200
-        assert app.validate_form["subregions"] == "nwes"
-        assert app.validate_form["concise"] is True
-        assert (app.validate_form["pdf"], app.validate_form["word"]) == (False, False)
-
-    def test_the_download_fills_in_the_simulation_step(self, app, fetched, tmp_path):
-        app.choose("demo")
-        assert post(app, "/api/demo_download", NORESM)[0] == 200
-        to_setup(app)
-
-        names, urls = demo_files(**NORESM)
-        assert fetched == urls
-        for name in names:
-            assert (tmp_path / "oceanval_demo" / "simulation" / name).is_file()
-        _, state = get_json(app, "/api/state")
-        form = state["setup"]["form"]
-        assert (form["simdir"], form["ndown"], form["domain"]) == (
-            os.path.join("oceanval_demo", "simulation"), "0", "global")
-        # only the first year in the file
-        assert (form["start"], form["end"]) == ("2010", "2010")
-        # where the output goes is asked once the matchups are confirmed, filled in too
-        output = state["output"]["form"]
-        assert (output["out_dir"], output["out"]) == (
-            "oceanval_demo", os.path.join("oceanval_demo", "matchup.py"))
-        # with the subset the models' grids are matched up in, which matchup alone asks there
-        assert state["demo"]["prefilled"]["output"] == ["out_dir", "out", *app_module.DEMO_LIMITS]
-        assert {name: state["validate"]["form"][name] for name in app_module.DEMO_LIMITS} == app_module.DEMO_LIMITS
-        # concise and fast, with no subregions, unless detailed is chosen on the instructions
-        assert state["validate"]["form"]["subregions"] == ""
-        assert state["validate"]["form"]["concise"] is True
-        # concise has nothing ticked and no subregions or transect, but they are OceanVal's choices
-        assert state["demo"]["prefilled"]["report"] == app_module.DEMO_PREFILLED["report"]
-        # only the chosen model's files are used: those with its name in
-        assert form["require"] == "NorESM2-LM"
-        assert state["demo"]["prefilled"]["setup"] == ["simdir", "ndown", "require"]
-        # the filled-in boxes pass the simulation step's checks
-        assert check_setup(form, app.cwd)[1] == {}
-        # back to the instructions, and the demo's page, from which the file is not downloaded again
-        assert post(app, "/api/back")[0] == 200
-        assert app.view == "demo_instructions"
-        assert post(app, "/api/back")[0] == 200
-        assert app.view == "demo"
-        # with what was ticked still there for the page to tick again
-        assert get_json(app, "/api/state")[1]["demo"]["variables"] == ["tos", "no3os", "sos"]
-        assert post(app, "/api/demo_download", NORESM)[0] == 200
-        to_setup(app)
-        assert len(fetched) == 3
-
-    @pytest.mark.parametrize("body", [
-        {},
-        {"model": "NorESM2-LM"},
-        {"model": "NorESM2-LM", "variables": []},
-        {"model": "NorESM2-LM", "variables": ["thetao"]},
-        {"model": "NorESM2-LM", "variables": "tos"},
-        {"model": "GFDL-ESM4", "variables": ["tos"]},
-    ])
-    def test_a_choice_has_to_be_a_model_and_some_of_its_variables(self, app, fetched, body):
-        app.choose("demo")
-        assert post(app, "/api/demo_download", body)[0] == 400
-        assert fetched == []
-        assert app.demo["status"] == "idle"
-
-    def test_only_the_ticked_variables_are_downloaded(self, app, fetched, tmp_path):
-        app.choose("demo")
-        # in any order, and once each
-        assert post(app, "/api/demo_download", {"model": "MPI-ESM1-2-LR", "variables": ["sos", "tos", "sos"]})[0] == 200
-        to_setup(app)
-
-        names, urls = demo_files("MPI-ESM1-2-LR", ["tos", "sos"])
-        assert fetched == urls
-        folder = tmp_path / "oceanval_demo" / "simulation"
-        assert sorted(path.name for path in folder.iterdir()) == sorted(names)
-        state = get_json(app, "/api/state")[1]
-        assert state["demo"]["files"] == names
-        assert state["setup"]["form"]["require"] == "MPI-ESM1-2-LR"
-
-    def test_another_model_uses_its_own_files(self, app, fetched, tmp_path):
-        folder = tmp_path / "oceanval_demo" / "simulation"
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        to_setup(app)
-        back_to_demo(app)
-
-        # the files of the model before stay, and are left out by the box
-        post(app, "/api/demo_download", {"model": "UKESM1-0-LL", "variables": ["no3os"]})
-        to_setup(app)
-        assert app.setup_form["require"] == "UKESM1-0-LL"
-        assert len(list(folder.iterdir())) == 4
-        _, state = get_json(app, "/api/state")
-        assert state["demo"]["prefilled"]["setup"] == ["simdir", "ndown", "require"]
-
-        # a box that was changed by hand is not filled in again
-        app.setup_form["require"] = "mine"
-        back_to_demo(app)
-        post(app, "/api/demo_download", {"model": "MPI-ESM1-2-LR", "variables": ["tos"]})
-        to_setup(app)
-        assert app.setup_form["require"] == "mine"
-        assert "require" not in get_json(app, "/api/state")[1]["demo"]["prefilled"]["setup"]
-
-    def test_variables_not_ticked_this_time_are_removed(self, app, fetched, tmp_path):
-        folder = tmp_path / "oceanval_demo" / "simulation"
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        to_setup(app)
-        (folder / "mine.nc").write_text("not the demo's")
-        back_to_demo(app)
-
-        post(app, "/api/demo_download", {"model": "NorESM2-LM", "variables": ["sos"]})
-        to_setup(app)
-        # downloaded before, so not fetched again, and the others would be matched up too
-        assert len(fetched) == 3
-        assert sorted(path.name for path in folder.iterdir()) == sorted(
-            [demo_files("NorESM2-LM", ["sos"])[0][0], "mine.nc"])
-
-    def test_a_failed_download_can_be_tried_again(self, app, fetched, tmp_path):
-        fetched.error = OSError("no network")
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        wait_for(lambda: app.demo["status"] == "failed")
-        _, state = get_json(app, "/api/state")
-
-        assert state["view"] == "demo"
-        assert "no network" in state["demo"]["error"]
-        assert not (tmp_path / "oceanval_demo" / "simulation" / demo_files(**NORESM)[0][0]).exists()
-        fetched.error = None
-        assert post(app, "/api/demo_download", NORESM)[0] == 200
-        to_setup(app)
-
-    def test_a_retry_only_downloads_what_is_missing(self, app, fetched, tmp_path, monkeypatch):
-        folder = tmp_path / "oceanval_demo" / "simulation"
-        fetch, dropped = app_module._fetch, [True]
-
-        def flaky(url, path, progress, cancelled):
-            # the connection is lost during the third file
-            if dropped and url == demo_files(**NORESM)[1][2]:
-                raise OSError("dropped")
-            fetch(url, path, progress, cancelled)
-
-        monkeypatch.setattr(app_module, "_fetch", flaky)
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        wait_for(lambda: app.demo["status"] == "failed")
-
-        assert sorted(path.name for path in folder.iterdir()) == sorted(demo_files(**NORESM)[0][:2])
-        assert app.demo["file"] == 3
-        assert get_json(app, "/api/state")[1]["demo"]["downloaded"] is False
-
-        dropped.clear()
-        del fetched[:]
-        assert post(app, "/api/demo_download", NORESM)[0] == 200
-        to_setup(app)
-        assert fetched == [demo_files(**NORESM)[1][2]]
-        assert get_json(app, "/api/state")[1]["demo"]["downloaded"] is True
-
-    def test_only_one_download_at_a_time(self, app, monkeypatch):
-        release = threading.Event()
-        monkeypatch.setattr(
-            app_module, "_fetch", lambda url, path, progress, cancelled: release.wait(30)
-        )
-        app.choose("demo")
-        assert post(app, "/api/demo_download", NORESM)[0] == 200
-        assert post(app, "/api/demo_download", NORESM)[0] == 409
-        # nor going back while it downloads
-        assert post(app, "/api/back")[0] == 409
-        release.set()
-
-    def test_the_demo_is_only_offered_at_the_start(self, app):
-        app.choose("validate")
-        assert post(app, "/api/choose", {"action": "demo"})[0] == 409
-        assert post(app, "/api/demo_download", NORESM)[0] == 409
-
-    def test_what_was_changed_is_kept_and_not_marked_as_the_demos(self, app, fetched):
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        to_setup(app)
-        # the user changed a box, and went back
-        with app._lock:
-            app.setup_form = dict(app.setup_form, ndown="1")
-            app.output_form = dict(app.output_form, out=os.path.join("oceanval_demo", "mine.py"))
-        assert post(app, "/api/back")[0] == 200
-        assert app.view == "demo_instructions"
-
-        # the page only marks what still holds what the demo filled in
-        prefilled = get_json(app, "/api/state")[1]["demo"]["prefilled"]
-        assert (prefilled["setup"], prefilled["output"]) == (["simdir", "require"], ["out_dir", *app_module.DEMO_LIMITS])
-        # and Continue on the demo's page, after Back, does not fill it in again
-        post(app, "/api/back")
-        assert app.view == "demo"
-        assert post(app, "/api/demo_download", NORESM)[0] == 200
-        to_setup(app)
-        assert app.setup_form["ndown"] == "1"
-        assert app.output_form["out"] == os.path.join("oceanval_demo", "mine.py")
-
-    def test_starting_again_after_a_run_forgets_its_settings(self, app):
-        with app._lock:
-            app.view, app.action = "finished", "validate"
-            app.setup_form["simdir"] = "/some/simulation"
-            app.validate_form["subregions"] = "some regions"
-            app.own_data["point"].append({"name": "mine"})
-            app.matchup_progress = {"items": []}
-            app.status, app.returncode = "finished", 0
-        assert post(app, "/api/restart_all")[0] == 200
-        assert (app.view, app.action) == ("home", None)
-        assert app.setup_form["simdir"] == ""
-        assert app.validate_form["subregions"] == ""
-        assert app.own_data == {"point": [], "gridded": []}
-        assert app.matchup_progress is None
-        assert app.status is None
-
-    def test_starting_again_forgets_the_demo(self, app, fetched):
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        to_setup(app)
-        with app._lock:
-            app.view = "finished"
-
-        assert post(app, "/api/restart_all")[0] == 200
-        assert app.demo is None
-        assert app.setup_form["simdir"] == ""
-        assert app.output_form["out_dir"] == app.cwd
-        assert app.validate_form["subregions"] == ""
-        app.choose("matchup")
-        assert get_json(app, "/api/state")[1]["demo"] is None
-
-    def test_the_demo_picks_the_datasets_but_not_the_years(self, app, fetched, runs):
-        app.choose("demo")
-        post(app, "/api/demo_download", NORESM)
-        to_setup(app)
-        # only OceanVal's own datasets, so there is no step for the user's own
-        assert post(app, "/api/setup", {"form": app.setup_form})[0] == 200
-        wait_for(lambda: app.view == "recipes")
-        page = app.recipes_page
-
-        # the years are the user's to say
-        assert [page.form[name] for name in ("point_start", "point_end", "clim_start", "clim_end")] == [""] * 4
-        assert "prefilled" not in page.context["app"]
-        assert "initial_years" not in page.context["app"]
-        # tos is the sea surface temperature, validated against COBE-SST 2
-        temperature = next(row for row in page.rows if row["variable"] == "temperature")
-        assert temperature["model_variable"] == "tos"
-        assert [dataset["recipe"] for dataset in temperature["gridded"] if dataset["ticked"]] == ["cobe2"]
-        # sos and no3os are the surface salinity and nitrate, validated against WOA23
-        for variable, model_variable in (("salinity", "sos"), ("nitrate", "no3os")):
-            row = next(row for row in page.rows if row["variable"] == variable)
-            assert row["model_variable"] == model_variable
-            assert [dataset["recipe"] for dataset in row["gridded"] if dataset["ticked"]] == ["woa23"]
-        status, body = get(app, "/recipes/")
-        assert status == 200
-        assert "prefilled" not in page_state(body)["context"]["app"]
-
-
 def test_the_command_runs():
     root = os.path.dirname(os.path.dirname(os.path.abspath(oceanval.__file__)))
     result = subprocess.run(
@@ -5364,6 +4943,44 @@ def test_the_files_skipped_start_empty(app, tmp_path):
     assert check_setup(dict(SETUP_FORM, exclude=""), str(tmp_path))[0]["exclude"] is None
 
 
+def test_words_to_skip_can_be_clicked_in_a_browser(browser, tmp_path):
+    """Under every "Skip file names containing" box, restart and spinup can be
+    clicked in (the user's rule, 2026-11-06): each is added once, and the live
+    check takes it as typed. Nothing is added unless clicked."""
+    write_simulation(tmp_path / "sim", tracers=True)
+    app = App(cwd=str(tmp_path))
+    app.leftovers_asked = True
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click("#home-validate")
+        page.click('button.choice[data-action="matchup_validate"]')
+        page.wait_for_selector("#view-setup:not([hidden])")
+        # every box of the window has them: the setup page's, Compare's five, the files review's and the bank's
+        assert page.locator(".skip-words").count() == 8
+        words = page.locator("#view-setup .skip-word")
+        assert words.all_inner_texts() == ["restart", "spinup"]
+        assert page.input_value("#f-exclude") == ""
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "1")
+        words.nth(0).click()
+        assert page.input_value("#f-exclude") == "restart"
+        assert words.nth(0).is_disabled() and words.nth(1).is_enabled()
+        words.nth(1).click()
+        assert page.input_value("#f-exclude") == "restart spinup"
+        # taken as typed: the line under the boxes says the filters are passed on
+        page.wait_for_function("() => document.querySelector('#m-simulation').innerText.includes('The filters are passed on')")
+        # what is typed is kept, and a word typed is not offered again
+        page.fill("#f-exclude", "5d spinup")
+        page.wait_for_function("() => !document.querySelectorAll('#view-setup .skip-word')[0].disabled")
+        assert words.nth(1).is_disabled()
+        words.nth(0).click()
+        assert page.input_value("#f-exclude") == "5d spinup restart"
+    finally:
+        app.close()
+
+
 @pytest.mark.parametrize("tile", ["#home-viewer", "#home-analyze", "#home-validate"])
 def test_the_files_skipped_start_empty_in_a_browser(browser, tmp_path, tile):
     """Validate, Analyze and View simulation output share the box: it starts
@@ -5385,10 +5002,13 @@ def test_the_files_skipped_start_empty_in_a_browser(browser, tmp_path, tile):
         assert page.input_value("#f-exclude") == ""
         assert not amber()
         assert "Only file names are checked" not in page.inner_text("#m-simulation")
+        assert "The filters are passed on" not in page.inner_text("#m-simulation")
         page.fill("#f-exclude", "restart 5d")
         assert not amber()
         assert "skipped. Remove restart" not in page.inner_text("#m-simulation")
-        assert "Only file names are checked" in page.inner_text("#m-simulation")
+        # the line that said only file names are checked is gone (the user's rule, 2026-11-06)
+        assert "Only file names are checked" not in page.inner_text("#m-simulation")
+        assert ("The filters are passed on" in page.inner_text("#m-simulation")) == (tile != "#home-viewer")
         page.fill("#f-exclude", "")
         assert not amber()
     finally:
@@ -6597,89 +6217,6 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
         app.close()
 
 
-def test_the_demo_in_a_browser(browser, tmp_path, fetched):
-    """The demo is offered below the four, says in large bold type that it
-    makes oceanval_demo, says what it is not, and fills in the simulation
-    step in bold."""
-    app = App(cwd=str(tmp_path))
-    app.choose("validate_menu")
-    app.leftovers_asked = True
-    url = app.start()
-    try:
-        page = browser.new_page()
-        page.goto(url)
-        page.wait_for_selector("#view-start:not([hidden])")
-        card = page.locator(".choice.is-demo")
-        assert card.locator(".choice__title").text_content() == "Try a demo"
-        # below the four, across both columns
-        below = page.locator(".choice[data-action=compare]").bounding_box()
-        box = card.bounding_box()
-        assert box["y"] > below["y"] + below["height"]
-        assert box["width"] > 1.5 * below["width"]
-        card.click()
-        page.wait_for_selector("#view-demo:not([hidden])")
-
-        assert page.text_content("#title") == "Try OceanVal with a demo"
-        warning = page.locator("#demo-folder")
-        assert "oceanval_demo" in warning.text_content()
-        assert "Remove it when you have finished" in warning.text_content()
-        assert str(tmp_path / "oceanval_demo") in warning.text_content()
-        assert warning.evaluate("node => getComputedStyle(node).fontWeight") == "700"
-        assert float(warning.evaluate("node => getComputedStyle(node).fontSize")[:-2]) >= 20
-        caveat = page.text_content(".demo-caveat")
-        assert "not how to validate a climate model" in caveat
-        assert "2010" in caveat
-        assert "NorESM2-LM" in page.text_content("#demo-grid")
-
-        page.locator('input[aria-label="Sea surface temperature from NorESM2-LM"]').check()
-        page.click("#demo-start")
-        # told what to do, then the steps
-        page.wait_for_selector("#view-demo-instructions:not([hidden])")
-        assert page.text_content("#title") == "Instructions"
-        text = page.text_content("#view-demo-instructions")
-        assert "Just press Continue on each page, and tick agreement when asked, to run the validation." in text
-        assert "Feel free to customize the validation by tweaking the options." in text
-        assert "You should start seeing validation results in a couple of minutes." in text
-        assert "How do you want your validation sample?" in text
-        # each sentence in a box of its own, and then the question
-        boxes = page.locator("#view-demo-instructions .demo-about")
-        assert boxes.count() == 4
-        assert [boxes.nth(i).locator("p").count() for i in range(4)] == [1, 1, 1, 1]
-        options = page.locator("#demo-detail label")
-        assert options.all_text_contents() == ["Concise and fast", "Detailed, but slower"]
-        assert page.is_checked('input[name="demo-detail"][value="true"]')
-        # the wait follows the choice
-        page.check('input[name="demo-detail"][value="false"]')
-        page.wait_for_function("document.getElementById('demo-wait').textContent.includes('4 or 5 minutes')")
-        assert page.text_content("#demo-wait") == "You should start seeing validation results in 4 or 5 minutes."
-        page.check('input[name="demo-detail"][value="true"]')
-        page.wait_for_function("document.getElementById('demo-wait').textContent.includes('a couple of minutes')")
-        # the boxes together are in the middle of the space between the masthead and the bar, in type 1.5 times the demo's
-        box = page.locator("#view-demo-instructions .demo").bounding_box()
-        width = page.evaluate("innerWidth")
-        assert abs((box["x"] + box["width"] / 2) - width / 2) <= 20
-        masthead = page.locator(".masthead").bounding_box()
-        bar = page.locator("#bar").bounding_box()
-        free_top, free_bottom = masthead["y"] + masthead["height"], bar["y"]
-        assert abs((box["y"] + box["height"] / 2) - (free_top + free_bottom) / 2) <= 40
-        size = page.locator("#view-demo-instructions p").first.evaluate("node => parseFloat(getComputedStyle(node).fontSize)")
-        assert size == 14.5 * 1.5
-        page.click("#demo-continue")
-        page.wait_for_selector("#view-setup:not([hidden])")
-        red = "rgb(192, 57, 43)"
-        simdir = page.locator("#f-simdir")
-        assert simdir.input_value() == os.path.join("oceanval_demo", "simulation")
-        assert simdir.evaluate("node => getComputedStyle(node).color") == red
-        assert simdir.evaluate("node => getComputedStyle(node).fontWeight") == "700"
-        assert page.locator("#f-ndown").evaluate("node => node.classList.contains('is-oceanval')")
-        # the user's own once typed over
-        simdir.fill("elsewhere")
-        assert not simdir.evaluate("node => node.classList.contains('is-oceanval')")
-        assert page.locator("#meta .is-flag").text_content() == "Demooceanval_demo"
-    finally:
-        app.close()
-
-
 def test_comparing_validations_in_a_browser(browser, tmp_path, monkeypatch):
     """The first page offers to compare validations made before: five rows
     of a name and a validation directory, said what they must hold, and
@@ -6695,7 +6232,10 @@ def test_comparing_validations_in_a_browser(browser, tmp_path, monkeypatch):
         page = browser.new_page()
         page.goto(url)
         page.wait_for_selector("#view-start:not([hidden])")
-        assert page.locator("#view-start .choice:not(.is-demo):not(.is-register)").count() == 4
+        assert page.locator("#view-start .choice:not(.is-register)").count() == 4
+        # the demo is gone from Validate (the user's rule, 2026-11-06)
+        assert page.locator("#choice-demo, #demo-tile, #demo-close, #demo-hide, #view-demo").count() == 0
+        assert app.choose("demo") is False
         card = page.locator(".choice[data-action=compare]")
         assert card.locator(".choice__title").text_content() == "Compare existing validations"
         card.click()
@@ -7618,72 +7158,6 @@ def test_the_recipes_window_keeps_the_app_open(browser, tmp_path, monkeypatch):
         app.close()
 
 
-def test_the_demo_grid_in_a_browser(browser, tmp_path, fetched):
-    """One model at a time, of three, with one to three of its variables;
-    what is ticked is downloaded, and the model's name fills the box that
-    picks its files out."""
-    app = App(cwd=str(tmp_path))
-    app.choose("validate_menu")
-    url = app.start()
-    try:
-        page = browser.new_page()
-        page.goto(url)
-        page.click('button.choice[data-action="demo"]')
-        page.wait_for_selector("#demo-grid")
-
-        assert page.locator("#demo-grid thead th").all_text_contents() == [
-            "Model", "Sea surface temperature", "Surface nitrate", "Sea surface salinity"]
-        assert page.locator("#demo-grid-body tr").count() == 3
-        assert page.locator("#demo-grid-body th .demo-grid__name").all_text_contents() == list(
-            app_module.DEMO_MODELS)
-        servers = page.locator("#demo-grid-body th .demo-grid__where").all_text_contents()
-        assert [text.split(" · ")[0] for text in servers] == [
-            model["server"] for model in app_module.DEMO_MODELS.values()]
-        # nothing ticked, so nothing to download
-        assert page.is_disabled("#demo-start")
-        assert page.is_hidden("#demo-chosen")
-
-        def box(model, title):
-            return page.locator(f'input[aria-label="{title} from {model}"]')
-
-        box("NorESM2-LM", "Sea surface salinity").check()
-        box("NorESM2-LM", "Surface nitrate").check()
-        assert page.is_enabled("#demo-start")
-        assert page.is_visible("#demo-chosen")
-        # in the order of the columns, whatever the order they were ticked in
-        assert page.text_content("#demo-chosen-variables").startswith("Surface nitrate")
-        assert "NorESM2-LM" in page.text_content("#demo-chosen-model")
-
-        # ticking another model's clears the first's
-        box("UKESM1-0-LL", "Sea surface temperature").check()
-        assert page.locator("#demo-grid input:checked").count() == 1
-        assert box("UKESM1-0-LL", "Sea surface temperature").is_checked()
-        assert "MB" in page.text_content("#demo-chosen-files")
-        # and unticking the last one leaves nothing chosen
-        box("UKESM1-0-LL", "Sea surface temperature").uncheck()
-        assert page.is_disabled("#demo-start")
-        assert page.is_hidden("#demo-chosen")
-
-        box("MPI-ESM1-2-LR", "Surface nitrate").check()
-        box("MPI-ESM1-2-LR", "Sea surface temperature").check()
-        page.click("#demo-start")
-        page.click("#demo-continue")
-        page.wait_for_selector("#f-simdir")
-        assert page.input_value("#f-require") == "MPI-ESM1-2-LR"
-        assert "is-oceanval" in page.get_attribute("#f-require", "class")
-        names, urls = demo_files("MPI-ESM1-2-LR", ["tos", "no3os"])
-        assert fetched == urls
-
-        # back, the same boxes are ticked, and their files are there already
-        page.click("#back-open")
-        page.click("#back-open")
-        page.wait_for_selector("#demo-grid")
-        assert page.locator("#demo-grid input:checked").count() == 2
-        assert page.text_content("#demo-start") == "Continue"
-    finally:
-        app.close()
-
-
 def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
     """The table lists the units of each matchup with the conversion OceanVal
     fills in where they differ, in bold for as long as it is OceanVal's,
@@ -8296,6 +7770,20 @@ def test_viewing_files_in_a_random_directory_in_a_browser(browser, tmp_path):
         )
         page.click("#sample-close")
         assert page.is_hidden("#sample")
+
+        # only the files the filters let through are listed (the user's rule, 2026-11-06)
+        page.fill("#f-exclude", "ptrc")
+        page.click("#view-files")
+        page.wait_for_selector("#sample-list .picker__file")
+        assert page.eval_on_selector_all(
+            "#sample-list .picker__file", "nodes => nodes.map(n => n.textContent)"
+        ) == ["a_grid_T.nc"]
+        page.click("#sample-close")
+        page.fill("#f-exclude", "")
+        page.fill("#f-require", "nothing")
+        page.click("#view-files")
+        page.wait_for_selector("#sample-list .picker__empty:has-text('pass the file filters')")
+        page.click("#sample-close")
     finally:
         app.close()
 
@@ -8683,38 +8171,40 @@ class TestSettings:
     """The window's settings, saved in the home .oceanvalrc from its panel."""
 
     def test_the_settings_are_read_as_the_window_opens(self, oceanvalrc, tmp_path):
-        oceanvalrc.write_text(json.dumps({"settings": {"show_demo": False}}))
+        oceanvalrc.write_text(json.dumps({"settings": {"data_store_use": "fallback"}}))
         app = App(cwd=str(tmp_path))
         settings = app.state()["user_settings"]
-        assert settings["values"] == {"show_demo": False, **NO_STORE}
+        assert settings["values"] == {**NO_STORE, "data_store_use": "fallback"}
         assert settings["path"] == str(oceanvalrc)
         assert "themes" not in settings
 
     def test_applying_saves_them(self, app, oceanvalrc):
         version = app.version
-        status, reply = post(app, "/api/settings", {"settings": {"show_demo": False}})
+        status, reply = post(app, "/api/settings", {"settings": {"data_store_use": "fallback"}})
         assert status == 200
         assert reply["ok"] is True
-        assert reply["settings"] == {"show_demo": False, **NO_STORE}
+        assert reply["settings"] == {**NO_STORE, "data_store_use": "fallback"}
         assert reply["data_store"]["root"] is None
-        assert app.state()["user_settings"]["values"] == {"show_demo": False, **NO_STORE}
+        assert app.state()["user_settings"]["values"] == {**NO_STORE, "data_store_use": "fallback"}
         assert app.version > version
-        assert json.loads(oceanvalrc.read_text())["settings"] == {"show_demo": False}
+        assert json.loads(oceanvalrc.read_text())["settings"] == {"data_store_use": "fallback"}
 
     def test_settings_that_cannot_be_used_are_refused(self, app, oceanvalrc):
-        status, reply = post(app, "/api/settings", {"settings": {"show_demo": "purple"}})
+        status, reply = post(app, "/api/settings", {"settings": {"data_store_use": "purple"}})
         assert status == 400
         assert not reply["ok"] and "purple" in reply["error"]
-        assert app.state()["user_settings"]["values"] == {"show_demo": True, **NO_STORE}
+        assert app.state()["user_settings"]["values"] == NO_STORE
         assert not oceanvalrc.exists()
 
     def test_applying_needs_the_token(self, app, oceanvalrc):
-        assert post(app, "/api/settings", {"settings": {"show_demo": False}}, token="wrong")[0] == 403
+        assert post(app, "/api/settings", {"settings": {"data_store_use": "fallback"}}, token="wrong")[0] == 403
         assert not oceanvalrc.exists()
 
     def test_the_preferences_page_in_a_browser(self, browser, oceanvalrc, tmp_path):
         app = App(cwd=str(tmp_path))
         url = _tools_page(app)
+        store = tmp_path / "store"
+        store.mkdir()
         try:
             page = browser.new_page()
             page.goto(url)
@@ -8724,84 +8214,35 @@ class TestSettings:
             _open_preferences(page)
             assert app.view == "preferences"
             assert page.text_content("#title") == "Preferences"
-            assert page.is_checked("#settings-show-demo")
+            # there is no demo any more (removed 2026-11-06), so no setting for it
+            assert page.locator("#settings-show-demo").count() == 0
+            assert "Demo" not in page.locator("#view-preferences .prefs__legend").all_text_contents()
+            assert page.input_value("#settings-data-store") == ""
 
             # Back leaves everything as it was
-            page.uncheck("#settings-show-demo")
+            page.fill("#settings-data-store", str(store))
             _to_validate(page)
-            assert page.is_visible("#choice-demo")
             assert not oceanvalrc.exists()
 
             # opened again, it shows what is saved, not what was left
             page.click("#back-open")
             page.click("#home-help")
             _open_preferences(page)
-            assert page.is_checked("#settings-show-demo")
+            assert page.input_value("#settings-data-store") == ""
 
-            page.uncheck("#settings-show-demo")
+            page.fill("#settings-data-store", str(store))
             page.click("#settings-apply")
             page.wait_for_function("document.getElementById('settings-apply').disabled === false")
             # saved, and the page stays
             assert page.is_visible("#view-preferences")
-            assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
-            _to_validate(page)
-            assert page.is_hidden("#choice-demo")
+            saved = json.loads(oceanvalrc.read_text())["settings"]
+            assert os.path.realpath(saved["data_store"]) == os.path.realpath(store)
 
-            # and are there when the page is opened again
+            # and is there when the page is opened again
             page.reload()
-            page.wait_for_selector("#view-start:not([hidden])")
-            assert page.is_hidden("#choice-demo")
-
-            # back to the default
-            page.click("#back-open")
-            page.click("#home-help")
-            _open_preferences(page)
-            page.check("#settings-show-demo")
-            page.click("#settings-apply")
-            page.wait_for_function("document.getElementById('settings-apply').disabled === false")
-            _to_validate(page)
-            assert page.is_visible("#choice-demo")
+            page.wait_for_selector("#view-preferences:not([hidden])")
+            assert os.path.realpath(page.input_value("#settings-data-store")) == os.path.realpath(store)
             assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(244, 250, 250)"
-        finally:
-            app.close()
-
-    def test_the_x_of_the_demo_tile_asks_whether_to_hide_it_for_good(self, browser, oceanvalrc, tmp_path):
-        app = App(cwd=str(tmp_path))
-        app.choose("validate_menu")
-        url = app.start()
-        try:
-            page = browser.new_page()
-            page.goto(url)
-            page.wait_for_selector("#view-start:not([hidden])")
-            assert page.is_visible("#demo-close") and page.is_hidden("#demo-hide")
-            # the x is a sibling of the tile's button, not inside it
-            assert page.locator("#choice-demo #demo-close").count() == 0
-
-            # Escape leaves everything as it was
-            page.click("#demo-close")
-            assert page.is_visible("#demo-hide")
-            assert page.text_content("#demo-hide-title") == "Do you never want to see the demo again?"
-            page.keyboard.press("Escape")
-            assert page.is_hidden("#demo-hide") and page.is_visible("#choice-demo")
-
-            # No: closed this time only, and nothing saved
-            page.click("#demo-close")
-            page.click("#demo-hide-no")
-            assert page.is_hidden("#choice-demo")
-            assert not oceanvalrc.exists()
-            page.reload()
-            page.wait_for_selector("#view-start:not([hidden])")
-            assert page.is_visible("#choice-demo")
-
-            # Yes: saved, so it is gone from then on, and Preferences shows it again
-            page.click("#demo-close")
-            page.click("#demo-hide-yes")
-            page.wait_for_selector("#demo-hide", state="hidden")
-            assert page.is_hidden("#choice-demo")
-            assert json.loads(oceanvalrc.read_text())["settings"]["show_demo"] is False
-            page.reload()
-            page.wait_for_selector("#view-start:not([hidden])")
-            assert page.is_hidden("#choice-demo")
         finally:
             app.close()
 
@@ -9005,7 +8446,7 @@ class TestSettings:
             # a file that cannot be read is not written over
             oceanvalrc.write_text("{ not json")
             _open_preferences(page)
-            page.uncheck("#settings-show-demo")
+            page.fill("#settings-data-store", str(tmp_path))
             page.click("#settings-apply")
             page.wait_for_selector("#settings-error:not([hidden])")
             assert "could not be read" in page.text_content("#settings-error")

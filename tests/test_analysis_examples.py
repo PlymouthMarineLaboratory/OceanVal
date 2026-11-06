@@ -17,8 +17,9 @@ def test_every_option_has_its_words():
 
 def test_each_pop_out_with_layers_has_them_all():
     for kind in ("climatology", "long_term", "seasonal", "map_changes"):
-        assert list(ex.EXAMPLES[kind]) == ["surface", "bottom", "water_column"]
-        assert [found["title"] for found in ex.EXAMPLES[kind].values()] == ["Surface", "Bottom", "Water column"]
+        assert list(ex.EXAMPLES[kind]) == ["surface", "bottom", "mean", "integral"]
+        assert [found["title"] for found in ex.EXAMPLES[kind].values()] == [
+            "Surface", "Bottom", "Vertical mean", "Vertical integration"]
     assert list(ex.EXAMPLES["phenology"]) == ["peak"]
     assert list(ex.EXAMPLES["transects"]) == [
         "surface_climatology", "surface_changes", "vertical_climatology", "vertical_changes"]

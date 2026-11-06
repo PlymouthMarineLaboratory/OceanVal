@@ -34,7 +34,6 @@ file:// link would not, and over a forwarded port.
 """
 
 import argparse
-import calendar
 import codecs
 import contextlib
 import atexit
@@ -187,90 +186,6 @@ _MOST_FOLDERS = 2000
 # the sample of a simulation's files lists at most this many, and counts the rest
 _MOST_FILES = 500
 
-# the demo: one of three CMIP6 models, each from a different ESGF server, of
-# which the user chooses 1-3 of sea surface temperature, surface nitrate and
-# sea surface salinity. They are downloaded into DEMO_FOLDER, in the directory
-# worked in, and matched up for DEMO_YEAR only, a year in all of the files
-def _demo_model(label, full, server, member, folder, period, versions, megabytes):
-    """A model of the demo: where each variable's file is, and its size."""
-    files = {}
-    for variable in DEMO_VARIABLES:
-        name = f"{variable}_Omon_{label}_historical_{member}_gn_{period}.nc"
-        files[variable] = {
-            "name": name,
-            "url": f"{folder}/{variable}/gn/{versions[variable]}/{name}",
-            "megabytes": megabytes[variable],
-        }
-    first, last = period.split("-")
-    covers = " to ".join(
-        f"{calendar.month_name[int(text[4:])]} {text[:4]}" for text in (first, last)
-    )
-    return {
-        "label": label,
-        "full": full,
-        "server": server,
-        "member": member,
-        "covers": covers,
-        "files": files,
-    }
-
-
-# the demo's variables, in the order of the page's columns
-DEMO_VARIABLES = ("tos", "no3os", "sos")
-
-DEMO_MODELS = {
-    model["label"]: model
-    for model in (
-        _demo_model(
-            "NorESM2-LM",
-            "the Norwegian Earth System Model (low-resolution atmosphere)",
-            "noresg.nird.sigma2.no",
-            "r3i1p1f1",
-            "https://noresg.nird.sigma2.no/thredds/fileServer/esg_dataroot/cmor/CMIP6/CMIP/"
-            "NCC/NorESM2-LM/historical/r3i1p1f1/Omon",
-            "201001-201412",
-            # nitrate was published later than the others, so its version differs
-            {"tos": "v20190920", "sos": "v20190920", "no3os": "v20191108"},
-            {"tos": 17.2, "no3os": 18.2, "sos": 14.9},
-        ),
-        _demo_model(
-            "MPI-ESM1-2-LR",
-            "the Max Planck Institute Earth System Model (low resolution)",
-            "esgf3.dkrz.de",
-            "r1i1p1f1",
-            "https://esgf3.dkrz.de/thredds/fileServer/cmip6/CMIP/MPI-M/MPI-ESM1-2-LR/historical/r1i1p1f1/Omon",
-            "201001-201412",
-            {"tos": "v20190710", "sos": "v20190710", "no3os": "v20190710"},
-            {"tos": 9.2, "no3os": 9.6, "sos": 8.3},
-        ),
-        _demo_model(
-            "UKESM1-0-LL",
-            "the UK Earth System Model (low resolution)",
-            "esgf.ceda.ac.uk",
-            "r1i1p1f2",
-            "https://esgf.ceda.ac.uk/thredds/fileServer/esg_cmip6/CMIP6/CMIP/MOHC/UKESM1-0-LL/"
-            "historical/r1i1p1f2/Omon",
-            # its files cover 1950 to 2014, so they are much bigger
-            "195001-201412",
-            {"tos": "v20190627", "sos": "v20190627", "no3os": "v20191105"},
-            {"tos": 159.3, "no3os": 162.0, "sos": 136.2},
-        ),
-    )
-}
-
-DEMO_FOLDER = "oceanval_demo"
-DEMO_YEAR = 2010
-
-# the limits the demo's models' grids are matched up within, which matchup is
-# given with the cores, once the matchups are confirmed
-DEMO_LIMITS = {
-    "lon_min": "-180",
-    "lon_max": "180",
-    "lat_min": "-90",
-    "lat_max": "90",
-}
-
-
 def default_setup_form():
     """The simulation step's boxes, as they start."""
     return {
@@ -388,107 +303,6 @@ def default_depth_boxes():
         ["" if depth is None else str(depth) for depth in pair]
         for pair in depths.DEFAULT_DEPTH_BINS
     ]
-
-
-def demo_setup_form(model):
-    """The simulation step's boxes, as the demo fills them in: the
-    downloaded files. The files of every model tried share a directory,
-    so only the chosen model's are used: those with its name in."""
-    return dict(
-        default_setup_form(),
-        simdir=os.path.join(DEMO_FOLDER, "simulation"),
-        ndown="0",
-        domain="global",
-        require=model,
-        start=str(DEMO_YEAR),
-        end=str(DEMO_YEAR),
-    )
-
-
-def demo_output_form():
-    """The output step's boxes, as the demo fills them in: the matchups,
-    the report and the script beside the downloaded files, in DEMO_FOLDER.
-    Nothing is asked about the matchups of a model tried before there (see
-    check_output)."""
-    return dict(
-        default_output_form(),
-        out_dir=DEMO_FOLDER,
-        out=os.path.join(DEMO_FOLDER, "matchup.py"),
-        **DEMO_LIMITS,
-    )
-
-
-# the detailed demo's transect: south to north, down the middle of the Pacific
-# along the date line, from the Southern Ocean to the Bering Strait
-DEMO_TRANSECT = {"start": [180, -70], "end": [180, 65]}
-
-
-def demo_report_form(concise=True):
-    """The report options step's boxes, as the demo fills them in: concise
-    or detailed, as chosen on the instructions. The concise report has no
-    subregions or transect, and the detailed one has the global subregions
-    and a transect down the middle of the Pacific, with PDF and Word versions
-    too."""
-    form = dict(
-        default_validate_form(),
-        subregions="" if concise else "global",
-        concise=concise,
-        pdf=not concise,
-        word=not concise,
-        transect=not concise,
-        **DEMO_LIMITS,
-    )
-    if not concise:
-        (start_lon, start_lat), (end_lon, end_lat) = DEMO_TRANSECT["start"], DEMO_TRANSECT["end"]
-        form.update(
-            transect_start_lon=str(start_lon),
-            transect_start_lat=str(start_lat),
-            transect_end_lon=str(end_lon),
-            transect_end_lat=str(end_lat),
-        )
-    return form
-
-
-# the boxes the demo fills in, which the page marks as OceanVal's
-DEMO_PREFILLED = {
-    "setup": ["simdir", "ndown", "require"],
-    "output": ["out_dir", "out", *DEMO_LIMITS],
-    "report": [
-        *DEMO_LIMITS, "subregions", "concise", "pdf", "word", "transect",
-        "transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat",
-    ],
-}
-
-
-class _Cancelled(Exception):
-    """The demo's download was stopped, as OceanVal closed."""
-
-
-def _fetch(url, path, progress, cancelled):
-    """Download url to path, calling progress(done, total) as it goes, where
-    total is None if the server does not say. Written to path + ".part"
-    first, so that a file at path is always complete. Raises _Cancelled if
-    cancelled is set before it has finished."""
-    # only needed for the demo
-    import requests
-
-    partial = path + ".part"
-    try:
-        with requests.get(url, stream=True, timeout=60) as response:
-            response.raise_for_status()
-            total = int(response.headers.get("Content-Length") or 0) or None
-            done = 0
-            with open(partial, "wb") as file:
-                for chunk in response.iter_content(1 << 16):
-                    if cancelled.is_set():
-                        raise _Cancelled
-                    file.write(chunk)
-                    done += len(chunk)
-                    progress(done, total)
-        os.replace(partial, path)
-    finally:
-        with contextlib.suppress(OSError):
-            os.remove(partial)
 
 
 # the boxes of the transect's two ends, in validate()'s order: [lon, lat] of
@@ -756,7 +570,7 @@ def matchups_asked_about(out_dir, made=None, report=True):
     return rows
 
 
-def check_output(form, cwd, report=True, demo_dir=None, made=None):
+def check_output(form, cwd, report=True, made=None):
     """Turn the output step's boxes, the last before a matchup starts, into
     out_dir, the directory the matchups and the report are saved in, out,
     the script, and matchup's overwrite and validate's previous.
@@ -769,10 +583,7 @@ def check_output(form, cwd, report=True, demo_dir=None, made=None):
     Only one used is kept as it is, and validated if a report follows
     (report). The user must tick to confirm it, as they may not notice what
     each starts on.
-    Without matchups to ask about, overwrite and previous are True. In
-    demo_dir, the demo's own, where every model tried keeps its matchups,
-    nothing is asked: this run's are made again and no others are in the
-    report.
+    Without matchups to ask about, overwrite and previous are True.
 
     Returns (arguments, errors), as check_setup does.
     """
@@ -791,8 +602,6 @@ def check_output(form, cwd, report=True, demo_dir=None, made=None):
         unused = set(form["unused"] if form["existing_chosen"] else again)
         if not keys:
             arguments["overwrite"] = arguments["previous"] = True
-        elif out_dir == demo_dir:
-            arguments["overwrite"], arguments["previous"] = True, not report
         else:
             arguments["overwrite"] = _ticked_of(unused, again)
             # with a report, only those used are in it as they are
@@ -1653,9 +1462,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
     checked in "running", "report_options" asks for the report's options
     before anything is matched up, while matchup waits for the answer to
     whether the matchups are right; "point_time_res" comes before it, when
-    point datasets are matched by day against coarser output. The demo is a matchup and validate run
-    that starts at "demo", which downloads its model output, and goes on to
-    "setup" with the boxes filled in. Registering recipes of your own is
+    point datasets are matched by day against coarser output. Registering recipes of your own is
     "register_kind" (point or gridded data), and then "register_point" or
     "register_gridded", where each is described, checked and saved to a
     .oceanvalrc file (see oceanval.user_recipes). Back goes a step the other way, until
@@ -1829,11 +1636,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # offers to remove once, and whether the user has answered
         self.leftovers = leftovers.find_leftovers()
         self.leftovers_asked = False
-        # the demo, while it is the run being set up or made: its download's
-        # status ("idle", "downloading", "done" or "failed"), how much of it
-        # has come, and why it failed, or None
-        self.demo = None
-        self._demo_cancel = threading.Event()
         # the window's settings, from the home .oceanvalrc as it opens
         self.settings = user_settings.load()
         self._server = None
@@ -2076,20 +1878,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     "path": user_settings.path(),
                     "data_store": data_store.panel(self.settings),
                 },
-                "demo": (
-                    None
-                    if self.demo is None
-                    else dict(
-                        self.demo,
-                        folder=os.path.join(self.cwd, DEMO_FOLDER),
-                        models=self._demo_models(),
-                        files=[name for name, _url, _path in self._demo_downloads()],
-                        year=DEMO_YEAR,
-                        downloaded=bool(self.demo["variables"])
-                        and all(os.path.isfile(path) for _name, _url, path in self._demo_downloads()),
-                        prefilled=self._demo_prefilled(),
-                    )
-                ),
                 "question": self.question.as_dict() if self.question else None,
                 "run": {
                     "label": self.run_label,
@@ -2603,8 +2391,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
 
     def choose(self, action, data_dir=None):
         """Take the first step: match up and validate, match up only, or
-        validate, or compare - or try the demo, which is a matchup and
-        validate run. data_dir fills in the matchups to validate."""
+        validate, or compare. data_dir fills in the matchups to validate."""
         with self._lock:
             if action == VALIDATE_MENU:
                 # the landing page's Validate tile
@@ -2623,7 +2410,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if action == ANALYZE:
                 if self.view not in ("analyze_menu", "finished"):
                     return False
-                self._end_demo()
                 self._forget_steps()
                 self.question = None
                 self.interim = None
@@ -2639,7 +2425,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if action == VIEWER:
                 if self.view != "home":
                     return False
-                self._end_demo()
                 self._forget_steps()
                 self.question = None
                 self.interim = None
@@ -2651,7 +2436,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if action == SIMCOMPARE:
                 if self.view not in ("analyze_menu", "finished"):
                     return False
-                self._end_demo()
                 self._forget_steps()
                 self.question = None
                 self.interim = None
@@ -2693,9 +2477,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = "help_compatible"
                 self._notify()
                 return True
-            if action not in ACTIONS + ("demo",) or self.view not in ("start", "finished"):
+            if action not in ACTIONS or self.view not in ("start", "finished"):
                 return False
-            self._end_demo()
             self._forget_steps()
             self.question = None
             self.interim = None
@@ -2703,26 +2486,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self._forget_register()
                 self.action = action
                 self.view = "register_kind"
-                self._notify()
-                return True
-            if action == "demo":
-                self.action = "matchup_validate"
-                self.demo = {
-                    "status": "idle",
-                    "bytes": 0,
-                    "total": None,
-                    "file": 0,
-                    "error": None,
-                    "model": None,
-                    "variables": [],
-                    # the model whose files the boxes were filled in for
-                    "filled": None,
-                    # the report is concise (and fast), or detailed (and slower)
-                    "concise": True,
-                    # the detail the report's boxes were filled in with
-                    "report_filled": None,
-                }
-                self.view = "demo"
                 self._notify()
                 return True
             self.action = action
@@ -2822,8 +2585,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 return went
         earlier = {
             "start": "home",
-            "setup": "demo_instructions" if self.demo is not None else "start",
-            "demo_instructions": "demo",
+            "setup": "start",
             "validate": "start",
             "compare": "start",
             "own_data": "setup",
@@ -2839,8 +2601,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "preferences": "help",
             "about": "help",
         }
-        if self.demo is not None and self.demo["status"] != "downloading":
-            earlier["demo"] = "start"
         held = self._held_matchups()
         if self.view == "report_options" and held:
             # where the matchups are saved
@@ -2884,8 +2644,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             # the check of a file is stopped, and not kept
             self._drop_compat()
         self.view = earlier[self.view]
-        if self.view == "start":
-            self._end_demo()
         self._notify()
         return True
 
@@ -2902,208 +2660,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         self._units_read = None
         self._own_given = None
         self._fvcom = None
-
-    # ---- the demo ----
-
-    def _demo_folder(self):
-        return os.path.join(self.cwd, DEMO_FOLDER, "simulation")
-
-    def _demo_downloads(self):
-        """The chosen model's files that were asked for: (name, url, path)."""
-        model = DEMO_MODELS.get(self.demo["model"]) if self.demo else None
-        if model is None:
-            return []
-        return [
-            (file["name"], file["url"], os.path.join(self._demo_folder(), file["name"]))
-            for file in (model["files"][variable] for variable in self.demo["variables"])
-        ]
-
-    def _demo_models(self):
-        """The models, for the page's grid, and whether each file is already
-        in the demo's directory."""
-        return [
-            {
-                "label": model["label"],
-                "full": model["full"],
-                "server": model["server"],
-                "member": model["member"],
-                "covers": model["covers"],
-                "files": {
-                    variable: dict(
-                        file,
-                        present=os.path.isfile(os.path.join(self._demo_folder(), file["name"])),
-                    )
-                    for variable, file in model["files"].items()
-                },
-            }
-            for model in DEMO_MODELS.values()
-        ]
-
-    def _end_demo(self):
-        """Leave the demo, if it is the run, so that what it filled in is
-        not carried over into another. Called with the lock held."""
-        if self.demo is None:
-            return
-        self.demo = None
-        self._demo_cancel.set()
-        self.setup_form = default_setup_form()
-        self.output_form = dict(default_output_form(self.cwd), out_dir=self.cwd)
-        self.validate_form = default_validate_form()
-
-    def demo_download(self, model=None, variables=None):
-        """Download the chosen model's output for the variables chosen,
-        unless it has been already, and go on to the simulation step with its
-        boxes filled in. Returns the HTTP status and the reply for the page."""
-        with self._lock:
-            if self.view != "demo" or self.demo is None:
-                return 409, {"ok": False, "error": "This step is over."}
-            if self.demo["status"] == "downloading":
-                return 409, {"ok": False, "error": "It is being downloaded already."}
-            if model not in DEMO_MODELS:
-                return 400, {"ok": False, "error": "Choose a model."}
-            if (
-                not isinstance(variables, list)
-                or not variables
-                or not all(variable in DEMO_VARIABLES for variable in variables)
-            ):
-                return 400, {"ok": False, "error": "Choose one to three variables."}
-            self.demo.update(
-                status="downloading",
-                bytes=0,
-                total=None,
-                file=0,
-                error=None,
-                model=model,
-                # in the page's order, once each
-                variables=[variable for variable in DEMO_VARIABLES if variable in variables],
-            )
-            # a fresh one, as an earlier download's thread may still hold the last
-            self._demo_cancel = threading.Event()
-            demo, cancelled = self.demo, self._demo_cancel
-            self._notify()
-        threading.Thread(
-            target=self._download_demo,
-            args=(demo, cancelled),
-            name="oceanval-demo",
-            daemon=True,
-        ).start()
-        return 200, {"ok": True}
-
-    def _download_demo(self, demo, cancelled):
-        shown = [0.0]
-
-        def progress(done, total):
-            # the page is told twice a second, not for every chunk
-            now = time.monotonic()
-            with self._lock:
-                demo.update(bytes=done, total=total)
-                if now - shown[0] >= 0.5 or done == total:
-                    shown[0] = now
-                    self._notify()
-
-        try:
-            with self._lock:
-                downloads = self._demo_downloads()
-            for number, (_name, url, path) in enumerate(downloads, 1):
-                if os.path.isfile(path):
-                    continue
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with self._lock:
-                    # the page says which of the files it is on
-                    demo.update(file=number, bytes=0, total=None)
-                    self._notify()
-                _fetch(url, path, progress, cancelled)
-        except _Cancelled:
-            return
-        except Exception as error:
-            with self._lock:
-                if self.demo is demo:
-                    demo.update(
-                        status="failed",
-                        error=f"The model output could not be downloaded: {error}",
-                    )
-                    self._notify()
-            return
-        with self._lock:
-            if self.demo is not demo or self.view != "demo":
-                return
-            demo["status"] = "done"
-            self._remove_unwanted_demo_files(demo)
-            if demo["filled"] is None:
-                # only the first time, so that what was changed after Back is kept
-                self.setup_form = demo_setup_form(demo["model"])
-                self.output_form = demo_output_form()
-                self.validate_form = demo_report_form(demo["concise"])
-                demo["report_filled"] = demo["concise"]
-            elif demo["filled"] != demo["model"]:
-                # another model is chosen: the files to use are now its, unless
-                # the box was changed by hand
-                if self.setup_form["require"] == demo_setup_form(demo["filled"])["require"]:
-                    self.setup_form["require"] = demo["model"]
-            demo["filled"] = demo["model"]
-            self.setup_error = None
-            # told what to do, before the steps
-            self.view = "demo_instructions"
-            self._notify()
-
-    def demo_detail(self, concise):
-        """Choose, on the demo's instructions, whether the report is concise
-        (and fast) or detailed (and slower)."""
-        if not isinstance(concise, bool):
-            return False
-        with self._lock:
-            if self.view != "demo_instructions" or self.demo is None:
-                return False
-            self.demo["concise"] = concise
-            self._notify()
-            return True
-
-    def demo_continue(self):
-        """Go on from the demo's instructions to the simulation step. The
-        report options are filled in with the detail chosen there, unless
-        they were changed by hand since."""
-        with self._lock:
-            if self.view != "demo_instructions" or self.demo is None:
-                return False
-            demo = self.demo
-            if demo["report_filled"] is not None:
-                # the boxes it filled in, unless they were changed by hand since
-                earlier = demo_report_form(demo["report_filled"])
-                later = demo_report_form(demo["concise"])
-                for name in DEMO_PREFILLED["report"]:
-                    if self.validate_form[name] == earlier[name]:
-                        self.validate_form[name] = later[name]
-                demo["report_filled"] = demo["concise"]
-            self.view = "setup"
-            self._notify()
-            return True
-
-    def _remove_unwanted_demo_files(self, demo):
-        """Remove the files of the chosen model, from an earlier download,
-        for variables that were not asked for this time: they would be
-        matched up too. Only the demo's own files are ever removed. Called
-        with the lock held."""
-        wanted = {name for name, _url, _path in self._demo_downloads()}
-        for file in DEMO_MODELS[demo["model"]]["files"].values():
-            if file["name"] not in wanted:
-                with contextlib.suppress(OSError):
-                    os.remove(os.path.join(self._demo_folder(), file["name"]))
-
-    def _demo_prefilled(self):
-        """The boxes the demo filled in that still hold what it filled in,
-        which the page marks as OceanVal's, for each step."""
-        if self.demo["filled"] is None:
-            return {step: [] for step in DEMO_PREFILLED}
-        filled = {
-            "setup": demo_setup_form(self.demo["filled"]),
-            "output": demo_output_form(),
-            "report": demo_report_form(self.demo["report_filled"]),
-        }
-        forms = {"setup": self.setup_form, "output": self.output_form, "report": self.validate_form}
-        return {
-            step: [name for name in names if forms[step].get(name) == filled[step][name]]
-            for step, names in DEMO_PREFILLED.items()
-        }
 
     def answer_leftovers(self, action):
         """Remove the temporary files earlier sessions left behind, or keep
@@ -3170,7 +2726,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             viewed = self._viewer_drop()
             self.viewer_setup_form = viewer_app.default_setup_form()
             self.viewer_missing = []
-            self._end_demo()
             self._forget_steps()
             self._forget_register()
             self.view = "home"
@@ -3270,13 +2825,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self.setup_arguments = arguments
             self._start_cdo_check([arguments])
             self.view = "own_data"
-            if self.demo is None:
-                self._read_own_simulation(arguments)
+            self._read_own_simulation(arguments)
             self._notify()
-            demo = self.demo is not None
-        if demo:
-            # only OceanVal's own datasets, so there is nothing to ask
-            self.has_own_data(False)
         return 200, {"ok": True}
 
     # ---- recipes of the user's own ----
@@ -4077,9 +3627,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
     def _before_recipes(self):
         """The step Back from the recipes goes to: the last of the steps
         for the user's own observations, if they were used."""
-        if self.demo is not None:
-            # the own data step is not shown
-            return "setup"
         return "gridded_data" if any(self.own_data.values()) else "own_data"
 
     def _begin_prepare(self):
@@ -4510,7 +4057,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self.cwd,
             # matchup alone builds no report, so has nothing to ask of it
             report=self.action == "matchup_validate",
-            demo_dir=os.path.join(self.cwd, DEMO_FOLDER) if self.demo is not None else None,
             made=set(self.output_made or ()),
         )
 
@@ -5278,10 +4824,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         found["out_dir_has_matchups"] = bool(
             found["out_dir_matchups"] if not output_step else existing_matchups(results)
         )
-        # whose matchups, of the models tried before, nothing is asked about (see check_setup)
-        found["out_dir_is_demo"] = self.demo is not None and results == os.path.join(
-            self.cwd, DEMO_FOLDER
-        )
         found["out_dir_has_analysis"] = os.path.isdir(os.path.join(results, analysis.FOLDER))
         found["out_dir_has_comparison"] = os.path.isdir(os.path.join(results, sim_compare.FOLDER))
         if not simdir.strip():
@@ -5536,16 +5078,19 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         years = result.get("years") if result else None
         return list(years) if years else None
 
-    def sample_files(self, simdir, ndown, avoid=""):
+    def sample_files(self, simdir, ndown, avoid="", exclude="", require=""):
         """The netCDF files in one directory of the simulation, chosen at
         random from those ndown directories below simdir that hold any, for
         the page to show what the file names look like - the names the file
         filters are made of. avoid is a directory not to choose again, if
         there is another.
 
-        Every file is listed, whatever the file filters say, and none is left
-        out for being a restart file, so the page can show what there is to
-        filter.
+        exclude and require are the file filters' boxes as typed (words
+        separated by spaces): only the files they let through are listed, and
+        only directories holding some are chosen from (the user's rule,
+        2026-11-06), as create_recipes.filter_paths applies them. filtered_out
+        is how many files there are that the filters leave out, so the page
+        can say that none pass them.
         """
         found = {
             "directory": "empty",
@@ -5554,6 +5099,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "directories": 0,
             "files": [],
             "more": 0,
+            "filtered_out": 0,
         }
         if not simdir.strip():
             return found
@@ -5570,7 +5116,10 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             return found
         found["ndown"] = depth
         pattern = os.path.join(path, *(["*"] * depth), "*.nc")
-        directories = sorted({os.path.dirname(file) for file in glob.glob(pattern)})
+        every = glob.glob(pattern)
+        passing = filter_paths(every, exclude.split() or None, require.split() or None)
+        found["filtered_out"] = len(every) - len(passing)
+        directories = sorted({os.path.dirname(file) for file in passing})
         found["directories"] = len(directories)
         if not directories:
             return found
@@ -5580,7 +5129,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             or directories
         )
         files = sorted(
-            (name for name in os.listdir(chosen) if name.endswith(".nc")),
+            (os.path.basename(file) for file in passing if os.path.dirname(file) == chosen),
             key=lambda name: (name.lower(), name),
         )
         found["path"] = _shown(chosen, self.cwd)
@@ -5939,7 +5488,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 return
             self.closed_reason = reason
             self.closed.set()
-            self._demo_cancel.set()
             run, page = self.run, self.recipes_page
             self._cancel_register_check()
             self._drop_model_check()
@@ -6149,6 +5697,8 @@ class _Handler(recipes_gui._Handler):
                     query.get("simdir", ""),
                     query.get("ndown", ""),
                     query.get("avoid", ""),
+                    query.get("exclude", ""),
+                    query.get("require", ""),
                 ),
             )
         elif url.path == "/api/question_files":
@@ -6341,9 +5891,6 @@ class _Handler(recipes_gui._Handler):
         if path == "/api/bank_extract_clear":
             self._reply_json(*app.bank_extract_clear())
             return
-        if path == "/api/demo_download":
-            self._reply_json(*app.demo_download(payload.get("model"), payload.get("variables")))
-            return
         if path == "/api/leftovers":
             self._reply_json(*app.answer_leftovers(payload.get("action")))
             return
@@ -6363,8 +5910,6 @@ class _Handler(recipes_gui._Handler):
             ),
             "/api/validate_intro_seen": lambda: app.validate_intro_seen(),
             "/api/forget_sim_dir": lambda: app.forget_sim_dir(payload.get("path")),
-            "/api/demo_detail": lambda: app.demo_detail(payload.get("concise")),
-            "/api/demo_continue": app.demo_continue,
             "/api/own_next": app.next_own_data,
             "/api/own_future_check": app.own_future_check,
             "/api/register_kind": lambda: app.register_kind(payload.get("kind")),

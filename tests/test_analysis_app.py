@@ -73,7 +73,7 @@ def to_options(app):
 CLIMATOLOGY = {
     "rows": {
         "Chlorophyll": {"use": True, "start": "2013", "end": "2014", "surface": True},
-        "Temperature": {"use": True, "start": "2014", "end": "2014", "surface": False, "water_column": True, "how": "integral"},
+        "Temperature": {"use": True, "start": "2014", "end": "2014", "surface": False, "integral": True},
     },
     "thickness": "e3t",
 }
@@ -343,7 +343,7 @@ class TestOptions:
         assert app.view == "analyze_options"
         for kind in ("climatology", "long_term", "seasonal"):
             assert state["forms"][kind]["rows"]["Temperature"] == {
-                "use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+                "use": False, "start": "", "end": "", "surface": False, "bottom": False, "mean": False, "integral": False,
                 "window": "1", "show": "absolute",
             }
         assert state["forms"]["phenology"]["rows"]["Chlorophyll"] == {"use": False, "start": "", "end": ""}
@@ -504,7 +504,7 @@ class TestOptions:
         # nor are the dates of the same files
         assert app.analyze_check is check
         assert post(app, "/api/analyze_files")[0] == 200
-        assert app.analyze_forms["climatology"]["rows"]["Temperature"]["how"] == "integral"
+        assert app.analyze_forms["climatology"]["rows"]["Temperature"]["integral"] is True
         assert app.analyze_chosen["climatology"]["rows"]["Temperature"]["water_column"] == "integral"
         assert get_json(app, "/api/state")[1]["analyze"]["figure_code"] == "no"
 
@@ -634,7 +634,7 @@ CHANGES = {
         "Temperature": {
             "use": True, "historical_start": "2013", "historical_end": "2013", "future1_start": "2014", "future1_end": "2014",
             "future2_start": "", "future2_end": "", "plot": "absolute_changes", "change": "percentage",
-            "surface": True, "bottom": False, "water_column": True, "how": "mean",
+            "surface": True, "bottom": False, "mean": True, "integral": False,
         },
     },
     "thickness": "e3t",
@@ -649,7 +649,7 @@ class TestMapChanges:
     def test_the_pop_out_starts_with_every_variable_ticked_and_nothing_else(self, app, sim):
         state = to_options(app)
         assert state["forms"]["map_changes"]["rows"]["Temperature"] == {
-            "use": False, "plot": "", "change": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            "use": False, "plot": "", "change": "", "surface": False, "bottom": False, "mean": False, "integral": False,
             **{f"{period}_{end}": "" for period in ("historical", "future1", "future2") for end in ("start", "end")},
         }
         assert state["forms"]["map_changes"]["thickness"] == ""
@@ -705,8 +705,7 @@ class TestMapChanges:
         assert set(errors_of(plot="", change="")["Temperature"]) == {"plot", "change"}
         assert set(errors_of(plot="everything")["Temperature"]) == {"plot"}
         # a layer, and the thickness for the water column
-        assert set(errors_of(surface=False, water_column=False)["Temperature"]) == {"surface"}
-        assert set(errors_of(how="")["Temperature"]) == {"water_column"}
+        assert set(errors_of(surface=False, mean=False)["Temperature"]) == {"surface"}
         status, reply = post(app, "/api/analyze_option", {"kind": "map_changes", "form": dict(changes_form(), thickness="")})
         assert status == 400 and set(reply["errors"]) == {"thickness"}
         # nothing ticked
@@ -719,7 +718,7 @@ class TestMapChanges:
         to_options(app)
         # the output has two years, so a second future period has to be the historical year or the first future one:
         # the same as another is refused, and one that is not is a period of its own
-        form = changes_form(future2_start="2013", future2_end="2014", plot="changes", change="absolute", water_column=False)
+        form = changes_form(future2_start="2013", future2_end="2014", plot="changes", change="absolute", mean=False)
         status, reply = post(app, "/api/analyze_option", {"kind": "map_changes", "form": form})
         assert (status, reply) == (200, {"ok": True})
         assert [x["start"] for x in app.analyze_chosen["map_changes"]["rows"]["Temperature"]["future"]] == [2014, 2013]
@@ -1032,7 +1031,12 @@ def test_analyze_in_a_browser(browser, tmp_path):
         assert "required" in page.inner_text("#clim-dialog thead").lower()
         assert page.locator("#clim-body input.is-year").first.get_attribute("placeholder") == "2013"
         # with the variable unticked there is nothing to confirm, and a layer ticked ticks it
-        assert page.is_disabled("#clim-confirm") and "Tick at least one variable" in page.inner_text("#clim-msg")
+        assert page.is_disabled("#clim-confirm") and page.inner_text("#clim-msg") == ""
+        # the pop-out's words (the user's, 2026-11-06): no legend of what is required
+        assert page.inner_text("#clim-intro") == (
+            "The climatological annual and monthly average is calculated for the year range given, and each will be mapped.")
+        assert page.locator("#clim-dialog .own-legend").count() == 0
+        assert "tick at least one" not in page.inner_text("#clim-dialog").lower()
         surface.check()
         assert use.is_checked() and page.is_enabled("#clim-confirm")
         surface.uncheck()
@@ -1043,6 +1047,19 @@ def test_analyze_in_a_browser(browser, tmp_path):
         bottom.check()
         assert page.is_enabled("#clim-confirm") and page.is_hidden("#clim-thickness-row")
         bottom.uncheck()
+        # the water column is two columns, the vertical mean and the vertical integration, either or both
+        heads = page.locator("#clim-dialog thead tr:last-child th:visible").all_inner_texts()
+        assert [" ".join(head.lower().split()) for head in heads[3:7]] == ["surface", "bottom", "vertical mean", "vertical integration"]
+        mean = page.locator("#clim-body > tr").first.locator("input[type=checkbox]").nth(3)
+        integral = page.locator("#clim-body > tr").first.locator("input[type=checkbox]").nth(4)
+        assert page.locator("#clim-body select").count() == 0
+        mean.check()
+        integral.check()
+        assert mean.is_checked() and integral.is_checked() and page.is_visible("#clim-thickness-row")
+        mean.uncheck()
+        assert page.is_visible("#clim-thickness-row")
+        integral.uncheck()
+        assert page.is_hidden("#clim-thickness-row")
         surface.check()
         page.click("#clim-cancel")
         page.wait_for_selector("#clim-dialog", state="hidden")
@@ -1535,13 +1552,14 @@ def test_the_year_boxes_list_the_years_of_the_output(browser, tmp_path):
 
 
 def test_the_long_term_series_have_a_rolling_mean_and_a_way_to_show_them(browser, tmp_path):
-    """After Water column, the long-term pop-out has a "Use a rolling mean (years)" column,
+    """After Vertical integration, the long-term pop-out has a "Use a rolling mean (years)" column,
     1 to start with, and Show as; the climatology's has neither."""
     page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012, 2013, 2014), "long_term", "clim-dialog")
     try:
         heads = page.locator("#clim-dialog thead tr").nth(1).locator("th:visible").all_inner_texts()
-        assert [h.lower().replace("required", "").strip() for h in heads] == [
-            "variable", "start", "end", "surface", "bottom", "water column", "use a rolling mean (years)", "show as"]
+        assert [" ".join(h.lower().replace("required", "").split()) for h in heads] == [
+            "variable", "start", "end", "surface", "bottom", "vertical mean", "vertical integration",
+            "use a rolling mean (years)", "show as"]
         row = page.locator("#clim-body > tr").first
         window = row.locator("input.is-window")
         show = row.locator("select.is-show")
@@ -1805,7 +1823,7 @@ def test_the_all_variables_row_sets_every_variable_in_a_browser(browser, tmp_pat
             assert row.locator("input.is-year").nth(1).input_value() == "2013"
             assert ticks(row).nth(1).is_checked()
         # the bottom is set only for a variable with depth levels: one without has none to tick
-        assert ticks(chlorophyll).count() == 2 and chlorophyll.inner_text().count("No depth levels") == 2
+        assert ticks(chlorophyll).count() == 2 and chlorophyll.inner_text().count("No depth levels") == 3
         ticks(all_row).nth(2).check()
         assert ticks(temperature).nth(2).is_checked() and ticks(chlorophyll).count() == 2
         ticks(all_row).nth(2).uncheck()
@@ -2070,11 +2088,11 @@ def test_the_info_buttons_of_the_climatology_pop_out(browser, tmp_path):
         everyone, rows = page.locator("#clim-all > tr"), page.locator("#clim-body > tr")
         chlorophyll, temperature = rows.nth(0), rows.nth(1)
         # one beside each layer a variable has, and the All variables row's beside each
-        assert everyone.locator(".info-btn").count() == 3
-        assert chlorophyll.locator(".info-btn").count() == 1 and temperature.locator(".info-btn").count() == 3
+        assert everyone.locator(".info-btn").count() == 4
+        assert chlorophyll.locator(".info-btn").count() == 1 and temperature.locator(".info-btn").count() == 4
         assert temperature.locator(".info-btn").evaluate_all("buttons => buttons.map((button) => button.getAttribute('aria-label'))") == [
             "About the surface option of Temperature", "About the bottom option of Temperature",
-            "About the water column option of Temperature"]
+            "About the vertical mean option of Temperature", "About the vertical integration option of Temperature"]
         # beside the label, not in it, so that it does not tick the box
         assert page.locator("#clim-dialog label .info-btn").count() == 0
         surface = temperature.locator(".info-btn").nth(0)
@@ -2098,8 +2116,8 @@ def test_the_info_buttons_of_the_climatology_pop_out(browser, tmp_path):
         assert page.inner_text("#example-title") == "Bottom"
         page.click("#example-close")
         assert page.is_hidden("#example-dialog") and page.is_visible("#clim-dialog")
-        everyone.locator(".info-btn").nth(2).click()
-        assert page.inner_text("#example-title") == "Water column" and "Depth integral" in page.inner_text("#example-text")
+        everyone.locator(".info-btn").nth(3).click()
+        assert page.inner_text("#example-title") == "Vertical integration" and "thickness" in page.inner_text("#example-text")
         page.mouse.click(5, 5)
         assert page.is_hidden("#example-dialog") and page.is_visible("#clim-dialog")
         assert errors == []
@@ -2120,9 +2138,9 @@ def test_the_other_pop_outs_with_layers_have_the_info_buttons_too(browser, tmp_p
     page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012), option, dialog, rows=INFO_ROWS)
     try:
         row = page.locator(rows)
-        assert row.nth(0).locator(".info-btn").count() == 1 and row.nth(1).locator(".info-btn").count() == 3
-        assert page.locator(f"#{dialog} .info-btn").count() == 3 + 1 + 3
-        for number, name in enumerate(["Surface", "Bottom", "Water column"]):
+        assert row.nth(0).locator(".info-btn").count() == 1 and row.nth(1).locator(".info-btn").count() == 4
+        assert page.locator(f"#{dialog} .info-btn").count() == 4 + 1 + 4
+        for number, name in enumerate(["Surface", "Bottom", "Vertical mean", "Vertical integration"]):
             row.nth(1).locator(".info-btn").nth(number).click()
             page.wait_for_selector("#example-dialog:not([hidden])")
             assert page.inner_text("#example-title") == name and page.inner_text("#example-where") == title

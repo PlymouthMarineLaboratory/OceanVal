@@ -431,6 +431,8 @@ class TestArguments:
             ({"climatology": {"Chl": {"start": "x", "end": 2000, "surface": True}}}, "must be a year"),
             ({"climatology": {"Chl": {"start": 2000, "end": 2001}}}, "needs surface=True"),
             ({"climatology": {"Chl": {"start": 2000, "end": 2001, "water_column": "sum"}}}, '"mean"'),
+            ({"climatology": {"Chl": {"start": 2000, "end": 2001, "water_column": ["mean", "mean"]}}}, '"mean"'),
+            ({"climatology": {"Chl": {"start": 2000, "end": 2001, "water_column": ["mean", "sum"]}}}, '"mean"'),
             ({"climatology": {"Chl": {"start": 2000, "end": 2001, "water_column": "mean"}}}, "cell thickness"),
             ({"variables": {"Chl": "a", "chl": "b"}}, "would name their files the same"),
             ({"variables": {"Chl": ""}}, "Give the model variable"),
@@ -532,7 +534,8 @@ class TestClimatology:
             {"Temperature": "thetao", "Mean temperature": "thetao", "Heat": "thetao"},
             climatology={
                 "Temperature": {"start": 2013, "end": 2014, "surface": True},
-                "Mean temperature": {"start": 2013, "end": 2014, "water_column": "mean"},
+                # the vertical mean and the vertical integration of one variable, both at once
+                "Mean temperature": {"start": 2013, "end": 2014, "water_column": ["mean", "integral"]},
                 "Heat": {"start": 2013, "end": 2014, "water_column": "integral"},
             },
             n_dirs_down=1,
@@ -550,12 +553,15 @@ class TestClimatology:
         assert np.allclose(mean, (LEVELS * THICKNESS).sum() / THICKNESS.sum() + months, atol=1e-5)
         heat = values(os.path.join(found, "heat_integral_monthly.nc"), "heat")
         assert np.allclose(heat, (LEVELS * THICKNESS).sum() + months * THICKNESS.sum(), atol=1e-4)
+        both = values(os.path.join(found, "mean_temperature_integral_monthly.nc"), "mean_temperature")
+        assert np.allclose(both, heat)
         with xr.open_dataset(os.path.join(found, "heat_integral_monthly.nc")) as ds:
             assert ds["heat"].attrs["units"] == "degC m"
             assert ds["heat"].attrs["long_name"] == "Heat, water column: depth integral"
 
         info = json.load(open(os.path.join(found, analysis.INFO_FILE)))
         assert info == no_report[0]
+        assert list(info["variables"][1]["climatology"]["layers"]) == ["mean", "integral"]
         heat_info = info["variables"][2]
         assert heat_info["pattern"] == "sim_1d_**_**_grid_T.nc"
         assert heat_info["time_res"] == "1d"
@@ -943,24 +949,24 @@ class TestForms:
         years = lambda name: (2013, 2014)
         form = analysis_forms.clean_climatology({
             "rows": {
-                "Chlorophyll": {"use": True, "start": "2013", "end": "2014", "surface": True, "water_column": True},
+                "Chlorophyll": {"use": True, "start": "2013", "end": "2014", "surface": True, "mean": True, "integral": True},
                 "Temperature": {"use": True, "start": "2014", "end": "2013", "surface": True},
             },
         }, placed)
         chosen, thickness, errors = analysis_forms.check_climatology(form, placed, years, {"e3t"}, str(tmp_path))
         assert errors == {
-            "Chlorophyll": {"water_column": "It has only one vertical level."},
+            "Chlorophyll": {"mean": "It has only one vertical level.", "integral": "It has only one vertical level."},
             "Temperature": {"end": "End must not be before start."},
         }
         # nor has it a bottom
-        form["rows"]["Chlorophyll"].update(water_column=False, bottom=True)
+        form["rows"]["Chlorophyll"].update(mean=False, integral=False, bottom=True)
         form["rows"]["Temperature"].update(end="2014")
         _, _, errors = analysis_forms.check_climatology(form, placed, years, {"e3t"}, str(tmp_path))
         assert errors == {"Chlorophyll": {"bottom": "It has only one vertical level."}}
         # a layer must be ticked
         form["rows"]["Chlorophyll"].update(surface=False, bottom=False)
         _, _, errors = analysis_forms.check_climatology(form, placed, years, {"e3t"}, str(tmp_path))
-        assert "Tick the surface, the bottom, the water column" in errors["Chlorophyll"]["surface"]
+        assert "Tick the surface, the bottom, the vertical mean or the vertical integration" in errors["Chlorophyll"]["surface"]
         form["rows"]["Chlorophyll"]["use"] = False
         form["rows"]["Temperature"].update(bottom=True)
         chosen, _, errors = analysis_forms.check_climatology(form, placed, years, {"e3t"}, str(tmp_path))
@@ -968,7 +974,7 @@ class TestForms:
             "Temperature": {"start": 2014, "end": 2014, "surface": True, "bottom": True, "water_column": None}
         }
         form = analysis_forms.clean_climatology({
-            "rows": {"Temperature": {"use": True, "start": "2013", "end": "2014", "water_column": True, "how": "integral"}},
+            "rows": {"Temperature": {"use": True, "start": "2013", "end": "2014", "integral": True}},
             "thickness": "",
         }, placed)
         assert "thickness" in analysis_forms.check_climatology(form, placed, years, {"e3t"}, str(tmp_path))[2]
@@ -1007,7 +1013,7 @@ class TestForms:
         rows = {"Chlorophyll": {"use": False, "start": "2013", "end": "2014"}}
         form = analysis_forms.clean_climatology({"rows": rows}, placed)
         errors = analysis_forms.check_climatology(form, placed, lambda name: (2013, 2014), set(), str(tmp_path))[2]
-        assert "Surface, Bottom, Water column, or more than one" in errors["rows"]
+        assert "Surface, Bottom, Vertical mean or Vertical integration" in errors["rows"]
         form = analysis_forms.clean_phenology({"rows": rows}, placed)
         errors = analysis_forms.check_phenology(form, placed, lambda name: (2013, 2014), {}.get)[1]
         assert "at least one variable" in errors["rows"]
@@ -1026,7 +1032,7 @@ class TestForms:
         placed = self.placed(daily)
         climatology = analysis_forms.default_climatology(placed, lambda name: (2013, 2014))
         assert climatology["rows"]["Temperature"] == {
-            "use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            "use": False, "start": "", "end": "", "surface": False, "bottom": False, "mean": False, "integral": False,
             "window": "1", "show": "absolute",
         }
         res = {"Chlorophyll": "1d", "Temperature": "monthly"}
@@ -1035,15 +1041,25 @@ class TestForms:
         assert {name: row["use"] for name, row in phenology["rows"].items()} == {"Chlorophyll": False, "Temperature": False}
         assert all(row["start"] == "" and row["end"] == "" for row in phenology["rows"].values())
 
-    def test_the_water_column_needs_a_way_to_take_it(self, daily):
+    def test_the_vertical_mean_and_integration_are_ticked_on_their_own(self, daily):
+        """Two columns, either or both (the user's rule, 2026-11-06): both are a list for analyze()."""
         placed = self.placed(daily)
-        form = analysis_forms.clean_climatology(
-            {"rows": {"Temperature": {"use": True, "start": "2013", "end": "2014", "water_column": True}},
-             "thickness": "e3t"},
-            placed,
-        )
-        _, _, errors = analysis_forms.check_climatology(form, placed, lambda name: (2013, 2014), {"e3t"}, "/")
-        assert errors == {"Temperature": {"water_column": "Choose the vertical mean or the depth integral."}}
+        given = {}
+        for ticks, expected in [
+            ({"mean": True}, "mean"), ({"integral": True}, "integral"),
+            ({"mean": True, "integral": True}, ["mean", "integral"]),
+        ]:
+            form = analysis_forms.clean_climatology(
+                {"rows": {"Temperature": {"use": True, "start": "2013", "end": "2014", **ticks}}, "thickness": "e3t"},
+                placed,
+            )
+            chosen, thickness, errors = analysis_forms.check_climatology(form, placed, lambda name: (2013, 2014), {"e3t"}, "/")
+            assert errors == {} and thickness == "e3t"
+            given[expected if isinstance(expected, str) else "both"] = chosen["Temperature"]["water_column"]
+            assert chosen["Temperature"]["water_column"] == expected
+        # each is a layer of its own for analyze()
+        assert analysis._layers({"water_column": ["integral", "mean"]}, "T", "climatology") == ["mean", "integral"]
+        assert analysis._layers({"surface": True, "water_column": "integral"}, "T", "climatology") == ["surface", "integral"]
 
     def test_cores_and_missing_values_have_no_default(self, monkeypatch):
         # the same machine wherever the test runs (a macos-latest runner has 3 cores)

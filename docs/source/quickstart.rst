@@ -109,8 +109,7 @@ freeze): it carries on, the terminal prints the link to open the window
 again, and ``oceanval`` quits once the run is over. **Stop**, **Quit** and
 Ctrl+C stop a run at once.
 
-**Preferences**, a tile of **Tools & info** on the first page, sets whether the first
-page offers **Try a demo**, and the **data store** (below). Nothing changes until you press **Apply**. They are kept under ``"settings"`` in the ``.oceanvalrc`` file in
+**Preferences**, a tile of **Tools & info** on the first page, sets the **data store** (below). Nothing changes until you press **Apply**. It is kept under ``"settings"`` in the ``.oceanvalrc`` file in
 your home directory (or the file ``OCEANVALRC`` names), and read each time the
 window opens. **About OceanVal**, the tile beside it, shows the version of OceanVal, links to the website and
 GitHub, and the built-in datasets.
@@ -134,24 +133,6 @@ including those run from Python; ``matchup(..., data_store=False)`` leaves it ou
 **Run a check on the data store** looks for data held twice, files that are missing or not the
 size they were, and anything in the store that is not OceanVal's built-in data (files of yours,
 for one), and says what it finds. It only looks: nothing is changed, removed or fixed.
-
-To see how it works first, choose **Try a demo**, below the four choices. It
-asks you to choose one of three CMIP6 climate models, each from a different
-ESGF server (NorESM2-LM, MPI-ESM1-2-LR and UKESM1-0-LL), and one to three of
-its variables, sea surface temperature, surface nitrate and sea surface
-salinity, in a grid. Only those files are downloaded (up to 50 MB, 26 MB and
-460 MB for the three models) and it takes you through the same steps with the
-options filled in, including the model's name as the only file names to use.
-A short page of instructions comes first (press Continue on each page, and tick
-the agreement when asked to run the validation), and asks whether you want the
-validation concise and fast (the default, with results in a couple of minutes) or
-detailed but slower (4 or 5 minutes). The step for your own data is left out, as only OceanVal's own datasets are used.
-Temperature is matched up with COBE-SST 2, and nitrate and salinity with the
-World Ocean Atlas 2023. The units step suggests
-converting the observed nitrate, which you check as you would for your own
-model. It shows how OceanVal works, not how to validate a climate model, which needs many years
-of output rather than one. It creates a directory called ``oceanval_demo``,
-with the data, matchups and report in it: remove it when you have finished.
 
 The script it runs is written first, to ``matchup.py`` (``matchup1.py``, ``matchup2.py`` and so on if that file exists already), so you can read it
 and run it again later. Every step is described on the website, in

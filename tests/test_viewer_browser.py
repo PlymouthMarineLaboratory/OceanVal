@@ -225,6 +225,21 @@ def test_the_path_of_one_file_can_be_given(page, tmp_path):
     tab.wait_for_function("() => !document.querySelector('#f-ndown').disabled && document.querySelector('#f-ndown').value === '0'")
 
 
+def test_the_thredds_tick_is_asked_only_for_a_web_address(page, tmp_path):
+    """Not for a path on disk, only for what looks like a web address (the user's rule, 2026-11-06)."""
+    tab, app = page
+    assert tab.is_hidden("#row-f-thredds")
+    tab.fill("#f-simdir", str(tmp_path))
+    assert tab.is_hidden("#row-f-thredds")
+    # not ending in .nc, so nothing is read from the network
+    tab.fill("#f-simdir", "https://example.invalid/thredds/model")
+    tab.wait_for_selector("#row-f-thredds:not([hidden])")
+    assert tab.is_checked("#f-thredds")
+    tab.fill("#f-simdir", str(tmp_path))
+    tab.wait_for_selector("#row-f-thredds", state="hidden")
+    assert not tab.is_checked("#f-thredds")
+
+
 def test_an_ersem_simulation_has_zeros_assumed_to_be_missing(page, simulation, monkeypatch):
     from oceanval import recipes_gui
 

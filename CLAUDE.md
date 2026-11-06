@@ -179,9 +179,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   row has; a lone radio at the top of each column chooses it for every row that has it. **Only a used matchup is kept
   as it is** (form `unused`; `check_output` gives overwrite = those replaced, of those made, previous = those used,
   all → True, none → False). A confirmation tick under the grid (`existing_confirmed`) is required, as users may not
-  notice what every row starts on; it is reset when the list shown changes. The demo's own folder
-  (`check_output(demo_dir=)`, `out_dir_is_demo`), where every model tried keeps its matchups, has no grid:
-  overwrite=True, previous=False.
+  notice what every row starts on; it is reset when the list shown changes.
   `previous` is never passed to the interim report
   (`live.NOT_INTERIM`), and `_checked_report` adds the earlier keys to `variables` when some of the run's are unticked.
   Analyze's own rule is about an analysis in the output directory (`oceanval_analysis`, which `analyze()` replaces whole): the options step's
@@ -209,7 +207,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   validate?** (`point_start`/`point_end`, required when a point dataset is ticked) and **Match point observations by**
   (no "Global setting" option; written only when typed, `sentOptions`), climatologies from **What simulation years do you
   want to use for climatologies?** (`clim_start`/`clim_end` → `settings["clim_years"]`), else the years create_recipes was
-  given (standalone; the app, demo included, fills none). Matchup's `start`/`end` are worked out by the page
+  given (standalone; the app fills none). Matchup's `start`/`end` are worked out by the page
   (`matchupYears`: the span of the ticked datasets' years). WOA23 temperature/salinity (`decadal`) need years inside one
   `_WOA23_PERIODS` decade: filled years that fit none are an error on the dataset (the `#woa-dialog` is gone; the server
   still takes `woa23_start`/`woa23_end` → `settings["woa_years"]`). Each built-in gridded source has an **i**
@@ -258,7 +256,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   `recipe_forms.from_own_data`/`missing_boxes`/`with_boxes`, assumptions shown in amber.
   `create_recipes.replaced_recipes` leaves a user recipe with the same variable and source as
   an own data entry out of that run's recipes window, so it is not registered twice.
-- The window's settings (`oceanval/user_settings.py`: whether the demo is offered, the data store)
+- The window's settings (`oceanval/user_settings.py`: the data store)
   live under `"settings"` in the *global* rc only, beside `"recipes"`; `load()` never raises.
   There are no colour themes (removed on request, as a burden to maintain); a `"theme"` left in an rc is ignored.
   Colours in the pages are tokens (`:root` in `data/gui.css`), never hex.
@@ -368,7 +366,10 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   a monthly + annual climatology (surface = `topvalue`, bottom = nctoolkit's
   `bottom(choice="value")` i.e. the deepest non-missing value, water column = `vertical_mean` or
   `vertical_integration` with the thickness, at its first time, or `fixed=True` for
-  `"z_level"`; maps of the annual mean and of each month, but no domain-mean monthly line, which
+  `"z_level"`; `water_column` is `"mean"`, `"integral"` or both as a list, each a layer of its own (`analysis._layers`);
+  the window asks them as two columns, **Vertical mean** and **Vertical integration**, either or both (the user's rule,
+  2026-11-06; row boxes `mean`/`integral`, `analysis_forms._water_column`, page `WATER_WAYS`/`waterTicks`/`waterCells`;
+  no "how" drop-down any more); maps of the annual mean and of each month, but no domain-mean monthly line, which
   the seasonal cycles' mean seasonal cycle already gives) and/or phenology (peak day of the surface daily climatology, daily output
   only; opening the tile when no variable has daily output shows the `#no-daily` pop-out, `openNoDaily`, with a Close button back to the options
   page, instead of the phenology pop-out). Each month of each year is averaged first. Everything goes in
@@ -607,7 +608,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - **Info pop-outs** (`oceanval/analysis_examples.py`): an **i** (`infoButton`/`withInfo` in `oceanval_app.html`, `.info-btn`, beside the label, never inside it) next to
   each option of the Analyze pop-outs opens `#example-dialog`, which says **in words** what the option plots. **No figure is drawn or stored** (the user's rule, 2026-10-26:
   drawn examples were far too slow, even as plain lon/lat maps, so the pop-out is text only; `test_nothing_is_drawn_or_stored` fails if the package gains a picture other than
-  its logos). `EXAMPLES[kind][option]` is the one place the wording is (`climatology`, `long_term`, `seasonal` and `map_changes` x `surface`/`bottom`/`water_column`;
+  its logos). `EXAMPLES[kind][option]` is the one place the wording is (`climatology`, `long_term`, `seasonal` and `map_changes` x `surface`/`bottom`/`mean`/`integral`;
   `phenology.peak`; `transects.surface_climatology`/`surface_changes`/`vertical_climatology`/`vertical_changes`); `describe()` sends it in `state.analyze.examples` (only in
   `analyze_options`), and the page shows an i only where `exampleOf(kind, option)` finds an entry, so a new option's i is a new entry and a `withInfo(...)` at its tick (the phenology's
   is beside its title, `#phen-info`).
@@ -919,7 +920,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - **Preferences and About are pages of Tools & checks** (the user's design, 2026-11-05: the gear and the **i** are gone from the header, in the standalone `create_recipes()` window too, whose `/settings`/`/data_store_check` handlers and
   `user_settings`/`datasets` state went with them; `OceanValGUI.mountChrome` is only Back and Restart). They are Tools & checks' third and fourth tiles (`#help-preferences`, `#help-about`; the page is `.choices.is-four`, 2 x 2, styled
   like the landing page's), views `preferences` and `about` (`App.choose`, valid only from `help`; Back → `help`; sections `#view-preferences`, `#view-about`, filled by `fillPreferences`/`fillAbout` in `enterView`). **Preferences**:
-  Apply saves (`POST api/settings`, a toast, the page stays) and Back leaves unsaved changes; the data store check is `api/data_store_check`. The Validate page's **Try a demo** tile has an x at its top right (`#demo-close`, a sibling of the tile's button in `#demo-tile`) that opens `#demo-hide`, "Do you never want to see the demo again?": Yes saves `show_demo: false` (Preferences shows it again), No closes it for this visit only (`demoClosed`), Escape or the backdrop changes nothing. **About** shows the version as `oceanval.__version__`, which is the
+  Apply saves (`POST api/settings`, a toast, the page stays) and Back leaves unsaved changes; the data store check is `api/data_store_check`. **There is no demo** (removed on the user's request, 2026-11-06: the Validate page's Try a demo tile, its views, `/api/demo_*`, `check_output(demo_dir=)`, `out_dir_is_demo` and its tests): `user_settings.RETIRED` names `show_demo`, which `load()` ignores and `save()` takes out of the file; never bring a demo or its setting back without asking. **About** shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.
   It ends with a credit (`.info__credit`): the PML logo and "Developed by the Environmental Intelligence group at Plymouth Marine Laboratory" (as the website's footer), then "Released under the GNU GPLv3 license." and a GPLv3 badge. The logo is a `data:` URI that `recipes_gui.render_page` puts in for `__OCEANVAL_PML_LOGO__` in `gui.js` (`OceanValGUI.PML_LOGO`, set as the `<img>`'s `src`).
@@ -935,9 +936,21 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   in a table head covers the columns it spans (`data-required-tick`: each ticked row has a layer; `data-required-any`: some row is ticked;
   otherwise every ticked row has the boxes filled). A new Required tag needs no code if it sits in the label/row/legend of its box.
 - **A choice among boxes must be unmistakable**: the chosen one is filled with the accent colour (or tinted, with a thick
-  accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.demo-detail__option`, `.prefs__use`, `.reg-where label`) are
+  accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.prefs__use`, `.reg-where label`) are
   styled together at the end of `data/gui.css`; `.segmented` (the domain picker), `.choice.is-chosen` and the
   existing matchups' ticks are in `oceanval_app.html`. A new pick-one control must use or extend these, with tokens only.
+- **The window's pop-out words** (the user's rule, 2026-11-06): the Analyze pop-outs have a one-sentence intro each (`KIND_INTROS`, the static
+  intros of `#phen-dialog`/`#chg-dialog`/`#trans-dialog`), no "Marked Required is what has to be given" legend and no "Tick at least one"
+  (the layer columns' tag is just "Required"; Confirm stays disabled until a variable is ticked, with no message). The compatibility check's
+  page is one paragraph. "Only file names are checked, not directories." is said nowhere in the window.
+- **The file filters** (the user's rules, 2026-11-06): every "Skip file names containing" box (`#f-exclude`, `#sc-exclude_1..5`,
+  `#review-exclude`, `#bank-exclude`, the recipes window's `#s-exclude`) has `OceanValGUI.skipWords` under it: `restart` and `spinup`
+  (`SKIP_WORDS`) to click in (added once, an `input` event fired, nothing added unless clicked); a new Skip box must call it. Compare's
+  filters are always shown (no "Only use some of the files" expander). **View the files in a random subdirectory** is a button
+  (`.btn--sample`) right of the file count in the `.ndown-row` (setup page `#view-files`, bank info `#bank-info-view`), and
+  `App.sample_files(exclude=, require=)` lists only the files the filters let through (`filtered_out` when none do). The viewer's
+  THREDDS tick (`#row-f-thredds`, `refreshThredds`) is shown only while the simulation box holds a web address. Every Browse… button
+  (`[data-browse]`) is light teal (`gui.css`).
 - **The "directories down" boxes** (`#f-ndown`, shared by Matchup, Validate and Analyze, and `#sc-ndown_1`..`5` of Compare
   simulations) are `depthBox`es: `withChoices` boxes whose arrow lists 0 to 5 ("0 in the directory itself", "1 directory
   down", ...), and any whole number, 0 or more, can still be typed. A new box asking for a depth must be made with `depthBox`.

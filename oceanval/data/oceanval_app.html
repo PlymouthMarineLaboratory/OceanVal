@@ -36,65 +36,10 @@
   .choice__icon svg * { stroke-width: 1.5; }
   .choice__title { font: 600 20px/1.3 var(--font-head); letter-spacing: -0.2px; }
   .choice__text { color: var(--muted); font-size: 16px; line-height: 1.5; }
-  /* the demo, below the four, across both columns */
-  .demo-tile { grid-column: 1 / -1; position: relative; }
-  .choice.is-demo { width: 100%; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 9px; padding-top: 22px; border-style: dashed; border-color: var(--teal-200); background: var(--teal-50); box-shadow: none; }
-  .choice.is-demo .choice__icon { flex: none; margin: 0; }
-  /* the x at the top right of the demo tile: a close button, drawn by CSS so it has no text */
-  .demo-close { position: absolute; top: 10px; right: 12px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
-  .demo-close::before { content: ""; width: 14px; height: 14px; background: linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat, linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat; transform: rotate(45deg); }
-  .demo-close:hover { background: var(--teal-50); color: var(--ink); }
-  .demo-close:focus-visible { outline: none; box-shadow: var(--focus); }
-  .choice.is-demo .choice__body { display: grid; gap: 4px; }
-  /* registering recipes of your own: across both columns, between the four and the demo */
+  /* registering recipes of your own: across both columns, below the four */
   .choice.is-register { grid-column: 1 / -1; flex-direction: row; align-items: center; aspect-ratio: 10.4; gap: 9px; padding-top: 22px; }
   .choice.is-register .choice__icon { flex: none; margin: 0; }
   .choice.is-register .choice__body { display: grid; gap: 4px; }
-
-  /* ---- the demo ---- */
-  .demo { display: grid; gap: 18px; max-width: 900px; }
-  .demo-folder { margin: 0; padding: 20px 24px; border: 2px solid var(--red); border-radius: var(--radius-md); background: var(--red-bg); color: var(--ink); font: 700 22px/1.35 var(--font-head); letter-spacing: -0.2px; }
-  .demo-folder code { font: inherit; font-family: var(--font-mono); font-size: 0.92em; overflow-wrap: anywhere; }
-  .demo-folder small { display: block; margin-top: 6px; color: var(--ink-soft); font: 500 14px/1.45 var(--font-body); letter-spacing: 0; }
-  .demo-about { padding: 22px 26px; }
-  .demo-about h2 { margin: 0 0 10px; font: 600 17px/1.3 var(--font-head); }
-  .demo-about p { margin: 0 0 10px; color: var(--ink-soft); font-size: 14.5px; line-height: 1.55; }
-  .demo-about p:last-child { margin-bottom: 0; }
-  .demo > * { min-width: 0; }
-  .demo-about code { overflow-wrap: anywhere; }
-  .demo-grid-wrap { overflow-x: auto; }
-  /* the instructions: a box in the middle of the page, between the masthead and the bar, in type half as big again as the demo's other text */
-  #view-demo-instructions:not([hidden]) { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 340px); }
-  #view-demo-instructions .demo { width: 100%; max-width: 760px; }
-  #view-demo-instructions .demo-about { padding: 34px 40px; }
-  #view-demo-instructions .demo-about p { font-size: 21.75px; line-height: 1.5; }
-  #view-demo-instructions .demo-detail { display: grid; gap: 12px; margin-top: 14px; }
-  #view-demo-instructions .demo-detail__option { display: flex; align-items: center; gap: 12px; color: var(--ink); font-size: 21.75px; cursor: pointer; }
-  .demo-grid { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 14px; }
-  .demo-grid th { padding: 0 10px 8px 0; color: var(--ink-soft); font-size: 12.5px; font-weight: 600; text-align: left; vertical-align: bottom; }
-  .demo-grid td, .demo-grid tbody th { padding: 10px 10px 10px 0; border-top: 1px solid var(--line-soft); vertical-align: middle; }
-  .demo-grid tbody th { color: var(--ink); font-size: 14px; }
-  .demo-grid__name { display: block; font-weight: 700; }
-  .demo-grid__where { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; font-weight: 500; overflow-wrap: anywhere; }
-  .demo-cell { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-  .demo-cell input { width: 18px; height: 18px; margin: 0; accent-color: var(--teal-500); }
-  .demo-cell__size { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-  .demo-about dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0 0 12px; font-size: 14px; }
-  .demo-about dt { color: var(--muted); font-weight: 600; }
-  .demo-about dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
-  .demo-caveat { display: flex; gap: 12px; align-items: flex-start; padding: 16px 20px; border: 1px solid var(--coral-line); border-radius: var(--radius-md); background: var(--coral-bg); color: var(--coral-dark); font-size: 14.5px; line-height: 1.55; }
-  .demo-caveat .icon svg { width: 20px; height: 20px; }
-  .demo-caveat p { margin: 0; }
-  .demo-caveat p + p { margin-top: 6px; }
-  .demo-progress { display: grid; gap: 8px; padding: 16px 20px; }
-  .demo-progress__bar { height: 10px; overflow: hidden; border-radius: 999px; background: var(--line-soft); }
-  .demo-progress__fill { width: 0; height: 100%; border-radius: inherit; background: var(--teal-500); transition: width 0.3s; }
-  .demo-progress__text { margin: 0; color: var(--ink-soft); font-size: 14px; }
-  .result__reminder { margin-top: 10px !important; color: var(--ink) !important; font-weight: 700; }
-  @media (max-width: 720px) {
-    .demo-folder { font-size: 18px; padding: 16px 18px; }
-    .demo-about { padding: 18px 16px; }
-  }
 
   /* ---- your own observations ---- */
   .choices.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
@@ -264,8 +209,11 @@
   .form__row { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 16px; align-items: end; }
   .form__row > .g-row + .g-row { margin-top: 0; }
   .form__row + .form__row { margin-top: 14px; }
-  .form__row.is-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ndown-row { display: grid; grid-template-columns: max-content 84px max-content max-content; gap: 12px; align-items: center; margin-top: 24px; }
+  /* the two filter boxes stay level, though the skip box has its words to add under it */
+  .form__row.is-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  /* the question, its box, the count of files found and the button that shows some of them, wrapping in a narrow window */
+  .ndown-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 24px; }
+  .ndown-row > .btn--sample { white-space: nowrap; }
   .ndown-row > .g-label { margin: 0; }
   .ndown-row > .g-label.is-required { font-weight: 500; }
   .ndown-row > .s-input { width: 84px; text-align: center; }
@@ -727,7 +675,7 @@
 
   @media (max-width: 1000px) {
     .choices { grid-template-columns: 1fr; }
-    .choice, .choice.is-demo, .choice.is-register { aspect-ratio: auto; }
+    .choice, .choice.is-register { aspect-ratio: auto; }
   }
   @media (max-width: 760px) {
     .picker__head, .picker__crumbs, .picker__foot { padding-left: 16px; padding-right: 16px; }
@@ -765,7 +713,7 @@
   /* what OceanVal filled in is red and bold, so that none of it is missed */
   .lede .oceanval-change, .units .s-input.is-oceanval, .units .group__line.is-oceanval,
   .form .s-input.is-oceanval, .form .s-select.is-oceanval, .setup-form .s-input.is-oceanval,
-  .setup-form .s-select.is-oceanval, .demo-about .oceanval-change,
+  .setup-form .s-select.is-oceanval,
   .ptr-mode .oceanval-change, .ag-controls .s-select.is-oceanval, .ag-controls .group__line.is-oceanval { color: var(--ink); font-weight: 700; }
   /* a box ticked for the user, which has no text of its own to colour: its label's */
   .form .tick-label:has(.tick.is-oceanval), .setup-form .tick-label:has(.tick.is-oceanval) { color: var(--ink); font-weight: 700; }
@@ -846,7 +794,8 @@
   #view-home .choices.is-four .choice, #view-help .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
   /* Tools & checks has only a symbol and a title in each tile: centred up and down, still left-aligned */
   #view-help .choices.is-four .choice { justify-content: center; }
-  #view-home .choices.is-four .choice__icon, #view-help .choices.is-four .choice__icon { margin-bottom: -6px; }
+  /* the space under a symbol is the gap (22px) plus this margin: 11.2px, 30% less than the 16px it was (the title and text keep the gap) */
+  #view-home .choices.is-four .choice__icon, #view-help .choices.is-four .choice__icon { margin-bottom: -10.8px; }
   #view-home .choices.is-four .choice__icon svg, #view-help .choices.is-four .choice__icon svg { width: 32px; height: 32px; }
   #view-home .choices.is-four .choice__title, #view-help .choices.is-four .choice__title { font-size: 36px; }
   #view-home .choices.is-four .choice__text, #view-help .choices.is-four .choice__text { font-size: 22px; }
@@ -968,8 +917,6 @@
   #row-f-name { margin-top: 10px; }
   .combo__name { font: 500 14px/18px var(--font-body); }
   .combo__sub { display: block; color: var(--muted); font: 400 12px/16px var(--font-mono); }
-  .sc-sim details { margin: 10px 0 0; }
-  .sc-sim summary { color: var(--muted); font-size: 13px; cursor: pointer; }
   .sc-sim .group__msg { margin-top: 8px; }
   .sc-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
   .sc-head { display: flex; align-items: center; gap: 8px; }
@@ -1122,6 +1069,10 @@
   .analyze-dialog__body > table > tbody > tr.is-off > td { color: var(--muted); }
   .analyze-dialog__body > table > tbody > tr.is-off .s-input { opacity: 0.6; }
   .analyze-dialog .tick-label { color: var(--ink); white-space: nowrap; }
+  /* the layer columns (four, with the vertical mean and integration) and the long-term series' two wrap their words,
+     so the widest table, the long-term series', fits the pop-out */
+  .analyze-dialog .tick-with-info .tick-label { white-space: normal; }
+  .analyze-dialog__body > table > thead > tr > th.is-layer, .analyze-dialog__body > table > thead > tr > th.is-series { white-space: normal; }
   /* the All variables row, whose boxes set every variable's, and each variable's Reset back to it */
   .analyze-dialog__body > table > tbody.analyze-all > tr > td { background: var(--teal-50); }
   .analyze-dialog__body > table > tbody.analyze-all > tr:last-child > td { border-bottom: 2px solid var(--line); }
@@ -1304,7 +1255,7 @@
       <button type="button" class="choice" data-action="help" id="home-help">
         <span class="choice__icon" data-icon="help"></span>
         <span class="choice__title">Tools &amp; info</span>
-        <span class="choice__text">Check your model files are compatible&nbsp;| Simulation bank&nbsp;| Preferences&nbsp;| About</span>
+        <span class="choice__text">Check model files are compatible with OceanVal&nbsp;| Simulation bank&nbsp;| Preferences&nbsp;| About</span>
       </button>
     </div>
   </section>
@@ -1327,11 +1278,6 @@
         <p class="prefs__where" id="settings-where"></p>
       </div>
       <div class="prefs__body">
-        <fieldset class="prefs__group">
-          <legend class="prefs__legend">Demo</legend>
-          <p class="prefs__hint">Should the first page offer the demo?</p>
-          <label class="prefs__check"><input type="checkbox" class="tick" id="settings-show-demo">Yes, show &ldquo;Try a demo&rdquo; on the first page</label>
-        </fieldset>
         <fieldset class="prefs__group" id="settings-data-store-group">
           <legend class="prefs__legend">Data store</legend>
           <p class="prefs__hint">A folder to keep the built-in observational data OceanVal downloads (WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES), so that later matchups need not download it again. Your own data is never kept in it. Everything is kept in an <code>oceanval_datastore</code> folder inside the one you give, which must already exist. Leave it empty to keep nothing.</p>
@@ -1425,7 +1371,7 @@
   </section>
 
   <section id="view-help-compatible" hidden>
-    <p class="lede">Enter the path of one model output file. OceanVal asks a series of questions of it, one at a time, to find out whether it can work with it.</p>
+    <p class="lede"><strong>OceanVal should be able to handle any CF-compliant (or near CF-compliant) data. But before using OceanVal with your data, it can be a good idea to run the checker below on one or more of your files.</strong></p>
     <form class="setup-form compat-form" id="compat-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box">
         <div class="g-row">
@@ -1499,76 +1445,6 @@
           <span class="choice__text">Add observations of your own, point or gridded, as recipes in a <code>.oceanvalrc</code> file, to use in matchups like OceanVal's built-in ones.</span>
         </span>
       </button>
-      <div class="demo-tile" id="demo-tile">
-        <button type="button" class="choice is-demo" id="choice-demo" data-action="demo">
-          <span class="choice__icon" data-icon="play"></span>
-          <span class="choice__body">
-            <span class="choice__title">Try a demo</span>
-            <span class="choice__text">Download a climate model's sea surface temperature, and walk through matching up and validating one year of it, with the options filled in for you.</span>
-          </span>
-        </button>
-        <button type="button" class="demo-close" id="demo-close" aria-haspopup="dialog" aria-label="Close the demo" title="Close"></button>
-      </div>
-    </div>
-  </section>
-
-  <section id="view-demo-instructions" hidden>
-    <div class="demo">
-      <div class="card demo-about">
-        <p>Just press <strong>Continue</strong> on each page, and tick agreement when asked, to run the validation.</p>
-      </div>
-      <div class="card demo-about">
-        <p>Feel free to customize the validation by tweaking the options.</p>
-      </div>
-      <div class="card demo-about">
-        <p id="demo-wait">You should start seeing validation results in a couple of minutes.</p>
-      </div>
-      <div class="card demo-about" id="demo-detail">
-        <p id="demo-detail-label">How do you want your validation sample?</p>
-        <div class="demo-detail" role="radiogroup" aria-labelledby="demo-detail-label">
-          <label class="demo-detail__option"><input type="radio" name="demo-detail" value="true" checked>Concise and fast</label>
-          <label class="demo-detail__option"><input type="radio" name="demo-detail" value="false">Detailed, but slower</label>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="view-demo" hidden>
-    <div class="demo">
-      <div class="card demo-about" id="demo-choose">
-        <h2>Choose a model and its variables</h2>
-        <p>Each model is downloaded from a different ESGF data server. Choose one model, and one to three of its variables: only those files are downloaded.</p>
-        <div class="demo-grid-wrap">
-        <table class="demo-grid" id="demo-grid">
-          <thead><tr><th scope="col">Model</th><th scope="col">Sea surface temperature</th><th scope="col">Surface nitrate</th><th scope="col">Sea surface salinity</th></tr></thead>
-          <tbody id="demo-grid-body"></tbody>
-        </table>
-        </div>
-      </div>
-      <p class="demo-folder" id="demo-folder">This creates a directory called <code>oceanval_demo</code>, with data in it. Remove it when you have finished with the demo.<small id="demo-folder-path"></small></p>
-      <div class="demo-caveat" role="note">
-        <span class="icon" aria-hidden="true" data-icon="warn"></span>
-        <div>
-          <p><strong>This shows how OceanVal works. It is not how to validate a climate model.</strong></p>
-          <p>Only one year, <span id="demo-year">2010</span>, is matched up here. A climate model is not meant to reproduce the weather of any particular year, so judging how well one does needs many years of output, not a single one.</p>
-        </div>
-      </div>
-      <div class="card demo-about" id="demo-chosen" hidden>
-        <h2>The model output</h2>
-        <dl>
-          <dt>Model</dt><dd id="demo-chosen-model"></dd>
-          <dt>Simulation</dt><dd id="demo-chosen-simulation"></dd>
-          <dt>Variables</dt><dd id="demo-chosen-variables"></dd>
-          <dt>Covers</dt><dd id="demo-chosen-covers"></dd>
-          <dt>Files</dt><dd id="demo-chosen-files"></dd>
-        </dl>
-        <p id="demo-chosen-about"></p>
-      </div>
-      <div class="card demo-progress" id="demo-progress" hidden>
-        <div class="demo-progress__bar"><div class="demo-progress__fill" id="demo-progress-fill"></div></div>
-        <p class="demo-progress__text" id="demo-progress-text" aria-live="polite"></p>
-      </div>
-      <div class="banner" id="demo-error" role="alert" hidden></div>
     </div>
   </section>
 
@@ -1583,13 +1459,13 @@
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
           <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required autocomplete="off">
           <span class="ndown-found" id="ndown-found" role="status" hidden></span>
+          <button type="button" class="btn btn--ghost btn--field btn--sample" id="view-files" aria-haspopup="dialog">View the files in a random subdirectory</button>
         </div>
         <div class="form__row is-pair">
           <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
           <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         </div>
         <p class="group__msg" id="m-simulation"></p>
-        <p class="group__intro"><button type="button" class="link" id="view-files" aria-haspopup="dialog">Click here to view the files in a random subdirectory of the listed directory</button></p>
       </fieldset>
       <fieldset class="group card setup-box" id="setup-domain">
         <legend>What spatial coverage do you need for your observational data? <span class="own-req">Required</span></legend>
@@ -2260,12 +2136,10 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="g-note bank-hint" id="sc-dir_1-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_1" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <details><summary>Only use some of the files</summary>
-            <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_1" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_1" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            </div>
-          </details>
+          <div class="form__row is-pair" style="margin-top:10px">
+            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_1" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_1" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          </div>
           <p class="group__msg" id="sc-m-1"></p>
         </div>
         <div class="sc-sim" id="sc-row-2">
@@ -2275,12 +2149,10 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="g-note bank-hint" id="sc-dir_2-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_2" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <details><summary>Only use some of the files</summary>
-            <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_2" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_2" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            </div>
-          </details>
+          <div class="form__row is-pair" style="margin-top:10px">
+            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_2" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_2" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          </div>
           <p class="group__msg" id="sc-m-2"></p>
         </div>
         <div class="sc-sim" id="sc-row-3" hidden>
@@ -2290,12 +2162,10 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="g-note bank-hint" id="sc-dir_3-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_3" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <details><summary>Only use some of the files</summary>
-            <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_3" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_3" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            </div>
-          </details>
+          <div class="form__row is-pair" style="margin-top:10px">
+            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_3" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_3" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          </div>
           <p class="group__msg" id="sc-m-3"></p>
         </div>
         <div class="sc-sim" id="sc-row-4" hidden>
@@ -2305,12 +2175,10 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="g-note bank-hint" id="sc-dir_4-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_4" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <details><summary>Only use some of the files</summary>
-            <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_4" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_4" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            </div>
-          </details>
+          <div class="form__row is-pair" style="margin-top:10px">
+            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_4" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_4" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          </div>
           <p class="group__msg" id="sc-m-4"></p>
         </div>
         <div class="sc-sim" id="sc-row-5" hidden>
@@ -2320,12 +2188,10 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="g-note bank-hint" id="sc-dir_5-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_5" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <details><summary>Only use some of the files</summary>
-            <div class="form__row is-pair" style="margin-top:10px">
-              <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_5" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-              <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_5" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            </div>
-          </details>
+          <div class="form__row is-pair" style="margin-top:10px">
+            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_5" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_5" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          </div>
           <p class="group__msg" id="sc-m-5"></p>
         </div>
         <div class="analyze-foot">
@@ -2639,13 +2505,13 @@
       <div class="ndown-row">
         <label class="g-label is-required" for="bank-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
         <input class="s-input is-num" id="bank-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" autocomplete="off">
+        <button type="button" class="btn btn--ghost btn--field btn--sample" id="bank-info-view" aria-haspopup="dialog" hidden>View the files in a random subdirectory</button>
       </div>
       <div class="form__row is-pair">
         <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="bank-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="bank-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
       </div>
       <p class="bank-info__count" id="bank-info-count" role="status"></p>
-      <p class="group__intro" id="bank-info-view-row" hidden><button type="button" class="link" id="bank-info-view" aria-haspopup="dialog">Click here to view the files in a random subdirectory of the listed directory</button></p>
     </div>
     <div class="picker__foot">
       <span class="bank-info__count is-finding" id="bank-info-working" role="status" hidden><span class="identify__spinner" aria-hidden="true"></span>Reading the files…</span>
@@ -2691,7 +2557,7 @@
       <p><strong>Where it looks.</strong> OceanVal searches the directory you give, and the number of directories below it that you say, for netCDF files. Once you have told it the names of your simulation variables, it works out which files contain each one.</p>
       <p><strong>Which files it uses.</strong> Where a variable is held at more than one time resolution, for example in both daily and monthly files, OceanVal uses the files with the highest temporal resolution, so your matchups are as detailed as your output allows.</p>
       <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Put words from the names of the files to leave out in <strong>Skip file names containing</strong> (for example <code>restart 5d</code>; nothing is left out that you have not asked for), or words that the files you want share in <strong>Only include file names containing</strong> (for example <code>grid_T</code>).</p>
-      <p>Only file names are checked, not directory names. To choose words, look at the names of the files in your simulation with &ldquo;Click here to view the files&rdquo;.</p>
+      <p>To choose words, look at the names of the files in your simulation with &ldquo;View the files in a random subdirectory&rdquo;.</p>
     </div>
     <div class="picker__foot">
       <button type="button" class="btn btn--primary" id="how-close">Close</button>
@@ -2720,12 +2586,11 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro" id="clim-intro"></p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, and the years. Untick a variable to leave it out.</span></p>
       <p class="analyze-msg is-rows" id="clim-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
-          <tr class="is-need"><th colspan="3"></th><th colspan="3"><span class="own-req" data-required-tick>Required: tick at least one</span></th><th colspan="2" class="is-series" hidden></th></tr>
-          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col">Surface</th><th scope="col">Bottom</th><th scope="col">Water column</th><th scope="col" class="is-series" hidden>Use a rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
+          <tr class="is-need"><th colspan="3"></th><th colspan="4"><span class="own-req" data-required-tick>Required</span></th><th colspan="2" class="is-series" hidden></th></tr>
+          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col" class="is-layer">Surface</th><th scope="col" class="is-layer">Bottom</th><th scope="col" class="is-layer">Vertical mean</th><th scope="col" class="is-layer">Vertical integration</th><th scope="col" class="is-series" hidden>Use a rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
         </thead>
         <tbody class="analyze-all" id="clim-all"></tbody>
         <tbody id="clim-body"></tbody>
@@ -2805,10 +2670,9 @@
       <div class="picker__title"><h2 id="phen-title">Map phenologies</h2><span id="phen-info"></span></div>
     </div>
     <div class="analyze-dialog__body">
-      <p class="analyze-dialog__intro">The time of the seasonal peak at the surface: in each grid cell, the day of the year with the highest value in the variable's daily climatology over the years from Start to End. It needs daily output. Tick the variables to work it out for, and give the years.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given: at least one variable ticked, and the years of each variable ticked.</span></p>
+      <p class="analyze-dialog__intro">The day of the year of the seasonal peak at the surface is calculated from the daily climatology for the year range given, and mapped. It needs daily output.</p>
       <table>
-        <thead><tr><th scope="col">Model variable <span class="own-req" data-required-any>Tick at least one</span></th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th></tr></thead>
+        <thead><tr><th scope="col">Model variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th></tr></thead>
         <tbody class="analyze-all" id="phen-all"></tbody>
         <tbody id="phen-body"></tbody>
       </table>
@@ -2828,13 +2692,12 @@
       <h2 id="chg-title">Map temporal changes</h2>
     </div>
     <div class="analyze-dialog__body">
-      <p class="analyze-dialog__intro">Maps of how a variable changes between a historical period and one or two future periods. Each period is mapped as the mean of its years' annual means. Give the first and last years of each period, tick the surface, the bottom, the water column, or more than one, and choose what to plot and whether the changes are absolute or percentages.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given for each variable ticked: <b>Surface</b>, <b>Bottom</b>, <b>Water column</b> or more than one, the years of its historical period and of its first future period, what to plot, and the kind of change. Untick a variable to leave it out. A second future period is optional: give both of its years, or neither.</span></p>
+      <p class="analyze-dialog__intro">The average of each period is calculated and mapped, with its change from the historical period. A second future period is optional: give both of its years, or neither.</p>
       <p class="analyze-msg is-rows" id="chg-msg" role="status" aria-live="polite"></p>
       <table>
         <thead>
-          <tr class="is-need"><th></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"></th><th colspan="3"><span class="own-req" data-required-tick>Required: tick at least one</span></th></tr>
-          <tr><th scope="col" rowspan="2">Variable</th><th scope="colgroup" colspan="2">Historical</th><th scope="colgroup" colspan="2">Future 1</th><th scope="colgroup" colspan="2">Future 2 <span class="own-opt">Optional</span></th><th scope="col" rowspan="2">Surface</th><th scope="col" rowspan="2">Bottom</th><th scope="col" rowspan="2">Water column</th></tr>
+          <tr class="is-need"><th></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"><span class="own-req">Required</span></th><th colspan="2"></th><th colspan="4"><span class="own-req" data-required-tick>Required</span></th></tr>
+          <tr><th scope="col" rowspan="2">Variable</th><th scope="colgroup" colspan="2">Historical</th><th scope="colgroup" colspan="2">Future 1</th><th scope="colgroup" colspan="2">Future 2 <span class="own-opt">Optional</span></th><th scope="col" rowspan="2" class="is-layer">Surface</th><th scope="col" rowspan="2" class="is-layer">Bottom</th><th scope="col" rowspan="2" class="is-layer">Vertical mean</th><th scope="col" rowspan="2" class="is-layer">Vertical integration</th></tr>
           <tr><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th><th scope="col">First</th><th scope="col">Last</th></tr>
         </thead>
         <tbody class="analyze-all" id="chg-all"></tbody>
@@ -2860,8 +2723,7 @@
       <h2 id="trans-title">Analyse transects</h2>
     </div>
     <div class="analyze-dialog__body">
-      <p class="analyze-dialog__intro">The model's values along straight lines. Each variable has transects of its own: tick the variables to work transects out for, add as many transects as you like to each, and choose what to work out along each one, and the years of each.</p>
-      <p class="own-legend"><span class="own-swatch" aria-hidden="true"></span><span>Marked <b class="is-required-word">Required</b> is what has to be given: at least one variable ticked; for each transect, where it starts and ends, at least one <b>Climatology</b> or <b>Changes</b>, in the <b>Surface</b> or the <b>Vertical</b>, and the years of each of them.</span></p>
+      <p class="analyze-dialog__intro">The model's values along straight lines are calculated for the year ranges given, and plotted. Each variable can have as many transects as you like.</p>
       <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
       <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years as a map of position along the line by year, of the annual means or of their change from the first year (or the first rolling mean), with an optional rolling mean.</p>
       <div class="analyze-thickness" id="trans-thickness-row" hidden>
@@ -2899,18 +2761,6 @@
 
 <!-- CDO crashed on the simulation's files: nothing can be done with them, so there is no way on from here but starting again -->
 <!-- the directories down OceanVal filled in from the folders' layout (tellFolderStructure) -->
-<div class="picker" id="demo-hide" hidden>
-  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="demo-hide-title">
-    <div class="picker__head">
-      <h2 id="demo-hide-title">Do you never want to see the demo again?</h2>
-    </div>
-    <p class="picker__info" id="demo-hide-text">Choose No to close it this time only. You can show it again in Tools &amp; info, under Preferences.</p>
-    <div class="picker__foot">
-      <button type="button" class="btn btn--ghost" id="demo-hide-no">No</button>
-      <button type="button" class="btn btn--primary" id="demo-hide-yes">Yes</button>
-    </div>
-  </div>
-</div>
 <div class="picker" id="validate-intro" hidden>
   <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="validate-intro-title" aria-describedby="validate-intro-text">
     <div class="picker__head">
@@ -3183,8 +3033,6 @@
       case "preferences": return "Preferences";
       case "about": return "About OceanVal";
       case "help_compatible": return "Is my data compatible with OceanVal?";
-      case "demo": return "Try OceanVal with a demo";
-      case "demo_instructions": return "Instructions";
       case "setup": return "";
       case "analyze_variables": return "";  // the grid has its own label
       case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
@@ -3240,11 +3088,6 @@
     $("title").classList.toggle("is-setup-title", ["setup", "output", "report_options"].includes(state.view));
     const meta = $("meta");
     meta.replaceChildren();
-    if (state.demo && state.view !== "start") {
-      meta.append(el("li", { class: "is-flag", title: `The demo's files are in ${state.demo.folder}` },
-        el("span", { class: "meta__k", text: "Demo" }),
-        el("span", { class: "meta__v is-mono", text: "oceanval_demo" })));
-    }
   }
 
   function button(text, kind, onclick, props = {}) {
@@ -3266,7 +3109,7 @@
     const view = state.view;
     // only rebuilt when something in it changes, so a button keeps its focus
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
-      state.demo && state.demo.status, demoKey(), Boolean(state.run.back),
+      Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
       state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number, viewerFvcom(),
       scUnits.page].join("|");
@@ -3285,15 +3128,7 @@
     const actions = [];
     backAction = null;
     let asked = null;
-    if (view === "demo") {
-      const busy = state.demo.status === "downloading";
-      actions.push(backTo(() => post("api/back"), { disabled: busy }),
-        button(demoDownloaded() ? "Continue" : busy ? "Downloading…" : "Download and continue",
-          "primary", startDemo, { id: "demo-start", disabled: busy || !demoPick.variables.length }));
-    } else if (view === "demo_instructions") {
-      actions.push(backTo(() => post("api/back")),
-        button("Continue", "primary", () => post("api/demo_continue"), { id: "demo-continue" }));
-    } else if (view === "start" || view === "analyze_menu") {
+    if (view === "start" || view === "analyze_menu") {
       // to the landing page
       actions.push(backTo(() => post("api/back")));
     } else if (view === "help" || view === "help_compatible" || view === "bank" || view === "preferences" || view === "about") {
@@ -4381,10 +4216,10 @@
   }
 
   // ---- the views ----
-  const VIEWS = { home: "view-home", start: "view-start", demo: "view-demo",
+  const VIEWS = { home: "view-home", start: "view-start",
     analyze_menu: "view-analyze-menu", bank: "view-bank", preferences: "view-preferences", about: "view-about", help: "view-help", help_compatible: "view-help-compatible",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
-    simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", demo_instructions: "view-demo-instructions", setup: "view-setup", validate: "view-validate", compare: "view-compare",
+    simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
     own_future: "view-own-future",
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
@@ -4420,7 +4255,7 @@
       $("compat-path").focus();
     } else if (view === "preferences") {
       fillPreferences();
-      $("settings-show-demo").focus();
+      $("settings-data-store").focus();
     } else if (view === "about") {
       fillAbout();
     } else if (view === "home") {
@@ -4458,8 +4293,6 @@
       scFiles.shift = null;
     } else if (view === "simcompare_grids") {
       fillScGrids();
-    } else if (view === "demo") {
-      $("demo-choose").scrollIntoView({ block: "start" });
     } else if (view === "units_table") {
       // the units are confirmed afresh every time this step is reached
       unitsUnconfirm();
@@ -4566,7 +4399,6 @@
   }
 
   function render() {
-    $("demo-tile").hidden = state.user_settings.values.show_demo === false || demoClosed;
     if (state.view !== shownView) enterView(state.view);
     renderHeader();
     renderBar();
@@ -4603,196 +4435,14 @@
     if (state.view === "script_saved") renderSavedScript();
     if (state.view === "viewer_scanning") renderViewerScan();
     if (state.view === "viewer") renderViewer();
-    if (!state.demo) {
-      // the next demo starts with nothing ticked
-      demoPick.model = null;
-      demoPick.variables = [];
-      demoPick.seeded = false;
-    }
-    if (state.view === "demo") renderDemo();
-    if (state.view === "demo_instructions") renderDemoDetail();
   }
-
-  // ---- the demo's instructions: how detailed the report is ----
-  function renderDemoDetail(concise = state.demo.concise !== false) {
-    document.querySelectorAll('input[name="demo-detail"]').forEach((radio) => {
-      radio.checked = (radio.value === "true") === concise;
-    });
-    $("demo-wait").textContent = "You should start seeing validation results in " +
-      (concise ? "a couple of minutes." : "4 or 5 minutes.");
-  }
-
-  document.querySelectorAll('input[name="demo-detail"]').forEach((radio) => {
-    radio.addEventListener("change", () => {
-      const concise = radio.value === "true";
-      renderDemoDetail(concise);
-      post("api/demo_detail", { concise });
-    });
-  });
-
-  // ---- the x of the demo tile: asks whether the demo is never to be offered again ----
-  let demoClosed = false;  // closed for this visit only (a new page offers it again)
-  function openDemoHide() {
-    $("demo-hide").hidden = false;
-    BEHIND.forEach((node) => { node.inert = true; });
-    $("demo-hide-no").focus();
-  }
-  function closeDemoHide() {
-    $("demo-hide").hidden = true;
-    BEHIND.forEach((node) => { node.inert = false; });
-  }
-  $("demo-close").addEventListener("click", openDemoHide);
-  // No: closed this time only
-  $("demo-hide-no").addEventListener("click", () => { closeDemoHide(); demoClosed = true; render(); });
-  // Yes: kept in the preferences, which can show it again
-  $("demo-hide-yes").addEventListener("click", async () => {
-    $("demo-hide-yes").disabled = true;
-    const reply = await post("api/settings", { settings: { show_demo: false } });
-    $("demo-hide-yes").disabled = false;
-    closeDemoHide();
-    if (!reply.ok) { toast(reply.error || "Your preference could not be saved."); return; }
-    state.user_settings.values = reply.settings;
-    render();
-    toast("The demo is hidden. Tools & info, under Preferences, shows it again.");
-  });
-  // Escape or a click beside the box changes nothing
-  $("demo-hide").addEventListener("click", (event) => { if (event.target === $("demo-hide")) closeDemoHide(); });
-  $("demo-hide").addEventListener("keydown", (event) => { if (event.key === "Escape") { event.preventDefault(); closeDemoHide(); } });
 
   // ---- 1: choosing what to do ----
   document.querySelectorAll("#view-start .choice, #view-home .choice, #view-help .choice, #view-analyze-menu .choice").forEach((choice) => {
     choice.addEventListener("click", () => post("api/choose", { action: choice.dataset.action }));
   });
 
-  // ---- the demo ----
-  // the columns of the grid, which is also the order the variables are asked for in
-  const DEMO_COLUMNS = [
-    ["tos", "Sea surface temperature", "tos, in °C"],
-    ["no3os", "Surface nitrate", "no3os, in mol m⁻³"],
-    ["sos", "Sea surface salinity", "sos, dimensionless"],
-  ];
-  // what is ticked: one model, and one to three of its variables
-  const demoPick = { model: null, variables: [], seeded: false };
-  let demoGridBuilt = false;
-  const demoBoxes = {};
-
-  const demoKey = () => `${demoPick.model}:${demoPick.variables.join(",")}`;
-  const demoModel = () => (state.demo.models || []).find((model) => model.label === demoPick.model);
-  const demoSize = (megabytes) => `${Math.max(1, Math.round(megabytes))} MB`;
-  // whether the files ticked are in the demo's directory already
-  function demoDownloaded() {
-    const model = state.demo && demoModel();
-    return Boolean(model) && demoPick.variables.length > 0
-      && demoPick.variables.every((variable) => model.files[variable].present);
-  }
-
-  function tickDemo(model, variable, ticked) {
-    if (ticked && demoPick.model !== model) {
-      // another model is chosen: what was ticked for the one before is not kept
-      demoPick.model = model;
-      demoPick.variables = [];
-    }
-    demoPick.variables = demoPick.variables.filter((other) => other !== variable);
-    if (ticked) demoPick.variables.push(variable);
-    if (!demoPick.variables.length) demoPick.model = null;
-    // in the order of the columns
-    demoPick.variables.sort((a, b) =>
-      DEMO_COLUMNS.findIndex(([name]) => name === a) - DEMO_COLUMNS.findIndex(([name]) => name === b));
-    barShown = null;
-    renderDemo();
-    renderBar();
-  }
-
-  function buildDemoGrid() {
-    $("demo-grid-body").replaceChildren(...state.demo.models.map((model) => el("tr", {},
-      el("th", { scope: "row" },
-        el("span", { class: "demo-grid__name", text: model.label }),
-        el("span", { class: "demo-grid__where", text: `${model.server} · ${model.member}` })),
-      ...DEMO_COLUMNS.map(([variable, title]) => {
-        const box = el("input", { type: "checkbox", "aria-label": `${title} from ${model.label}` });
-        box.addEventListener("change", () => tickDemo(model.label, variable, box.checked));
-        demoBoxes[`${model.label}:${variable}`] = box;
-        return el("td", {}, el("label", { class: "demo-cell" }, box,
-          el("span", { class: "demo-cell__size", text: demoSize(model.files[variable].megabytes) })));
-      }))));
-    demoGridBuilt = true;
-  }
-
-  function renderDemo() {
-    const demo = state.demo;
-    $("demo-folder-path").textContent = `It is made in the directory OceanVal is running from: ${demo.folder}`;
-    $("demo-year").textContent = String(demo.year);
-    if (!demoGridBuilt) buildDemoGrid();
-    // back on this page, what was chosen before is ticked again
-    if (!demoPick.seeded && demo.model) {
-      demoPick.model = demo.model;
-      demoPick.variables = [...demo.variables];
-    }
-    demoPick.seeded = true;
-    const busy = demo.status === "downloading";
-    for (const model of demo.models) {
-      for (const [variable] of DEMO_COLUMNS) {
-        const box = demoBoxes[`${model.label}:${variable}`];
-        box.checked = demoPick.model === model.label && demoPick.variables.includes(variable);
-        box.disabled = busy;
-      }
-    }
-    const chosen = demoModel();
-    $("demo-chosen").hidden = !chosen;
-    if (chosen) {
-      const ticked = demoPick.variables.map((variable) => DEMO_COLUMNS.find(([name]) => name === variable));
-      $("demo-chosen-model").textContent = `${chosen.label}, ${chosen.full}`;
-      $("demo-chosen-simulation").textContent = `CMIP6 historical run, member ${chosen.member}`;
-      $("demo-chosen-variables").textContent =
-        ticked.map(([, title, units]) => `${title} (${units})`).join("; ") + ". All are monthly means.";
-      $("demo-chosen-covers").textContent = chosen.covers;
-      const total = demoPick.variables.reduce((sum, variable) => sum + chosen.files[variable].megabytes, 0);
-      $("demo-chosen-files").replaceChildren(
-        ...demoPick.variables.flatMap((variable) => [
-          Object.assign(document.createElement("code"), { textContent: chosen.files[variable].name }),
-          document.createElement("br")]),
-        `about ${demoSize(total)} in all, from ${chosen.server}`);
-      const against = [];
-      if (demoPick.variables.includes("tos")) against.push("sea surface temperature with COBE-SST 2");
-      const world = DEMO_COLUMNS.filter(([name]) => name !== "tos" && demoPick.variables.includes(name))
-        .map(([, title]) => title.toLowerCase());
-      if (world.length) against.push(`${world.join(" and ")} with the World Ocean Atlas 2023`);
-      const about = $("demo-chosen-about");
-      about.replaceChildren(
-        "OceanVal downloads them, then takes you through the usual steps with the options for the demo filled in, ",
-        el("strong", { class: "oceanval-change", text: "in bold" }),
-        `. It matches up the ${against.join(", and the ")}, and builds the validation report.`
-        + (demoPick.variables.includes("no3os")
-          ? " The units step will suggest converting the observed nitrate, from micromoles per kilogram to the model's moles per cubic metre: check it, as you would for your own model."
-          : ""));
-    }
-    $("demo-progress").hidden = !busy;
-    if (busy) {
-      const megabytes = (bytes) => (bytes / 1e6).toFixed(1);
-      const fraction = demo.total ? Math.min(1, demo.bytes / demo.total) : 0;
-      $("demo-progress-fill").style.width = `${Math.round(fraction * 100)}%`;
-      const which = `file ${demo.file} of ${demo.files.length}`;
-      $("demo-progress-text").textContent = demo.total
-        ? `Downloading the model output, ${which}: ${megabytes(demo.bytes)} of ${megabytes(demo.total)} MB`
-        : `Downloading the model output, ${which}: ${megabytes(demo.bytes)} MB`;
-    }
-    $("demo-error").hidden = demo.status !== "failed";
-    $("demo-error").textContent = demo.status === "failed"
-      ? `${demo.error}\nCheck your internet connection, and try again.` : "";
-  }
-
-  async function startDemo() {
-    const reply = await post("api/demo_download", { model: demoPick.model, variables: demoPick.variables });
-    if (reply && !reply.ok && reply.error) toast(reply.error);
-  }
-
-  // marks the boxes the demo filled in, which stop being OceanVal's once typed over
-  function markDemo(prefix, names) {
-    for (const name of names) {
-      const box = $(`${prefix}-${name}`);
-      if (box) box.classList.add("is-oceanval");
-    }
-  }
+  // a box OceanVal filled in stops being OceanVal's once typed over
   for (const id of ["setup-form", "output-form", "validate-form"]) {
     for (const kind of ["input", "change"]) {
       $(id).addEventListener(kind, (event) => event.target.classList.remove("is-oceanval"));
@@ -4807,6 +4457,10 @@
   const MISSING_GUESS_AGAIN = 400;
   const setup = {};
   depthBox($("f-ndown"));
+  // the words that can be clicked into every "Skip file names containing" box
+  for (const id of ["f-exclude", "sc-exclude_1", "sc-exclude_2", "sc-exclude_3", "sc-exclude_4", "sc-exclude_5", "review-exclude", "bank-exclude"]) {
+    OceanValGUI.skipWords($(id));
+  }
   let setupErrors = {};
   let probe = null;
   let probeNumber = 0;
@@ -4828,9 +4482,8 @@
   function fillSetup() {
     Object.assign(setup, state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
-    // viewing can be given a web address, which the tick says it is
-    $("row-f-thredds").hidden = state.action !== "viewer";
     $("f-thredds").checked = Boolean(setup.thredds);
+    refreshThredds();
     segmented.querySelectorAll("input").forEach((input) => { input.checked = input.value === setup.domain; });
     // an analysis, or viewing the output, has no observations, so no domain to choose
     $("setup-domain").hidden = simulationOnly();
@@ -4841,11 +4494,9 @@
       ? "Which directory, file path or web address stores your simulation data?" : "Which directory stores your simulation data?";
     fillMissingRows();
     setupErrors = {};
-    // the demo's one year is not to be widened to the years its file covers
-    autoYears = Boolean(setup.start && setup.end) && !state.demo;
+    autoYears = Boolean(setup.start && setup.end);
     autoNdown = false;
     for (const name of SETUP_FIELDS) $(`f-${name}`).classList.remove("is-oceanval");
-    if (state.demo) markDemo("f", state.demo.prefilled.setup);
     probe = null;
     askProbe(0);
   }
@@ -4988,6 +4639,8 @@
   // the boxes and the lines under them say what OceanVal filled in
   function markMissingGuess() {
     for (const id of ["missing-from-0", "missing-to-0"]) {
+      // the row is not there while the page is not the viewer's (its answer can come after the page has changed)
+      if (!$(id)) continue;
       $(id).classList.toggle("is-found", missingGuess === "found");
       $(id).classList.toggle("is-ersem", missingGuess === "ersem");
     }
@@ -5125,7 +4778,18 @@
     node.replaceChildren(...lines);
   }
 
+  // viewing can be given a web address, which the tick says it is: asked only when what is typed looks like one,
+  // so never for a path on disk (the user's rule, 2026-11-06); a tick that is no longer asked is taken off
+  function looksLikeWebAddress(text) { return /^[a-z][a-z0-9+.-]*:\/\//i.test(String(text || "").trim()); }
+  function refreshThredds() {
+    const asked = state.action === "viewer" && looksLikeWebAddress(setup.simdir);
+    $("row-f-thredds").hidden = !asked;
+    if (!asked && setup.thredds) setup.thredds = "";
+    $("f-thredds").checked = Boolean(setup.thredds);
+  }
+
   function refreshSetup() {
+    refreshThredds();
     bankLists.forEach((again) => again());
     const errors = setupProblems();
     for (const name of SETUP_FIELDS) {
@@ -5166,9 +4830,8 @@
       simulation.push(line(setup.thredds ? "The file is read from the server as it is: directories down and the file name filters do not apply."
         : "A single file is used as it is: directories down and the file name filters do not apply."));
     }
-    if (String(setup.require).trim() || String(setup.exclude).trim()) {
-      simulation.push(line(state.action === "viewer" ? "Only file names are checked, not directories."
-        : `Only file names are checked, not directories. The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
+    if (state.action !== "viewer" && (String(setup.require).trim() || String(setup.exclude).trim())) {
+      simulation.push(line(`The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
     // the depth was filled in from the layout of the folders: bold, and told once in a pop-out
     const detected = autoNdown && !finding && Boolean(probe && probe.layout) && probe.directory === "found";
@@ -5257,10 +4920,9 @@
   // replaced, if this run makes it (row.made), or ignored, left out of the report, if not
   const EXISTING_LAYERS = { surface: "Point (surface)", all: "Point (all depths)", bottom: "Point (near the bottom)" };
   const existingKind = (kind) => kind.kind === "gridded" ? "Gridded" : EXISTING_LAYERS[kind.layer] || "Point";
-  // none is asked about in the demo's own folder, as OceanVal answers for those of models tried before
   const existingRows = () => {
     const found = matchupOutput.probe;
-    return (found && !found.out_dir_is_demo && found.out_dir_matchups) || [];
+    return (found && found.out_dir_matchups) || [];
   };
   const EXISTING_OPTIONS = ["use", "replace", "ignore"];
   const EXISTING_NAMES = { use: "Use", replace: "Replace", ignore: "Ignore" };
@@ -5494,7 +5156,6 @@
     existingShown = null;
     matchupOutput.errors = {};
     matchupOutput.probe = null;
-    if (state.demo) markDemo("f", state.demo.prefilled.output);
     askMatchupOutputProbe(0);
   }
 
@@ -5548,9 +5209,6 @@
         : "The matchups will be saved in oceanval_matchups, and the validation report in oceanval_report, inside this directory.";
       const lines = [line(String(output.out_dir).trim() ? saved : `${saved} Empty: the directory you started oceanval in.`)];
       if (found && found.out_dir === "missing") lines.push(line("It does not exist yet, so OceanVal will create it."));
-      if (found && found.out_dir_has_matchups && found.out_dir_is_demo) {
-        lines.push(line("The demo's matchups of models tried before are here. This run's are made again, and the others are left out of the report."));
-      }
       message("m-out_dir", lines);
     }
     if (errors.out) message("m-out", [line(errors.out, "error")], true);
@@ -6107,9 +5765,9 @@
   const KIND_NAMES = { climatology: "climatology", phenology: "phenology", long_term: "long-term time series", seasonal: "seasonal cycles", map_changes: "map changes", transects: "transects" };
   const KIND_TITLES = { climatology: "Map climatologies", phenology: "Map phenologies", long_term: "Long-term time series", seasonal: "Seasonal cycles", map_changes: "Map temporal changes", transects: "Analyse transects" };
   const KIND_INTROS = {
-    climatology: "The mean of each month of the year, and the annual mean, over the years from Start to End. Each is mapped.",
-    long_term: "The mean of each year from Start to End, which is the mean of its months, over the model's domain as a whole, over each region you choose on the page, and at each station. A rolling mean of the annual means (1 year is none) can be taken, and the series shown as the annual means, or as their change from the first year, absolute or in per cent.",
-    seasonal: "The mean of each month of the year from Start to End, the mean seasonal cycle, over the model's domain as a whole, over each region you choose on the page, and at each station.",
+    climatology: "The climatological annual and monthly average is calculated for the year range given, and each will be mapped.",
+    long_term: "The annual average is calculated for the year range given, over the whole domain, each region and each station chosen, and plotted as a time series. A rolling mean can be taken, and the series shown as values or as their change from the first year.",
+    seasonal: "The climatological monthly average is calculated for the year range given, over the whole domain, each region and each station chosen, and plotted as a seasonal cycle.",
   };
   // the pop-outs whose rows choose layers: the surface, the bottom, the water column
   const LAYER_ROWS = [...LAYERED, "map_changes"];
@@ -6137,7 +5795,7 @@
     const names = Object.entries(chosen.rows).map(([name, entry]) => {
       if (kind === "phenology") return `${name}, ${yearSpan(entry.start, entry.end)}`;
       const layers = [entry.surface ? "surface" : null, entry.bottom ? "bottom" : null,
-        entry.water_column ? (entry.water_column === "mean" ? "vertical mean" : "depth integral") : null].filter(Boolean);
+        ...[].concat(entry.water_column || []).map((way) => (way === "mean" ? "vertical mean" : "vertical integration"))].filter(Boolean);
       return `${name}, ${yearSpan(entry.start, entry.end)} (${layers.join(" and ")})`;
     });
     return `For ${names.join("; ")}.`;
@@ -6601,6 +6259,30 @@
     closeExample();
   });
 
+  // the two ways of taking the water column, each a column of its own that can be ticked with the other:
+  // [the key in the form and of the i's entry, the column's title, the words for it]
+  const WATER_WAYS = [["mean", "Vertical mean", "vertical mean"], ["integral", "Vertical integration", "vertical integration"]];
+
+  // a row's ticks of the vertical mean and the vertical integration, disabled for a variable with one level
+  function waterTicks(row, box, column) {
+    return WATER_WAYS.map(([key, , words]) => {
+      const tick = el("input", { type: "checkbox", class: "tick", "aria-label": `The ${words} of ${row.name}` });
+      tick.checked = column && Boolean(box[key]);
+      tick.disabled = !column;
+      return tick;
+    });
+  }
+
+  // the cells of those ticks, each with its i
+  function waterCells(row, kind, mean, integral, column, noColumn) {
+    return [mean, integral].map((tick, index) => {
+      const [key, title, words] = WATER_WAYS[index];
+      return el("td", {}, column
+        ? withInfo(el("label", { class: "tick-label" }, tick, title), kind, key, `the ${words} option of ${row.name}`)
+        : noColumn());
+    });
+  }
+
   function climatologyRows(form, kind) {
     analyzeDialog.rows = {};
     const noun = KIND_NAMES[kind];
@@ -6618,14 +6300,8 @@
       const bottom = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the bottom` });
       bottom.checked = column && Boolean(box.bottom);
       bottom.disabled = !column;
-      const water = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} through the water column` });
-      water.checked = column && Boolean(box.water_column);
-      water.disabled = !column;
+      const [mean, integral] = waterTicks(row, box, column);
       const noColumn = () => el("small", { text: "No depth levels" });
-      const how = el("select", { class: "s-select", "aria-label": `How to take ${row.name} through the water column` },
-        el("option", { value: "", text: "Choose…" }),
-        el("option", { value: "mean", text: "Vertical mean" }), el("option", { value: "integral", text: "Depth integral" }));
-      how.value = box.how === "integral" || box.how === "mean" ? box.how : "";
       // the long-term series also have a rolling mean of the annual means, 1 (none) to start with, and a way to show them
       const series = kind === "long_term";
       const rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric", value: box.window || "1", placeholder: "1",
@@ -6643,27 +6319,23 @@
         el("td", {}, column
           ? withInfo(el("label", { class: "tick-label" }, bottom, "Bottom"), kind, "bottom", `the bottom option of ${row.name}`)
           : noColumn()),
-        el("td", {}, column
-          ? el("div", {}, withInfo(el("label", { class: "tick-label" }, water, "Water column"), kind, "water_column", `the water column option of ${row.name}`), how)
-          : noColumn()),
+        ...waterCells(row, kind, mean, integral, column, noColumn),
         ...(series ? [el("td", {}, rolling), el("td", {}, show)] : []));
       const refresh = () => {
-        how.disabled = !water.checked;
         tr.classList.toggle("is-off", !use.checked);
         tr.classList.toggle("is-on", use.checked);
-        how.classList.toggle("is-required", use.checked && water.checked);
         refreshThickness();
         refreshConfirm();
       };
       use.addEventListener("change", refresh);
       // a layer ticked puts the variable back in the analysis
-      for (const layer of [surface, bottom, water]) {
+      for (const layer of [surface, bottom, mean, integral]) {
         layer.addEventListener("change", () => {
           if (layer.checked) use.checked = true;
           refresh();
         });
       }
-      analyzeDialog.rows[row.name] = { use, start, end, surface, bottom, water, how, rolling, show, msg, reset, refresh };
+      analyzeDialog.rows[row.name] = { use, start, end, surface, bottom, mean, integral, rolling, show, msg, reset, refresh };
       refresh();
       return tr;
     }));
@@ -6695,13 +6367,7 @@
       const bottom = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} at the bottom` });
       bottom.checked = column && Boolean(box.bottom);
       bottom.disabled = !column;
-      const water = el("input", { type: "checkbox", class: "tick", "aria-label": `${row.name} through the water column` });
-      water.checked = column && Boolean(box.water_column);
-      water.disabled = !column;
-      const how = el("select", { class: "s-select", "aria-label": `How to take ${row.name} through the water column` },
-        el("option", { value: "", text: "Choose…" }),
-        el("option", { value: "mean", text: "Vertical mean" }), el("option", { value: "integral", text: "Depth integral" }));
-      how.value = box.how === "integral" || box.how === "mean" ? box.how : "";
+      const [mean, integral] = waterTicks(row, box, column);
       const choose = (labels, value, label) => {
         const select = el("select", { class: "s-select", "aria-label": label },
           el("option", { value: "", text: "Choose…" }),
@@ -6721,11 +6387,9 @@
         el("td", {}, column
           ? withInfo(el("label", { class: "tick-label" }, bottom, "Bottom"), "map_changes", "bottom", `the bottom option of ${row.name}`)
           : el("small", { text: "No depth levels" })),
-        el("td", {}, column
-          ? el("div", {}, withInfo(el("label", { class: "tick-label" }, water, "Water column"), "map_changes", "water_column", `the water column option of ${row.name}`), how)
-          : el("small", { text: "No depth levels" })));
+        ...waterCells(row, "map_changes", mean, integral, column, () => el("small", { text: "No depth levels" })));
       const options = el("tr", { class: "chg-options" },
-        el("td", { colspan: "10" }, el("div", { class: "chg-choices" },
+        el("td", { colspan: "11" }, el("div", { class: "chg-choices" },
           el("label", {}, "Plot", plot), el("label", {}, "Change", change)), msg));
       const refresh = () => {
         const on = use.checked;
@@ -6733,8 +6397,6 @@
           tr.classList.toggle("is-off", !on);
           tr.classList.toggle("is-on", on);
         }
-        how.disabled = !water.checked;
-        how.classList.toggle("is-required", on && water.checked);
         plot.classList.toggle("is-required", on && !plot.value);
         change.classList.toggle("is-required", on && !change.value);
         // the second future period is optional, but both its years are needed once one is given
@@ -6745,14 +6407,14 @@
       };
       for (const input of [use, plot, change]) input.addEventListener("change", refresh);
       // a layer ticked puts the variable back in the analysis
-      for (const layer of [surface, bottom, water]) {
+      for (const layer of [surface, bottom, mean, integral]) {
         layer.addEventListener("change", () => {
           if (layer.checked) use.checked = true;
           refresh();
         });
       }
       for (const input of years.future2) input.addEventListener("input", refresh);
-      analyzeDialog.rows[row.name] = { use, years, surface, bottom, water, how, plot, change, msg, reset, refresh };
+      analyzeDialog.rows[row.name] = { use, years, surface, bottom, mean, integral, plot, change, msg, reset, refresh };
       refresh();
       return [main, options];
     }));
@@ -6814,7 +6476,6 @@
   }
 
   function resetRow(row) {
-    // in the order of the row, so the water column is ticked before the way to take it is set
     for (const key of resetKeys()) {
       const target = rowControl(row, key);
       if (target && !target.disabled) setControl(target, valueOf(analyzeDialog.all.controls[key]));
@@ -6826,8 +6487,6 @@
     for (const row of Object.values(analyzeDialog.rows)) {
       if (row.reset) row.reset.hidden = !analyzeDialog.all || !row.use.checked || !differs(row);
     }
-    const all = analyzeDialog.all;
-    if (all && all.controls.how) all.controls.how.disabled = !all.controls.water.checked;
   }
 
   // what is set in the All variables row is set for every variable it applies to
@@ -6878,10 +6537,9 @@
     const layers = () => [
       el("td", {}, withInfo(tickOf("surface", "The surface", "Surface"), kind, "surface", "the surface option of every variable")),
       el("td", {}, column ? withInfo(tickOf("bottom", "The bottom", "Bottom"), kind, "bottom", "the bottom option of every variable") : noLevels()),
-      el("td", {}, column
-        ? el("div", {}, withInfo(tickOf("water", "The water column", "Water column"), kind, "water_column", "the water column option of every variable"),
-          selectOf("how", "How to take the water column", { mean: "Vertical mean", integral: "Depth integral" }, "Choose…"))
-        : noLevels()),
+      ...WATER_WAYS.map(([key, title, words]) => el("td", {}, column
+        ? withInfo(tickOf(key, `The ${words}`, title), kind, key, `the ${words} option of every variable`)
+        : noLevels())),
     ];
     controls.use = el("input", { type: "checkbox", class: "tick", "aria-label": "Include every variable" });
     const name = el("td", {}, el("label", { class: "tick-label" }, controls.use, el("strong", { text: "All variables" })),
@@ -6896,7 +6554,7 @@
           yearOf(`${key}.0`, `First year of the ${label}`, key === "historical" ? hint(0) : null),
           yearOf(`${key}.1`, `Last year of the ${label}`, key === "historical" ? hint(1) : null),
         ]), ...layers()));
-      trs.push(el("tr", { class: "is-all chg-options" }, el("td", { colspan: "10" }, el("div", { class: "chg-choices" },
+      trs.push(el("tr", { class: "is-all chg-options" }, el("td", { colspan: "11" }, el("div", { class: "chg-choices" },
         el("label", {}, "Plot", selectOf("plot", "What to plot", CHANGE_PLOTS, "Choose…")),
         el("label", {}, "Change", selectOf("change", "The kind of change", CHANGE_KINDS, "Choose…"))))));
     } else {
@@ -6935,7 +6593,7 @@
     const ticked = Object.values(analyzeDialog.rows).some((row) => row.use.checked);
     const prefix = dialogPrefix(kind);
     $(`${prefix}-confirm`).disabled = !ticked;
-    $(`${prefix}-msg`).textContent = ticked ? "" : "Tick at least one variable.";
+    $(`${prefix}-msg`).textContent = "";
   }
 
   function refreshThickness() {
@@ -6947,7 +6605,7 @@
       $("trans-fvcom-thickness").hidden = !vertical || !fvcom;
       return;
     }
-    const any = Object.values(analyzeDialog.rows).some((row) => row.use.checked && row.water && row.water.checked);
+    const any = Object.values(analyzeDialog.rows).some((row) => row.use.checked && ((row.mean && row.mean.checked) || (row.integral && row.integral.checked)));
     // raw FVCOM output's cell thickness is worked out from its mesh (see oceanval.fvcom_climatology)
     const fvcom = Boolean(state.analyze.fvcom);
     $(`${dialogPrefix(analyzeDialog.kind)}-thickness-row`).hidden = !any || fvcom;
@@ -7311,8 +6969,7 @@
     analyzeDialog.opener = document.activeElement;
     if (LAYERED.includes(kind)) {
       $("clim-title").textContent = KIND_TITLES[kind];
-      $("clim-intro").replaceChildren(
-        `${KIND_INTROS[kind]} Tick the surface, the bottom, the water column, or more than one, for each variable to work it out for, and give the years: the water column is its vertical mean or its depth integral.`);
+      $("clim-intro").replaceChildren(KIND_INTROS[kind]);
       climatologyRows(form, kind);
       document.querySelectorAll("#clim-dialog .is-series").forEach((cell) => { cell.hidden = kind !== "long_term"; });
       fillThickness(form, kind);
@@ -7363,7 +7020,7 @@
       for (const [name, row] of Object.entries(analyzeDialog.rows)) {
         rows[name] = { use: row.use.checked,
           plot: row.plot.value, change: row.change.value,
-          surface: row.surface.checked, bottom: row.bottom.checked, water_column: row.water.checked, how: row.how.value };
+          surface: row.surface.checked, bottom: row.bottom.checked, mean: row.mean.checked, integral: row.integral.checked };
         for (const [key, [start, end]] of Object.entries(row.years)) {
           rows[name][`${key}_start`] = start.value;
           rows[name][`${key}_end`] = end.value;
@@ -7374,7 +7031,7 @@
     for (const [name, row] of Object.entries(analyzeDialog.rows)) {
       if (LAYERED.includes(kind)) {
         rows[name] = { use: row.use.checked, start: row.start.value, end: row.end.value,
-          surface: row.surface.checked, bottom: row.bottom.checked, water_column: row.water.checked, how: row.how.value };
+          surface: row.surface.checked, bottom: row.bottom.checked, mean: row.mean.checked, integral: row.integral.checked };
         if (kind === "long_term") Object.assign(rows[name], { window: row.rolling.value, show: row.show.value });
       } else {
         rows[name] = { use: row.use.checked, start: row.start.value, end: row.end.value };
@@ -8898,7 +8555,6 @@
     for (const name of VALIDATE_TICKS) $(`v-${name}`).checked = Boolean(validateForm[name]);
     $("v-concise").value = String(Boolean(validateForm.concise));
     for (const box of $("validate-form").querySelectorAll(".is-oceanval")) box.classList.remove("is-oceanval");
-    if (state.demo && state.view === "report_options") markDemo("v", state.demo.prefilled.report);
     $("v-data_dir").placeholder = state.cwd;
     $("v-out_dir").placeholder = state.cwd;
     // to validate as well, the matchups and the report go where the output step said
@@ -9672,8 +9328,10 @@
     $("sample-another").disabled = true;
     let found;
     try {
-      const where = sample.source ? sample.source() : { simdir: setup.simdir, ndown: setup.ndown };
-      const response = await fetch(`api/files?${query({ simdir: where.simdir, ndown: where.ndown, avoid: avoid || "" })}`, { cache: "no-store" });
+      // the files the filters let through only (the user's rule, 2026-11-06)
+      const where = sample.source ? sample.source() : { simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require };
+      const response = await fetch(`api/files?${query({ simdir: where.simdir, ndown: where.ndown, avoid: avoid || "",
+        exclude: where.exclude || "", require: where.require || "" })}`, { cache: "no-store" });
       found = await response.json();
     } catch (error) {
       return;
@@ -9685,6 +9343,7 @@
     if (found.directory === "empty") problem = "Enter the directory with the simulation output first.";
     else if (found.directory === "missing") problem = "There is no directory at this path.";
     else if (found.ndown === null) problem = "Enter how many directories below it the files are first: a whole number, 0 or more.";
+    else if (!found.files.length && found.filtered_out) problem = `None of the netCDF files ${depthText(found.ndown)} pass the file filters.`;
     else if (!found.files.length) problem = `There are no netCDF files ${depthText(found.ndown)}.`;
     if (problem) {
       $("sample-list").replaceChildren(el("p", { class: "picker__empty", text: problem }));
@@ -10311,13 +9970,10 @@
           : state.action === "simcompare" ? "Open the simulation comparison report"
           : state.action === "analyze" ? "Open the analysis report" : "Open the validation report"))
       : null;
-    const reminder = state.demo
-      ? el("p", { class: "result__reminder", text: `Remember to remove ${state.demo.folder} when you have finished with the demo.` })
-      : null;
     box.replaceChildren(
       el("span", { class: "result__icon" + tone, html: ICONS[picture] }),
       el("div", { class: "result__body" },
-        el("h2", { text: heading }), el("p", { text }), path ? el("code", { text: path }) : null, link, reminder));
+        el("h2", { text: heading }), el("p", { text }), path ? el("code", { text: path }) : null, link));
     box.hidden = false;
   }
 
@@ -11469,7 +11125,6 @@
   function fillPreferences() {
     const { values, path } = state.user_settings;
     $("settings-where").replaceChildren("Saved in ", el("code", { text: path }), ", and used each time OceanVal's window opens.");
-    $("settings-show-demo").checked = values.show_demo !== false;
     $("settings-data-store").value = values.data_store || "";
     const uses = (state.user_settings.data_store || {}).uses || [];
     $("settings-data-store-uses").replaceChildren(...uses.map(([key, label, note]) => el("label", { class: "prefs__check prefs__use" },
@@ -11483,7 +11138,6 @@
 
   async function applyPreferences() {
     const settings = {
-      show_demo: $("settings-show-demo").checked,
       data_store: $("settings-data-store").value.trim(),
     };
     const use = $("settings-data-store-uses").querySelector("input:checked");
@@ -11499,7 +11153,6 @@
     state.user_settings.values = reply.settings;
     if (reply.data_store) state.user_settings.data_store = reply.data_store;
     $("settings-error").hidden = true;
-    // the first page shows or hides the demo
     render();
     showDataStore();
     toast("Preferences saved.");
@@ -11866,7 +11519,7 @@
       }
     }
     $("bank-ndown").classList.toggle("is-detected", bankInfo.detected && !bankInfo.finding);
-    $("bank-info-view-row").hidden = !(found && found.directory === "found" && depth !== null && !bankInfo.finding);
+    $("bank-info-view").hidden = !(found && found.directory === "found" && depth !== null && !bankInfo.finding);
     for (const id of ["bank-ndown", "bank-exclude", "bank-require"]) $(id).disabled = bankInfo.extracting;
     $("bank-info-working").hidden = !bankInfo.extracting;
     $("bank-info-extract").disabled = bankInfo.extracting || bankInfo.finding || files === 0;
@@ -11926,7 +11579,7 @@
   $("bank-info-extract").addEventListener("click", extractBankInfo);
   $("bank-info-close").addEventListener("click", closeBankInfo);
   $("bank-info-view").addEventListener("click", () => openSample($("bank-info-view"), () => ({
-    simdir: bankInfo.entry.path, ndown: $("bank-ndown").value,
+    simdir: bankInfo.entry.path, ndown: $("bank-ndown").value, exclude: $("bank-exclude").value, require: $("bank-require").value,
   })));
   $("bank-info").addEventListener("click", (event) => { if (event.target === $("bank-info")) closeBankInfo(); });
   $("bank-info").addEventListener("keydown", (event) => {

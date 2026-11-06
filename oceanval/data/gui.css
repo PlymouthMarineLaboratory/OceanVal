@@ -301,6 +301,9 @@ input.tick { cursor: pointer; }
 .btn--primary:disabled { background: var(--btn-disabled); box-shadow: none; cursor: not-allowed; }
 .btn--ghost { border-color: var(--line); background: var(--bg); color: var(--ink-soft); }
 .btn--ghost:hover { border-color: var(--line-strong); background: var(--bg-alt); }
+/* every Browse… button (the folder browser's openers, data-browse) is a light teal (the user's rule, 2026-11-06) */
+.btn[data-browse] { border-color: var(--teal-200); background: var(--teal-50); color: var(--teal-700); }
+.btn[data-browse]:hover { border-color: var(--teal-400); background: var(--teal-100); }
 .btn--text { padding: 0 10px; background: none; color: var(--teal-700); }
 .btn--text:hover { color: var(--teal-900); background: var(--teal-50); }
 .btn:disabled { cursor: not-allowed; }
@@ -574,7 +577,7 @@ input.tick { cursor: pointer; }
    given the accent colour, bold and a little bigger. Colours are tokens only.
    The segmented buttons, the big tiles and the existing matchups' ticks do the
    same in the app's own stylesheet. */
-.ptr-mode input[type="radio"], .demo-detail__option input[type="radio"], .prefs__use input[type="radio"],
+.ptr-mode input[type="radio"], .prefs__use input[type="radio"],
 .reg-where input[type="radio"] {
   -webkit-appearance: none;
   appearance: none;
@@ -590,7 +593,7 @@ input.tick { cursor: pointer; }
   cursor: pointer;
   transition: background-color 0.12s, border-color 0.12s, transform 0.12s;
 }
-.ptr-mode input[type="radio"]::after, .demo-detail__option input[type="radio"]::after, .prefs__use input[type="radio"]::after,
+.ptr-mode input[type="radio"]::after, .prefs__use input[type="radio"]::after,
 .reg-where input[type="radio"]::after {
   content: "";
   width: 8px;
@@ -600,27 +603,27 @@ input.tick { cursor: pointer; }
   transform: scale(0);
   transition: transform 0.12s ease-in-out;
 }
-.ptr-mode input[type="radio"]:checked, .demo-detail__option input[type="radio"]:checked, .prefs__use input[type="radio"]:checked,
+.ptr-mode input[type="radio"]:checked, .prefs__use input[type="radio"]:checked,
 .reg-where input[type="radio"]:checked {
   border-color: var(--teal-600);
   background: var(--teal-600);
   transform: scale(1.1);
 }
-.ptr-mode input[type="radio"]:checked::after, .demo-detail__option input[type="radio"]:checked::after, .prefs__use input[type="radio"]:checked::after,
+.ptr-mode input[type="radio"]:checked::after, .prefs__use input[type="radio"]:checked::after,
 .reg-where input[type="radio"]:checked::after { transform: scale(1); }
-.ptr-mode input[type="radio"]:focus-visible, .demo-detail__option input[type="radio"]:focus-visible, .prefs__use input[type="radio"]:focus-visible,
+.ptr-mode input[type="radio"]:focus-visible, .prefs__use input[type="radio"]:focus-visible,
 .reg-where input[type="radio"]:focus-visible { outline: none; box-shadow: var(--focus); }
 
 /* each answer is a box of its own, and the chosen one is filled, bold and bigger */
-.ptr-mode, .demo-detail__option, .prefs__use, .reg-where label {
+.ptr-mode, .prefs__use, .reg-where label {
   padding: 11px 16px;
   border: 2px solid var(--line);
   border-radius: 10px;
   background: var(--bg);
   transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
-.ptr-mode:hover, .demo-detail__option:hover, .prefs__use:hover, .reg-where label:hover { border-color: var(--teal-200); }
-.ptr-mode:has(input[type="radio"]:checked), .demo-detail__option:has(input[type="radio"]:checked),
+.ptr-mode:hover, .prefs__use:hover, .reg-where label:hover { border-color: var(--teal-200); }
+.ptr-mode:has(input[type="radio"]:checked),
 .prefs__use:has(input[type="radio"]:checked), .reg-where label:has(input[type="radio"]:checked) {
   border-color: var(--teal-600);
   background: var(--teal-50);
@@ -643,7 +646,7 @@ input.tick { cursor: pointer; }
 .prefs__choices.is-disabled .prefs__use input[type="radio"]:checked::after { background: var(--tick-line); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ptr-mode, .demo-detail__option, .prefs__use, .reg-where label { transition: none; }
+  .ptr-mode, .prefs__use, .reg-where label { transition: none; }
 }
 
 /* Required tags and the red round a box that must be given, only while it is empty (OceanValGUI.syncRequired) */
@@ -652,3 +655,15 @@ input.tick { cursor: pointer; }
 .own-field.is-required .s-input.is-filled, .own-field.is-required .s-select.is-filled,
 .analyze-dialog tr.is-on .s-input.is-year.is-filled, .analyze-dialog .s-select.is-required.is-filled,
 .analyze-thickness .s-input.is-filled { border-color: var(--line); }
+
+/* ---- the words a "Skip file names containing" box offers under it (OceanValGUI.skipWords) ---- */
+.skip-words { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; font-size: 12px; }
+.skip-words__label { color: var(--muted); }
+.skip-word {
+  padding: 2px 10px; border: 1px solid var(--teal-200); border-radius: 999px;
+  background: var(--teal-50); color: var(--teal-700); font: inherit; font-family: var(--font-mono); cursor: pointer;
+}
+.skip-word:hover { border-color: var(--teal-400); background: var(--teal-100); }
+.skip-word:focus-visible { outline: 2px solid var(--teal-400); outline-offset: 1px; }
+.skip-word.is-added, .skip-word:disabled { border-color: var(--line); background: var(--bg-alt); color: var(--muted); cursor: default; }
+.skip-word.is-added::before { content: "\2713\00a0"; }

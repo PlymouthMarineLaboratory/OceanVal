@@ -415,7 +415,7 @@ def test_adding_simulation_info_in_a_browser(browser, tmp_path, oceanvalcache):
         page.wait_for_selector("#bank-info:not([hidden])")
         # nothing is counted until the depth is given; this layout is not one OceanVal fills in
         assert page.input_value("#bank-ndown") == "" and page.is_disabled("#bank-info-extract")
-        assert page.is_hidden("#bank-info-view-row")
+        assert page.is_hidden("#bank-info-view")
         page.fill("#bank-ndown", "1")
         page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('4 netCDF files found')")
         assert page.is_enabled("#bank-info-extract")

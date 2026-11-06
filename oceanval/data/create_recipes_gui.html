@@ -164,7 +164,7 @@
   .group__msg + .g-row { margin-top: 10px; }
   .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
   .s-input.is-ersem, .s-select.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
-  /* what the oceanval app's demo filled in is red and bold, until it is typed over */
+  /* what OceanVal filled in is bold, until it is typed over */
   .s-input.is-oceanval, .s-select.is-oceanval, .lede .oceanval-change, .field__msg .oceanval-change { color: var(--ink); font-weight: 700; }
   .cores-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 10px; }
   .cores-row .g-label { margin: 0; }
@@ -526,6 +526,8 @@
     OceanValGUI.heartbeat(state.token, "../");
     OceanValGUI.tellVisibility(state.token, "../");
   }
+  // the words that can be clicked into the "Skip file names containing" box
+  OceanValGUI.skipWords($("s-exclude"));
   // in the app, the window starts as it was last left, for Back from a later
   // step or after going back before it (see app.recipes_restore)
   const restore = (app && app.restore) || null;
@@ -631,8 +633,7 @@
   // (see placeThickness), and the rest on the point page, the last
   const GROUP_PAGES = { climate: "gridded", fvcom: "gridded" };
   const FIELDS = Object.values(GROUPS).flat();
-  // after what OceanVal filled in is taken, so Reset still puts it back,
-  // and the demo's values are only marked while they are unchanged
+  // after what OceanVal filled in is taken, so Reset still puts it back
   if (restore) {
     for (const [name, value] of Object.entries(restore.settings)) {
       if (FIELDS.includes(name)) form[name] = value;
@@ -941,8 +942,6 @@
         return [];  // the ? beside the box explains each option
       case "matchup":
         return app ? [] : [{ text: "Untick Ask to run the script as a batch job, e.g. with SLURM." }];
-      case "files":
-        return [{ text: "Only file names are checked, not directories." }];
       default:
         return [];
     }

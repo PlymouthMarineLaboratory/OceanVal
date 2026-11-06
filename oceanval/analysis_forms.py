@@ -291,12 +291,12 @@ def _years(box, errors, known):
 def default_climatology(placed, years_of):
     """A layered pop-out's boxes (the climatology's, and the time series'), as
     they start: nothing ticked (the user's rule, 2026-10-31: the user ticks
-    the variables to analyse), no layer, no years and no way to take the water column.
+    the variables to analyse), no layer and no years.
     Nothing else is chosen for the user: the years of each variable's output
     are only shown beside it (see output_years)."""
     return {
         "rows": {
-            row["name"]: {"use": False, "start": "", "end": "", "surface": False, "bottom": False, "water_column": False, "how": "",
+            row["name"]: {"use": False, "start": "", "end": "", "surface": False, "bottom": False, "mean": False, "integral": False,
                 # the long-term series' rolling mean, none to start with, and how it is shown
                 "window": "1", "show": analysis.SHOW_ABSOLUTE,
             }
@@ -323,15 +323,13 @@ def clean_climatology(form, placed):
     rows = {}
     for row in placed:
         box = given.get(row["name"]) if isinstance(given.get(row["name"]), dict) else {}
-        how = str(box.get("how") or "")
         rows[row["name"]] = {
             "use": bool(box.get("use")),
             "start": str(box.get("start") or "").strip(),
             "end": str(box.get("end") or "").strip(),
             "surface": bool(box.get("surface")),
             "bottom": bool(box.get("bottom")),
-            "water_column": bool(box.get("water_column")),
-            "how": how if how in analysis.WATER_COLUMN else "",
+            **_water_boxes(box),
             "window": str(box.get("window") or "1").strip() or "1",
             "show": box.get("show") if box.get("show") in analysis.SHOWS else analysis.SHOW_ABSOLUTE,
         }
@@ -372,18 +370,31 @@ def check_thickness(thickness, available, cwd, errors):
     return thickness
 
 
+def _water_boxes(box):
+    """The two water column ticks of a row as the page sent them: "mean" (the
+    vertical mean) and "integral" (the vertical integration), each on its own,
+    so both can be ticked."""
+    return {way: bool(box.get(way)) for way in analysis.WATER_COLUMN}
+
+
+def _water_column(box):
+    """The water_column analyze() takes for the ticks of a row: None, "mean",
+    "integral", or both as a list."""
+    ways = [way for way in analysis.WATER_COLUMN if box[way]]
+    return None if not ways else ways[0] if len(ways) == 1 else ways
+
+
 def _check_layers(box, row, found):
     """Add to found (the errors of a variable's row) what is wrong with the
-    layers ticked in box: none, or the bottom or the water column of a
-    variable with one vertical level, or a water column with no way to take it."""
-    if not box["surface"] and not box["bottom"] and not box["water_column"]:
-        found["surface"] = "Tick the surface, the bottom, the water column, or more than one, or untick the variable."
-    if box["bottom"] and row["levels"] < 2:
-        found["bottom"] = "It has only one vertical level."
-    if box["water_column"] and row["levels"] < 2:
-        found["water_column"] = "It has only one vertical level."
-    elif box["water_column"] and box["how"] not in analysis.WATER_COLUMN:
-        found["water_column"] = "Choose the vertical mean or the depth integral."
+    layers ticked in box: none, or the bottom, vertical mean or vertical
+    integration of a variable with one vertical level."""
+    if not box["surface"] and not box["bottom"] and not _water_column(box):
+        found["surface"] = (
+            "Tick the surface, the bottom, the vertical mean or the vertical integration, or untick the variable."
+        )
+    for layer in ("bottom", *analysis.WATER_COLUMN):
+        if box[layer] and row["levels"] < 2:
+            found[layer] = "It has only one vertical level."
 
 
 def _check_series_options(box, start, end, found):
@@ -438,19 +449,19 @@ def check_climatology(form, placed, known_years, available, cwd, label="climatol
             "end": end,
             "surface": box["surface"],
             "bottom": box["bottom"],
-            "water_column": box["how"] if box["water_column"] else None,
+            "water_column": _water_column(box),
         }
         # only what is not the same as leaving it out is given
         if series and window > 1:
             chosen[row["name"]]["window"] = window
         if series and show != analysis.SHOW_ABSOLUTE:
             chosen[row["name"]]["show"] = show
-        column = column or box["water_column"]
+        column = column or bool(_water_column(box))
     thickness = None
     if column and not fvcom:
         thickness = check_thickness(form["thickness"], available, cwd, errors)
     if not chosen and not errors:
-        errors["rows"] = f"Tick Surface, Bottom, Water column, or more than one, for at least one variable to work out the {label} of."
+        errors["rows"] = f"Tick Surface, Bottom, Vertical mean or Vertical integration for at least one variable to work out the {label} of."
     return chosen, thickness, errors
 
 
@@ -491,7 +502,7 @@ def default_map_changes(placed):
     return {
         "rows": {
             row["name"]: dict(
-                blank, use=False, plot="", change="", surface=False, bottom=False, water_column=False, how=""
+                blank, use=False, plot="", change="", surface=False, bottom=False, mean=False, integral=False
             )
             for row in placed
         },
@@ -508,7 +519,6 @@ def clean_map_changes(form, placed):
     rows = {}
     for row in placed:
         box = given.get(row["name"]) if isinstance(given.get(row["name"]), dict) else {}
-        how = str(box.get("how") or "")
         plot, change = str(box.get("plot") or ""), str(box.get("change") or "")
         rows[row["name"]] = dict(
             {name: str(box.get(name) or "").strip() for name in CHANGE_BOXES},
@@ -517,8 +527,7 @@ def clean_map_changes(form, placed):
             change=change if change in analysis_changes.CHANGES else "",
             surface=bool(box.get("surface")),
             bottom=bool(box.get("bottom")),
-            water_column=bool(box.get("water_column")),
-            how=how if how in analysis.WATER_COLUMN else "",
+            **_water_boxes(box),
         )
     return {"rows": rows, "thickness": str(form.get("thickness") or "").strip()}
 
@@ -568,14 +577,14 @@ def check_map_changes(form, placed, known_years, available, cwd, fvcom=False):
             "change": box["change"],
             "surface": box["surface"],
             "bottom": box["bottom"],
-            "water_column": box["how"] if box["water_column"] else None,
+            "water_column": _water_column(box),
         }
-        column = column or box["water_column"]
+        column = column or bool(_water_column(box))
     thickness = None
     if column and not fvcom:
         thickness = check_thickness(form["thickness"], available, cwd, errors)
     if not chosen and not errors:
-        errors["rows"] = "Tick Surface, Bottom, Water column, or more than one, for at least one variable to map the changes of."
+        errors["rows"] = "Tick Surface, Bottom, Vertical mean or Vertical integration for at least one variable to map the changes of."
     return chosen, thickness, errors
 
 

@@ -716,8 +716,47 @@ const OceanValGUI = (() => {
   setInterval(() => { if (!document.hidden) syncRequired(); }, 300);
   syncRequired();
 
+  // ---- words to skip, offered under a "Skip file names containing" box (the user's rule, 2026-11-06) ----
+  // A click adds the word to the box (separated by a space, never twice) and fires an input event, so the box's own
+  // handler takes it as if typed. Nothing is added unless clicked: the box still starts empty. A word in the box
+  // already is shown added. A value a script writes fires no event, so the words are looked at again now and then.
+  const SKIP_WORDS = ["restart", "spinup"];
+  const skipWordBoxes = [];
+  const wordsOf = (text) => String(text || "").split(/\s+/).filter(Boolean);
+
+  function skipWords(input, words = SKIP_WORDS) {
+    if (!input || input.dataset.skipWords) return null;
+    input.dataset.skipWords = "1";
+    const buttons = words.map((word) => {
+      const button = el("button", { type: "button", class: "skip-word", text: word, "aria-label": `Skip file names containing ${word}` });
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const have = wordsOf(input.value);
+        if (have.includes(word)) return;
+        input.value = [...have, word].join(" ");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        refresh();
+      });
+      return button;
+    });
+    const refresh = () => {
+      const have = new Set(wordsOf(input.value));
+      buttons.forEach((button, index) => {
+        const added = have.has(words[index]);
+        button.disabled = added || input.disabled;
+        button.classList.toggle("is-added", added);
+      });
+    };
+    input.addEventListener("input", refresh);
+    input.after(el("span", { class: "skip-words" }, el("span", { class: "skip-words__label", text: "Add:" }), ...buttons));
+    skipWordBoxes.push(refresh);
+    refresh();
+    return { refresh };
+  }
+  setInterval(() => { if (!document.hidden) skipWordBoxes.forEach((refresh) => refresh()); }, 300);
+
   return {
     ICONS, COG, PML_LOGO, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, setBack, variableBox, searchMatcher,
-    withChoices, choicesOpen, closeChoices, syncRequired,
+    withChoices, choicesOpen, closeChoices, syncRequired, skipWords, SKIP_WORDS,
   };
 })();

@@ -16,41 +16,49 @@ def test_the_settings_are_in_the_home_oceanvalrc(oceanvalrc):
 
 
 def test_the_defaults_without_a_file(oceanvalrc):
-    assert user_settings.load() == {"show_demo": True, **NO_STORE}
+    assert user_settings.load() == NO_STORE
     assert not oceanvalrc.exists()
 
 
 def test_settings_saved_are_loaded(oceanvalrc):
-    assert user_settings.save({"show_demo": False, "data_store_use": "fallback"}) == {
-        "show_demo": False,
+    assert user_settings.save({"data_store_use": "fallback"}) == {
         "data_store": "",
         "data_store_use": "fallback",
     }
-    assert user_settings.load() == {"show_demo": False, "data_store": "", "data_store_use": "fallback"}
+    assert user_settings.load() == {"data_store": "", "data_store_use": "fallback"}
     data = json.loads(oceanvalrc.read_text())
-    assert data["settings"] == {"show_demo": False, "data_store_use": "fallback"}
+    assert data["settings"] == {"data_store_use": "fallback"}
     assert data["version"] == user_recipes.VERSION
 
 
 def test_one_setting_can_be_saved_on_its_own(oceanvalrc):
-    user_settings.save({"show_demo": False})
+    oceanvalrc.write_text(json.dumps({"settings": {"data_store_use": "fallback", "other": 1}}))
+    user_settings.save({"data_store": ""})
+    assert user_settings.load() == {"data_store": "", "data_store_use": "fallback"}
+    assert json.loads(oceanvalrc.read_text())["settings"] == {"data_store_use": "fallback", "other": 1, "data_store": ""}
+
+
+def test_the_demo_setting_left_in_a_file_is_ignored_and_dropped(oceanvalrc):
+    # the window once offered a demo, which show_demo hid (removed on 2026-11-06)
+    oceanvalrc.write_text(json.dumps({"version": 1, "recipes": {}, "settings": {"show_demo": False, "theme": "default"}}))
+    assert user_settings.load() == NO_STORE
     user_settings.save({"data_store_use": "fallback"})
-    assert user_settings.load() == {"show_demo": False, "data_store": "", "data_store_use": "fallback"}
+    assert json.loads(oceanvalrc.read_text())["settings"] == {"theme": "default", "data_store_use": "fallback"}
 
 
 def test_saving_the_settings_keeps_the_recipes(oceanvalrc):
     recipes = {"nitrate": {"mysat": {"source": "MySat", "kind": "gridded"}}}
     oceanvalrc.write_text(json.dumps({"version": 1, "recipes": recipes, "other": [1, 2]}))
-    user_settings.save({"show_demo": False})
+    user_settings.save({"data_store_use": "fallback"})
     data = json.loads(oceanvalrc.read_text())
     assert data["recipes"] == recipes
     assert data["other"] == [1, 2]
 
 
 def test_saving_a_recipe_keeps_the_settings(oceanvalrc, tmp_path):
-    user_settings.save({"show_demo": False})
+    user_settings.save({"data_store_use": "fallback"})
     user_recipes.save(gridded(), "global", str(tmp_path))
-    assert user_settings.load() == {"show_demo": False, **NO_STORE}
+    assert user_settings.load() == {**NO_STORE, "data_store_use": "fallback"}
     assert user_recipes.get("nitrate", "mysat", str(tmp_path)) is not None
 
 
@@ -58,10 +66,9 @@ def test_saving_a_recipe_keeps_the_settings(oceanvalrc, tmp_path):
     "settings",
     [
         {"theme": "dark"},
-        {"show_demo": "no"},
-        {"show_demo": 0},
+        {"show_demo": False},
         {"colour": "dark"},
-        ["show_demo", False],
+        ["data_store_use", "fallback"],
         {"data_store_use": "sometimes"},
         {"data_store": 3},
     ],
@@ -75,7 +82,7 @@ def test_settings_that_cannot_be_used_are_refused(oceanvalrc, settings):
 def test_a_file_that_cannot_be_read_is_not_written_over(oceanvalrc):
     oceanvalrc.write_text("{ not json")
     with pytest.raises(ValueError, match="could not be read"):
-        user_settings.save({"show_demo": False})
+        user_settings.save({"data_store_use": "fallback"})
     assert oceanvalrc.read_text() == "{ not json"
 
 
@@ -85,7 +92,7 @@ def test_a_file_that_cannot_be_read_is_not_written_over(oceanvalrc):
         "{ not json",
         "[1, 2]",
         json.dumps({"settings": "dark"}),
-        json.dumps({"settings": {"show_demo": "no"}}),
+        json.dumps({"settings": {"data_store_use": "no"}}),
     ],
 )
 def test_settings_that_cannot_be_read_are_left_at_their_defaults(oceanvalrc, content):
@@ -94,14 +101,14 @@ def test_settings_that_cannot_be_read_are_left_at_their_defaults(oceanvalrc, con
 
 
 def test_only_the_settings_that_cannot_be_used_are_left_at_their_defaults(oceanvalrc):
-    oceanvalrc.write_text(json.dumps({"settings": {"data_store_use": "fallback", "show_demo": "no"}}))
-    assert user_settings.load() == {"show_demo": True, "data_store": "", "data_store_use": "fallback"}
+    oceanvalrc.write_text(json.dumps({"settings": {"data_store_use": "fallback", "data_store": 3}}))
+    assert user_settings.load() == {"data_store": "", "data_store_use": "fallback"}
 
 
 def test_a_colour_theme_left_in_the_file_is_ignored(oceanvalrc):
     # the window once had colour themes: a file that still names one is read as before
-    oceanvalrc.write_text(json.dumps({"settings": {"theme": "dark", "show_demo": False}}))
-    assert user_settings.load() == {"show_demo": False, **NO_STORE}
+    oceanvalrc.write_text(json.dumps({"settings": {"theme": "dark", "data_store_use": "fallback"}}))
+    assert user_settings.load() == {**NO_STORE, "data_store_use": "fallback"}
 
 
 class TestDataStoreFolder:
@@ -163,8 +170,8 @@ class TestDataStoreFolder:
         (folder / "oceanval_datastore" / ".oceanval_datastore").unlink()
         (folder / "oceanval_datastore").rmdir()
         folder.rmdir()
-        saved = user_settings.save({"show_demo": False, "data_store": str(folder)})
-        assert saved["show_demo"] is False
+        saved = user_settings.save({"data_store_use": "fallback", "data_store": str(folder)})
+        assert saved["data_store_use"] == "fallback"
         assert saved["data_store"] == str(folder)
         assert not folder.exists()
 

@@ -106,7 +106,7 @@
     <h2 id="setup">Choosing the simulation</h2>
     <ol>
       <li>Give the <strong>directory</strong> the output is in (or the path of a single file) and how many directories down its files are. OceanVal fills the number in when it recognises the folders. The arrow in the directory box lists simulations you have viewed before.</li>
-      <li>Use <strong>Skip file names containing</strong> to leave files out; it starts empty, so nothing is skipped unless you ask.</li>
+      <li>Use <strong>Skip file names containing</strong> to leave files out; it starts empty, so nothing is skipped unless you ask. The common words <code>restart</code> and <code>spinup</code> are under it, to click in. <strong>View the files in a random subdirectory</strong>, beside the count of files, lists the names of the files the filters let through in one folder.</li>
       <li>Optionally give <strong>Missing values</strong>: numbers in the files that mean there is no data, such as 0 or -999. OceanVal looks for a value that the same cells have in every file and fills it in for you to check.</li>
       <li><strong>Continue</strong> reads the variables of the first file of each kind and opens the viewer straight away. The times of all the files are read in the background; until they are in you can map the first time of any variable. They are kept in <code>.oceanvaltimes</code> in your home directory, so a simulation opened again has them at once.</li>
     </ol>
