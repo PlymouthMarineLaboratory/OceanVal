@@ -496,6 +496,20 @@ class TestFiles:
         found = analysis.streams(str(root), 1, exclude=["restart"])
         assert not [stream for stream in found if "restart" in stream["pattern"]]
 
+    def test_files_found_already_are_not_looked_for_again(self, daily, monkeypatch):
+        """streams(paths=) is what the window gives it from the live check."""
+        from oceanval.create_recipes import simulation_paths
+
+        paths = simulation_paths(daily, 1)
+
+        def walk(*args, **kwargs):
+            raise AssertionError("the directories were walked")
+
+        monkeypatch.setattr(analysis, "simulation_paths", walk)
+        given = analysis.streams(daily, 1, paths=paths)
+        monkeypatch.undo()
+        assert given == analysis.streams(daily, 1)
+
     def test_a_variable_is_read_from_the_stream_holding_it(self, daily):
         found = analysis.streams(daily, 1)
         assert [stream["pattern"] for stream in analysis.place("P1_Chl+P2_Chl", found)] == ["sim_1d_**_**_ptrc_T.nc"]

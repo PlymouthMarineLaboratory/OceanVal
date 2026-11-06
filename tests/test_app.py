@@ -1787,6 +1787,42 @@ class TestServer:
         found = probe(require="nothing_like_this")
         assert (found["files"], found["all_files"]) == (0, 4)
 
+    def test_the_live_check_lists_the_files_once_for_a_burst_of_typing(self, app, tmp_path, monkeypatch):
+        """The filters are applied to the listing, not asked of the disk: a
+        word typed into "Skip file names containing" a letter at a time listed
+        the directories twice a keystroke (once filtered, once for the count
+        of what was left out), which on a network drive is what made the page
+        feel like it was finding every file again."""
+        write_simulation(tmp_path / "sim", tracers=True)
+        listed = []
+        original = app_module.simulation_paths
+
+        def counted(simdir, ndown, *args, **kwargs):
+            listed.append((simdir, ndown))
+            return original(simdir, ndown, *args, **kwargs)
+
+        monkeypatch.setattr(app_module, "simulation_paths", counted)
+        clock = [1000.0]
+        monkeypatch.setattr(app, "_clock", lambda: clock[0])
+
+        def probe(**filters):
+            return get_json(app, "/api/probe", simdir="sim", ndown="2", out="", **filters)[1]
+
+        for word in ("p", "pt", "ptr", "ptrc"):
+            found = probe(exclude=word)
+            assert (found["files"], found["all_files"]) == (2, 4)
+        assert len(listed) == 1, "the files were listed again for a filter typed in"
+        # a listing is only kept for a moment, so a file written meanwhile is counted
+        clock[0] += app_module.LISTING_KEPT + 1
+        assert probe(exclude="ptrc")["files"] == 2
+        assert len(listed) == 2
+        # another simulation is its own listing, and neither pushes the other out
+        os.makedirs(tmp_path / "other")
+        assert probe()["files"] == 4 and len(listed) == 2
+        assert get_json(app, "/api/probe", simdir="other", ndown="0", out="")[1]["files"] == 0
+        assert len(listed) == 3
+        assert probe()["files"] == 4 and len(listed) == 3
+
     def test_the_years_of_the_output_are_read_from_its_times(self, app, tmp_path):
         # the names say 2011 and 2012, the times 2011 to 2013
         write_simulation(tmp_path / "sim")

@@ -1615,7 +1615,7 @@
   <section id="view-viewer-scanning" class="prepare" hidden>
     <div class="card prepare__card" role="status" aria-live="polite">
       <span class="prepare__spinner" aria-hidden="true"></span>
-      <h2 class="prepare__title">Identifying the files and variables</h2>
+      <h2 class="prepare__title">Reading the variables of each file type</h2>
       <div class="vw-meter" aria-hidden="true"><span id="vw-scan-meter"></span></div>
       <p class="vw-scan-text" id="vw-scan-text">Please wait!</p>
     </div>
@@ -3524,13 +3524,12 @@
 
   // reading the files
   function renderViewerScan() {
-    const scan = state.viewer.scan || { phase: "files", done: 0, total: 0 };
+    // the files are found by the live check, so there is nothing left to say but how far
+    // the file types have been read; the times of the files come after, in the background
+    const scan = state.viewer.scan || { phase: "variables", done: 0, total: 0 };
     const share = scan.total ? Math.round((100 * scan.done) / scan.total) : 0;
     $("vw-scan-meter").style.width = `${share}%`;
-    // the times of the files are read after, in the background, while the viewer is used
-    $("vw-scan-text").textContent = scan.phase === "variables"
-      ? `Reading the variables of each file type: ${scan.done} of ${scan.total}`
-      : "Finding the files";
+    $("vw-scan-text").textContent = scan.total ? `${scan.done} of ${scan.total}` : "Please wait!";
   }
 
   // what is read, the files and their variables, and the number of the reading it is
@@ -4804,6 +4803,8 @@
   const SETUP_FIELDS = ["name", "simdir", "ndown", "exclude", "require", "start", "end"];
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require"]);
+  // how often the missing value being looked for is asked about again, in ms (see askMissingGuess)
+  const MISSING_GUESS_AGAIN = 400;
   const setup = {};
   depthBox($("f-ndown"));
   let setupErrors = {};
@@ -5022,17 +5023,23 @@
     const number = ++missingNumber;
     missingLooking = true;
     markMissingGuess();
+    // the server looks in a thread of its own, so the answer is asked for again while it reads
     let answer;
-    try {
-      const response = await fetch(`api/viewer/missing?${query({
-        simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require,
-      })}`, { cache: "no-store" });
-      answer = await response.json();
-    } catch (error) {
-      if (number === missingNumber) { missingLooking = false; markMissingGuess(); }
-      return;
+    for (;;) {
+      try {
+        const response = await fetch(`api/viewer/missing?${query({
+          simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require,
+        })}`, { cache: "no-store" });
+        answer = await response.json();
+      } catch (error) {
+        if (number === missingNumber) { missingLooking = false; markMissingGuess(); }
+        return;
+      }
+      if (number !== missingNumber || missingTouched) return;
+      if (answer.status !== "reading") break;
+      await new Promise((again) => setTimeout(again, MISSING_GUESS_AGAIN));
+      if (number !== missingNumber || missingTouched) return;
     }
-    if (number !== missingNumber || missingTouched) return;
     missingLooking = false;
     const value = answer.value !== null ? answer.value : answer.ersem ? "0" : null;
     if (value === null) { markMissingGuess(); return; }
@@ -5099,6 +5106,10 @@
       const bad = missingRows.findIndex((row) => !missingRowOk(row));
       if (bad >= 0) errors.missing = `Missing value: ${missingRows[bad][0].trim() === "" ? "fill in From" : "that is not a number"}.`;
     }
+    // the files are still being looked for: Continue would go on with the count of the check
+    // before, which a file name filter just typed in has made wrong. Not a field, so nothing
+    // is marked red: the box beside "directories down" already says "Finding files"
+    if (probePending && text("simdir")) errors.pending = "";
     return errors;
   }
 
@@ -5174,11 +5185,14 @@
     message("m-simulation", simulation, false);
     message("m-missing-rows", errors.missing ? [line(errors.missing, "error")] : [], Boolean(errors.missing));
 
-    const blocked = Object.keys(errors).length > 0;
+    const problems = Object.keys(errors);
+    const blocked = problems.length > 0;
     const next = $("continue");
     if (next) {
       next.disabled = blocked;
-      next.title = blocked ? "Fill in everything first" : "";
+      next.title = !blocked ? ""
+        : problems.length === 1 && problems[0] === "pending" ? "Finding the files"
+        : "Fill in everything first";
     }
   }
 

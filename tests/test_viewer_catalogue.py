@@ -4,10 +4,16 @@ mapped, sums, missing values, the colour scale of an animation, and the
 times of the files read in the background."""
 
 import os
+import time
 
 import numpy as np
 import pytest
-from viewer_simulations import levels_file, nemo_simulation, regular_file
+from viewer_simulations import (
+    levels_file,
+    many_variables_file,
+    nemo_simulation,
+    regular_file,
+)
 
 from oceanval import viewer_catalogue as catalogue
 from oceanval import viewer_times as times
@@ -118,6 +124,64 @@ def test_regular_grid(tmp_path):
     assert list(found.summary()["variables"]) == ["sst"]
     data, when = found.field(0, "sst", 1)
     assert data.dims == ("lat", "lon")
+
+
+def test_files_found_already_are_not_looked_for_again(simulation, monkeypatch):
+    """scan(paths=) is what the window gives it, from the live check: the same
+    Catalogue, and the directories are not walked."""
+    from oceanval.create_recipes import simulation_paths
+
+    paths = simulation_paths(simulation, 2, ["restart"], None)
+    plain = catalogue.scan(simulation, 2, "restart")
+    walked = scan_without_walking(simulation, monkeypatch, paths)
+    assert [stream["files"] for stream in walked.streams] == [stream["files"] for stream in plain.streams]
+    assert walked.summary() == plain.summary()
+    assert walked.simdir == plain.simdir
+
+
+def scan_without_walking(simulation, monkeypatch, paths):
+    def walk(*args, **kwargs):
+        raise AssertionError("the directories were walked")
+
+    monkeypatch.setattr(catalogue, "simulation_paths", walk)
+    return catalogue.scan(simulation, 2, "restart", paths=paths)
+
+
+class TestAFileOfManyVariables:
+    """describe_variables once asked the file about every other variable, with
+    ds[name] (which builds a DataArray), for each variable that had no
+    longitude and latitude of its own: 335 variables of a NEMO restart took 36
+    seconds, and the viewer's setup page paid it on every keystroke in the
+    file name filters. Everything is read through ds.variables now, and the
+    variables on one set of dimensions are looked up once (see _lonlat)."""
+
+    # 300 variables take about a tenth of a second; before, over thirty
+    MOST_SECONDS = 10
+
+    def test_variables_with_nothing_to_place_them(self, tmp_path):
+        path = many_variables_file(tmp_path / "restart.nc", count=300)
+        with catalogue.open_dataset(path) as ds:
+            started = time.monotonic()
+            found = catalogue.describe_variables(ds, "time_counter")
+            took = time.monotonic() - started
+        assert len(found) == 300
+        assert all(about["lon"] is None and about["lat"] is None for about in found.values())
+        # the one that matters: it must not be quadratic in the number of variables
+        assert took < self.MOST_SECONDS, f"describe_variables took {took:.1f}s for 300 variables"
+
+    def test_variables_placed_only_by_the_search_of_the_file(self, tmp_path):
+        """nav_lon and nav_lat are there but nothing points at them, so each
+        variable is placed by that search - the branch the lookup is kept for."""
+        path = many_variables_file(tmp_path / "ts.nc", count=300, placed=True)
+        with catalogue.open_dataset(path) as ds:
+            started = time.monotonic()
+            found = catalogue.describe_variables(ds, "time_counter")
+            took = time.monotonic() - started
+        assert len(found) == 300
+        assert all(
+            (about["lon"], about["lat"]) == ("nav_lon", "nav_lat") for about in found.values()
+        )
+        assert took < self.MOST_SECONDS, f"describe_variables took {took:.1f}s for 300 variables"
 
 
 def _levels_of(tmp_path, **options):

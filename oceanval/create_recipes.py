@@ -765,15 +765,19 @@ def _passes_filters(path, exclude=None, require=None):
     )
 
 
+def filter_paths(paths, exclude=None, require=None):
+    """Those of paths that matchup() would use, given its exclude and require
+    (see _passes_filters), in the order they are given. The one place the
+    filters are applied, so a caller that has the files already (the window's
+    live check, which keeps the unfiltered listing) need not list them again."""
+    return [path for path in paths if _passes_filters(path, exclude, require)]
+
+
 def simulation_paths(simdir, ndown, exclude=None, require=None):
     """Every output file ndown directories below simdir, leaving out those
     matchup() would, given its exclude and require."""
     pattern = os.path.join(simdir, *(["*"] * ndown), "*.nc")
-    return [
-        path
-        for path in sorted(glob.glob(pattern))
-        if _passes_filters(path, exclude, require)
-    ]
+    return filter_paths(sorted(glob.glob(pattern)), exclude, require)
 
 
 _YEAR_DIR = re.compile(r"\d{4}")
@@ -825,20 +829,26 @@ def folder_layout(simdir):
     return None
 
 
-def simulation_files(simdir, ndown, exclude=None, require=None):
+def simulation_files(simdir, ndown, exclude=None, require=None, paths=None):
     """One example file per output stream, ndown directories below simdir.
 
     A simulation holds one file per stream per time step, and every step
     writes the same variables, so only one file per stream has to be read.
+
+    paths, if given, are the simulation's files, found already (the window's
+    live check keeps them, see app.App._simulation_files), so its directories
+    are not walked again.
     """
     examples = {}
-    for path in simulation_paths(simdir, ndown, exclude, require):
+    if paths is None:
+        paths = simulation_paths(simdir, ndown, exclude, require)
+    for path in paths:
         examples.setdefault(_file_pattern(path), path)
     return list(examples.values())
 
 
 def extract_recipe_variable_mapping(
-    simdir, ndown, fvcom=False, exclude=None, require=None, cwd=None
+    simdir, ndown, fvcom=False, exclude=None, require=None, cwd=None, files=None
 ):
     """Work out which model variable holds each recipe variable.
 
@@ -847,9 +857,10 @@ def extract_recipe_variable_mapping(
     variable cannot outvote the stream that is actually reporting it.
     fvcom=True reads the files as raw FVCOM output, and exclude and require
     leave out the files matchup() would. cwd is the directory the user's own
-    recipes are read for.
+    recipes are read for. files, if given, are the simulation's files, found
+    already (see simulation_files).
     """
-    paths = simulation_files(simdir, ndown, exclude, require)
+    paths = simulation_files(simdir, ndown, exclude, require, files)
     if not paths:
         filtered = " that pass the exclude and require filters" if exclude or require else ""
         raise ValueError(
@@ -898,13 +909,14 @@ def voted_mapping(found, cwd=None):
     return mapping
 
 
-def _variable_long_names(simdir, ndown, exclude=None, require=None):
+def _variable_long_names(simdir, ndown, exclude=None, require=None, paths=None):
     """Every variable in the simulation's example files, with its long_name.
 
-    The long_name is "" for a variable without one.
+    The long_name is "" for a variable without one. paths, if given, are the
+    simulation's files, found already (see simulation_files).
     """
     names = {}
-    for path in simulation_files(simdir, ndown, exclude, require):
+    for path in simulation_files(simdir, ndown, exclude, require, paths):
         # xarray rather than nctoolkit: CDO skips variables on grids it does
         # not support (e.g. raw FVCOM salinity), which would then be refused
         try:
@@ -1824,9 +1836,14 @@ def _create_recipes(
 
     cwd = os.path.abspath(cwd or os.getcwd())
     interactive = ask and prompts.interactive()
+    # the files, once the FVCOM sniff below has listed them; else the mapping lists them
+    found_files = None
     if fvcom is None:
+        # listed once and used for the mapping below too, rather than walked twice
+        found_files = simulation_paths(simdir, ndown, **filters)
         fvcom = any(
-            _looks_like_fvcom(path) for path in simulation_files(simdir, ndown, **filters)
+            _looks_like_fvcom(path)
+            for path in simulation_files(simdir, ndown, paths=found_files, **filters)
         )
         if fvcom and interactive:
             fvcom = _ask_if_fvcom(simdir)
@@ -1837,7 +1854,9 @@ def _create_recipes(
                 "is not."
             )
 
-    mapping = extract_recipe_variable_mapping(simdir, ndown, fvcom, cwd=cwd, **filters)
+    mapping = extract_recipe_variable_mapping(
+        simdir, ndown, fvcom, cwd=cwd, files=found_files, **filters
+    )
     # the user's own data registers these itself
     replaced = replaced_recipes(own_data, cwd)
 

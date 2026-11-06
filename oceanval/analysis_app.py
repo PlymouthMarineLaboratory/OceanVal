@@ -223,6 +223,11 @@ class AnalyzeSteps:
                 arguments.get("require"),
                 progress=progress,
                 stopped=lambda: number != self._analyze_reading,
+                # the files the live check found, not the directories walked again
+                paths=self._simulation_files(
+                    arguments["simdir"], arguments["ndown"],
+                    arguments.get("exclude"), arguments.get("require"), kept=None,
+                ),
             )
             if not found:
                 error = "No netCDF files OceanVal could read were found."

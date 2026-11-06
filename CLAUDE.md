@@ -752,6 +752,16 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   do (`Catalogue.stop_times`). Fewer than `PARALLEL_FROM` files are read in the window's process under `netcdf_lock.LOCK`
   (a plain Lock: nothing in the viewer takes it twice). Times are cached in `~/.oceanvaltimes` / `$OCEANVALTIMES` (JSON,
   read-merge-write, never raises; autouse `oceanvaltimes` fixture), not `.oceanvalcache`.
+- **A simulation's files are found once, and read once** (the user's complaint, 2026-11-05: Continue went back to "Finding the files"). The live
+  check (`App.probe`) lists the directories into `App._simulation_listing` (unfiltered, keyed `(path, depth)`, `LISTING_KEPT` 5 s while typing; the
+  filters are applied to it by `create_recipes.filter_paths`), and **every step after Continue takes it with `kept=None`**, however old, through
+  `App._simulation_files`: `_cdo_run` (so Validate, Analyze, Compare and the viewer), `check_setup(find=)`, `scan(paths=)`, `analysis.streams(paths=)`,
+  `simulation_files/_variable_long_names/extract_recipe_variable_mapping(paths=/files=)`. A new step that finds a simulation's files must use it, not
+  `simulation_paths`. The missing value search (`viewer_missing.guess(keep=)`) keeps the `Catalogue` it read as `_viewer_scanned = (key, catalogue)`
+  and `_viewer_setup` takes it over (`_viewer_taken`, key = simdir, ndown, split exclude, split require) instead of scanning again; `_viewer_drop` closes
+  one nobody took. The scanning page therefore says only "Reading the variables of each file type: n of m". `viewer_times.load_cache` stats by threads.
+  **`viewer_catalogue._lonlat` must read through `ds.variables[...]`, never `ds[...]`** (a DataArray each time made it quadratic: a 335-variable NEMO
+  restart took 36 s, a whole scan 82 s); `tests/test_viewer_catalogue.py::TestAFileOfManyVariables` fails on it.
 - Maps: `viewer_plots.map_plot` (hvplot → Bokeh json_item; holoviews/hvplot/bokeh imported only when a map is drawn, a test
   checks) and `viewer_mesh` (FVCOM Mesh/Raster, numpy only, apart from `oceanval/fvcom.py`). GET `/api/viewer/catalogue`,
   `/api/viewer/plot`, `/api/viewer/limits`, `/bokeh.min.js` (the installed BokehJS, loaded by the page only once the viewer

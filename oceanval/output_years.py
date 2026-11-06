@@ -315,18 +315,19 @@ def group(paths):
     return streams
 
 
-def signature(paths, workers=None):
+def signature(paths, workers=None, stopped=None):
     """What changes when the files in paths, or the way their years are found
     (RULE), do: the rule, how many files there are, their total size and the
     latest modification time; with each one's modification time, as {path:
     seconds}. The files are looked at by several threads (this is called by
-    OceanVal's own process, not the script, so file_workers can be used)."""
+    OceanVal's own process, not the script, so file_workers can be used), and
+    stopped(), if given, ends that early (the answer is then thrown away)."""
     from oceanval import file_workers
 
     mtimes = {}
     size = 0
     latest = 0
-    for path, stat in file_workers.stat_all(paths, workers).items():
+    for path, stat in file_workers.stat_all(paths, workers, stopped).items():
         mtimes[path] = stat.st_mtime
         size += stat.st_size
         latest = max(latest, stat.st_mtime_ns)
@@ -360,7 +361,10 @@ class Reading:
         from oceanval import user_cache
 
         try:
-            stamp, mtimes = signature(self.paths)
+            # cancel kills the process reading the files, and stops these stats too
+            stamp, mtimes = signature(self.paths, stopped=lambda: self.cancelled)
+            if self.cancelled:
+                return
             result = user_cache.output_years(self.key, stamp)
             if result is None and not self.cancelled:
                 result = self._read(mtimes)

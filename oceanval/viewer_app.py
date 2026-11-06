@@ -50,12 +50,18 @@ def default_setup_form():
     return dict(setup_form(), missing="", thredds="")
 
 
-def check_setup(form, cwd):
+def check_setup(form, cwd, find=None):
     """The setup page's boxes as (arguments, errors), as
     oceanval.app.check_setup gives them, without the domain and the years,
     which viewing has no use for, and with "missing", the ranges to treat as
     missing (see parse_missing). A directory with no files to look at is an
-    error on the directories down."""
+    error on the directories down.
+
+    find(arguments), if given, says what the simulation's files are, in place
+    of walking its directories: the window passes the live check's listing
+    (app.App._simulation_files), which has them already. The files used are
+    put in arguments["files"], so the caller need not find them a third
+    time."""
     from oceanval.app import _form
     from oceanval.app import check_setup as check
     from oceanval.app import _path
@@ -79,11 +85,37 @@ def check_setup(form, cwd):
         arguments["missing"] = parse_missing(form["missing"])
     except ValueError as error:
         errors["missing"] = str(error)
-    if not errors and not viewer_catalogue.viewer_paths(
-        arguments["simdir"], arguments["ndown"], arguments["exclude"], arguments["require"]
-    ):
-        errors["ndown"] = "There are no netCDF files there to look at."
+    if not errors:
+        arguments["files"] = (find or _walk_for)(arguments)
+        if not arguments["files"]:
+            errors["ndown"] = "There are no netCDF files there to look at."
     return arguments, errors
+
+
+def _walk_for(arguments):
+    """The simulation's files, by walking its directories: what check_setup
+    does without a find of its own."""
+    return viewer_catalogue.viewer_paths(
+        arguments["simdir"], arguments["ndown"], arguments["exclude"], arguments["require"]
+    )
+
+
+def _file_types(paths):
+    """How many kinds of file paths hold (see create_recipes._file_pattern),
+    which is how many the variables are read from. String work only."""
+    from oceanval.create_recipes import _file_pattern
+
+    return len({_file_pattern(path) for path in paths})
+
+
+def _guess_key(arguments):
+    """The simulation a missing value search is of (see viewer_missing_guess),
+    from check_setup's arguments: the same words, however they were spaced in
+    the boxes, so a reading of these very files is recognised."""
+    return (
+        arguments["simdir"], int(arguments["ndown"] or 0),
+        tuple(arguments["exclude"] or ()), tuple(arguments["require"] or ()),
+    )
 
 
 def parse_names(text):
@@ -177,8 +209,16 @@ class ViewerSteps:
         # bumped whenever what is being read is no longer wanted: a thread
         # reading for an earlier number gives up
         self._viewer_number = 0
-        # the last guess at the missing value, as (the simulation asked about, the answer)
-        self._viewer_guessed = None
+        # the guess at the missing value (see viewer_missing_guess): the
+        # simulation asked about, whether it is still being looked for, and
+        # the answer. _viewer_guess_number says which is wanted: a thread
+        # reading for an earlier number gives up
+        self._viewer_guess = None
+        self._viewer_guess_number = 0
+        # what that search read of the output, as (the simulation, the
+        # Catalogue), for Continue to carry on with rather than read again
+        # (see _viewer_taken). Closed by _viewer_drop if it is not taken
+        self._viewer_scanned = None
 
     def _viewer_state(self):
         return {
@@ -195,6 +235,14 @@ class ViewerSteps:
         catalogue, which the caller closes once it has let go of the lock.
         Called with the lock held."""
         self._viewer_number += 1
+        # a guess at the missing value still going gives up: its answer is not
+        # wanted any more, and it holds the netCDF lock the reading below needs
+        self._viewer_guess_number += 1
+        self._viewer_guess = None
+        # what that search read and nobody took over with (see _viewer_taken)
+        scanned, self._viewer_scanned = self._viewer_scanned, None
+        if scanned is not None:
+            scanned[1].close()
         catalogue, self.viewer_catalogue = self.viewer_catalogue, None
         if catalogue is not None:
             catalogue.stop_times()
@@ -214,34 +262,70 @@ class ViewerSteps:
 
     def _viewer_setup(self, form):
         """Continue from the setup page: read the variables of each file
-        type, in a thread, then show the viewer."""
+        type, in a thread, then show the viewer. Nothing here looks for the
+        files again: they come from the live check's listing, and when the
+        missing value search has already read them (the usual way), its
+        reading is taken over rather than done a second time."""
         with self._lock:
             if self.view != "setup":
                 return 409, {"ok": False, "error": "This step is over."}
             self.viewer_setup_form = self._viewer_form(form)
-            arguments, errors = check_setup(self.viewer_setup_form, self.cwd)
+            arguments, errors = check_setup(self.viewer_setup_form, self.cwd, find=self._found_files)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
+            # taken before _viewer_drop, which closes a reading nobody is carrying on with
+            scanned = self._viewer_taken(arguments)
             old = self._viewer_drop()
             number = self._viewer_number
             self._start_cdo_check([arguments])
             self.setup_error = None
             self.viewer_missing = arguments["missing"]
-            self.viewer_scan = {"phase": "files", "done": 0, "total": 0}
+            # the files are known, so the only reading left is the variables of each file type
+            self.viewer_scan = {
+                "phase": "variables", "done": 0, "total": _file_types(arguments["files"]),
+            }
             self.view = "viewer_scanning"
             self._notify()
         if old is not None:
             old.close()
         threading.Thread(
-            target=self._viewer_read, args=(number, arguments), name="oceanval-viewer", daemon=True
+            target=self._viewer_read, args=(number, arguments, scanned),
+            name="oceanval-viewer", daemon=True,
         ).start()
         return 200, {"ok": True}
 
-    def _viewer_read(self, number, arguments):
+    def _found_files(self, arguments):
+        """The simulation's files, from the listing the live check made
+        however long ago (see app.App._simulation_files): what check_setup
+        decides "There are no netCDF files there to look at." by, and what the
+        reading below is given."""
+        return self._simulation_files(
+            arguments["simdir"], arguments["ndown"],
+            arguments["exclude"], arguments["require"], kept=None,
+        )
+
+    def _viewer_taken(self, arguments):
+        """The reading the missing value search did, if it is of this very
+        simulation, taken over so it is not done again (see
+        _viewer_guess_thread). Called with the lock held; what is left behind
+        is closed by _viewer_drop."""
+        scanned, self._viewer_scanned = self._viewer_scanned, None
+        if scanned is None:
+            return None
+        key, catalogue = scanned
+        if key == _guess_key(arguments):
+            return catalogue
+        catalogue.close()
+        return None
+
+    def _viewer_read(self, number, arguments, scanned=None):
         """Read what the files hold: the variables of each file type and the
         times of its first file, then the times of the other files, in the
-        background, while the viewer is used."""
+        background, while the viewer is used.
+
+        scanned, if given, is that reading already done by the missing value
+        search (see _viewer_taken), and is used as it is."""
 
         def progress(**news):
             with self._lock:
@@ -251,9 +335,11 @@ class ViewerSteps:
 
         filters = {key: " ".join(arguments[key] or ()) for key in ("exclude", "require")}
         try:
-            found = viewer_catalogue.scan(
+            # the missing value search read these very files already: carry on with it
+            found = scanned if scanned is not None else viewer_catalogue.scan(
                 arguments["simdir"], arguments["ndown"], **filters,
                 progress=progress, stopped=lambda: not self._viewer_current(number), wait=False,
+                paths=arguments["files"],
             )
         except viewer_catalogue.Stopped:
             return
@@ -348,10 +434,18 @@ class ViewerSteps:
 
     def viewer_missing_guess(self, query):
         """What the setup page's missing value rows could start with for the
-        simulation as typed in (see oceanval.viewer_missing.guess): {"value",
-        "ersem"}. The last answer is kept, as the page asks again whenever a
-        box is edited."""
-        from oceanval import viewer_missing
+        simulation as typed in (see oceanval.viewer_missing.guess):
+        {"status": "reading" | "done", "value", "ersem"}.
+
+        The guess is made in a thread, not here: it opens a file of each file
+        type, so holding the request (and oceanval.netcdf_lock.LOCK) for it
+        would stall the rest of the window. The page asks again while the
+        status is "reading". The answer is kept, as the page asks again
+        whenever a box is edited, and a guess the user has moved on from gives
+        up (see _viewer_guess_number, bumped by _viewer_drop).
+
+        What it reads of the output is kept too, for Continue to carry on with
+        (see _viewer_taken): it is the very reading the viewer needs."""
         from oceanval.app import _path
 
         text = query.get("simdir", "").strip()
@@ -361,15 +455,56 @@ class ViewerSteps:
             ndown = 0 if viewer_catalogue.is_url(simdir) or os.path.isfile(simdir) else int(query.get("ndown", ""))
             assert ndown >= 0 and simdir
         except (ValueError, AssertionError):
-            return {"value": None, "ersem": False}
-        key = (simdir, ndown, query.get("exclude", ""), query.get("require", ""))
+            return {"status": "done", "value": None, "ersem": False}
+        exclude, require = query.get("exclude", ""), query.get("require", "")
+        # the same words however they were spaced, so Continue recognises this reading
+        key = (simdir, ndown, tuple(exclude.split()), tuple(require.split()))
         with self._lock:
-            if self._viewer_guessed is not None and self._viewer_guessed[0] == key:
-                return self._viewer_guessed[1]
-        answer = viewer_missing.guess(*key)
+            guess = self._viewer_guess
+            if guess is not None and guess["key"] == key:
+                return {"status": guess["status"], **guess["answer"]}
+            self._viewer_guess_number += 1
+            number = self._viewer_guess_number
+            self._viewer_guess = {
+                "key": key, "status": "reading", "answer": {"value": None, "ersem": False},
+            }
+            threading.Thread(
+                target=self._viewer_guess_thread, args=(number, key),
+                name="oceanval-viewer-missing", daemon=True,
+            ).start()
+            return {"status": "reading", "value": None, "ersem": False}
+
+    def _viewer_guess_thread(self, number, key):
+        """Look for the missing value of the simulation key names, giving up
+        if it is no longer the one asked about (see viewer_missing_guess)."""
+        from oceanval import viewer_missing
+
+        simdir, ndown, exclude, require = key
+        wanted = lambda: number == self._viewer_guess_number  # noqa: E731
+        answer = viewer_missing.guess(
+            simdir, ndown, " ".join(exclude), " ".join(require),
+            stopped=lambda: not wanted(),
+            keep=lambda catalogue: self._viewer_keep(number, key, catalogue),
+            # the files the live check found, however long ago, not the directories walked again
+            paths=self._simulation_files(simdir, ndown, exclude, require, kept=None) or None,
+        )
         with self._lock:
-            self._viewer_guessed = (key, answer)
-        return answer
+            if not wanted() or self.closed.is_set():
+                return
+            self._viewer_guess = {"key": key, "status": "done", "answer": answer}
+            self._notify()
+
+    def _viewer_keep(self, number, key, catalogue):
+        """Keep what a missing value search read, for Continue to carry on
+        with. Returns whether it was taken: if it was not, the search closes
+        it. Anything kept and not taken is closed by _viewer_drop."""
+        with self._lock:
+            if number != self._viewer_guess_number or self.closed.is_set():
+                return False
+            older, self._viewer_scanned = self._viewer_scanned, (key, catalogue)
+        if older is not None:
+            older[1].close()
+        return True
 
     def viewer_plot(self, query):
         """The map the page asks for: {"ok", "item" (a Bokeh json_item),

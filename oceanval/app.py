@@ -85,6 +85,7 @@ from oceanval.create_recipes import (
     _unknown_variables,
     _variable_long_names,
     recipe_variables,
+    filter_paths,
     folder_layout,
     simulation_paths,
     simulation_years,
@@ -168,6 +169,17 @@ ANALYSIS_NEWS = ("analyses", "analysis_variable", "analysis")
 # from its files' times (a few seconds, usually done before it opens), before
 # its years are boxes to type in instead of lists of them
 OUTPUT_YEARS_WAIT = 120
+
+# how long the live check keeps a simulation's unfiltered file listing (see
+# App._simulation_listing). The file name filters are applied to the listing,
+# so a burst of typing in the "Skip file names containing" or "Only use file
+# names containing" boxes lists the directories once, not once a keystroke;
+# short enough that a file written meanwhile is counted straight after.
+LISTING_KEPT = 5
+
+# how many simulations' listings are kept at once: Compare simulations probes
+# all five of its rows together, and the bank's info pop-out probes beside them
+LISTINGS_KEPT = 8
 
 # the folder browser lists at most this many folders, and counts the rest
 _MOST_FOLDERS = 2000
@@ -1773,6 +1785,10 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # the years the output of the simulation in the simulation step covers,
         # read from its files' times as it is typed in (see _read_output_years)
         self._output_years = None
+        # the last unfiltered file listing the live check made, kept for a few
+        # seconds so typing in the file name filters does not list the
+        # directories again (see _simulation_listing)
+        self._listing = None
         # the info of a bank simulation being extracted (see bank_extract): its
         # name, the status the page is shown, and the reading of the files' years
         self._bank_extract = None
@@ -3558,10 +3574,11 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
 
     def _own_simulation_variables(self, number, reset, key):
         try:
+            exclude, require = list(key[2]) or None, list(key[3]) or None
+            # the files the live check found, not the directories walked again
+            paths = self._simulation_files(key[0], key[1], exclude, require, kept=None)
             with netcdf_lock.LOCK:
-                names = _variable_long_names(
-                    key[0], key[1], list(key[2]) or None, list(key[3]) or None
-                )
+                names = _variable_long_names(key[0], key[1], exclude, require, paths)
         except Exception:
             names = {}
         with self._lock:
@@ -5172,6 +5189,53 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             return {"status": status, "error": str(error), "matchups": []}
         return {"status": "found", "error": None, "matchups": selection.on_disk(path)}
 
+    def _simulation_listing(self, path, depth, kept=LISTING_KEPT):
+        """Every output file depth directories below path, before the file
+        name filters, for the live check. The answer is kept, as the filters
+        are applied to it rather than asked of the disk: typing a word in the
+        filter boxes lists the directories once, not once a keystroke, and
+        does not need a second, unfiltered listing for the count of what the
+        filters leave out.
+
+        kept is how old a listing may be and still be used. The live check
+        keeps the LISTING_KEPT seconds default, so its count follows the disk
+        as the boxes are typed in. A step carried on from passes None, taking
+        the listing however old it is: that listing is where the count the
+        user has just agreed to came from, and listing again can only walk the
+        same directories a second time.
+
+        A few listings are kept, not one, as Compare simulations probes every
+        row at once. The listing itself is made without the lock held."""
+        key = (path, depth)
+        now = self._clock()
+        with self._lock:
+            found = (self._listing or {}).get(key)
+            if found is not None and (kept is None or now - found["when"] < kept):
+                return found["paths"]
+        paths = simulation_paths(path, depth)
+        with self._lock:
+            listing = self._listing if self._listing is not None else {}
+            listing[key] = {"paths": paths, "when": self._clock()}
+            # the oldest go once there are more than the simulations a step can have
+            for old in sorted(listing, key=lambda other: listing[other]["when"])[:-LISTINGS_KEPT]:
+                del listing[old]
+            self._listing = listing
+        return paths
+
+    def _simulation_files(self, simdir, ndown, exclude=None, require=None, kept=LISTING_KEPT):
+        """The output files of a simulation that pass the file name filters,
+        from the listing the live check made (see _simulation_listing, whose
+        kept this passes on). What every step carried on from a simulation
+        step uses, so the directories are walked once and not again.
+
+        A single file or a web address, which the viewer's box also takes, is
+        used as it is and has no listing to keep."""
+        from oceanval import viewer_catalogue
+
+        if viewer_catalogue.is_url(simdir) or os.path.isfile(simdir):
+            return viewer_catalogue.viewer_paths(simdir, ndown, exclude, require)
+        return filter_paths(self._simulation_listing(simdir, ndown, kept), exclude, require)
+
     def probe(self, simdir, ndown, out, exclude="", require="", out_dir=""):
         """What the simulation step says about the simulation as it is typed
         in: whether the directory is there, how many output files are ndown
@@ -5241,11 +5305,12 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             depth = None
         found["ndown"] = depth
         if depth is not None:
-            paths = simulation_paths(path, depth, **filters)
+            # the files before the filters, kept for a moment (see _simulation_listing),
+            # so the filters are applied here rather than listed for a second time
+            all_paths = self._simulation_listing(path, depth)
+            paths = filter_paths(all_paths, **filters) if filtered else all_paths
             found["files"] = len(paths)
-            found["all_files"] = (
-                len(simulation_paths(path, depth)) if filtered else len(paths)
-            )
+            found["all_files"] = len(all_paths)
             if paths:
                 years = simulation_years(path, paths)
                 found["years"] = list(years) if years else None
@@ -5276,16 +5341,16 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
 
     def _cdo_run(self, number, simulations):
         """Find the files and start their check (see _start_cdo_check)."""
-        from oceanval.viewer_catalogue import viewer_paths
-
         paths = []
         try:
             for simulation in simulations:
-                paths += viewer_paths(
+                # the files the live check found, not the directories walked again
+                paths += self._simulation_files(
                     simulation["simdir"],
                     simulation["ndown"],
                     simulation.get("exclude") or None,
                     simulation.get("require") or None,
+                    kept=None,
                 )
         except Exception:
             return

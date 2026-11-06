@@ -812,6 +812,23 @@ class TestFvcom:
         assert "fvcom=True" not in script
         assert "FVCOM" not in capsys.readouterr().out
 
+    def test_the_directories_are_walked_once(self, simulation, tmp_path, monkeypatch):
+        """The FVCOM check and the variable mapping share one listing."""
+        import importlib
+
+        # oceanval.create_recipes is the function, so the module is asked for by name
+        module = importlib.import_module("oceanval.create_recipes")
+        walks = []
+        original = module.simulation_paths
+
+        def counted(*args, **kwargs):
+            walks.append(args[:2])
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(module, "simulation_paths", counted)
+        self._create(simulation, tmp_path, ask=False)
+        assert len(walks) == 1
+
     def test_confirmed_fvcom(self, fvcom_simulation, tmp_path, monkeypatch):
         asked = _from_a_terminal(monkeypatch, iter(["y"]))
         script = self._create(fvcom_simulation, tmp_path)

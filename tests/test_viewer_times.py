@@ -110,3 +110,28 @@ def test_the_script_and_the_package_choose_alike(monkeypatch, cores):
 
     monkeypatch.setattr(os, "sched_getaffinity", lambda pid: set(range(cores)), raising=False)
     assert times.default_cores() == file_workers.workers()
+
+
+def test_the_cache_is_checked_by_several_threads_with_the_same_answer(tmp_path, monkeypatch):
+    """load_cache looks at the files by threads (thousands, on a network
+    disk): which it keeps is as before, those whose size and modification
+    time are unchanged."""
+    monkeypatch.setenv("OCEANVALTIMES", str(tmp_path / "times.json"))
+    paths = []
+    for number in range(60):
+        path = tmp_path / f"f{number}.nc"
+        path.write_text("x" * (number + 1))
+        paths.append(str(path))
+    read = {path: {"name": "time", "calendar": None, "times": [number], "index": [0]}
+            for number, path in enumerate(paths)}
+    times.save_cache(read)
+    monkeypatch.setattr(times, "default_cores", lambda: 4)
+    assert times.load_cache(paths) == read
+    # a changed file, a missing one and one never read are not kept
+    (tmp_path / "f3.nc").write_text("changed, so another size")
+    os.remove(paths[4])
+    unknown = tmp_path / "new.nc"
+    unknown.write_text("")
+    kept = times.load_cache(paths + [str(unknown)])
+    assert set(kept) == set(paths) - {paths[3], paths[4]}
+    assert times.load_cache([]) == {}

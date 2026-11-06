@@ -51,6 +51,17 @@ def _wait_for_times(app, seconds=60):
     assert app.viewer_catalogue.times_complete and app.viewer_times is None
 
 
+def _guessed(app, seconds=60, **asked):
+    """The answer to /api/viewer/missing, which is looked for in a thread of
+    its own: the page asks again while the status is "reading"."""
+    deadline = time.monotonic() + seconds
+    while True:
+        answer = get_json(app, "/api/viewer/missing", **asked)[1]
+        if answer["status"] != "reading" or time.monotonic() > deadline:
+            return answer
+        time.sleep(0.02)
+
+
 def _view(app, simulation, **changes):
     assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
     assert post(app, "/api/setup", {"form": _form(simulation, **changes)}) == (200, {"ok": True})
@@ -162,19 +173,174 @@ def test_the_missing_value_guess(app, tmp_path):
 
     root = land_simulation(str(tmp_path / "sim"), land=-999.0)
     asked = dict(simdir=root, ndown="0", exclude="", require="")
-    assert get_json(app, "/api/viewer/missing", **asked)[1] == {"value": "-999", "ersem": False}
-    # the last answer is kept: the same question is not read again
+    # the first ask starts the search and comes back at once, holding nothing up
+    assert get_json(app, "/api/viewer/missing", **asked)[1] == {
+        "status": "reading", "value": None, "ersem": False,
+    }
+    assert _guessed(app, **asked) == {"status": "done", "value": "-999", "ersem": False}
+    # the answer is kept: the same question is not looked for again
     from oceanval import viewer_missing
 
     original = viewer_missing.guess
-    viewer_missing.guess = lambda *args: pytest.fail("asked again")
+    viewer_missing.guess = lambda *args, **kwargs: pytest.fail("asked again")
     try:
         assert get_json(app, "/api/viewer/missing", **asked)[1]["value"] == "-999"
     finally:
         viewer_missing.guess = original
     # a depth that is not a number, or no directory, is nothing to guess at
-    assert get_json(app, "/api/viewer/missing", **dict(asked, ndown="x"))[1] == {"value": None, "ersem": False}
-    assert get_json(app, "/api/viewer/missing", **dict(asked, simdir=""))[1] == {"value": None, "ersem": False}
+    for odd in (dict(asked, ndown="x"), dict(asked, simdir="")):
+        assert get_json(app, "/api/viewer/missing", **odd)[1] == {
+            "status": "done", "value": None, "ersem": False,
+        }
+
+
+def test_a_missing_value_search_moved_on_from_gives_up(app, tmp_path, monkeypatch):
+    """The search opens a file of each file type under the netCDF lock, which
+    the viewer's own reading of the output needs: one the user has moved on
+    from (Continue, Back or Restart, all of which drop the viewer) must stop
+    rather than run to the end."""
+    from oceanval import viewer_missing
+    from viewer_simulations import land_simulation
+
+    root = land_simulation(str(tmp_path / "sim"), land=-999.0)
+    asking = threading.Event()
+    gave_up = []
+
+    def slow(*args, stopped=lambda: False, **kwargs):
+        asking.set()
+        deadline = time.monotonic() + 30
+        while not stopped() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        gave_up.append(stopped())
+        return {"value": None, "ersem": False}
+
+    monkeypatch.setattr(viewer_missing, "guess", slow)
+    asked = dict(simdir=root, ndown="0", exclude="", require="")
+    assert get_json(app, "/api/viewer/missing", **asked)[1]["status"] == "reading"
+    assert asking.wait(10)
+    with app._lock:
+        app._viewer_drop()
+    deadline = time.monotonic() + 10
+    while not gave_up and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert gave_up == [True]
+    # nothing of the search that gave up is kept, so asking again looks afresh
+    assert app._viewer_guess is None
+
+
+class TestContinueDoesNotFindTheFilesAgain:
+    """The setup page has found the files (the live check) and read them (the
+    missing value search) by the time Continue is pressed, so Continue must
+    carry on with both rather than walk the directories and read the output
+    again, behind a page saying the files are being found."""
+
+    @staticmethod
+    def _ask(app, simulation, **changes):
+        form = _form(simulation, **changes)
+        return dict(simdir=form["simdir"], ndown=form["ndown"], exclude=form["exclude"], require=form["require"])
+
+    def test_the_directories_are_walked_once(self, app, simulation, monkeypatch):
+        import importlib
+
+        from oceanval import app as app_module
+        from oceanval import viewer_catalogue
+
+        # oceanval.create_recipes is the function, so the module is asked for by name
+        create_recipes = importlib.import_module("oceanval.create_recipes")
+        walks = []
+        original = create_recipes.simulation_paths
+
+        def counted(*args, **kwargs):
+            walks.append(args[:2])
+            return original(*args, **kwargs)
+
+        # every module that walks imported the function by name
+        monkeypatch.setattr(app_module, "simulation_paths", counted)
+        monkeypatch.setattr(viewer_catalogue, "simulation_paths", counted)
+        monkeypatch.setattr(create_recipes, "simulation_paths", counted)
+        assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
+        asked = self._ask(app, simulation)
+        found = get_json(app, "/api/probe", out="", **asked)[1]
+        assert found["files"] == 48 and len(walks) == 1
+        # however long ago it was found: the user has agreed to that count
+        clock = [1000.0]
+        monkeypatch.setattr(app, "_clock", lambda: clock[0])
+        clock[0] += 3600
+        assert post(app, "/api/setup", {"form": _form(simulation)}) == (200, {"ok": True})
+        _wait_for(app, "viewer")
+        assert len(walks) == 1, f"the directories were walked again after Continue: {walks}"
+
+    def test_the_output_is_read_once_when_the_missing_value_search_has_read_it(self, app, simulation, monkeypatch):
+        from oceanval import viewer_catalogue
+
+        reads = []
+        original = viewer_catalogue.scan
+
+        def counted(*args, **kwargs):
+            reads.append(1)
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(viewer_catalogue, "scan", counted)
+        assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
+        asked = self._ask(app, simulation)
+        # the page asks with the words as typed; Continue has them split
+        assert _guessed(app, **dict(asked, exclude=" restart "))["status"] == "done"
+        assert len(reads) == 1
+        assert post(app, "/api/setup", {"form": _form(simulation)}) == (200, {"ok": True})
+        _wait_for(app, "viewer")
+        assert len(reads) == 1, "the output was read again after the missing value search read it"
+        # it is the reading the viewer works with
+        assert app.viewer_catalogue is not None and app.viewer_catalogue.streams
+        assert app._viewer_scanned is None
+        _wait_for_times(app)
+
+    def test_a_search_of_other_files_is_not_taken_over(self, app, simulation):
+        assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
+        # asked about without the filter, Continue is pressed with it
+        assert _guessed(app, **self._ask(app, simulation, exclude=""))["status"] == "done"
+        kept = app._viewer_scanned
+        assert kept is not None
+        assert post(app, "/api/setup", {"form": _form(simulation)}) == (200, {"ok": True})
+        _wait_for(app, "viewer")
+        assert app.viewer_catalogue is not kept[1]
+        assert app._viewer_scanned is None
+        # what was not taken is let go of
+        assert kept[1]._stop.is_set()
+
+    def test_nothing_is_kept_when_the_user_goes_back(self, app, simulation):
+        assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
+        assert _guessed(app, **self._ask(app, simulation))["status"] == "done"
+        kept = app._viewer_scanned[1]
+        with app._lock:
+            app._viewer_drop()
+        assert app._viewer_scanned is None and kept._stop.is_set()
+
+    def test_the_page_is_told_only_of_the_variables_being_read(self, app, simulation, monkeypatch):
+        """The files are known, so the first news is how many kinds of file
+        there are to read: "Finding the files" has nothing left to describe."""
+        from oceanval import viewer_catalogue
+
+        release = threading.Event()
+        seen = []
+        original = viewer_catalogue.scan
+
+        def held(*args, **kwargs):
+            with app._lock:
+                seen.append(dict(app.viewer_scan))
+            release.wait(30)
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(viewer_catalogue, "scan", held)
+        assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
+        try:
+            assert post(app, "/api/setup", {"form": _form(simulation)}) == (200, {"ok": True})
+            deadline = time.monotonic() + 10
+            while not seen and time.monotonic() < deadline:
+                time.sleep(0.01)
+        finally:
+            release.set()
+        assert seen and seen[0]["phase"] == "variables" and seen[0]["total"] == 2
+        _wait_for(app, "viewer")
 
 
 def test_bokeh_is_served(app):
@@ -402,8 +568,9 @@ class TestOneFile:
         assert app.probe(one_file, "0", "")["directory"] == "missing"
 
     def test_the_missing_value_is_looked_for_without_a_depth(self, one_file, app):
-        answer = app.viewer_missing_guess({"simdir": one_file, "ndown": "", "exclude": "restart", "require": ""})
-        assert answer["value"] == "-999"
+        asked = dict(simdir=one_file, ndown="", exclude="restart", require="")
+        assert app.viewer_missing_guess(dict(asked))["status"] == "reading"
+        assert _guessed(app, **asked) == {"status": "done", "value": "-999", "ersem": False}
 
 
 # ---- closing the browser ----

@@ -459,7 +459,7 @@ def _read_variables_of(path):
     return found
 
 
-def streams(sim_dir, n_dirs_down, exclude=None, require=None, progress=None, stopped=None):
+def streams(sim_dir, n_dirs_down, exclude=None, require=None, progress=None, stopped=None, paths=None):
     """The output streams of a simulation: its files n_dirs_down directories
     below sim_dir that the filters keep (see
     create_recipes.simulation_paths), grouped by their names with the dates
@@ -471,9 +471,15 @@ def streams(sim_dir, n_dirs_down, exclude=None, require=None, progress=None, sto
 
     sorted by pattern. A stream whose first file cannot be read is left out.
     progress(done, total) is called as the streams are read, and the read
-    ends early, with what it has, once stopped() is true."""
+    ends early, with what it has, once stopped() is true.
+
+    paths, if given, are the simulation's files, found already (the window's
+    live check keeps them, see app.App._simulation_files), so its directories
+    are not walked again."""
     grouped = {}
-    for path in simulation_paths(sim_dir, n_dirs_down, exclude, require):
+    if paths is None:
+        paths = simulation_paths(sim_dir, n_dirs_down, exclude, require)
+    for path in paths:
         grouped.setdefault(_file_pattern(path), []).append(path)
     found = []
     for done, (pattern, files) in enumerate(sorted(grouped.items())):

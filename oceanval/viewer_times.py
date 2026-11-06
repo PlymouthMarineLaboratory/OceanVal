@@ -189,17 +189,41 @@ def _load():
 
 def load_cache(paths):
     """{path: times} kept for those of paths whose size and modification time
-    are unchanged since. Never raises."""
+    are unchanged since. Never raises.
+
+    The files are looked at by several threads, as file_workers.stat_all does
+    and for the same reason (os.stat waits for the disk without holding the
+    GIL): a simulation of thousands of files on a network disk took seconds
+    one at a time. Only those the cache knows are looked at."""
     try:
         files = _load()["files"]
     except Exception:  # noqa: BLE001 - a cache must not stop anything
         return {}
-    found = {}
-    for path in paths:
-        entry = files.get(path)
-        if isinstance(entry, dict) and entry.get("stat") == _stat(path):
-            found[path] = entry["times"]
-    return found
+    known = [
+        path for path in dict.fromkeys(paths)
+        if isinstance(files.get(path), dict)
+    ]
+    if not known:
+        return {}
+    stats = _stat_all(known)
+    return {
+        path: files[path]["times"] for path in known
+        if files[path].get("stat") == stats.get(path)
+    }
+
+
+def _stat_all(paths):
+    """{path: _stat(path)} for each of paths, by several threads (see
+    load_cache). Never raises: a file that cannot be looked at has None, as
+    _stat gives it."""
+    count = min(default_cores(), len(paths))
+    if count <= 1:
+        return {path: _stat(path) for path in paths}
+    # imported here, as the module is run as a script and keeps its import light
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=count) as pool:
+        return dict(zip(paths, pool.map(_stat, paths, chunksize=max(1, len(paths) // (4 * count)))))
 
 
 def save_cache(read):

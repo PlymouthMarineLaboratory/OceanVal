@@ -146,6 +146,42 @@ def levels_file(path, nz=5, nt=2, height=None, stacking="even", land=-1e20):
     return path
 
 
+def many_variables_file(path, count=300, placed=False):
+    """A file with count variables on (time_counter, z, y, x) and, unless
+    placed, nothing that says where its cells are: no "coordinates" attribute
+    and no nav_lon/nav_lat, as NEMO restart files and post-processed
+    timeseries files are written. That is the shape that made
+    viewer_catalogue.describe_variables quadratic: every variable sent it
+    looking through every other for a longitude and a latitude.
+
+    With placed, nav_lon and nav_lat are there but nothing points at them, so
+    each variable can only be placed by that same search through the file.
+    """
+    nt, nz, ny, nx = 2, 3, 6, 5
+    values = np.arange(nt * nz * ny * nx, dtype="float32").reshape(nt, nz, ny, nx)
+    variables = {
+        f"var{number:03d}": (
+            ("time_counter", "z", "y", "x"), values + number,
+            {"units": "mmol/m3", "long_name": f"Variable {number}"},
+        )
+        for number in range(count)
+    }
+    if placed:
+        lon, lat = np.meshgrid(np.linspace(-4, 8, nx), np.linspace(50, 58, ny))
+        variables["nav_lon"] = (("y", "x"), lon, {"standard_name": "longitude", "units": "degrees_east"})
+        variables["nav_lat"] = (("y", "x"), lat, {"standard_name": "latitude", "units": "degrees_north"})
+    ds = xr.Dataset(
+        {name: (dims, data, attrs) for name, (dims, data, attrs) in variables.items()},
+        coords={
+            "time_counter": ("time_counter", np.arange(nt) * 30.0 + 15,
+                             {"units": "days since 1990-01-01", "calendar": "standard"}),
+            "z": ("z", np.arange(nz, dtype="float32"), {"axis": "Z", "positive": "down", "units": "m"}),
+        },
+    )
+    ds.to_netcdf(path)
+    return str(path)
+
+
 # 2012-01-01 in FVCOM's modified julian days
 MJD_2012 = 55927
 

@@ -70,28 +70,37 @@ _LON_UNITS = ("degrees_east", "degree_east", "degrees_e", "degree_e", "degreee")
 _LAT_UNITS = ("degrees_north", "degree_north", "degrees_n", "degree_n", "degreen")
 
 
-def _lonlat(ds, name):
+def _lonlat(ds, name, spanning=None):
     """The names of the longitude and latitude of variable name, or Nones:
     its coordinates with a standard_name, units or name that says so (the
     rules of ncplot's get_dims, without metpy). A variable no coordinates
     name (an unstructured mesh's, as SHYFEM, ADCIRC and SCHISM write them:
     longitude and latitude variables on its nodes, which nothing points at)
     takes any variable of the file on its dimensions whose standard_name or
-    units say it is a longitude or latitude."""
-    variable = ds[name]
-    candidates = list(variable.coords)
+    units say it is a longitude or latitude.
+
+    Attributes and dimensions are read through ds.variables, never ds[key]:
+    the latter builds a DataArray every time, which made this quadratic in
+    the number of variables (36 seconds for a 335-variable NEMO restart).
+    spanning, if given, is a dict this keeps the variables on each set of
+    dimensions in: that list is the same for every variable on them.
+    """
+    variables = ds.variables
+    variable = variables[name]
+    dims = set(variable.dims)
+    candidates = list(ds[name].coords)
     for word in _attr(variable, "coordinates").split():
-        if word in ds.variables and word not in candidates:
+        if word in variables and word not in candidates:
             candidates.append(word)
-    candidates += [dim for dim in variable.dims if dim in ds.variables and dim not in candidates]
+    candidates += [dim for dim in variable.dims if dim in variables and dim not in candidates]
 
     def find(keys, standard, units, words):
         for key in keys:
-            attrs = ds[key].attrs
+            attrs = variables[key].attrs
             if str(attrs.get("standard_name", "")) == standard:
                 return key
         for key in keys:
-            if str(ds[key].attrs.get("units", "")).lower() in units:
+            if str(variables[key].attrs.get("units", "")).lower() in units:
                 return key
         for key in keys:
             if any(key.lower().startswith(word) or key.lower().endswith(word) for word in words):
@@ -101,15 +110,19 @@ def _lonlat(ds, name):
     lon = find(candidates, "longitude", _LON_UNITS, ("lon", "nav_lon", "glamt"))
     lat = find(candidates, "latitude", _LAT_UNITS, ("lat", "nav_lat", "gphit"))
     if lon is None or lat is None:
-        others = [
-            key for key in ds.variables
-            if key != name and ds[key].ndim and set(ds[key].dims) <= set(variable.dims)
-        ]
+        on_dims = spanning if spanning is not None else {}
+        over = frozenset(variable.dims)
+        if over not in on_dims:
+            on_dims[over] = [
+                key for key, other in variables.items()
+                if other.ndim and set(other.dims) <= dims
+            ]
+        others = [key for key in on_dims[over] if key != name]
         lon = lon or find(others, "longitude", _LON_UNITS, ())
         lat = lat or find(others, "latitude", _LAT_UNITS, ())
     # coordinates that do not span the variable's own dimensions cannot place it
     for key in (lon, lat):
-        if key is not None and not set(ds[key].dims) <= set(variable.dims):
+        if key is not None and not set(variables[key].dims) <= dims:
             return None, None
     return lon, lat
 
@@ -137,8 +150,10 @@ def describe_variables(ds, time_dim):
     found = {}
     # vertical dim -> which end is the surface, for levels with no depths (the variables on one dim share it)
     ends = {}
+    # dimensions -> the variables on them, which every variable on them shares (see _lonlat)
+    spanning = {}
     places = {
-        name: _lonlat(ds, name) for name, variable in ds.data_vars.items()
+        name: _lonlat(ds, name, spanning) for name, variable in ds.data_vars.items()
         if name not in skip and name not in coords and variable.ndim
     }
     # the longitudes and latitudes of other variables (a mesh's, which are data variables) are not maps of their own
@@ -447,16 +462,23 @@ def viewer_paths(simdir, ndown, exclude=None, require=None):
     return simulation_paths(simdir, ndown, exclude, require)
 
 
-def scan(simdir, ndown, exclude="", require="", progress=lambda **_: None, stopped=lambda: False, wait=True):
+def scan(simdir, ndown, exclude="", require="", progress=lambda **_: None, stopped=lambda: False,
+         wait=True, paths=None):
     """The Catalogue of the output files ndown directories below simdir (or
     simdir, if it is a file) that pass the file filters. progress(phase=, done=, total=) is told how far it
     has got, and stopped() is asked whether to give up (raising Stopped).
     With wait, the times of every file are read first. Without, only those of
     the first file of each file type are (and any the cache has), so that
     the Catalogue is there at once: each stream says how many of its files
-    are "pending", and Catalogue.read_times reads the rest."""
+    are "pending", and Catalogue.read_times reads the rest.
+
+    paths, if given, are those files, found already (the window's live check
+    keeps them, see app.App._simulation_files): only the walk of the
+    directories is skipped, simdir still being the root the files are named
+    relative to."""
     simdir = simdir.strip() if is_url(simdir) else os.path.abspath(os.path.expanduser(simdir.strip()))
-    paths = viewer_paths(simdir, int(ndown or 0), exclude.split() or None, require.split() or None)
+    if paths is None:
+        paths = viewer_paths(simdir, int(ndown or 0), exclude.split() or None, require.split() or None)
     if not paths:
         raise ValueError("No netCDF files were found.")
     groups = OrderedDict()
