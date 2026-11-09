@@ -560,6 +560,7 @@ class TestForms:
             "vertical": False, "vertical_start": "", "vertical_end": "",
             "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
             "vertical_trends": "", "vertical_trends_start": "", "vertical_trends_end": "", "vertical_trends_window": "1",
+            "depth_increment": "", "max_depth": "",
         }
         # nothing ticked to start
         chosen, errors = self.check(placed, analysis_forms.clean_transects(form, placed))

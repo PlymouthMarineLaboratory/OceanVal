@@ -198,7 +198,8 @@ def same_as_analyze(compared, analysed):
     from oceanval import analysis
 
     names = sorted(os.listdir(analysed))
-    assert sorted(os.listdir(compared)) == names
+    # a comparison also saves each transect's monthly sections, which analyze() does not
+    assert sorted(name for name in os.listdir(compared) if not name.endswith("_vertical_monthly.csv")) == names
     # the info last, so that a difference in what was worked out is said first
     for name in sorted(names, key=lambda name: name == analysis.INFO_FILE):
         ours, theirs = os.path.join(compared, name), os.path.join(analysed, name)
@@ -217,6 +218,15 @@ def same_as_analyze(compared, analysed):
                 a, b = json.load(a), json.load(b)
             # when each was run
             a.pop("created"), b.pop("created")
+
+            def without_monthly_sections(node):
+                if isinstance(node, dict):
+                    return {k: without_monthly_sections(v) for k, v in node.items() if k != "vertical_monthly"}
+                if isinstance(node, list):
+                    return [without_monthly_sections(v) for v in node]
+                return node
+
+            a = without_monthly_sections(a)
             assert a == b, name
         else:
             with open(ours, "rb") as a, open(theirs, "rb") as b:
