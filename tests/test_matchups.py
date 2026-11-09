@@ -420,7 +420,7 @@ class TestMatchupsQuestion:
             {"kind": "gridded", "variable": "temperature", "source": "foo", "layer": None,
              "vertical": False, "title": "Temperature", "key": "temperature/foo"},
             {"kind": "point", "variable": "temperature", "source": "bar", "layer": "all",
-             "vertical": True, "title": "Temperature", "key": "temperature/bar"},
+             "vertical": True, "title": "Temperature", "key": "temperature/bar/all"},
         ]
         oceanval.reset()
 

@@ -1056,7 +1056,7 @@ class TestCheck:
     def test_pieces_are_what_is_in_the_store(self, kept):
         found, problem = data_store.pieces(str(kept))
         assert problem is None
-        assert len(found) == 14
+        assert len(found) == 15  # 14 with a file, and the ICES year that had no data
         woa = [x for x in found if x["dataset"] == "woa23"]
         assert len(woa) == 12 and {x["levels"] for x in woa} == {"top"} and {x["variable"] for x in woa} == {"n_an"}
         assert sorted(x["year"] for x in found if x["dataset"] == "cobe2") == [2000, 2001]
@@ -1089,7 +1089,7 @@ class TestCheck:
                              (os, "mkdir"), (os, "makedirs"), (shutil, "rmtree"), (shutil, "move"),
                              (shutil, "copyfile"), (tempfile, "mkstemp")):
             monkeypatch.setattr(module, name, refuse(name))
-        assert len(data_store.pieces(str(kept))[0]) == 14
+        assert len(data_store.pieces(str(kept))[0]) == 15
         monkeypatch.undo()
         assert tree(kept) == before
 

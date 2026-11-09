@@ -780,6 +780,7 @@ class TestTransects:
             "vertical": False, "vertical_start": "", "vertical_end": "",
             "trends": "", "trends_start": "", "trends_end": "", "trends_window": "1",
             "vertical_trends": "", "vertical_trends_start": "", "vertical_trends_end": "", "vertical_trends_window": "1",
+            "depth_increment": "", "max_depth": "",
         }
         # each variable has transects of its own
         assert state["forms"]["transects"] == {

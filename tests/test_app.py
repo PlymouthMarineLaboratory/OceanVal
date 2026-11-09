@@ -2298,6 +2298,8 @@ class TestServer:
         assert nitrate["model"] == {
             "variable": "N3_n",
             "parts": [{"name": "N3_n", "units": "mmol N m-3"}],
+            "formula": None,
+            "description": "",
         }
         assert (nitrate["obs_variable"], nitrate["obs_units"]) == (
             "n_an",
