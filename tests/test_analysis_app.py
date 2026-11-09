@@ -1403,7 +1403,7 @@ def test_the_variable_searches_take_wildcards_in_a_browser(browser, tmp_path):
         # after a + every row is shown, with P1_Chl ticked, and the next part is searched
         box.fill("P1_Chl+")
         assert len(shown()) == 4
-        assert page.locator('.vars__popover:not([hidden]) input[aria-label="Use P1_Chl"]').is_checked()
+        assert page.locator('.vars__popover:not([hidden]) button.vars__pm[data-name="P1_Chl"]').get_attribute("aria-pressed") == "true"
         box.press_sequentially("P2")
         assert shown() == ["P2_Chl"]
         page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])").first.click()
@@ -1433,22 +1433,22 @@ def test_a_search_survives_a_tick_in_the_variable_box_in_a_browser(browser, tmp_
     try:
         box = page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input")
         shown = lambda: page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)")
-        tick = lambda name: page.locator(f'.vars__popover:not([hidden]) input[aria-label="Use {name}"]')
-        row_y = lambda name: page.locator(".vars__popover:not([hidden]) tbody tr", has=page.locator(f'input[aria-label="Use {name}"]')).bounding_box()["y"]
+        tick = lambda name: page.locator(f'.vars__popover:not([hidden]) button.vars__pm[data-name="{name}"]')
+        row_y = lambda name: page.locator(".vars__popover:not([hidden]) tbody tr", has=page.locator(f'button.vars__pm[data-name="{name}"]')).bounding_box()["y"]
         box.fill("chl")
         assert shown() == ["P1_Chl", "P2_Chl"]
         before = row_y("P2_Chl")
-        # the tick box itself is clicked: it shows ticked, and the rows stay where they are for the next click
+        # the + button itself is clicked: it shows chosen, and the rows stay where they are for the next click
         tick("P1_Chl").click()
         # the box holds the name, and the search is still chl: its rows are still there to tick
         assert box.input_value() == "P1_Chl"
         assert shown() == ["P1_Chl", "P2_Chl"]
-        assert tick("P1_Chl").is_checked() and not tick("P2_Chl").is_checked()
+        assert (tick("P1_Chl").get_attribute("aria-pressed") == "true") and not (tick("P2_Chl").get_attribute("aria-pressed") == "true")
         assert abs(row_y("P2_Chl") - before) < 1
         tick("P2_Chl").click()
         assert box.input_value() == "P1_Chl+P2_Chl"
         assert shown() == ["P1_Chl", "P2_Chl"]
-        assert tick("P1_Chl").is_checked() and tick("P2_Chl").is_checked()
+        assert (tick("P1_Chl").get_attribute("aria-pressed") == "true") and (tick("P2_Chl").get_attribute("aria-pressed") == "true")
         assert abs(row_y("P2_Chl") - before) < 1
         # what is ticked is listed under the table, so that it does not push the rows down
         picked = page.locator(".vars__popover:not([hidden]) .vars__picked").bounding_box()
@@ -1464,7 +1464,7 @@ def test_a_search_survives_a_tick_in_the_variable_box_in_a_browser(browser, tmp_
         # a click on a ticked row takes it out, and the search still holds
         tick("thetao").click()
         assert box.input_value() == "P1_Chl+P2_Chl"
-        assert not tick("thetao").is_checked()
+        assert not (tick("thetao").get_attribute("aria-pressed") == "true")
     finally:
         page.close()
         app.close()

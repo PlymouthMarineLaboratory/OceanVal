@@ -1351,12 +1351,12 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         # the search of a simulation's box survives a tick, so P2_Chl can be ticked after P1_Chl
         cells.nth(1).fill("chl")
         # the tick boxes are clicked themselves: each shows ticked, and both rows are still there
-        page.locator('.vars__popover:not([hidden]) input[aria-label="Use P1_Chl"]').click()
+        page.locator('.vars__popover:not([hidden]) button.vars__pm[data-name="P1_Chl"]').click()
         assert cells.nth(1).input_value() == "P1_Chl"
         assert page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)") == ["P1_Chl", "P2_Chl"]
-        page.locator('.vars__popover:not([hidden]) input[aria-label="Use P2_Chl"]').click()
+        page.locator('.vars__popover:not([hidden]) button.vars__pm[data-name="P2_Chl"]').click()
         assert cells.nth(1).input_value() == "P1_Chl+P2_Chl"
-        assert page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody input:checked')].map((box) => box.closest('tr').cells[1].textContent)") == ["P1_Chl", "P2_Chl"]
+        assert page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr.is-picked .vars__pm')].map((box) => box.closest('tr').cells[1].textContent)") == ["P1_Chl", "P2_Chl"]
         cells.nth(1).press("Escape")
         cells.nth(0).fill("Temperature")
         cells.nth(1).fill("thetao")

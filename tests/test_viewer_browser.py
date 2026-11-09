@@ -433,47 +433,48 @@ def test_sum_of_variables(page, simulation):
     tab.click("#continue")
     tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
     row = lambda name: f"#vw-list li[data-name='{name}']"  # noqa: E731
-    # tick chl: ptrc_T is its only file type, so it is chosen and drawn
-    tab.check(f"{row('chl')} input")
+    # add chl with its + button: ptrc_T is its only file type, so it is chosen and drawn
+    tab.click(f"{row('chl')} .vw-pm")
     tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
     # sossheig cannot be added to chl: not the same dimensions
     assert "is-incompatible" in tab.get_attribute(row("sossheig"), "class")
-    assert tab.is_disabled(f"{row('sossheig')} input")
+    assert tab.is_disabled(f"{row('sossheig')} .vw-pm")
+    assert tab.text_content(f"{row('sossheig')} .vw-pm") == '+'
     # votemper can (it is in two file types, but only ptrc_T has chl)
-    tab.check(f"{row('votemper')} input")
+    tab.click(f"{row('votemper')} .vw-pm")
     tab.wait_for_function("() => document.querySelector('#vw-info').textContent.includes('Sum of')")
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
     assert "chl (mg m-3) + votemper (degC)" in tab.text_content("#vw-info")
     assert tab.is_hidden("#vw-plot-error")
     # the file type is not asked: only one holds both
     assert tab.is_hidden("#vw-streams")
-    # Clear unticks everything
+    # Clear takes everything out
     tab.click("#vw-clear")
-    assert tab.locator("#vw-list li input:checked").count() == 0
+    assert tab.locator("#vw-list li.is-chosen").count() == 0
     assert tab.is_hidden("#vw-chosen")
     # a click on a row chooses that variable alone: a second click replaces the first
     tab.click(f"{row('chl')} .vw-list__name")
     tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
     tab.click(row("votemper"), position={"x": 200, "y": 10})
-    assert tab.locator("#vw-list li input:checked").count() == 1
-    assert tab.is_checked(f"{row('votemper')} input")
+    assert tab.locator("#vw-list li.is-chosen").count() == 1
+    assert tab.text_content(f"{row('votemper')} .vw-pm") == '-'
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
     assert "Sum of" not in tab.text_content("#vw-info")
-    # only the box adds to the sum
-    tab.check(f"{row('chl')} input")
-    assert tab.locator("#vw-list li input:checked").count() == 2
+    # only the + button adds to the sum
+    tab.click(f"{row('chl')} .vw-pm")
+    assert tab.locator("#vw-list li.is-chosen").count() == 2
     tab.wait_for_function("() => document.querySelector('#vw-info').textContent.includes('Sum of')")
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    # an incompatible row cannot be ticked, but a click chooses it alone
-    assert tab.is_disabled(f"{row('sossheig')} input")
+    # an incompatible row's + is greyed out, but a click chooses it alone
+    assert tab.is_disabled(f"{row('sossheig')} .vw-pm")
     tab.click(f"{row('sossheig')} .vw-list__name")
-    assert tab.locator("#vw-list li input:checked").count() == 1
-    assert tab.is_checked(f"{row('sossheig')} input")
+    assert tab.locator("#vw-list li.is-chosen").count() == 1
+    assert tab.text_content(f"{row('sossheig')} .vw-pm") == '-'
     tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    # unticking the box leaves nothing chosen
-    tab.uncheck(f"{row('sossheig')} input")
-    assert tab.locator("#vw-list li input:checked").count() == 0
+    # the - button leaves nothing chosen
+    tab.click(f"{row('sossheig')} .vw-pm")
+    assert tab.locator("#vw-list li.is-chosen").count() == 0
     tab.click("#back-open")
     tab.wait_for_selector("#view-setup:not([hidden])")
 

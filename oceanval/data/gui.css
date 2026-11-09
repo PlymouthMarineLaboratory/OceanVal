@@ -545,9 +545,21 @@ input.tick { cursor: pointer; }
 .vars__popover td { display: table-cell; width: auto; padding: 3px 8px 3px 0; border: 0; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink-soft); }
 .vars__popover td:nth-child(2) { font-family: var(--font-mono, monospace); color: var(--ink); white-space: nowrap; }
 .vars__popover th:first-child, .vars__popover td:first-child { width: 1%; padding-right: 10px; }
-.vars__popover td:first-child input { margin: 1px 0; cursor: pointer; }
+.vars__popover td:first-child .vars__pm { margin: 1px 0; }
 .vars__popover tbody tr { cursor: pointer; }
 .vars__popover tbody tr:hover td, .vars__popover tbody tr.is-active td { background: var(--teal-50); }
+/* a variable already chosen: tinted, with a teal edge, as in the viewer's list */
+.vars__popover tbody tr.is-picked td { background: var(--teal-100); }
+.vars__popover tbody tr.is-picked td:first-child { box-shadow: inset 3px 0 0 var(--teal-600); padding-left: 6px; }
+.vars__popover tbody tr.is-picked td:nth-child(2) { font-weight: 600; }
+
+/* the + / - button of a variable's row (the pop-outs of OceanValGUI.variableBox and the viewer's list):
+   a grey + adds the variable, a teal - takes it out; a + that cannot add is greyed out and lets the click through to the row */
+.vars__pm, .vw-pm { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 20px; height: 20px; padding: 0; border: 1.5px solid var(--tick-line); border-radius: 5px; background: var(--bg); color: var(--muted); font: 600 15px/1 var(--font-body); cursor: pointer; }
+.vars__pm:hover, .vw-pm:hover { border-color: var(--teal-600); color: var(--teal-700); }
+.vars__pm:focus-visible, .vw-pm:focus-visible { outline: none; box-shadow: var(--focus); }
+tr.is-picked .vars__pm, li.is-chosen .vw-pm { border-color: var(--teal-600); background: var(--teal-600); color: var(--bg); }
+.vars__pm:disabled, .vw-pm:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 
 
 /* ---- a box with a list of choices (OceanValGUI.withChoices), and the list ---- */

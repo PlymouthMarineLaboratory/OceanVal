@@ -280,8 +280,9 @@ the same name.
 In the **Own data** step the **Simulation variable** is chosen as in the recipes
 window: clicking in the box opens the list of the variables in the
 simulation's output, with their ``long_name``, and what you type in the box
-searches it. Clicking a variable ticks it and adds it to the box, and ticking
-several sums them (``a+b``); a name typed in the box is ticked too. Any name can
+searches it. Clicking a variable (or its **+** button) adds it to the box, and
+adding several sums them (``a+b``); a chosen variable shows a **-** button, which
+takes it out, and a name typed in the box is chosen too. Any name can
 still be typed, but one that is not in the simulation's output is refused. For
 gridded data on this machine (a netCDF file, a directory of them or a pattern
 such as ``obs/*.nc``), the **Observation variable** box lists the variables in

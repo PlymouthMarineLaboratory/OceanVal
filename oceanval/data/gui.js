@@ -234,14 +234,14 @@ const OceanValGUI = (() => {
   // ---- a box for variables' names, with the model's variables in a pop-out under it ----
   // available are the variables' names and longNames their long_names, by
   // name. Anything can be typed in input. Once it has the focus, a pop-out
-  // under it lists the variables, a tick, the name and the long_name, with
-  // those the box holds ticked and listed at the top (Selected). The box is
+  // under it lists the variables, a +/- button, the name and the long_name, with
+  // those the box holds chosen and listed at the top (Selected). The box is
   // the pop-out's search: the rows shown are those matching the part being
   // typed (searchMatcher, so P*_Chl finds P1_Chl and P2_Chl): with multi, the
-  // part between the +s the caret is in, so "P1_Chl+" ticks P1_Chl and shows
-  // every row again; without, the whole box. A click on a row ticks it and
-  // adds it to the box (multi: summed with +, replacing a half-typed search;
-  // single: it is the box's value), a click on a ticked row or its x in
+  // part between the +s the caret is in, so "P1_Chl+" chooses P1_Chl and shows
+  // every row again; without, the whole box. A click on a row adds it
+  // to the box (multi: summed with +, replacing a half-typed search;
+  // single: it is the box's value), a click on a chosen row (its - button) or its x in
   // Selected takes it out; every row is shown again after a click. extra
   // (such as z_level) are rows at the top. Every change is an input event,
   // as if it had been typed. Returns update(), for variables that are known
@@ -257,7 +257,7 @@ const OceanValGUI = (() => {
     let built = false;
     let active = -1;
     // keepSearch (Analyze, Compare simulations and the own gridded data's model variable): a click adds the name and the search typed before it stays, so
-    // more of its rows can be ticked. kept is that search while the box holds only names; typing clears it.
+    // more of its rows can be added. kept is that search while the box holds only names; typing clears it.
     // Without keepSearch a click replaces the half-typed search and every row is shown again.
     let kept = null;
     input.classList.add("has-vars");
@@ -271,7 +271,7 @@ const OceanValGUI = (() => {
     const pickedList = el("ul");
     const picked = el("div", { class: "vars__picked", hidden: "" },
       el("p", { class: "vars__picked-title", text: "Selected" }), pickedList);
-    // with keepSearch the ticked names are listed under the table, so the rows stay where they are as more are ticked
+    // with keepSearch the chosen names are listed under the table, so the rows stay where they are as more are added
     const popover = el("div", { class: keepSearch ? "vars__popover is-picked-below" : "vars__popover", hidden: "" },
       el("div", { class: "vars__bar" }, count, ticked), ...(keepSearch ? [scroll, picked] : [picked, scroll]));
     // a click in the pop-out (a row, an x, its scroll bar) leaves the focus in the box
@@ -320,7 +320,7 @@ const OceanValGUI = (() => {
         } else {
           setBox([...used, name].join("+"));
         }
-        // with keepSearch the search stays, so the rows it finds can be ticked too (a typed name searches as well); else every row is shown
+        // with keepSearch the search stays, so the rows it finds can be added too (a typed name searches as well); else every row is shown
         kept = keepSearch ? (kept ?? text) : "";
       }
       refresh();
@@ -329,10 +329,10 @@ const OceanValGUI = (() => {
     function build() {
       rows = everyName().map((name) => {
         const longName = longs[name] || "";
-        const box = el("input", { type: "checkbox", class: "tick", tabindex: "-1", "aria-label": `Use ${name}` });
+        // the + / - button has no handler of its own: a click anywhere on the row, the button too, adds the
+        // variable (+) or takes it out (-); refresh() sets the button's sign
+        const box = el("button", { type: "button", class: "vars__pm", "data-name": name, tabindex: "-1", text: "+", "aria-label": `Add ${name}` });
         const tr = el("tr", {}, el("td", {}, box), el("td", { text: name }), el("td", { text: longName }));
-        // a click anywhere on the row, the tick box too, ticks it. The click on the box is not cancelled: a
-        // cancelled one makes the browser put the box back to how it was, after refresh() has set it
         tr.addEventListener("click", () => choose(name));
         return { name, box, fields: [name, longName], tr };
       });
@@ -366,17 +366,21 @@ const OceanValGUI = (() => {
       const usedSet = new Set(used);
       // the search is what is typed, or the one kept after a click ("" shows every row)
       const searched = kept !== null ? kept : typing;
-      // a single box holding a variable's name shows every row, with it ticked
+      // a single box holding a variable's name shows every row, with it chosen
       const wanted = searchMatcher(!multi && isName(searched) ? "" : searched);
       let shown = 0;
       for (const row of rows) {
-        row.box.checked = usedSet.has(row.name);
+        const on = usedSet.has(row.name);
+        row.tr.classList.toggle("is-picked", on);
+        row.box.textContent = on ? "-" : "+";
+        row.box.setAttribute("aria-label", on ? `Take out ${row.name}` : `Add ${row.name}`);
+        row.box.setAttribute("aria-pressed", String(on));
         row.tr.hidden = !wanted.test(row.fields);
         if (!row.tr.hidden) shown += 1;
       }
       none.hidden = shown > 0;
       count.textContent = wanted.active ? `${shown} of ${rows.length}` : `${rows.length}`;
-      ticked.textContent = multi && usedSet.size > 1 ? `${usedSet.size} ticked, summed` : "";
+      ticked.textContent = multi && usedSet.size > 1 ? `${usedSet.size} chosen, summed` : "";
       picked.hidden = !used.length;
       pickedList.replaceChildren(...used.map((name) => {
         const remove = el("button", { type: "button", class: "vars__picked-remove", title: `Remove ${name}`, "aria-label": `Remove ${name}`, text: "×" });

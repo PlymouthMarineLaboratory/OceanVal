@@ -839,10 +839,9 @@
   .vw-list li { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 8px; align-items: start; gap: 1px 8px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; }
   .vw-list li:hover, .vw-list li.is-active { background: var(--teal-50); }
   .vw-list li.is-chosen { background: var(--teal-100); box-shadow: inset 3px 0 0 var(--teal-600); }
-  .vw-list li > input { grid-row: 1 / span 3; margin: 3px 0 0; accent-color: var(--teal-600); cursor: pointer; }
+  .vw-list li > .vw-pm { grid-row: 1 / span 3; margin: 1px 0 0; }
   .vw-list li > span { grid-column: 2; }
   .vw-list li.is-incompatible { opacity: 0.5; cursor: not-allowed; }
-  .vw-list li.is-incompatible > input { cursor: not-allowed; }
   .vw-list__name { font: 600 13px/18px var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
   .vw-list__long { font-size: 12.5px; color: var(--muted); }
   .vw-list__more { font-size: 11.5px; color: var(--teal-700); font-weight: 600; }
@@ -1566,7 +1565,7 @@
         <div>
           <h2 class="vw-head"><label for="vw-search">Variable</label></h2>
           <input class="s-input" id="vw-search" type="search" placeholder="Search by name or description, e.g. P*_Chl" spellcheck="false" autocapitalize="off" autocomplete="off" aria-controls="vw-list">
-          <p class="vw-sum"><span>Click a variable to map it. Tick boxes to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" id="vw-clear" hidden>Clear</button></p>
+          <p class="vw-sum"><span>Click a variable to map it. Use the + buttons to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" id="vw-clear" hidden>Clear</button></p>
           <ul class="vw-list" id="vw-list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
         </div>
         <div class="vw-control" id="vw-c-years" hidden>
@@ -3572,15 +3571,17 @@
       // what cannot be added to the variables ticked: no file type has them all with the same dimensions
       const why = !ticked && pick.names.length && !streamsFor([...pick.names, name]).length
         ? `${name} cannot be added to ${pick.names.join(" + ")}: no file type holds them with the same dimensions.` : "";
-      const box = el("input", { type: "checkbox", "aria-label": `Add ${name} to the sum`, disabled: Boolean(why) });
-      box.checked = ticked;
-      box.addEventListener("click", (event) => event.stopPropagation());
-      box.addEventListener("change", () => toggle(name));
+      // + adds it to the sum (greyed out when it cannot be added), - takes it out
+      const box = el("button", {
+        type: "button", class: "vw-pm", text: ticked ? "-" : "+", disabled: Boolean(why),
+        "aria-label": ticked ? `Remove ${name} from the sum` : `Add ${name} to the sum`,
+      });
+      box.addEventListener("click", (event) => { event.stopPropagation(); toggle(name); });
       return el("li", {
         role: "option", "data-name": name, title: why || null,
         class: `${ticked ? "is-chosen" : ""}${index === listActive ? " is-active" : ""}${why ? " is-incompatible" : ""}`,
         "aria-selected": String(ticked), "aria-disabled": String(Boolean(why)),
-        // a click on the row chooses it alone; only its box adds it to the sum
+        // a click on the row chooses it alone; only its + button adds it to the sum
         onclick: () => {
           if (String(window.getSelection() || "")) return;
           if (pick.names.length === 1 && pick.names[0] === name) return;
@@ -3611,7 +3612,7 @@
     } else if (event.key === "Enter") {
       event.preventDefault();
       const chosen = found[Math.max(0, listActive)];
-      // Shift+Enter ticks it, to add it to the sum; Enter chooses it alone
+      // Shift+Enter adds it to the sum; Enter chooses it alone
       if (chosen && event.shiftKey) { if (!$("vw-list").querySelector(".is-active.is-incompatible")) toggle(chosen[0]); }
       else if (chosen) choose(chosen[0]);
     }
@@ -3646,7 +3647,7 @@
     afterStream(before);
   }
 
-  // adds a variable to the sum, or takes it out (the only way to more than one: a row's box, or Shift+Enter)
+  // adds a variable to the sum, or takes it out (the only way to more than one: a row's + button, or Shift+Enter)
   function toggle(name) {
     const before = inStream();
     pick.names = pick.names.includes(name) ? pick.names.filter((other) => other !== name) : [...pick.names, name];

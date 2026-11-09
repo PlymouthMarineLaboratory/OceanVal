@@ -252,14 +252,13 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   a wildcard matched within one field (never from a name into its long_name), unanchored, all else literal. A new search must use it.
 - **A variable is asked for in one box, `OceanValGUI.variableBox(input, {available, longNames, multi, extra})`** (`data/gui.js`; the user's
   rule, 2026-10-30: no "Select from the model's variables" link any more): the box opens the old pop-out (`.vars__popover`, fixed, placed
-  under the box: a tick, Variable, long_name, Selected at the top, the counts) on focus, and **the box is its search**: the rows shown match the
-  part being typed (`searchMatcher`; with `multi`, the part between the `+`s the caret is in). Names in the box are ticked, so `P1_Chl+` typed
-  ticks P1_Chl and shows every row; `+` is just typed (never completed). A click on a row ticks it and adds it (replacing a half-typed search,
-  else `+name` at the end; single: the value, and the pop-out closes); on a ticked row or its × it is taken out. With `keepSearch` (Analyze and
+  under the box: a **+/- button** (the user's rule, 2026-11-09: no tick boxes in any variable selector, the viewer's list included; `.vars__pm`, `.vw-pm` in `gui.css`, a grey + adds, a teal - takes out, a chosen row is `is-picked`, tinted with a teal edge; a + that cannot add is `disabled`, greyed, `pointer-events: none` so the click falls to the row), Variable, long_name, Selected at the top, the counts) on focus, and **the box is its search**: the rows shown match the
+  part being typed (`searchMatcher`; with `multi`, the part between the `+`s the caret is in). Names in the box are chosen, so `P1_Chl+` typed
+  chooses P1_Chl and shows every row; `+` is just typed (never completed). A click on a row, its + button too, adds it (replacing a half-typed search,
+  else `+name` at the end; single: the value, and the pop-out closes); on a chosen row (its - button) or its × it is taken out (single: every other row's + replaces the value). With `keepSearch` (Analyze and
   Compare simulations' rows only; the user's rule, 2026-11-06) a click keeps the search typed before it (`kept`), so the rows it finds can be
-  ticked too (`P1_Chl`, then `P2_Chl`); a typed `+` or any typing starts a new search, and only then does every row show. Its "Selected" list is under the table (`is-picked-below`), not above, so the rows do not move as more are ticked. The row's own
-  click handles every click, the tick box too: a click cancelled with `preventDefault` makes the browser put the box back as it was after `refresh()`
-  set it (the user's report, 2026-11-06: ticking was unreliable). Without keepSearch (the recipes
+  added too (`P1_Chl`, then `P2_Chl`); a typed `+` or any typing starts a new search, and only then does every row show. Its "Selected" list is under the table (`is-picked-below`), not above, so the rows do not move as more are added. The row's own
+  click handles every click, the +/- button too (it has no handler of its own; `refresh()` sets its sign, `aria-pressed` and `data-name`; the count reads "N chosen, summed"). Without keepSearch (the recipes
   window, own data) every row is shown after a click and Selected stays above. The pop-out's `mousedown` is prevented so the focus stays in the box; blur and Escape close it. Every change is an `input` event, so
   the caller's input handler takes it. A scroll elsewhere on the page never closes it; an ancestor's scroll moves it with the box. Used by
   the Analyze/Compare variable rows, the Analyze and recipes thickness (single, z_level first), the own data steps and the recipes window's

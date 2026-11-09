@@ -1103,7 +1103,7 @@ SHOWN = """() => {
     if (!popover) return null;
     return [...popover.querySelectorAll("tbody tr:not([hidden])")].map((row) => [...row.cells].slice(1).map((cell) => cell.textContent));
 }"""
-TICKED = """() => [...document.querySelectorAll(".vars__popover:not([hidden]) tbody input:checked")]
+TICKED = """() => [...document.querySelectorAll(".vars__popover:not([hidden]) tbody tr.is-picked .vars__pm")]
     .map((box) => box.closest("tr").cells[1].textContent)"""
 SELECTED = """() => [...document.querySelectorAll(".vars__popover:not([hidden]) .vars__picked:not([hidden]) li")]
     .map((item) => item.firstChild.textContent)"""
@@ -1116,7 +1116,7 @@ def shown(page):
 
 
 def row(page, name):
-    return page.locator(".vars__popover:not([hidden]) tbody tr", has=page.locator(f'input[aria-label="Use {name}"]'))
+    return page.locator(".vars__popover:not([hidden]) tbody tr", has=page.locator(f'button.vars__pm[data-name="{name}"]'))
 
 
 class TestModelVariablesBox:
@@ -1247,7 +1247,7 @@ class TestModelVariablesBox:
             assert box.input_value() == "P1_Chl+P2_Chl"
             assert page.evaluate(TICKED) == ["P1_Chl", "P2_Chl"]
             assert shown(page) == ["P1_Chl", "P2_Chl", "so"]
-            assert page.locator(".vars__popover:not([hidden]) .vars__ticked").text_content() == "2 ticked, summed"
+            assert page.locator(".vars__popover:not([hidden]) .vars__ticked").text_content() == "2 chosen, summed"
             # the focus stays in the box, so the pop-out stays open
             assert box.evaluate("node => node === document.activeElement")
         finally:
@@ -1263,11 +1263,11 @@ class TestModelVariablesBox:
             box.fill("")
             box.click()
             row(page, "so").locator("td").nth(1).click()
-            row(page, "thetao").locator('input[type="checkbox"]').click()
+            row(page, "thetao").locator("button.vars__pm").click()
             assert box.input_value() == "so+thetao"
-            # the tick box that was clicked shows ticked
+            # the + button that was clicked now shows -
             assert page.evaluate(TICKED) == ["so", "thetao"]
-            # a ticked row is unticked by a click, and taken out of the box
+            # a chosen row is taken out by a click, and out of the box
             row(page, "so").click()
             assert box.input_value() == "thetao"
             assert page.evaluate(TICKED) == ["thetao"]
