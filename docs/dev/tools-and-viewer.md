@@ -2,27 +2,22 @@
 
 Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 
-### Tools & checks: is my data compatible with OceanVal? (`oceanval/compat_check.py`)
+### The compatibility check (`oceanval/compat_check.py`)
 
-- The landing page's first tile (`#home-help`, views `help` → `help_compatible`, `App.choose`/`_step_back`; Tools & checks has six tiles, 3 x 2) holds the **compatibility check**
-  of one model file: a grid of six questions, each with a turning circle (`gridMark`, the matchup grid's marks plus `warning`), then a tick,
+- **There is no page of its own any more** (removed 2026-11-09: the output step's per-pattern checks, `pattern_checks.py`, do the job). Tools & info has five tiles
+  (`#view-help`: bank, data store, Preferences, About, previous work; three across, then two centred). `compat_check` is the engine `pattern_checks` runs for each file pattern.
+- A grid of six questions per file, each with a turning circle (`gridMark`, the matchup grid's marks plus `warning`; `COMPAT_MARKS` in the page), then a tick,
   a warning or a cross, and a message under it. `compat_check.ROWS`: `cdo` (`cdo sinfo` runs and finds a variable on a grid; a crash is
   `cdo_check`'s wording), `regrid` (the first time step at the surface, to 360x180 by `bil` and `nn`; one failing is a warning, with
   `explain()`'s sentence; **a generic grid says in words it cannot be regridded**), `mean` (`analysis_series.robust_spatial_mean`: no cell
   areas is a warning), `time` (`time_stamps._read`/`_evidence`: dates, resolution, calendar, end-stamped times), `interactive` (the viewer's
-  own `viewer_plots.map_plot` of `viewer_catalogue`, drawn by the page's `drawMap`) and `climatology` (Analyze's `pub_plot` map of the
+  own `viewer_plots.map_plot` of `viewer_catalogue`) and `climatology` (Analyze's `pub_plot` map of the
   surface's mean over the file's first 12 steps, a PNG). Only the sea surface is used (`surface_level` of the catalogue).
-- **Everything runs in a child process** (`Compat`, run as `compat_check.main`; killed by `cancel`, Back, restart and quit, and by `STEP_TIMEOUT`
-  without news): CDO can crash and nctoolkit's pools can hang. Its events are `MARKER` lines on stdout; `/api/compat_check` (`compat_start`),
-  `/api/compat_variable`, `/api/compat_clear`, GET `/api/compat/plot` (the Bokeh item is not in the state, it is large) and GET
-  `/api/compat/list`. **The variable is asked first when the file has more than one** (status `choose`, the page's `variableBox`; the child
-  waits on stdin, and nobody is timed while they choose).
+- **Everything runs in a child process** (`Compat`, run as `compat_check.main`; killed by `cancel` and by `STEP_TIMEOUT`
+  without news): CDO can crash and nctoolkit's pools can hang. Its events are `MARKER` lines on stdout. **The variable is asked first when the file has more than one**
+  unless `variable=` is given (status `choose`; the child waits on stdin, and nobody is timed while they choose).
 - **FVCOM is told first** (`create_recipes._looks_like_fvcom`): it should be compatible, CDO cannot read it, so `cdo`, `regrid` and `mean` are
   skipped, and so is `climatology` (Analyze does not work with FVCOM output yet); `time` and `interactive` are made.
-- **The path box lists what can be chosen as it is typed** (`compat_check.listing`, like a terminal's tab completion but also for files): a
-  directory (with or without its "/") lists its folders then its `.nc` files in natural order (links followed, hidden and broken ones left
-  out, at most `MOST_ENTRIES`), the start of a name the ones that begin so; a click on a folder goes into it, on a file fills the box. Check
-  waits for a file (the server checks again). Its note says what is there, in the page's `compatNote`.
 
 ### View simulation output (`oceanval/viewer_*.py`)
 

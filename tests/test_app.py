@@ -8276,7 +8276,7 @@ class TestSettings:
         finally:
             app.close()
 
-    def test_tools_and_checks_has_six_tiles_three_across(self, browser, tmp_path):
+    def test_tools_and_info_has_five_tiles_three_across_then_two(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
         url = _tools_page(app)
         try:
@@ -8284,16 +8284,15 @@ class TestSettings:
             page.goto(url)
             page.wait_for_selector("#view-help:not([hidden])")
             assert page.locator("#view-help .choice").evaluate_all("nodes => nodes.map(n => n.id)") == [
-                "help-compatible", "help-bank", "help-datastore", "help-preferences", "help-about", "help-history"]
-            # three across and two down, the tiles all the same size
+                "help-bank", "help-datastore", "help-preferences", "help-about", "help-history"]
+            # three across, then two centred under them, the tiles all the same size
             boxes = page.locator("#view-help .choice").evaluate_all(
                 "nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; })")
-            for row in range(2):
-                assert boxes[3 * row][1] == boxes[3 * row + 1][1] == boxes[3 * row + 2][1]
-            for column in range(3):
-                assert boxes[column][0] == boxes[3 + column][0]
+            assert boxes[0][1] == boxes[1][1] == boxes[2][1]
+            assert boxes[3][1] == boxes[4][1] > boxes[0][1]
             assert boxes[0][0] < boxes[1][0] < boxes[2][0]
-            assert boxes[0][1] < boxes[3][1]
+            assert boxes[3][0] < boxes[4][0]
+            assert boxes[0][0] < boxes[3][0] and boxes[4][0] < boxes[2][0]
             assert len({(b[2], b[3]) for b in boxes}) == 1
         finally:
             app.close()

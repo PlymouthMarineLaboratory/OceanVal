@@ -1,7 +1,7 @@
 """An interactive check of whether a model output file is compatible with OceanVal.
 
-The window's Tools & checks → "Is my data compatible with OceanVal?" asks for
-one file, and for one of its variables if it has more than one, and answers six
+The checks of each file pattern on the output step (see pattern_checks) take one file,
+and one of its variables if it has more than one, and answer six
 questions about that variable, a row each, in this order:
 
     cdo          Can CDO open my data?                          (cdo sinfo)
@@ -83,81 +83,6 @@ def _short(error, most=300):
 
 def _plural(count, word):
     return f"{count} {word}{'' if count == 1 else 's'}"
-
-
-# ---- the path box: what can be chosen from where the user has got to ----
-
-# the most folders and files listed at once, the rest being counted
-MOST_ENTRIES = 200
-EXTENSION = ".nc"
-
-
-def listing(text, cwd=None):
-    """What can be chosen from the path typed so far, as the box lists it: a dict of
-    kind "empty" (nothing typed), "file" (an existing file: size), "directory" (an existing
-    directory: what is in it), "partial" (the start of a name in an existing directory: the
-    names that begin so) or "missing" (nothing there). base is the text typed up to and
-    including its last "/", which a choice is put after; entries are the non-hidden folders
-    then the .nc files (links followed, broken ones left out) in natural order, at most
-    MOST_ENTRIES of them (more is the number left out); folders and nc_files count what is in
-    the directory whatever has been typed after the "/". Relative paths, and ~, are as everywhere
-    in the window: from cwd. Never raises: error says in words why a directory could not be read."""
-    from oceanval.viewer_times import natural_key
-
-    typed = text.strip() if isinstance(text, str) else ""
-    found = {
-        "kind": "empty", "directory": None, "base": "", "entries": [], "folders": 0, "nc_files": 0,
-        "more": 0, "size": None, "error": None,
-    }
-    if not typed:
-        return found
-    full = os.path.normpath(os.path.join(os.path.abspath(cwd or os.getcwd()), os.path.expanduser(typed)))
-    cut = typed.rfind("/") + 1
-    found["base"] = typed[:cut]
-    if os.path.isfile(full) and not typed.endswith("/"):
-        found["kind"] = "file"
-        with contextlib.suppress(OSError):
-            found["size"] = os.path.getsize(full)
-        return found
-    if os.path.isdir(full):
-        directory, prefix, found["kind"] = full, "", "directory"
-        if not typed.endswith("/"):
-            # the directory itself, typed without its "/": what is chosen goes inside it
-            found["base"] = typed + "/"
-    else:
-        directory, prefix, found["kind"] = os.path.dirname(full), typed[cut:].lower(), "partial"
-        if not os.path.isdir(directory):
-            found["kind"] = "missing"
-            return found
-    found["directory"] = directory
-    folders, files = [], []
-    try:
-        with os.scandir(directory) as entries:
-            for entry in entries:
-                try:
-                    if entry.is_dir():
-                        if not entry.name.startswith("."):
-                            folders.append(entry.name)
-                    elif entry.name.endswith(EXTENSION) and entry.is_file():
-                        files.append(entry.name)
-                except OSError:
-                    # a link to something that has gone
-                    continue
-    except PermissionError:
-        found["error"] = "You do not have permission to open this directory."
-        return found
-    except OSError as error:
-        found["error"] = f"This directory cannot be opened: {error.strerror or error}."
-        return found
-    found["folders"], found["nc_files"] = len(folders), len(files)
-    order = lambda name: (natural_key(name.lower()), name)  # noqa: E731
-    names = [(name, "folder") for name in sorted(folders, key=order) if name.lower().startswith(prefix)]
-    names += [(name, "file") for name in sorted(files, key=order) if name.lower().startswith(prefix)]
-    found["entries"] = [{"name": name, "type": kind} for name, kind in names[:MOST_ENTRIES]]
-    found["more"] = max(0, len(names) - MOST_ENTRIES)
-    if found["kind"] == "partial" and not names:
-        found["kind"] = "missing"
-    return found
 
 
 # ---- what CDO says ----

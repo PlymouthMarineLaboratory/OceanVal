@@ -74,7 +74,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store, store_view
-from oceanval import cdo_check, compat_check, depths, file_workers, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, depths, file_workers, model_check, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
@@ -1586,6 +1586,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # the check of the dates of the model output, made while the
         # matchups are asked about (see _new_model_check)
         self.model_check = None
+        # the compatibility check of each file pattern, made as the mapping is
+        # shown, which holds back the matchups if one fails (see pattern_checks)
+        self.pattern_checks = None
         self.question = None
         # the recipes window, while it is being shown
         self.recipes_page = None
@@ -1640,8 +1643,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         self._cdo_check = None
         self._cdo_number = 0
         self._cdo_failed = None
-        # Tools & checks' check of whether one file is compatible (see compat_check)
-        self._compat = None
         self.run = None
         self.run_label = None
         self.status = None
@@ -1894,11 +1895,11 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "point_time_res": self._point_time_res_state(),
                 "time_shift": self._time_shift_state(),
                 "model_check": self._model_check_state(),
+                "pattern_checks": self._pattern_checks_state(),
                 "analyze": self._analyze_state(),
                 "simcompare": self._simcompare_state(),
                 "viewer": self._viewer_state(),
                 "cdo_check": self._cdo_check_state(),
-                "compat": self._compat.state() if self._compat is not None else None,
                 "leftovers": {
                     "asked": self.leftovers_asked,
                     "count": len(self.leftovers),
@@ -2516,13 +2517,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = action
                 self._notify()
                 return True
-            if action == "help_compatible":
-                # Tools & checks' first tile
-                if self.view != "help":
-                    return False
-                self.view = "help_compatible"
-                self._notify()
-                return True
             if action not in ACTIONS or self.view not in ("start", "finished"):
                 return False
             self._forget_steps()
@@ -2646,7 +2640,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "previous_list": "previous_work",
             "previous_report": "previous_list",
             "analyze_menu": "home",
-            "help_compatible": "help",
             "preferences": "help",
             "about": "help",
             "datastore": "help",
@@ -2690,9 +2683,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             if isinstance(sent.get("form"), dict):
                 self.register_forms[kind] = recipe_forms.clean(kind, sent["form"])
             self._cancel_register_check()
-        if self.view == "help_compatible":
-            # the check of a file is stopped, and not kept
-            self._drop_compat()
         self.view = earlier[self.view]
         self._notify()
         return True
@@ -2918,7 +2908,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self.previous_kind = None
             self.previous_id = None
             self._drop_cdo_check()
-            self._drop_compat()
             self._own_sim = None
             self._own_sim_number += 1
             draft, self._draft_dir = self._draft_dir, None
@@ -4399,6 +4388,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             question = self._held_matchups()
             if self.view != "output" or question is None:
                 return 409, {"ok": False, "error": "That cannot be done now."}
+            blocked = self._pattern_gate()
+            if blocked is not None:
+                return 409, {"ok": False, "error": blocked}
             self.output_form = _form(form, default_output_form())
             arguments, errors = self._check_matchup_output(self.output_form)
             cores, matchup = None, {}
@@ -4709,6 +4701,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         """Stop the check of the dates of the model output, if there is one,
         and remove its files, in a thread, as that can take a moment. Called
         with the lock held."""
+        stopped, self.pattern_checks = self.pattern_checks, None
+        if stopped is not None:
+            stopped.cancel()
         check, self.model_check = self.model_check, None
         if check is not None:
             # not a daemon, so its files are removed before oceanval ends
@@ -4724,6 +4719,49 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             question.id, self._model_check_request(question), self._notify
         )
         return self.model_check
+
+    def _new_pattern_checks(self, question):
+        """The compatibility checks of the file patterns question lists, to be started once
+        the lock is let go. Called with the lock held, after _new_model_check dropped any earlier."""
+        sim_dir = os.path.join(self.cwd, str(question.details.get("sim_dir") or ""))
+        self.pattern_checks = pattern_checks.PatternChecks(
+            question.id, pattern_checks.requests(question.details, sim_dir), self._notify
+        )
+        return self.pattern_checks
+
+    def _pattern_checks_state(self):
+        """What the output step shows of the checks of the file patterns, or None. Called with
+        the lock held."""
+        checks = self.pattern_checks
+        question = self._held_matchups()
+        if checks is None or question is None or checks.question != question.id:
+            return None
+        return checks.state()
+
+    def _pattern_gate(self):
+        """Why the matchups cannot be run yet, or None if they can: the checks of the file
+        patterns are still going, or a row of one has failed. Called with the lock held."""
+        if self._held_matchups() is None:
+            return None
+        state = self._pattern_checks_state()
+        if state is None or state["passed"]:
+            return None
+        if not state["done"]:
+            return "The file patterns are still being checked."
+        if not state["total"]:
+            return "There are no simulation files to check."
+        return (
+            f"{state['failed']} of {state['total']} file patterns failed the compatibility checks, "
+            "so no matchups can be run."
+        )
+
+    def pattern_plot(self, number):
+        """The interactive map of the check of file pattern number: {"ok", "item"}."""
+        checks = self.pattern_checks
+        item = checks.item(number) if checks is not None else None
+        if item is None:
+            return {"ok": False, "error": "There is no map."}
+        return {"ok": True, "item": item}
 
     def _check_for(self, question):
         """The check of the dates of the files question lists, or None.
@@ -4957,6 +4995,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         with self._lock:
             if self.view != "report_options":
                 return 409, {"ok": False, "error": "This step is over."}
+            blocked = self._pattern_gate()
+            if blocked is not None:
+                return 409, {"ok": False, "error": blocked}
         report, cores, matchup, errors = self._checked_report(form)
         if errors:
             return 400, {"ok": False, "errors": errors}
@@ -5248,64 +5289,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         if check is not None:
             check.cancel()
 
-    # ---- Tools & checks: is my data compatible with OceanVal? ----
-
-    def _drop_compat(self):
-        """Stop the check of a file, if there is one, and forget what it found.
-        Called with the lock held."""
-        check, self._compat = self._compat, None
-        if check is not None:
-            check.cancel()
-
-    def compat_start(self, path):
-        """Start the check of the file at path (typed into the page; relative to
-        the directory worked in), in place of any earlier one. A reply of
-        {"ok": False, "error": text} says why there is nothing to check."""
-        text = path.strip() if isinstance(path, str) else ""
-        if not text:
-            return 200, {"ok": False, "error": "Enter the path of a model output file."}
-        full = recipe_checks.resolve(text, self.cwd)
-        if os.path.isdir(full):
-            return 200, {"ok": False, "error": "That is a directory. Enter the path of one file."}
-        if not os.path.isfile(full):
-            return 200, {"ok": False, "error": "There is no file at that path."}
-        with self._lock:
-            if self.view != "help_compatible" or self.closed.is_set():
-                return 409, {"ok": False, "error": "This step is over."}
-            self._drop_compat()
-            self._compat = compat_check.Compat(full, self._notify).start()
-            self._notify()
-        return 200, {"ok": True}
-
-    def compat_variable(self, variable):
-        """The variable the user chose for a file that has more than one."""
-        with self._lock:
-            check = self._compat
-            if self.view != "help_compatible" or check is None:
-                return 409, {"ok": False, "error": "This step is over."}
-        if not check.choose(variable if isinstance(variable, str) else ""):
-            return 200, {"ok": False, "error": "Choose one of the file's variables."}
-        return 200, {"ok": True}
-
-    def compat_listing(self, path):
-        """What can be chosen from the path typed so far in the compatibility check's box
-        (see compat_check.listing): it lists the machine oceanval runs on, which the browser
-        need not be on."""
-        return compat_check.listing(path, self.cwd)
-
-    def compat_plot(self):
-        """The interactive map of the check of a file: {"ok", "item" (a Bokeh json_item)}."""
-        check = self._compat
-        item = check.item() if check is not None else None
-        if item is None:
-            return {"ok": False, "error": "There is no map."}
-        return {"ok": True, "item": item}
-
-    def compat_clear(self):
-        """Forget the check of a file (the path was edited)."""
-        with self._lock:
-            self._drop_compat()
-            self._notify()
         return True
 
     def _cdo_check_state(self):
@@ -5672,16 +5655,20 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
     # ---- questions ----
 
     def _put_question(self, text, choices, respond, details=None):
-        check = None
+        check = patterns = None
         with self._lock:
             self.question = Question(text, choices, respond, details)
             if self.question.matchups:
                 self.identifying = False
                 # the dates of the files are read while the matchups are checked
                 check = self._new_model_check(self.question)
+                # and each file pattern is checked, from the moment its files are known
+                patterns = self._new_pattern_checks(self.question)
             self._notify()
         if check is not None:
             check.start()
+        if patterns is not None:
+            patterns.start()
         # as a terminal shows a question: at the end of the output, which the
         # answer then follows
         self.console.write(text)
@@ -5735,6 +5722,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 # where the matchups are saved, and then, to validate too, the report options
                 self._show_output(question)
                 return True
+            if question.matchups and answer == "y" and self._pattern_gate() is not None:
+                return False
             self.question = None
             writer = None
             if question.matchups and answer in ("y", "save") and self._script_writer is not None:
@@ -5802,7 +5791,6 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._drop_model_check()
             self._drop_analyze_check()
             self._drop_cdo_check()
-            self._drop_compat()
             reading, self._output_years = self._output_years, None
             self._drop_bank_extract()
             self._drop_store_expand()
@@ -5937,8 +5925,6 @@ class _Handler(recipes_gui._Handler):
             "/api/simcompare_check_files",
             "/api/viewer/catalogue",
             "/api/viewer/plot",
-            "/api/compat/plot",
-            "/api/compat/list",
             "/api/viewer/limits",
             "/api/viewer/missing",
             "/bokeh.min.js",
@@ -5990,10 +5976,8 @@ class _Handler(recipes_gui._Handler):
             self._reply_json(200, self.app.viewer_summary())
         elif url.path == "/api/viewer/plot":
             self._reply_json(200, self.app.viewer_plot(query))
-        elif url.path == "/api/compat/list":
-            self._reply_json(200, self.app.compat_listing(query.get("path", "")))
-        elif url.path == "/api/compat/plot":
-            self._reply_json(200, self.app.compat_plot())
+        elif url.path == "/api/pattern_checks/plot":
+            self._reply_json(200, self.app.pattern_plot(_number(query.get("number"))))
         elif url.path == "/api/viewer/limits":
             self._reply_json(200, self.app.viewer_limits(query))
         elif url.path == "/api/viewer/missing":
@@ -6167,12 +6151,6 @@ class _Handler(recipes_gui._Handler):
                 *app.add_own_data(payload.get("kind"), payload.get("form"))
             )
             return
-        if path == "/api/compat_variable":
-            self._reply_json(*self.app.compat_variable(payload.get("variable")))
-            return
-        if path == "/api/compat_check":
-            self._reply_json(*app.compat_start(payload.get("path")))
-            return
         if path == "/api/own_inspect":
             self._reply_json(*app.own_inspect(payload.get("obs_path")))
             return
@@ -6251,7 +6229,6 @@ class _Handler(recipes_gui._Handler):
             "/api/simcompare_time_shift": lambda: app.simcompare_time_shift(payload.get("choice")),
             # with what the step's boxes hold
             "/api/back": lambda: app.back(payload),
-            "/api/compat_clear": app.compat_clear,
             "/api/restart_all": app.reset,
             "/api/stop": app.stop,
             "/api/refilter": lambda: app.refilter(

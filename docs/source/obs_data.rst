@@ -32,7 +32,7 @@ For example, files could be named YYYY/MM/model_output_YYYYMMDD.nc. OceanVal wil
 Check that your data is compatible
 ----------------------------------
 
-The OceanVal app can check one of your model output files before you start. Run ``oceanval``, open **Tools & info** and choose **Is my data compatible with OceanVal?**. Type the path of a file in the box: if you type a directory, the folders and netCDF files in it are listed as you type, and you pick one. If the file has more than one variable, you choose the one to check. OceanVal then answers, with a turning circle while it works and then a tick, a warning or a cross, and a message under each:
+The OceanVal app checks your model output files for you. Run ``oceanval`` and, when you reach the output step of a matchup run, OceanVal checks each file pattern (one file of each, and one of its variables if it has more than one) and answers, with a turning circle while it works and then a tick, a warning or a cross, and a message under each. The matchups cannot be run while a pattern fails its checks:
 
 * **Can CDO open my data?** ``cdo sinfo`` must run without crashing and find a variable on a grid. A crash means the data may not be CF-compliant; try another CDO version.
 * **Can my data be regridded?** The first time step at the surface is regridded to a 360x180 grid, by bilinear and by nearest-neighbour interpolation. If only one works you are warned, with CDO's reason. A *generic* grid, with no longitudes and latitudes CDO can use, cannot be regridded.

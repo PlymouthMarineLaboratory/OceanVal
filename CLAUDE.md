@@ -87,7 +87,7 @@ The detail of each area is in `docs/dev/`. Read the file for the area you are ch
 - **File workers and `cdo sinfo` checks** (`file_workers.py`, `cdo_check.py`): [docs/dev/files-and-cdo.md](docs/dev/files-and-cdo.md)
 - **Analyze** (`analysis.py`, FVCOM, transects, map changes): [docs/dev/analyze.md](docs/dev/analyze.md)
 - **Compare simulations** (`sim_compare.py`, unify, domain mask, units): [docs/dev/compare-simulations.md](docs/dev/compare-simulations.md)
-- **Tools & checks and view simulation output** (`compat_check.py`, `viewer_*.py`): [docs/dev/tools-and-viewer.md](docs/dev/tools-and-viewer.md)
+- **Compatibility checks, and view simulation output** (`compat_check.py`, `pattern_checks.py`, `viewer_*.py`): [docs/dev/tools-and-viewer.md](docs/dev/tools-and-viewer.md)
 - **The `oceanval` command and its windows** (`app.py`, the pages, Back, Restart, Preferences): [docs/dev/app-windows.md](docs/dev/app-windows.md)
 
 Rules that apply across the code:

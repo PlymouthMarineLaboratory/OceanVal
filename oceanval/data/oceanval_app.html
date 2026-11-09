@@ -543,7 +543,7 @@
   .matchup-grid td[data-state="failed"] .icon { color: var(--danger); }
   .matchup-grid td[data-state="none"] { color: var(--muted); }
   .matchup-grid td[data-state="warning"] .icon { color: var(--amber); }
-  /* Tools & checks: is my data compatible with OceanVal? */
+  /* the compatibility checks' grids, messages and summaries (used by the file patterns' checks on the output step) */
   .compat-grid table { min-width: 0; }
   .compat-grid td.is-state { width: 64px; }
   .compat-grid td.is-question { width: auto; }
@@ -555,20 +555,20 @@
   .compat-note, .compat-summary { max-width: 86ch; margin: 18px 0 0; padding: 10px 12px; border-left: 3px solid var(--teal-600); border-radius: 4px; background: var(--teal-50); color: var(--ink); font-size: 14px; }
   .compat-summary.is-warning { border-left-color: var(--amber); background: var(--amber-bg); }
   .compat-summary.is-failed { border-left-color: var(--danger); background: var(--red-bg); }
-  .compat-note[hidden], .compat-summary[hidden], .compat-error[hidden], .compat-figure[hidden], .compat-grid[hidden] { display: none; }
-  .compat-path-note { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; overflow-wrap: anywhere; }
-  .compat-path-note:empty { display: none; }
-  .compat-path-note.is-error { color: var(--danger); }
-  #compat-options .combo__option.is-folder { font-weight: 600; }
-  #compat-options .combo__more { padding: 6px 8px; color: var(--muted); font-size: 12.5px; }
-  .compat-choose { margin-top: 18px; }
-  .compat-using { max-width: 86ch; margin: 18px 0 0; color: var(--ink-soft); font-size: 14px; }
-  .compat-using[hidden], .compat-choose[hidden] { display: none; }
-  .compat-using strong { font-family: var(--font-mono); color: var(--ink); }
-  .compat-figure .compat-map { height: 420px; margin-top: 0; }
-  .compat-figure { margin: 22px 0 0; }
-  .compat-figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
-  .compat-figure figcaption { margin-top: 6px; color: var(--muted); font-size: 13px; }
+  .compat-note[hidden], .compat-summary[hidden], .compat-error[hidden], .compat-grid[hidden] { display: none; }
+  /* the compatibility checks of each file pattern, on the output step (see oceanval.pattern_checks) */
+  #view-output .pc { margin-bottom: 28px; }
+  .pc__list { display: grid; gap: 16px; margin-top: 16px; }
+  .pc-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .pc-card[data-state="failed"] { border-color: var(--danger); }
+  .pc-card__head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+  .pc-card__pattern { font-family: var(--font-mono); font-weight: 600; overflow-wrap: anywhere; }
+  .pc-card__file { margin: 2px 0 8px; color: var(--muted); font-size: 13px; font-family: var(--font-mono); overflow-wrap: anywhere; }
+  .pc-card details { margin-top: 10px; }
+  .pc-card summary { cursor: pointer; font-size: 14px; }
+  .pc-card .compat-map { height: 360px; margin-top: 8px; }
+  .pc-card img { display: block; max-width: 100%; height: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
+  .pc[hidden], .pc-card[hidden] { display: none; }
   /* an analysis still to do (Analyze and Compare simulations' grid) */
   .matchup-grid__todo { width: 14px; height: 14px; box-sizing: border-box; border: 2px solid var(--muted); border-radius: 50%; opacity: 0.55; }
   /* as many as six analyses side by side (narrower, the grid's own sizes below apply) */
@@ -809,10 +809,10 @@
   #view-help .choices.is-four .choice__text { font-size: calc(22px - 1pt); }
   #view-home .choices.is-four .choice__text { font-size: calc(23.4px - 1pt); }
 
-  /* the fifth tile of Tools & checks fills the row under the four */
-  #view-help .choices.is-four .choice:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 220px; }
-  /* Tools & checks has six tiles: three across, two rows (the user's layout, 2026-11-09) */
-  #view-help .choices.is-four { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 1238.4px; }
+  /* Tools & info has five tiles: three across, then two centred under them (6 half-columns, each tile two wide) */
+  #view-help .choices.is-four { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 1238.4px; }
+  #view-help .choices.is-four .choice { grid-column: span 2; }
+  #view-help .choices.is-four .choice:nth-child(4) { grid-column: 2 / span 2; }
   #view-help .choices.is-four .choice { min-height: 300px; padding: 36px 32px; }
   #view-help .choices.is-four .choice__title { font-size: calc(28px - 1pt); }
   /* View previous work: its menu is styled like Tools & checks' */
@@ -1313,7 +1313,7 @@
       <button type="button" class="choice" data-action="help" id="home-help">
         <span class="choice__icon" data-icon="help"></span>
         <span class="choice__title">Tools &amp; info</span>
-        <span class="choice__text">Check model files are compatible with OceanVal&nbsp;| Simulation bank&nbsp;| Previous work&nbsp;| Preferences&nbsp;| About</span>
+        <span class="choice__text">Simulation bank&nbsp;| Previous work&nbsp;| Preferences&nbsp;| About</span>
       </button>
     </div>
   </section>
@@ -1436,10 +1436,6 @@
 
   <section id="view-help" hidden>
     <div class="choices is-four">
-      <button type="button" class="choice" data-action="help_compatible" id="help-compatible">
-        <span class="choice__icon" data-icon="compatible"></span>
-        <span class="choice__title">Is my data compatible with OceanVal?</span>
-      </button>
       <button type="button" class="choice" data-action="bank" id="help-bank">
         <span class="choice__icon" data-icon="bank"></span>
         <span class="choice__title">View the simulation bank</span>
@@ -1505,52 +1501,6 @@
   <section id="view-previous-report" hidden>
     <p class="history__bar"><a class="link" id="history-open-tab" target="_blank" rel="noopener">Open in a new tab</a></p>
     <iframe class="history__frame" id="history-frame" title="Report" sandbox="allow-scripts allow-popups allow-downloads"></iframe>
-  </section>
-
-  <section id="view-help-compatible" hidden>
-    <p class="lede"><strong>OceanVal should be able to handle any CF-compliant (or near CF-compliant) data. But before using OceanVal with your data, it can be a good idea to run the checker below on one or more of your files.</strong></p>
-    <form class="setup-form compat-form" id="compat-form" novalidate autocomplete="off">
-      <fieldset class="group card setup-box">
-        <div class="g-row">
-          <label class="g-label" for="compat-path">Which model output file do you want to check?</label>
-          <div class="path-field">
-            <div class="combo" id="compat-path-combo">
-              <input class="s-input is-mono" id="compat-path" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="compat-options" placeholder="/path/to/model_output.nc, or a directory to see what is in it" spellcheck="false" autocapitalize="off" autocomplete="off">
-              <ul class="combo__list" id="compat-options" role="listbox" aria-label="Folders and netCDF files" hidden></ul>
-            </div>
-            <button type="button" class="btn btn--ghost btn--field" data-browse="compat-path">Browse…</button>
-            <button type="submit" class="btn btn--primary btn--field" id="compat-start">Check</button>
-          </div>
-          <p class="compat-path-note" id="compat-path-note" role="status"></p>
-        </div>
-        <p class="compat-error" id="compat-error" role="alert" hidden></p>
-      </fieldset>
-    </form>
-    <div class="group card setup-box compat-choose" id="compat-choose" hidden>
-      <div class="g-row">
-        <label class="g-label" for="compat-variable">This file has more than one variable. Which one do you want to check?</label>
-        <div class="path-field">
-          <input class="s-input is-mono" id="compat-variable" placeholder="Choose a variable" spellcheck="false" autocapitalize="off" autocomplete="off">
-          <button type="button" class="btn btn--primary btn--field" id="compat-continue" disabled>Continue</button>
-        </div>
-      </div>
-    </div>
-    <p class="compat-note" id="compat-fvcom" role="status" hidden></p>
-    <p class="compat-using" id="compat-using" role="status" hidden></p>
-    <div class="matchup-grid compat-grid" id="compat-grid" hidden>
-      <table aria-label="Questions about the file, and the answer to each">
-        <tbody id="compat-rows"></tbody>
-      </table>
-    </div>
-    <p class="compat-summary" id="compat-summary" role="status" hidden></p>
-    <figure class="compat-figure" id="compat-map-figure" hidden>
-      <div class="ag-map compat-map" id="compat-map" aria-label="An interactive map of the variable"></div>
-      <figcaption>The interactive map, as View simulation output draws it: zoom and pan it.</figcaption>
-    </figure>
-    <figure class="compat-figure" id="compat-figure" hidden>
-      <img id="compat-image" alt="A map of the variable's climatology at the surface, as Analyze simulations draws it">
-      <figcaption>The map Analyze simulations draws: the surface's climatology, a mean over the file's first time steps.</figcaption>
-    </figure>
   </section>
 
   <section id="view-start" hidden>
@@ -1703,6 +1653,12 @@
   <!-- the last step before a matchup starts, as what is done with the matchups there
        already depends on the matchups chosen (see oceanval.app.check_output) -->
   <section id="view-output" hidden>
+    <section class="group card setup-box pc" id="pc" aria-labelledby="pc-title" hidden>
+      <h3 class="g-label pc__title" id="pc-title">Checking that the simulation files work with OceanVal</h3>
+      <p class="group__intro" id="pc-intro">One check for each file pattern, made on its first file for the first variable matched up from it. No matchups can be run unless every check passes.</p>
+      <p class="compat-summary" id="pc-summary" role="status" hidden></p>
+      <div class="pc__list" id="pc-list"></div>
+    </section>
     <form class="setup-form" id="output-form" novalidate autocomplete="off">
       <fieldset class="group card setup-box" id="setup-output">
         <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
@@ -3096,7 +3052,6 @@
     preferences: OceanValGUI.COG,
     about: OceanValGUI.ICONS.info,
     history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3 4.5v4h4"/><path d="M12 7.5V12l3 2"/></svg>',
-    compatible: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7.25v2.25a1.75 1.75 0 1 1 0 3.5v1.5H8.5a1.75 1.75 0 1 1-3.5 0H3z"/><path d="M13.75 3H21v7.25h-7.25v-1.5a1.75 1.75 0 1 0 0-3.5z"/><path d="M3 13.75h2a1.75 1.75 0 1 0 3.5 0h1.75v1.5a1.75 1.75 0 1 1 0 3.5V21H3z"/><path d="M13.75 13.75H21V21h-7.25v-2.25a1.75 1.75 0 1 0 0-3.5z"/></svg>',
   };
   document.querySelectorAll("[data-icon]").forEach((node) => { node.innerHTML = PICTURES[node.dataset.icon]; });
 
@@ -3262,7 +3217,6 @@
       case "previous_report": return state.previous && state.previous.viewing ? state.previous.viewing.name : "Previous work";
       case "preferences": return "Preferences";
       case "about": return "About OceanVal";
-      case "help_compatible": return "Is my data compatible with OceanVal?";
       case "setup": return "";
       case "analyze_variables": return "";  // the grid has its own label
       case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
@@ -3361,7 +3315,7 @@
     if (view === "start" || view === "analyze_menu") {
       // to the landing page
       actions.push(backTo(() => post("api/back")));
-    } else if (view === "help" || view === "help_compatible" || view === "bank" || view === "preferences" || view === "about" || view === "datastore"
+    } else if (view === "help" || view === "bank" || view === "preferences" || view === "about" || view === "datastore"
       || view === "previous_work" || view === "previous_list" || view === "previous_report") {
       // to the landing page, or back to Tools & checks
       actions.push(backTo(() => post("api/back")));
@@ -4351,9 +4305,9 @@
   // variables are the same, the new figure is zoomed as the old one was.
   let front = "vw-plot";
   let drawn = null;
-  const figures = { "vw-plot": [], "vw-plot-b": [], "compat-map": [] };
+  const figures = { "vw-plot": [], "vw-plot-b": [] };
   // each figure's frame height / width (viewer_plots._render), or null to fill the box
-  const aspects = { "vw-plot": null, "vw-plot-b": null, "compat-map": null };
+  const aspects = { "vw-plot": null, "vw-plot-b": null };
   // the domain mask questions (see domainMaskQuestion), whose maps are let go of on leaving their step
   const domainMasks = [];
   function release(id) {
@@ -4450,7 +4404,7 @@
 
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start",
-    analyze_menu: "view-analyze-menu", bank: "view-bank", previous_work: "view-previous-work", previous_list: "view-previous-list", previous_report: "view-previous-report", preferences: "view-preferences", about: "view-about", datastore: "view-datastore", help: "view-help", help_compatible: "view-help-compatible",
+    analyze_menu: "view-analyze-menu", bank: "view-bank", previous_work: "view-previous-work", previous_list: "view-previous-list", previous_report: "view-previous-report", preferences: "view-preferences", about: "view-about", datastore: "view-datastore", help: "view-help",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
     simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
@@ -4466,7 +4420,6 @@
     for (const id of new Set(Object.values(VIEWS))) $(id).hidden = id !== VIEWS[view];
     for (const question of domainMasks) if (view !== question.view) question.release();
     if (view !== "simcompare_grids") releaseScMaps();
-    if (view !== "help_compatible" && figures["compat-map"].length) release("compat-map");
     if (view === "setup") {
       fillSetup();
       $("f-simdir").focus();
@@ -4476,16 +4429,6 @@
     } else if (view === "validate" || view === "report_options") {
       fillValidate();
       $(view === "validate" ? "v-data_dir" : "v-lon_min").focus();
-    } else if (view === "help_compatible") {
-      // a check that is going or done is shown with its path
-      $("compat-path").value = state.compat ? state.compat.path : "";
-      $("compat-error").hidden = true;
-      compatPath.kind = null;
-      compatPath.active = -1;
-      showCompatOptions(false);
-      $("compat-path-note").textContent = "";
-      if ($("compat-path").value) askCompatListing(0);
-      $("compat-path").focus();
     } else if (view === "preferences") {
       fillPreferences();
       $("settings-data-store").focus();
@@ -4639,7 +4582,6 @@
     renderBar();
     renderServerTrouble();
     renderCdoFailed();
-    if (state.view === "help_compatible") renderCompatible();
     if (state.view === "bank") renderBank();
     if (state.view.startsWith("previous_")) renderPrevious();
     renderBankExtract();
@@ -5474,7 +5416,107 @@
     return errors;
   }
 
+  // ---- the compatibility checks of each file pattern, on the output step (see oceanval.pattern_checks) ----
+  const patternMaps = new Set();
+  // why no matchup can be run yet, or "" (the server refuses too)
+  function patternsBlock() {
+    const found = state.pattern_checks;
+    if (!found) return "";
+    if (!found.done) return "The file patterns are still being checked";
+    if (!found.total) return "There are no simulation files to check";
+    if (found.failed) return `${found.failed} of ${found.total} file patterns failed their checks`;
+    return "";
+  }
+
+  function renderPatternChecks() {
+    const found = state.pattern_checks;
+    $("pc").hidden = !found;
+    if (!found) return;
+    const list = $("pc-list");
+    found.patterns.forEach((one, number) => {
+      let card = list.querySelector(`[data-number="${number}"]`);
+      if (!card) {
+        card = el("div", { class: "pc-card", "data-number": String(number) },
+          el("div", { class: "pc-card__head" },
+            el("span", { class: "pc-card__pattern" }),
+            el("span", { class: "pc-card__variable" })),
+          el("p", { class: "pc-card__file" }),
+          el("p", { class: "compat-note pc-card__notice", hidden: true }),
+          el("div", { class: "matchup-grid compat-grid" }, el("table", { "aria-label": `Checks of file pattern ${one.pattern}` }, el("tbody"))),
+          el("p", { class: "compat-error pc-card__error", hidden: true }),
+          el("details", { class: "pc-card__map", hidden: true },
+            el("summary", { text: "Interactive map of the variable" }),
+            el("div", { class: "ag-map compat-map", id: `pc-map-${number}`, "aria-label": "An interactive map of the variable" })),
+          el("details", { class: "pc-card__image", hidden: true },
+            el("summary", { text: "Climatology map, as Analyze simulations draws it" }),
+            el("img", { alt: "A map of the variable's climatology at the surface" })));
+        list.append(card);
+        const mapId = `pc-map-${number}`;
+        figures[mapId] = figures[mapId] || [];
+        aspects[mapId] = null;
+        card.querySelector(".pc-card__map").addEventListener("toggle", async (event) => {
+          if (!event.target.open || patternMaps.has(number)) return;
+          patternMaps.add(number);
+          const response = await fetch(`api/pattern_checks/plot?${query({ number })}`, { cache: "no-store" });
+          const reply = await response.json().catch(() => ({ ok: false }));
+          if (!reply.ok) emptyMap(mapId, reply.error || "The map could not be shown.");
+          else await drawMap(mapId, reply.item);
+        });
+      }
+      const failed = Boolean(one.error) || one.rows.some((row) => row.status === "failed");
+      card.dataset.state = failed ? "failed" : one.status;
+      card.querySelector(".pc-card__pattern").textContent = one.pattern;
+      card.querySelector(".pc-card__variable").textContent = `variable ${one.variable}`;
+      card.querySelector(".pc-card__file").textContent = one.file ? `Checked on ${one.file}` : "";
+      const notice = card.querySelector(".pc-card__notice");
+      notice.hidden = !one.notice;
+      notice.textContent = one.notice || "";
+      const error = card.querySelector(".pc-card__error");
+      error.hidden = !one.error;
+      error.textContent = one.error || "";
+      const body = card.querySelector("tbody");
+      one.rows.forEach((row) => {
+        let tr = body.querySelector(`tr[data-key="${row.key}"]`);
+        if (!tr) {
+          tr = el("tr", { "data-key": row.key },
+            el("td", { class: "is-state" }),
+            el("td", { class: "is-question" },
+              el("div", { class: "matchup-grid__title", text: row.question }),
+              el("p", { class: "compat-message", "aria-live": "polite" })));
+          body.append(tr);
+        }
+        tr.dataset.status = row.status;
+        tr.classList.toggle("is-active", row.status === "working");
+        gridMark(tr.firstChild, COMPAT_MARKS[row.status], null, COMPAT_SAID[row.status]);
+        const message = tr.querySelector(".compat-message");
+        if (message.textContent !== row.message) message.textContent = row.message;
+      });
+      card.querySelector(".pc-card__map").hidden = !one.map;
+      const image = card.querySelector(".pc-card__image");
+      image.hidden = !one.image;
+      const picture = image.querySelector("img");
+      if (one.image && picture.getAttribute("src") !== one.image) picture.src = one.image;
+    });
+    const done = found.patterns.filter((one) => one.status === "done" || one.status === "failed").length;
+    const summary = $("pc-summary");
+    summary.hidden = false;
+    if (!found.done) {
+      summary.className = "compat-summary";
+      summary.textContent = `Checking file patterns: ${done} of ${found.total} done.`;
+    } else if (patternsBlock()) {
+      summary.className = "compat-summary is-failed";
+      summary.textContent = `${patternsBlock()}, so no matchups can be run. The messages above say why.`;
+    } else if (found.patterns.some((one) => one.rows.some((row) => row.status === "warning"))) {
+      summary.className = "compat-summary is-warning";
+      summary.textContent = "Every file pattern can be used, some with the warnings above.";
+    } else {
+      summary.className = "compat-summary";
+      summary.textContent = "Every check of every file pattern passed.";
+    }
+  }
+
   function refreshMatchupOutput() {
+    renderPatternChecks();
     renderExisting();
     const errors = matchupOutputProblems();
     const found = matchupOutput.probe;
@@ -5512,11 +5554,12 @@
       if (problems.length) message(id, problems.map((text) => line(text, "error")), true);
       else message(id, hints());
     }
-    const blocked = Object.keys(errors).length > 0;
+    const waiting = patternsBlock();
+    const blocked = Object.keys(errors).length > 0 || Boolean(waiting);
     const run = $("output-run");
     if (run) {
       run.disabled = blocked;
-      run.title = blocked ? "Fill in everything first" : "";
+      run.title = waiting ? `${waiting}: no matchups can be run` : blocked ? "Fill in everything first" : "";
     }
   }
 
@@ -9504,13 +9547,6 @@
 
   // what the folder browser says about the directory shown, for each box
   const DESCRIBE = {
-    "compat-path": {
-      title: "Choose a model output file",
-      files: true,
-      describe: (listing) => listing.nc_files
-        ? [`${listing.nc_files} netCDF file${listing.nc_files === 1 ? "" : "s"} in here. Click one to choose it.`, "ok"]
-        : ["No netCDF files in here. Open a folder to look for one.", ""],
-    },
     "bank-add-dir": {
       title: "Choose the directory with the simulation output",
       describe: (listing) => listing.nc_files
@@ -11088,284 +11124,13 @@
     }
   }
 
-  // ---- Tools & checks: is my data compatible with OceanVal? ----
+  // ---- the marks of a compatibility check's questions (see the file patterns' checks on the output step) ----
   // each question has a mark beside it: a hollow ring to come, a turning circle, a tick, a warning, a cross, or a dash
   const COMPAT_MARKS = { waiting: "todo", working: "working", ok: "done", warning: "warning", failed: "failed", skipped: "none" };
   const COMPAT_SAID = {
     waiting: "Not started", working: "Checking", ok: "Yes", warning: "Yes, with a warning",
     failed: "No", skipped: "Not checked",
   };
-
-  function compatSummary(found) {
-    const statuses = found.rows.map((row) => row.status);
-    if (found.status !== "done") return null;
-    if (statuses.includes("failed")) {
-      return ["is-failed", "Some of the checks failed. OceanVal may not be able to work with this file as it is: the messages above say why."];
-    }
-    if (statuses.includes("warning")) {
-      return ["is-warning", "This file can be used, but with the warnings above."];
-    }
-    return ["", found.fvcom
-      ? "FVCOM output should be compatible with OceanVal, and the checks that apply to it passed."
-      : "Every check passed: this file looks compatible with OceanVal."];
-  }
-
-  // the variable of a file that has several, chosen in a box like the other steps' variable boxes
-  const compatChoice = { box: null, names: [], key: null };
-
-  function renderCompatChoice(found) {
-    const asking = found && found.status === "choose";
-    $("compat-choose").hidden = !asking;
-    if (!asking) {
-      compatChoice.key = null;
-      return;
-    }
-    const names = Object.keys(found.variables);
-    const key = JSON.stringify(names);
-    if (key === compatChoice.key) return;
-    compatChoice.key = key;
-    compatChoice.names = names;
-    const longNames = Object.fromEntries(names.map((name) => [name, found.variables[name].long_name || ""]));
-    if (!compatChoice.box) {
-      compatChoice.box = OceanValGUI.variableBox($("compat-variable"), { available: names, longNames, multi: false });
-    } else {
-      compatChoice.box.update({ available: names, longNames });
-    }
-    $("compat-variable").value = "";
-    $("compat-continue").disabled = true;
-    $("compat-variable").focus();
-  }
-
-  $("compat-variable").addEventListener("input", () => {
-    $("compat-continue").disabled = !compatChoice.names.includes($("compat-variable").value.trim());
-  });
-  $("compat-variable").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      if (!$("compat-continue").disabled) $("compat-continue").click();
-    }
-  });
-  $("compat-continue").addEventListener("click", async () => {
-    $("compat-continue").disabled = true;
-    const reply = await post("api/compat_variable", { variable: $("compat-variable").value.trim() });
-    if (!reply.ok) {
-      $("compat-error").hidden = false;
-      $("compat-error").textContent = reply.error || "That variable could not be used.";
-      $("compat-continue").disabled = false;
-    }
-  });
-
-  // ---- the path box: what can be chosen from where the user has got to, like a terminal's tab completion ----
-  // kind is what the last listing said the path is ("empty", "file", "directory", "partial" or "missing"), null
-  // until it is known: Check waits for a file (the server checks again, so nothing relies on this)
-  const compatPath = { kind: null, listing: null, number: 0, timer: null, active: -1 };
-  const compatOptions = () => [...$("compat-options").querySelectorAll(".combo__option")];
-
-  function updateCompatStart() {
-    const running = Boolean(state.compat && state.compat.status === "running");
-    $("compat-start").disabled = running || ["empty", "directory", "partial", "missing"].includes(compatPath.kind);
-  }
-
-  function showCompatOptions(open) {
-    $("compat-options").hidden = !open;
-    $("compat-path").setAttribute("aria-expanded", String(open));
-    compatPath.active = -1;
-    compatOptions().forEach((option) => option.classList.remove("is-active"));
-  }
-
-  function markCompatOption(index) {
-    const all = compatOptions();
-    if (!all.length) return;
-    compatPath.active = (index + all.length) % all.length;
-    all.forEach((option, number) => {
-      option.classList.toggle("is-active", number === compatPath.active);
-      option.setAttribute("aria-selected", String(number === compatPath.active));
-    });
-    all[compatPath.active].scrollIntoView({ block: "nearest" });
-  }
-
-  const bytesText = (size) => {
-    if (size === null || size === undefined) return "";
-    const units = ["bytes", "kB", "MB", "GB", "TB"];
-    let value = size, at = 0;
-    while (value >= 1000 && at < units.length - 1) { value /= 1000; at++; }
-    return at === 0 ? `${value} bytes` : `${value.toFixed(value < 10 ? 1 : 0)} ${units[at]}`;
-  };
-
-  function compatNote(listing) {
-    const files = listing.nc_files, folders = listing.folders;
-    const counts = `${plural(files, "netCDF file")} and ${plural(folders, "folder")}`;
-    if (listing.error) return [listing.error, "is-error"];
-    if (listing.kind === "file") return [`A netCDF file${listing.size === null ? "" : `, ${bytesText(listing.size)}`}. Press Check.`, ""];
-    if (listing.kind === "directory") {
-      return [`${counts} in here. ${files ? "Choose a file to check." : folders ? "There are no netCDF files directly in here: choose a folder to look in." : "There are no netCDF files here."}`, ""];
-    }
-    if (listing.kind === "partial") {
-      const matches = listing.entries.length + listing.more;
-      return [`${matches === 1 ? "One name starts" : `${matches} names start`} like that.`, ""];
-    }
-    if (listing.kind === "missing") return ["There is no file or directory with that name.", "is-error"];
-    return ["", ""];
-  }
-
-  function renderCompatListing(listing) {
-    compatPath.listing = listing;
-    compatPath.kind = listing.kind;
-    const [text, tone] = compatNote(listing);
-    const note = $("compat-path-note");
-    note.textContent = text;
-    note.className = `compat-path-note ${tone}`.trim();
-    updateCompatStart();
-    const list = $("compat-options");
-    list.replaceChildren(
-      ...listing.entries.map((entry) => el("li", {
-        class: `combo__option is-${entry.type}`, role: "option", "aria-selected": "false",
-        text: entry.type === "folder" ? `${entry.name}/` : entry.name,
-        // mousedown, so the box keeps its focus
-        onmousedown: (event) => { event.preventDefault(); pickCompatEntry(entry); },
-      })),
-      listing.more ? el("li", { class: "combo__more", role: "presentation", text: `${listing.more} more: keep typing to narrow the list` }) : null,
-    );
-    showCompatOptions(listing.entries.length > 0 && listing.kind !== "file" && document.activeElement === $("compat-path"));
-  }
-
-  // the listing of what is typed, after a short wait for more typing; an answer to an earlier text is dropped
-  function askCompatListing(delay = 150) {
-    clearTimeout(compatPath.timer);
-    const number = ++compatPath.number;
-    compatPath.timer = setTimeout(async () => {
-      const text = $("compat-path").value;
-      let listing;
-      try {
-        const response = await fetch(`api/compat/list?${query({ path: text })}`, { cache: "no-store" });
-        listing = await response.json();
-      } catch (error) {
-        return;
-      }
-      if (number === compatPath.number) renderCompatListing(listing);
-    }, delay);
-  }
-
-  function pickCompatEntry(entry) {
-    const box = $("compat-path");
-    // a folder is gone into, which lists what is in it; a file is what is checked
-    box.value = `${compatPath.listing.base}${entry.name}${entry.type === "folder" ? "/" : ""}`;
-    box.dispatchEvent(new Event("input", { bubbles: true }));
-    box.focus();
-  }
-
-  $("compat-path").addEventListener("keydown", (event) => {
-    const open = !$("compat-options").hidden;
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      if (!compatOptions().length) return;
-      event.preventDefault();
-      if (!open) showCompatOptions(true);
-      markCompatOption(compatPath.active + (event.key === "ArrowDown" ? 1 : -1));
-    } else if (event.key === "Enter" && open && compatPath.active >= 0) {
-      // the option, not the check
-      event.preventDefault();
-      const option = compatOptions()[compatPath.active];
-      const entry = compatPath.listing.entries[compatPath.active];
-      if (option && entry) pickCompatEntry(entry);
-    } else if (event.key === "Escape" && open) {
-      event.preventDefault();
-      showCompatOptions(false);
-    }
-  });
-  $("compat-path").addEventListener("focus", () => { if ($("compat-path").value.trim()) askCompatListing(0); });
-  $("compat-path").addEventListener("blur", () => showCompatOptions(false));
-
-  // the interactive map: fetched once it is ready, and drawn as View simulation output draws its maps
-  const compatMap = { key: null };
-
-  async function renderCompatMap(found) {
-    const ready = Boolean(found && found.map);
-    $("compat-map-figure").hidden = !ready;
-    if (!ready) {
-      compatMap.key = null;
-      if (figures["compat-map"].length) release("compat-map");
-      return;
-    }
-    const key = JSON.stringify([found.path, found.variable]);
-    if (compatMap.key === key) return;
-    compatMap.key = key;
-    const response = await fetch(`api/compat/plot?${query({})}`, { cache: "no-store" });
-    const reply = await response.json().catch(() => ({ ok: false }));
-    if (compatMap.key !== key) return;
-    if (!reply.ok) {
-      emptyMap("compat-map", reply.error || "The map could not be shown.");
-      return;
-    }
-    await drawMap("compat-map", reply.item);
-  }
-
-  function renderCompatible() {
-    const found = state.compat;
-    const running = Boolean(found && found.status === "running");
-    $("compat-start").textContent = running ? "Checking…" : "Check";
-    updateCompatStart();
-    $("compat-grid").hidden = !found;
-    renderCompatChoice(found);
-    const note = $("compat-fvcom");
-    note.hidden = !(found && found.notice);
-    if (found && found.notice) note.textContent = found.notice;
-    const using = $("compat-using");
-    using.hidden = !(found && found.variable);
-    if (found && found.variable) {
-      using.replaceChildren("Checking the variable ", el("strong", { text: found.variable }), ", at its surface.");
-    }
-    const body = $("compat-rows");
-    if (!found) {
-      body.replaceChildren();
-      $("compat-summary").hidden = true;
-      $("compat-figure").hidden = true;
-      renderCompatMap(null);
-      return;
-    }
-    for (const row of found.rows) {
-      let tr = body.querySelector(`tr[data-key="${row.key}"]`);
-      if (!tr) {
-        tr = el("tr", { "data-key": row.key },
-          el("td", { class: "is-state" }),
-          el("td", { class: "is-question" },
-            el("div", { class: "matchup-grid__title", text: row.question }),
-            el("p", { class: "compat-message", "aria-live": "polite" })));
-        body.append(tr);
-      }
-      tr.dataset.status = row.status;
-      tr.classList.toggle("is-active", row.status === "working");
-      gridMark(tr.firstChild, COMPAT_MARKS[row.status], null, COMPAT_SAID[row.status]);
-      const message = tr.querySelector(".compat-message");
-      if (message.textContent !== row.message) message.textContent = row.message;
-    }
-    const summary = compatSummary(found);
-    $("compat-summary").hidden = !summary;
-    if (summary) {
-      $("compat-summary").className = `compat-summary ${summary[0]}`.trim();
-      $("compat-summary").textContent = summary[1];
-    }
-    $("compat-figure").hidden = !found.image;
-    if (found.image && $("compat-image").getAttribute("src") !== found.image) $("compat-image").src = found.image;
-    renderCompatMap(found);
-  }
-
-  $("compat-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const reply = await post("api/compat_check", { path: $("compat-path").value });
-    $("compat-error").hidden = reply.ok !== false;
-    $("compat-error").textContent = reply.ok === false ? reply.error || "That file could not be checked." : "";
-  });
-
-  // a new path is a new question: what was found for the old one goes
-  $("compat-path").addEventListener("input", () => {
-    $("compat-error").hidden = true;
-    if (state.compat) post("api/compat_clear", {});
-    // what the path is is not known until it is asked again
-    compatPath.kind = null;
-    updateCompatStart();
-    if ($("compat-path").value.trim()) askCompatListing();
-    else renderCompatListing({ kind: "empty", entries: [], more: 0, folders: 0, nc_files: 0, base: "", size: null, error: null });
-  });
 
   $("cdo-failed-restart").addEventListener("click", async () => {
     $("cdo-failed-restart").disabled = true;
