@@ -27,9 +27,12 @@ LAYERS = {
 }
 
 
-def key(variable, source):
-    """A matchup's "variable/source", as variables takes it."""
-    return f"{variable}{SEPARATOR}{source}"
+def key(variable, source, layer=None):
+    """A matchup's "variable/source", as variables takes it, with "/layer"
+    after it for a point matchup (a gridded matchup has no layer). A
+    "variable/source" entry picks every layer."""
+    parts = [variable, source] + ([layer] if layer else [])
+    return SEPARATOR.join(parts)
 
 
 def _titles(matchup_dir):
@@ -77,7 +80,7 @@ def on_disk(data_dir):
             "layer": layer,
             "vertical": vertical,
             "title": titles.get(variable) or variable.title(),
-            "key": key(variable, source),
+            "key": key(variable, source, layer),
         }
         for (kind, variable, source, layer), vertical in found.items()
     ]
@@ -141,17 +144,18 @@ def of_last_run(matchups, record, previous=False):
     (see picks)."""
     return [
         m for m in matchups
-        if identity(m) in record or picks(previous, m["variable"], m["source"])
+        if identity(m) in record or picks(previous, m["variable"], m["source"], m["layer"])
     ]
 
 
-def picks(choice, variable, source):
+def picks(choice, variable, source, layer=None):
     """Whether choice, matchup's overwrite or validate's previous, picks the
-    matchup of variable with source: True or False, for every matchup, or a
-    list as check_variables gives it, for those it picks."""
+    matchup of variable with source (at layer, if it is a point matchup): True
+    or False, for every matchup, or a list as check_variables gives it, for
+    those it picks."""
     if isinstance(choice, bool):
         return choice
-    return wanted(choice, variable, source)
+    return wanted(choice, variable, source, layer)
 
 
 def check_variables(variables, name="variables"):
@@ -174,9 +178,15 @@ def check_variables(variables, name="variables"):
                 f'{name} must be a list of variables, or of "variable/source", not {entry!r}'
             )
         parts = [part.strip() for part in entry.split(SEPARATOR)]
-        if len(parts) > 2 or not all(parts):
+        if len(parts) > 3 or not all(parts):
             raise ValueError(
-                f'{name} takes a variable, or "variable/source", not {entry!r}'
+                f'{name} takes a variable, "variable/source", or, for one layer of a point '
+                f'matchup, "variable/source/layer", not {entry!r}'
+            )
+        if len(parts) == 3 and parts[2].lower() not in LAYERS:
+            raise ValueError(
+                f"{name}: the layer of {entry!r} must be one of {', '.join(LAYERS)}, "
+                f"not {parts[2]!r}"
             )
         entries.append(SEPARATOR.join(parts))
     if not entries:
@@ -184,17 +194,20 @@ def check_variables(variables, name="variables"):
     return entries
 
 
-def _matches(entry, variable, source):
+def _matches(entry, variable, source, layer=None):
     parts = entry.lower().split(SEPARATOR)
     if parts[0] != variable.lower():
         return False
-    return len(parts) == 1 or parts[1] == source.lower()
+    if len(parts) > 1 and parts[1] != source.lower():
+        return False
+    # a layer is only for a point matchup: a gridded one has none to match
+    return len(parts) < 3 or (layer is not None and parts[2] == layer.lower())
 
 
-def wanted(variables, variable, source):
+def wanted(variables, variable, source, layer=None):
     """Whether variables (as check_variables gives it) picks the matchup of
-    variable with source."""
-    return variables is None or any(_matches(entry, variable, source) for entry in variables)
+    variable with source, at layer if it is a point matchup."""
+    return variables is None or any(_matches(entry, variable, source, layer) for entry in variables)
 
 
 def check_against(variables, matchups, name="variables"):
@@ -203,10 +216,10 @@ def check_against(variables, matchups, name="variables"):
     if variables is None:
         return list(matchups)
     for entry in variables:
-        if not any(_matches(entry, m["variable"], m["source"]) for m in matchups):
+        if not any(_matches(entry, m["variable"], m["source"], m["layer"]) for m in matchups):
             there = sorted({m["key"] for m in matchups}, key=str.lower)
             raise ValueError(
                 f"{name}: there are no matchups of {entry!r}. The matchups are "
                 f"{', '.join(there)}"
             )
-    return [m for m in matchups if wanted(variables, m["variable"], m["source"])]
+    return [m for m in matchups if wanted(variables, m["variable"], m["source"], m["layer"])]

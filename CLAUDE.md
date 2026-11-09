@@ -155,7 +155,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   in `oceanval_matchups/last_matchup.json` (`selection.save_last_run`, from `matchall._Told.made`; removed by
   `forget_last_run` once the matchups are confirmed, so a run that does not finish leaves none). `validate(previous=)`
   is True (all), False (`selection.last_run` only) or a list of earlier ones as `variables` takes them;
-  `matchup(overwrite=)` also takes such a list (`selection.picks`). **In the window, where the matchups are saved is asked
+  `matchup(overwrite=)` also takes such a list (`selection.picks`). **A matchup's key is `variable/source` for a gridded one and `variable/source/layer` for a point one** (`selection.key`; layer `surface`/`all`/`bottom`, `selection.LAYERS`), as one point variable and source can be on disk at both layers from different runs: the Validate ticks and the output step's grid have a row for each layer, and `variables`/`previous`/`overwrite` entries of `variable/source` still pick every layer, `variable/source/layer` one (`selection.wanted`/`picks`/`_matches` take the matchup's `layer`; a gridded matchup never matches a 3-part entry). A new place that picks matchups must pass the layer. **In the window, where the matchups are saved is asked
   once the matchups are confirmed**: the run starts after the units step from a draft of the script in a folder of the
   app's own (`App._draft_script`; `out_dir` = that folder, `cores=1`), and `matchup` writes nothing in `out_dir` before
   the answer to "Are you happy with these matchups?" (the `oceanval_matchups` folder and `model_bathymetry.nc` are made
@@ -178,7 +178,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   an earlier run wrote). "This file already exists, and will be replaced" is shown only for a name the user typed (form `out_typed`,
   set by the box's input event, kept for Back, in `analyze`'s `analyzeOutput.typed`). The old "There are matchups here already"
   line under the directory box is gone, as the grid says it (the folder browser's still says `has_matchups`).
-  The output step's grid, "What do you want to do with existing matchups?", has a row per "variable/source"
+  The output step's grid, "What do you want to do with existing matchups?", has a row per "variable/source" (point: "variable/source/layer")
   (`app.matchups_asked_about`, each with `made`: whether this run matches it up, from the question's
   `details["matchups"]`, kept in `output_made`; the probe marks the rows while the view is `output`): per row one of
   two, Use and Replace if the run makes it, or Ignore if not (left out of the report); **a row the run makes starts on

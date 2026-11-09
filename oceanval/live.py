@@ -178,7 +178,7 @@ class LiveValidation:
         self.expected = [
             {"kind": kind, "variable": variable, "source": source, "layer": layer}
             for kind, variable, source, layer in expected
-            if selection.wanted(options.get("variables"), variable, source)
+            if selection.wanted(options.get("variables"), variable, source, layer)
         ]
         self.short_titles = dict(short_titles)
         self.folder = os.path.join(options["out_dir"], FOLDER)
@@ -247,7 +247,7 @@ class LiveValidation:
     def matched(self, kind, variable, source, layer=None):
         """Tell the builder that the matchup of variable with the kind
         ("point" or "gridded") of observations of source is made."""
-        if not selection.wanted(self.options.get("variables"), variable, source):
+        if not selection.wanted(self.options.get("variables"), variable, source, layer):
             return
         self._send({"kind": kind, "variable": variable, "source": source, "layer": layer})
 

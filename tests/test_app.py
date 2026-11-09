@@ -788,8 +788,8 @@ class TestOutputChecks:
         ] == [
             ("temperature/COBE2", "Temperature", [{"kind": "gridded", "layer": None}]),
             ("temperature/WOA23", "Temperature", [{"kind": "gridded", "layer": None}]),
-            ("nitrate/glodap", "Nitrate", [{"kind": "point", "layer": "all"}]),
-            ("nitrate/ICES", "Nitrate", [{"kind": "point", "layer": "surface"}]),
+            ("nitrate/glodap/all", "Nitrate", [{"kind": "point", "layer": "all"}]),
+            ("nitrate/ICES/surface", "Nitrate", [{"kind": "point", "layer": "surface"}]),
         ]
         # a matchups folder with none in it, as one that did not get far leaves, has none to ask about
         (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
@@ -798,7 +798,7 @@ class TestOutputChecks:
 
     def test_those_asked_about_depend_on_what_the_run_makes(self, tmp_path):
         write_mixed_matchups(tmp_path / "old")
-        made = {"temperature/cobe2", "nitrate/ices"}
+        made = {"temperature/cobe2", "nitrate/ices/surface"}
 
         def asked(report):
             return [
@@ -809,18 +809,63 @@ class TestOutputChecks:
         # one the run makes is used or replaced, one it does not is used in the report or ignored
         assert asked(True) == [
             ("temperature/COBE2", True), ("temperature/WOA23", False),
-            ("nitrate/glodap", False), ("nitrate/ICES", True),
+            ("nitrate/glodap/all", False), ("nitrate/ICES/surface", True),
         ]
         # with no report to use them in, only those the run makes are asked about
-        assert asked(False) == [("temperature/COBE2", True), ("nitrate/ICES", True)]
+        assert asked(False) == [("temperature/COBE2", True), ("nitrate/ICES/surface", True)]
         # not knowing what the run makes, each is one it makes
         assert all(row["made"] for row in matchups_asked_about(str(tmp_path / "old")))
+
+    def test_the_layers_of_a_point_matchup_there_already_are_rows_of_their_own(self, tmp_path):
+        # two runs matched ICES nitrate at the surface and through the water column
+        write_mixed_matchups(tmp_path / "old")
+        both = tmp_path / "old" / "oceanval_matchups" / "point" / "all" / "nitrate" / "ICES"
+        both.mkdir(parents=True)
+        (both / "ICES_all_nitrate.csv").touch()
+        rows = existing_matchups(str(tmp_path / "old"))
+        assert [(row["key"], row["kinds"]) for row in rows if row["source"] == "ICES"] == [
+            ("nitrate/ICES/all", [{"kind": "point", "layer": "all"}]),
+            ("nitrate/ICES/surface", [{"kind": "point", "layer": "surface"}]),
+        ]
+
+        # a run that makes the surface matchup again replaces that one only, and
+        # the vertical one is used, or ignored, as it is not this run's
+        made = {"nitrate/ices/surface"}
+        asked = {
+            row["key"]: row["made"]
+            for row in matchups_asked_about(str(tmp_path / "old"), made, True)
+            if row["source"] == "ICES"
+        }
+        assert asked == {"nitrate/ICES/all": False, "nitrate/ICES/surface": True}
+
+        def check(**changes):
+            return check_output(
+                dict(OUTPUT_FORM, out_dir="old", existing_confirmed=True, **changes),
+                str(tmp_path), made=made,
+            )[0]
+
+        # ignore the vertical matchup and replace the surface one
+        arguments = check(unused=["nitrate/ICES/all", "nitrate/ICES/surface"])
+        # (the surface one is all this run makes, so True: every one it makes)
+        assert arguments["overwrite"] is True
+        assert "nitrate/ICES/all" not in arguments["previous"]
+        assert "nitrate/ICES/surface" not in arguments["previous"]
+        # use the surface matchup and ignore the vertical one
+        arguments = check(unused=["nitrate/ICES/all"])
+        assert arguments["overwrite"] is False
+        assert "nitrate/ICES/surface" in arguments["previous"]
+        assert "nitrate/ICES/all" not in arguments["previous"]
+        # use the vertical matchup and replace the surface one
+        arguments = check(unused=["nitrate/ICES/surface"])
+        assert arguments["overwrite"] is True
+        assert "nitrate/ICES/all" in arguments["previous"]
+        assert "nitrate/ICES/surface" not in arguments["previous"]
 
     def test_what_is_done_with_the_matchups_there_already_must_be_said(self, tmp_path):
         write_mixed_matchups(tmp_path / "old")
         (tmp_path / "empty" / "oceanval_matchups").mkdir(parents=True)
         # the run makes the gridded COBE2 and the surface ICES matchups again
-        made = {"temperature/cobe2", "nitrate/ices"}
+        made = {"temperature/cobe2", "nitrate/ices/surface"}
 
         def check(report=True, **changes):
             return check_output(
@@ -831,9 +876,9 @@ class TestOutputChecks:
         # which must be confirmed
         arguments, errors = check(existing_chosen=False)
         assert errors == {"existing_confirmed": ""}
-        assert (arguments["overwrite"], arguments["previous"]) == (True, ["temperature/WOA23", "nitrate/glodap"])
+        assert (arguments["overwrite"], arguments["previous"]) == (True, ["temperature/WOA23", "nitrate/glodap/all"])
         arguments, errors = check(existing_chosen=False, existing_confirmed=True, unused=MIXED_KEYS)
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, ["temperature/WOA23", "nitrate/glodap"])
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, ["temperature/WOA23", "nitrate/glodap/all"])
         # with no report, only those the run makes are asked about, and replaced
         arguments = check(report=False, existing_chosen=False, existing_confirmed=True)[0]
         assert (arguments["overwrite"], arguments["previous"]) == (True, True)
@@ -844,14 +889,14 @@ class TestOutputChecks:
         arguments, errors = check(existing_confirmed=True, unused=MIXED_KEYS)
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, False)
         # one replaced and one ignored: only those used are in the report as they are
-        arguments, errors = check(existing_confirmed=True, unused=["temperature/COBE2", "nitrate/glodap", "oxygen/ICES"])
+        arguments, errors = check(existing_confirmed=True, unused=["temperature/COBE2", "nitrate/glodap/all", "oxygen/ICES"])
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (
-            ["temperature/COBE2"], ["temperature/WOA23", "nitrate/ICES"],
+            ["temperature/COBE2"], ["temperature/WOA23", "nitrate/ICES/surface"],
         )
         # with no report, only those the run makes are asked about, to be used or replaced
-        assert check(report=False, unused=["nitrate/ICES"])[1] == {"existing_confirmed": ""}
-        arguments, errors = check(report=False, existing_confirmed=True, unused=["nitrate/ICES"])
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (["nitrate/ICES"], True)
+        assert check(report=False, unused=["nitrate/ICES/surface"])[1] == {"existing_confirmed": ""}
+        arguments, errors = check(report=False, existing_confirmed=True, unused=["nitrate/ICES/surface"])
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (["nitrate/ICES/surface"], True)
         arguments = check(report=False, existing_confirmed=True)[0]
         assert (arguments["overwrite"], arguments["previous"]) == (False, True)
         # and none, if the run makes none of them
@@ -1220,7 +1265,7 @@ def write_mixed_matchups(directory):
 
 
 # the matchups write_mixed_matchups writes, by their keys
-MIXED_KEYS = ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap", "nitrate/ICES"]
+MIXED_KEYS = ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap/all", "nitrate/ICES/surface"]
 
 
 class TestChoosingMatchups:
@@ -1239,12 +1284,12 @@ class TestChoosingMatchups:
 
     def test_those_unticked_are_left_out(self, tmp_path):
         write_mixed_matchups(tmp_path)
-        form = {"unticked": ["temperature/WOA23", "nitrate/ICES"]}
+        form = {"unticked": ["temperature/WOA23", "nitrate/ICES/surface"]}
         arguments, errors = check_validate(form, str(tmp_path))
         assert errors == {}
-        assert arguments["variables"] == ["temperature/COBE2", "nitrate/glodap"]
+        assert arguments["variables"] == ["temperature/COBE2", "nitrate/glodap/all"]
         assert app_module._validate_call(arguments, str(tmp_path)).endswith(
-            'variables=["temperature/COBE2", "nitrate/glodap"])'
+            'variables=["temperature/COBE2", "nitrate/glodap/all"])'
         )
 
     def test_one_must_be_ticked(self, tmp_path):
@@ -1284,7 +1329,7 @@ class TestChoosingMatchups:
         arguments = check_validate(DEPTH_FORM, str(tmp_path))[0]
         assert arguments["depth_bins"] == [[0, 20], [20, 200], [200, None]]
         # point nitrate at the surface only
-        arguments = check_validate(dict(DEPTH_FORM, unticked=["nitrate/glodap"]), str(tmp_path))[0]
+        arguments = check_validate(dict(DEPTH_FORM, unticked=["nitrate/glodap/all"]), str(tmp_path))[0]
         assert "depth_bins" not in arguments
 
     def test_the_matchups_are_found_as_their_directory_is_typed_in(self, app, tmp_path):
@@ -1308,8 +1353,8 @@ class TestChoosingMatchups:
         assert [(m["kind"], m["key"], m["title"]) for m in found["matchups"]] == [
             ("gridded", "temperature/COBE2", "Temperature"),
             ("gridded", "temperature/WOA23", "Temperature"),
-            ("point", "nitrate/glodap", "Nitrate"),
-            ("point", "nitrate/ICES", "Nitrate"),
+            ("point", "nitrate/glodap/all", "Nitrate"),
+            ("point", "nitrate/ICES/surface", "Nitrate"),
         ]
         # with the token only, as for the rest of the window
         assert _request(app, "/api/matchups", token="wrong", data_dir="done")[0] == 403
@@ -1330,7 +1375,7 @@ class TestChoosingMatchups:
             {"kind": "gridded", "variable": "temperature", "source": "COBE2", "layer": None,
              "vertical": False, "title": "Temperature", "key": "temperature/COBE2"},
             {"kind": "point", "variable": "temperature", "source": "ICES", "layer": "all",
-             "vertical": True, "title": "Temperature", "key": "temperature/ICES"},
+             "vertical": True, "title": "Temperature", "key": "temperature/ICES/all"},
         ]
         details = dict(MATCHUPS, matchups=listed)
         script = tmp_path / "run.py"
@@ -1353,7 +1398,7 @@ class TestChoosingMatchups:
         assert get_json(app, "/api/state")[1]["report"]["matchups"] == listed
 
         # none ticked
-        form = {"unticked": ["temperature/COBE2", "temperature/ICES"], "cores": "1"}
+        form = {"unticked": ["temperature/COBE2", "temperature/ICES/all"], "cores": "1"}
         status, reply = post(app, "/api/report", {"form": form})
         assert (status, reply["errors"]) == (400, {"variables": "Tick at least one dataset to validate."})
 
@@ -1364,23 +1409,23 @@ class TestChoosingMatchups:
             "data_dir": str(tmp_path),
             "out_dir": str(tmp_path),
             "depth_bins": [[0, 20], [20, 200], [200, None]],
-            "variables": ["temperature/ICES"],
+            "variables": ["temperature/ICES/all"],
         }
         wait_for(lambda: validated)
         text = app.console.since(0, None)["text"]
         assert (
             '"live_validation": {"depth_bins": [[0, 20], [20, 200], [200, null]], '
-            '"variables": ["temperature/ICES"]}'
+            '"variables": ["temperature/ICES/all"]}'
         ) in text
-        assert json.loads(validated[0][1])["variables"] == ["temperature/ICES"]
+        assert json.loads(validated[0][1])["variables"] == ["temperature/ICES/all"]
 
     @pytest.mark.parametrize(
         "previous, variables",
         [
             # the earlier matchups chosen are not listed, so stay in whatever is unticked
-            (["nitrate/ICES"], ["temperature/ICES", "nitrate/ICES"]),
-            (True, ["temperature/ICES", "temperature/WOA23", "nitrate/glodap", "nitrate/ICES"]),
-            (False, ["temperature/ICES"]),
+            (["nitrate/ICES/surface"], ["temperature/ICES/surface", "nitrate/ICES/surface"]),
+            (True, ["temperature/ICES/surface", "temperature/WOA23", "nitrate/glodap/all", "nitrate/ICES/surface"]),
+            (False, ["temperature/ICES/surface"]),
         ],
     )
     def test_the_earlier_matchups_chosen_are_in_the_report_but_not_the_interim_one(
@@ -1399,7 +1444,7 @@ class TestChoosingMatchups:
             {"kind": "gridded", "variable": "temperature", "source": "COBE2", "layer": None,
              "vertical": False, "title": "Temperature", "key": "temperature/COBE2"},
             {"kind": "point", "variable": "temperature", "source": "ICES", "layer": "surface",
-             "vertical": False, "title": "Temperature", "key": "temperature/ICES"},
+             "vertical": False, "title": "Temperature", "key": "temperature/ICES/surface"},
         ]
         script = tmp_path / "run.py"
         script.write_text(
@@ -5643,7 +5688,7 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
         "fvcom": False,
         # one to validate, for the report options
         "matchups": [{"kind": "point", "variable": "temperature", "source": "ICES", "layer": "surface",
-                      "vertical": False, "title": "Temperature", "key": "temperature/ICES"}],
+                      "vertical": False, "title": "Temperature", "key": "temperature/ICES/surface"}],
         "rows": [
             # ICES matched up for one of the run's years
             {"variable": "temperature", "title": "Temperature", "model_variable": "votemper",
@@ -5935,12 +5980,49 @@ def test_the_matchups_to_validate_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.text_content("#v-datasets-count") == "All 4"
         assert page.is_visible("#v-group-transect")
 
-        page.uncheck("#v-datasets input[data-key='nitrate/ICES']")
+        page.uncheck("#v-datasets input[data-key='nitrate/ICES/surface']")
         page.click("#build")
         wait_for(lambda: validated)
         arguments = json.loads(validated[0][1])
         assert arguments["data_dir"] == str(tmp_path / "mixed")
-        assert arguments["variables"] == ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap"]
+        assert arguments["variables"] == ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap/all"]
+    finally:
+        app.close()
+
+
+def test_the_layers_of_a_point_matchup_are_ticked_separately_in_a_browser(browser, tmp_path, monkeypatch):
+    """A point dataset matched up at the surface and through the water column
+    (by different runs) has a tick for each, so that one can be left out."""
+    write_mixed_matchups(tmp_path / "both")
+    deep = tmp_path / "both" / "oceanval_matchups" / "point" / "all" / "nitrate" / "ICES"
+    deep.mkdir(parents=True)
+    (deep / "ICES_all_nitrate.csv").touch()
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    validated = []
+    monkeypatch.setattr(app, "start_run", lambda args, label: validated.append(args))
+    app.choose("validate", data_dir=str(tmp_path / "both"))
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_selector("#view-validate:not([hidden])")
+        page.wait_for_function("document.querySelector('#vm-data_dir').textContent.includes('point')")
+        assert page.text_content("#v-datasets-count") == "All 5"
+        page.click("#v-datasets summary")
+        surface = page.locator("#v-datasets input[data-key='nitrate/ICES/surface']")
+        vertical = page.locator("#v-datasets input[data-key='nitrate/ICES/all']")
+        assert surface.is_checked() and vertical.is_checked()
+        # the vertical one off leaves the surface one on
+        vertical.uncheck()
+        assert surface.is_checked() and not vertical.is_checked()
+        assert page.text_content("#v-datasets-count") == "4 of 5"
+        page.click("#build")
+        wait_for(lambda: validated)
+        arguments = json.loads(validated[0][1])
+        assert "nitrate/ICES/surface" in arguments["variables"]
+        assert "nitrate/ICES/all" not in arguments["variables"]
+        assert len(arguments["variables"]) == 4
     finally:
         app.close()
 
@@ -5952,7 +6034,7 @@ def test_the_matchups_to_be_made_in_a_browser(browser, tmp_path, monkeypatch):
         {"kind": "gridded", "variable": "temperature", "source": "COBE2", "layer": None,
          "vertical": False, "title": "Temperature", "key": "temperature/COBE2"},
         {"kind": "point", "variable": "temperature", "source": "ICES", "layer": "all",
-         "vertical": True, "title": "Temperature", "key": "temperature/ICES"},
+         "vertical": True, "title": "Temperature", "key": "temperature/ICES/all"},
     ]
     script = tmp_path / "matchup.py"
     script.write_text(
@@ -5976,7 +6058,7 @@ def test_the_matchups_to_be_made_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_visible("#v-group-depth_bins")
         assert page.is_visible("#v-group-transect")
         page.click("#v-datasets summary")
-        page.uncheck("#v-datasets input[data-key='temperature/ICES']")
+        page.uncheck("#v-datasets input[data-key='temperature/ICES/all']")
         assert page.is_hidden("#v-group-depth_bins")
         assert page.is_visible("#v-group-transect")
         assert page.text_content("#build") == "Match up and validate"
@@ -7029,7 +7111,7 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         assert tops() == ["use"]
         page.check(option.format("replace", "temperature/COBE2"))
         if report:
-            page.check(option.format("ignore", "nitrate/glodap"))
+            page.check(option.format("ignore", "nitrate/glodap/all"))
         # what is chosen must be confirmed
         assert page.is_disabled("#output-run")
         page.check("#f-existing_confirmed")
@@ -7041,7 +7123,7 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         assert app.overwrite is True
         if report:
             assert app.view == "report_options"
-            assert app.previous == ["temperature/WOA23", "nitrate/ICES"]
+            assert app.previous == ["temperature/WOA23", "nitrate/ICES/surface"]
         else:
             assert app.previous is True
         assert app.results_dir == str(tmp_path / "old")

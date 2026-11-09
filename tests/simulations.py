@@ -8,12 +8,14 @@ import numpy as np
 import xarray as xr
 
 
-def write_matchups(directory, titles=None, last_run=None):
+def write_matchups(directory, titles=None, last_run=None, both_layers=False):
     """The files of a finished matchup with two gridded temperatures, one of
     them through the water column, and point nitrate at the surface and
     through the water column, as validate() reads their names. last_run, the
     matchups as (kind, variable, source, layer), is recorded as those the
-    last matchup() run made (see oceanval.selection.save_last_run)."""
+    last matchup() run made (see oceanval.selection.save_last_run). With
+    both_layers, ICES nitrate is there through the water column too, as when
+    two runs matched the same variable and source at both layers."""
     from oceanval import selection
 
     matchups = os.path.join(directory, "oceanval_matchups")
@@ -26,6 +28,8 @@ def write_matchups(directory, titles=None, last_run=None):
         # not a matchup of its own
         "point/all/nitrate/glodap/glodap_all_nitrate_unit.csv",
     ]
+    if both_layers:
+        files.append("point/all/nitrate/ICES/ICES_all_nitrate.csv")
     for name in files:
         path = os.path.join(matchups, name)
         os.makedirs(os.path.dirname(path), exist_ok=True)

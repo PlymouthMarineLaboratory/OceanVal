@@ -1605,6 +1605,7 @@ def validate(
                 variables,
                 os.path.basename(pp).split("_")[2].replace(".csv", ""),
                 os.path.basename(pp).split("_")[0],
+                os.path.basename(pp).split("_")[1],
             ):
                 continue
             if chosen is not None and (

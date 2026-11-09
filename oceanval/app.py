@@ -443,10 +443,11 @@ def _pairs(rows):
 
 def existing_matchups(out_dir):
     """The matchups in out_dir already, as the simulation step lists them to
-    choose what is done with them: a row for each "variable/source", which
-    matchup's overwrite and validate's previous pick them by, with its title,
-    variable and source, and kinds, each matchup's kind ("gridded" or
-    "point") and layer (a point matchup's, or None)."""
+    choose what is done with them: a row for each gridded "variable/source"
+    and each point "variable/source/layer", which matchup's overwrite and
+    validate's previous pick them by, with its title, variable and source, and
+    kinds, each matchup's kind ("gridded" or "point") and layer (a point
+    matchup's, or None)."""
     rows = {}
     # asked as each box is typed in, so nothing is looked for where there is no folder of them
     there = os.path.isdir(os.path.join(out_dir, "oceanval_matchups"))
@@ -4739,7 +4740,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             matchup["key"]
             for matchup in (selection.on_disk(directory) if directory else [])
             if matchup["key"] not in mine
-            and selection.picks(self.previous, matchup["variable"], matchup["source"])
+            and selection.picks(self.previous, matchup["variable"], matchup["source"], matchup["layer"])
         ))
 
     def save_script(self, form):

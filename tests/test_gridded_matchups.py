@@ -464,8 +464,8 @@ class TestMultipleSources:
         assert [(m["kind"], m["key"], m["layer"]) for m in oceanval.selection.on_disk(".")] == [
             ("gridded", "temperature/bar", None),
             ("gridded", "temperature/foo", None),
-            ("point", "temperature/bar", "surface"),
-            ("point", "temperature/foo", "all"),
+            ("point", "temperature/bar/surface", "surface"),
+            ("point", "temperature/foo/all", "all"),
         ]
         # all of them made by this run, for validate(previous=False)
         assert oceanval.selection.last_run(".") == {
@@ -499,6 +499,18 @@ class TestMultipleSources:
             assert {x.split("_", 1)[0] for x in notebooks if "temperature" in x} == {"001", "002"}
             with open(f"{out_dir}/oceanval_report/_toc.yml") as toc:
                 assert "bar" not in toc.read()
+
+            # "variable/source/layer" is one layer of a point matchup: not the gridded one
+            # of the same variable and source
+            with pytest.MonkeyPatch.context() as monkeypatch:
+                monkeypatch.setattr(oceanval, "_build_book", stop)
+                with pytest.raises(Built):
+                    oceanval.validate(out_dir=out_dir, variables=["temperature/foo/all"], test=True)
+            notebooks = sorted(
+                os.path.basename(x).split("_", 1)[1]
+                for x in glob.glob(f"{out_dir}/oceanval_report/notebooks/*temperature.ipynb")
+            )
+            assert notebooks == ["foo_all_temperature.ipynb"]
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
 

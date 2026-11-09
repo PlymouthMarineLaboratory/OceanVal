@@ -2057,7 +2057,7 @@ def matchup(
                 "layer": layer,
                 "vertical": layer == "all" or (vv, source) in gridded_vertical,
                 "title": definitions[vv].short_title,
-                "key": selection.key(vv, source),
+                "key": selection.key(vv, source, layer),
             }
             for kind, vv, source, layer in items
         ],
@@ -2164,8 +2164,8 @@ def matchup(
         # report built twice, so validate() is left to build it
         wanted = {
             (vv, source)
-            for _, vv, source, _ in items
-            if selection.wanted(live_options["variables"], vv, source)
+            for _, vv, source, layer in items
+            if selection.wanted(live_options["variables"], vv, source, layer)
         }
         if len(wanted) > 1:
             builder = live.LiveValidation(
@@ -2279,7 +2279,7 @@ def matchup(
             out = f"{session_info['out_dir']}/oceanval_matchups/point/{layer}/{variable}/{source}/{source}_{layer}_{variable}.csv"
             csv = out
 
-            if os.path.exists(out) and not selection.picks(overwrite, variable, source):
+            if os.path.exists(out) and not selection.picks(overwrite, variable, source, layer):
                 if time_stamps.stored_time_shift(
                     os.path.join(os.path.dirname(out), "matchup_dict.pkl")
                 ) == session_info["time_shift"]:
@@ -2793,7 +2793,7 @@ def matchup(
                 if len(out) > 0:
                     # unless it was made with the model's times shifted
                     # differently, said above
-                    if not selection.picks(session_info["overwrite"], vv, source) and time_stamps.stored_time_shift(
+                    if not selection.picks(session_info["overwrite"], vv, source, key) and time_stamps.stored_time_shift(
                         out[0].replace(os.path.basename(out[0]), "matchup_dict.pkl")
                     ) == session_info["time_shift"]:
                         continue

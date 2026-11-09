@@ -21,9 +21,15 @@ class TestOnDisk:
             ("point", "nitrate", "glodap", "all", True),
             ("point", "nitrate", "ICES", "surface", False),
         ]
+        # a point matchup's key has its layer, a gridded one's does not
         assert [m["key"] for m in found] == [
-            "temperature/COBE2", "temperature/WOA23", "nitrate/glodap", "nitrate/ICES",
+            "temperature/COBE2", "temperature/WOA23", "nitrate/glodap/all", "nitrate/ICES/surface",
         ]
+
+    def test_the_layers_of_a_variable_and_source_are_matchups_of_their_own(self, tmp_path):
+        write_matchups(tmp_path, both_layers=True)
+        keys = [m["key"] for m in selection.on_disk(str(tmp_path)) if m["source"] == "ICES"]
+        assert keys == ["nitrate/ICES/all", "nitrate/ICES/surface"]
 
     def test_titles_are_matchups_own_or_the_variables(self, tmp_path):
         write_matchups(tmp_path, titles={"nitrate": "Nitrate (NO3)"})
@@ -41,6 +47,7 @@ class TestCheckVariables:
             (None, None),
             ("temperature", ["temperature"]),
             (["temperature", " nitrate / ICES "], ["temperature", "nitrate/ICES"]),
+            (["nitrate/ICES/surface", "Nitrate / ices / ALL"], ["nitrate/ICES/surface", "Nitrate/ices/ALL"]),
             (("temperature/WOA23",), ["temperature/WOA23"]),
         ],
     )
@@ -49,7 +56,7 @@ class TestCheckVariables:
 
     @pytest.mark.parametrize(
         "given",
-        [[], [""], [3], ["a/b/c"], ["/ICES"], ["nitrate/"], {"nitrate": "ICES"}, 5],
+        [[], [""], [3], ["a/b/c/d"], ["/ICES"], ["nitrate/"], ["nitrate/ICES/"], {"nitrate": "ICES"}, 5],
     )
     def test_what_it_does_not_take(self, given):
         with pytest.raises(ValueError, match="variables"):
@@ -65,7 +72,28 @@ class TestCheckVariables:
         assert picked(None) == [m["key"] for m in found]
         assert picked(["temperature"]) == ["temperature/COBE2", "temperature/WOA23"]
         # not case sensitive
-        assert picked(["Temperature/woa23", "NITRATE/ices"]) == ["temperature/WOA23", "nitrate/ICES"]
+        assert picked(["Temperature/woa23", "NITRATE/ices"]) == ["temperature/WOA23", "nitrate/ICES/surface"]
+
+    def test_an_entry_can_pick_one_layer_of_a_point_matchup(self, tmp_path):
+        write_matchups(tmp_path, both_layers=True)
+        found = selection.on_disk(str(tmp_path))
+
+        def picked(variables):
+            return [m["key"] for m in selection.check_against(variables, found)]
+
+        # variable/source picks every layer, variable/source/layer one
+        assert picked(["nitrate/ICES"]) == ["nitrate/ICES/all", "nitrate/ICES/surface"]
+        assert picked(["nitrate/ICES/surface"]) == ["nitrate/ICES/surface"]
+        assert picked(["Nitrate/ices/ALL"]) == ["nitrate/ICES/all"]
+        # a gridded matchup has no layer to pick
+        with pytest.raises(ValueError, match="no matchups of 'temperature/COBE2/surface'"):
+            selection.check_against(["temperature/COBE2/surface"], found)
+        with pytest.raises(ValueError, match="no matchups of 'nitrate/glodap/surface'"):
+            selection.check_against(["nitrate/glodap/surface"], found)
+
+    def test_a_layer_must_be_one_there_is(self):
+        with pytest.raises(ValueError, match="layer.*surface, all, bottom.*'deep'"):
+            selection.check_variables(["nitrate/ICES/deep"])
 
     def test_an_entry_must_pick_a_matchup(self, tmp_path):
         write_matchups(tmp_path)
@@ -110,10 +138,10 @@ class TestLastRun:
         found = selection.on_disk(str(tmp_path))
         record = {("point", "nitrate", "ICES", "surface"), ("point", "nitrate", "glodap", "surface")}
         # glodap's matchup here is through the water column, so another run's
-        assert [m["key"] for m in selection.of_last_run(found, record)] == ["nitrate/ICES"]
+        assert [m["key"] for m in selection.of_last_run(found, record)] == ["nitrate/ICES/surface"]
         # with the earlier matchups previous picks
         assert [m["key"] for m in selection.of_last_run(found, record, ["temperature/COBE2"])] == [
-            "temperature/COBE2", "nitrate/ICES",
+            "temperature/COBE2", "nitrate/ICES/surface",
         ]
         assert len(selection.of_last_run(found, record, True)) == len(found)
 
@@ -123,6 +151,20 @@ class TestLastRun:
         assert selection.picks(["temperature/cobe2"], "temperature", "COBE2")
         assert not selection.picks(["temperature/WOA23"], "temperature", "COBE2")
         assert selection.picks(["temperature"], "temperature", "WOA23")
+
+    def test_picks_by_layer(self):
+        assert selection.picks(["nitrate/ICES"], "nitrate", "ICES", "all")
+        assert selection.picks(["nitrate/ICES/surface"], "nitrate", "ICES", "surface")
+        assert not selection.picks(["nitrate/ICES/surface"], "nitrate", "ICES", "all")
+        assert not selection.picks(["nitrate/ICES/surface"], "nitrate", "ICES")
+
+    def test_previous_picks_one_layer_of_the_matchups_there(self, tmp_path):
+        write_matchups(tmp_path, both_layers=True)
+        found = selection.on_disk(str(tmp_path))
+        record = {("point", "nitrate", "ICES", "surface")}
+        assert [m["key"] for m in selection.of_last_run(found, record, ["nitrate/ICES/all"])] == [
+            "nitrate/ICES/all", "nitrate/ICES/surface",
+        ]
 
 
 class TestValidate:
@@ -143,7 +185,7 @@ class TestValidate:
             validate(previous=[])
         write_matchups(tmp_path, last_run=[("point", "nitrate", "ICES", "surface")])
         # variables picks among the last run's matchups, and those previous picks
-        with pytest.raises(ValueError, match="no matchups of 'temperature'.*nitrate/ICES"):
+        with pytest.raises(ValueError, match="no matchups of 'temperature'.*nitrate/ICES/surface"):
             validate(previous=False, variables=["temperature"])
         with pytest.raises(ValueError, match="no matchups of 'temperature/COBE2'"):
             validate(previous=["temperature/WOA23"], variables=["temperature/COBE2"])
