@@ -86,7 +86,13 @@ def _box_of_file(path, kind):
         return _looked_at[key]
     box = None
     try:
-        if kind == "ices":
+        if kind == "glodapv3":
+            import pandas as pd
+
+            found = pd.read_csv(path, usecols=["lon", "lat"])
+            if len(found):
+                box = (float(found.lon.min()), float(found.lon.max()), float(found.lat.min()), float(found.lat.max()))
+        elif kind == "ices":
             import pandas as pd
 
             found = pd.read_csv(
@@ -134,6 +140,12 @@ def _extent(pieces):
 
 def _stored(row, held):
     """How a dataset is held: the year, the water column and the extent."""
+    if row["point"] and row["recipe"] == "glodapv3":
+        # the whole globe and every year of the variable, in one piece
+        mine = [p for p in held if p["kind"] == "glodapv3" and p["variable"] == row["name"]]
+        if not mine:
+            return None, None, None
+        return "1972–2023" if mine[0].get("rows") else "No data found", "All depths", _extent(mine)
     if row["point"]:
         # one export of an ICES dataset and year serves every variable from it
         mine = [p for p in held if p["kind"] == "ices" and p["dataset"] in _recipe(row["name"], row["recipe"])[1]]

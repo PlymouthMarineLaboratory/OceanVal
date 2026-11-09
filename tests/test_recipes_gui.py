@@ -88,31 +88,31 @@ class TestRows:
             "local", cwd,
         )
         user_recipes.save(
-            {"variable": "dic", "kind": "point", "source": "DicPts", "obs_path": "/points",
-             "short_title": "DIC"},
+            {"variable": "poc", "kind": "point", "source": "PocPts", "obs_path": "/points",
+             "short_title": "POC"},
             "local", cwd,
         )
         own = {
             "gridded": [{"name": "Nitrate", "source": "MYSAT"}, {"name": "chlorophyll", "source": "OCCCI"}],
-            "point": [{"name": "dic", "source": "dicpts"}],
+            "point": [{"name": "poc", "source": "pocpts"}],
         }
         # the user's recipes of the same variable and source, whatever their
         # case, and never one OceanVal comes with
         replaced = replaced_recipes(own, cwd)
-        assert replaced == {("nitrate", "mysat"), ("dic", "dicpts")}
+        assert replaced == {("nitrate", "mysat"), ("poc", "pocpts")}
 
         def datasets(rows, variable):
             row = next((row for row in rows if row["variable"] == variable), None)
             return None if row is None else [d["recipe"] for d in row["gridded"] + row["point"]]
 
         rows = recipe_rows({}, "global", cwd)
-        assert datasets(rows, "nitrate") == ["woa23", "nsbc", "mysat", "ices"]
-        assert datasets(rows, "dic") == ["dicpts"]
+        assert datasets(rows, "nitrate") == ["woa23", "glodap", "nsbc", "mysat", "glodapv3", "ices"]
+        assert datasets(rows, "poc") == ["pocpts"]
         rows = recipe_rows({"nitrate": "N3_n"}, "global", cwd, replaced)
-        assert datasets(rows, "nitrate") == ["woa23", "nsbc", "ices"]
+        assert datasets(rows, "nitrate") == ["woa23", "glodap", "nsbc", "glodapv3", "ices"]
         assert "occci" in datasets(rows, "chlorophyll")
         # a variable only those recipes were for has no row left
-        assert datasets(rows, "dic") is None
+        assert datasets(rows, "poc") is None
 
     def test_the_users_own_data_is_shown_in_its_variables_row(self, tmp_path):
         cwd = str(tmp_path)
@@ -125,8 +125,8 @@ class TestRows:
             "point": [{"name": "Temperature", "source": "pygetm", "model_variable": "temp",
                        "obs_path": "/points", "vertical": True}],
             "gridded": [
-                {"name": "dic", "source": "MyDic", "model_variable": "O3_c",
-                 "obs_path": "/dic.nc", "short_title": "DIC"},
+                {"name": "poc", "source": "MyPoc", "model_variable": "O3_poc",
+                 "obs_path": "/dic.nc", "short_title": "POC"},
                 {"name": "zooc", "source": "Zoo", "model_variable": "Z4_c", "obs_path": "/zoo.nc"},
             ],
         }
@@ -152,17 +152,36 @@ class TestRows:
         }]
         # a variable only the user's own data is for has a row with it alone,
         # named as add_gridded_comparison names it
-        assert (found["dic"]["title"], found["zooc"]["title"]) == ("DIC", "Zooc")
-        for index, (variable, source) in enumerate((("dic", "MyDic"), ("zooc", "Zoo"))):
+        assert (found["poc"]["title"], found["zooc"]["title"]) == ("POC", "Zooc")
+        for index, (variable, source) in enumerate((("poc", "MyPoc"), ("zooc", "Zoo"))):
             assert found[variable]["gridded"] == found[variable]["point"] == []
             assert [(item["label"], item["index"], item["saved"]) for item in found[variable]["own"]] == [
                 (source, index, False)
             ]
-        assert found["dic"]["own"][0]["opts"] == {"start": "", "end": "", "vertical": False}
-        assert all(row["own"] == [] for row in rows if row["variable"] not in ("temperature", "dic", "zooc"))
+        assert found["poc"]["own"][0]["opts"] == {"start": "", "end": "", "vertical": False}
+        assert all(row["own"] == [] for row in rows if row["variable"] not in ("temperature", "poc", "zooc"))
 
         # without it, every row's is empty
         assert all(row["own"] == [] for row in recipe_rows({}, "global", cwd))
+
+
+class TestEveryRecipeCanBeShown:
+    """A catalogue entry whose recipe the window has no name for crashed the window
+    (KeyError: 'mpisom') before it was shown: every recipe the catalogues have must have one."""
+
+    def test_every_recipe_of_the_catalogues_has_a_label(self):
+        from oceanval.create_recipes import POINT_RECIPE_CATALOGUE, RECIPE_CATALOGUE
+
+        recipes = {entry["recipe"] for entry in RECIPE_CATALOGUE + POINT_RECIPE_CATALOGUE}
+
+        assert recipes <= set(recipes_gui.DATASET_LABELS)
+
+    @pytest.mark.parametrize("domain", ["global", "nwes"])
+    def test_the_rows_are_made_for_both_domains(self, domain):
+        rows = recipe_rows({}, domain)
+
+        assert rows
+        assert all(dataset["label"] for row in rows for dataset in row["gridded"] + row["point"])
 
 
 class TestErsemDetection:
@@ -249,11 +268,12 @@ class TestErsemDetection:
             if dataset["vertical_option"]
         }
 
-        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices"}
-        # surface-only: satellite, sea surface temperature and GLODAP's surface
+        # woa23, nsbc, ices are depth-resolved gridded/point; glodap and glodapv3 too
+        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3"}
+        # surface-only: satellite and sea surface temperature
         assert not offered & {
             ("chlorophyll", "occci"), ("kd490", "occci"),
-            ("temperature", "cobe2"), ("ph", "glodap"), ("alkalinity", "glodap"),
+            ("temperature", "cobe2"),
         }
 
     def test_only_woa23_temperature_and_salinity_are_per_decade(self):

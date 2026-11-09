@@ -705,7 +705,8 @@ def test_the_catalogue_matches_the_published_example():
 
 def test_every_catalogue_variable_can_be_identified():
     """Nothing in the catalogue is a recipe the generator can never match."""
-    assert set(RECIPE_VARIABLES) == {entry["variable"] for entry in RECIPE_CATALOGUE}
+    all_catalogue = RECIPE_CATALOGUE + POINT_RECIPE_CATALOGUE
+    assert set(RECIPE_VARIABLES) == {entry["variable"] for entry in all_catalogue}
 
 
 def test_every_point_catalogue_variable_can_be_identified():
@@ -877,12 +878,14 @@ class TestSelection:
         )
 
     def test_the_default_is_one_gridded_recipe_per_variable(self):
+        # global: one gridded recipe per variable + point GLODAPv3 where it has one
         assert default_selection(self.MAPPING, "global") == {
             ("temperature", "cobe2"),
             ("salinity", "woa23"),
             ("chlorophyll", "occci"),
+            ("chlorophyll", "glodapv3"),  # GLODAPv3 point catalogue has chlorophyll
         }
-        # nwes also gets the ICES point recipes
+        # nwes gets the NSBC/ICES point recipes (GLODAPv3 is Global only)
         assert default_selection(self.MAPPING, "nwes") == {
             ("temperature", "nsbc"),
             ("salinity", "nsbc"),

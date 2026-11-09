@@ -35,6 +35,7 @@ import xarray as xr
 from oceanval import model_expr
 from oceanval import prompts
 from oceanval import user_recipes
+from oceanval import variable_identify
 from oceanval import live as interim_report
 from oceanval.fvcom import fvcom_contents
 from oceanval.own_data import FIELDS as OWN_DATA_FIELDS
@@ -61,11 +62,14 @@ RECIPE_CATALOGUE = (
         "notes": (
             "Alkalinity - GLODAPv2.2016b (https://www.glodap.info/)",
             "recipe: 'glodap'",
-            "Annual climatology covering 1972–2013, surface-only. Reported in",
-            "micromoles per kilogram. See the GLODAPv2 reference",
+            "Annual climatology covering 1972–2013, vertically resolved to 5500 m.",
+            "Reported in micromoles per kilogram. See the GLODAPv2 reference",
             "(https://doi.org/10.5194/essd-8-325-2016).",
         ),
-        "arguments": ("climatology=True,",),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
     },
     {
         "variable": "chlorophyll",
@@ -79,6 +83,22 @@ RECIPE_CATALOGUE = (
             "recipe also provides KD490.",
         ),
         "arguments": ("climatology=False,",),
+    },
+    {
+        "variable": "dic",
+        "recipe": "glodap",
+        "region": "Global",
+        "example_variable": "dissic",
+        "notes": (
+            "Dissolved inorganic carbon - GLODAPv2.2016b (https://www.glodap.info/)",
+            "recipe: 'glodap'",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m.",
+            "Reported in micromoles per kilogram.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
     },
     {
         "variable": "kd490",
@@ -111,6 +131,54 @@ RECIPE_CATALOGUE = (
         ),
     },
     {
+        "variable": "nitrate",
+        "recipe": "glodap",
+        "region": "Global",
+        "example_variable": "no3",
+        "notes": (
+            "Nitrate - GLODAPv2.2016b (https://www.glodap.info/)",
+            "recipe: 'glodap'",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m.",
+            "Reported in micromoles per kilogram.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
+        "variable": "omegaaragonite",
+        "recipe": "glodap",
+        "region": "Global",
+        "example_variable": "omega_arg",
+        "notes": (
+            "Aragonite saturation state - GLODAPv2.2016b (https://www.glodap.info/)",
+            "recipe: 'glodap'",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m.",
+            "Calculated at in situ temperature and pressure; no units.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
+        "variable": "omegacalcite",
+        "recipe": "glodap",
+        "region": "Global",
+        "example_variable": "omega_cal",
+        "notes": (
+            "Calcite saturation state - GLODAPv2.2016b (https://www.glodap.info/)",
+            "recipe: 'glodap'",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m.",
+            "Calculated at in situ temperature and pressure; no units.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
         "variable": "oxygen",
         "recipe": "woa23",
         "region": "Global",
@@ -127,6 +195,22 @@ RECIPE_CATALOGUE = (
         ),
     },
     {
+        "variable": "oxygen",
+        "recipe": "glodap",
+        "region": "Global",
+        "example_variable": "o2",
+        "notes": (
+            "Oxygen - GLODAPv2.2016b (https://www.glodap.info/)",
+            "recipe: 'glodap'",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m.",
+            "Reported in micromoles per kilogram.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
         "variable": "ph",
         "recipe": "glodap",
         "region": "Global",
@@ -134,9 +218,13 @@ RECIPE_CATALOGUE = (
         "notes": (
             "pH - GLODAPv2.2016b (https://www.glodap.info/)",
             "recipe: 'glodap'",
-            "Annual climatology, 1972–2013, surface-only. Reported on the total scale.",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m. Reported on",
+            "the total scale at in situ temperature and pressure.",
         ),
-        "arguments": ("climatology=True,",),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
     },
     {
         "variable": "phosphate",
@@ -148,6 +236,22 @@ RECIPE_CATALOGUE = (
             "(https://www.ncei.noaa.gov/products/world-ocean-atlas)",
             "recipe: 'woa23'",
             "Vertically resolved to ~800 m.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
+        "variable": "phosphate",
+        "recipe": "glodap",
+        "region": "Global",
+        "example_variable": "po4",
+        "notes": (
+            "Phosphate - GLODAPv2.2016b (https://www.glodap.info/)",
+            "recipe: 'glodap'",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m.",
+            "Reported in micromoles per kilogram.",
         ),
         "arguments": (
             "climatology=True,",
@@ -187,6 +291,118 @@ RECIPE_CATALOGUE = (
             "climatology=True,",
             "vertical=False,  # set True to validate the full water column",
         ),
+    },
+    {
+        "variable": "silicate",
+        "recipe": "glodap",
+        "region": "Global",
+        "example_variable": "si",
+        "notes": (
+            "Silicate - GLODAPv2.2016b (https://www.glodap.info/)",
+            "recipe: 'glodap'",
+            "Annual climatology, 1972–2013, vertically resolved to 5500 m.",
+            "Reported in micromoles per kilogram.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
+        "variable": "aou",
+        "recipe": "woa23",
+        "region": "Global",
+        "example_variable": "aou",
+        "notes": (
+            "Apparent oxygen utilization - World Ocean Atlas 2023 "
+            "(https://www.ncei.noaa.gov/products/world-ocean-atlas)",
+            "recipe: 'woa23'",
+            "The oxygen a water has lost since it left the surface, a measure of how",
+            "much organic matter has been respired. Reported in micromoles per kilogram.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
+        "variable": "o2sat",
+        "recipe": "woa23",
+        "region": "Global",
+        "example_variable": "o2sat",
+        "notes": (
+            "Oxygen saturation - World Ocean Atlas 2023 "
+            "(https://www.ncei.noaa.gov/products/world-ocean-atlas)",
+            "recipe: 'woa23'",
+            "Dissolved oxygen as a percentage of its saturation value at the water's",
+            "temperature and salinity.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    },
+    {
+        "variable": "pco2",
+        "recipe": "mpisom",
+        "region": "Global",
+        "example_variable": "spco2",
+        "notes": (
+            "Surface ocean pCO2 - MPI-SOM-FFN v2025 "
+            "(https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html)",
+            "recipe: 'mpisom'",
+            "Monthly climatology of a gap-free reconstruction (a neural network trained on",
+            "SOCAT's fCO2), 1 degree, surface only. Reported in micro-atmospheres.",
+        ),
+        "arguments": ("climatology=True,",),
+    },
+    {
+        "variable": "co2flux",
+        "recipe": "mpisom",
+        "region": "Global",
+        "example_variable": "fgco2",
+        "notes": (
+            "Air-sea CO2 flux - MPI-SOM-FFN v2025 "
+            "(https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html)",
+            "recipe: 'mpisom'",
+            "Monthly climatology of the flux worked out from the reconstructed pCO2, in",
+            "moles of carbon per square metre per year. The product is negative where the",
+            "ocean takes CO2 up: OceanVal reverses it, so that, as in CMIP6's fgco2 and",
+            "ERSEM's fair, positive is into the ocean.",
+        ),
+        "arguments": ("climatology=True,",),
+    },
+    {
+        "variable": "pco2",
+        "recipe": "socat",
+        "region": "Global",
+        "example_variable": "spco2",
+        "notes": (
+            "Surface ocean fCO2 - SOCATv2026 (https://www.socat.info/)",
+            "recipe: 'socat'",
+            "Monthly 1 degree means of ship and mooring measurements (the cruise-weighted",
+            "mean fCO2, flags A to D, WOCE 2), 1970 to 2025, with nothing where nothing",
+            "was measured. It is fCO2, which is within about 0.5% of pCO2.",
+        ),
+        "arguments": ("climatology=False,",),
+    },
+    {
+        "variable": "mesozooplankton",
+        "recipe": "copepod",
+        "region": "Global",
+        "example_variable": "zmeso",
+        # the depths, in metres, the observations are a mean over (parsers.BUILT_RECIPES)
+        "depth_mean": (0, 200),
+        "notes": (
+            "Mesozooplankton carbon biomass - NOAA COPEPOD "
+            "(https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html)",
+            "recipe: 'copepod'",
+            "Monthly climatology of net-sampled zooplankton (330 um mesh) as carbon, on a",
+            "0.25 degree grid where there are samples, in milligrams of carbon per cubic",
+            "metre, a mean over the top 200 m: the simulation is averaged over 0-200 m too",
+            "(or the sea floor, where that is shallower), which needs the cell thickness.",
+        ),
+        "arguments": ("climatology=True,",),
     },
     {
         "variable": "temperature",
@@ -257,10 +473,23 @@ RECIPE_CATALOGUE = RECIPE_CATALOGUE + tuple(
 # https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html, which a test keeps the same.
 _GRIDDED_UNITS = {
     ("alkalinity", "glodap"): "micro-mol kg-1",
+    ("dic", "glodap"): "micro-mol kg-1",
+    ("nitrate", "glodap"): "micro-mol kg-1",
+    ("omegaaragonite", "glodap"): "1",
+    ("omegacalcite", "glodap"): "1",
+    ("oxygen", "glodap"): "micro-mol kg-1",
+    ("phosphate", "glodap"): "micro-mol kg-1",
+    ("silicate", "glodap"): "micro-mol kg-1",
     ("chlorophyll", "occci"): "milligram m-3",
     ("kd490", "occci"): "m-1",
     ("nitrate", "woa23"): "micromoles_per_kilogram",
     ("oxygen", "woa23"): "micromoles_per_kilogram",
+    ("aou", "woa23"): "micromoles_per_kilogram",
+    ("pco2", "mpisom"): "uatm",
+    ("co2flux", "mpisom"): "mol m-2 yr-1",
+    ("pco2", "socat"): "uatm",
+    ("mesozooplankton", "copepod"): "mg C m-3",
+    ("o2sat", "woa23"): "percent",
     ("ph", "glodap"): "total scale",
     ("phosphate", "woa23"): "micromoles_per_kilogram",
     ("salinity", "woa23"): "1",
@@ -305,6 +534,21 @@ _COVERAGE = {
         "note": "A climatology of all the data from these years.",
         "url": _WOA23_PAGE,
     },
+    "mpisom": {
+        "years": "1985–2024",
+        "note": "A climatology of the monthly fields of a reconstruction from SOCAT (v2024) observations, not direct observations.",
+        "url": "https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html",
+    },
+    "socat": {
+        "years": "1970–2025",
+        "note": "Monthly observations, not a climatology: only the months and cells that were sampled.",
+        "url": "https://www.socat.info/",
+    },
+    "copepod": {
+        "years": "All the years in the COPEPOD database, which are not given",
+        "note": "A climatology of net samples of all years, a mean over the top 200 m, 330 um mesh.",
+        "url": "https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html",
+    },
     "nsbc": {
         "years": "1960–2014",
         "note": "A climatology of the data from these years.",
@@ -340,11 +584,27 @@ RECIPE_CATALOGUE = tuple(
     for entry in RECIPE_CATALOGUE
 )
 
-# ICES point (in-situ) recipes. Unlike the gridded catalogue above, these are
-# only written into the generated script for domain="nwes", or when one is
-# selected by hand (see build_recipe_script), rather than for every domain
-# commented-out - ICES has no global equivalent, so there is nothing useful
-# to show a global-domain user.
+# The point (in-situ) recipes. Unlike the gridded catalogue above, each
+# source's are only written into the generated script for the domain of its
+# region (GLODAPv3's for "global", ICES's for "nwes"), or when one is selected
+# by hand (see build_recipe_script), rather than for every domain
+# commented-out.
+#
+# The GLODAPv3 bottle data: (variable, title, what its values are), its units
+# as the file gives them (see oceanval.glodap)
+_GLODAPV3_RECIPES = (
+    ("alkalinity", "Total Alkalinity", "reported in micromoles per kilogram"),
+    ("chlorophyll", "Chlorophyll", "reported in micrograms per kilogram"),
+    ("dic", "Dissolved inorganic carbon", "reported in micromoles per kilogram"),
+    ("doc", "Dissolved organic carbon", "reported in micromoles per litre"),
+    ("nitrate", "Nitrate", "reported in micromoles per kilogram"),
+    ("oxygen", "Oxygen", "reported in micromoles per kilogram"),
+    ("ph", "pH", "on the total scale at in situ conditions"),
+    ("phosphate", "Phosphate", "reported in micromoles per kilogram"),
+    ("silicate", "Silicate", "reported in micromoles per kilogram"),
+)
+
+# ICES's (variable, title, dataset, units)
 _ICES_RECIPES = (
     ("temperature", "Temperature", "CTD profiles and bottle data", "degrees Celsius"),
     ("salinity", "Salinity", "CTD profiles and bottle data", "practical salinity units"),
@@ -358,27 +618,69 @@ _ICES_RECIPES = (
     ("silicate", "Silicate", "Bottle and low resolution CTD data", "micromoles per litre"),
 )
 
-# the units of the ICES observations, as the Units column of the point recipes
+# the units of the point observations, as the Units column of the point recipes
 # table at https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html gives them,
 # which a test keeps the same
 _POINT_UNITS = {
-    "temperature": "\u00b0C",
-    "salinity": "dimensionless",
-    "alkalinity": "mEq/l",
-    "ammonium": "\u00b5mol/l",
-    "chlorophyll": "\u00b5g/l",
-    "nitrate": "\u00b5mol/l",
-    "oxygen": "ml/l",
-    "ph": "pH units",
-    "phosphate": "\u00b5mol/l",
-    "silicate": "\u00b5mol/l",
+    ("temperature", "ices"): "\u00b0C",
+    ("salinity", "ices"): "dimensionless",
+    ("alkalinity", "ices"): "mEq/l",
+    ("ammonium", "ices"): "\u00b5mol/l",
+    ("chlorophyll", "ices"): "\u00b5g/l",
+    ("nitrate", "ices"): "\u00b5mol/l",
+    ("oxygen", "ices"): "ml/l",
+    ("ph", "ices"): "pH units",
+    ("phosphate", "ices"): "\u00b5mol/l",
+    ("silicate", "ices"): "\u00b5mol/l",
+    ("alkalinity", "glodapv3"): "\u00b5mol/kg",
+    ("chlorophyll", "glodapv3"): "\u00b5g/kg",
+    ("dic", "glodapv3"): "\u00b5mol/kg",
+    ("doc", "glodapv3"): "\u00b5mol/l",
+    ("nitrate", "glodapv3"): "\u00b5mol/kg",
+    ("oxygen", "glodapv3"): "\u00b5mol/kg",
+    ("ph", "glodapv3"): "total scale",
+    ("phosphate", "glodapv3"): "\u00b5mol/kg",
+    ("silicate", "glodapv3"): "\u00b5mol/kg",
+}
+
+# the years a point source covers, and its web page, for the i beside it
+_POINT_COVERAGE = {
+    "glodapv3": {
+        "years": "1972–2023",
+        "note": "Bottle samples from 1181 cruises, adjusted for differences between cruises.",
+        "url": "https://glodap.info/index.php/merged-and-adjusted-data-product-v3/",
+    },
+}
+
+# the section of the script each point source is written in
+POINT_SECTIONS = {
+    "glodapv3": "Global - GLODAPv3 bottle data",
+    "ices": "Northwest European Shelf - ICES point observations",
 }
 
 POINT_RECIPE_CATALOGUE = tuple(
     {
         "variable": variable,
+        "recipe": "glodapv3",
+        "region": "Global",
+        "units": _POINT_UNITS[variable, "glodapv3"],
+        "coverage": _POINT_COVERAGE["glodapv3"],
+        "example_variable": variable,
+        "notes": (
+            f"{title} - GLODAPv3 bottle data (https://glodap.info)",
+            "recipe: 'glodapv3'",
+            f"Bottle samples, 1972–2023, {reported}.",
+            "Only samples with good (WOCE flag 2) flags are kept.",
+        ),
+        "arguments": ("vertical=False,  # set True to validate the full water column",),
+    }
+    for variable, title, reported in _GLODAPV3_RECIPES
+) + tuple(
+    {
+        "variable": variable,
         "recipe": "ices",
-        "units": _POINT_UNITS[variable],
+        "region": "Northwest European Shelf",
+        "units": _POINT_UNITS[variable, "ices"],
         "example_variable": variable,
         "notes": (
             f"{title} - ICES Oceanographic database (https://ocean.ices.dk)",
@@ -589,6 +891,18 @@ def _candidate_long_names(variable, contents):
     if variable == "oxygen":
         return plain("oxygen", "saturation", "util", "flux")
 
+    if variable == "aou":
+        return [x for x in plain("oxygen", "flux") if "utili" in x.lower() or "aou" in x.lower().split()]
+
+    if variable == "o2sat":
+        # the saturation, as a percentage or a fraction, not the concentration
+        # of oxygen the water would hold at saturation
+        return [
+            x
+            for x in plain("oxygen", "flux", "util")
+            if "saturation" in x.lower() and not re.search(r"concentration|solubility|\bsat\b.*\bvalue", x.lower())
+        ]
+
     if variable == "silicate":
         # some models name it after the silicic acid rather than the salt
         matches = plain("silicate")
@@ -619,6 +933,60 @@ def _candidate_long_names(variable, contents):
             # would otherwise double count
             matches = [name for name in matches if "total" not in name.lower()]
         return matches
+
+    # the carbonate system's other parts, and dissolved organic carbon, which
+    # OceanVal has GLODAP's data for: an air-sea flux, a natural or abiotic
+    # tracer (as CMIP6 has beside dissic) or a preformed one is not the same
+    carbon_excluded = ("flux", "natural", "abiotic", "preformed", "anthropogenic", "saturation", "rate")
+    if variable == "dic":
+        return [
+            name
+            for name in plain("dissolved inorganic carbon", *carbon_excluded)
+            + plain("total co2", *carbon_excluded)
+            + [x for x in names if re.search(r"\bDIC\b", x)]
+            if name in plain("", *carbon_excluded)
+        ]
+
+    if variable == "doc":
+        # ERSEM's is the carbon of its labile, semi-labile and semi-refractory
+        # dissolved organic matter (R1 to R3), which are summed
+        return [
+            name
+            for name in plain("", *carbon_excluded, "production", "release", "uptake")
+            if "dissolved organic carbon" in name.lower()
+            or ("dissolved organic matter" in name.lower() and name.lower().endswith("carbon"))
+        ]
+
+    if variable == "pco2":
+        # the partial pressure or fugacity of the sea water's CO2, not the atmosphere's, an anomaly or a flux
+        return [
+            name
+            for name in plain("", "flux", "atmospher", "air", "delta", "anomal", "gradient", "difference")
+            if re.search(r"p\s?co2|f\s?co2|partial pressure of (?:carbon dioxide|co2)|fugacity", name.lower())
+        ]
+
+    if variable == "co2flux":
+        return [
+            name
+            for name in plain("", "river", "alkalinity")
+            if "flux" in name.lower()
+            and re.search(r"co2|carbon dioxide", name.lower())
+            and re.search(r"air|atmosph|surface|exchange", name.lower())
+        ]
+
+    if variable == "mesozooplankton":
+        matches = plain("mesozooplankton", "production", "grazing", "mortality", "respiration", "excretion", "integrated")
+        # a model giving its carbon, nitrogen and phosphorus: the carbon is the biomass
+        carbon = [name for name in matches if "carbon" in name.lower()]
+        return carbon or matches
+
+    if variable in ("omegacalcite", "omegaaragonite"):
+        mineral = "calcite" if variable == "omegacalcite" else "aragonite"
+        return [
+            name
+            for name in plain(mineral, "flux", "rate", "production", "dissolution")
+            if "saturation" in name.lower() or "omega" in name.lower()
+        ]
 
     return plain(variable)
 
@@ -684,12 +1052,15 @@ def _recipe_mapping(path, fvcom=False, cwd=None):
         contents = fvcom_contents(path)
     else:
         contents = nc.open_data(path, checks=False).contents
-    return contents_mapping(contents, cwd)
+    return contents_mapping(contents, cwd, variable_identify.standard_names_of(path))
 
 
-def contents_mapping(contents, cwd=None):
+def contents_mapping(contents, cwd=None, standard_names=None):
     """_recipe_mapping's mapping and water-column variables, from a file's
-    contents as nctoolkit gives them (variable, long_name and nlevels)."""
+    contents as nctoolkit gives them (variable, long_name and nlevels, and
+    unit if it is there). standard_names is {model variable: standard_name},
+    which nctoolkit does not give, for oceanval.variable_identify, which
+    fills in what the long_names leave unmatched."""
     contents = contents.assign(long_name=[str(x) for x in contents.long_name])
 
     surface_contents = contents.query("nlevels == 1").reset_index(drop=True)
@@ -703,17 +1074,30 @@ def contents_mapping(contents, cwd=None):
     for variable in RECIPE_VARIABLES:
         mapping[variable] = None
         for search in searches:
+            # a variable whose long_names are easily taken for another (oxygen saturation
+            # for an air-sea flux of it) is only looked for among those with units that suit
+            search = variable_identify.fitting(variable, search)
             if len(search) == 0:
                 continue
             model_variables = _matching_variables(
                 search, _candidate_long_names(variable, search)
             )
-            if len(model_variables) > 1 and variable != "chlorophyll":
+            if len(model_variables) > 1 and variable not in ("chlorophyll", "doc"):
                 # no way to tell which of them the recipe wants
                 break
             if model_variables:
                 mapping[variable] = "+".join(model_variables)
                 break
+        if mapping[variable] is None:
+            # what the long_names leave unmatched, by the standard_names and
+            # the names models give their variables (water column first)
+            for search in searches:
+                if len(search) == 0:
+                    continue
+                found, _ = variable_identify.identify(variable, search, standard_names)
+                if found is not None:
+                    mapping[variable] = found
+                    break
 
     nitrogen_source = depth_contents if len(depth_contents) > 0 else surface_contents
     fallback = _nitrate_fallback(nitrogen_source, mapping)
@@ -1263,11 +1647,11 @@ def _recipe_block(
 def _point_recipe_block(
     entry, model_variable, selected=True, options=None, fvcom=False
 ):
-    """The source lines for one ICES point recipe.
+    """The source lines for one point recipe.
 
-    Simpler than _recipe_block: ICES is the only point source, so a point
-    recipe that was not selected has no alternative to name, and it never
-    competes with a gridded one (add_point_comparison and
+    Simpler than _recipe_block: a point recipe that was not selected has no
+    alternative named (each source's are in a section of their own), and it
+    never competes with a gridded one (add_point_comparison and
     add_gridded_comparison keep separate registrations per name). options
     holds any start, end, point_time_res and vertical chosen for it in the
     window.
@@ -1492,8 +1876,9 @@ def default_selection(mapping, domain, cwd=None):
     """The recipes left live when none are chosen by hand.
 
     For each variable a model variable was found for, the one gridded recipe
-    _preferred_entries picks for the domain, and for domain="nwes" its ICES
-    point recipe as well, along with every recipe of the user's own (see
+    _preferred_entries picks for the domain, and the point recipes of the
+    domain's region as well (GLODAPv3's for "global", ICES's for "nwes"),
+    along with every recipe of the user's own (see
     oceanval.user_recipes) for it. The create_recipes window starts with
     these ticked. Returned as a set of (variable, recipe) pairs.
     """
@@ -1501,12 +1886,12 @@ def default_selection(mapping, domain, cwd=None):
         (variable, entry["recipe"])
         for variable, entry in _preferred_entries(mapping, domain).items()
     }
-    if domain == "nwes":
-        selection.update(
-            (entry["variable"], entry["recipe"])
-            for entry in POINT_RECIPE_CATALOGUE
-            if mapping.get(entry["variable"]) is not None
-        )
+    selection.update(
+        (entry["variable"], entry["recipe"])
+        for entry in POINT_RECIPE_CATALOGUE
+        if entry["region"] == DOMAIN_REGIONS[domain]
+        and mapping.get(entry["variable"]) is not None
+    )
     selection.update(
         (entry["variable"], entry["recipe"])
         for entry in _user_entries(cwd)
@@ -1609,9 +1994,17 @@ def build_recipe_script(
         )
         lines.append("")
 
-    if domain == "nwes" or any(live(entry) for entry in POINT_RECIPE_CATALOGUE):
-        lines.extend(_section("Northwest European Shelf - ICES point observations"))
-        for entry in POINT_RECIPE_CATALOGUE:
+    # each point source in a section of its own, written for the domain of its
+    # region or when one of its recipes is to be live
+    for recipe, title in POINT_SECTIONS.items():
+        entries = [entry for entry in POINT_RECIPE_CATALOGUE if entry["recipe"] == recipe]
+        if not (
+            any(entry["region"] == DOMAIN_REGIONS[domain] for entry in entries)
+            or any(live(entry) for entry in entries)
+        ):
+            continue
+        lines.extend(_section(title))
+        for entry in entries:
             model_variable = mapping.get(entry["variable"])
             options = point_options.get((entry["variable"], entry["recipe"]))
             lines.extend(

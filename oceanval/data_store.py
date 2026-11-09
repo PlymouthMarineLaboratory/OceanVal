@@ -16,8 +16,8 @@ mistake here could cost you files of your own, it keeps to four rules:
 
 What is replaced is not removed for a day, as another run may be reading it.
 
-Only OceanVal's own datasets are kept (WOA23, NSBC, OCCCI, COBE2, GLODAP and
-ICES), never data of yours. The store is used in one of two ways:
+Only OceanVal's own datasets are kept (WOA23, NSBC, OCCCI, COBE2, GLODAP, the
+GLODAPv3 bottle data and ICES), never data of yours. The store is used in one of two ways:
 
 - ``"always"``: what is in the store is used, and only what is missing is
   downloaded;
@@ -40,6 +40,9 @@ What the store holds is in pieces, listed in ``oceanval_data_store.json``:
   file, which is kept whole.
 - ICES data: one ICES dataset for one year in a box, with every parameter in
   it, as ICES exports them. The box is cut by ICES, so it is not widened.
+- GLODAPv3 bottle data: one variable, the whole globe and every year, as the
+  rows OceanVal keeps of it (see oceanval.glodap). Its server has it as one
+  file, so every variable is kept as the file is first downloaded.
 
 Anything asked for inside a piece is taken from it: cropping a crop gives the
 same cells as cropping once, so the matchups are the same either way.
@@ -68,6 +71,7 @@ import uuid
 from oceanval.quiet_nc import nc
 import pandas as pd
 
+from oceanval import obs_convert
 from oceanval import user_settings
 from oceanval.session import session_info
 from oceanval.utils import loud_warning
@@ -86,7 +90,9 @@ INDEX = "oceanval_data_store.json"
 VERSION = 1
 GLOBAL = [-180, 180, -90, 90]
 # the gridded datasets the store keeps, by their recipe key
-GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "glodap")
+GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "glodap", "mpisom", "socat", "copepod")
+# the point datasets the store keeps, each in a folder of its own
+POINT_KINDS = ("ices", "glodapv3")
 # a gridded dataset kept a year at a time, as its server has every year in one file
 BY_YEAR = ("cobe2",)
 # a dataset's server address, over thredds, and where the same file can be
@@ -107,10 +113,12 @@ BUILTIN_HOSTS = (
     "downloads.psl.noaa.gov",
     "www.oceancolour.org",
     "icdc.cen.uni-hamburg.de",
+    "glodap.info",
+    "www.st.nmfs.noaa.gov",
 )
 # the names OceanVal gives the pieces' files: no other file is ever used or
 # removed, whatever the index says
-PIECE_NAME = re.compile(r"^(?:" + "|".join(GRIDDED + ("ices",)) + r")/[0-9a-f]{32}\.(?:nc|csv\.gz)$")
+PIECE_NAME = re.compile(r"^(?:" + "|".join(GRIDDED + POINT_KINDS) + r")/[0-9a-f]{32}\.(?:nc|csv\.gz)$")
 # what OceanVal leaves in the store as it writes, removed once old enough
 # that no run can still be writing it
 LEFTOVER_NAMES = (
@@ -688,7 +696,7 @@ def _fetch_gridded(url, thredds, variable, box, levels, years=None, downloaded=N
     if thredds:
         ds = nc.open_thredds(url, checks=False)
     else:
-        downloaded = downloaded if downloaded is not None else nc.open_url(url)
+        downloaded = downloaded if downloaded is not None else obs_convert.open_url(url)
         ds = nc.open_data(downloaded[0], checks=False) if years else downloaded
     if thredds or years:
         ds.subset(variables=variable)
@@ -1128,6 +1136,93 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=
 
 
 # --------------------------------------------------------------------------
+# GLODAPv3 bottle data
+
+
+def _glodapv3_unit(variable):
+    """Whether an entry is the GLODAPv3 piece of a variable."""
+    def matches(entry):
+        return entry.get("kind") == "glodapv3" and entry.get("variable") == variable
+    return matches
+
+
+def glodapv3(variables, download, store_only=False, on_piece=None):
+    """GLODAPv3 variables by way of the data store, as {variable: DataFrame of
+    its rows}, or None when there is no store.
+
+    download(variables) downloads the file and returns ({variable: DataFrame},
+    the url it came from) for the variables asked. Every variable the store
+    lacks is asked for when any is, so the file is downloaded once for all of
+    them (see oceanval.glodap.VARIABLES).
+
+    store_only fills the store without a matchup (see oceanval.store_expand):
+    every variable is kept, nothing is read back, and {"saved", "held",
+    "failed"} is returned. on_piece(variable, status) is told of each as it is
+    done: "held", "saved", "unsaved" or "fallen".
+    """
+    store = active()
+    if store is None:
+        return None
+    from oceanval.glodap import VARIABLES
+
+    root_dir = store["root"]
+    entries = _entries(root_dir)
+    everything = list(VARIABLES)
+    asked = everything if store_only else list(variables)
+    stored = {x: _covering(entries, _glodapv3_unit(x), GLOBAL) for x in everything}
+
+    def wanted(variable):
+        piece = stored[variable]
+        return piece is None or (store["use"] == "fallback" and not _is_fresh(piece))
+
+    found = {}
+    counts = {"saved": 0, "held": 0, "failed": 0}
+    if any(wanted(x) for x in asked):
+        fetch = [x for x in everything if wanted(x)]
+        try:
+            frames, url = download(fetch)
+        except Exception as error:
+            if any(stored[x] is None for x in asked):
+                raise
+            _fallen_back("the GLODAPv3 bottle data", error, [stored[x] for x in asked])
+            for variable in asked:
+                _told(on_piece, variable, "fallen")
+            counts["failed"] = len(asked)
+            frames, url = {}, None
+        for variable, df in frames.items():
+            entry = dict(kind="glodapv3", dataset="glodapv3", url=url, variable=variable,
+                         year=None, box=list(GLOBAL), rows=int(len(df)))
+            kept = _save(
+                root_dir, entry, lambda path, df=df: df.to_csv(path, index=False, compression="gzip"),
+                ".csv.gz", _glodapv3_unit(variable),
+            )
+            if kept is None:
+                _told(on_piece, variable, "unsaved")
+            else:
+                counts["saved"] += 1
+                _told(on_piece, variable, "saved")
+            found[variable] = df
+
+    used = []
+    for variable in asked:
+        if variable in found or stored[variable] is None:
+            continue
+        used.append(stored[variable])
+        if counts["failed"] == 0:
+            counts["held"] += 1
+            _told(on_piece, variable, "held")
+        if not store_only:
+            found[variable] = pd.read_csv(_file(stored[variable], root_dir))
+    if used and not counts["failed"]:
+        print(f"GLODAPv3 {', '.join(asked)}: taken from your data store (downloaded {_when(used)})")
+    elif counts["saved"]:
+        print("GLODAPv3: downloaded, and saved in your data store")
+    if store_only:
+        return counts
+    return {x: found[x] for x in asked}
+
+
+# --------------------------------------------------------------------------
 # for the Preferences panel
 
 # what each way of using the store means, under its name
@@ -1228,6 +1323,8 @@ def _describe(entry):
         return f"An entry ({entry!r})"
     if entry.get("kind") == "ices":
         return f"ICES {entry.get('dataset')} for {entry.get('year')}"
+    if entry.get("kind") == "glodapv3":
+        return f"GLODAPv3 {entry.get('variable')}"
     last = str(entry.get("url")).rsplit("/", 1)[-1]
     year = f" {entry['year']}" if entry.get("year") is not None else ""
     return f"{str(entry.get('dataset')).upper()} {entry.get('variable')}{year} ({last})"
@@ -1249,7 +1346,7 @@ def _walk(root_dir):
     anything: (relative path, lstat) of the files, and the paths of what
     OceanVal would not put there (a link, a folder it does not make)."""
     files, strays = [], []
-    piece_folders = GRIDDED + ("ices",)
+    piece_folders = GRIDDED + POINT_KINDS
 
     def look(folder, relative):
         try:
@@ -1413,7 +1510,12 @@ def check(root_dir):
         if kind == "ices":
             continue
         why = None
-        if kind != "gridded" or dataset not in GRIDDED:
+        if kind == "glodapv3":
+            url = entry.get("url")
+            parsed = urllib.parse.urlparse(url) if isinstance(url, str) else None
+            if parsed is None or parsed.scheme not in ("http", "https") or parsed.hostname not in BUILTIN_HOSTS:
+                why = f"its address, {url!r}, is not one of the built-in sources"
+        elif kind != "gridded" or dataset not in GRIDDED:
             why = f"it is for {dataset!r} ({kind!r}), which is not one of OceanVal's built-in datasets"
         else:
             url = entry.get("url")

@@ -147,7 +147,12 @@ def _recipe_obs_variable(variable, recipe, cwd=None):
     found = recipe_info(variable, recipe, cwd)
     if found is None:
         return None
-    # ICES observations are named by their parameter code
+    # ICES observations are named by their parameter code, GLODAPv3's by
+    # their column in its file
+    if found.get("glodap_variable"):
+        from oceanval.glodap import VARIABLES
+
+        return VARIABLES[found["glodap_variable"]][0]
     return found.get("obs_variable") or found.get("ices_parameter")
 
 

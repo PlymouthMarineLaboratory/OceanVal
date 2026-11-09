@@ -6,7 +6,7 @@ import glob
 import warnings
 from oceanval.session import session_info
 from oceanval.utils import loud_warning
-from oceanval import model_expr, user_recipes
+from oceanval import model_expr, obs_convert, user_recipes
 
 
 def _checked_model_variable(model_variable, name):
@@ -79,6 +79,82 @@ def point_files(obs_path):
     return []
 
 
+# the GLODAPv2.2016b mapped climatologies: the file (and variable) for each
+# variable, all at NCEI
+GLODAP_MAPPED_URL = "https://www.ncei.noaa.gov/data/oceans/archive/arc0221/0286118/1.1/data/0-data/GLODAPv2.2016b_MappedClimatologies"
+GLODAP_MAPPED = {
+    "alkalinity": "TAlk",
+    "dic": "TCO2",
+    "nitrate": "NO3",
+    "omegaaragonite": "OmegaA",
+    "omegacalcite": "OmegaC",
+    "oxygen": "oxygen",
+    "ph": "pHtsinsitutp",
+    "phosphate": "PO4",
+    "silicate": "silicate",
+}
+# the variables of the GLODAPv3 bottle data (see oceanval.glodap)
+GLODAPV3_VARIABLES = (
+    "alkalinity", "chlorophyll", "dic", "doc", "nitrate", "oxygen", "ph", "phosphate", "silicate",
+)
+
+# WOA23's apparent oxygen utilization and oxygen saturation: variable ->
+# (the folder, the letter its files' names have, the variable in them)
+WOA23_OXYGEN_VOLUME = {
+    "aou": ("AOU", "A", "A_an"),
+    "o2sat": ("o2sat", "O", "O_an"),
+}
+WOA23_OXYGEN_CITATION = (
+    "Garcia, H.E., C. Bouchard, S.L. Cross, C.R. Paver, Z. Wang, J.R. Reagan, T.P. Boyer, R.A. Locarnini, "
+    "A.V. Mishonov, O. Baranova, D. Seidov, and D. Dukhovskoy. World Ocean Atlas 2023, Volume 3: Dissolved "
+    "Oxygen, Apparent Oxygen Utilization, and Oxygen Saturation. A. Mishonov, Tech. Ed. NOAA Atlas NESDIS 91, "
+    "doi.org/10.25923/rb67-ns53"
+)
+
+# the recipes whose data is made into a netCDF file (see oceanval.obs_convert), by
+# recipe key: the source, its citation, the file's address, the variable of the
+# file for each of OceanVal's, and whether it is a climatology. depth_mean is
+# the depths, in metres, the data is a mean of.
+BUILT_RECIPES = {
+    "mpisom": {
+        "source": "MPI-SOM-FFN",
+        "source_info": (
+            "Jersild, A., Landschützer, P., Gruber, N., and Bakker, D. C. E.: An observation-based global "
+            "monthly gridded sea surface pCO2 and air-sea CO2 flux product from 1982 onward and its monthly "
+            "climatology (NCEI Accession 0160558), version 2025, NOAA National Centers for Environmental "
+            "Information, https://doi.org/10.7289/v5z899n6, 2026. Method: Landschützer, P., Gruber, N., and "
+            "Bakker, D. C. E.: Decadal variations and trends of the global ocean carbon sink, Global "
+            "Biogeochem. Cycles, 30, 1396–1417, https://doi.org/10.1002/2015GB005359, 2016."
+        ),
+        "obs_path": obs_convert.MPISOM_URL,
+        "variables": {"pco2": "spco2_clim", "co2flux": "fgco2_clim"},
+        "climatology": True,
+    },
+    "socat": {
+        "source": "SOCATv2026",
+        "source_info": (
+            "Bakker, D. C. E., et al.: Surface Ocean CO2 Atlas Database Version 2026 (SOCATv2026) (NCEI "
+            "Accession 0315110), NOAA National Centers for Environmental Information, "
+            "https://doi.org/10.25921/8dba-fr90, 2026. The monthly 1° gridded product, www.socat.info."
+        ),
+        "obs_path": obs_convert.SOCAT_URL,
+        "variables": {"pco2": "fco2_ave_weighted"},
+        "climatology": False,
+    },
+    "copepod": {
+        "source": "COPEPOD",
+        "source_info": (
+            "O'Brien, T. D.: COPEPOD: A Global Plankton Database. NOAA Technical Memorandum "
+            "NMFS-F/SPO-73, 2005. The COPEPOD-2012 zooplankton carbon biomass fields, NOAA NMFS, "
+            "https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html"
+        ),
+        "obs_path": obs_convert.COPEPOD_URL,
+        "variables": {"mesozooplankton": "cmass"},
+        "climatology": True,
+        "depth_mean": (0, 200),
+    },
+}
+
 recipe_list = [
     {"chlorophyll": "occci"},
     {"oxygen": "woa23"},
@@ -88,9 +164,23 @@ recipe_list = [
     {"ammonium": "nsbc"},
     {"phosphate": "woa23"},
     {"silicate": "woa23"},
+    {"aou": "woa23"},
+    {"o2sat": "woa23"},
+    {"pco2": "mpisom"},
+    {"co2flux": "mpisom"},
+    {"pco2": "socat"},
+    {"mesozooplankton": "copepod"},
+    {"doc": "hansell"},
     {"kd490": "occci"},
     {"ph": "glodap"},
     {"alkalinity": "glodap"},
+    {"nitrate": "glodap"},
+    {"phosphate": "glodap"},
+    {"silicate": "glodap"},
+    {"oxygen": "glodap"},
+    {"dic": "glodap"},
+    {"omegacalcite": "glodap"},
+    {"omegaaragonite": "glodap"},
     {"chlorophyll": "nsbc"},
     {"oxygen": "nsbc"},
     {"temperature": "nsbc"},
@@ -143,24 +233,40 @@ def find_recipe(x, start=None, end=None, cwd=None):
     output["builtin"] = value
 
     if value == "glodap":
-        if name.lower() == "ph":
-            output["obs_path"] = "https://www.ncei.noaa.gov/data/oceans/archive/arc0221/0286118/1.1/data/0-data/GLODAPv2.2016b_MappedClimatologies/GLODAPv2.2016b.pHtsinsitutp.nc"
+        obs_variable = GLODAP_MAPPED.get(name.lower())
+        if obs_variable is not None:
+            output["obs_path"] = f"{GLODAP_MAPPED_URL}/GLODAPv2.2016b.{obs_variable}.nc"
             output["source"] = "GLODAPv2.2016b"
             output["source_info"] = "Lauvset, S. K., Key, R. M., Olsen, A., van Heuven, S., Velo, A., Lin, X., Schirnick, C., Kozyr, A., Tanhua, T., Hoppema, M., Jutterström, S., Steinfeldt, R., Jeansson, E., Ishii, M., Perez, F. F., Suzuki, T., and Watelet, S.: A new global interior ocean mapped climatology: the 1° × 1° GLODAP version 2, Earth Syst. Sci. Data, 8, 325–340, https://doi.org/10.5194/essd-8-325-2016, 2016."
             output["name"] = name.lower()
             output["thredds"] = False
             output["climatology"] = True
-            output["obs_variable"] = "pHtsinsitutp"
+            output["obs_variable"] = obs_variable
             return output
-        if name.lower() == "alkalinity":
-            output["obs_path"] = "https://www.ncei.noaa.gov/data/oceans/archive/arc0221/0286118/1.1/data/0-data/GLODAPv2.2016b_MappedClimatologies/GLODAPv2.2016b.TAlk.nc"
-            output["source"] = "GLODAPv2.2016b"
-            output["source_info"] = "Lauvset, S. K., Key, R. M., Olsen, A., van Heuven, S., Velo, A., Lin, X., Schirnick, C., Kozyr, A., Tanhua, T., Hoppema, M., Jutterström, S., Steinfeldt, R., Jeansson, E., Ishii, M., Perez, F. F., Suzuki, T., and Watelet, S.: A new global interior ocean mapped climatology: the 1° × 1° GLODAP version 2, Earth Syst. Sci. Data, 8, 325–340, https://doi.org/10.5194/essd-8-325-2016, 2016."
+
+    if value == "glodapv3":
+        if name.lower() in GLODAPV3_VARIABLES:
+            output["source"] = "GLODAPv3"
+            output["source_info"] = "Lange, N., Lauvset, S. K., Carter, B. R., Humphreys, M. P., Woosley, R. J., Olsen, A., Bittig, H. C., Kozyr, A., Álvarez, M., Azetsu-Scott, K., Becker, S., Brown, P. J., Cotrim da Cunha, L., Dias, L., Hoppema, M., Ishii, M., Jeansson, E., Murata, A., Müller, J. D., Pérez, F. F., Schirnick, C., Steinfeldt, R., Ulfsbo, A., Velo, A., and Tanhua, T.: The Global Ocean Data Analysis Project version 3 (GLODAPv3) – an internally consistent biogeochemical data product for the world ocean, Earth Syst. Sci. Data Discuss., https://doi.org/10.5194/essd-2026-496, 2026. Data: NOAA NCEI Accession 0315582, https://doi.org/10.25921/m6tp-mj50."
             output["name"] = name.lower()
-            output["thredds"] = False
-            output["climatology"] = True
-            output["obs_variable"] = "TAlk"
+            output["point"] = True
+            output["glodap_variable"] = name.lower()
             return output
+
+    if value in BUILT_RECIPES and name.lower() in BUILT_RECIPES[value]["variables"]:
+        # products that oceanval.obs_convert makes into a netCDF file
+        built = BUILT_RECIPES[value]
+        output["source"] = built["source"]
+        output["source_info"] = built["source_info"]
+        output["name"] = name.lower()
+        output["obs_path"] = built["obs_path"]
+        output["obs_variable"] = built["variables"][name.lower()]
+        output["climatology"] = built["climatology"]
+        output["thredds"] = False
+        output["file_check"] = False
+        if "depth_mean" in built:
+            output["depth_mean"] = list(built["depth_mean"])
+        return output
 
     if value == "cobe2":
         if name.lower() == "temperature":
@@ -204,6 +310,18 @@ def find_recipe(x, start=None, end=None, cwd=None):
             urls = [f"https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa23/DATA/silicate/netcdf/all/1.00/woa23_all_i{month:02d}_01.nc" for month in range(1, 13)]
             output["obs_path"] = urls
             output["obs_variable"] = "i_an"
+            return output
+
+        if name.lower() in WOA23_OXYGEN_VOLUME:
+            # apparent oxygen utilization and oxygen saturation: Volume 3, with
+            # the oxygen itself, 12 monthly files of the long-term climatology
+            folder, letter, obs_variable = WOA23_OXYGEN_VOLUME[name.lower()]
+            output["source_info"] = WOA23_OXYGEN_CITATION
+            output["obs_path"] = [
+                f"https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa23/DATA/{folder}/netcdf/all/1.00/woa23_all_{letter}{month:02d}_01.nc"
+                for month in range(1, 13)
+            ]
+            output["obs_variable"] = obs_variable
             return output
 
         if name.lower() in ["salinity", "temperature"]:
@@ -456,7 +574,8 @@ class Validator:
                                obs_adder = 0,
                                thredds = False,
                                recipe = None,
-                               file_check = True
+                               file_check = True,
+                               depth_mean = None
                                    ): 
         """
 
@@ -497,6 +616,11 @@ class Validator:
 
         file_check (bool): Whether to check if the obs_path exists and variables are valid
 
+        depth_mean (list): [top, bottom] depths, in metres, that the observations
+            are a mean over (COPEPOD's mesozooplankton is of the top 200 m), so
+            that the simulation is averaged over them, cell thickness weighted,
+            where the surface is used otherwise. A recipe that needs it gives it.
+
         """
 
         # maybe include an averaging option: daily, monthly, annual etc.
@@ -512,6 +636,8 @@ class Validator:
                 obs_path = recipe_info["obs_path"]
             if source is None:
                 source = recipe_info["source"]
+            if depth_mean is None and builtin is not None:
+                depth_mean = recipe_info.get("depth_mean")
             if source == "GLODAPv2.2016b" or recipe_info.get("file_check") is False:
                 file_check = False
             if source_info is None:
@@ -538,6 +664,16 @@ class Validator:
         if name is None:
             raise ValueError("Name must be supplied for gridded comparison")
         
+        if depth_mean is not None:
+            try:
+                depth_mean = [float(x) for x in depth_mean]
+            except (TypeError, ValueError):
+                raise ValueError("depth_mean must be [top, bottom], two depths in metres")
+            if len(depth_mean) != 2 or not 0 <= depth_mean[0] < depth_mean[1]:
+                raise ValueError("depth_mean must be [top, bottom], two depths in metres, the top above the bottom")
+            if vertical:
+                raise ValueError("depth_mean cannot be given with vertical=True, which uses every depth")
+
         # name can only have str or numbers
         if not re.match("^[A-Za-z0-9]+$", name):
             raise ValueError("Name can only contain letters and numbers")
@@ -711,6 +847,7 @@ class Validator:
             thredds = thredds,
             recipe = recipe,
             builtin = builtin,
+            depth_mean = depth_mean,
         )
         self[name].sources[source_name] = source_info
         self[name].n_levels = 1
@@ -783,9 +920,9 @@ class Validator:
 
         binning (list): Binning information [lon_resolution, lat_resolution]
 
-        recipe (dict): Built-in point recipe, e.g. {"temperature": "ices"}. The
-        observations are downloaded during matchup for the years and lon/lat
-        range being matched, so obs_path is not used.
+        recipe (dict): Built-in point recipe, e.g. {"temperature": "ices"} or
+        {"nitrate": "glodapv3"}. The observations are downloaded during matchup
+        for the years and lon/lat range being matched, so obs_path is not used.
 
         point_time_res (str or list): Which of "year", "month" and "day" the
         observations are matched to the model by, in place of the
@@ -818,8 +955,11 @@ class Validator:
                 short_title = recipe_info["short_title"]
             if user_point:
                 recipe = None
+            elif recipe_info["builtin"] == "glodapv3":
+                recipe = dict(kind="glodapv3", variable=recipe_info["glodap_variable"])
             else:
                 recipe = dict(
+                    kind="ices",
                     parameter = recipe_info["ices_parameter"],
                     dataset = recipe_info["ices_dataset"],
                 )

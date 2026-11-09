@@ -38,7 +38,9 @@ WHERE_LABELS = {
 }
 
 # the keys of the recipes OceanVal comes with, which cannot be used for your own
-BUILTIN_SOURCES = ("cobe2", "glodap", "ices", "nsbc", "occci", "woa23")
+BUILTIN_SOURCES = (
+    "cobe2", "copepod", "glodap", "glodapv3", "hansell", "ices", "mpisom", "nsbc", "occci", "socat", "woa23",
+)
 
 # what a variable's recipes are called in the report, for the variables
 # OceanVal has built-in recipes for: (short_name, long_name, short_title)
@@ -54,6 +56,15 @@ VARIABLE_LABELS = {
     "kd490": ("KD490", "diffuse attenuation coefficient at 490 nm", "KD490"),
     "ph": ("pH", "sea water pH", "pH"),
     "alkalinity": ("total alkalinity", "sea water total alkalinity", "Total Alkalinity"),
+    "dic": ("DIC", "dissolved inorganic carbon concentration", "DIC"),
+    "doc": ("DOC", "dissolved organic carbon concentration", "DOC"),
+    "omegacalcite": ("calcite saturation", "calcite saturation state", "Calcite saturation"),
+    "omegaaragonite": ("aragonite saturation", "aragonite saturation state", "Aragonite saturation"),
+    "pco2": ("surface pCO2", "ocean partial pressure of CO2", "pCO2"),
+    "co2flux": ("air-sea CO2 flux", "air-sea CO2 flux", "CO2 flux"),
+    "aou": ("apparent oxygen utilization", "apparent oxygen utilization", "AOU"),
+    "o2sat": ("oxygen saturation", "oxygen saturation", "Oxygen saturation"),
+    "mesozooplankton": ("mesozooplankton biomass", "mesozooplankton carbon biomass", "Mesozooplankton"),
 }
 
 # what the variables are called in the window's tables of datasets (the
@@ -61,12 +72,21 @@ VARIABLE_LABELS = {
 # keeps VARIABLE_LABELS
 DISPLAY_NAMES = {
     "alkalinity": "Total alkalinity of sea water",
+    "aou": "Apparent oxygen utilization in sea water",
+    "co2flux": "Air-sea CO2 flux",
     "ammonium": "Ammonium concentration in sea water",
     "chlorophyll": "Chlorophyll a concentration in sea water",
+    "dic": "Dissolved inorganic carbon concentration in sea water",
+    "doc": "Dissolved organic carbon concentration in sea water",
     "kd490": "Diffuse attenuation coefficient at 490 nm",
+    "mesozooplankton": "Mesozooplankton carbon biomass in sea water",
     "nitrate": "Nitrate concentration in sea water",
+    "o2sat": "Oxygen saturation of sea water",
+    "omegaaragonite": "Aragonite saturation state of sea water",
+    "omegacalcite": "Calcite saturation state of sea water",
     "oxygen": "Dissolved oxygen concentration in sea water",
     "ph": "Sea water pH",
+    "pco2": "Surface ocean partial pressure of CO2",
     "phosphate": "Phosphate concentration in sea water",
     "salinity": "Sea water salinity",
     "silicate": "Silicate concentration in sea water",

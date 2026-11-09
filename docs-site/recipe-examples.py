@@ -18,14 +18,15 @@ import oceanval
 
 # Alkalinity - GLODAPv2.2016b (https://www.glodap.info/)
 # recipe: 'glodap'
-# Annual climatology covering 1972–2013, surface-only. Reported in
-# micromoles per kilogram. See the GLODAPv2 reference
+# Annual climatology covering 1972–2013, vertically resolved to 5500 m.
+# Reported in micromoles per kilogram. See the GLODAPv2 reference
 # (https://doi.org/10.5194/essd-8-325-2016).
 oceanval.add_gridded_comparison(
     name="alkalinity",
     model_variable="talk",
     recipe={"alkalinity": "glodap"},
     climatology=True,
+    vertical=False,  # set True to validate the full water column
 )
 
 # Chlorophyll - Ocean Colour CCI (https://esa-oceancolour-cci.org/)
@@ -37,6 +38,18 @@ oceanval.add_gridded_comparison(
     model_variable="chl",
     recipe={"chlorophyll": "occci"},
     climatology=False,
+)
+
+# Dissolved inorganic carbon - GLODAPv2.2016b (https://www.glodap.info/)
+# recipe: 'glodap'
+# Annual climatology, 1972–2013, vertically resolved to 5500 m.
+# Reported in micromoles per kilogram.
+oceanval.add_gridded_comparison(
+    name="dic",
+    model_variable="dissic",
+    recipe={"dic": "glodap"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
 )
 
 # KD490 - Ocean Colour CCI (https://esa-oceancolour-cci.org/)
@@ -62,6 +75,42 @@ oceanval.add_gridded_comparison(
     vertical=False,  # set True to validate the full water column
 )
 
+# Nitrate - GLODAPv2.2016b (https://www.glodap.info/)
+# recipe: 'glodap'
+# Annual climatology, 1972–2013, vertically resolved to 5500 m.
+# Reported in micromoles per kilogram.
+oceanval.add_gridded_comparison(
+    name="nitrate",
+    model_variable="no3",
+    recipe={"nitrate": "glodap"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Aragonite saturation state - GLODAPv2.2016b (https://www.glodap.info/)
+# recipe: 'glodap'
+# Annual climatology, 1972–2013, vertically resolved to 5500 m.
+# Calculated at in situ temperature and pressure; no units.
+oceanval.add_gridded_comparison(
+    name="omegaaragonite",
+    model_variable="omega_arg",
+    recipe={"omegaaragonite": "glodap"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Calcite saturation state - GLODAPv2.2016b (https://www.glodap.info/)
+# recipe: 'glodap'
+# Annual climatology, 1972–2013, vertically resolved to 5500 m.
+# Calculated at in situ temperature and pressure; no units.
+oceanval.add_gridded_comparison(
+    name="omegacalcite",
+    model_variable="omega_cal",
+    recipe={"omegacalcite": "glodap"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
 # Oxygen - World Ocean Atlas 2023 (https://www.ncei.noaa.gov/products/world-ocean-atlas)
 # recipe: 'woa23'
 # Vertically resolved to ~800 m.
@@ -73,14 +122,28 @@ oceanval.add_gridded_comparison(
     vertical=False,  # set True to validate the full water column
 )
 
+# Oxygen - GLODAPv2.2016b (https://www.glodap.info/)
+# recipe: 'glodap'
+# Annual climatology, 1972–2013, vertically resolved to 5500 m.
+# Reported in micromoles per kilogram.
+oceanval.add_gridded_comparison(
+    name="oxygen",
+    model_variable="o2",
+    recipe={"oxygen": "glodap"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
 # pH - GLODAPv2.2016b (https://www.glodap.info/)
 # recipe: 'glodap'
-# Annual climatology, 1972–2013, surface-only. Reported on the total scale.
+# Annual climatology, 1972–2013, vertically resolved to 5500 m. Reported on
+# the total scale at in situ temperature and pressure.
 oceanval.add_gridded_comparison(
     name="ph",
     model_variable="ph",
     recipe={"ph": "glodap"},
     climatology=True,
+    vertical=False,  # set True to validate the full water column
 )
 
 # Phosphate - World Ocean Atlas 2023 (https://www.ncei.noaa.gov/products/world-ocean-atlas)
@@ -90,6 +153,18 @@ oceanval.add_gridded_comparison(
     name="phosphate",
     model_variable="po4",
     recipe={"phosphate": "woa23"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Phosphate - GLODAPv2.2016b (https://www.glodap.info/)
+# recipe: 'glodap'
+# Annual climatology, 1972–2013, vertically resolved to 5500 m.
+# Reported in micromoles per kilogram.
+oceanval.add_gridded_comparison(
+    name="phosphate",
+    model_variable="po4",
+    recipe={"phosphate": "glodap"},
     climatology=True,
     vertical=False,  # set True to validate the full water column
 )
@@ -114,6 +189,18 @@ oceanval.add_gridded_comparison(
     name="silicate",
     model_variable="si",
     recipe={"silicate": "woa23"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Silicate - GLODAPv2.2016b (https://www.glodap.info/)
+# recipe: 'glodap'
+# Annual climatology, 1972–2013, vertically resolved to 5500 m.
+# Reported in micromoles per kilogram.
+oceanval.add_gridded_comparison(
+    name="silicate",
+    model_variable="si",
+    recipe={"silicate": "glodap"},
     climatology=True,
     vertical=False,  # set True to validate the full water column
 )
@@ -223,6 +310,110 @@ oceanval.add_gridded_comparison(
     model_variable="temperature",
     recipe={"temperature": "nsbc"},
     climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+
+# ==========================================================================
+# Global - GLODAPv3 bottle data
+# ==========================================================================
+
+# Total Alkalinity - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="alkalinity",
+    model_variable="alkalinity",
+    recipe={"alkalinity": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Chlorophyll - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micrograms per kilogram.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="chlorophyll",
+    model_variable="chlorophyll",
+    recipe={"chlorophyll": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Dissolved inorganic carbon - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="dic",
+    model_variable="dic",
+    recipe={"dic": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Dissolved organic carbon - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micromoles per litre.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="doc",
+    model_variable="doc",
+    recipe={"doc": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Nitrate - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="nitrate",
+    model_variable="nitrate",
+    recipe={"nitrate": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Oxygen - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="oxygen",
+    model_variable="oxygen",
+    recipe={"oxygen": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# pH - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, on the total scale at in situ conditions.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="ph",
+    model_variable="ph",
+    recipe={"ph": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Phosphate - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="phosphate",
+    model_variable="phosphate",
+    recipe={"phosphate": "glodapv3"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Silicate - GLODAPv3 bottle data (https://glodap.info)
+# recipe: 'glodapv3'
+# Bottle samples, 1972–2023, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags are kept.
+oceanval.add_point_comparison(
+    name="silicate",
+    model_variable="silicate",
+    recipe={"silicate": "glodapv3"},
     vertical=False,  # set True to validate the full water column
 )
 

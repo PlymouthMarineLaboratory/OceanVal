@@ -172,8 +172,8 @@
 
   /* a dataset's own options, under its tick-box: as wide as the point
      column, so the gridded ones line up with the point ones */
-  .dataset { display: grid; gap: 8px; justify-items: start; }
-  .opts { display: grid; gap: 6px; width: 188px; max-width: 100%; }
+  .dataset { display: grid; gap: 10px; justify-items: start; }
+  .opts { display: grid; gap: 14px; width: 188px; max-width: 100%; }
   .opts__row { display: grid; grid-template-columns: 50px minmax(0, 1fr); align-items: center; gap: 6px; }
   .opts__label { color: var(--muted); font-size: 11.5px; font-weight: 500; }
   .opts__row.is-required { grid-template-columns: 64px minmax(0, 1fr); }
@@ -743,7 +743,10 @@
     ownChipList.some(({ chip }) => chip.dataset.kind === kind && chip.dataset.opts.vertical)
     || rows.some((row) => row.status === "ok" && row.datasets.some(
       (dataset) => dataset.kind === kind && dataset.checked && dataset.opts.vertical));
-  const needsThickness = () => !context.fvcom && (ownVertical() || KINDS.some(verticalTicked));
+  // a gridded dataset that is a mean over some depths (COPEPOD's, of the top 200 m) needs the water column too
+  const depthMeanTicked = () => rows.some((row) => row.status === "ok" && row.datasets.some(
+    (dataset) => dataset.kind === "gridded" && dataset.checked && dataset.depth_mean));
+  const needsThickness = () => !context.fvcom && (ownVertical() || KINDS.some(verticalTicked) || depthMeanTicked());
   // the years above are needed only by a point dataset without a first and last of its own
   const lacksOwnYears = (dataset) => !dataset.typed.start || !dataset.typed.end;
   const needsPointYears = () => (ownChipList.length
@@ -751,7 +754,7 @@
     : Boolean(app && app.own_point))
     || rows.some((row) => row.status === "ok" && row.datasets.some(
       (dataset) => dataset.checked && dataset.kind === "point" && lacksOwnYears(dataset)));
-  const THICKNESS_NEEDED ="A dataset is set to Vertical, so a thickness is needed: z_level, a cell thickness variable or a file.";
+  const THICKNESS_NEEDED = "A dataset is set to Vertical, or is a mean over some depths, so a thickness is needed: z_level, a cell thickness variable or a file.";
 
   // the thickness is asked on the point datasets' page if only they are set
   // to Vertical, else on the page of the gridded datasets. Returns that page
@@ -928,8 +931,8 @@
       case "output":
         return [{ text: "Empty: the directory you run the script from. The report is built there too." }];
       case "thickness": {
-        // only shown when a dataset is set to Vertical, which needs it
-        const hints = [{ text: "A dataset is set to Vertical, so OceanVal needs the simulation's cell thickness: z_level, a cell thickness variable or a file." }];
+        // only shown when a dataset is set to Vertical, or is a mean over some depths, which need it
+        const hints = [{ text: "A dataset is set to Vertical, or is a mean over some depths, so OceanVal needs the simulation's cell thickness: z_level, a cell thickness variable or a file." }];
         // in the app, a missing thickness is an error instead
         if (!app && !String(form.thickness).trim()) {
           hints.push({ text: "Matchup needs a thickness.", warn: true });
@@ -1111,7 +1114,10 @@
       const was = row.original ? `Changed from ${row.original}. ` : "Not identified automatically. ";
       return [el("span", {}, was, undo(row))];
     }
-    return dropped ? [icon("warn"), el("span", {}, dropped, " This is the one OceanVal found.")] : [];
+    if (dropped) return [icon("warn"), el("span", {}, dropped, " This is the one OceanVal found.")];
+    // found by its standard_name or the names its model gives its variables,
+    // not its long_name (see oceanval.variable_identify)
+    return row.found_by && row.original ? [el("span", { class: "found-by", text: `Identified by ${row.found_by}.` })] : [];
   }
 
   // the gridded datasets a row is validated against, for the point page's last column

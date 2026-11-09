@@ -1,5 +1,6 @@
 import calendar
 import contextlib
+import tempfile
 import glob
 import copy
 import datetime
@@ -17,8 +18,10 @@ import xarray as xr
 
 from oceanval import data_store
 from oceanval import extent
+from oceanval import glodap
 from oceanval import live
 from oceanval import model_expr
+from oceanval import obs_convert
 from oceanval import prompts
 from oceanval import server_trouble
 from oceanval import surface
@@ -59,13 +62,19 @@ def _is_url(path):
     return isinstance(path, str) and path.startswith(("http://", "https://", "ftp://"))
 
 
+def _is_nc(path):
+    """Whether path is a netCDF file: named so, or a product built into one (see oceanval.obs_convert)."""
+    return path.endswith(".nc") or obs_convert.is_built(path)
+
+
 def _open_obs(path, thredds):
     """Open observational data: over thredds, downloaded from a url, or local."""
     if thredds:
         return nc.open_thredds(path, checks=False)
     if _is_url(path):
         # a plain file served over http, e.g. GLODAP: downloaded to a temp file
-        return nc.open_url(path)
+        # (or, for some products, made into one: see oceanval.obs_convert)
+        return obs_convert.open_url(path)
     return nc.open_data(path, checks=False)
 
 
@@ -295,7 +304,7 @@ def _obs_resolution(comparison, downloaded=None):
     if isinstance(obs_path, (list, tuple)):
         obs_path = obs_path[0]
     if not comparison["thredds"] and not _is_url(obs_path) and (
-        not obs_path.endswith(".nc") or glob.has_magic(obs_path)
+        not _is_nc(obs_path) or glob.has_magic(obs_path)
     ):
         obs_path = _obs_files(obs_path)[0]
     if not comparison["thredds"] and _is_url(obs_path):
@@ -458,6 +467,76 @@ def model_dataset(
     return ds_model, fast, small_cache
 
 
+def depth_weights(thickness, depth_range):
+    """The share of each cell of the thickness file (surface level first, one
+    time step or none) between the depths depth_range, in metres, as the path of
+    a netCDF file of that, in a temporary file: a cell wholly inside has its
+    thickness, one the range cuts has the part inside, others 0. It is nctoolkit's
+    vertical_mean(depth_range=), which is not used as it makes a variable called
+    depth, which a model's vertical dimension of that name (GLORYS') breaks."""
+    from oceanval.netcdf_lock import LOCK
+
+    top, bottom = depth_range
+    with LOCK, xr.open_dataset(thickness, decode_times=False) as ds:
+        name = [x for x in ds.data_vars if ds[x].ndim >= 3][0]
+        cells = ds[name]
+        if cells.ndim == 4:
+            # the first of its times: (time, level, y, x)
+            cells = cells.isel({cells.dims[0]: 0}, drop=True)
+        vertical = cells.dims[0]
+        bottoms = cells.cumsum(vertical, skipna=False)
+        tops = bottoms - cells
+        inside = np.minimum(bottoms, bottom) - np.maximum(tops, top)
+        weights = inside.where(inside > 0, 0.0).where(cells.notnull()).astype("float32")
+        weights.name = "weight"
+        weights.attrs = {}
+        handle, path = tempfile.mkstemp(prefix="oceanval_depth_weights_", suffix=".nc")
+        os.close(handle)
+        weights.to_dataset().to_netcdf(path, encoding={"weight": {"_FillValue": np.float32(1e20)}})
+    return path
+
+
+def mean_over_depths(ds, depth_range, thickness):
+    """The DataSet ds, of monthly fields with levels, as its mean over the depths
+    depth_range ([top, bottom], in metres), each cell weighted by its thickness
+    within them (the thickness file, which is None when the model is on
+    z-levels, where the levels within the depths are averaged, CDO weighting
+    them by their layers). A cell with no value has no weight, so the mean is
+    of the water there is. Returns the new DataSet."""
+    top, bottom = depth_range
+    if thickness is None:
+        depths = [x for x in ds.levels if top <= x <= bottom]
+        if len(depths) == 0:
+            raise ValueError(f"The model has no levels between {top:g} and {bottom:g} m")
+        ds.cdo_command("-sellevel," + ",".join(repr(float(x)) for x in depths))
+        ds.vertical_mean(fixed=True)
+        return ds
+    path = depth_weights(thickness, depth_range)
+    try:
+        weights = nc.open_data(path, checks=False)
+        weights.run()
+        # only where the model has a value, at its first time
+        mask = ds.copy()
+        mask.subset(time=0)
+        mask.cdo_command("-gtc,-1e30")
+        mask.run()
+        weights * mask
+        weights.run()
+        total = ds.copy()
+        total * weights
+        total.run()
+        total.vertical_sum()
+        total.run()
+        weights.vertical_sum()
+        weights.run()
+        total / weights
+        total.run()
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(path)
+    return total
+
+
 def gridded_matchup(
     df_mapping=None,
     folder=None,
@@ -564,6 +643,11 @@ def gridded_matchup(
                 comparison = definitions[vv].gridded_comparisons[vv_source]
                 vertical_gridded = comparison["vertical"]
                 climatology = comparison["climatology"]
+                if comparison.get("depth_mean") and session_info.get("fvcom", False):
+                    raise ValueError(
+                        f"{vv} ({vv_source}) is a mean over {comparison['depth_mean'][0]:g}-{comparison['depth_mean'][1]:g} m, "
+                        "which OceanVal cannot take of raw FVCOM output"
+                    )
                     # if global is not selected, stop
                 # a dictionary for summarizing things
                 var_dict = {}
@@ -696,7 +780,7 @@ def gridded_matchup(
                 obs_download = None
                 if session_info.get("fvcom", False):
                     # regrid FVCOM output at twice the resolution of the observations
-                    if _is_url(dir_var) and dir_var.endswith(".nc") and not comparison["thredds"]:
+                    if _is_url(dir_var) and _is_nc(dir_var) and not comparison["thredds"]:
                         # downloaded once, for the resolution and the matchup
                         if data_store.active() is not None and data_store.keeps(comparison):
                             # a whole file, which the store keeps whole
@@ -738,7 +822,7 @@ def gridded_matchup(
                         sim_years,
                         session_info.get("time_shift"),
                         session_info["as_missing"],
-                        surface_only=vertical_gridded is False,
+                        surface_only=vertical_gridded is False and not comparison.get("depth_mean"),
                         fvcom=bool(session_info.get("fvcom", False)),
                         month_per_file=month_per_file,
                         formula=mapping[vv],
@@ -805,7 +889,7 @@ def gridded_matchup(
                         on_observing("gridded", vv, vv_source)
                     thredds = comparison["thredds"]
                     if thredds == False:
-                        if dir_var.endswith(".nc") and not glob.has_magic(dir_var):
+                        if _is_nc(dir_var) and not glob.has_magic(dir_var):
                             vv_file = dir_var
                         else:
                             vv_file = _obs_files(dir_var)
@@ -850,6 +934,9 @@ def gridded_matchup(
                                 thredds = False
                                 vv_file = download
                             ds_obs = _open_obs(vv_file, thredds)
+                    if comparison.get("builtin") == "glodap" and len(ds_obs) == 1:
+                        # its levels are numbered, not depths, in the file
+                        glodap.fix_depths(ds_obs)
                     bad_clim = False
 
                     if vertical_gridded is False:
@@ -1039,7 +1126,13 @@ def gridded_matchup(
                     nlevels = contents.nlevels[0]
                     if nlevels > 1:
                         surface.finite_missing(ds_model_surface)
-                        ds_model_surface.cdo_command("topvalue")
+                        if comparison.get("depth_mean"):
+                            # observations that are a mean over some depths (COPEPOD's, of the top 200 m)
+                            ds_model_surface = mean_over_depths(
+                                ds_model_surface, comparison["depth_mean"], session_info.get("ds_thickness")
+                            )
+                        else:
+                            ds_model_surface.cdo_command("topvalue")
                     ds_obs_surface = ds_obs.copy()
                     contents = ds_obs_surface.contents
                     nlevels = contents.nlevels[0]

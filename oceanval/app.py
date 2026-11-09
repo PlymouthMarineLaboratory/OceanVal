@@ -91,9 +91,9 @@ from oceanval.create_recipes import (
 
 
 # the regions of the built-in recipes, as https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html
-# names them (the ICES catalogue entries carry none)
+# names them (ICES's point data is said to be the Northeast Atlantic's)
 _DATASET_REGIONS = {"Northwest European Shelf": "NW European Shelf"}
-_POINT_DATASET_REGION = "Northeast Atlantic"
+_POINT_DATASET_REGIONS = {"Northwest European Shelf": "Northeast Atlantic"}
 # the web pages of the datasets whose catalogue entries give none, or a better one
 _DATASET_URLS = {
     "nsbc": "https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html",
@@ -116,7 +116,7 @@ def builtin_datasets():
             rows.append(
                 {
                     "point": point,
-                    "region": _POINT_DATASET_REGION if point else _DATASET_REGIONS.get(region, region),
+                    "region": (_POINT_DATASET_REGIONS if point else _DATASET_REGIONS).get(region, region),
                     "variable": user_recipes.display_name(entry["variable"], note["title"]),
                     "name": entry["variable"],
                     "recipe": entry["recipe"],

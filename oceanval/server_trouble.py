@@ -32,6 +32,8 @@ SERVERS = {
     "www.oceancolour.org": "ESA's Ocean Colour CCI",
     "icdc.cen.uni-hamburg.de": "ICDC (University of Hamburg)",
     "ocean.ices.dk": "ICES",
+    "glodap.info": "GLODAP (GEOMAR)",
+    "data.pmel.noaa.gov": "NOAA",
 }
 
 # what is said for an answer whose page gives no reason

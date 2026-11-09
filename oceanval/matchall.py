@@ -46,6 +46,7 @@ from oceanval.fvcom import default_dz as fvcom_default_dz
 from oceanval import data_store as obs_store
 from oceanval import cdo_watch
 from oceanval import extent
+from oceanval import glodap
 from oceanval import ices
 from oceanval import live
 from oceanval import surface
@@ -57,6 +58,10 @@ from oceanval import server_trouble
 from oceanval import time_res
 from oceanval import time_stamps
 from oceanval import user_cache
+
+# the module that downloads each built-in point source, by the "kind" of the
+# recipe dict add_point_comparison keeps
+POINT_SOURCES = {"ices": ices, "glodapv3": glodap}
 
 
 def read_point(ff, nrows = None):
@@ -268,6 +273,13 @@ def _check_water_column_variables(comparisons, all_df):
             contents = nc.open_data(ff, checks=False).contents
         nlevels = contents.loc[contents.variable == name].nlevels
         if len(nlevels) > 0 and int(nlevels.iloc[0]) == 1:
+            depths = definitions[vv].gridded_comparisons.get(source, {}).get("depth_mean")
+            if depths:
+                raise ValueError(
+                    f"{name} in {os.path.basename(ff)} has only one vertical level, so {vv} ({source}), "
+                    f"which is a mean over {depths[0]:g}-{depths[1]:g} m, cannot be matched. Give the model's "
+                    "3D variable as model_variable."
+                )
             raise ValueError(
                 f"{name} in {os.path.basename(ff)} has only one vertical level, so {vv} ({source}) "
                 "cannot be matched through the water column. Give the model's 3D variable as "
@@ -1778,6 +1790,10 @@ def matchup(
     gridded_vertical = [
         x for x in gridded if definitions[x[0]].gridded_comparisons[x[1]]["vertical"]
     ]
+    # observations that are a mean over some depths need the model's water column too
+    gridded_depth_mean = [
+        x for x in gridded if definitions[x[0]].gridded_comparisons[x[1]].get("depth_mean")
+    ]
     gridded_surface = [x for x in gridded if x not in gridded_vertical]
 
     var_chosen = [vv for vv, source in gridded + point["all"] + point["surface"]]
@@ -1798,18 +1814,24 @@ def matchup(
         # identifical if vertical_gridded is True
         if definitions[vv].gridded_comparisons[source]["vertical"]:
             thick_check = True
+        if definitions[vv].gridded_comparisons[source].get("depth_mean"):
+            thick_check = True
     if len(point["all"]) > 0:
         thick_check = True
 
     # FVCOM output is regridded onto depths later
     if thick_check and not fvcom:
-        _check_water_column_variables(gridded_vertical + point["all"], all_df)
+        _check_water_column_variables(gridded_vertical + gridded_depth_mean + point["all"], all_df)
 
     if session_info["z_level"]:
         # on z-levels the model's levels are matched as depths, so they
         # cannot be heights. FVCOM output is regridded onto depths
         if thick_check and not fvcom:
-            vertical = [vv for vv, source in gridded if definitions[vv].gridded_comparisons[source]["vertical"]]
+            vertical = [
+                vv for vv, source in gridded
+                if definitions[vv].gridded_comparisons[source]["vertical"]
+                or definitions[vv].gridded_comparisons[source].get("depth_mean")
+            ]
             vertical += [vv for vv, source in point["all"]]
             for model_variable in dict.fromkeys(definitions[vv].model_variable for vv in vertical):
                 name = model_expr.names(model_variable)[0]
@@ -2376,8 +2398,11 @@ def matchup(
                                 recipe_lon, recipe_lat = lon_lim, lat_lim
                             else:
                                 recipe_lon, recipe_lat = _model_box(sim_paths[0], model_variable)
+                            # which built-in point source (a recipe kept
+                            # before there were two has no kind, and is ICES)
+                            source_module = POINT_SOURCES[comparison["recipe"].get("kind", "ices")]
                             try:
-                                df = ices.download_point_data(
+                                df = source_module.download_point_data(
                                     comparison["recipe"],
                                     max(session_info["min_year"], comparison["start"]),
                                     min(session_info["max_year"], comparison["end"]),
@@ -2388,7 +2413,7 @@ def matchup(
                                 # the window says so at the bottom of its page
                                 server_trouble.tell(
                                     error,
-                                    ices.API_BASE,
+                                    source_module.API_BASE,
                                     live.matchup_key("point", variable, source, layer),
                                     f"{variable} ({source}, {layer})",
                                 )

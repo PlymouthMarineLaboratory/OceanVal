@@ -46,15 +46,20 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import model_expr, netcdf_lock, own_data, time_res, user_recipes
+from oceanval import model_expr, netcdf_lock, own_data, time_res, user_recipes, variable_identify
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
     "cobe2": "COBE2",
     "glodap": "GLODAP",
+    "copepod": "COPEPOD",
+    "glodapv3": "GLODAPv3",
+    "hansell": "Hansell",
     "ices": "ICES",
+    "mpisom": "MPI-SOM-FFN",
     "nsbc": "NSBC",
     "occci": "OC-CCI",
+    "socat": "SOCAT",
     "woa23": "WOA23",
 }
 
@@ -66,7 +71,7 @@ REGION_TAGS = {
     USER_REGION: "Yours",
 }
 
-# ICES covers the shelf, though its catalogue entries carry no region
+# the region of a point recipe whose catalogue entry carries none
 POINT_REGION = "Northwest European Shelf"
 
 
@@ -92,7 +97,7 @@ def is_likely_nemo_ersem(variables):
 
 # why the oceanval app's window cannot carry on without a thickness
 THICKNESS_NEEDED = (
-    "A dataset is set to Vertical, so a thickness is needed: z_level, a cell "
+    "A dataset is set to Vertical, or is a mean over some depths, so a thickness is needed: z_level, a cell "
     "thickness variable or a file."
 )
 
@@ -688,6 +693,9 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
             # inside one WOA23 decade
             "vertical_option": _has_vertical_option(entry),
             "decadal": bool(entry.get("decadal")),
+            # [top, bottom] in metres if the observations are a mean over them: the simulation's
+            # is taken over them too, which needs the cell thickness
+            "depth_mean": entry.get("depth_mean"),
             # averaged over the simulation's years: given the window's
             # climatology years
             "climatology": _is_climatology(entry),
@@ -702,6 +710,9 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
                 variable, cwd, [item["arguments"] for item in own.get(variable, [])]
             ),
             "model_variable": mapping.get(variable) or "",
+            # how oceanval.variable_identify found it, if it did (None if the
+            # long_names did)
+            "found_by": variable_identify.found_by(variable, mapping.get(variable)),
             "gridded": [
                 dataset(entry, entry["region"])
                 for entry in gridded_catalogue(cwd)
@@ -1126,6 +1137,11 @@ class RecipePage:
                 vertical = own_vertical or any(
                     options.get("vertical")
                     for options in [*gridded_options.values(), *point_options.values()]
+                ) or any(
+                    dataset["depth_mean"]
+                    for variable, recipe in selection
+                    for dataset in rows.get(variable, {}).get("gridded", [])
+                    if dataset["recipe"] == recipe
                 )
                 if (
                     vertical

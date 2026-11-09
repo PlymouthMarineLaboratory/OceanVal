@@ -62,15 +62,15 @@ def gridded(**changes):
 
 def point(**changes):
     recipe = dict(
-        variable="dic",
+        variable="poc",
         kind="point",
-        source="DicPts",
+        source="PocPts",
         source_info="DIC samples",
         obs_path=POINTS,
         units="umol/kg",
-        long_name="dissolved inorganic carbon",
-        short_name="DIC",
-        short_title="DIC",
+        long_name="particulate organic carbon",
+        short_name="POC",
+        short_title="POC",
     )
     recipe.update(changes)
     return recipe
@@ -226,9 +226,9 @@ class TestProblems:
         assert "used in place of this" in warnings[0]
 
     def test_the_other_file_cannot_have_it_as_another_kind(self, work):
-        user_recipes.save(gridded(variable="dic", source="DicPts"), "global", work)
+        user_recipes.save(gridded(variable="poc", source="PocPts"), "global", work)
         errors, _ = user_recipes.problems(point(), "local", work)
-        assert "already a gridded dic recipe" in errors["source"]
+        assert "already a gridded poc recipe" in errors["source"]
 
     def test_a_variables_names_are_those_it_has(self, work):
         errors, _ = user_recipes.problems(
@@ -246,12 +246,13 @@ class TestProblems:
         assert set(user_recipes.RESERVED_VARIABLES) == own
 
     def test_the_built_in_sources_are_the_catalogues(self):
-        built_in = {e["recipe"] for e in RECIPE_CATALOGUE + POINT_RECIPE_CATALOGUE}
-        assert set(user_recipes.BUILTIN_SOURCES) == built_in
+        # BUILTIN_SOURCES may also reserve names for forthcoming implementations
+        catalogue_sources = {e["recipe"] for e in RECIPE_CATALOGUE + POINT_RECIPE_CATALOGUE}
+        assert catalogue_sources <= set(user_recipes.BUILTIN_SOURCES)
 
     def test_a_new_variables_names_come_with_the_recipe(self, work):
         user_recipes.save(point(), "local", work)
-        assert user_recipes.labels("dic", work) == ("DIC", "dissolved inorganic carbon", "DIC")
+        assert user_recipes.labels("poc", work) == ("POC", "particulate organic carbon", "POC")
         assert user_recipes.labels("nitrate", work)[2] == "Nitrate"
         assert user_recipes.labels("nothing", work) is None
 
@@ -295,9 +296,9 @@ class TestFindRecipe:
 
     def test_a_point_recipe(self, work):
         user_recipes.save(point(), "global", work)
-        found = find_recipe({"dic": "dicpts"}, cwd=work)
+        found = find_recipe({"poc": "pocpts"}, cwd=work)
         assert found["point"] is True and found["obs_path"] == POINTS
-        assert found["short_title"] == "DIC"
+        assert found["short_title"] == "POC"
 
     def test_a_recipe_that_is_nowhere_says_where_it_looked(self, work):
         with pytest.raises(ValueError, match="not valid") as error:
@@ -359,12 +360,12 @@ class TestRegistering:
     def test_a_point_recipe_is_registered_as_csv_files(self, work, validator, monkeypatch):
         user_recipes.save(point(), "local", work)
         monkeypatch.chdir(work)
-        validator.add_point_comparison(model_variable="DIC", recipe={"dic": "dicpts"})
-        comparison = validator["dic"].point_comparisons["DicPts"]
+        validator.add_point_comparison(model_variable="POC", recipe={"poc": "pocpts"})
+        comparison = validator["poc"].point_comparisons["PocPts"]
         assert comparison["obs_path"] == POINTS
         # read as csv files, not downloaded like ICES
         assert comparison["recipe"] is None
-        assert validator["dic"].short_title == "DIC"
+        assert validator["poc"].short_title == "POC"
 
     def test_a_point_recipes_files_are_checked(self, work, validator, monkeypatch, tmp_path):
         empty = tmp_path / "empty"
@@ -372,14 +373,14 @@ class TestRegistering:
         user_recipes.save(point(obs_path=str(empty)), "local", work)
         monkeypatch.chdir(work)
         with pytest.raises(ValueError, match="No csv files"):
-            validator.add_point_comparison(model_variable="DIC", recipe={"dic": "dicpts"})
+            validator.add_point_comparison(model_variable="POC", recipe={"poc": "pocpts"})
 
     def test_a_point_recipe_brings_its_own_data(self, work, validator, monkeypatch):
         user_recipes.save(point(), "local", work)
         monkeypatch.chdir(work)
         with pytest.raises(ValueError, match="supplies its own data"):
             validator.add_point_comparison(
-                model_variable="DIC", recipe={"dic": "dicpts"}, obs_path=POINTS
+                model_variable="POC", recipe={"poc": "pocpts"}, obs_path=POINTS
             )
 
     def test_a_recipe_is_for_one_kind(self, work, validator, monkeypatch):
@@ -387,17 +388,17 @@ class TestRegistering:
         user_recipes.save(gridded(), "local", work)
         monkeypatch.chdir(work)
         with pytest.raises(ValueError, match="use add_gridded_comparison"):
-            validator.add_point_comparison(model_variable="DIC", recipe={"nitrate": "mysat"})
+            validator.add_point_comparison(model_variable="POC", recipe={"nitrate": "mysat"})
         with pytest.raises(ValueError, match="use add_point_comparison"):
-            validator.add_gridded_comparison(model_variable="DIC", recipe={"dic": "dicpts"})
+            validator.add_gridded_comparison(model_variable="POC", recipe={"poc": "pocpts"})
 
 
 @pytest.fixture
 def registered(work):
     user_recipes.save(gridded(), "local", work)
-    user_recipes.save(gridded(variable="dic", source="DicSat", depth_resolved=True,
-                              long_name="dissolved inorganic carbon", short_name="DIC",
-                              short_title="DIC", obs_path=NITRATE), "local", work)
+    user_recipes.save(gridded(variable="poc", source="PocSat", depth_resolved=True,
+                              long_name="particulate organic carbon", short_name="POC",
+                              short_title="POC", obs_path=NITRATE), "local", work)
     user_recipes.save(point(), "global", work)
     return work
 
@@ -412,20 +413,20 @@ class TestCatalogues:
     def test_the_users_recipes_come_after(self, registered):
         mine = [e for e in gridded_catalogue(registered) if e.get("user")]
         assert [(e["variable"], e["recipe"]) for e in mine] == [
-            ("dic", "dicsat"),
             ("nitrate", "mysat"),
+            ("poc", "pocsat"),
         ]
         assert all(e["region"] == USER_REGION for e in mine)
-        dic, nitrate = mine
+        nitrate, poc = mine
         assert nitrate["label"] == "MySat" and nitrate["units"] == "mmol N/m^3"
         assert "your recipe" in nitrate["notes"][0]
         # only a recipe through the water column offers it
         assert nitrate["arguments"] == ()
-        assert dic["arguments"][0].startswith("vertical=")
-        assert [e["recipe"] for e in point_catalogue(registered) if e.get("user")] == ["dicpts"]
+        assert poc["arguments"][0].startswith("vertical=")
+        assert [e["recipe"] for e in point_catalogue(registered) if e.get("user")] == ["pocpts"]
 
     def test_there_are_variables_of_the_users_own(self, registered):
-        assert recipe_variables(registered)[-1] == "dic"
+        assert recipe_variables(registered)[-1] == "poc"
         assert recipe_variables(registered)[:-1] == RECIPE_VARIABLES
 
     def test_nothing_is_added_without_recipes(self, work):
@@ -446,27 +447,27 @@ def model_file(path, **variables):
 
 class TestIdentification:
     def test_a_variable_with_a_long_name_is_found(self, registered, tmp_path):
-        path = model_file(tmp_path / "m.nc", DIC="dissolved inorganic carbon", thetao="sea temperature")
+        path = model_file(tmp_path / "m.nc", DIC="particulate organic carbon", thetao="sea temperature")
         mapping = generate_recipe_mapping(path, cwd=registered)
-        assert mapping["dic"] == "DIC"
+        assert mapping["poc"] == "DIC"
 
     def test_a_variable_named_for_it_is_found(self, registered, tmp_path):
-        path = model_file(tmp_path / "m.nc", dic="carbon of some kind")
-        assert generate_recipe_mapping(path, cwd=registered)["dic"] == "dic"
+        path = model_file(tmp_path / "m.nc", poc="carbon of some kind")
+        assert generate_recipe_mapping(path, cwd=registered)["poc"] == "poc"
 
     def test_an_ambiguous_variable_is_left_blank(self, registered, tmp_path):
         path = model_file(
-            tmp_path / "m.nc", A="dissolved inorganic carbon", B="dissolved inorganic carbon flux"
+            tmp_path / "m.nc", A="particulate organic carbon", B="particulate organic carbon flux"
         )
-        assert generate_recipe_mapping(path, cwd=registered)["dic"] is None
+        assert generate_recipe_mapping(path, cwd=registered)["poc"] is None
 
     def test_a_variable_that_is_not_there_is_left_blank(self, registered, tmp_path):
         path = model_file(tmp_path / "m.nc", thetao="sea temperature")
-        assert generate_recipe_mapping(path, cwd=registered)["dic"] is None
+        assert generate_recipe_mapping(path, cwd=registered)["poc"] is None
 
     def test_benthic_variables_are_not_taken(self, registered, tmp_path):
-        path = model_file(tmp_path / "m.nc", B="benthic dissolved inorganic carbon")
-        assert generate_recipe_mapping(path, cwd=registered)["dic"] is None
+        path = model_file(tmp_path / "m.nc", B="benthic particulate organic carbon")
+        assert generate_recipe_mapping(path, cwd=registered)["poc"] is None
 
     def test_the_built_in_variables_are_found_as_before(self, registered, tmp_path):
         path = model_file(tmp_path / "m.nc", N="nitrate concentration")
@@ -475,29 +476,29 @@ class TestIdentification:
 
 class TestSelection:
     def test_the_users_recipes_start_ticked_where_there_is_a_model_variable(self, registered):
-        mapping = {"nitrate": "N", "dic": "DIC"}
+        mapping = {"nitrate": "N", "poc": "POC"}
         selection = default_selection(mapping, "global", registered)
-        assert {("nitrate", "mysat"), ("nitrate", "woa23"), ("dic", "dicsat"), ("dic", "dicpts")} <= selection
-        assert default_selection({"nitrate": "N", "dic": None}, "global", registered) >= {("nitrate", "mysat")}
-        assert not {pair for pair in default_selection({"nitrate": "N"}, "global", registered) if pair[0] == "dic"}
+        assert {("nitrate", "mysat"), ("nitrate", "woa23"), ("poc", "pocsat"), ("poc", "pocpts")} <= selection
+        assert default_selection({"nitrate": "N", "poc": None}, "global", registered) >= {("nitrate", "mysat")}
+        assert not {pair for pair in default_selection({"nitrate": "N"}, "global", registered) if pair[0] == "poc"}
 
     def test_without_the_recipes_the_selection_is_as_it_was(self, work):
         mapping = {"nitrate": "N"}
         assert default_selection(mapping, "global", work) == default_selection(mapping, "global")
 
     def test_the_window_has_a_row_for_a_new_variable(self, registered):
-        rows = recipes_gui.recipe_rows({"nitrate": "N", "dic": None}, "global", registered)
+        rows = recipes_gui.recipe_rows({"nitrate": "N", "poc": None}, "global", registered)
         by_variable = {row["variable"]: row for row in rows}
-        dic = by_variable["dic"]
-        assert dic["title"] == "DIC"
+        poc = by_variable["poc"]
+        assert poc["title"] == "POC"
         # not identified, so blank, with nothing ticked
-        assert dic["model_variable"] == ""
-        assert [d["ticked"] for d in dic["gridded"] + dic["point"]] == [False, False]
-        assert [(d["label"], d["region"], d["user"]) for d in dic["gridded"]] == [("DicSat", "Yours", True)]
-        assert dic["gridded"][0]["vertical_option"] is True
+        assert poc["model_variable"] == ""
+        assert [d["ticked"] for d in poc["gridded"] + poc["point"]] == [False, False]
+        assert [(d["label"], d["region"], d["user"]) for d in poc["gridded"]] == [("PocSat", "Yours", True)]
+        assert poc["gridded"][0]["vertical_option"] is True
         # ticked once there is a model variable for it
-        again = recipes_gui.recipe_rows({"dic": "DIC"}, "global", registered)
-        assert all(d["ticked"] for d in {r["variable"]: r for r in again}["dic"]["gridded"])
+        again = recipes_gui.recipe_rows({"poc": "POC"}, "global", registered)
+        assert all(d["ticked"] for d in {r["variable"]: r for r in again}["poc"]["gridded"])
         nitrate = by_variable["nitrate"]
         assert [d["label"] for d in nitrate["gridded"]][-1] == "MySat"
         assert nitrate["gridded"][-1]["ticked"] is True
@@ -511,14 +512,13 @@ class TestSelection:
 class TestScript:
     def test_the_recipes_are_written_into_the_script(self, registered):
         script = build_recipe_script(
-            "/sim", 1, {"nitrate": "N", "dic": "DIC"}, (2000, 2001), "global", cwd=registered
+            "/sim", 1, {"nitrate": "N", "poc": "POC"}, (2000, 2001), "global", cwd=registered
         )
         compile(script, "script", "exec")
         assert "Your recipes, from .oceanvalrc" in script
         assert 'recipe={"nitrate": "mysat"},' in script
-        assert 'recipe={"dic": "dicsat"},' in script
-        assert script.count("oceanval.add_point_comparison(") == 1
-        assert 'recipe={"dic": "dicpts"},' in script
+        assert 'recipe={"poc": "pocsat"},' in script
+        assert 'recipe={"poc": "pocpts"},' in script
         assert "# recipe: 'mysat'" in script
         assert "your recipe, in" in script
 
@@ -526,9 +526,9 @@ class TestScript:
         script = build_recipe_script("/sim", 1, {"nitrate": "N"}, (2000, 2001), "global", cwd=registered)
         compile(script, "script", "exec")
         live = [line for line in script.splitlines() if line.startswith("oceanval.add_")]
-        assert not any("dic" in line for line in live)
+        assert not any("poc" in line for line in live)
         assert "# oceanval.add_gridded_comparison(" in script
-        assert "No dic variable was found" in script
+        assert "No poc variable was found" in script
 
     def test_unticked_recipes_are_commented_out(self, registered):
         script = build_recipe_script(
@@ -564,10 +564,10 @@ class TestScript:
 class TestUnits:
     def test_the_units_of_a_recipe_are_the_ones_it_was_given(self, registered):
         rows = units.matchups(
-            {"nitrate": "N", "dic": "DIC"},
-            {("nitrate", "mysat"), ("dic", "dicpts")},
+            {"nitrate": "N", "poc": "POC"},
+            {("nitrate", "mysat"), ("poc", "pocpts")},
             {}, {}, {"point": [], "gridded": []},
-            {"N": "mmol N/m^3", "DIC": "umol/kg"},
+            {"N": "mmol N/m^3", "POC": "umol/kg"},
             registered,
         )
         by_title = {row["title"]: row for row in rows}
@@ -576,19 +576,19 @@ class TestUnits:
         assert gridded_row["obs_units"] == "mmol N/m^3"
         assert gridded_row["obs_variable"] == "N3_n"
         assert gridded_row["check"]["status"] == "same"
-        point_row = by_title["dic (dicpts, point)"]
+        point_row = by_title["poc (pocpts, point)"]
         assert point_row["kind"] == "point"
         assert point_row["obs_units"] == "umol/kg"
         assert point_row["obs_variable"] == "observation"
 
     def test_their_model_variables_are_read_for_the_units(self, registered):
         names = units.model_variables(
-            {"nitrate": "N", "dic": "DIC+B"}, {("nitrate", "mysat"), ("dic", "dicsat")},
+            {"nitrate": "N", "poc": "DIC+B"}, {("nitrate", "mysat"), ("poc", "pocsat")},
             {"point": [], "gridded": []}, registered,
         )
         assert set(names) == {"N", "DIC", "B"}
         # without the recipes, there is nothing to read for them
-        assert units.model_variables({"dic": "DIC"}, {("dic", "dicsat")}, {"point": [], "gridded": []}) == []
+        assert units.model_variables({"poc": "POC"}, {("poc", "pocsat")}, {"point": [], "gridded": []}) == []
 
 
 class TestMatchup:

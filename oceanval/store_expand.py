@@ -2,8 +2,8 @@
 store page.
 
 What is asked for is a set of built-in datasets, a range of years, an area
-and whether to keep the water column. It is fetched by data_store.gridded and
-data_store.ices with the arguments a matchup gives them, so the store grows by
+and whether to keep the water column. It is fetched by data_store.gridded,
+data_store.ices and data_store.glodapv3 with the arguments a matchup gives them, so the store grows by
 the same rules (areas are widened to cover what is held, a piece is replaced
 only by one that covers it, what is held is not downloaded again).
 
@@ -23,8 +23,9 @@ from oceanval.recipes_gui import _check_pair, check_limits
 YEARLY = ("cobe2", "occci", "ices")
 # whose files have levels, so that only the top may be kept (as a matchup does)
 LEVELLED = ("woa23",)
-# a plain file, which is downloaded and kept whole, whatever the area
-WHOLE = ("glodap",)
+# a plain file, which is downloaded and kept whole, whatever the area: the
+# GLODAPv3 bottle data's is one file of every variable, kept a variable at a time
+WHOLE = ("glodap", "glodapv3", "mpisom", "socat", "copepod")
 
 _decadal = {(e["variable"], e["recipe"]) for e in RECIPE_CATALOGUE if e.get("decadal")}
 
@@ -198,12 +199,16 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
     elif any(not needs_area(x["recipe"]) for x in datasets):
         box = tuple(data_store.GLOBAL)
 
-    items, codes = [], {}
+    items, codes, glodapv3 = [], {}, []
     for each in datasets:
         name, recipe = each["name"], each["recipe"]
         if recipe == "ices":
             for code in _ices_codes(name):
                 codes.setdefault(code, []).append(name)
+            continue
+        if recipe == "glodapv3":
+            # one file has them all, so they are all kept at once
+            glodapv3.append(name)
             continue
         item = {"key": f"{name}/{recipe}", "label": _label(name, recipe, builtin), "name": name, "recipe": recipe}
         try:
@@ -216,6 +221,11 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
         n = (years[1] - years[0] + 1) if years else 0
         items.append({"key": f"ices/{code}", "label": f"ICES {code} export", "code": code,
                       "total": n, "jobs": []})
+    if glodapv3:
+        from oceanval.glodap import VARIABLES
+
+        items.append({"key": "glodapv3", "label": "GLODAPv3 bottle data (every variable)",
+                      "glodapv3": glodapv3, "total": len(VARIABLES), "jobs": []})
     tell({"kind": "expand", "items": [{"key": i["key"], "label": i["label"], "total": i["total"]} for i in items]})
 
     everything = True
@@ -241,7 +251,14 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
         news("working")
         try:
             failed = 0
-            if "code" in item:
+            if "glodapv3" in item:
+                counts = data_store.glodapv3(
+                    item["glodapv3"], _glodapv3_download(), store_only=True, on_piece=on_piece,
+                )
+                if counts is None:
+                    raise ValueError("The data store could not be used for it.")
+                failed += counts["failed"]
+            elif "code" in item:
                 counts = data_store.ices(
                     [item["code"]], years[0], years[1], box[:2], box[2:], _ices_download(),
                     store_only=True, on_piece=on_piece,
@@ -269,6 +286,12 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
             news("failed", error=_problem(error, files))
             everything = False
     return everything
+
+
+def _glodapv3_download():
+    from oceanval import glodap
+
+    return glodap.download_all
 
 
 def _ices_download():
