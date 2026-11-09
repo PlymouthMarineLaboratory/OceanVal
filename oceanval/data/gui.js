@@ -231,6 +231,303 @@ const OceanValGUI = (() => {
     };
   }
 
+  // ---- a model variable: one variable, a sum (a+b) or a formula in CDO's expr (a+2*b) ----
+  // The window's own reading of it, as oceanval.model_expr reads it (the server checks it again):
+  // the same grammar and the same messages, so what is typed is told at once. The functions OceanVal
+  // takes, the constants and the functions it refuses are model_expr's (recipes_gui.render_page puts them in).
+  const EXPR_TABLES = /*__OCEANVAL_EXPR_TABLES__*/ { functions: {}, constants: [], refused: {} };
+  const EXPR_OPERATORS = ["<=>", "==", "!=", "<=", ">=", "&&", "||", "<", ">", "+", "-", "*", "/", "^", "!", "?", ":", "(", ")", ","];
+  const EXPR_LEVELS = [["&&", "||"], ["==", "!=", "<=>", "<", ">", "<=", ">="], ["+", "-"], ["*", "/"]];
+  const EXPR_BINARY_ONLY = ["*", "/", "^", "==", "!=", "<=>", "<", ">", "<=", ">=", "&&", "||"];
+  const EXPR_NUMBER = /^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/;
+  const EXPR_NAME = /^[A-Za-z_][A-Za-z0-9_.]*/;
+  const EXPR_WORD = /^[A-Za-z0-9_.]+/;
+  const EXPR_FORMULA_CHARACTERS = /[\s+\-*/^()<>=!?:&|,;]/;
+  const EXPR_NESTED = "Put brackets around the ?: inside another: CDO cannot tell which is which.";
+
+  class ExpressionError extends Error {
+    constructor(message, start, end) { super(message); this.start = start; this.end = end === undefined ? start : end; }
+  }
+
+  function exprIsOneName(text) {
+    const stripped = String(text).trim();
+    return Boolean(stripped) && !EXPR_FORMULA_CHARACTERS.test(stripped)
+      && !new RegExp(`^${EXPR_NUMBER.source.slice(1)}$`).test(stripped) && !EXPR_TABLES.constants.includes(stripped);
+  }
+
+  function exprTokens(text) {
+    const found = [];
+    let i = 0;
+    while (i < text.length) {
+      const char = text[i];
+      const rest = text.slice(i);
+      if (/\s/.test(char)) { i += 1; continue; }
+      if (/\d/.test(char) || (char === "." && /\d/.test(text[i + 1] || ""))) {
+        const number = EXPR_NUMBER.exec(rest)[0];
+        // a number ends where something that is not a letter, a digit, _ or . comes (1e-3 is one)
+        const following = EXPR_WORD.exec(rest.slice(number.length));
+        if (!following) {
+          found.push({ kind: "number", text: number, start: i, end: i + number.length });
+          i += number.length;
+          continue;
+        }
+        const first = EXPR_WORD.exec(rest)[0];
+        const word = rest.slice(0, Math.max(first.length, number.length + following[0].length));
+        const digits = /^\d+(?:\.\d*)?/.exec(word);
+        const after = digits ? word.slice(digits[0].length) : "";
+        if (digits && new RegExp(`^${EXPR_NAME.source.slice(1)}$`).test(after) && !/^[eE]\d*$/.test(after)) {
+          throw new ExpressionError(`Write ${digits[0]}*${after}, not ${word}: CDO needs a * between a number and a variable.`, i, i + word.length);
+        }
+        throw new ExpressionError(`“${word}” is not a number.`, i, i + word.length);
+      }
+      if (/[A-Za-z_]/.test(char)) {
+        const name = EXPR_NAME.exec(rest)[0];
+        found.push({ kind: "name", text: name, start: i, end: i + name.length });
+        i += name.length;
+        continue;
+      }
+      if (rest.startsWith("**")) throw new ExpressionError("Use ^ for powers, not **.", i, i + 2);
+      const operator = EXPR_OPERATORS.find((op) => rest.startsWith(op));
+      if (operator) {
+        found.push({ kind: "op", text: operator, start: i, end: i + operator.length });
+        i += operator.length;
+        continue;
+      }
+      if (char === "=") throw new ExpressionError("Give only the formula, without “=”: OceanVal names the result itself (use == to compare).", i, i + 1);
+      if (char === ";") throw new ExpressionError("Give one formula, without “;”.", i, i + 1);
+      if (char === "&" || char === "|") throw new ExpressionError(`Use ${char}${char}, not ${char}.`, i, i + 1);
+      throw new ExpressionError(`“${char}” cannot be used in a formula.`, i, i + 1);
+    }
+    found.push({ kind: "end", text: "", start: text.length, end: text.length });
+    return found;
+  }
+
+  function exprHasVariable(node) {
+    if (node[0] === "var") return true;
+    const children = node[0] === "call" ? node[2] : node.slice(1).filter(Array.isArray);
+    return children.some(exprHasVariable);
+  }
+
+  function exprParse(text) {
+    const tokens = exprTokens(text);
+    const names = [];
+    let at = 0;
+    const peek = () => tokens[at];
+    const take = () => tokens[at++];
+    const isOp = (...ops) => peek().kind === "op" && ops.includes(peek().text);
+    const fail = (message, token = peek(), start, end) => {
+      throw new ExpressionError(message, start === undefined ? token.start : start, end === undefined ? token.end : end);
+    };
+    function unexpected(token) {
+      const before = at ? tokens[at - 1] : null;
+      if (token.kind === "op" && token.text === ")") fail("There is a ) with no ( before it.", token);
+      if (token.kind === "op" && token.text === "?") fail(EXPR_NESTED, token);
+      if (token.kind === "op" && token.text === ":") fail("There is a : with no ? before it.", token);
+      if (token.kind === "op" && token.text === ",") fail("A comma can only part the values a function is given.", token);
+      if (token.kind === "op" && token.text === "(" && before && before.kind === "name") fail(`“${before.text}” is not a CDO function.`, before, undefined, token.end);
+      if (token.kind === "name" && (token.text === "and" || token.text === "or")) fail(`Use ${token.text === "and" ? "&&" : "||"}, not “${token.text}”.`, token);
+      if (token.kind === "name" && token.text === "exp") fail("Use ^ for powers: exp(x) is e to the power of x.", token);
+      fail(`Put an operator (such as + or *) between “${before ? before.text : ""}” and “${token.text || "the end"}”.`, token);
+    }
+    function operandAfter(operator) {
+      const token = peek();
+      if (token.kind === "end" || (token.kind === "op" && [")", ",", ":", "?", ...EXPR_BINARY_ONLY].includes(token.text))) {
+        fail(`A ${operator.text} needs something on each side.`, operator);
+      }
+    }
+    function ternary() {
+      const start = peek();
+      const condition = binary(0);
+      if (!isOp("?")) return condition;
+      take();
+      const yes = binary(0);
+      if (isOp("?")) fail(EXPR_NESTED);
+      if (!isOp(":")) fail(`The ? needs a : after “${text.slice(start.start, peek().start).trim()}”.`);
+      take();
+      const no = binary(0);
+      if (isOp("?")) fail(EXPR_NESTED);
+      const found = ["if", condition, yes, no];
+      if (!exprHasVariable(found)) {
+        fail("A ?: needs a variable of the simulation in it: CDO cannot work one out of numbers alone.", start, start.start, tokens[at - 1].end);
+      }
+      return found;
+    }
+    function binary(level) {
+      if (level === EXPR_LEVELS.length) return unary();
+      let left = binary(level + 1);
+      while (isOp(...EXPR_LEVELS[level])) {
+        const operator = take();
+        operandAfter(operator);
+        left = ["op", operator.text, left, binary(level + 1)];
+      }
+      return left;
+    }
+    function unary() {
+      const token = peek();
+      if (token.kind === "op" && (token.text === "-" || token.text === "!")) {
+        take();
+        operandAfter(token);
+        return [token.text === "-" ? "neg" : "not", unary()];
+      }
+      if (token.kind === "op" && token.text === "+") fail("A + needs something on each side.", token);
+      if (token.kind === "op" && EXPR_BINARY_ONLY.includes(token.text)) fail(`A ${token.text} needs something on each side.`, token);
+      return power();
+    }
+    function power() {
+      const base = primary();
+      if (isOp("^")) {
+        const operator = take();
+        operandAfter(operator);
+        return ["op", "^", base, unary()];
+      }
+      return base;
+    }
+    function primary() {
+      const token = take();
+      if (token.kind === "number") return ["num", Number(token.text)];
+      if (token.kind === "op" && token.text === "(") {
+        if (isOp(")")) fail("There is nothing between ( and ).", token, token.start, peek().end);
+        const inner = ternary();
+        if (!isOp(")")) {
+          if (peek().kind === "end") fail("There is a ( with no ) after it.", token);
+          unexpected(peek());
+        }
+        take();
+        return inner;
+      }
+      if (token.kind === "name") {
+        if (isOp("(")) return call(token);
+        if (EXPR_TABLES.constants.includes(token.text)) return ["const", token.text];
+        if (token.text === "_ALL_") fail("_ALL_ cannot be used in a formula: name the variables.", token);
+        if (!names.includes(token.text)) names.push(token.text);
+        return ["var", token.text];
+      }
+      if (token.kind === "end") fail("The formula ends too soon.", token);
+      at -= 1;
+      unexpected(token);
+    }
+    function call(name) {
+      const fn = name.text;
+      if (fn in EXPR_TABLES.refused) fail(`“${fn}” ${EXPR_TABLES.refused[fn]}.`, name);
+      if (!(fn in EXPR_TABLES.functions)) {
+        if (EXPR_TABLES.constants.includes(fn)) fail(`${fn} is a number, not a function.`, name);
+        // the server's message names the function it is closest to, if any
+        const same = Object.keys(EXPR_TABLES.functions).find((known) => known.toLowerCase() === fn.toLowerCase());
+        fail(`“${fn}” is not a function OceanVal can use in a formula.${same ? ` Did you mean ${same}?` : ""}`, name);
+      }
+      const opening = take();
+      const args = [];
+      if (!isOp(")")) {
+        for (;;) {
+          if (peek().kind === "end") fail(`There is a ( with no ) after it, in ${fn}(.`, opening);
+          args.push(binary(0));
+          if (isOp("?")) fail(`Put brackets around a ?: given to ${fn}: CDO cannot read it without them.`);
+          if (isOp(",")) {
+            const comma = take();
+            if (isOp(")")) fail("Give a value after the comma.", comma);
+            continue;
+          }
+          break;
+        }
+      }
+      if (!isOp(")")) {
+        if (peek().kind === "end") fail(`There is a ( with no ) after it, in ${fn}(.`, opening);
+        unexpected(peek());
+      }
+      const closing = take();
+      const wanted = EXPR_TABLES.functions[fn];
+      if (args.length !== wanted) fail(`${fn} takes ${wanted} value${wanted > 1 ? "s" : ""}, not ${args.length}.`, name, undefined, closing.end);
+      return ["call", fn, args];
+    }
+    if (peek().kind === "end") fail("Give a formula.");
+    const tree = ternary();
+    if (peek().kind !== "end") unexpected(peek());
+    return { tree, names, tokens };
+  }
+
+  function exprIsSum(node) {
+    return node[0] === "var" || (node[0] === "op" && node[1] === "+" && exprIsSum(node[2]) && exprIsSum(node[3]));
+  }
+  function exprSumNames(node) {
+    return node[0] === "var" ? [node[1]] : [...exprSumNames(node[2]), ...exprSumNames(node[3])];
+  }
+  function exprDividesByZero(node) {
+    if (node[0] === "op" && node[1] === "/" && node[3][0] === "num" && node[3][1] === 0) return true;
+    if (node[0] === "call" && node[1] === "mod" && node[2][1][0] === "num" && node[2][1][1] === 0) return true;
+    const children = node[0] === "call" ? node[2] : node.slice(1).filter(Array.isArray);
+    return children.some(exprDividesByZero);
+  }
+
+  // A model variable, read as oceanval.model_expr.parse reads it: {ok, text, names, kind ("name", "sum" or
+  // "formula"), description ("Sum of a, b" or "Expression based on a, b", "" for one name)}, or, if CDO's expr
+  // could not work it out, {ok: false, error: {message, start, end}, names}: the names a half-typed formula
+  // has so far. An empty box is {ok: false, empty: true}.
+  function expression(value) {
+    const stripped = String(value ?? "").trim();
+    if (!stripped) return { ok: false, empty: true, names: [], kind: "name", text: "", description: "" };
+    if (exprIsOneName(stripped)) return { ok: true, text: stripped, names: [stripped], kind: "name", description: "" };
+    // what is typed, for the names it has so far
+    const typed = () => {
+      const found = [];
+      for (const match of stripped.matchAll(/[A-Za-z_][A-Za-z0-9_.]*/g)) {
+        const next = stripped.slice(match.index + match[0].length).trimStart();
+        const name = match[0];
+        if (next.startsWith("(") || EXPR_TABLES.constants.includes(name)) continue;
+        if (match.index > 0 && /[0-9.]/.test(stripped[match.index - 1])) continue;
+        if (!found.includes(name)) found.push(name);
+      }
+      return found;
+    };
+    let parsed;
+    try {
+      parsed = exprParse(stripped);
+    } catch (error) {
+      if (!(error instanceof ExpressionError)) throw error;
+      return { ok: false, error: { message: error.message, start: error.start, end: error.end }, names: typed(), kind: "formula", text: stripped };
+    }
+    const fail = (message) => ({ ok: false, error: { message, start: 0, end: stripped.length }, names: parsed.names, kind: "formula", text: stripped });
+    if (!parsed.names.length) return fail("The formula has no variable of the simulation in it.");
+    if (exprDividesByZero(parsed.tree)) return fail("The formula divides by 0, which would make every value missing.");
+    const names = parsed.names;
+    if (parsed.tree[0] === "var") return { ok: true, text: names[0], names, kind: "name", description: "" };
+    if (exprIsSum(parsed.tree) && exprSumNames(parsed.tree).length === names.length) {
+      return { ok: true, text: exprSumNames(parsed.tree).join("+"), names, kind: "sum", description: `Sum of ${names.join(", ")}` };
+    }
+    return {
+      ok: true, text: parsed.tokens.map((token) => token.text).join(""), names, kind: "formula",
+      description: `Expression based on ${names.join(", ")}`,
+    };
+  }
+
+  // The name under (or just before) the caret in a model variable box, the part a variable box searches with:
+  // {start, end, text}, text "" where there is none (between operators)
+  function nameAt(text, caret) {
+    const at = caret === null || caret === undefined ? text.length : caret;
+    let start = at;
+    while (start > 0 && /[A-Za-z0-9_.]/.test(text[start - 1])) start -= 1;
+    let end = at;
+    while (end < text.length && /[A-Za-z0-9_.]/.test(text[end])) end += 1;
+    return { start, end, text: text.slice(start, end) };
+  }
+
+  // how long typing pauses before a mistake in a formula is shown under its box (ms)
+  const EXPR_PAUSE = 700;
+  // the notes under the formula boxes, looked at again now and then, as a page can set a box's value without an event
+  const exprNotes = [];
+  setInterval(() => {
+    if (document.hidden) return;
+    for (let i = exprNotes.length - 1; i >= 0; i -= 1) {
+      const box = exprNotes[i];
+      if (box.input.isConnected) {
+        box.seen = true;
+        box.refresh();
+      } else if (box.seen) {
+        // a box taken out of the page (a row removed) is forgotten
+        exprNotes.splice(i, 1);
+      }
+    }
+  }, 400);
+
   // ---- a box for variables' names, with the model's variables in a pop-out under it ----
   // available are the variables' names and longNames their long_names, by
   // name. Anything can be typed in input. Once it has the focus, a pop-out
@@ -250,7 +547,7 @@ const OceanValGUI = (() => {
   // the oceanval window's Analyze, Compare simulations and own data steps.
   let openVariables = null;
 
-  function variableBox(input, { available = [], longNames = {}, multi = false, extra = [], what = "simulation output", keepSearch = false } = {}) {
+  function variableBox(input, { available = [], longNames = {}, multi = false, extra = [], what = "simulation output", keepSearch = false, explain = false } = {}) {
     let names = available.slice();
     let longs = { ...longNames };
     let rows = [];
@@ -274,23 +571,91 @@ const OceanValGUI = (() => {
     // with keepSearch the chosen names are listed under the table, so the rows stay where they are as more are added
     const popover = el("div", { class: keepSearch ? "vars__popover is-picked-below" : "vars__popover", hidden: "" },
       el("div", { class: "vars__bar" }, count, ticked), ...(keepSearch ? [scroll, picked] : [picked, scroll]));
+
+    // with multi, a line under the box saying what it is made of: "Sum of a, b" or "Expression based on a, b"
+    // (the names not in the output marked), or, for a formula CDO could not work out, it with the part that is
+    // wrong marked (explain: and why; elsewhere the page says why). A mistake is shown once typing pauses.
+    let note = null;
+    let noteTimer = null;
+    let noteShown = "";
+    function showNote(now) {
+      if (!note) return;
+      // a box made before it is in the page gets its note once it is
+      if (!note.parentNode && input.parentNode) input.after(note);
+      const found = read();
+      clearTimeout(noteTimer);
+      if (!found.ok && !found.empty && !now && document.activeElement === input) {
+        // a formula half typed: told once typing pauses
+        noteTimer = setTimeout(() => showNote(true), EXPR_PAUSE);
+        return;
+      }
+      const key = JSON.stringify([input.value, found.ok, found.ok ? found.kind : found.error && found.error.start, names.length]);
+      if (key === noteShown) return;
+      noteShown = key;
+      note.className = "vars__expr";
+      if (found.empty || (found.ok && found.kind === "name")) {
+        note.hidden = true;
+        note.replaceChildren();
+        return;
+      }
+      note.hidden = false;
+      if (!found.ok) {
+        const text = found.text;
+        const { start, end, message } = found.error;
+        note.classList.add("is-error");
+        note.replaceChildren(
+          ...(explain ? [el("span", { class: "vars__expr-message", text: message }), " "] : []),
+          el("code", { class: "vars__expr-formula" },
+            text.slice(0, start),
+            el("mark", { text: end > start ? text.slice(start, end) : "\u2038" }),
+            text.slice(Math.max(end, start))));
+        return;
+      }
+      note.classList.add(found.kind === "formula" ? "is-formula" : "is-sum");
+      const listed = [];
+      found.names.forEach((name, index) => {
+        if (index) listed.push(", ");
+        const known = !names.length || isName(name);
+        listed.push(el("span", { class: known ? "vars__expr-name" : "vars__expr-name is-unknown", text: name,
+          title: known ? "" : `not in the ${what}` }));
+      });
+      note.replaceChildren(el("span", { text: found.kind === "formula" ? "Expression based on " : "Sum of " }), ...listed);
+    }
+    if (multi) {
+      note = el("div", { class: "vars__expr", hidden: "", "aria-live": "polite" });
+      if (input.parentNode) input.after(note);
+      input.addEventListener("input", () => showNote(false));
+      input.addEventListener("change", () => showNote(true));
+      input.addEventListener("blur", () => showNote(true));
+      // a value a page sets without an input event is told too
+      exprNotes.push({ input, refresh: () => { if (document.activeElement !== input) showNote(true); }, seen: false });
+      // once the rest of the box is set up
+      queueMicrotask(() => showNote(true));
+    }
     // a click in the pop-out (a row, an x, its scroll bar) leaves the focus in the box
     popover.addEventListener("mousedown", (event) => event.preventDefault());
 
     const everyName = () => [...extra.filter((name) => !names.includes(name)), ...names];
     const isName = (name) => names.includes(name) || extra.includes(name);
-    // the names in the box: with multi, those between the +s (any, the model's or not); without, the box if it is a variable's
-    const inBox = () => multi
-      ? input.value.split("+").map((name) => name.trim()).filter(Boolean)
-      : [input.value.trim()].filter(isName);
-    // where the part searched starts and ends in the box, and what it is
+    // with multi, the box is a model variable: one name, a sum (a+b) or a formula (a+2*b), as expression reads it
+    const read = () => expression(input.value);
+    // a box holding names joined by + only (a half-typed sum too), whose names can be taken out
+    const isSumLike = () => /^[^\s+\-*/^()<>=!?:&|,;]*(?:\s*\+\s*[^\s+\-*/^()<>=!?:&|,;]*)*$/.test(input.value.trim());
+    // the names in the box: with multi, those of the formula (any, the model's or not); without, the box if it is a variable's
+    const inBox = () => multi ? read().names : [input.value.trim()].filter(isName);
+    // where the part searched starts and ends in the box, and what it is: with multi, the name the caret
+    // is in (so * and ? are a formula's, never a search's wildcards); without, the whole box
     const part = () => {
       const text = input.value;
       if (!multi) return { start: 0, end: text.length, text: text.trim() };
-      const caret = input.selectionStart === null ? text.length : input.selectionStart;
-      const start = caret > 0 ? text.lastIndexOf("+", caret - 1) + 1 : 0;
-      const next = text.indexOf("+", caret);
-      return { start, end: next < 0 ? text.length : next, text: text.slice(start, next < 0 ? text.length : next).trim() };
+      if (isSumLike()) {
+        // a sum: the part between the +s, as it always was
+        const caret = input.selectionStart === null ? text.length : input.selectionStart;
+        const start = caret > 0 ? text.lastIndexOf("+", caret - 1) + 1 : 0;
+        const next = text.indexOf("+", caret);
+        return { start, end: next < 0 ? text.length : next, text: text.slice(start, next < 0 ? text.length : next).trim() };
+      }
+      return nameAt(text, input.selectionStart);
     };
     const isOpen = () => !popover.hidden;
 
@@ -304,6 +669,8 @@ const OceanValGUI = (() => {
     function choose(name) {
       const used = inBox();
       if (used.includes(name)) {
+        // a name is taken out of a sum; a formula is the user's to edit
+        if (multi && !isSumLike()) return;
         setBox(multi ? used.filter((other) => other !== name).join("+") : "");
         if (!keepSearch) kept = "";
       } else if (!multi) {
@@ -313,12 +680,23 @@ const OceanValGUI = (() => {
       } else {
         const { start, end, text } = part();
         const typed = text && !isName(text) ? text : "";
+        const value = input.value;
+        const caret = input.selectionStart === null ? value.length : input.selectionStart;
+        // a formula waiting for a value where the caret is (after an operator, a bracket or a comma)
+        const waiting = !isSumLike() && /[-+*/^(,<>=!?:&|]\s*$/.test(value.slice(0, caret));
         // a half-typed search leaves the box, and the name takes its place; otherwise the name is added at the end
-        if (typed) {
-          const value = input.value;
+        if (typed && isSumLike()) {
           setBox((value.slice(0, start) + name + value.slice(end)).split("+").map((one) => one.trim()).filter(Boolean).join("+"));
-        } else {
+        } else if (typed || waiting) {
+          const at = typed ? start : caret;
+          const rest = value.slice(typed ? end : caret);
+          input.value = value.slice(0, at) + name + rest;
+          input.setSelectionRange(at + name.length, at + name.length);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        } else if (isSumLike()) {
           setBox([...used, name].join("+"));
+        } else {
+          setBox(`${value.trim()}+${name}`);
         }
         // with keepSearch the search stays, so the rows it finds can be added too (a typed name searches as well); else every row is shown
         kept = keepSearch ? (kept ?? text) : "";
@@ -369,21 +747,28 @@ const OceanValGUI = (() => {
       // a single box holding a variable's name shows every row, with it chosen
       const wanted = searchMatcher(!multi && isName(searched) ? "" : searched);
       let shown = 0;
+      // the names of a formula are the user's to take out, by editing it
+      const fixed = multi && !isSumLike();
       for (const row of rows) {
         const on = usedSet.has(row.name);
         row.tr.classList.toggle("is-picked", on);
         row.box.textContent = on ? "-" : "+";
         row.box.setAttribute("aria-label", on ? `Take out ${row.name}` : `Add ${row.name}`);
         row.box.setAttribute("aria-pressed", String(on));
+        row.box.disabled = on && fixed;
+        row.box.title = on && fixed ? `Edit the formula to take ${row.name} out` : "";
         row.tr.hidden = !wanted.test(row.fields);
         if (!row.tr.hidden) shown += 1;
       }
       none.hidden = shown > 0;
       count.textContent = wanted.active ? `${shown} of ${rows.length}` : `${rows.length}`;
-      ticked.textContent = multi && usedSet.size > 1 ? `${usedSet.size} chosen, summed` : "";
+      ticked.textContent = !multi ? ""
+        : fixed && usedSet.size ? `${usedSet.size} in the formula`
+          : usedSet.size > 1 ? `${usedSet.size} chosen, summed` : "";
       picked.hidden = !used.length;
       pickedList.replaceChildren(...used.map((name) => {
-        const remove = el("button", { type: "button", class: "vars__picked-remove", title: `Remove ${name}`, "aria-label": `Remove ${name}`, text: "×" });
+        const remove = el("button", { type: "button", class: "vars__picked-remove", title: fixed ? `Edit the formula to take ${name} out` : `Remove ${name}`, "aria-label": `Remove ${name}`, text: "×" });
+        remove.disabled = fixed;
         remove.addEventListener("click", () => choose(name));
         return el("li", {},
           el("span", { class: "vars__picked-text" },
@@ -456,6 +841,8 @@ const OceanValGUI = (() => {
         names = newNames.slice();
         longs = { ...newLongs };
         built = false;
+        noteShown = "";
+        showNote(true);
         if (isOpen()) { build(); refresh(); }
         if (!everyName().length) close();
       },
@@ -888,6 +1275,7 @@ const OceanValGUI = (() => {
 
   return {
     ICONS, COG, PML_LOGO, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, setBack, variableBox, nameBox, searchMatcher,
+    expression, nameAt,
     withChoices, choicesOpen, closeChoices, syncRequired, skipWords, SKIP_WORDS,
   };
 })();

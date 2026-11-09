@@ -181,7 +181,8 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
                 from oceanval.analysis import file_years
 
                 mesh, _ = fvcom_climatology.work_out(
-                    period["files"], row["parts"], [period["start"], period["end"]], row["key"], None, path, units,
+                    period["files"], fvcom_climatology.parts_of(row), [period["start"], period["end"]], row["key"], None,
+                    path, units,
                     f"{row['name']}, {what}", time_shift=time_shift, as_missing=row.get("as_missing"),
                     cores=row.get("cores", 1), layer=layer, file_years=file_years(row),
                 )

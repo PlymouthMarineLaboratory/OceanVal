@@ -401,6 +401,35 @@ class TestUnits:
         assert given["unit_conversions"] == {"Temperature": {"Fine run": {"multiplier": 1, "adder": -273.15}}}
         sim_compare.check_unit_conversions(given["unit_conversions"], given["variables"], ["Base run", "Fine run"])
 
+    def test_a_formula_is_always_asked_about(self, app, sims, runs):
+        """A formula, not a simple sum (see oceanval.model_expr), whose units OceanVal
+        cannot tell: its row is on the units step, flagged, though its first
+        variable's units are the first simulation's."""
+        rows = [
+            {"name": "Chlorophyll", "models": {"Base run": "P1_Chl+P2_Chl", "Fine run": "P1_Chl + 2*P2_Chl"}},
+            {"name": "Temperature", "models": {"Base run": "thetao", "Fine run": "thetao"}},
+        ]
+        to_variables(app)
+        assert post(app, "/api/simcompare_variables", {"rows": rows}) == (200, {"ok": True})
+        assert app.view == "simcompare_units"
+        [row] = state(app)["simcompare"]["units"]["rows"]
+        assert (row["simulation"], row["variable"], row["model_variable"]) == ("Fine run", "Chlorophyll", "P1_Chl+2*P2_Chl")
+        assert (row["check"]["status"], row["check"]["multiplier"], row["check"]["adder"]) == ("formula", 1, 0)
+        assert "This is a formula, not a simple sum (P1_Chl+2*P2_Chl)" in row["check"]["note"]
+        # confirmed as they are, the units are the first simulation's
+        blank = {row["key"]: {"multiplier": "", "adder": ""}}
+        assert post(app, "/api/simcompare_units", {"conversions": blank, "confirmed": True}) == (200, {"ok": True})
+        assert app.sc_conversions == {"Chlorophyll": {"Fine run": {"multiplier": 1, "adder": 0}}}
+
+    def test_a_formula_that_cdo_could_not_work_out_is_refused(self, app, sims):
+        rows = [{"name": "Chlorophyll", "models": {"Base run": "P1_Chl+", "Fine run": "fldmean(P1_Chl)"}}]
+        to_variables(app)
+        status, reply = post(app, "/api/simcompare_variables", {"rows": rows})
+        assert status == 400
+        said = reply["errors"]["0"]["models"]
+        assert said["Base run"] == "A + needs something on each side."
+        assert said["Fine run"].startswith("“fldmean” works out a statistic over the grid")
+
     def test_the_same_units_have_no_step(self, app, sims, runs):
         to_files(app)
         assert app.view == "simcompare_files" and app.sc_unit_rows == [] and app.sc_conversions == {}
@@ -1955,4 +1984,30 @@ def test_add_multiple_variables_in_compare_leaves_missing_ones_blank(browser, tm
         assert "Give the model variable" in page.inner_text("#scv-rows")
     finally:
         page.close()
+        app.close()
+
+
+def test_a_formula_is_flagged_on_the_units_step_in_a_browser(browser, tmp_path, sims):
+    """A formula's units cannot be told (see oceanval.model_expr): its row of the units step is
+    amber, tagged Formula, says what it is based on, and the page says why it is there."""
+    app = App(cwd=str(tmp_path))
+    url = app.start()
+    errors = []
+    try:
+        to_variables(app)
+        rows = [
+            {"name": "Chlorophyll", "models": {"Base run": "P1_Chl+P2_Chl", "Fine run": "P1_Chl+2*P2_Chl"}},
+            {"name": "Temperature", "models": {"Base run": "thetao", "Fine run": "thetao"}},
+        ]
+        assert post(app, "/api/simcompare_variables", {"rows": rows}) == (200, {"ok": True})
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(url)
+        page.wait_for_selector("tr.is-formula[data-units-row]")
+        row = page.locator("tr.is-formula[data-units-row]")
+        assert "FORMULA" in row.inner_text().upper() and "Expression based on P1_Chl, P2_Chl" in row.inner_text()
+        assert "This is a formula, not a simple sum (P1_Chl+2*P2_Chl)" in page.locator("tr.units__check.is-formula").inner_text()
+        assert page.locator("#scu-lede").inner_text().startswith("Fine run gives a variable as a formula")
+        assert errors == []
+    finally:
         app.close()

@@ -566,7 +566,8 @@ def mesh_series(row, files, layer, years, time_shift, area, masks_for):
         area["stations"], masks_for,
     )
     for time, field in fvcom_climatology.monthly_means(
-        files, row["parts"], list(years), time_shift, row.get("as_missing"), row.get("cores", 1), layer, file_years(row)
+        files, fvcom_climatology.parts_of(row), list(years), time_shift, row.get("as_missing"), row.get("cores", 1), layer,
+        file_years(row),
     ):
         series.add(time, field)
     region_rows, notes = series.region_rows()

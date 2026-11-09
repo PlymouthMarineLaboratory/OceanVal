@@ -1048,10 +1048,10 @@
   function check(value) {
     const text = value.trim();
     if (!text) return { status: "empty", message: "" };
-    const names = text.split("+").map((name) => name.trim());
-    if (names.some((name) => !name)) {
-      return { status: "invalid", message: "Remove the empty name beside “+”." };
-    }
+    // one variable, a sum (a+b) or a formula of them in CDO's expr (a+2*b), as oceanval.model_expr reads it
+    const found = OceanValGUI.expression(text);
+    if (!found.ok) return { status: "invalid", message: found.error.message };
+    const names = found.names;
     const unknown = names.filter((name) => !available.has(name));
     if (unknown.length) {
       const list = unknown.length === 1 ? unknown[0]

@@ -206,11 +206,21 @@ An example is shown below:
 This will result in day of year being ignored when matching up observations with the simulation output. If you use the default for `point_time_res`, then very few matchups will be found, as the day of year in the observations will almost never match that in the simulation output.
 `matchup` shows the time resolution of the files it uses for each variable (`monthly`, or `1d`, `5d` and so on), and if a point dataset is matched by day against output coarser than daily, it warns you and offers to change `point_time_res` for all such datasets or for each one before anything is matched up.
 
-**Summing up simulation output**
+**Summing up simulation output, or a formula of it**
 
 Sometimes observational data needs to be compared with the sum of multiple model variables.
 You can do this by setting something like "var1+var2+var3" as the `model_variable` when registering the observational dataset.
 In the `create_recipes` window you can add the variables with the **+** buttons in the pop-out under the model variable box instead of typing the sum (a **-** takes one out again); the variables selected are listed with their long names at the top of the pop-out. Wherever variables are searched (these pop-outs, Analyze, Compare simulations and the viewer) a ``*`` stands for any characters and a ``?`` for one, so ``P*_Chl`` finds ``P1_Chl`` and ``P2_Chl``.
+
+The model variable can also be a formula of the simulation's variables, written as CDO's ``expr`` operator takes it, e.g. ``"P1_Chl+2*P2_Chl"``, ``"(N3_n+N4_n)/2"`` or ``"max(thetao,0)"``. This works everywhere a model variable is given: `add_point_comparison`, `add_gridded_comparison`, the recipes window, your own data, `analyze` and `compare_simulations`. OceanVal checks the formula before any work, and says what is wrong and where. It can use:
+
+- ``+ - * /`` and ``^`` (powers), ``-x`` and ``!x``;
+- the comparisons ``== != < > <= >= <=>`` and ``&& ||``, which give 1 or 0;
+- ``c ? x : y`` (put brackets round a ``?:`` inside another, or given to a function);
+- numbers, ``M_PI`` and ``M_E``;
+- the functions ``abs floor ceil float int nint sqr sqrt exp ln log10 sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh rad deg isMissval`` (one value) and ``mod min max pow hypot atan2`` (two).
+
+Functions that work out a statistic over the grid or the levels, choose levels, or depend on the grid or the time step (``fldmean``, ``vertmean``, ``sellevel``, ``clat``, ``cyear``...) cannot be used: OceanVal takes the surface, the bottom or the water column itself. The formula is worked out at each time step, after each variable is taken to the surface or the bottom and its missing values are set, and a value missing in any of its variables is missing in the result. CDO gives a formula's result no units, so OceanVal takes them to be those of its first variable. The window's units step shows such a row in amber, for you to check. In the window, the line under a model variable box says what it is made of ("Sum of P1_Chl, P2_Chl" or "Expression based on P1_Chl, P2_Chl"). In a box that takes a formula, ``*`` and ``?`` are the formula's, not wildcards.
 
 .. admonition:: How does OceanVal handle in-situ data?
 
@@ -478,7 +488,7 @@ Comparing simulations side by side
     )
 
 - `simulations`: two to five dicts, each with a `name`, a `sim_dir` and `n_dirs_down`, and, if they differ between simulations, `exclude`, `require`, `time_shift`, `thickness` and `as_missing`.
-- `variables`: the name to give each variable, and the model variable holding it in each simulation (several summed as `"a+b"`). A model variable on its own is the same in every simulation. A variable must be in the units of the first simulation, or be converted into them with `unit_conversions`, e.g. `{"Temperature": {"New mixing": {"multiplier": 1, "adder": -273.15}}}` (value × multiplier + adder, applied as the values are read, so every analysis is of the converted values).
+- `variables`: the name to give each variable, and the model variable holding it in each simulation (several summed as `"a+b"`, or a formula of them, such as `"a+2*b"`, as described above). A model variable on its own is the same in every simulation. A variable must be in the units of the first simulation, or be converted into them with `unit_conversions`, e.g. `{"Temperature": {"New mixing": {"multiplier": 1, "adder": -273.15}}}` (value × multiplier + adder, applied as the values are read, so every analysis is of the converted values).
 - `climatology`, `phenology`, `long_term`, `seasonal`, `map_changes`, `transects`, `stations`, `subregions`, `lon_lim`, `lat_lim`, `thickness`, `as_missing`, `time_shift`, `figure_code` and `cores`: as in `analyze`, and the same for every simulation. The years must be years every simulation has.
 - `unify`: what to do if the simulations are on different grids. `None` leaves each on its own. `{"lon": [-20, 10], "lat": [40, 65], "res": 0.1}` puts all of them on a lon-lat grid of that box and resolution, with nctoolkit's `to_latlon`. `{"baseline": "Control"}` regrids the others to the grid of that simulation, with nctoolkit's `regrid`. Either can also have `"regrid"`, how they are regridded: `"bil"` (bilinear, the default), `"nn"` (nearest neighbour), `"dis"` (distance-weighted) or `"con"` (conservative), as in `{"baseline": "Control", "regrid": "nn"}`. Either way, **a cell with no value in any one simulation, judged from its second time step (its first, if it has only one), is made missing in all of them**, so every simulation is compared over exactly the same cells.
 - `domain_mask`: compare only part of the domain: the path of a netCDF file with a single variable at a single time step, 1 in the cells wanted and 0 or missing elsewhere. Every simulation is regridded to the file's grid by nearest neighbour (after `unify`, if that is given) and only the cells of 1 are kept, so all the simulations end on the file's grid.

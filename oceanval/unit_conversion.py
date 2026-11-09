@@ -457,6 +457,23 @@ def same(note="OceanVal thinks these are the same units, so no conversion should
     return {"status": "same", "multiplier": 1, "adder": 0, "note": note}
 
 
+def formula(model_variable, first, units):
+    """For a model variable that is a formula, not a simple sum (see
+    oceanval.model_expr): OceanVal cannot tell its units, so it takes them to
+    be those of its first variable, first, which are units, and suggests no
+    conversion. The window shows it in amber, for the user to check."""
+    given = f"those of {first} ({units})" if units else f"those of {first}, which its files do not give"
+    return {
+        "status": "formula",
+        "multiplier": 1,
+        "adder": 0,
+        "note": (
+            f"This is a formula, not a simple sum ({model_variable}): OceanVal cannot tell its units, "
+            f"so it assumes they are {given}. Check them, and fill in the boxes if they differ."
+        ),
+    }
+
+
 def unknown(reason):
     return {
         "status": "unknown",

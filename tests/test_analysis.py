@@ -101,6 +101,40 @@ class TestOrderOfTheChain:
         command = self.chain(monkeypatch, files, ["P1_Chl", "P2_Chl"], (2013, 2014), "surface", missing=[0, 0])
         assert self.first_applied(command, "-selname", "-setmissval", "-topvalue", "-setrtomiss", "-expr"), command
 
+    def test_a_formula_is_worked_out_where_a_sum_would_be(self, daily, monkeypatch):
+        """A formula of the parts (see oceanval.model_expr), each taken to its level and its missing value set
+        first, quoted for the shell nctoolkit runs CDO in, and before a comparison's conversion of units."""
+        import nctoolkit as nc
+
+        files = sorted(glob.glob(os.path.join(daily, "*", "*ptrc_T.nc")))
+        monkeypatch.setattr(nc.DataSet, "run", lambda self: None)
+        row = {
+            "key": "chl", "name": "chl", "parts": ["P1_Chl", "P2_Chl"], "as_missing": [0, 0],
+            "formula": "P1_Chl+2*P2_Chl", "convert": (0.001, 0),
+        }
+        command = analysis._model_data(files, row, (2013, 2014), None, "surface", 3).history[-1]
+        assert "-expr,'chl=P1_Chl+2*P2_Chl;'" in command, command
+        assert self.first_applied(command, "-selname", "-setmissval", "-topvalue", "-setrtomiss", "-expr", "-mulc,0.001"), command
+
+    def test_a_model_variable_is_checked_as_cdo_would_read_it(self):
+        found = analysis.model_variable_names("P1_Chl + 2*P2_Chl")
+        assert found == ["P1_Chl", "P2_Chl"]
+        stream = {"pattern": "*ptrc_T.nc", "variables": {
+            "P1_Chl": {"units": "mg m-3", "long_name": "Diatom chlorophyll", "levels": 3},
+            "P2_Chl": {"units": "mg m-3", "long_name": "Nanophytoplankton chlorophyll", "levels": 3},
+        }}
+        described = analysis.describe_variable("P1_Chl+2*P2_Chl", stream)
+        assert described["units"] == "mg m-3"
+        assert described["long_name"] == "P1_Chl+2*P2_Chl, of Diatom chlorophyll, Nanophytoplankton chlorophyll"
+        assert analysis.describe_variable("P1_Chl+P2_Chl", stream)["long_name"] == (
+            "Diatom chlorophyll + Nanophytoplankton chlorophyll"
+        )
+        with pytest.raises(ValueError, match="cannot be used in one formula"):
+            analysis.place("P1_Chl*thetao", [
+                {"pattern": "*ptrc_T.nc", "files": [], "variables": {"P1_Chl": {}}},
+                {"pattern": "*grid_T.nc", "files": [], "variables": {"thetao": {}}},
+            ])
+
     @pytest.mark.parametrize("parts, last", [(["thetao"], "-chname"), (["P1_Chl", "P2_Chl"], "-expr")])
     def test_a_comparisons_conversion_of_units_is_last(self, daily, monkeypatch, parts, last):
         """After the missing value, which is in the simulation's own units, and after a sum, so it is made once."""
@@ -449,6 +483,21 @@ class TestArguments:
         )
         with pytest.raises(ValueError, match=message):
             analysis.check_arguments(**given)
+
+    def test_a_formula_is_kept_with_its_variables(self):
+        rows = analysis.check_arguments(
+            {"Chlorophyll": " P1_Chl + 2 * P2_Chl ", "Total": "P1_Chl + P2_Chl"},
+            climatology={name: {"start": 2000, "end": 2001, "surface": True} for name in ("Chlorophyll", "Total")},
+        )
+        assert (rows[0]["model_variable"], rows[0]["parts"], rows[0]["formula"]) == (
+            "P1_Chl+2*P2_Chl", ["P1_Chl", "P2_Chl"], "P1_Chl+2*P2_Chl"
+        )
+        # a sum is not a formula: it is made as it always was
+        assert (rows[1]["model_variable"], rows[1]["formula"]) == ("P1_Chl+P2_Chl", None)
+        with pytest.raises(ValueError, match="The model variable for 'Chlorophyll', P1_Chl\\+2\\*: A \\* needs something"):
+            analysis.check_arguments(
+                {"Chlorophyll": "P1_Chl+2*"}, climatology={"Chlorophyll": {"start": 2000, "end": 2001, "surface": True}}
+            )
 
     def test_what_is_checked(self):
         rows = analysis.check_arguments(

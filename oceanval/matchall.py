@@ -50,6 +50,7 @@ from oceanval import ices
 from oceanval import live
 from oceanval import surface
 from oceanval import model_check
+from oceanval import model_expr
 from oceanval import prompts
 from oceanval import selection
 from oceanval import server_trouble
@@ -261,7 +262,7 @@ def _check_water_column_variables(comparisons, all_df):
         rows = all_df.loc[all_df.variable == vv].dropna(subset=["model_variable", "example_file"])
         if len(rows) == 0:
             continue
-        name = rows.model_variable.iloc[0].split("+")[0]
+        name = model_expr.names(rows.model_variable.iloc[0])[0]
         ff = rows.example_file.iloc[0]
         with warnings.catch_warnings(record=True):
             contents = nc.open_data(ff, checks=False).contents
@@ -321,7 +322,8 @@ def _model_box(path, model_variable):
     the cells of the land processors it leaves out at lon -1, lat -1, so the
     whole grid can be far larger than its domain. The whole grid if they can
     not be told."""
-    name = re.split(r"[+,]", str(model_variable))[0].strip() or None
+    found_names = model_expr.names(str(model_variable))
+    name = found_names[0] if found_names else None
     found = extent.of_file(path, name, session_info.get("as_missing"))
     if found is None:
         lon_min, lon_max, lat_min, lat_max = _lonlat_bounds(nc.open_data(path, checks=False))
@@ -539,7 +541,7 @@ def _top_cell_depths(locs, ds_depths, path, model_variable):
     """
     if ds_depths is None:
         ds = nc.open_data(path, checks=False)
-        ds.subset(variables=model_variable.split("+"))
+        ds.subset(variables=model_expr.names(model_variable))
         levels = ds.levels
         if len(levels) < 2:
             return None
@@ -591,7 +593,7 @@ def _surface_is_first_level(path, model_variable):
     level of the files like path (see oceanval.surface), as it is for a variable
     with levels whose first is the surface, and whether CDO is given a small
     chunk cache while it is (surface.small_cache_helps). Says which it is."""
-    names = model_variable.split("+")
+    names = model_expr.names(model_variable)
     try:
         with warnings.catch_warnings(record=True):
             contents = nc.open_data(path, checks=False).contents
@@ -629,12 +631,14 @@ def mm_match(
     # the cache holds matchups of unshifted times only, as it does not say
     # how the times were shifted
     use_cache = session_info["cache"] and not session_info.get("time_shift")
+    # a matchup is kept for its model variable: one of another sum or formula is not used
+    cached_as = model_expr.normalise(model_variable)
 
     if use_cache:
         try:
             ff_read = (
                 session_info["cache_mapping"]
-                .query("path == @ff & layer == @layer & variable == @variable")
+                .query("path == @ff & layer == @layer & variable == @variable & model_variable == @cached_as")
                 .output
             )
             # read this pickle file in
@@ -652,7 +656,7 @@ def mm_match(
     try:
         with warnings.catch_warnings(record=True) as w:
             ds = nc.open_data(ff, checks=False)
-            var_match = model_variable.split("+")
+            var_match = model_expr.names(model_variable)
 
             valid_locs = ["lon", "lat", "year", "month", "day", "depth"]
             valid_locs = [x for x in valid_locs if x in df.columns]
@@ -683,7 +687,7 @@ def mm_match(
 
             ds1 = nc.open_data(ds[0], checks=False)
             ds_contents = ds1.contents
-            the_var = model_variable.split("+")[0]
+            the_var = var_match[0]
             more_than_one_level = list(ds_contents.query("variable == @the_var").nlevels)[0] > 1
             fast = bool(surface_fast) and layer == "surface" and more_than_one_level
 
@@ -711,8 +715,10 @@ def mm_match(
                 ds.run()
 
 
-            if len(var_match) > 1:
-                ds.sum_all()
+            if model_expr.kind(model_variable) != model_expr.NAME:
+                # the sum, or the formula, of the variables (see oceanval.model_expr), each
+                # taken to its layer first, as nctoolkit's sum_all added them
+                ds.cdo_command(model_expr.cdo_operator("total", model_variable))
             the_dict = {"model_variable": model_variable}
             session_info["adhoc"] = copy.deepcopy(the_dict)
 
@@ -776,7 +782,7 @@ def mm_match(
                                 os.makedirs(cache_dir + "/mappings")
                             # dump ff
                             with open(mapping_file, "wb") as f:
-                                output_dir = {ff: cache_file}
+                                output_dir = {ff: cache_file, "model_variable": cached_as}
                                 pickle.dump(output_dir, f)
 
                     df_all.append(df_ff)
@@ -1657,6 +1663,8 @@ def matchup(
                 output_dir = pickle.load(f)
             ff_path = list(output_dir.keys())[0]
             ff_output = list(output_dir.values())[0]
+            # None for a matchup cached before the model variable was kept, which is not used
+            ff_model_variable = output_dir.get("model_variable")
             ff_layer = os.path.basename(ff).split("_")[1]
             ff_variable = os.path.basename(ff).split("_")[2]
             mapping_df.append(
@@ -1666,6 +1674,7 @@ def matchup(
                         "layer": [ff_layer],
                         "path": [ff_path],
                         "output": [ff_output],
+                        "model_variable": [ff_model_variable],
                     }
                 )
             )
@@ -1803,7 +1812,7 @@ def matchup(
             vertical = [vv for vv, source in gridded if definitions[vv].gridded_comparisons[source]["vertical"]]
             vertical += [vv for vv, source in point["all"]]
             for model_variable in dict.fromkeys(definitions[vv].model_variable for vv in vertical):
-                name = model_variable.split("+")[0]
+                name = model_expr.names(model_variable)[0]
                 files = list(all_df.loc[all_df.model_variable == model_variable].example_file)
                 ff = files[0] if len(files) > 0 else next(
                     (x for x in raw_options if name in nc.open_data(x, checks=False).variables), None
@@ -2498,7 +2507,7 @@ def matchup(
                             # They keep the same times, so time_index still applies
                             fvcom_paths = fvcom_matchup_files(
                                 paths,
-                                model_variable.split("+"),
+                                model_expr.names(model_variable),
                                 session_info["fvcom_dir"],
                                 vertical=(layer == "all"),
                                 res=session_info["fvcom_res"],
@@ -2734,7 +2743,7 @@ def matchup(
                             import dill
                             # get the model unit
                             ds = nc.open_data(paths[0], checks=False)
-                            the_variable = model_variable.split("+")[0]
+                            the_variable = model_expr.names(model_variable)[0]
                             model_unit = list(
                                 ds.contents.query(
                                     "variable == @the_variable"

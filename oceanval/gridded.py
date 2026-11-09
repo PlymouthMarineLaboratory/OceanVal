@@ -18,6 +18,7 @@ import xarray as xr
 from oceanval import data_store
 from oceanval import extent
 from oceanval import live
+from oceanval import model_expr
 from oceanval import prompts
 from oceanval import server_trouble
 from oceanval import surface
@@ -376,6 +377,17 @@ def _crop_to_model_data(ds):
     ds.subset(lon=[lon_min, lon_max], lat=[lat_min, lat_max])
 
 
+def _first_units(path, name):
+    """The units of the variable name in the file path, or None."""
+    try:
+        with warnings.catch_warnings(record=True):
+            contents = nc.open_data(path, checks=False).contents
+        units = contents.query("variable == @name").unit
+        return None if len(units) == 0 or pd.isna(units.iloc[0]) else str(units.iloc[0])
+    except Exception:
+        return None
+
+
 def _levels_of(path, names):
     """{variable: its number of vertical levels} in the file path, from its
     metadata, or None if that cannot be read."""
@@ -388,7 +400,8 @@ def _levels_of(path, names):
 
 
 def model_dataset(
-    paths, selection, sim_years, time_shift, as_missing, surface_only, fvcom=False, month_per_file=False
+    paths, selection, sim_years, time_shift, as_missing, surface_only, fvcom=False, month_per_file=False,
+    formula=None, target=None,
 ):
     """The model's output in paths of the variables selection in sim_years, as
     a dataset whose chain has been asked for but not run, whether the surface
@@ -397,7 +410,10 @@ def model_dataset(
     surface_only, a variable with levels is taken at the surface, as a
     matchup does, before the missing value is set. With month_per_file (see
     time_res.one_month_per_file), each file's mean, which is its month's, is
-    taken last.
+    taken last. A formula of the variables (see oceanval.model_expr, a FORMULA,
+    not a sum) is worked out at each time step, as the variable target, after
+    the missing value is set and before any mean: the mean of a product is not
+    the product of the means.
 
     The chain is the cutting down first, as the files can be many GB: the
     years, the variables and the surface, and only then the shift (which the
@@ -434,6 +450,8 @@ def model_dataset(
         ds_model.cdo_command(f"-selyear,{','.join(str(x) for x in sim_years)}")
     if as_missing is not None:
         ds_model.as_missing(as_missing)
+    if formula is not None and model_expr.kind(formula) == model_expr.FORMULA:
+        ds_model.cdo_command(model_expr.cdo_operator(target, formula))
     if month_per_file:
         # the month's mean, dated at its first time as the mean of each month is
         ds_model.tmean(align="left")
@@ -583,7 +601,7 @@ def gridded_matchup(
 
                 mapping[vv] = list(df.query("variable == @vv").model_variable)[0]
 
-                selection = mapping[vv].split("+")
+                selection = model_expr.names(mapping[vv])
 
                 patterns = set(df.pattern)
                 pattern = list(patterns)[0]
@@ -673,7 +691,7 @@ def gridded_matchup(
                 # which FVCOM's regridded files below keep, one for each
                 month_per_file = time_res.one_month_per_file({ff: times_dict[ff] for ff in paths})
                 if month_per_file:
-                    print(f"{'+'.join(selection)}: each file is one month, so its monthly means are taken as the files are read")
+                    print(f"{model_expr.normalise(mapping[vv])}: each file is one month, so its monthly means are taken as the files are read")
 
                 obs_download = None
                 if session_info.get("fvcom", False):
@@ -723,6 +741,8 @@ def gridded_matchup(
                         surface_only=vertical_gridded is False,
                         fvcom=bool(session_info.get("fvcom", False)),
                         month_per_file=month_per_file,
+                        formula=mapping[vv],
+                        target=vv,
                     )
                     # the first run of the chain: the model files are read here
                     with surface.chunk_cache(small_cache), (
@@ -742,16 +762,17 @@ def gridded_matchup(
 
                     var_unit = None
                     for vv in list(df.variable):
-                        if "+" in mapping[vv]:
-                            command = f"-aexpr,{vv}=" + mapping[vv]
-                            ds_model.cdo_command(command)
-                            drop_these = mapping[vv].split("+")
+                        what = model_expr.kind(mapping[vv])
+                        if what == model_expr.SUM:
+                            # the sum of the variables, of their monthly means: its units are the first's
+                            ds_model.cdo_command(model_expr.cdo_operator(vv, mapping[vv], append=True))
+                            drop_these = model_expr.names(mapping[vv])
                             ds_contents = ds_model.contents
                             ds_contents = ds_contents.query(
                                 "variable in @drop_these"
                             )
-                            var_unit = ds_contents.unit[0]
-                            ds_model.drop(variables=drop_these)
+                            var_unit = ds_contents.unit.iloc[0]
+                            ds_model.drop(variables=[name for name in drop_these if name != vv])
 
                             ds_model.run()
                             if var_unit is not None:
@@ -760,6 +781,14 @@ def gridded_matchup(
                                 )
 
                             ds_model.run()
+                        elif what == model_expr.FORMULA:
+                            # worked out at each time step (see model_dataset), which CDO gives no
+                            # units: they are taken to be the first variable's, which the units step
+                            # asks the user to check
+                            var_unit = _first_units(paths[0], model_expr.names(mapping[vv])[0])
+                            if var_unit is not None:
+                                ds_model.set_units({vv: var_unit})
+                                ds_model.run()
 
                     # the monthly means on the domain mask's grid, only its cells of 1
                     domain_mask.mask_gridded(ds_model, session_info.get("domain_mask"), fvcom=session_info.get("fvcom", False))

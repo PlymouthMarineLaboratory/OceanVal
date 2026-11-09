@@ -24,8 +24,9 @@ from oceanval.create_recipes import (
     point_catalogue,
     simulation_files,
 )
+from oceanval import model_expr
 from oceanval.parsers import find_recipe
-from oceanval.unit_conversion import suggest, unknown
+from oceanval.unit_conversion import formula, suggest, unknown
 
 # what to show where the units are not known
 NOT_AVAILABLE = None
@@ -160,17 +161,27 @@ def recipe_source(variable, recipe, cwd=None):
 
 def _model_side(model_variable, units):
     names = _model_variable_names(model_variable)
+    is_formula = model_expr.kind(model_variable) == model_expr.FORMULA
     return {
         "variable": model_variable,
         "parts": [{"name": name, "units": units.get(name)} for name in names],
+        # a formula, not a simple sum (see oceanval.model_expr), whose units OceanVal cannot tell
+        "formula": model_expr.normalise(model_variable) if is_formula else None,
+        # "Sum of a, b" or "Expression based on a, b", or "" for one variable
+        "description": model_expr.describe(model_variable),
     }
 
 
 def _check(variable, obs_units, model, descriptions=None, obs_description=None):
     """What OceanVal makes of a row's units (see unit_conversion.suggest). A sum
-    of model variables is checked only if they are all in the same units.
-    descriptions is {model variable: its long_name and standard_name}, and
-    obs_description the observations', where known."""
+    of model variables is checked only if they are all in the same units, and
+    a formula not at all: its units are taken to be its first variable's, for
+    the user to check (unit_conversion.formula). descriptions is {model
+    variable: its long_name and standard_name}, and obs_description the
+    observations', where known."""
+    if model.get("formula"):
+        first = model["parts"][0] if model["parts"] else {"name": model["variable"], "units": None}
+        return formula(model["formula"], first["name"], first["units"])
     parts = [part["units"] for part in model["parts"]]
     if not parts or None in parts:
         return suggest(variable, obs_units, None)

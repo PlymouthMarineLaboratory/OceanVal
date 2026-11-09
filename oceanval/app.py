@@ -64,7 +64,7 @@ import traceback
 import urllib.parse
 
 import oceanval
-from oceanval import domain_mask, history_forms, leftovers, live, netcdf_lock, prompts, recipes_gui
+from oceanval import domain_mask, history_forms, model_expr, leftovers, live, netcdf_lock, prompts, recipes_gui
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
@@ -3370,6 +3370,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             found = self._own_sim
             available = found["long_names"] if found and found["status"] == "done" else None
         if available is None or "model_variable" in errors:
+            return {}
+        if model_expr.problem(str(arguments.get("model_variable", ""))) is not None:
+            # own_data.check_entry says what is wrong with the formula
             return {}
         unknown = _unknown_variables(str(arguments.get("model_variable", "")), available)
         if not unknown:

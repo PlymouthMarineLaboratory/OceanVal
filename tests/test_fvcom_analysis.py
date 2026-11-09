@@ -98,6 +98,26 @@ class TestClimatology:
         with xr.open_dataset(os.path.join(results, plus["climatology"]["layers"]["surface"]["monthly"])) as ds:
             assert np.allclose(ds["plus"].values, expected_temperature(lon)[1] + 0.5, atol=1e-4)
 
+    def test_a_formula_is_worked_out_on_the_mesh(self, fvcom_sim, tmp_path, no_report):
+        """A formula of the variables (see oceanval.model_expr), which CDO cannot work out on FVCOM's
+        mesh: each variable is taken to its layer, then the formula is worked out as CDO would."""
+        years = {"start": 2012, "end": 2013}
+        analyze(
+            fvcom_sim, tmp_path / "out", variables={"Twice": "2 * temp - zeta"},
+            climatology={"Twice": dict(years, surface=True, bottom=True)},
+        )
+        entry = no_report[-1]["variables"][0]
+        assert entry["model_variable"] == "2*temp-zeta"
+        layers = entry["climatology"]["layers"]
+        lon, _, _ = fvcom_mesh()
+        surface = expected_temperature(lon)[1]
+        results = results_of(tmp_path / "out")
+        # zeta is 0.5 everywhere, and the bottom's temp is 4 more than the surface's (see test_a_sum_with_a_surface_variable)
+        with xr.open_dataset(os.path.join(results, layers["surface"]["monthly"])) as ds:
+            assert np.allclose(ds["twice"].values, 2 * surface - 0.5, atol=1e-4)
+        with xr.open_dataset(os.path.join(results, layers["bottom"]["monthly"])) as ds:
+            assert np.allclose(ds["twice"].values, 2 * (surface + 4) - 0.5, atol=1e-4)
+
     def test_the_years_and_what_is_missing(self, fvcom_sim, tmp_path, no_report):
         analyze(
             fvcom_sim, tmp_path / "out", variables={"Velocity": "u", "Temperature": "temp"},

@@ -17,7 +17,7 @@ import re
 
 import pandas as pd
 
-from oceanval import analysis, history_forms
+from oceanval import analysis, history_forms, model_expr
 from oceanval import time_res as time_resolution
 
 # the most rows the variables step takes
@@ -180,9 +180,7 @@ def clean_rows(rows):
         clean.append(
             {
                 "name": str(row.get("name") or "").strip()[:120],
-                "model_variable": "+".join(
-                    analysis.model_variable_names(str(row.get("model_variable") or ""))
-                ),
+                "model_variable": model_expr.tidied(str(row.get("model_variable") or "")),
                 "filled": bool(row.get("filled")),
             }
         )
@@ -219,6 +217,11 @@ def check_rows(rows, found, time_res_of=analysis.stream_time_res):
                 keys[key] = name
         if not model_variable:
             wrong(index, "model_variable", "Give the model variable holding it.")
+            continue
+        problem = model_expr.problem(model_variable)
+        if problem is not None:
+            # a formula CDO's expr could not work out (see oceanval.model_expr)
+            wrong(index, "model_variable", problem.message)
             continue
         try:
             holding = analysis.place(model_variable, found)

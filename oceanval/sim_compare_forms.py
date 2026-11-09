@@ -6,7 +6,7 @@ step Analyze has (see oceanval.analysis_forms)."""
 
 import os
 
-from oceanval import analysis, analysis_forms, history_forms, sim_compare, sim_unify
+from oceanval import analysis, analysis_forms, history_forms, model_expr, sim_compare, sim_unify
 
 MOST_SIMULATIONS = sim_compare.MOST_SIMULATIONS
 # the simulation rows the step starts with
@@ -159,7 +159,7 @@ def clean_rows(rows, names):
             {
                 "name": str(row.get("name") or "").strip()[:120],
                 "models": {
-                    sim: "+".join(analysis.model_variable_names(str(models.get(sim) or ""))) for sim in names
+                    sim: model_expr.tidied(str(models.get(sim) or "")) for sim in names
                 },
                 "filled": bool(row.get("filled")),
             }
@@ -242,25 +242,41 @@ def _units_differ(first, units):
     return str(first or "").strip() != str(units or "").strip()
 
 
-def unit_rows(placed_by_sim):
+def unit_rows(placed_by_sim, formulas=True):
     """The units step's rows: one for each variable of each simulation after the
     first whose units are written otherwise than the first simulation's, which it
     is converted into, as validate's units step converts observations into the
     model's (see oceanval.units). Each is {"key", "simulation", "variable",
     "model_variable", "units", "baseline": {"simulation", "model_variable",
     "units"}, "check"}, check being unit_conversion.suggest's (or
-    unit_conversion.unknown's) for this simulation's units into the first's. An
-    empty list if every simulation is in the first one's units."""
+    unit_conversion.unknown's) for this simulation's units into the first's,
+    or unit_conversion.formula's for a variable that is a formula in either
+    (always shown, as its units cannot be told). An empty list if every
+    simulation is in the first one's units and none is a formula. With
+    formulas False (raw FVCOM output on its mesh, which cannot be converted), a
+    formula is shown only if the units are written otherwise."""
     from oceanval import unit_conversion
 
     names = list(placed_by_sim)
     rows = []
+    is_formula = lambda row: model_expr.kind(row["model_variable"]) == model_expr.FORMULA  # noqa: E731
     for position, sim in enumerate(names[1:], start=1):
         for number, first in enumerate(placed_by_sim[names[0]]):
             own = placed_by_sim[sim][number]
-            if not _units_differ(first["units"], own["units"]):
+            # a formula's units cannot be told, so it is always shown, for the user to check
+            flagged = formulas and (is_formula(own) or is_formula(first))
+            if not _units_differ(first["units"], own["units"]) and not flagged:
                 continue
-            if not str(first["units"] or "").strip():
+            if flagged and is_formula(own):
+                check = unit_conversion.formula(
+                    model_expr.normalise(own["model_variable"]), own["parts"][0], own["units"]
+                )
+            elif flagged:
+                check = unit_conversion.formula(
+                    model_expr.normalise(first["model_variable"]), first["parts"][0], first["units"]
+                )
+                check["note"] = check["note"].replace("This is a formula", f"In {names[0]}, this is a formula", 1)
+            elif not str(first["units"] or "").strip():
                 check = unit_conversion.unknown(f"the files of {names[0]} do not give its units")
             elif not str(own["units"] or "").strip():
                 check = unit_conversion.unknown(f"the files of {sim} do not give its units")

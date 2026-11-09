@@ -293,7 +293,8 @@ class SimCompareSteps:
             problems = sim_compare.fvcom_problems(placed, names, None, None, {})
         except ValueError as problem:
             problems = [str(problem)]
-        if not problems and all(row.get("fvcom") for rows in placed.values() for row in rows) and sim_compare_forms.unit_rows(placed):
+        all_fvcom = all(row.get("fvcom") for rows in placed.values() for row in rows)
+        if not problems and all_fvcom and sim_compare_forms.unit_rows(placed, formulas=False):
             problems = [
                 "FVCOM output cannot be converted between units: give each variable in the same units in every simulation."
             ]
@@ -305,7 +306,8 @@ class SimCompareSteps:
             changed = _placed_key(placed) != _placed_key(self.sc_placed)
             self.sc_placed = placed
             self.analyze_placed = sim_compare_forms.combined(placed)
-            unit_rows = sim_compare_forms.unit_rows(placed)
+            # a formula's units are shown for the user to check, but FVCOM output cannot be converted
+            unit_rows = sim_compare_forms.unit_rows(placed, formulas=not all_fvcom)
             if unit_rows != self.sc_unit_rows:
                 self.sc_unit_rows = unit_rows
                 self.sc_conversions = None

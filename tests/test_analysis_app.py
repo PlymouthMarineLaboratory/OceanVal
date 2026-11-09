@@ -1388,18 +1388,27 @@ def open_analyze_variables_in_browser(browser, tmp_path):
 
 
 def test_the_variable_searches_take_wildcards_in_a_browser(browser, tmp_path):
-    """P*_Chl finds P1_Chl and P2_Chl as a row's box is typed in and in Add multiple variables."""
+    """P*_Chl finds P1_Chl and P2_Chl in Add multiple variables. A row's box takes a formula
+    (see oceanval.model_expr), where * and ? are the formula's: it searches with the name the
+    caret is in (the user's rule, 2026-11-09)."""
     page, app = open_analyze_variables_in_browser(browser, tmp_path)
     try:
         box = page.locator("#av-rows > tr").first.locator("td").nth(1).locator("input")
         assert page.locator("details.vars").count() == 0
         shown = lambda: page.evaluate("() => [...document.querySelectorAll('.vars__popover:not([hidden]) tbody tr:not([hidden])')].map((row) => row.cells[1].textContent)")
         box.fill("P*_Chl")
+        # times _Chl: the name the caret is in is _Chl
         assert shown() == ["P1_Chl", "P2_Chl"]
         box.fill("e3?")
-        assert shown() == ["e3t"]
-        box.fill("P*_Chl e3t")
-        assert shown() == []
+        # a ? waiting for its value: every row
+        assert len(shown()) == 4
+        box.fill("P1_Chl+2*P2")
+        assert shown() == ["P2_Chl"]
+        page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])").first.click()
+        assert box.input_value() == "P1_Chl+2*P2_Chl"
+        # a formula's names are taken out by editing it, not by their - button
+        assert page.locator('.vars__popover:not([hidden]) button.vars__pm[data-name="P1_Chl"]').is_disabled()
+        box.fill("")
         # after a + every row is shown, with P1_Chl ticked, and the next part is searched
         box.fill("P1_Chl+")
         assert len(shown()) == 4
@@ -2335,4 +2344,35 @@ def test_the_required_tags_of_the_climatology_go_when_the_rows_are_filled(browse
         assert years.nth(0).is_hidden() and years.nth(1).is_visible()
         assert not errors
     finally:
+        app.close()
+
+
+def test_a_formula_is_said_under_its_box_in_a_browser(browser, tmp_path):
+    """Under a box that takes a model variable: "Sum of ..." or "Expression based on ..." (see
+    oceanval.model_expr), and, once typing pauses, the formula with what CDO could not work out
+    marked, while the row says why and Continue waits."""
+    page, app = open_analyze_variables_in_browser(browser, tmp_path)
+    try:
+        row = page.locator("#av-rows > tr").first
+        row.locator("td").nth(0).locator("input").fill("Chlorophyll")
+        box = row.locator("td").nth(1).locator("input")
+        note = row.locator(".vars__expr")
+        box.fill("P1_Chl")
+        page.keyboard.press("Escape")
+        assert note.is_hidden()
+        box.fill("P1_Chl+P2_Chl")
+        page.wait_for_function("() => document.querySelector('#av-rows .vars__expr').textContent === 'Sum of P1_Chl, P2_Chl'")
+        box.fill("P1_Chl + 2*P2_Chl")
+        page.wait_for_function("() => document.querySelector('#av-rows .vars__expr').textContent === 'Expression based on P1_Chl, P2_Chl'")
+        assert "is-formula" in note.get_attribute("class")
+        assert not page.locator("#av-continue").is_disabled()
+        # a name that is not in the output is marked
+        box.fill("P1_Chl + 2*nope")
+        page.wait_for_function("() => document.querySelector('#av-rows .vars__expr-name.is-unknown')?.textContent === 'nope'")
+        box.fill("P1_Chl+2*")
+        page.wait_for_function("() => document.querySelector('#av-rows .vars__expr.is-error mark')?.textContent === '*'")
+        assert "A * needs something on each side." in row.inner_text()
+        assert page.locator("#av-continue").is_disabled()
+    finally:
+        page.close()
         app.close()

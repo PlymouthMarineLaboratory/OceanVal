@@ -46,7 +46,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import netcdf_lock, own_data, time_res, user_recipes
+from oceanval import model_expr, netcdf_lock, own_data, time_res, user_recipes
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -757,7 +757,12 @@ def render_page(template, state):
             "/*__OCEANVAL_GUI_JS__*/",
             # the Info panel's logo, inlined as the page loads nothing from elsewhere
             read("gui.js")
-            .replace("__OCEANVAL_PML_LOGO__", picture("pml_logo.jpg", "image/jpeg")),
+            .replace("__OCEANVAL_PML_LOGO__", picture("pml_logo.jpg", "image/jpeg"))
+            # what a model variable's formula may hold (see oceanval.model_expr), read by OceanValGUI.expression
+            .replace(
+                "/*__OCEANVAL_EXPR_TABLES__*/ { functions: {}, constants: [], refused: {} }",
+                json.dumps(model_expr.tables()).replace("<", "\\u003c"),
+            ),
         )
         # last, so nothing inlined above can be mistaken for it
         .replace("__OCEANVAL_STATE__", state)
@@ -1050,11 +1055,15 @@ class RecipePage:
                     # nothing to match up, or only the user's own data,
                     # which has its own model variable
                     continue
+                problem = model_expr.problem(answer)
+                if problem is not None:
+                    errors[variable] = problem.message
+                    continue
                 unknown = _unknown_variables(answer, self.available)
                 if unknown:
                     errors[variable] = _unknown_message(unknown)
                     continue
-                mapping[variable] = "+".join(_model_variable_names(answer))
+                mapping[variable] = model_expr.normalise(answer)
 
                 recipes = {
                     dataset["recipe"]

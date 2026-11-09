@@ -191,7 +191,7 @@ def banded(row, files, lines, years, time_shift, folder, file_years=None):
     None)})."""
     from oceanval.viewer_mesh import Mesh
 
-    parts = row["parts"]
+    parts = fvcom_climatology.parts_of(row)
     where = fvcom_climatology.location(files[0], parts)
     mesh = Mesh.read(files[0])
     if mesh.cartesian:

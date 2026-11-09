@@ -32,6 +32,7 @@ import warnings
 from oceanval.quiet_nc import nc
 import xarray as xr
 
+from oceanval import model_expr
 from oceanval import prompts
 from oceanval import user_recipes
 from oceanval import live as interim_report
@@ -892,7 +893,7 @@ def voted_mapping(found, cwd=None):
                 continue
             counts = votes[variable]
             counts[model_variable] = counts.get(model_variable, 0) + 1
-            if model_variable.split("+")[0] in depth_variables:
+            if model_expr.names(model_variable)[0] in depth_variables:
                 water_column.add(model_variable)
 
     mapping = {}
@@ -946,8 +947,9 @@ def _available_variables(simdir, ndown, exclude=None, require=None):
 
 
 def _model_variable_names(answer):
-    """The model variables named in one answer, several joined with "+"."""
-    return [name.strip() for name in answer.split("+")]
+    """The model variables named in one answer: one, several joined with "+",
+    or a formula of them (see oceanval.model_expr)."""
+    return model_expr.names(answer)
 
 
 def _unknown_variables(answer, available):
@@ -955,12 +957,28 @@ def _unknown_variables(answer, available):
     return [name for name in _model_variable_names(answer) if name not in available]
 
 
+def model_variable_problem(answer, available=None):
+    """What is wrong with one answer for a model variable, as a sentence, or
+    None: a formula CDO's expr could not work out (see oceanval.model_expr),
+    or names that are not in available (the model output's variables), if
+    given."""
+    error = model_expr.problem(answer)
+    if error is not None:
+        return error.message
+    if available is None:
+        return None
+    unknown = _unknown_variables(answer, available)
+    if not unknown:
+        return None
+    return f"{', '.join(unknown)} {'is' if len(unknown) == 1 else 'are'} not in the simulation output."
+
+
 def _ask_for_missing_variables(mapping, missing, available):
     """Offer the user the chance to name the model variable for each gap.
 
     Blank input skips a variable, leaving its recipes commented out. Several
     model variables can be given joined with "+", as the automatic
-    identification does.
+    identification does, or a formula of them (see oceanval.model_expr).
     """
     mapping = dict(mapping)
     for variable in missing:
@@ -974,11 +992,15 @@ def _ask_for_missing_variables(mapping, missing, available):
                 return mapping
             if not answer:
                 break
+            error = model_expr.problem(answer)
+            if error is not None:
+                print(error.message)
+                continue
             unknown = _unknown_variables(answer, available)
             if unknown:
                 print(f"{', '.join(unknown)} not found in the model output")
                 continue
-            mapping[variable] = "+".join(_model_variable_names(answer))
+            mapping[variable] = model_expr.normalise(answer)
             break
     return mapping
 

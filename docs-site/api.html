@@ -109,7 +109,7 @@
           <ul class="param-list">
             <li><code class="param-name">name</code> <span class="param-tag">required</span><p>A name for the dataset, e.g. "temperature" — used internally to keep track of things. Letters and numbers only.</p></li>
             <li><code class="param-name">source</code> <span class="param-tag">required</span><p>The source of the observational data, e.g. "NOAA".</p></li>
-            <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations. Not currently enforced by the function but should always be supplied.</p></li>
+            <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations, several summed as <code>"a+b"</code>, or a formula of them as CDO's <code>expr</code> takes it, e.g. <code>"P1_Chl+2*P2_Chl"</code> (see <a href="how-to-use.html">How to use</a>). A formula CDO could not work out is refused, saying why. Not currently enforced by the function but should always be supplied.</p></li>
             <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to a csv file, or to a directory of csv files. If a directory, ensure it only contains csv files relevant to this variable — OceanVal uses all the csv files directly in it.</p></li>
           </ul>
           <p>Optional:</p>
@@ -139,7 +139,7 @@
           <ul class="param-list">
             <li><code class="param-name">name</code> <span class="param-tag">required</span><p>A name for the dataset, e.g. "temperature".</p></li>
             <li><code class="param-name">source</code> <span class="param-tag">required</span><p>The source of the observational data, e.g. "CMEMS".</p></li>
-            <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations.</p></li>
+            <li><code class="param-name">model_variable</code> <span class="param-tag">required</span><p>The name of the model variable to compare against the observations, several summed as <code>"a+b"</code>, or a formula of them as CDO's <code>expr</code> takes it, e.g. <code>"P1_Chl+2*P2_Chl"</code> (see <a href="how-to-use.html">How to use</a>). A formula CDO could not work out is refused, saying why.</p></li>
             <li><code class="param-name">obs_path</code> <span class="param-tag">required</span><p>Path to the directory containing the observational data files (subdirectories are searched too), a pattern such as obs/*.nc, or a single file.</p></li>
             <li><code class="param-name">climatology</code> <span class="param-tag">required</span><p>Whether the observational data is a climatology.</p></li>
           </ul>
@@ -237,7 +237,7 @@
           <summary>Parameters</summary>
           <ul class="param-list">
             <li><code class="param-name">sim_dir</code> <span class="param-tag">required</span><p>The directory the simulation&rsquo;s output is in.</p></li>
-            <li><code class="param-name">variables</code> <span class="param-tag">required</span><p>The name to give each variable, and the model variable holding it, several summed as <code>"a+b"</code>, e.g. <code>{"Chlorophyll": "P1_Chl+P2_Chl", "Temperature": "votemper"}</code>.</p></li>
+            <li><code class="param-name">variables</code> <span class="param-tag">required</span><p>The name to give each variable, and the model variable holding it, several summed as <code>"a+b"</code>, or a formula of them as CDO's <code>expr</code> takes it (<code>"P1_Chl+2*P2_Chl"</code>), e.g. <code>{"Chlorophyll": "P1_Chl+P2_Chl", "Temperature": "votemper"}</code>.</p></li>
             <li><code class="param-name">climatology</code><p>For each variable to work out the climatology of, by its name in <code>variables</code>: <code>"start"</code> and <code>"end"</code> years, and <code>"surface": True</code>, <code>"bottom": True</code> (the deepest value that is not missing, from nctoolkit&rsquo;s <code>bottom</code> method with <code>choice="value"</code>) and/or <code>"water_column"</code>, <code>"mean"</code> (the vertical mean, weighted by the cell thickness), <code>"integral"</code> (the depth integral) or <code>["mean", "integral"]</code> for both. The mean of each month of the year is worked out, and the annual mean; both are mapped.</p></li>
             <li><code class="param-name">phenology</code><p>For each variable to work out the phenology of: <code>"start"</code> and <code>"end"</code> years. The day of the year of the seasonal peak at the surface is found in each grid cell from the variable&rsquo;s daily climatology, so it needs daily output.</p></li>
             <li><code class="param-name">n_dirs_down</code><p>How many directories below <code>sim_dir</code> the output files are. Default <code>2</code>.</p></li>

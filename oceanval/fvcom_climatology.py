@@ -36,6 +36,12 @@ The files can be shared out to `cores` processes, each running this file as a
 script by its path (python -I), as it imports nothing of OceanVal: a spawned
 worker of a module of the package would import the package, and the user's
 script with it, which would then run again.
+
+The parts of a variable are a list of names, which are added, or a model
+variable (a name, "a+b" or a formula, as oceanval.model_expr reads it, which
+is loaded by its path, as this file is run by its own): each part is taken to
+its layer, as CDO takes each variable of a formula there before working it
+out, and then the formula is worked out on their values, as CDO would.
 """
 
 import json
@@ -46,6 +52,52 @@ import tempfile
 
 import cftime
 import numpy as np
+
+
+def _load_model_expr():
+    # by its path, beside this file: run as a script, this file cannot import the package
+    if __package__:
+        from oceanval import model_expr
+
+        return model_expr
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "oceanval_model_expr", os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_expr.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+model_expr = _load_model_expr()
+
+
+def parts_of(row):
+    """What a row of analysis.locate_rows gives the functions here as its
+    parts: its formula, if it is one, else the names it adds up."""
+    return row.get("formula") or row["parts"]
+
+
+def names_of(parts):
+    """The variables parts (a list of names or a model variable) needs."""
+    return model_expr.names(parts) if isinstance(parts, str) else list(parts)
+
+
+def shown(parts):
+    """parts as the user gave them, to name them in a message."""
+    return model_expr.normalise(parts) if isinstance(parts, str) else "+".join(parts)
+
+
+def _combined(parts, values):
+    """parts worked out from values ({name: array}): added, for a list of
+    names, or the formula worked out as CDO would (see model_expr.evaluate)."""
+    if isinstance(parts, str) and model_expr.kind(parts) == model_expr.FORMULA:
+        return np.asarray(model_expr.evaluate(model_expr.tree(parts), values), dtype="float64")
+    total = None
+    for name in names_of(parts):
+        total = values[name] if total is None else total + values[name]
+    return total
 
 # the location of a variable on the mesh: its nodes or its elements
 NODE = "node"
@@ -107,6 +159,7 @@ def location(path, parts):
     in the file at path. Raises ValueError if they differ, or are on neither."""
     import netCDF4
 
+    parts = names_of(parts)
     found = {}
     with netCDF4.Dataset(path) as handle:
         for name in parts:
@@ -121,7 +174,7 @@ def location(path, parts):
     if len(set(found.values())) > 1:
         raise ValueError(
             " and ".join(parts) + " are not all on the same part of the FVCOM mesh (some are on its nodes, "
-            "some on its elements), so cannot be summed."
+            "some on its elements), so cannot be used together."
         )
     return next(iter(found.values()))
 
@@ -133,7 +186,8 @@ def vertical(path, parts):
 
     with netCDF4.Dataset(path) as handle:
         return {
-            name: next((dim for dim in handle.variables[name].dimensions if dim in VERTICAL), None) for name in parts
+            name: next((dim for dim in handle.variables[name].dimensions if dim in VERTICAL), None)
+            for name in names_of(parts)
         }
 
 
@@ -213,25 +267,27 @@ def _read(variable, start, stop, level=None, cells=None):
 
 
 def _summed(handle, parts, start, stop, as_missing, level=None, cells=None):
-    """The sum of parts (see _read), with as_missing made missing in each. A
-    value missing in any part is missing in the sum, as CDO sums."""
-    values = None
-    for name in parts:
-        part = _missing(_read(handle.variables[name], start, stop, level, cells), as_missing)
-        values = part if values is None else values + part
-    return values
+    """The sum of parts (see _read), or their formula, with as_missing made
+    missing in each. A value missing in any part is missing in the sum, as CDO
+    sums (a formula: see model_expr.evaluate)."""
+    return _combined(
+        parts,
+        {
+            name: _missing(_read(handle.variables[name], start, stop, level, cells), as_missing)
+            for name in names_of(parts)
+        },
+    )
 
 
 def _bottom(handle, parts, start, stop, as_missing):
-    """The sum of the deepest value of each of parts that is not missing, at
-    times start to stop, as (time, cells): the last layer, and the layers
-    above only where it is missing, as nctoolkit's bottom(choice="value")
-    takes it (a part with no vertical dimension is as it is)."""
-    values = None
-    for name in parts:
-        part = _deepest(handle, name, start, stop, as_missing)
-        values = part if values is None else values + part
-    return values
+    """The sum (or the formula) of the deepest value of each of parts that is
+    not missing, at times start to stop, as (time, cells): the last layer, and
+    the layers above only where it is missing, as nctoolkit's
+    bottom(choice="value") takes it (a part with no vertical dimension is as
+    it is)."""
+    return _combined(
+        parts, {name: _deepest(handle, name, start, stop, as_missing) for name in names_of(parts)}
+    )
 
 
 def _deepest(handle, name, start, stop, as_missing):
@@ -354,7 +410,7 @@ def file_sums(path, parts, years, time_shift=None, as_missing=None, layer=SURFAC
         if not dates:
             return found
         months = [date[:2] if by == MONTH else date for date in dates]
-        first = handle.variables[parts[0]]
+        first = handle.variables[names_of(parts)[0]]
         where = NODE if NODE in first.dimensions else NELE
         cells = int(np.prod([len(handle.dimensions[dim]) for dim in first.dimensions if dim in (NODE, NELE)]))
         if layer == DEPTH:
@@ -366,7 +422,7 @@ def file_sums(path, parts, years, time_shift=None, as_missing=None, layer=SURFAC
                 cells = len(range(cells)[band])
             read = 1
         if layer in (MEAN, INTEGRAL, LEVELS):
-            bad = [name for name in parts if SIGLAY not in handle.variables[name].dimensions]
+            bad = [name for name in names_of(parts) if SIGLAY not in handle.variables[name].dimensions]
             if bad:
                 raise ValueError(
                     f"{', '.join(bad)} {'is' if len(bad) == 1 else 'are'} not on the sigma layers (siglay) of the "
@@ -455,7 +511,8 @@ def monthly_sums(files, parts, years, time_shift=None, as_missing=None, cores=1,
     cells = None if cells is None else [int(cells[0]), int(cells[1])]
     pick = None if pick is None else [int(cell) for cell in pick]
     jobs = [
-        [number, [path, list(parts), list(years), time_shift, as_missing, layer, by, cells, pick]]
+        [number, [path, parts if isinstance(parts, str) else list(parts), list(years), time_shift, as_missing,
+                  layer, by, cells, pick]]
         for number, path in enumerate(files)
     ]
     with tempfile.TemporaryDirectory(prefix="oceanval_fvcom_") as out_dir:
@@ -571,7 +628,7 @@ def daily_climatology(files, parts, years, time_shift=None, as_missing=None, cor
     import netCDF4
 
     with netCDF4.Dataset(files[0]) as handle:
-        dims = handle.variables[parts[0]].dimensions
+        dims = handle.variables[names_of(parts)[0]].dimensions
         cells = int(np.prod([len(handle.dimensions[dim]) for dim in dims if dim in (NODE, NELE)]))
     file_years = {path: (file_years or {}).get(path) for path in files}
     step = max(1, DAILY_VALUES // 366)
@@ -687,7 +744,7 @@ def work_out(files, parts, years, key, monthly, annual, units, long_name, time_s
         climate.add(year, month, mean)
     months, fields, last = climate.fields()
     if not months:
-        raise ValueError(f"There is no output of {'+'.join(parts)} in {years[0]}-{years[1]}.")
+        raise ValueError(f"There is no output of {shown(parts)} in {years[0]}-{years[1]}.")
     last = max(last)
     if monthly is not None:
         save(monthly, key, where, months, fields, last, files[0], units, long_name)
@@ -705,7 +762,7 @@ def daily_work_out(files, parts, years, key, out, units, long_name, time_shift=N
     where = location(files[0], parts)
     days, fields = daily_climatology(files, parts, years, time_shift, as_missing, cores, file_years)
     if not days:
-        raise ValueError(f"There is no output of {'+'.join(parts)} in {years[0]}-{years[1]}.")
+        raise ValueError(f"There is no output of {shown(parts)} in {years[0]}-{years[1]}.")
     save(out, key, where, None, fields, None, files[0], units, long_name, days=days)
     return where
 

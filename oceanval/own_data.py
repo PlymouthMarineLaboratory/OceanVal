@@ -17,7 +17,7 @@ import re
 import threading
 import warnings
 
-from oceanval import session
+from oceanval import model_expr, session
 from oceanval.parsers import Validator, gridded_files, point_files
 
 KINDS = ("point", "gridded")
@@ -115,8 +115,9 @@ _MODEL_VARIABLE = _field(
     "model_variable",
     "Simulation variable",
     required=True,
-    help="The simulation variable to compare with: choose from the simulation's variables, or "
-    "use a+b+c to add variables together.",
+    help="The simulation variable to compare with: choose from the simulation's variables, "
+    "use a+b+c to add variables together, or give a formula of them as CDO's expr takes it, "
+    "such as a+2*b.",
 )
 
 POINT_FIELDS = [
@@ -396,6 +397,12 @@ def check_entry(kind, form, existing=(), cwd=None):
         errors["name"] = "Use letters and numbers only."
     if source and "_" in source:
         errors["source"] = "This cannot contain an underscore."
+    model_variable = arguments.get("model_variable")
+    if model_variable and "model_variable" not in errors:
+        # one variable, a sum or a formula (see oceanval.model_expr)
+        problem = model_expr.problem(model_variable)
+        if problem is not None:
+            errors["model_variable"] = problem.message
 
     obs_path = arguments.get("obs_path")
     if obs_path and "obs_path" not in errors:

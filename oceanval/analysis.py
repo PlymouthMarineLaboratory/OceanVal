@@ -39,7 +39,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import cdo_check, domain_mask, netcdf_lock, prompts, sim_unify, surface
+from oceanval import cdo_check, domain_mask, model_expr, netcdf_lock, prompts, sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
 from oceanval.matchall import _restores_nctoolkit_options
@@ -90,8 +90,9 @@ def variable_key(name):
 
 
 def model_variable_names(model_variable):
-    """The model variables in one model variable, several summed as "a+b"."""
-    return [name.strip() for name in str(model_variable).split("+") if name.strip()]
+    """The model variables in one model variable: one, several summed as
+    "a+b", or a formula of them (see oceanval.model_expr)."""
+    return model_expr.names(str(model_variable))
 
 
 def _year(value, what):
@@ -260,13 +261,19 @@ def check_arguments(
                 "give them names that differ by more than case and punctuation."
             )
         keys[key] = name
-        if not isinstance(model_variable, str) or not model_variable_names(model_variable):
+        if not isinstance(model_variable, str) or not model_variable.strip():
             raise ValueError(f"Give the model variable for {name!r}.")
+        try:
+            parsed = model_expr.parse(model_variable)
+        except model_expr.ExpressionError as error:
+            raise ValueError(f"The model variable for {name!r}, {model_variable.strip()}: {error.message}") from None
         row = {
             "name": name.strip(),
             "key": key,
-            "model_variable": "+".join(model_variable_names(model_variable)),
-            "parts": model_variable_names(model_variable),
+            "model_variable": parsed.text,
+            "parts": parsed.names,
+            # a formula of the parts (see oceanval.model_expr), worked out where they would be added
+            "formula": parsed.text if parsed.kind == model_expr.FORMULA else None,
             "climatology": None,
             "phenology": None,
             "long_term": None,
@@ -540,7 +547,7 @@ def stream_time_res(files, fvcom=None):
 
 def place(model_variable, found):
     """The streams of found (see streams) holding every one of the model
-    variables summed in model_variable. Raises ValueError if none does,
+    variables summed in model_variable (or in its formula). Raises ValueError if none does,
     saying which are not in the output, or that they are in different
     files."""
     parts = model_variable_names(model_variable)
@@ -553,8 +560,9 @@ def place(model_variable, found):
             f"{', '.join(missing)} {'is' if len(missing) == 1 else 'are'} not in the "
             "simulation's output."
         )
+    together = "summed" if model_expr.kind(model_variable) != model_expr.FORMULA else "used in one formula"
     raise ValueError(
-        f"{' and '.join(parts)} are not in the same files, so cannot be summed: "
+        f"{' and '.join(parts)} are not in the same files, so cannot be {together}: "
         + "; ".join(
             f"{part} is in "
             + ", ".join(stream["pattern"] for stream in found if part in stream["variables"])
@@ -587,11 +595,18 @@ def describe_variable(model_variable, stream):
     stream, those of its first part where they differ."""
     parts = model_variable_names(model_variable)
     first = stream["variables"][parts[0]]
+    if model_expr.kind(model_variable) == model_expr.FORMULA:
+        # a formula's units are taken to be its first variable's (the window asks the user to check them)
+        long_name = f"{model_expr.normalise(model_variable)}, of " + ", ".join(
+            stream["variables"][part]["long_name"] or part for part in parts
+        )
+    elif len(parts) == 1:
+        long_name = first["long_name"]
+    else:
+        long_name = " + ".join(stream["variables"][part]["long_name"] or part for part in parts)
     return {
         "units": first["units"],
-        "long_name": first["long_name"] if len(parts) == 1 else " + ".join(
-            stream["variables"][part]["long_name"] or part for part in parts
-        ),
+        "long_name": long_name,
         "levels": max(stream["variables"][part]["levels"] for part in parts),
     }
 
@@ -680,8 +695,9 @@ def _model_data(files, row, years, time_shift, layer=None, levels=1, at=None):
         # years on disk are not the years they are shifted into
         ds.shift(days=time_shift)
         ds.cdo_command("-selyear," + ",".join(str(year) for year in range(years[0], years[1] + 1)))
-    if len(row["parts"]) > 1:
-        ds.cdo_command(f"-expr,{row['key']}={'+'.join(row['parts'])}")
+    if row.get("formula") or len(row["parts"]) > 1:
+        # the sum, or the formula, of the parts (see oceanval.model_expr)
+        ds.cdo_command(model_expr.cdo_operator(row["key"], row.get("formula") or "+".join(row["parts"])))
     else:
         ds.rename({row["parts"][0]: row["key"]})
     # a comparison's simulation in other units than the first's (see
@@ -1262,7 +1278,7 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
             from oceanval import fvcom_climatology
 
             where = fvcom_climatology.daily_work_out(
-                row["phenology"]["files"], row["parts"], list(years), row["key"], daily, row["units"],
+                row["phenology"]["files"], fvcom_climatology.parts_of(row), list(years), row["key"], daily, row["units"],
                 f"{row['name']}, daily climatology at the surface", time_shift=time_shift,
                 as_missing=row.get("as_missing"), cores=row.get("cores", 1), file_years=file_years(row),
             )
@@ -1354,7 +1370,7 @@ def _fvcom_climatology(row, results_dir, layer, years, time_shift):
     units = integral_units(row["units"]) if layer == "integral" else row["units"]
     where, months = fvcom_climatology.work_out(
         row["climatology"]["files"],
-        row["parts"],
+        fvcom_climatology.parts_of(row),
         list(years),
         row["key"],
         monthly,

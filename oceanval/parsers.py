@@ -6,7 +6,21 @@ import glob
 import warnings
 from oceanval.session import session_info
 from oceanval.utils import loud_warning
-from oceanval import user_recipes
+from oceanval import model_expr, user_recipes
+
+
+def _checked_model_variable(model_variable, name):
+    """model_variable as OceanVal keeps it (see oceanval.model_expr: one
+    variable, a sum or a formula, without spaces). Raises ValueError, saying
+    what is wrong, if CDO's expr could not work it out. None is kept."""
+    if model_variable is None:
+        return None
+    try:
+        return model_expr.parse(model_variable).text
+    except model_expr.ExpressionError as error:
+        raise ValueError(
+            f"The model variable for {name}, {str(model_variable).strip()}, cannot be used: {error.message}"
+        ) from None
 
 # whether registering a gridded comparison opens its observations on a
 # THREDDS server to check them. The oceanval window turns it off, so that
@@ -462,7 +476,8 @@ class Validator:
 
         source_info (str): Source information of the variable
 
-        model_variable (str): Model variable name
+        model_variable (str): Model variable name, several added as "a+b", or a
+            formula of them in the language of CDO's expr, such as "a+2*b"
 
         obs_path (str): Directory or path of the observations
 
@@ -662,6 +677,9 @@ class Validator:
 
         # Figure out if name is already
 
+        # one variable, a sum or a formula, as oceanval.model_expr reads it
+        model_variable = _checked_model_variable(model_variable, name)
+
         # figure out if self[name] exists already
         if getattr(self, name, None) is None:
             var = Variable()
@@ -752,7 +770,8 @@ class Validator:
 
         source_info (str): Source information of the variable
 
-        model_variable (str): Model variable name
+        model_variable (str): Model variable name, several added as "a+b", or a
+            formula of them in the language of CDO's expr, such as "a+2*b"
 
         start (int): First year of observations to use
 
@@ -919,6 +938,8 @@ class Validator:
                     float(res)
                 except:
                     raise ValueError("Each element of binning must be a number")
+        # one variable, a sum or a formula, as oceanval.model_expr reads it
+        model_variable = _checked_model_variable(model_variable, name)
         # figure out if self[name] exists already
         if getattr(self, name, None) is None:
             # add it
@@ -1007,7 +1028,7 @@ def generate_mapping(ds):
         return model_dict
 
     for vv in candidate_variables:
-        variables = definitions[vv].model_variable.split("+")
+        variables = model_expr.names(definitions[vv].model_variable)
         include = True
         for var in variables:
             if var not in ds_contents.variable.values:

@@ -103,6 +103,29 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 
 - **nctoolkit is imported through `oceanval/quiet_nc.py`** (`from oceanval.quiet_nc import nc`), which silences its import warnings and output (errors still raise); the report templates do the same. Scripts that must stand alone (`analysis_plots.NC_IMPORT`) wrap the import in `warnings.catch_warnings()` instead. `tests/test_quiet_nc.py` fails on a direct import.
 
+- **A model variable is one name, a sum (`a+b`) or a formula in CDO's `expr` (`a+2*b`), and `oceanval/model_expr.py` is the one
+  place it is read** (the user's design, 2026-11-09): never `split("+")` a model variable. `parse` (raises `ExpressionError(message, start,
+  end)`) gives `text` (no spaces), `names`, `kind` (`NAME`/`SUM`/`FORMULA`) and `tree`; `names`/`kind`/`normalise`/`tidied` never raise
+  (what cannot be parsed is read as names joined by `+`, as before); `problem(text)` is the check; `cdo_operator(target, text)` is the
+  quoted `-expr,'t=...;'` nctoolkit's shell needs; `describe` is "Sum of a, b" / "Expression based on a, b". A text with no operator,
+  bracket, comma or space is one variable whatever its name. The grammar is CDO 2.4/2.6's, found by probing CDO (precedence loosest
+  first: `?:` (nested needs brackets, none unbracketed in a function's arguments, one needs a variable), `&& ||`, all comparisons at one
+  level, `+ -`, `* /`, unary `- !`, `^` right-assoc); `FUNCTIONS` are element-wise only, `REFUSED` (statistics over grid/levels, level
+  selection, grid/time functions) say why. `evaluate(tree, values)` is it in numpy as CDO works it out (missing in, missing out, but
+  `0*missing` is 0; domain errors are missing), for raw FVCOM, which `fvcom_climatology` (run by path) loads **by its path**
+  (`_load_model_expr`; `parts` there is a list of names or a formula string, `parts_of(row)` gives `row["formula"]` or the names).
+  `tests/test_model_expr.py` checks random formulas against CDO itself and **`OceanValGUI.expression` in `gui.js`, a port of the
+  parser** (its tables are `model_expr.tables()`, put in by `render_page` for `/*__OCEANVAL_EXPR_TABLES__*/`), so change both
+  together. Where it is applied: point matchups `-expr,'total=...'` (was `sum_all`), gridded sums after the monthly means as before but
+  a FORMULA per time step in `gridded.model_dataset(formula=, target=)` (the mean of a product is not the product of the means),
+  Analyze/Compare at the end of `analysis._model_data` (`row["formula"]`). The point cache keeps each matchup's normalised model
+  variable (an entry of another, or of none, is not used). A formula's units are its first variable's: `units._check` and
+  `sim_compare_forms.unit_rows` give status `formula` (`unit_conversion.formula`), and the units steps show the row in amber with a
+  Formula tag (`unitsFormula`, `tr.is-formula`); Compare always shows a formula's row, except for raw FVCOM on its mesh (`formulas=False`).
+  In a `multi` `variableBox` the search is the name under the caret (`nameAt`; `*`/`?` are the formula's, not wildcards; a sum keeps
+  the part between `+`s), a click inserts where the formula waits for a value, a formula's names cannot be taken out by -/× (edit it),
+  and `.vars__expr` under the box says "Sum of ..."/"Expression based on ..." (unknown names marked) or marks the wrong part once typing
+  pauses (`EXPR_PAUSE`; the message only with `explain`, the own data box: elsewhere the page's row check says it).
 - `oceanval/matchall.py` (`matchup`) and `oceanval/gridded.py` (`gridded_matchup`) do the actual
   model↔observation matching for point and gridded data respectively; `oceanval/fvcom.py` handles
   FVCOM-specific regridding/preprocessing (deliberately excluded from coverage/docs).
@@ -253,7 +276,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
 - **A variable is asked for in one box, `OceanValGUI.variableBox(input, {available, longNames, multi, extra})`** (`data/gui.js`; the user's
   rule, 2026-10-30: no "Select from the model's variables" link any more): the box opens the old pop-out (`.vars__popover`, fixed, placed
   under the box: a **+/- button** (the user's rule, 2026-11-09: no tick boxes in any variable selector, the viewer's list included; `.vars__pm`, `.vw-pm` in `gui.css`, a grey + adds, a teal - takes out, a chosen row is `is-picked`, tinted with a teal edge; a + that cannot add is `disabled`, greyed, `pointer-events: none` so the click falls to the row), Variable, long_name, Selected at the top, the counts) on focus, and **the box is its search**: the rows shown match the
-  part being typed (`searchMatcher`; with `multi`, the part between the `+`s the caret is in). Names in the box are chosen, so `P1_Chl+` typed
+  part being typed (`searchMatcher`; with `multi`, the part between the `+`s the caret is in for a sum, the name under the caret in a formula, see `model_expr` above). Names in the box are chosen, so `P1_Chl+` typed
   chooses P1_Chl and shows every row; `+` is just typed (never completed). A click on a row, its + button too, adds it (replacing a half-typed search,
   else `+name` at the end; single: the value, and the pop-out closes); on a chosen row (its - button) or its × it is taken out (single: every other row's + replaces the value). With `keepSearch` (Analyze and
   Compare simulations' rows only; the user's rule, 2026-11-06) a click keeps the search typed before it (`kept`), so the rows it finds can be

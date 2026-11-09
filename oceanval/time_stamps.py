@@ -21,7 +21,7 @@ import warnings
 import cftime
 import xarray as xr
 
-from oceanval import netcdf_lock
+from oceanval import model_expr, netcdf_lock
 
 # what matchup suggests for times that look like ends
 SUGGESTED = -1
@@ -168,7 +168,7 @@ def _evidence(paths, model_variable):
     """What makes the times of model_variable in paths (one file pattern's
     files, sorted) look like the ends of the periods its values are over, as
     a dict, or None if they do not."""
-    variable = model_variable.split("+")[0].strip()
+    variable = model_expr.names(model_variable)[0]
     read = {}
     for path in _sample(paths):
         try:

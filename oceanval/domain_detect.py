@@ -17,7 +17,7 @@ import warnings
 import numpy as np
 import xarray as xr
 
-from oceanval import extent, netcdf_lock
+from oceanval import extent, model_expr, netcdf_lock
 from oceanval.quiet_nc import nc
 
 SHARE = 0.8
@@ -118,7 +118,8 @@ def detect(files, variable=None, fvcom=False):
             share = share_of_mesh(path)
         else:
             # a sum of variables is read by its first
-            name = variable.split("+")[0].strip() if variable else None
+            found = model_expr.names(variable) if variable else []
+            name = found[0] if found else None
             share = share_of_grid(path, name)
             if share is None and name:
                 share = share_of_grid(path)

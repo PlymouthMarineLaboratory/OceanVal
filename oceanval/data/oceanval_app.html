@@ -705,6 +705,11 @@
   /* what OceanVal made of a row's units, on a line of its own under the row */
   .units tr.has-check td { border-bottom: 0; padding-bottom: 4px; }
   .units tr.units__check td { padding-top: 0; font-size: 13px; }
+  /* a formula, whose units OceanVal cannot tell: amber, for the user to check */
+  .units tr.is-formula td { background: var(--amber-bg); }
+  .units tr.is-formula td:first-child { box-shadow: inset 3px 0 0 var(--amber); }
+  .units tr.units__check.is-formula .group__line { color: var(--amber); font-weight: 600; }
+  .units__formula-tag { display: inline-block; margin-bottom: 4px; padding: 1px 7px; border-radius: 999px; background: var(--bg); border: 1px solid var(--amber); color: var(--amber); font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .units-reading { margin: 0 0 18px; font-size: 14px; }
   /* what OceanVal filled in is red and bold, so that none of it is missed */
   .lede .oceanval-change, .units .s-input.is-oceanval, .units .group__line.is-oceanval,
@@ -5532,7 +5537,13 @@
     return key && /^[0-9]/.test(key) ? `v_${key}` : key;
   }
 
-  const modelNames = (text) => String(text).split("+").map((name) => name.trim()).filter(Boolean);
+  // the simulation variables a model variable needs: one, a sum (a+b) or a formula (a+2*b), see oceanval.model_expr
+  const modelNames = (text) => OceanValGUI.expression(text).names;
+  // what is wrong with a model variable's formula, or "" (the names are checked by the caller)
+  const formulaProblem = (text) => {
+    const found = OceanValGUI.expression(text);
+    return found.ok || found.empty ? "" : found.error.message;
+  };
   const analyzePicker = () => state.analyze.picker || { available: [], long_names: {}, levels: {} };
 
   // a time resolution (see oceanval.time_res.label) in words
@@ -5587,7 +5598,7 @@
     };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Chlorophyll",
       spellcheck: "false", autocomplete: "off", "aria-label": "Environmental variable" });
-    const model = el("input", { class: "s-input is-mono", type: "text", value: item.model_variable, placeholder: "e.g. P1_Chl+P2_Chl",
+    const model = el("input", { class: "s-input is-mono", type: "text", value: item.model_variable, placeholder: "e.g. P1_Chl+P2_Chl or P1_Chl+2*P2_Chl",
       spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": "Variable name in the simulation" });
     // what OceanVal filled in is red and bold until it is changed
     if (item.filled) [name, model].forEach((box) => box.classList.add("is-oceanval"));
@@ -5677,7 +5688,10 @@
       }
       if (!modelError) {
         const missing = names.filter((part) => !available.has(part));
-        if (!names.length) modelError = "Give the model variable holding it.";
+        const problem = formulaProblem(item.model_variable);
+        if (!item.model_variable.trim()) modelError = "Give the model variable holding it.";
+        else if (problem) modelError = problem;
+        else if (!names.length) modelError = "Give the model variable holding it.";
         else if (missing.length) modelError = `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not in the simulation's output.`;
       }
       return [nameError, modelError];
@@ -7644,7 +7658,8 @@
 
   // the box's list of variables (OceanValGUI.variableBox), made once
   function listIn(control, multi, available = [], longNames = {}) {
-    if (!control.variables) control.variables = OceanValGUI.variableBox(control.input, { multi, keepSearch: multi });
+    // with multi, the own data's simulation variable: what is wrong with a formula is said under it, as the page says it on Add only
+    if (!control.variables) control.variables = OceanValGUI.variableBox(control.input, { multi, keepSearch: multi, explain: multi });
     control.variables.update({ available, longNames });
   }
 
@@ -7661,7 +7676,7 @@
       return setPick(control, note("The simulation's variables could not be read, so type the name."));
     }
     setPick(control, ...(done && found.available.length
-      ? [note(`Click in the box to choose from the simulation's ${plural(found.available.length, "variable")}; several are summed with +.`)] : []));
+      ? [note(`Click in the box to choose from the simulation's ${plural(found.available.length, "variable")}; several are summed with +, or give a formula of them, such as a+2*b.`)] : []));
   }
 
   const observed = { path: null, token: 0, timer: null, paths: [], files: 0 };
@@ -9360,8 +9375,18 @@
       return line(`OceanVal would multiply by ${check.multiplier} and add ${check.adder}, but the conversion you gave is kept.`, "ok");
     }
     // what OceanVal thinks are the same units is a suggestion, so it gets no tick: it is amber.
-    // The same units of another quantity (e.g. Absolute Salinity) are a warning.
-    return line(check.note, { unknown: "warn", warn: "warn", same: "same" }[check.status] ?? "ok");
+    // The same units of another quantity (e.g. Absolute Salinity) are a warning, and so is a formula,
+    // whose units OceanVal cannot tell (see unit_conversion.formula)
+    return line(check.note, { unknown: "warn", warn: "warn", same: "same", formula: "warn" }[check.status] ?? "ok");
+  }
+
+  // a formula (not a simple sum) on the units step: it, a tag saying so, and what it is based on
+  function unitsFormula(formula, description) {
+    return [
+      el("span", { class: "units__formula-tag", text: "Formula" }),
+      el("div", { class: "is-mono", text: formula }),
+      description ? el("small", { text: description }) : null,
+    ];
   }
 
   // validate's rows: a matchup's observations, converted into the simulation's units
@@ -9371,9 +9396,11 @@
     unconfirm: () => unitsUnconfirm(),
     cells: (row) => [
       el("td", {}, el("strong", { text: row.title })),
-      el("td", {}, ...row.model.parts.length > 1
-        ? row.model.parts.map((part) => el("div", { class: "units__part is-mono", text: part.name }))
-        : [el("span", { class: "is-mono", text: row.model.variable })]),
+      el("td", {}, ...row.model.formula
+        ? unitsFormula(row.model.formula, row.model.description)
+        : row.model.parts.length > 1
+          ? row.model.parts.map((part) => el("div", { class: "units__part is-mono", text: part.name }))
+          : [el("span", { class: "is-mono", text: row.model.variable })]),
       el("td", {}, ...row.model.parts.map((part) => el("div", { class: "units__part" },
         unitsText(part.units, "not in the files")))),
       el("td", {}, unitsText(row.obs_variable, "not known")),
@@ -9431,7 +9458,11 @@
     // own point data has no note: it says it has no units already
     const noted = !row.obs_note;
     const main = el("tr", { class: noted ? "has-check" : null, "data-units-row": row.key }, ...cells);
-    return noted ? [main, el("tr", { class: "units__check" }, noteCell)] : [main];
+    // a formula's units cannot be told: its row stands out, for the user to check
+    const formula = row.check.status === "formula";
+    main.classList.toggle("is-formula", formula);
+    const under = el("tr", { class: formula ? "units__check is-formula" : "units__check" }, noteCell);
+    return noted ? [main, under] : [main];
   }
 
   // what the boxes hold, for each matchup (or, with Compare simulations' tables, each row of theirs)
@@ -12796,7 +12827,10 @@
           const available = new Set(scPicked(sim).available);
           const names = modelNames(item.models[sim.name] || "");
           const missing = names.filter((part) => !available.has(part));
-          if (!names.length) reason = "Give the model variable holding it.";
+          const problem = formulaProblem(item.models[sim.name] || "");
+          if (!String(item.models[sim.name] || "").trim()) reason = "Give the model variable holding it.";
+          else if (problem) reason = problem;
+          else if (!names.length) reason = "Give the model variable holding it.";
           else if (missing.length) reason = `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not in the simulation's output.`;
         }
         if (reason) result.models[sim.name] = reason;
@@ -12886,12 +12920,18 @@
     unconfirm: () => scUnitsUnconfirm(),
     cells: (row) => [
       el("td", {}, el("strong", { text: row.variable })),
-      el("td", {}, unitsText(row.baseline.model_variable, "not known")),
+      el("td", {}, ...scUnitsVariable(row.baseline.model_variable)),
       el("td", {}, unitsText(row.baseline.units, "not in the files")),
-      el("td", {}, unitsText(row.model_variable, "not known")),
+      el("td", {}, ...scUnitsVariable(row.model_variable)),
       el("td", {}, unitsText(row.units, "not in the files")),
     ],
   };
+
+  // a simulation's model variable on the units step: a formula is tagged, as validate's are
+  function scUnitsVariable(text) {
+    const found = OceanValGUI.expression(text || "");
+    return found.ok && found.kind === "formula" ? unitsFormula(found.text, found.description) : [unitsText(text, "not known")];
+  }
 
   const scUnitsConfirmed = () => Boolean($("scu-confirm") && $("scu-confirm").checked);
   function scUnitsButton() {
@@ -12932,8 +12972,16 @@
     document.querySelectorAll("#scu-pages .scu-page").forEach((page) => {
       page.hidden = page.dataset.scuPage !== String(scUnits.page);
     });
-    $("scu-lede").textContent = `${name} gives these variables in other units than ${sims.length ? sims[0].name : "the first simulation"}, `
-      + `the simulation every other is compared in the units of. Check how they are converted into its units.`;
+    const first = sims.length ? sims[0].name : "the first simulation";
+    // a formula's row is here whatever its units (see unit_conversion.formula): the words say which rows there are
+    const own = ((scState().units || {}).rows || []).filter((row) => row.simulation === name);
+    const formulas = own.filter((row) => row.check.status === "formula").length;
+    $("scu-lede").textContent = formulas === own.length && own.length
+      ? `${name} gives ${formulas === 1 ? "a variable" : "variables"} as a formula, whose units OceanVal cannot tell. `
+        + `Check that they are those of ${first}, the simulation every other is compared in the units of, or how they are converted into them.`
+      : `${name} gives these variables in other units than ${first}, `
+        + `the simulation every other is compared in the units of${formulas ? ", or as a formula, whose units OceanVal cannot tell" : ""}. `
+        + `Check how they are converted into its units.`;
     const box = document.querySelector(`#scu-pages [data-scu-page="${scUnits.page}"] input`);
     if (box) box.focus();
   }

@@ -318,6 +318,43 @@ class TestMatchups:
         # the ICES recipe adds nothing new here, and own point data is included
         assert sorted(names) == ["N3_n", "N4_n", "chl", "thetao", "zz"]
 
+    def test_a_formula_is_flagged_and_given_its_first_variables_units(self):
+        """A formula, not a simple sum (see oceanval.model_expr): OceanVal cannot
+        tell its units, so it takes its first variable's and suggests nothing,
+        for the user to check (the window shows the row in amber)."""
+        (row,) = units.matchups(
+            {"nitrate": "N3_n * 2 + N4_n"},
+            {("nitrate", "woa23")},
+            {},
+            {},
+            {"gridded": [], "point": []},
+            {"N3_n": "mmol N m-3", "N4_n": "mmol N m-3"},
+        )
+
+        check = row["check"]
+        assert (check["status"], check["multiplier"], check["adder"]) == ("formula", 1, 0)
+        assert "This is a formula, not a simple sum (N3_n*2+N4_n)" in check["note"]
+        assert "those of N3_n (mmol N m-3)" in check["note"]
+        assert row["model"]["formula"] == "N3_n*2+N4_n"
+        assert row["model"]["description"] == "Expression based on N3_n, N4_n"
+        assert [part["name"] for part in row["model"]["parts"]] == ["N3_n", "N4_n"]
+        assert units.model_variables({"nitrate": "N3_n*2+N4_n"}, {("nitrate", "woa23")}, {"gridded": [], "point": []}) == [
+            "N3_n", "N4_n"
+        ]
+
+    def test_a_sum_is_not_a_formula(self):
+        (row,) = units.matchups(
+            {"nitrate": "N3_n+N4_n"},
+            {("nitrate", "woa23")},
+            {},
+            {},
+            {"gridded": [], "point": []},
+            {"N3_n": "mmol N m-3", "N4_n": "mmol N m-3"},
+        )
+
+        assert row["model"]["formula"] is None and row["model"]["description"] == "Sum of N3_n, N4_n"
+        assert row["check"]["status"] == "convert"
+
 
 class TestConversions:
     def test_blank_boxes_are_the_defaults(self):
