@@ -806,6 +806,10 @@
 
   /* the fifth tile of Tools & checks fills the row under the four */
   #view-help .choices.is-four .choice:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 220px; }
+  /* Tools & checks has six tiles: three across, two rows (the user's layout, 2026-11-09) */
+  #view-help .choices.is-four { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 1238.4px; }
+  #view-help .choices.is-four .choice { min-height: 300px; padding: 36px 32px; }
+  #view-help .choices.is-four .choice__title { font-size: calc(28px - 1pt); }
   /* View previous work: its menu is styled like Tools & checks' */
   #view-previous-work .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 1032px; margin: 0 auto; gap: 36px; justify-content: center; }
   #view-previous-work .choices.is-four .choice { max-width: none; aspect-ratio: auto; min-height: 250px; padding: 40px 46px; gap: 16px; justify-content: center; }
@@ -925,6 +929,36 @@
   .bank td.bank__add { text-align: left; }
   .bank td.bank__regenerate { width: 1%; white-space: nowrap; text-align: right; }
   /* the pop-out that asks for what to read a bank simulation's info from */
+  .store__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+  .store__bar .prefs__where { margin: 0; }
+  .store__expand { display: inline-flex; align-items: center; gap: 12px; }
+  .store__expand .identify__spinner { width: 22px; height: 22px; border-width: 3px; }
+  .store__jobs { display: grid; gap: 10px; margin-bottom: 18px; }
+  .store__job { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+  .store__job .matchup-grid__mark { margin-top: 1px; }
+  .store__job-text { min-width: 0; }
+  .store__job-text p { margin: 0; overflow-wrap: anywhere; }
+  .store__job-summary { color: var(--ink); font-size: 14.5px; font-weight: 600; }
+  .store__job-line { color: var(--muted); font-size: 13px; }
+  .store__job-line.is-error { color: var(--ink); }
+  .store__job-items { display: grid; gap: 3px; margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+  .store__job-items li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+  .store__job-items .matchup-grid__mark { width: 16px; height: 16px; }
+  .store__job-items .identify__spinner { width: 12px; height: 12px; border-width: 2px; }
+  .store__job-items .is-error { color: var(--ink); font-weight: 600; }
+  .sx__form { max-height: 74vh; overflow-y: auto; }
+  .sx__block { display: grid; gap: 8px; }
+  .sx__block .g-label, .sx__block .group__msg { margin: 0; }
+  .sx__list { max-height: 190px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; overscroll-behavior: contain; }
+  .sx__table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .sx__table td { padding: 7px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; cursor: pointer; }
+  .sx__table tr:last-child td { border-bottom: 0; }
+  .sx__table td:first-child { width: 34px; }
+  .sx__table tr:hover td { background: var(--bg-alt); }
+  .sx__table tr.is-picked td { background: var(--teal-50); }
+  .sx__table tr.is-picked td:first-child { box-shadow: inset 3px 0 0 var(--teal-600); }
+  .sx__tag { display: inline-block; margin-left: 6px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .sx__tag.is-held { border-color: var(--teal-200); color: var(--teal-700); }
   .bank-info__form { display: grid; gap: 14px; padding: 4px 22px 8px; }
   .bank-info__form .g-row { margin: 0; }
   .bank-info__where { margin: 0; font: 400 13px/18px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
@@ -1320,6 +1354,33 @@
     </div>
   </section>
 
+  <section id="view-datastore" hidden>
+    <div class="card prefs__card">
+      <div class="prefs__head store__bar">
+        <p class="prefs__where" id="store-where"></p>
+        <span class="store__expand">
+          <span class="identify__spinner" id="store-expand-spin" role="status" aria-label="Adding to the data store" title="Adding to the data store" hidden></span>
+          <button type="button" class="btn btn--primary" id="store-expand-open" aria-haspopup="dialog" disabled>Expand multiple variables</button>
+        </span>
+      </div>
+      <div class="prefs__body">
+        <div id="store-jobs-wrap" hidden>
+          <h3 class="info__subtitle">Adding to the data store</h3>
+          <p class="prefs__hint">These go on in the background, one at a time: you can leave this page, or ask for more.</p>
+          <div class="store__jobs" id="store-jobs"></div>
+        </div>
+        <p class="prefs__hint" id="store-note" hidden></p>
+        <p class="check__foot" id="store-busy" hidden>Reading the data store...</p>
+        <p class="check__summary check__summary--problem" id="store-error" hidden></p>
+        <h3 class="info__subtitle" id="store-in-title" hidden>In the data store</h3>
+        <div class="info__table-wrap is-wide" id="store-table-in" hidden></div>
+        <h3 class="info__subtitle" id="store-out-title" hidden>Not in the data store</h3>
+        <p class="prefs__hint" id="store-out-hint" hidden>Built-in datasets that have not been downloaded into the data store. The years are those the dataset covers.</p>
+        <div class="info__table-wrap is-wide" id="store-table-out" hidden></div>
+      </div>
+    </div>
+  </section>
+
   <section id="view-about" hidden>
     <div class="card prefs__card">
       <div class="prefs__head">
@@ -1377,6 +1438,10 @@
       <button type="button" class="choice" data-action="bank" id="help-bank">
         <span class="choice__icon" data-icon="bank"></span>
         <span class="choice__title">View the simulation bank</span>
+      </button>
+      <button type="button" class="choice" data-action="datastore" id="help-datastore">
+        <span class="choice__icon" data-icon="datastore"></span>
+        <span class="choice__title">View the data store</span>
       </button>
       <button type="button" class="choice" data-action="preferences" id="help-preferences">
         <span class="choice__icon" data-icon="preferences"></span>
@@ -2602,6 +2667,66 @@
   </div>
 </div>
 
+<div class="picker" id="store-expand" hidden>
+  <div class="picker__card is-wide" role="dialog" aria-modal="true" aria-labelledby="store-expand-title">
+    <div class="picker__head">
+      <h2 id="store-expand-title">Add to the data store</h2>
+    </div>
+    <div class="bank-info__form sx__form">
+      <p class="group__msg" id="sx-held" hidden></p>
+      <div class="sx__block" id="sx-block-datasets">
+        <p class="g-label is-required">Datasets <span class="own-req" id="sx-req-datasets">Required</span></p>
+        <input class="s-input" id="sx-search" placeholder="Search, e.g. nitrate or woa" aria-label="Search the datasets" spellcheck="false" autocapitalize="off" autocomplete="off">
+        <div class="sx__list" id="sx-list-wrap"><table class="sx__table"><tbody id="sx-list"></tbody></table></div>
+        <p class="group__msg" id="sx-count"></p>
+        <p class="group__msg is-error" id="sx-msg-datasets"></p>
+      </div>
+      <div class="sx__block" id="sx-row-years" hidden>
+        <p class="g-label">Years <span class="own-req" id="sx-req-years">Required</span></p>
+        <div class="g-row span-row">
+          <input class="s-input is-year is-num" id="sx-start" placeholder="first" aria-label="First year" inputmode="numeric" spellcheck="false" autocomplete="off">
+          <span class="dash">–</span>
+          <input class="s-input is-year is-num" id="sx-end" placeholder="last" aria-label="Last year" inputmode="numeric" spellcheck="false" autocomplete="off">
+        </div>
+        <p class="group__msg" id="sx-years-note"></p>
+        <p class="group__msg is-error" id="sx-msg-years"></p>
+      </div>
+      <div class="sx__block" id="sx-row-area" hidden>
+        <p class="g-label">lon-lat extent <span class="own-req" id="sx-req-area">Required</span></p>
+        <div class="g-row span-row">
+          <span class="span-row__label">Longitude</span>
+          <input class="s-input is-num" id="sx-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
+          <span class="dash">–</span>
+          <input class="s-input is-num" id="sx-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="g-row span-row">
+          <span class="span-row__label">Latitude</span>
+          <input class="s-input is-num" id="sx-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
+          <span class="dash">–</span>
+          <input class="s-input is-num" id="sx-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
+        </div>
+        <p class="group__msg">The area is rounded out to whole degrees, and one that is nearly the whole globe is kept as the whole globe. What the store already has of a dataset is kept too: the new area is added to it.</p>
+        <p class="group__msg is-error" id="sx-msg-area"></p>
+      </div>
+      <div class="sx__block" id="sx-row-water" hidden>
+        <p class="g-label" id="sx-water-label">Do you want the water column? <span class="own-req" id="sx-req-water">Required</span></p>
+        <div class="analyze-code" role="radiogroup" aria-labelledby="sx-water-label">
+          <label class="ptr-mode"><input type="radio" name="sx-water" value="yes" id="sx-water-yes">Yes</label>
+          <label class="ptr-mode"><input type="radio" name="sx-water" value="no" id="sx-water-no">No, the surface only</label>
+        </div>
+        <p class="group__msg">Asked for the datasets that can be kept at the surface alone (World Ocean Atlas 2023). Yes replaces a surface-only copy in the store.</p>
+        <p class="group__msg is-error" id="sx-msg-water"></p>
+      </div>
+      <p class="group__msg" id="sx-slow">Downloads can be slow, and the servers send whole global fields whatever the area: the area only shrinks what is kept. They go on in the background, one at a time, so you can ask for more.</p>
+      <p class="bank-info__count is-error" id="sx-msg" role="status"></p>
+    </div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--ghost" id="sx-close">Close</button>
+      <button type="button" class="btn btn--primary" id="sx-start-job" disabled>Add to the data store</button>
+    </div>
+  </div>
+</div>
+
 <div class="picker" id="sample" hidden>
   <div class="picker__card" role="dialog" aria-modal="true" aria-labelledby="sample-title">
     <div class="picker__head">
@@ -2949,6 +3074,7 @@
     report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="m9 12.5 2.2 2.2L15.2 10"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5.5 3.5-5.5 3.5z"/></svg>',
     recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 9v6M9 12h6"/></svg>',
+    datastore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg>',
     bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9 12 3l9 6z"/><path d="M6 12v6M10 12v6M14 12v6M18 12v6"/><path d="M4 18.5h16"/><path d="M2.5 21.5h19"/></svg>',
     viewer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     analyze: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>',
@@ -3125,6 +3251,7 @@
       case "analyze_menu": return "";
       case "help": return "";  // the tiles speak for themselves
       case "bank": return "Simulation bank";
+      case "datastore": return "View the data store";
       case "previous_work": return "View previous work";
       case "previous_list": return HISTORY_WORDS[state.previous && state.previous.kind] || "Previous work";
       case "previous_report": return state.previous && state.previous.viewing ? state.previous.viewing.name : "Previous work";
@@ -3229,7 +3356,7 @@
     if (view === "start" || view === "analyze_menu") {
       // to the landing page
       actions.push(backTo(() => post("api/back")));
-    } else if (view === "help" || view === "help_compatible" || view === "bank" || view === "preferences" || view === "about"
+    } else if (view === "help" || view === "help_compatible" || view === "bank" || view === "preferences" || view === "about" || view === "datastore"
       || view === "previous_work" || view === "previous_list" || view === "previous_report") {
       // to the landing page, or back to Tools & checks
       actions.push(backTo(() => post("api/back")));
@@ -4318,7 +4445,7 @@
 
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start",
-    analyze_menu: "view-analyze-menu", bank: "view-bank", previous_work: "view-previous-work", previous_list: "view-previous-list", previous_report: "view-previous-report", preferences: "view-preferences", about: "view-about", help: "view-help", help_compatible: "view-help-compatible",
+    analyze_menu: "view-analyze-menu", bank: "view-bank", previous_work: "view-previous-work", previous_list: "view-previous-list", previous_report: "view-previous-report", preferences: "view-preferences", about: "view-about", datastore: "view-datastore", help: "view-help", help_compatible: "view-help-compatible",
     analyze_variables: "view-analyze-variables", analyze_files: "view-analyze-files", analyze_options: "view-analyze-options",
     simcompare_sims: "view-simcompare-sims", simcompare_variables: "view-simcompare-variables", simcompare_units: "view-simcompare-units", simcompare_files: "view-simcompare-files", simcompare_grids: "view-simcompare-grids", setup: "view-setup", validate: "view-validate", compare: "view-compare",
     report_options: "view-validate", own_data: "view-own", point_data: "view-point", gridded_data: "view-gridded",
@@ -4359,6 +4486,8 @@
       $("settings-data-store").focus();
     } else if (view === "about") {
       fillAbout();
+    } else if (view === "datastore") {
+      fillDataStoreView();
     } else if (view === "home") {
       $("home-viewer").focus();
     } else if (view === "analyze_menu") {
@@ -4509,6 +4638,7 @@
     if (state.view === "bank") renderBank();
     if (state.view.startsWith("previous_")) renderPrevious();
     renderBankExtract();
+    renderStoreJobs();
     bankLists.forEach((again) => again());
     if (state.view === "point_data") refreshOwn("point");
     if (state.view === "gridded_data") refreshOwn("gridded");
@@ -11459,6 +11589,312 @@
           : row.dataset),
         el("td", { class: row.water_column ? null : "is-no", text: row.water_column ? "Yes" : "No" }),
         el("td", {}, el("code", { text: row.units }))))));
+  }
+
+  // View the data store: every built-in dataset, with what the store holds of it (asked for when the page is
+  // entered; the server only looks). The token guards a page that was left before the answer came.
+  let storeView = { token: 0 };
+  function storeHost(url) {
+    try { return new URL(url).host; } catch (error) { return url; }
+  }
+  function storeLink(row) {
+    return el("td", {}, row.url
+      ? el("a", { href: row.url, target: "_blank", rel: "noopener", title: row.url, text: storeHost(row.url) })
+      : "—");
+  }
+  // the Expand of one dataset: the same form, with that dataset and nothing else
+  function storeAct(row) {
+    return el("td", { class: "store__act" }, el("button", {
+      type: "button", class: "btn btn--primary btn--field", text: "Expand", disabled: !storeExpand.enabled,
+      title: storeExpand.enabled ? null : "Set a data store folder in Tools & checks, Preferences, first",
+      "aria-label": `Expand ${row.variable}, ${row.source}`,
+      onclick: (event) => openStoreExpand(event.currentTarget, row),
+    }));
+  }
+  function storeHead(names) {
+    return el("thead", {}, el("tr", {}, ...names.map((name) => el("th", { scope: "col", text: name }))));
+  }
+  // the datasets with something in the store: what is held of each
+  function storeTableIn(rows) {
+    return el("table", { class: "info__table store__table" },
+      storeHead(["Environmental variable", "Data source", "Web link", "Year", "Water-column", "lon-lat extent", ""]),
+      el("tbody", {}, ...rows.map((row) => el("tr", {},
+        el("td", { text: row.variable }),
+        el("td", { text: row.source }),
+        storeLink(row),
+        el("td", {}, row.year,
+          row.year_covered ? el("span", { class: "store__covered", text: `Covers ${row.year_covered}` }) : null),
+        el("td", { text: row.water_column }),
+        el("td", { text: row.extent }),
+        storeAct(row)))));
+  }
+  // the ones with nothing in it: what the dataset offers
+  function storeTableOut(rows) {
+    return el("table", { class: "info__table store__table" },
+      storeHead(["Environmental variable", "Data source", "Web link", "Year", "Water-column", ""]),
+      el("tbody", {}, ...rows.map((row) => el("tr", {},
+        el("td", { text: row.variable }),
+        el("td", { text: row.source }),
+        storeLink(row),
+        el("td", { class: row.year_covered ? null : "is-no", text: row.year_covered || "—" }),
+        el("td", { class: row.water_column === "No" ? "is-no" : null, text: row.water_column }),
+        storeAct(row)))));
+  }
+  // quiet: what is shown stays until the answer comes (a job has ended, and the page is not left)
+  async function fillDataStoreView(quiet = false) {
+    const token = ++storeView.token;
+    if (!quiet) {
+      $("store-busy").hidden = false;
+      $("store-error").hidden = true;
+      $("store-note").hidden = true;
+      for (const id of ["store-in-title", "store-table-in", "store-out-title", "store-out-hint", "store-table-out"]) $(id).hidden = true;
+      $("store-where").textContent = "";
+      $("store-expand-open").disabled = true;
+    }
+    const reply = await post("api/data_store_view", {});
+    if (token !== storeView.token || state.view !== "datastore") return;
+    $("store-busy").hidden = true;
+    if (!reply.ok) {
+      $("store-error").textContent = reply.error || "The data store could not be read.";
+      $("store-error").hidden = false;
+      return;
+    }
+    $("store-where").textContent = reply.root ? `Kept in ${reply.root}` : "";
+    // what the Expand form offers, and which of it the store has something of already
+    storeExpand.datasets = reply.datasets || [];
+    storeExpand.held = new Set(storeExpand.datasets.filter((d, i) => reply.rows[i] && reply.rows[i].downloaded).map(sxKey));
+    storeExpand.rows = Object.fromEntries(reply.rows.map((row) => [`${row.name}/${row.recipe}`, row]));
+    storeExpand.enabled = reply.has_store;
+    $("store-expand-open").disabled = !reply.has_store;
+    $("store-expand-open").title = reply.has_store ? "" : "Set a data store folder in Tools & checks, Preferences, first";
+    if (!$("sx-list-wrap").closest(".picker").hidden) renderSxList();
+    $("store-note").textContent = reply.note || "";
+    $("store-note").hidden = !reply.note;
+    const held = reply.rows.filter((row) => row.downloaded);
+    const rest = reply.rows.filter((row) => !row.downloaded);
+    $("store-in-title").textContent = `In the data store (${held.length})`;
+    $("store-in-title").hidden = false;
+    if (held.length) {
+      $("store-table-in").replaceChildren(storeTableIn(held));
+    } else {
+      $("store-table-in").replaceChildren(el("p", { class: "store__none", text: "None of the built-in datasets is in the data store." }));
+    }
+    $("store-table-in").hidden = false;
+    $("store-out-title").textContent = `Not in the data store (${rest.length})`;
+    $("store-out-title").hidden = !rest.length;
+    $("store-out-hint").hidden = !rest.length;
+    $("store-table-out").hidden = !rest.length;
+    if (rest.length) $("store-table-out").replaceChildren(storeTableOut(rest));
+  }
+
+
+  // ---- Expand: adding to the data store on purpose (see oceanval.store_expand) ----
+  // The jobs go on in the background, one at a time (state.store_expand.jobs), so the form only asks
+  // for one: a click on Add to the data store closes it, and another can be asked for at once.
+  const storeExpand = { datasets: [], held: new Set(), picked: new Set(), opener: null, busy: false,
+    enabled: false, fixed: null, stash: null, target: "", rows: {} };
+  const sxKey = (d) => `${d.name}/${d.recipe}`;
+  const SX_BOXES = ["start", "end", "lon_min", "lon_max", "lat_min", "lat_max"];
+  const sxPicked = () => storeExpand.datasets.filter((d) => storeExpand.picked.has(sxKey(d)));
+
+  function renderSxList() {
+    const wanted = OceanValGUI.searchMatcher($("sx-search").value);
+    const rows = storeExpand.datasets.filter((d) => !wanted.active || wanted.test([d.variable, d.source, d.recipe, d.name]));
+    $("sx-list").replaceChildren(...rows.map((d) => {
+      const on = storeExpand.picked.has(sxKey(d));
+      const button = el("button", { type: "button", class: "vars__pm", "aria-pressed": on ? "true" : "false",
+        "aria-label": `${on ? "Remove" : "Add"} ${d.variable}, ${d.source}`, text: on ? "−" : "+", tabindex: "-1" });
+      return el("tr", { class: on ? "is-picked" : null, onclick: () => {
+        const key = sxKey(d);
+        if (storeExpand.picked.has(key)) storeExpand.picked.delete(key); else storeExpand.picked.add(key);
+        sxClearErrors();
+        renderSxList();
+        refreshSx();
+      } },
+        el("td", {}, button),
+        el("td", {}, d.variable),
+        el("td", {}, d.source,
+          storeExpand.held.has(sxKey(d)) ? el("span", { class: "sx__tag is-held", text: "in the store" }) : null));
+    }));
+    if (!rows.length) $("sx-list").replaceChildren(el("tr", {}, el("td", { colspan: "3", class: "is-no", text: "No dataset matches." })));
+  }
+
+  function sxClearErrors() {
+    for (const id of ["sx-msg-datasets", "sx-msg-years", "sx-msg-area", "sx-msg-water", "sx-msg"]) $(id).textContent = "";
+  }
+
+  // what the datasets chosen make the form ask: the Required tags show only while their box is empty
+  function refreshSx() {
+    const chosen = sxPicked();
+    const years = chosen.some((d) => d.years);
+    const area = chosen.some((d) => d.area);
+    const water = chosen.some((d) => d.levels);
+    $("sx-row-years").hidden = !years;
+    $("sx-row-area").hidden = !area;
+    $("sx-row-water").hidden = !water;
+    $("sx-count").textContent = chosen.length ? `${chosen.length} chosen` : "";
+    const decades = chosen.some((d) => d.years && d.recipe === "woa23");
+    const whole = chosen.some((d) => !d.area);
+    $("sx-years-note").textContent = [
+      decades ? "World Ocean Atlas 2023 temperature and salinity are for decades: every decade the years touch is fetched." : "",
+      chosen.some((d) => !d.years) ? "The others are one climatology each, so the years make no difference to them." : "",
+    ].filter(Boolean).join(" ");
+    $("sx-req-datasets").hidden = chosen.length > 0;
+    $("sx-req-years").hidden = !($("sx-start").value.trim() === "" || $("sx-end").value.trim() === "");
+    $("sx-req-area").hidden = !["lon_min", "lon_max", "lat_min", "lat_max"].some((n) => $(`sx-${n}`).value.trim() === "");
+    $("sx-req-water").hidden = !!document.querySelector('input[name="sx-water"]:checked');
+    $("sx-start-job").disabled = chosen.length === 0 || storeExpand.busy;
+    if (whole && area) $("sx-msg").textContent = "";
+  }
+
+  // row: a dataset's own Expand, which asks about that dataset alone (no list to pick from)
+  function openStoreExpand(opener, row = null) {
+    storeExpand.opener = opener;
+    const fixed = row ? storeExpand.datasets.find((d) => sxKey(d) === `${row.name}/${row.recipe}`) || null : null;
+    // what was picked at the top is kept for when the top Expand is used again
+    storeExpand.stash = fixed ? new Set(storeExpand.picked) : null;
+    storeExpand.fixed = fixed;
+    storeExpand.picked = new Set(fixed ? [sxKey(fixed)] : storeExpand.picked);
+    const target = fixed ? sxKey(fixed) : "";
+    if (target !== storeExpand.target) {
+      // another dataset: what was typed for the last is not for this
+      for (const name of SX_BOXES) $(`sx-${name}`).value = "";
+      for (const radio of document.querySelectorAll('input[name="sx-water"]')) radio.checked = false;
+      storeExpand.target = target;
+    }
+    $("store-expand-title").textContent = fixed ? `Add to the data store: ${fixed.variable} (${fixed.source})` : "Add to the data store";
+    $("sx-block-datasets").hidden = !!fixed;
+    const now = fixed && storeExpand.rows[sxKey(fixed)];
+    const held = now && now.downloaded ? `In the data store now: ${now.year}; ${now.water_column}; ${now.extent}. What you ask for is added to it.` : "";
+    $("sx-held").textContent = held || (fixed ? "Nothing of this dataset is in the data store yet." : "");
+    $("sx-held").hidden = !fixed;
+    sxClearErrors();
+    $("store-expand").hidden = false;
+    BEHIND.forEach((node) => { node.inert = true; });
+    renderSxList();
+    refreshSx();
+    const first = [$("sx-start"), $("sx-lon_min"), $("sx-water-yes")].find((node) => node.offsetParent !== null);
+    (fixed ? first || $("sx-close") : $("sx-search")).focus();
+  }
+
+  function closeStoreExpand() {
+    if (storeExpand.fixed) {
+      storeExpand.picked = storeExpand.stash || new Set();
+      storeExpand.fixed = null;
+      storeExpand.stash = null;
+    }
+    $("store-expand").hidden = true;
+    BEHIND.forEach((node) => { node.inert = false; });
+    if (storeExpand.opener && document.contains(storeExpand.opener)) storeExpand.opener.focus();
+  }
+
+  function sxShowErrors(errors) {
+    const first = (names) => names.map((n) => errors[n]).find(Boolean) || "";
+    $("sx-msg-datasets").textContent = errors.datasets || "";
+    $("sx-msg-years").textContent = first(["start", "end"]);
+    $("sx-msg-area").textContent = first(["lon_min", "lon_max", "lat_min", "lat_max"]);
+    $("sx-msg-water").textContent = errors.water_column || "";
+    $("sx-msg").textContent = errors.general || "";
+  }
+
+  async function startStoreExpand() {
+    const form = { datasets: sxPicked().map((d) => ({ name: d.name, recipe: d.recipe })) };
+    for (const name of SX_BOXES) form[name] = $(`sx-${name}`).value.trim();
+    const water = document.querySelector('input[name="sx-water"]:checked');
+    form.water_column = water ? water.value : "";
+    sxClearErrors();
+    storeExpand.busy = true;
+    refreshSx();
+    const reply = await post("api/store_expand", { form });
+    storeExpand.busy = false;
+    if (!reply.ok) {
+      sxShowErrors(reply.errors || {});
+      refreshSx();
+      return;
+    }
+    // asked for: it goes on in the background, and the form is empty for the next
+    storeExpand.picked.clear();
+    $("sx-search").value = "";
+    for (const name of SX_BOXES) $(`sx-${name}`).value = "";
+    for (const radio of document.querySelectorAll('input[name="sx-water"]')) radio.checked = false;
+    closeStoreExpand();
+    toast("Added to the queue. It goes on in the background.");
+  }
+
+  $("store-expand-open").addEventListener("click", (event) => openStoreExpand(event.currentTarget));
+  $("sx-close").addEventListener("click", closeStoreExpand);
+  $("sx-start-job").addEventListener("click", startStoreExpand);
+  $("sx-search").addEventListener("input", renderSxList);
+  // a message about a box is out of date once it is edited
+  const sxEdited = () => { sxClearErrors(); refreshSx(); };
+  for (const name of SX_BOXES) $(`sx-${name}`).addEventListener("input", sxEdited);
+  for (const radio of document.querySelectorAll('input[name="sx-water"]')) radio.addEventListener("change", sxEdited);
+  [$("sx-start"), $("sx-end")].forEach((box) => {
+    const year = new Date().getFullYear();
+    withChoices(box, Array.from({ length: year - 1949 }, (_, i) => String(1950 + i)));
+  });
+  $("store-expand").addEventListener("click", (event) => { if (event.target === $("store-expand")) closeStoreExpand(); });
+  $("store-expand").addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !choicesOpen()) {
+      event.preventDefault();
+      closeStoreExpand();
+    }
+  });
+
+  // the jobs asked for, as the server keeps them: redrawn only when they change, so the circles keep turning
+  const storeJobs = { key: "", status: {} };
+  const SX_WORDS = { queued: "Waiting for the ones before it", working: "Being added", done: "Added", failed: "Not all of it could be added", stopped: "Stopped" };
+  const SX_MARKS = { queued: "todo", working: "working", done: "done", failed: "failed", stopped: "none" };
+
+  function sxCounts(job) {
+    const total = job.items.reduce((n, x) => n + x.total, 0);
+    const done = job.items.reduce((n, x) => n + x.done, 0);
+    const saved = job.items.reduce((n, x) => n + x.saved, 0);
+    const held = job.items.reduce((n, x) => n + x.held, 0);
+    return { total, done, saved, held };
+  }
+
+  function sxJobRow(job) {
+    const mark = el("span", {});
+    gridMark(mark, SX_MARKS[job.status], null, SX_WORDS[job.status]);
+    const { total, done, saved, held } = sxCounts(job);
+    let line = SX_WORDS[job.status];
+    if (job.status === "working" && total) line = `Being added: ${done} of ${total}`;
+    if (job.status === "done") line = `Added: ${saved} downloaded, ${held} in the store already`;
+    if (job.status === "stopped") line = "Stopped. What was downloaded is kept.";
+    const items = job.items.filter((x) => job.items.length > 1 || x.status === "failed");
+    const active = job.status === "queued" || job.status === "working";
+    const button = el("button", { type: "button", class: "btn btn--ghost btn--field", text: active ? "Stop" : "Clear",
+      onclick: () => post(active ? "api/store_expand_cancel" : "api/store_expand_clear", { id: job.id }) });
+    return el("div", { class: "store__job", "data-job": String(job.id), "data-status": job.status },
+      mark,
+      el("div", { class: "store__job-text" },
+        el("p", { class: "store__job-summary", text: job.summary }),
+        el("p", { class: `store__job-line${job.status === "failed" ? " is-error" : ""}`, text: job.error || line }),
+        items.length && job.status !== "queued" ? el("ul", { class: "store__job-items" }, ...items.map((x) => {
+          const cell = el("span", {});
+          gridMark(cell, x.status, null, x.status);
+          return el("li", {}, cell, el("span", { text: x.label }),
+            x.total ? el("span", { text: `${x.done} of ${x.total}` }) : null,
+            x.error ? el("span", { class: "is-error", text: x.error }) : null);
+        })) : null),
+      button);
+  }
+
+  function renderStoreJobs() {
+    const jobs = (state.store_expand && state.store_expand.jobs) || [];
+    const key = JSON.stringify(jobs);
+    if (key === storeJobs.key) return;
+    storeJobs.key = key;
+    const working = jobs.some((job) => job.status === "queued" || job.status === "working");
+    $("store-expand-spin").hidden = !working;
+    $("store-jobs-wrap").hidden = jobs.length === 0;
+    $("store-jobs").replaceChildren(...jobs.map(sxJobRow));
+    // a job has ended while the table is on show: what it added is in it now
+    const ended = jobs.some((job) => storeJobs.status[job.id] && ["queued", "working"].includes(storeJobs.status[job.id])
+      && !["queued", "working"].includes(job.status));
+    storeJobs.status = Object.fromEntries(jobs.map((job) => [job.id, job.status]));
+    if (ended && state.view === "datastore") fillDataStoreView(true);
   }
 
   function fillAbout() {

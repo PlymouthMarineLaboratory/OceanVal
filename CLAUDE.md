@@ -741,9 +741,26 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   modification time are unchanged) so `index_times` reads the rest. `locate_rows` also asks a stream for its time resolution only to
   choose between streams, and reads a calendar once per pattern.
 
+### The data store page and Expand (`oceanval/store_view.py`, `store_expand.py`)
+
+- **View the data store** (Tools & checks' third tile, view `datastore`, `POST /api/data_store_view`, `App.view_data_store`, the user's design, 2026-11-09): every
+  built-in dataset (`app.BUILTIN_DATASETS`) in **two tables**, "In the data store" (Environmental variable, Data source, Web link, Year, Water-column, lon-lat extent) and
+  "Not in the data store" (the years it covers, grey "Covers ..." beside the years held). `store_view.view` only looks (`data_store.pieces`: read-only, nothing written or
+  locked). **The extent is read from the stored files themselves** (`_box_of_file`: netCDF lon/lat, ICES csv columns; longitudes above 180 wrapped), never the index's `box`,
+  which is what was asked for (NSBC's file is lon -15..13, the index says -20..13). A file under a netCDF read holds `netcdf_lock.LOCK`. The folder is the one saved in the settings,
+  never one the request names.
+- **Expand** (any built-in dataset; a button on every row opens the form with that dataset fixed, **Expand multiple variables** at the top picks several with +/- buttons):
+  year range (year-based datasets, and the decades of WOA23 temperature/salinity), lon-lat extent (not GLODAP, kept whole), water column Yes/No (WOA23 only: `all`/`top`).
+  `store_expand.check` validates the form, `store_expand.run` fetches **with the arguments a matchup gives**, through `data_store.gridded(..., store_only=True, on_piece=)` and
+  `data_store.ices(..., store_only=True, on_piece=)` (nothing opened or read back; they return counts; a callback that raises never stops the work), with the use mode forced to
+  "always" (what is held is not downloaded again), so areas widen, levels replace only as a matchup's do, and `top` never downgrades `all`. It runs in a killable child (`app_child expand <json>`,
+  news by `prompts.tell` `{"kind": "expand", ...}`), **in the background and one job at a time** (`App._store_jobs`, `state()["store_expand"]["jobs"]`, routes
+  `/api/store_expand`, `_cancel`, `_clear`): a circle turns beside the button while any is queued/working, the form closes on submit so another can be asked for, a working job
+  counts in `_busy()` (closing the browser does not kill it), Restart and quit stop every job (`_drop_store_expand`), and what was downloaded stays. Tests: `tests/test_store_expand.py`.
+
 ### Tools & checks: is my data compatible with OceanVal? (`oceanval/compat_check.py`)
 
-- The landing page's first tile (`#home-help`, views `help` → `help_compatible`, `App.choose`/`_step_back`) holds the **compatibility check**
+- The landing page's first tile (`#home-help`, views `help` → `help_compatible`, `App.choose`/`_step_back`; Tools & checks has six tiles, 3 x 2) holds the **compatibility check**
   of one model file: a grid of six questions, each with a turning circle (`gridMark`, the matchup grid's marks plus `warning`), then a tick,
   a warning or a cross, and a message under it. `compat_check.ROWS`: `cdo` (`cdo sinfo` runs and finds a variable on a grid; a crash is
   `cdo_check`'s wording), `regrid` (the first time step at the surface, to 360x180 by `bil` and `nn`; one failing is a warning, with
@@ -946,8 +963,7 @@ case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS 
   (the button on `finished`/`script_saved`) is the same: it posts `/api/restart_all` and reloads, so nothing of the run just
   finished is kept (the user's rule, 2026-10-25; there is no separate `restart()`).
 - **Preferences and About are pages of Tools & checks** (the user's design, 2026-11-05: the gear and the **i** are gone from the header, in the standalone `create_recipes()` window too, whose `/settings`/`/data_store_check` handlers and
-  `user_settings`/`datasets` state went with them; `OceanValGUI.mountChrome` is only Back and Restart). They are Tools & checks' third and fourth tiles (`#help-preferences`, `#help-about`; the page is `.choices.is-four`, 2 x 2, styled
-  like the landing page's), views `preferences` and `about` (`App.choose`, valid only from `help`; Back → `help`; sections `#view-preferences`, `#view-about`, filled by `fillPreferences`/`fillAbout` in `enterView`). **Preferences**:
+  `user_settings`/`datasets` state went with them; `OceanValGUI.mountChrome` is only Back and Restart). They are Tools & checks' fourth and fifth tiles (`#help-preferences`, `#help-about`; Tools & checks has six tiles, **three across and two down**, the user's layout of 2026-11-09: compatibility, bank, data store / Preferences, About, previous work; `#view-help .choices.is-four` is given three columns and larger tiles in `oceanval_app.html`), views `preferences` and `about` (`App.choose`, valid only from `help`; Back → `help`; sections `#view-preferences`, `#view-about`, filled by `fillPreferences`/`fillAbout` in `enterView`). **Preferences**:
   Apply saves (`POST api/settings`, a toast, the page stays) and Back leaves unsaved changes; the data store check is `api/data_store_check`. **There is no demo** (removed on the user's request, 2026-11-06: the Validate page's Try a demo tile, its views, `/api/demo_*`, `check_output(demo_dir=)`, `out_dir_is_demo` and its tests): `user_settings.RETIRED` names `show_demo`, which `load()` ignores and `save()` takes out of the file; never bring a demo or its setting back without asking. **About** shows the version as `oceanval.__version__`, which is the
   installed package's metadata and so comes from `setup.py`'s `version=`. Never type the number in the page or app.py.
   Its dataset table (`app.BUILTIN_DATASETS`) is built from the built-in catalogues, not the user's recipes.

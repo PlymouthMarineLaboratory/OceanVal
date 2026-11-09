@@ -1053,6 +1053,55 @@ class TestCheck:
         monkeypatch.undo()
         assert tree(kept) == before
 
+    def test_pieces_are_what_is_in_the_store(self, kept):
+        found, problem = data_store.pieces(str(kept))
+        assert problem is None
+        assert len(found) == 14
+        woa = [x for x in found if x["dataset"] == "woa23"]
+        assert len(woa) == 12 and {x["levels"] for x in woa} == {"top"} and {x["variable"] for x in woa} == {"n_an"}
+        assert sorted(x["year"] for x in found if x["dataset"] == "cobe2") == [2000, 2001]
+        ices_year = [x for x in found if x["kind"] == "ices"]
+        assert len(ices_year) == 1 and ices_year[0]["rows"] == 0
+        # a piece whose file has gone is not one
+        data = write_index(kept)
+        os.remove(kept / data["entries"][0]["file"])
+        assert len(data_store.pieces(str(kept))[0]) == len(found) - 1
+
+    def test_pieces_of_a_store_that_cannot_be_read_or_is_not_there(self, kept, tmp_path):
+        assert data_store.pieces(str(tmp_path / "gone")) == ([], None)
+        (kept / data_store.INDEX).write_text("{ not json")
+        found, problem = data_store.pieces(str(kept))
+        assert found == [] and problem
+        (kept / data_store.INDEX).write_text(json.dumps({"version": 99, "entries": []}))
+        assert data_store.pieces(str(kept))[1]
+
+    def test_pieces_only_look(self, kept, monkeypatch):
+        before = tree(kept)
+
+        def refuse(name):
+            def fail(*args, **kwargs):
+                raise AssertionError(f"pieces called {name}")
+            return fail
+
+        for name in ("_save", "_write", "_mkdir", "_remove", "_tidy", "_locked", "prepare", "start", "_say"):
+            monkeypatch.setattr(data_store, name, refuse(name))
+        for module, name in ((os, "remove"), (os, "unlink"), (os, "rmdir"), (os, "replace"), (os, "rename"),
+                             (os, "mkdir"), (os, "makedirs"), (shutil, "rmtree"), (shutil, "move"),
+                             (shutil, "copyfile"), (tempfile, "mkstemp")):
+            monkeypatch.setattr(module, name, refuse(name))
+        assert len(data_store.pieces(str(kept))[0]) == 14
+        monkeypatch.undo()
+        assert tree(kept) == before
+
+    def test_pieces_of_a_damaged_index_only_look_too(self, kept, monkeypatch):
+        (kept / data_store.INDEX).write_text("{ not json")
+        before = tree(kept)
+        monkeypatch.setattr(data_store, "_say", lambda *a, **k: (_ for _ in ()).throw(AssertionError("said")))
+        monkeypatch.setattr(data_store, "_write", lambda *a, **k: (_ for _ in ()).throw(AssertionError("wrote")))
+        assert data_store.pieces(str(kept))[1]
+        monkeypatch.undo()
+        assert tree(kept) == before
+
     def test_a_missing_file(self, kept):
         data = write_index(kept)
         gone = data["entries"][3]["file"]

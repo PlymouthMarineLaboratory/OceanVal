@@ -471,6 +471,27 @@ def _entries(root_dir):
     return [dict(x) for x in data["entries"] if _usable(x, root_dir)]
 
 
+def pieces(root_dir):
+    """What is in the store at root_dir, for the window's page that shows it:
+    (the usable pieces of the index, why it could not be read or None). Each
+    piece is a dict of kind, dataset, variable, year, levels, box (the area
+    asked for when it was downloaded), rows, bytes (None where the index has
+    none) and path (of its file, None for a year without data). It only looks: nothing is written,
+    made, removed or locked, and nothing is said at the terminal, so the page
+    can ask as often as it likes."""
+    if not os.path.isdir(root_dir) or not _is_ours(root_dir):
+        return [], None
+    data, problem = _load(root_dir)
+    if problem:
+        return [], problem
+    keys = ("kind", "dataset", "variable", "year", "levels", "box", "rows", "bytes")
+    return [
+        dict({key: entry.get(key) for key in keys}, path=_file(entry, root_dir))
+        for entry in data["entries"]
+        if isinstance(entry, dict) and _usable(entry, root_dir)
+    ], None
+
+
 @contextlib.contextmanager
 def _locked(root_dir):
     """Hold the store's lock, so that two runs adding to it at once both do."""
@@ -704,7 +725,8 @@ def _covering(entries, matches, box, levels=None):
     return found[0] if found else None
 
 
-def gridded(comparison, files, thredds, model_box, levels, years=None, label=None):
+def gridded(comparison, files, thredds, model_box, levels, years=None, label=None,
+            store_only=False, on_piece=None):
     """A built-in gridded dataset's files, by way of the data store, as a
     DataSet of local files, or None when the store is not used for them (there
     is none, or they are not OceanVal's own) and matchup opens them itself.
@@ -714,6 +736,14 @@ def gridded(comparison, files, thredds, model_box, levels, years=None, label=Non
     top level is used, else "all"; years is the years wanted, for a dataset
     kept a year at a time (COBE2). Raises what a failed download raises,
     unless the store has the data and is to be used when downloads fail.
+
+    store_only is for filling the store without a matchup (see
+    oceanval.store_expand): it does what is done for a matchup, but opens
+    nothing and returns {"saved", "held", "failed"} (how many files were
+    downloaded and kept, were in the store already, or could not be downloaded
+    and were taken from it) instead of the DataSet. on_piece(what, status) is
+    told of each file (each year, for COBE2) as it is done: status is "held",
+    "saved", "unsaved" (downloaded, but could not be kept) or "fallen".
     """
     store = active()
     if store is None or not keeps(comparison):
@@ -728,7 +758,8 @@ def gridded(comparison, files, thredds, model_box, levels, years=None, label=Non
     label = label or f"{dataset.upper()} {variable}"
     if dataset in BY_YEAR and len(urls) == 1 and years:
         # kept a year at a time, cut to the box, whether it is downloaded or not
-        return _gridded_by_year(store, dataset, urls[0], variable, box, years, label, thredds)
+        return _gridded_by_year(store, dataset, urls[0], variable, box, years, label, thredds,
+                                store_only, on_piece)
     if not thredds:
         # a plain file is downloaded whole, so it is kept whole
         box = list(GLOBAL)
@@ -744,6 +775,7 @@ def gridded(comparison, files, thredds, model_box, levels, years=None, label=Non
         if stored is not None and (store["use"] == "always" or _is_fresh(stored)):
             pieces.append((_file(stored, root_dir), stored["box"]))
             used.append(stored)
+            _told(on_piece, url, "held")
             continue
         # what it replaces is widened to, so the piece covers both areas
         replaced = [x for x in entries if matches(x) and _levels_cover(levels, x.get("levels"))]
@@ -755,6 +787,7 @@ def gridded(comparison, files, thredds, model_box, levels, years=None, label=Non
                 raise
             fallen.append((error, stored))
             pieces.append((_file(stored, root_dir), stored["box"]))
+            _told(on_piece, url, "fallen")
             continue
         entry = dict(kind="gridded", dataset=dataset, url=url, variable=variable, year=None,
                      levels=levels, box=fetch_box)
@@ -768,14 +801,25 @@ def gridded(comparison, files, thredds, model_box, levels, years=None, label=Non
         if kept is None:
             _held.append(ds)
             pieces.append((ds[0], fetch_box))
+            _told(on_piece, url, "unsaved")
         else:
             saved += 1
             pieces.append((_file(kept, root_dir), fetch_box))
+            _told(on_piece, url, "saved")
 
     if fallen:
         _fallen_back(label, fallen[0][0], [x for _, x in fallen])
     _tell(label, len(urls), used, saved, len(urls) - len(used) - len(fallen))
+    if store_only:
+        return {"saved": saved, "held": len(used), "failed": len(fallen)}
     return _open(pieces, box)
+
+
+def _told(on_piece, what, status):
+    """Tell on_piece (None for no one) of a file that is done. It must never stop the work."""
+    if on_piece is not None:
+        with contextlib.suppress(Exception):
+            on_piece(what, status)
 
 
 def _open(pieces, box):
@@ -834,7 +878,8 @@ def told_to_download(label, why):
     session_info.setdefault("end_messages", []).append(message)
 
 
-def _gridded_by_year(store, dataset, url, variable, box, years, label, thredds=True):
+def _gridded_by_year(store, dataset, url, variable, box, years, label, thredds=True,
+                     store_only=False, on_piece=None):
     """COBE2's years, by way of the store. Its file has every year in it, so it
     is kept a year at a time, cut to box. A year without all 12 months (the
     one still being added to) is used, but not kept. thredds is whether the
@@ -918,15 +963,26 @@ def _gridded_by_year(store, dataset, url, variable, box, years, label, thredds=T
                     if _save(root_dir, entry, write, ".nc",
                              lambda old, matches=matches: matches(old) and contains(fetch_box, old["box"])):
                         saved += 1
+                        _told(on_piece, year, "saved")
+                    else:
+                        _told(on_piece, year, "unsaved")
         except Exception as error:
             if any(stored.get(x) is None for x in wanted):
                 raise
             _fallen_back(label, error, [stored[x] for x in wanted])
+            for year in wanted:
+                _told(on_piece, year, "fallen")
             pieces = []
             fetched = []
 
     used = [stored[x] for x in years if stored[x] is not None and x not in fetched]
+    for year in years:
+        if stored[year] is not None and year not in fetched:
+            _told(on_piece, year, "held")
     pieces += [(_file(x, root_dir), x["box"]) for x in used]
+    if store_only:
+        _tell(label, len(years), used, saved, len(fetched))
+        return {"saved": saved, "held": len(used), "failed": 0}
     if not pieces:
         return None
     _tell(label, len(years), used, saved, len(fetched))
@@ -964,7 +1020,7 @@ def _read_rows(path):
     return pd.read_csv(path, low_memory=False)
 
 
-def ices(datasets, start_year, end_year, lon_lim, lat_lim, download):
+def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=False, on_piece=None):
     """ICES exports by way of the data store, or None when the store is not
     used (there is none, or the box is not one it can keep).
 
@@ -975,6 +1031,12 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download):
     download is given [(dataset, first_year, last_year, box)] and returns, in
     order, the rows of each by year ({year: rows read as text}), or the
     exception that stopped it.
+
+    store_only fills the store without a matchup (see oceanval.store_expand):
+    the rows are not read back, and {dataset: {"saved", "held", "empty"}} is
+    returned (years downloaded and kept, in the store already, and kept as
+    having no data). on_piece((dataset, year), status) is told of each year as
+    it is done: "held", "saved", "empty" or "unsaved".
     """
     store = active()
     if store is None:
@@ -1003,6 +1065,12 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download):
     results = download(requests) if requests else []
 
     found = {dataset: {} for dataset in datasets}
+    counts = {dataset: {"saved": 0, "held": 0, "empty": 0} for dataset in datasets}
+    for dataset in datasets:
+        for year in years:
+            if stored[(dataset, year)] is not None and not wanted(dataset, year):
+                counts[dataset]["held"] += 1
+                _told(on_piece, (dataset, year), "held")
     for (dataset, first, last, _), result in zip(requests, results):
         run = range(first, last + 1)
         if isinstance(result, BaseException):
@@ -1023,13 +1091,25 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download):
                 ".csv.gz",
                 lambda old, matches=_ices_unit(dataset, year): matches(old) and contains(box, old["box"]),
             )
+            if kept is None:
+                _told(on_piece, (dataset, year), "unsaved")
+            elif rows is None:
+                counts[dataset]["empty"] += 1
+                _told(on_piece, (dataset, year), "empty")
+            else:
+                counts[dataset]["saved"] += 1
+                _told(on_piece, (dataset, year), "saved")
             if rows is None:
+                found[dataset][year] = None
+            elif store_only:
                 found[dataset][year] = None
             elif kept is not None:
                 found[dataset][year] = _read_rows(_file(kept, root_dir))
             else:
                 found[dataset][year] = pd.read_csv(io.StringIO(rows.to_csv(index=False)), low_memory=False)
 
+    if store_only:
+        return counts
     for dataset in datasets:
         used = []
         for year in years:

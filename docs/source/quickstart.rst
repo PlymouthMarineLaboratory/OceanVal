@@ -134,6 +134,16 @@ including those run from Python; ``matchup(..., data_store=False)`` leaves it ou
 size they were, and anything in the store that is not OceanVal's built-in data (files of yours,
 for one), and says what it finds. It only looks: nothing is changed, removed or fixed.
 
+**View the data store**, the third tile of Tools & info, lists every built-in dataset in two
+tables, those in the data store (the years held, surface only or the water column, and the
+longitude and latitude extent of the files kept, read from the files) and those not in it. It only
+looks. **Expand** on a row, or **Expand multiple variables** at the top, fills the store on
+purpose: give the years (for the datasets kept by year, and the decades of World Ocean Atlas 2023
+temperature and salinity), the extent, and whether to keep the water column (World Ocean Atlas 2023
+only). It fetches as a matchup does (a wider area widens what is kept, what is kept is not
+downloaded again), in the background, one request at a time; a circle turns beside the button
+while any is going, and you can ask for another straight away.
+
 The script it runs is written first, to ``matchup.py`` (``matchup1.py``, ``matchup2.py`` and so on if that file exists already), so you can read it
 and run it again later. Every step is described on the website, in
 `Validating from your browser

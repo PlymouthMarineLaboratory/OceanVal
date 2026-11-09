@@ -415,11 +415,12 @@ def test_view_previous_work_in_a_browser(browser, tmp_path, oceanvalcache):
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-help")
         page.wait_for_selector("#view-help:not([hidden])")
-        # 2 x 2 and the fifth tile along the row under them
-        assert page.locator("#view-help .choice").count() == 5
+        # three across, two down: About and this are the last two of the second row
+        assert page.locator("#view-help .choice").count() == 6
         top = page.locator("#help-about").bounding_box()
-        wide = page.locator("#help-history").bounding_box()
-        assert wide["y"] > top["y"] and wide["width"] > top["width"] * 1.5
+        last = page.locator("#help-history").bounding_box()
+        assert last["y"] == top["y"] and last["x"] > top["x"]
+        assert top["y"] > page.locator("#help-compatible").bounding_box()["y"]
         page.click("#help-history")
         page.wait_for_selector("#view-previous-work:not([hidden])")
         assert page.locator("#view-previous-work .choice").count() == 4

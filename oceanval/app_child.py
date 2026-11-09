@@ -6,8 +6,9 @@ analyze in.
     python -m oceanval.app_child validate <arguments as JSON>
     python -m oceanval.app_child compare <arguments as JSON>
     python -m oceanval.app_child analyze <path>
+    python -m oceanval.app_child expand <arguments as JSON>
 
-The first runs a script create_recipes wrote, the second runs one without
+The last fills the data store (see oceanval.store_expand). The first runs a script create_recipes wrote, the second runs one without
 its validate() call, which the window makes afterwards with the report
 options chosen once the matchups are checked, the third validate(), the
 fourth compare(), and the fifth the analysis script the window wrote (see
@@ -79,14 +80,15 @@ def _validate_later(*args, **kwargs):
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 2 or argv[0] not in ("script", "matchup", "validate", "compare", "analyze", "simcompare"):
+    if len(argv) != 2 or argv[0] not in ("script", "matchup", "validate", "compare", "analyze", "simcompare", "expand"):
         sys.exit(
             "usage: python -m oceanval.app_child script <path>\n"
             "       python -m oceanval.app_child matchup <path>\n"
             "       python -m oceanval.app_child validate <arguments as JSON>\n"
             "       python -m oceanval.app_child compare <arguments as JSON>\n"
             "       python -m oceanval.app_child analyze <path>\n"
-            "       python -m oceanval.app_child simcompare <path>"
+            "       python -m oceanval.app_child simcompare <path>\n"
+            "       python -m oceanval.app_child expand <arguments as JSON>"
         )
     kind, argument = argv
 
@@ -112,6 +114,11 @@ def main(argv=None):
             oceanval.parsers.check_servers = False
             sys.argv = [argument]
             runpy.run_path(argument, run_name="__main__")
+        elif kind == "expand":
+            # fills the data store without a matchup (see oceanval.store_expand)
+            from oceanval import store_expand
+
+            store_expand.run(**json.loads(argument))
         elif kind == "compare":
             oceanval.compare(**json.loads(argument))
         else:

@@ -8274,7 +8274,7 @@ class TestSettings:
         finally:
             app.close()
 
-    def test_tools_and_checks_has_five_tiles(self, browser, tmp_path):
+    def test_tools_and_checks_has_six_tiles_three_across(self, browser, tmp_path):
         app = App(cwd=str(tmp_path))
         url = _tools_page(app)
         try:
@@ -8282,20 +8282,24 @@ class TestSettings:
             page.goto(url)
             page.wait_for_selector("#view-help:not([hidden])")
             assert page.locator("#view-help .choice").evaluate_all("nodes => nodes.map(n => n.id)") == [
-                "help-compatible", "help-bank", "help-preferences", "help-about", "help-history"]
-            # two by two, and the fifth along the row under them
+                "help-compatible", "help-bank", "help-datastore", "help-preferences", "help-about", "help-history"]
+            # three across and two down, the tiles all the same size
             boxes = page.locator("#view-help .choice").evaluate_all(
-                "nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width)]; })")
-            assert boxes[0][1] == boxes[1][1] and boxes[2][1] == boxes[3][1] and boxes[2][1] > boxes[0][1]
-            assert boxes[0][0] == boxes[2][0] and boxes[1][0] == boxes[3][0]
-            assert boxes[4][1] > boxes[2][1] and boxes[4][2] > boxes[0][2] * 1.5
+                "nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; })")
+            for row in range(2):
+                assert boxes[3 * row][1] == boxes[3 * row + 1][1] == boxes[3 * row + 2][1]
+            for column in range(3):
+                assert boxes[column][0] == boxes[3 + column][0]
+            assert boxes[0][0] < boxes[1][0] < boxes[2][0]
+            assert boxes[0][1] < boxes[3][1]
+            assert len({(b[2], b[3]) for b in boxes}) == 1
         finally:
             app.close()
 
     def test_the_preferences_and_about_pages_go_back_to_tools_and_checks(self, tmp_path):
         app = App(cwd=str(tmp_path))
         assert app.choose("help")
-        for tile in ("preferences", "about"):
+        for tile in ("preferences", "about", "datastore"):
             assert app.choose(tile)
             assert app.view == tile
             assert app.back()
@@ -8465,6 +8469,159 @@ class TestSettings:
         status, reply = post(app, "/api/data_store_check", {"data_store": "/", "folder": "/"})
         assert status == 200
         assert reply["check"]["groups"] == [] and reply["check"]["pieces"] == 0
+
+    @staticmethod
+    def _stored(folder):
+        """A data store holding COBE2 for 2000 and 2001, WOA23 nitrate (surface only) and ICES CTD for 1999: real,
+        small files, as the page reads the extent from them."""
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+        from oceanval import data_store
+        folder.mkdir()
+        root = data_store.prepare(str(folder))
+
+        def grid(variable, lon, lat):
+            def write(path):
+                xr.Dataset({variable: (("lat", "lon"), np.zeros((len(lat), len(lon))))},
+                           coords={"lon": lon, "lat": lat}).to_netcdf(path)
+            return write
+
+        def piece(variable, lon, lat, **entry):
+            assert data_store._save(root, dict(kind="gridded", dataset=entry.pop("dataset"), url="u", variable=variable, **entry),
+                                    grid(variable, lon, lat), ".nc", lambda old: False)
+
+        for year in (2000, 2001):
+            piece("sst", np.arange(-10.0, 6.0), np.arange(45.0, 61.0), dataset="cobe2", year=year, levels="all", box=[-10, 5, 45, 60])
+        # the index says the whole globe was asked for: the file's own area is what is shown
+        piece("n_an", np.arange(-179.5, 180.0, 5), np.arange(-89.5, 90.0, 5), dataset="woa23", year=None, levels="top",
+              box=[-180, 180, -90, 90])
+
+        def export(path):
+            pd.DataFrame({"Longitude [degrees_east]": [-4.0, 2.0], "Latitude [degrees_north]": [50.0, 56.0]}).to_csv(path, index=False)
+
+        assert data_store._save(root, dict(kind="ices", dataset="CTD", year=1999, box=[-4, 2, 50, 56], rows=7),
+                                export, ".csv.gz", lambda old: False)
+        data_store._save(root, dict(kind="ices", dataset="CTD", year=2000, box=[10, 12, 50, 56], rows=0),
+                         None, None, lambda old: False)
+        return root
+
+    def test_the_data_store_view_lists_every_built_in_dataset(self, app, oceanvalrc, tmp_path):
+        status, reply = post(app, "/api/data_store_view")
+        assert status == 200 and reply["ok"] and not reply["has_store"]
+        assert "No data store is set" in reply["note"]
+        assert len(reply["rows"]) == len(app_module.BUILTIN_DATASETS)
+        assert {x["year"] for x in reply["rows"]} == {"Not downloaded"}
+        assert {x["extent"] for x in reply["rows"]} == {"—"}
+        assert not any(x["downloaded"] or x["water_column_stored"] for x in reply["rows"])
+        sources = {x["source"] for x in reply["rows"]}
+        assert {"World Ocean Atlas 2023", "COBE-SST 2", "ICES Oceanographic database"} <= sources
+        # what the years covered are, as the window's i buttons say
+        woa = next(x for x in reply["rows"] if x["variable"].startswith("Nitrate") and x["source"].startswith("World"))
+        assert woa["year_covered"] == "1965–2022"
+
+    def test_the_data_store_view_shows_what_is_held(self, app, oceanvalrc, tmp_path):
+        self._stored(tmp_path / "store")
+        post(app, "/api/settings", {"settings": {"data_store": str(tmp_path / "store")}})
+        status, reply = post(app, "/api/data_store_view")
+        assert status == 200 and reply["has_store"] and reply["note"] is None
+        assert reply["root"] == str(tmp_path / "store" / "oceanval_datastore")
+        by = {(x["variable"], x["source"]): x for x in reply["rows"]}
+        cobe = by["Sea water temperature", "COBE-SST 2"]
+        assert (cobe["year"], cobe["water_column"], cobe["extent"]) == (
+            "2000–2001", "Surface only", "lon -10 to 5, lat 45 to 60")
+        assert cobe["downloaded"] and cobe["year_covered"] == "1850 to the present"
+        woa = by["Nitrate concentration in sea water", "World Ocean Atlas 2023"]
+        assert (woa["year"], woa["water_column"], woa["extent"]) == ("1 file", "Surface only", "lon -179.5 to 175.5, lat -89.5 to 85.5")
+        assert woa["water_column_stored"]
+        # one export of ICES CTD serves every variable from it; the year with no data is not listed
+        temperature = by["Sea water temperature", "ICES Oceanographic database"]
+        assert (temperature["year"], temperature["water_column"], temperature["extent"]) == (
+            "1999", "All depths", "lon -4 to 2, lat 50 to 56")
+        # nitrate is from ICE alone, which holds nothing
+        assert by["Nitrate concentration in sea water", "ICES Oceanographic database"]["year"] == "Not downloaded"
+        # and what is not held is shown as the catalogue has it
+        other = by["Silicate concentration in sea water", "World Ocean Atlas 2023"]
+        assert other["year"] == "Not downloaded" and not other["water_column_stored"] and other["water_column"] == "Yes"
+
+    def test_the_data_store_view_is_of_the_folder_saved_and_changes_nothing(self, app, oceanvalrc, tmp_path):
+        self._stored(tmp_path / "store")
+        post(app, "/api/settings", {"settings": {"data_store": str(tmp_path / "store")}})
+        before = sorted((str(p), p.stat().st_mtime_ns) for p in (tmp_path / "store").rglob("*"))
+        status, reply = post(app, "/api/data_store_view", {"data_store": "/", "folder": str(tmp_path)})
+        assert status == 200 and reply["root"] == str(tmp_path / "store" / "oceanval_datastore")
+        assert sorted((str(p), p.stat().st_mtime_ns) for p in (tmp_path / "store").rglob("*")) == before
+
+    def test_the_data_store_view_with_nothing_in_it_or_a_bad_index(self, app, oceanvalrc, tmp_path):
+        (tmp_path / "store").mkdir()
+        post(app, "/api/settings", {"settings": {"data_store": str(tmp_path / "store")}})
+        status, reply = post(app, "/api/data_store_view")
+        assert status == 200 and "nothing in the data store" in reply["note"]
+        root = tmp_path / "store" / "oceanval_datastore"
+        (root / "oceanval_data_store.json").write_text("{ not json")
+        status, reply = post(app, "/api/data_store_view")
+        assert status == 200 and "could not be read" in reply["note"]
+        assert len(reply["rows"]) == len(app_module.BUILTIN_DATASETS)
+
+    def test_the_data_store_view_needs_the_token(self, app):
+        status, _ = post(app, "/api/data_store_view", token="wrong")
+        assert status == 403
+
+    def test_the_data_store_view_in_a_browser(self, browser, oceanvalrc, tmp_path):
+        self._stored(tmp_path / "store")
+        oceanvalrc.write_text(json.dumps({"settings": {"data_store": str(tmp_path / "store")}}))
+        app = App(cwd=str(tmp_path))
+        url = _tools_page(app)
+        try:
+            page = browser.new_page(viewport={"width": 1400, "height": 1000})
+            page.goto(url)
+            page.wait_for_selector("#view-help:not([hidden])")
+            page.click("#help-datastore")
+            page.wait_for_selector("#view-datastore:not([hidden])")
+            assert page.text_content("#title") == "View the data store"
+            page.wait_for_selector("#store-table-in tbody tr")
+            heads = ["Environmental variable", "Data source", "Web link", "Year", "Water-column", "lon-lat extent"]
+            assert page.locator("#store-table-in th").all_text_contents() == heads + [""]
+            assert page.locator("#store-table-out th").all_text_contents() == heads[:5] + [""]
+            held = page.locator("#store-table-in tbody tr").count()
+            assert held == 3 and page.text_content("#store-in-title") == "In the data store (3)"
+            assert page.locator("#store-table-out tbody tr").count() == len(app_module.BUILTIN_DATASETS) - held
+            assert page.text_content("#store-out-title") == f"Not in the data store ({len(app_module.BUILTIN_DATASETS) - held})"
+            link = page.locator("#store-table-out tbody a").first
+            assert link.get_attribute("target") == "_blank" and link.get_attribute("href").startswith("http")
+            row = page.locator("#store-table-in tbody tr", has_text="COBE-SST 2")
+            text = row.inner_text()
+            assert "2000–2001" in text and "Surface only" in text and "Covers 1850 to the present" in text
+            assert "lon -10 to 5, lat 45 to 60" in text
+            # the area of the file, not the globe the index says was asked for
+            assert "lon -179.5 to 175.5" in page.locator("#store-table-in tbody tr", has_text="World Ocean Atlas").inner_text()
+            # a dataset that is out of the store shows what it covers, and has its own Expand
+            assert "Not downloaded" not in page.inner_text("#store-table-out")
+            assert page.locator("#store-table-in .store__act .btn").count() == held
+            assert page.locator("#store-table-out .store__act .btn").count() == len(app_module.BUILTIN_DATASETS) - held
+            assert page.is_hidden("#store-note") and page.is_hidden("#store-busy")
+            page.click("#back-open")
+            page.wait_for_selector("#view-help:not([hidden])")
+            assert app.view == "help"
+        finally:
+            app.close()
+
+    def test_the_data_store_view_without_a_store_in_a_browser(self, browser, oceanvalrc, tmp_path):
+        app = App(cwd=str(tmp_path))
+        url = _tools_page(app)
+        try:
+            page = browser.new_page(viewport={"width": 1400, "height": 1000})
+            page.goto(url)
+            page.click("#help-datastore")
+            page.wait_for_selector("#store-table-out tbody tr")
+            assert "No data store is set" in page.inner_text("#store-note")
+            assert page.locator("#store-table-out tbody tr").count() == len(app_module.BUILTIN_DATASETS)
+            assert "None of the built-in datasets is in the data store" in page.inner_text("#store-table-in")
+            # nothing can be added with no store to add it to
+            assert page.is_disabled("#store-expand-open")
+            assert page.locator("#store-table-out .store__act .btn:not([disabled])").count() == 0
+        finally:
+            app.close()
 
     def test_a_settings_problem_is_shown_in_the_panel(self, browser, oceanvalrc, tmp_path):
         app = App(cwd=str(tmp_path))

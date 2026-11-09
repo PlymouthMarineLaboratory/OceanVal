@@ -73,7 +73,7 @@ from oceanval import viewer_app, viewer_catalogue
 from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
-from oceanval import data_store
+from oceanval import data_store, store_view
 from oceanval import cdo_check, compat_check, depths, file_workers, model_check, output_years, own_data, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     POINT_RECIPE_CATALOGUE,
@@ -118,6 +118,7 @@ def builtin_datasets():
                     "point": point,
                     "region": _POINT_DATASET_REGION if point else _DATASET_REGIONS.get(region, region),
                     "variable": user_recipes.display_name(entry["variable"], note["title"]),
+                    "name": entry["variable"],
                     "recipe": entry["recipe"],
                     "dataset": note["dataset"],
                     "url": _DATASET_URLS.get(entry["recipe"], note["url"]),
@@ -1255,6 +1256,24 @@ class _ConsoleStream(io.TextIOBase):
         return len(text)
 
 
+class _Tail:
+    """The end of what a process prints, for saying why it failed."""
+
+    LIMIT = 4000
+
+    def __init__(self):
+        self._text = ""
+        self._lock = threading.Lock()
+
+    def write(self, text):
+        with self._lock:
+            self._text = (self._text + text)[-self.LIMIT :]
+
+    def text(self):
+        with self._lock:
+            return self._text
+
+
 class Question:
     """A question put in the page, what to show with it, and what to do with
     its answer."""
@@ -1607,6 +1626,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         # the info of a bank simulation being extracted (see bank_extract): its
         # name, the status the page is shown, and the reading of the files' years
         self._bank_extract = None
+        # what the data store's Expand has been asked for, in order (see store_expand)
+        self._store_jobs = []
+        self._store_job_numbers = itertools.count(1)
         # View previous work: the kind of work whose list is open, and the entry being viewed
         # (see _previous_state)
         self.previous_kind = None
@@ -1704,7 +1726,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         """Whether a run is starting or going: one is never stopped because
         the pages went quiet. A matchup run handing over to its report run
         keeps the status "running" between the two (see _run_finished)."""
-        return self.status in ("starting", "running")
+        # a download for the data store goes on too, whether or not it is shown
+        waiting = any(job["status"] in ("queued", "working") for job in self._store_jobs)
+        return waiting or self.status in ("starting", "running")
 
     def heartbeat(self, page, hold=HEARTBEAT_HOLD, connected=None):
         """What the pages with no state request of their own (the recipes
@@ -1833,6 +1857,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 },
                 "bank": self._bank_state(),
                 "bank_extract": self._bank_extract_state(),
+                "store_expand": self._store_expand_state(),
                 "previous": self._previous_state(),
                 "validate": {
                     "form": self.validate_form,
@@ -2484,8 +2509,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.view = "help"
                 self._notify()
                 return True
-            if action in ("preferences", "about"):
-                # Tools & checks' third and fourth tiles
+            if action in ("preferences", "about", "datastore"):
+                # Tools & checks' preferences, about and data store tiles
                 if self.view != "help":
                     return False
                 self.view = action
@@ -2624,6 +2649,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "help_compatible": "help",
             "preferences": "help",
             "about": "help",
+            "datastore": "help",
         }
         held = self._held_matchups()
         if self.view == "report_options" and held:
@@ -2720,6 +2746,157 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             settings = dict(self.settings)
         return data_store.check_reply(settings)
 
+    def _store_expand_state(self):
+        """What the page is told of the data store's Expand jobs: {"jobs": [{"id",
+        "summary", "status": "queued" | "working" | "done" | "failed" |
+        "stopped", "error", "items": [{"key", "label", "total", "status": "todo"
+        | "working" | "done" | "failed", "done", "saved", "held", "error"}]}]}."""
+        return {"jobs": [
+            {"id": job["id"], "summary": job["summary"], "status": job["status"], "error": job["error"],
+             "items": [dict(item) for item in job["items"]]}
+            for job in self._store_jobs
+        ]}
+
+    def _drop_store_expand(self):
+        """Stop every Expand job and forget them, as Restart and quit do: what
+        they have already kept in the data store stays there. The caller holds
+        the lock."""
+        jobs, self._store_jobs = self._store_jobs, []
+        for job in jobs:
+            job["cancelled"] = True
+            if job["run"] is not None:
+                job["run"].stop()
+        return jobs
+
+    def store_expand(self, form):
+        """Ask for the data store to be added to, as the Expand form says (see
+        oceanval.store_expand). The job is done in a process of its own, in the
+        background, one at a time: one asked for while another is going waits
+        its turn. Returns the HTTP status and {"ok": True}, or {"ok": False,
+        "errors": {box: what is wrong, "general": ...}}."""
+        from oceanval import store_expand as expanding
+
+        with self._lock:
+            settings = dict(self.settings)
+        if not (settings.get("data_store") or ""):
+            return 200, {"ok": False, "errors": {
+                "general": "There is no data store to add to: set a folder in Tools & checks, Preferences, first."}}
+        request, errors = expanding.check(form if isinstance(form, dict) else {}, BUILTIN_DATASETS)
+        if errors:
+            return 200, {"ok": False, "errors": errors}
+        with self._lock:
+            if self.closed.is_set():
+                return 200, {"ok": False, "errors": {"general": "The window is closing."}}
+            job = {
+                "id": next(self._store_job_numbers), "summary": expanding.describe(request, BUILTIN_DATASETS),
+                "status": "queued", "error": None, "items": [], "cancelled": False, "run": None,
+                "running": False, "request": request, "tail": _Tail(),
+            }
+            self._store_jobs.append(job)
+            self._notify()
+        self._store_expand_next()
+        return 200, {"ok": True}
+
+    def _store_expand_next(self):
+        """Start the next job waiting, if none is going."""
+        with self._lock:
+            if self.closed.is_set() or any(job["running"] for job in self._store_jobs):
+                return
+            job = next((x for x in self._store_jobs if x["status"] == "queued"), None)
+            if job is None:
+                return
+            job["status"] = "working"
+            job["running"] = True
+            job["run"] = run = Run(
+                ["expand", json.dumps(job["request"])],
+                self.cwd,
+                job["tail"],
+                lambda *args, **kwargs: None,
+                lambda finished, job=job: self._store_expand_finished(job, finished),
+                told=lambda news, job=job: self._store_expand_news(job, news),
+            )
+            self._notify()
+        run.start()
+
+    def _store_expand_news(self, job, news):
+        """What a job tells of how it is going."""
+        if not isinstance(news, dict) or news.get("kind") != "expand":
+            return
+        with self._lock:
+            if job["cancelled"] or job not in self._store_jobs:
+                return
+            if "items" in news:
+                job["items"] = [
+                    {"key": x["key"], "label": x["label"], "total": x["total"], "status": "todo",
+                     "done": 0, "saved": 0, "held": 0, "error": None}
+                    for x in news["items"]
+                ]
+            else:
+                for item in job["items"]:
+                    if item["key"] == news.get("item"):
+                        for key in ("status", "total", "done", "saved", "held"):
+                            if key in news:
+                                item[key] = news[key]
+                        item["error"] = news.get("error")
+            self._notify()
+
+    def _store_expand_finished(self, job, run):
+        """A job's process has stopped: say how it ended, and start the next."""
+        with self._lock:
+            job["running"] = False
+            if not job["cancelled"] and job in self._store_jobs:
+                if run.returncode == 0:
+                    job["status"] = "done" if all(x["status"] == "done" for x in job["items"]) else "failed"
+                else:
+                    job["status"] = "failed"
+                    lines = [x for x in job["tail"].text().splitlines() if x.strip()]
+                    job["error"] = lines[-1] if lines else "It stopped before it was done."
+                for item in job["items"]:
+                    if item["status"] in ("todo", "working"):
+                        item["status"] = "failed"
+                self._notify()
+        self._store_expand_next()
+
+    def store_expand_cancel(self, number):
+        """Stop a job, or take it out of the queue. What it has already kept in
+        the data store stays there."""
+        with self._lock:
+            for job in self._store_jobs:
+                if job["id"] == number and job["status"] in ("queued", "working"):
+                    job["cancelled"] = True
+                    job["status"] = "stopped"
+                    if job["run"] is not None:
+                        job["run"].stop()
+                    for item in job["items"]:
+                        if item["status"] in ("todo", "working"):
+                            item["status"] = "failed"
+                    self._notify()
+        return 200, {"ok": True}
+
+    def store_expand_clear(self, number=None):
+        """The page has shown how a job ended (or all that have ended, if number
+        is None): forget it."""
+        with self._lock:
+            before = len(self._store_jobs)
+            self._store_jobs = [
+                job for job in self._store_jobs
+                if job["status"] in ("queued", "working") or (number is not None and job["id"] != number)
+            ]
+            if len(self._store_jobs) != before:
+                self._notify()
+        return 200, {"ok": True}
+
+    def view_data_store(self):
+        """What the data store holds of each built-in dataset, for the page that
+        shows it. It only looks, and uses the folder saved, as the check does.
+        Returns the HTTP status and the reply."""
+        with self._lock:
+            settings = dict(self.settings)
+        try:
+            return 200, store_view.view(BUILTIN_DATASETS, settings)
+        except Exception as error:
+            return 400, {"ok": False, "error": f"The data store could not be read: {error}"}
+
     def reset(self):
         """Start again from the first page, from any step, with nothing the
         user entered kept: the forms, the user's own data, the run and the
@@ -2737,6 +2914,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             page, self.recipes_page = self.recipes_page, None
             reading, self._output_years = self._output_years, None
             self._drop_bank_extract()
+            self._drop_store_expand()
             self.previous_kind = None
             self.previous_id = None
             self._drop_cdo_check()
@@ -5624,6 +5802,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._drop_compat()
             reading, self._output_years = self._output_years, None
             self._drop_bank_extract()
+            self._drop_store_expand()
             viewed = self._viewer_drop()
             self._notify()
         if viewed is not None:
@@ -5905,6 +6084,18 @@ class _Handler(recipes_gui._Handler):
             return
         if path == "/api/data_store_check":
             self._reply_json(*app.check_data_store())
+            return
+        if path == "/api/data_store_view":
+            self._reply_json(*app.view_data_store())
+            return
+        if path == "/api/store_expand":
+            self._reply_json(*app.store_expand(payload.get("form")))
+            return
+        if path == "/api/store_expand_cancel":
+            self._reply_json(*app.store_expand_cancel(payload.get("id")))
+            return
+        if path == "/api/store_expand_clear":
+            self._reply_json(*app.store_expand_clear(payload.get("id")))
             return
         if path == "/api/validate":
             self._reply_json(*app.validate(payload.get("form")))
