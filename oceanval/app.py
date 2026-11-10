@@ -1847,7 +1847,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "setup": {
                     "form": (
                         self.analyze_setup_form if self.action == ANALYZE
-                        else self.viewer_setup_form if self.action == VIEWER
+                        else viewer_app.default_setup_form() if self.action == VIEWER
                         else self.setup_form
                     ),
                     "error": self.setup_error,
@@ -2469,7 +2469,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self.interim = None
                 self.action = action
                 self.setup_error = None
-                self.view = "setup"
+                self.view = "viewer"
+                self._viewer_enter()
                 self._notify()
                 return True
             if action == SIMCOMPARE:
@@ -2553,12 +2554,12 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         which is waiting for the answer, so has matched nothing up, for the
         units step. Once anything is matched up, there is no going back."""
         sent = sent if isinstance(sent, dict) else {}
-        if self.action == VIEWER and self.view in ("setup", "viewer_scanning", "viewer"):
+        if self.action == VIEWER and self.view == "viewer":
             with self._lock:
                 old, went = self._viewer_back(sent)
             # outside the lock: it waits for any file being read
-            if old is not None:
-                old.close()
+            for catalogue in old:
+                catalogue.close()
             return went
         with self._lock:
             if self.view == "units_table":
@@ -2917,9 +2918,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             self._drop_analyze_check()
             self._sc_drop_checks()
             self._sc_drop_times()
-            viewed = self._viewer_drop()
-            self.viewer_setup_form = viewer_app.default_setup_form()
-            self.viewer_missing = []
+            viewed = self._viewer_drop_all()
+            self.viewers = {}
+            self.viewer_kept = {}
             self._forget_steps()
             self._forget_register()
             self.view = "home"
@@ -2994,8 +2995,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             page.finish()
         if draft is not None:
             shutil.rmtree(draft, ignore_errors=True)
-        if viewed is not None:
-            viewed.close()
+        for catalogue in viewed:
+            catalogue.close()
         return True
 
     def setup(self, form):
@@ -5795,10 +5796,10 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             reading, self._output_years = self._output_years, None
             self._drop_bank_extract()
             self._drop_store_expand()
-            viewed = self._viewer_drop()
+            viewed = self._viewer_drop_all()
             self._notify()
-        if viewed is not None:
-            viewed.close()
+        for catalogue in viewed:
+            catalogue.close()
         if reading is not None:
             reading["reading"].cancel()
         if run is not None:
@@ -5975,7 +5976,7 @@ class _Handler(recipes_gui._Handler):
             with open(viewer_app.bokeh_js(), "rb") as file:
                 self._reply(200, file.read(), "text/javascript; charset=utf-8")
         elif url.path == "/api/viewer/catalogue":
-            self._reply_json(200, self.app.viewer_summary())
+            self._reply_json(200, self.app.viewer_summary(query))
         elif url.path == "/api/viewer/plot":
             self._reply_json(200, self.app.viewer_plot(query))
         elif url.path == "/api/pattern_checks/plot":
@@ -6231,6 +6232,8 @@ class _Handler(recipes_gui._Handler):
             "/api/simcompare_time_shift": lambda: app.simcompare_time_shift(payload.get("choice")),
             # with what the step's boxes hold
             "/api/back": lambda: app.back(payload),
+            "/api/viewer/add": app.viewer_add,
+            "/api/viewer/remove": lambda: app.viewer_remove(payload.get("viewer")),
             "/api/restart_all": app.reset,
             "/api/stop": app.stop,
             "/api/refilter": lambda: app.refilter(

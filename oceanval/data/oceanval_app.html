@@ -841,9 +841,74 @@
   .vw-scan-text { margin: 14px 0 0; color: var(--muted); }
   /* the viewer has the whole width of the window */
   body.is-viewer main.wrap { max-width: none; padding: 16px; }
-  .vw { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
-  @media (max-width: 860px) { .vw { grid-template-columns: minmax(0, 1fr); } }
-  .vw-side { display: grid; gap: 16px; padding: 16px; max-height: calc(100vh - var(--masthead-h, 80px) - 110px); overflow-y: auto; position: sticky; top: calc(var(--masthead-h, 80px) + 16px); }
+  /* the panels: one simulation each, up to four, two to a row, with the + after them (see renderViewers) */
+  .vw-panels { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 861px) {
+    .vw-panels[data-count="0"], .vw-panels[data-count="2"], .vw-panels[data-count="3"], .vw-panels[data-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vw-panels[data-count="1"] { grid-template-columns: minmax(0, 1fr) 56px; }
+    .vw-panels[data-count="1"] .vw-add { grid-column: 2; grid-row: 1; }
+    .vw-panels[data-count="1"] .vw-add__text { display: none; }
+  }
+  .vw-panels[data-count="2"] .vw-add, .vw-panels[data-count="3"] .vw-add { grid-column: 1 / -1; }
+  .vw-panels[data-count="4"] .vw-add { display: none; }
+  .vw-add { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 2px dashed var(--line-strong); border-radius: var(--radius-md); background: transparent; color: var(--teal-700); font: 600 15px/1 var(--font-body); cursor: pointer; }
+  .vw-add:hover { border-color: var(--teal-600); background: var(--teal-50); }
+  .vw-add[hidden] { display: none; }
+  .vw-add__plus { font-size: 26px; line-height: 1; }
+  .vw-panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; position: relative; container-type: inline-size; }
+  /* above the other panels, but under the dialogs (.picker is 25) that its box opens: the folder chooser, the folder structure */
+  .vw-panel:has(.vw-setup-pop:not([hidden])) { z-index: 20; }
+  .vw-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+  .vw-panel__title { margin: 0; min-width: 0; font: 600 16px/1.3 var(--font-head); color: var(--ink); overflow-wrap: anywhere; }
+  .vw-panel__tools { display: flex; gap: 8px; align-items: center; flex: none; }
+  .vw-panel__setup { position: relative; height: 0; }
+  .vw-idle, .vw-scanning { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 360px; padding: 20px; text-align: center; color: var(--muted); }
+  .vw-idle[hidden], .vw-scanning[hidden], .vw[hidden] { display: none; }
+  /* an empty panel: one button in the middle, twice the size of the one in the header */
+  /* about a quarter of the way down */
+  .vw-idle { justify-content: flex-start; padding-top: 0; }
+  .vw-idle::before { content: ""; flex: 1; }
+  .vw-idle::after { content: ""; flex: 3; }
+  .vw-idle__btn { width: 380px; height: 200px; padding: 24px; font-size: 22px; white-space: nowrap; border-radius: var(--radius-md); background: var(--teal-400); border-color: var(--teal-400); }
+  .vw-idle__btn { transition: transform 0.18s ease, background-color 0.18s; }
+  /* it grows under the pointer (and when focused by keyboard) */
+  .vw-idle__btn:hover:not(:disabled), .vw-idle__btn:focus-visible { transform: scale(1.12); background: var(--teal-500); border-color: var(--teal-500); }
+  @media (prefers-reduced-motion: reduce) { .vw-idle__btn { transition: none; } }
+  .vw-scanning__title { margin: 14px 0 0; font-weight: 600; color: var(--ink-soft); }
+  .vw-scanning .vw-meter { width: min(320px, 100%); margin-top: 16px; }
+  /* the box beside a panel's "Provide simulation info" button: the setup form, moved into it while it is open */
+  .vw-setup-pop { position: absolute; top: 0; right: 0; z-index: 40; width: min(600px, calc(100vw - 80px)); max-height: 75vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
+  .vw-setup-pop[hidden] { display: none; }
+  /* the first panel with no simulation: its box is in the middle of the panel and has no close button */
+  .vw-panel.is-first-empty .vw-panel__setup { position: static; }
+  .vw-panel.is-first-empty .vw-setup-pop { top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); }
+  .vw-panel.is-first-empty #vw-setup-close { display: none; }
+  .vw-setup-pop__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 0; }
+  .vw-setup-pop__body { min-height: 0; overflow-y: auto; padding: 12px 16px; }
+  .vw-setup-pop__body .setup-form { gap: 14px; }
+  .vw-setup-pop__foot { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); }
+  /* a panel's sidebar and map sit side by side when the panel is wide enough, else one above the other */
+  .vw { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+  @container (min-width: 520px) { .vw { grid-template-columns: var(--vw-side, 280px) 8px minmax(0, 1fr); gap: 6px; } .vw > .vw-split { display: block; align-self: stretch; } }
+  .vw-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; padding: 12px; max-height: 70vh; overflow-x: hidden; overflow-y: auto; }
+  .vw-side-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+  /* the divider between the variable column and the map: dragged to make the column narrower or wider (see ViewerPanel.wireSplit) */
+  .vw-split { display: none; position: relative; cursor: col-resize; touch-action: none; border-radius: var(--radius-sm); }
+  .vw-split::after { content: ""; position: absolute; top: 50%; left: 50%; width: 4px; height: 48px; transform: translate(-50%, -50%); border-radius: 999px; background: var(--line-strong); }
+  .vw-split:hover::after, .vw-split:focus-visible::after, .vw-split.is-dragging::after { background: var(--teal-600); }
+  .vw-split:focus-visible { outline: none; box-shadow: var(--focus); }
+  /* narrower than its contents can be read: they are hidden, and the divider stays to be dragged out again */
+  .vw-panel.is-side-min .vw-side-body { display: none; }
+  .vw-panel.is-side-min .vw-side { padding: 0; overflow: hidden; }
+  .vw-panel.is-side-min .vw-split::after { background: var(--teal-600); }
+  /* with one or two simulations the panels take the whole height of the window: the map stretches, the sidebar scrolls */
+  .vw-panels[data-count="1"] .vw-panel { min-height: calc(100vh - var(--masthead-h, 80px) - 40px); }
+  /* two leave room for the + bar under them */
+  .vw-panels[data-count="2"] .vw-panel { min-height: calc(100vh - var(--masthead-h, 80px) - 112px); }
+  .vw-panels[data-count="1"] .vw, .vw-panels[data-count="2"] .vw { flex: 1; align-items: stretch; }
+  .vw-panels[data-count="1"] .vw-side, .vw-panels[data-count="2"] .vw-side { max-height: calc(100vh - var(--masthead-h, 80px) - 120px); }
+  .vw-panels[data-count="1"] .vw-plot, .vw-panels[data-count="2"] .vw-plot { min-height: 0; }
+  .vw-panels[data-count="1"] .vw-idle, .vw-panels[data-count="2"] .vw-idle, .vw-panels[data-count="1"] .vw-scanning, .vw-panels[data-count="2"] .vw-scanning { flex: 1; }
   @media (max-width: 860px) { .vw-side { position: static; max-height: none; } }
   .vw-head { margin: 0 0 6px; font: 600 13px/1.3 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
   .vw-list { margin: 8px 0 0; padding: 4px; list-style: none; max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); }
@@ -890,16 +955,16 @@
   .vw-times .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
   .vw-years-note { margin: 0; color: var(--muted); font-size: 12.5px; }
   .vw-years-note.is-error { color: var(--ink); font-weight: 600; }
-  #vw-c-years .vw-meter { margin-top: 0; }
+  .vw-years .vw-meter { margin-top: 0; }
   /* the map is given the stage's height. Two are stacked: the next frame of an animation is drawn in the
      one behind, then shown, so there is no blank between frames. A map whose x and y are distances is
      sized to keep them on one scale (fitFigure) and centred; one of grid indices fills its box */
-  .vw-stage { display: flex; flex-direction: column; min-height: calc(100vh - 170px); padding: 12px; }
+  .vw-stage { display: flex; flex-direction: column; min-width: 0; min-height: 420px; padding: 12px; }
   .vw-plot { position: relative; flex: 1; min-height: 420px; }
-  #vw-plot, #vw-plot-b { position: absolute; inset: 0; display: grid; place-items: center; }
-  #vw-plot.is-stretch > div, #vw-plot-b.is-stretch > div { width: 100%; height: 100%; }
-  #vw-plot.is-stretch, #vw-plot-b.is-stretch { display: block; }
-  .vw-plot .is-back { visibility: hidden; }
+  .vw-fig { position: absolute; inset: 0; display: grid; place-items: center; }
+  .vw-fig.is-stretch > div { width: 100%; height: 100%; }
+  .vw-fig.is-stretch { display: block; }
+  .vw-fig.is-back { visibility: hidden; }
   .vw-busy { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--overlay); border-radius: var(--radius-sm); }
   .vw-busy[hidden] { display: none; }
   .vw-busy__box { display: flex; gap: 10px; align-items: center; color: var(--muted); font-weight: 600; }
@@ -1581,86 +1646,108 @@
     </form>
   </section>
 
-  <!-- View simulation output (see oceanval.viewer_app): the variables of each file type being read, then the viewer -->
-  <section id="view-viewer-scanning" class="prepare" hidden>
-    <div class="card prepare__card" role="status" aria-live="polite">
-      <span class="prepare__spinner" aria-hidden="true"></span>
-      <h2 class="prepare__title">Reading the variables of each file type</h2>
-      <div class="vw-meter" aria-hidden="true"><span id="vw-scan-meter"></span></div>
-      <p class="vw-scan-text" id="vw-scan-text">Please wait!</p>
-    </div>
-  </section>
-
+  <!-- View simulation output (see oceanval.viewer_app): up to four simulations side by side, each in a panel of its own.
+       A panel's "Provide simulation info" box is the setup page's form, moved into the box of the panel asked (see openSetup). -->
   <section id="view-viewer" hidden>
-    <div class="vw">
-      <aside class="vw-side card" aria-label="What to plot">
-        <div>
-          <h2 class="vw-head"><label for="vw-search">Variable</label></h2>
-          <input class="s-input" id="vw-search" type="search" placeholder="Search by name or description, e.g. P*_Chl" spellcheck="false" autocapitalize="off" autocomplete="off" aria-controls="vw-list">
-          <p class="vw-sum"><span>Click a variable to map it. Use the + buttons to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" id="vw-clear" hidden>Clear</button></p>
-          <ul class="vw-list" id="vw-list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
-        </div>
-        <div class="vw-control" id="vw-c-years" hidden>
-          <h2 class="vw-head">Subset years</h2>
-          <div class="vw-grid">
-            <label><span class="g-label">First year</span><input class="s-input is-num" id="vw-first" inputmode="numeric" placeholder="first" spellcheck="false" autocomplete="off" disabled></label>
-            <label><span class="g-label">Last year</span><input class="s-input is-num" id="vw-last" inputmode="numeric" placeholder="last" spellcheck="false" autocomplete="off" disabled></label>
-          </div>
-          <div class="vw-times" id="vw-times" hidden><span class="identify__spinner" aria-hidden="true"></span><span id="vw-times-text" role="status" aria-live="polite"></span></div>
-          <div class="vw-meter" id="vw-times-meter" aria-hidden="true" hidden><span id="vw-times-bar"></span></div>
-          <p class="vw-years-note" id="vw-years-note" role="status" aria-live="polite" hidden></p>
-        </div>
-        <div id="vw-chosen" hidden>
-          <h2 class="vw-head">About</h2>
-          <dl class="vw-info" id="vw-info"></dl>
-        </div>
-        <div id="vw-streams" class="vw-streams" hidden></div>
-        <div id="vw-controls" class="vw-streams" hidden>
-          <div class="vw-control" id="vw-c-time">
-            <h2 class="vw-head"><label for="vw-step">Time</label></h2>
-            <div class="vw-time-row">
-              <button type="button" class="vw-icon-btn" id="vw-prev" aria-label="Previous time" title="Previous time (left arrow)">&#8249;</button>
-              <input type="range" id="vw-step" min="0" max="0" value="0">
-              <button type="button" class="vw-icon-btn" id="vw-next" aria-label="Next time" title="Next time (right arrow)">&#8250;</button>
-              <button type="button" class="vw-icon-btn" id="vw-play" aria-label="Play" aria-pressed="false" title="Play through the times">&#9654;</button>
-            </div>
-            <div class="vw-when" id="vw-when"></div>
-            <div class="vw-play-row">
-              <label class="g-label" for="vw-speed">Speed</label>
-              <select class="s-select" id="vw-speed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select>
-              <span class="vw-play-status" id="vw-play-status" role="status" aria-live="polite"></span>
-            </div>
-          </div>
-          <div class="vw-control" id="vw-c-level">
-            <h2 class="vw-head"><label for="vw-level">Depth</label></h2>
-            <select class="s-select" id="vw-level"></select>
-          </div>
-          <div class="vw-control" id="vw-c-colour">
-            <h2 class="vw-head">Colours</h2>
-            <div class="vw-grid">
-              <label class="is-wide"><span class="g-label">Colour map</span><select class="s-select" id="vw-cmap"></select></label>
-              <label><span class="g-label">Minimum</span><input class="s-input is-num" id="vw-vmin" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
-              <label><span class="g-label">Maximum</span><input class="s-input is-num" id="vw-vmax" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
-              <div class="is-wide vw-scale-links"><button type="button" class="link" id="vw-keep">Keep this scale for every time</button><button type="button" class="link" id="vw-auto">Automatic scale</button></div>
-            </div>
-            <div class="vw-ticks">
-              <label class="tick-label"><input type="checkbox" id="vw-log"> Logarithmic</label>
-              <label class="tick-label" id="vw-coast-label"><input type="checkbox" id="vw-coast"> Coastlines</label>
-            </div>
-          </div>
-        </div>
-      </aside>
-      <section class="vw-stage card" aria-label="Map">
-        <div class="vw-plot" id="vw-plot-wrap">
-          <div id="vw-plot"></div>
-          <div id="vw-plot-b" class="is-back"></div>
-          <div class="vw-empty" id="vw-plot-empty"><div><strong>Choose a variable</strong>Search for it on the left.</div></div>
-          <div class="vw-busy" id="vw-plot-busy" hidden><div class="vw-busy__box"><span class="identify__spinner" aria-hidden="true"></span>Reading the data</div></div>
-        </div>
-        <p class="vw-error" id="vw-plot-error" role="alert" hidden></p>
-      </section>
+    <div class="vw-panels" id="vw-panels" data-count="0">
+      <button type="button" class="vw-add" id="vw-add" aria-label="Add a simulation" title="Add a simulation"><span class="vw-add__plus" aria-hidden="true">+</span><span class="vw-add__text">Add a simulation</span></button>
+    </div>
+    <div class="vw-setup-pop card" id="vw-setup-pop" role="dialog" aria-labelledby="vw-setup-title" hidden>
+      <div class="vw-setup-pop__head"><h2 class="vw-head" id="vw-setup-title">Provide simulation info</h2><button type="button" class="vw-icon-btn" id="vw-setup-close" aria-label="Close this box">&times;</button></div>
+      <div class="vw-setup-pop__body" id="vw-setup-body"></div>
+      <div class="vw-setup-pop__foot"><button type="button" class="btn btn--primary" id="vw-apply">Apply</button></div>
     </div>
   </section>
+  <template id="vw-panel-tpl">
+    <article class="vw-panel card" aria-label="A simulation">
+      <header class="vw-panel__head">
+        <h2 class="vw-panel__title" data-vw="title">Simulation</h2>
+        <div class="vw-panel__tools">
+          <button type="button" class="vw-icon-btn" data-vw="remove" aria-label="Remove this simulation" title="Remove this simulation">&times;</button>
+        </div>
+      </header>
+      <div class="vw-panel__setup" data-vw="setup-slot"></div>
+      <p class="vw-error" data-vw="error" role="alert" hidden></p>
+      <div class="vw-idle" data-vw="idle"><button type="button" class="btn btn--primary vw-idle__btn" data-vw="idle-btn" aria-haspopup="dialog" aria-expanded="false">Provide simulation info</button></div>
+      <div class="vw-scanning" data-vw="scanning" hidden>
+        <span class="prepare__spinner" aria-hidden="true"></span>
+        <p class="vw-scanning__title">Reading the variables of each file type</p>
+        <div class="vw-meter" aria-hidden="true"><span data-vw="scan-meter"></span></div>
+        <p class="vw-scan-text" data-vw="scan-text" role="status" aria-live="polite">Please wait!</p>
+      </div>
+      <div class="vw" data-vw="body" hidden>
+        <aside class="vw-side card" aria-label="What to plot">
+          <div class="vw-side-body" data-vw="side-body">
+        <div>
+        <h2 class="vw-head">Variable</h2>
+        <input class="s-input" data-vw="search" type="search" placeholder="Search by name or description, e.g. P*_Chl" spellcheck="false" autocapitalize="off" autocomplete="off">
+        <p class="vw-sum"><span>Click a variable to map it. Use the + buttons to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" data-vw="clear" hidden>Clear</button></p>
+        <ul class="vw-list" data-vw="list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
+        </div>
+        <div class="vw-control vw-years" data-vw="c-years" hidden>
+        <h2 class="vw-head">Subset years</h2>
+        <div class="vw-grid">
+        <label><span class="g-label">First year</span><input class="s-input is-num" data-vw="first" inputmode="numeric" placeholder="first" spellcheck="false" autocomplete="off" disabled></label>
+        <label><span class="g-label">Last year</span><input class="s-input is-num" data-vw="last" inputmode="numeric" placeholder="last" spellcheck="false" autocomplete="off" disabled></label>
+        </div>
+        <div class="vw-times" data-vw="times" hidden><span class="identify__spinner" aria-hidden="true"></span><span data-vw="times-text" role="status" aria-live="polite"></span></div>
+        <div class="vw-meter" data-vw="times-meter" aria-hidden="true" hidden><span data-vw="times-bar"></span></div>
+        <p class="vw-years-note" data-vw="years-note" role="status" aria-live="polite" hidden></p>
+        </div>
+        <div data-vw="chosen" hidden>
+        <h2 class="vw-head">About</h2>
+        <dl class="vw-info" data-vw="info"></dl>
+        </div>
+        <div data-vw="streams" class="vw-streams" hidden></div>
+        <div data-vw="controls" class="vw-streams" hidden>
+        <div class="vw-control" data-vw="c-time">
+        <h2 class="vw-head">Time</h2>
+        <div class="vw-time-row">
+        <button type="button" class="vw-icon-btn" data-vw="prev" aria-label="Previous time" title="Previous time (left arrow)">&#8249;</button>
+        <input type="range" data-vw="step" min="0" max="0" value="0">
+        <button type="button" class="vw-icon-btn" data-vw="next" aria-label="Next time" title="Next time (right arrow)">&#8250;</button>
+        <button type="button" class="vw-icon-btn" data-vw="play" aria-label="Play" aria-pressed="false" title="Play through the times">&#9654;</button>
+        </div>
+        <div class="vw-when" data-vw="when"></div>
+        <div class="vw-play-row">
+        <span class="g-label">Speed</span>
+        <select class="s-select" data-vw="speed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select>
+        <span class="vw-play-status" data-vw="play-status" role="status" aria-live="polite"></span>
+        </div>
+        </div>
+        <div class="vw-control" data-vw="c-level">
+        <h2 class="vw-head">Depth</h2>
+        <select class="s-select" data-vw="level"></select>
+        </div>
+        <div class="vw-control" data-vw="c-colour">
+        <h2 class="vw-head">Colours</h2>
+        <div class="vw-grid">
+        <label class="is-wide"><span class="g-label">Colour map</span><select class="s-select" data-vw="cmap"></select></label>
+        <label><span class="g-label">Minimum</span><input class="s-input is-num" data-vw="vmin" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
+        <label><span class="g-label">Maximum</span><input class="s-input is-num" data-vw="vmax" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
+        <div class="is-wide vw-scale-links"><button type="button" class="link" data-vw="keep">Keep this scale for every time</button><button type="button" class="link" data-vw="auto">Automatic scale</button></div>
+        </div>
+        <div class="vw-ticks">
+        <label class="tick-label"><input type="checkbox" data-vw="log"> Logarithmic</label>
+        <label class="tick-label" data-vw="coast-label"><input type="checkbox" data-vw="coast"> Coastlines</label>
+        </div>
+        </div>
+        </div>
+        </div>
+        </aside>
+        <div class="vw-split" data-vw="split" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the variable list" title="Drag to resize the variable list (double-click to reset)"></div>
+        <section class="vw-stage card" aria-label="Map">
+        <div class="vw-plot" data-vw="plot-wrap">
+        <div class="vw-fig" data-vw="plot"></div>
+        <div class="vw-fig is-back" data-vw="plot-b"></div>
+        <div class="vw-empty" data-vw="plot-empty"><div><strong>Choose a variable</strong>Search for it on the left.</div></div>
+        <div class="vw-busy" data-vw="plot-busy" hidden><div class="vw-busy__box"><span class="identify__spinner" aria-hidden="true"></span>Reading the data</div></div>
+        </div>
+        <p class="vw-error" data-vw="plot-error" role="alert" hidden></p>
+        </section>
+      </div>
+    </article>
+  </template>
 
   <!-- the last step before a matchup starts, as what is done with the matchups there
        already depends on the matchups chosen (see oceanval.app.check_output) -->
@@ -3228,7 +3315,6 @@
       case "gridded_data": return "Your gridded data";
       case "own_future": return `Save your ${(state.own.future || {}).kind || "own"} data for future use`;
       case "preparing": return "";  // the box in the middle of the page says it
-      case "viewer_scanning": return "";  // so does this one
       case "viewer": return "";  // the map has the room
       case "units_table": return "";  // the page heads itself, top left
       case "output": return state.action === "matchup" ? "Where do you want the matchups to be saved?"
@@ -3314,13 +3400,17 @@
       // an analysis keeps its boxes, for when it is reached again
       actions.push(backTo(() => post("api/back", simulationOnly() ? { form: setupForm() } : {})),
         button("Continue", "primary", submitSetup, { id: "continue" }));
-    } else if (view === "viewer_scanning" || view === "viewer") {
-      // to the setup page, as it was left; what is being read is stopped
+    } else if (view === "viewer") {
+      // to the landing page; what is being read is stopped, and the boxes not applied are kept for the viewer's next opening
       if (viewerFvcom()) {
         actions.push(el("a", { class: "vw-credit", id: "vw-fvcom-credit", href: "https://github.com/PlymouthMarineLaboratory/pyfvcom2",
           target: "_blank", rel: "noopener noreferrer", text: "Plotting is influenced by pyfvcom2" }));
       }
-      actions.push(backTo(() => { stopPlay(); post("api/back"); }, { id: "vw-back" }));
+      actions.push(backTo(() => {
+        stopAllPlay();
+        closeSetup();
+        post("api/back", { forms: Object.fromEntries(panelDrafts) });
+      }, { id: "vw-back" }));
     } else if (view === "analyze_variables") {
       // with the rows, which are shown again as they are
       actions.push(backTo(() => post("api/back", { rows: readAnalyzeRows() })),
@@ -3514,9 +3604,11 @@
   }
 
   // ---- View simulation output (see oceanval.viewer_app) ----
-  // The setup page says where the files are; Continue reads the variables of each file type
-  // (viewer_scanning), and the viewer opens while the times of the files are read in the background.
-  // Only the map shown is ever read: the page asks for it (api/viewer/plot) as a Bokeh json_item.
+  // Up to four simulations side by side, each in a panel of its own (a ViewerPanel). A panel's "Provide simulation
+  // info" box is the setup page's form, moved into the box of the panel asked: one box is open at a time, and what
+  // is typed in it and not applied is kept as a draft for that panel. Apply reads the variables of each file type,
+  // and the panel shows its map while the times of its files are read in the background. Only the map shown is ever
+  // read: the panel asks for it (api/viewer/plot) as a Bokeh json_item.
 
   // BokehJS, served by the window from the bokeh installed, is loaded only once the viewer is opened
   let bokehLoading = null;
@@ -3533,772 +3625,1172 @@
     return bokehLoading;
   }
 
-  // reading the files
-  function renderViewerScan() {
-    // the files are found by the live check, so there is nothing left to say but how far
-    // the file types have been read; the times of the files come after, in the background
-    const scan = state.viewer.scan || { phase: "variables", done: 0, total: 0 };
-    const share = scan.total ? Math.round((100 * scan.done) / scan.total) : 0;
-    $("vw-scan-meter").style.width = `${share}%`;
-    $("vw-scan-text").textContent = scan.total ? `${scan.done} of ${scan.total}` : "Please wait!";
-  }
-
-  // what is read, the files and their variables, and the number of the reading it is
-  let catalogue = null;
-  let viewerShown = null;
   const COLOUR_MAPS = ["", "viridis", "cividis", "plasma", "inferno", "magma", "turbo", "RdBu_r", "coolwarm", "Blues", "YlGnBu", "gray"];
-  const pick = { names: [], stream: null, step: 0, level: 0, speed: "normal", cmap: "", vmin: "", vmax: "", log: false, coast: false, first: "", last: "" };
-  let lastClim = null;
-  // the colour scale an animation keeps: {key, vmin, vmax, cmap}, for the variables and level it was made for
-  let scale = null;
-  $("vw-cmap").replaceChildren(...COLOUR_MAPS.map((name) => el("option", { value: name, text: name || "Automatic (ncplot's choice)" })));
-
-  // whether FVCOM output is being looked at, whose plotting the bar credits to pyfvcom2
-  const viewerFvcom = () => state.view === "viewer" && Boolean(catalogue) && catalogue.streams.some((stream) => stream.fvcom);
-
-  // from the state, every time it changes
-  function renderViewer() {
-    ensureBokeh();
-    if (state.viewer.catalogue_number !== null && state.viewer.catalogue_number !== viewerShown) loadCatalogue();
-    // every file's times have come in
-    else if (catalogue && state.viewer.times_number !== timesNumber) refreshTimes();
-    renderYears();
-  }
-
-  async function loadCatalogue() {
-    const number = state.viewer.catalogue_number;
-    const timesAtLoad = state.viewer.times_number;
-    viewerShown = number;
-    let reply;
-    try {
-      reply = await (await fetch(`api/viewer/catalogue?${query({})}`, { cache: "no-store" })).json();
-    } catch (error) {
-      viewerShown = null;
-      return;
-    }
-    if (!reply.ok || reply.number !== number) return;
-    catalogue = reply;
-    timesNumber = timesAtLoad;
-    Object.assign(pick, { names: [], stream: null, step: 0, level: 0, first: "", last: "" });
-    scale = null;
-    forgetFrames();
-    $("vw-search").value = "";
-    clearPlot();
-    renderList();
-    renderSide();
-    renderYears();
-    renderBar();
-    $("vw-search").focus();
-    toastUnreadable();
-  }
-
-  function toastUnreadable() {
-    if (!catalogue.times_complete) return;
-    const unreadable = catalogue.streams.reduce((sum, stream) => sum + stream.unreadable, 0);
-    if (unreadable) toast(`The times of ${plural(unreadable, "file")} could not be read.`);
-  }
-
-  // The times of the files are read in the background (at first only the first file of each file type's are in),
-  // and the page is told how far that has got (state.viewer.times) and when it is done (state.viewer.times_number),
-  // when it asks again for what the file types hold and swaps their times in, keeping what is chosen: the
-  // variables, the file type, the level and colours, the years, and the time shown (by its date, as it may have
-  // a new number).
-  let timesNumber = null;
-  async function refreshTimes() {
-    timesNumber = state.viewer.times_number;
-    let reply;
-    try {
-      reply = await (await fetch(`api/viewer/catalogue?${query({})}`, { cache: "no-store" })).json();
-    } catch (error) {
-      timesNumber = null;
-      return;
-    }
-    // another set of files has been opened since: loadCatalogue is on it
-    if (!reply.ok || reply.number !== viewerShown || !catalogue) return;
-    const now = inStream();
-    const shown = now ? streamOf(now.stream).times[pick.step] : null;
-    catalogue.streams = reply.streams;
-    catalogue.times_complete = reply.times_complete;
-    scale = null;
-    forgetFrames();
-    if (now) {
-      const times = streamOf(now.stream).times;
-      const at = shown ? times.findIndex((time) => time >= shown) : 0;
-      const step = at < 0 ? times.length - 1 : at;
-      const moved = step !== pick.step;
-      pick.step = step;
-      renderSide();
-      if (moved) requestPlot(0);
-    }
-    renderYears();
-    toastUnreadable();
-  }
-
-  let listActive = -1;
-  function matching() {
-    const wanted = OceanValGUI.searchMatcher($("vw-search").value);
-    return Object.entries(catalogue.variables).filter(([name, about]) => wanted.test([name, about.long_name, about.units]));
-  }
-  function renderList() {
-    if (!catalogue) return;
-    const found = matching();
-    listActive = Math.min(listActive, found.length - 1);
-    const items = found.map(([name, about], index) => {
-      const ticked = pick.names.includes(name);
-      // what cannot be added to the variables ticked: no file type has them all with the same dimensions
-      const why = !ticked && pick.names.length && !streamsFor([...pick.names, name]).length
-        ? `${name} cannot be added to ${pick.names.join(" + ")}: no file type holds them with the same dimensions.` : "";
-      // + adds it to the sum (greyed out when it cannot be added), - takes it out
-      const box = el("button", {
-        type: "button", class: "vw-pm", text: ticked ? "-" : "+", disabled: Boolean(why),
-        "aria-label": ticked ? `Remove ${name} from the sum` : `Add ${name} to the sum`,
-      });
-      box.addEventListener("click", (event) => { event.stopPropagation(); toggle(name); });
-      return el("li", {
-        role: "option", "data-name": name, title: why || null,
-        class: `${ticked ? "is-chosen" : ""}${index === listActive ? " is-active" : ""}${why ? " is-incompatible" : ""}`,
-        "aria-selected": String(ticked), "aria-disabled": String(Boolean(why)),
-        // a click on the row chooses it alone; only its + button adds it to the sum
-        onclick: () => {
-          if (String(window.getSelection() || "")) return;
-          if (pick.names.length === 1 && pick.names[0] === name) return;
-          choose(name);
-        },
-      },
-        box,
-        el("span", { class: "vw-list__name", text: name }),
-        about.long_name || about.units ? el("span", { class: "vw-list__long", text: [about.long_name, about.units && `(${about.units})`].filter(Boolean).join(" ") }) : null,
-        about.streams.length > 1 ? el("span", { class: "vw-list__more", text: `In ${about.streams.length} file types` }) : null,
-      );
-    });
-    const none = Object.keys(catalogue.variables).length ? "No variable matches that." : "No variable here can be mapped.";
-    $("vw-list").replaceChildren(...(items.length ? items : [el("li", { class: "vw-list__none", text: none })]));
-    $("vw-clear").hidden = !pick.names.length;
-  }
-  $("vw-search").addEventListener("input", () => { listActive = 0; renderList(); });
-  $("vw-search").addEventListener("keydown", (event) => {
-    if (!catalogue) return;
-    const found = matching();
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!found.length) return;
-      listActive = (listActive + (event.key === "ArrowDown" ? 1 : -1) + found.length) % found.length;
-      renderList();
-      const active = $("vw-list").querySelector(".is-active");
-      if (active) active.scrollIntoView({ block: "nearest" });
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      const chosen = found[Math.max(0, listActive)];
-      // Shift+Enter adds it to the sum; Enter chooses it alone
-      if (chosen && event.shiftKey) { if (!$("vw-list").querySelector(".is-active.is-incompatible")) toggle(chosen[0]); }
-      else if (chosen) choose(chosen[0]);
-    }
-  });
-
-  const streamOf = (id) => catalogue.streams.find((stream) => stream.id === id);
-  // the file types that hold every one of names with the same dimensions and sizes (as the first)
-  function streamsFor(names) {
-    if (!names.length) return [];
-    return catalogue.variables[names[0]].streams.filter((first) => names.every((name) => {
-      const entry = catalogue.variables[name].streams.find((other) => other.stream === first.stream);
-      return entry && String(entry.dims) === String(first.dims) && String(entry.shape) === String(first.shape);
-    })).map((entry) => entry.stream);
-  }
-  // the first variable as it is in the chosen file type
-  function inStream() {
-    if (!catalogue || !pick.names.length || pick.stream === null) return null;
-    return catalogue.variables[pick.names[0]].streams.find((entry) => entry.stream === pick.stream) || null;
-  }
-
-  // the file type is the user's to say if the variables are in more than one
-  function settle() {
-    const holders = streamsFor(pick.names);
-    pick.stream = holders.includes(pick.stream) ? pick.stream : (holders.length === 1 ? holders[0] : null);
-  }
-
-  // one variable alone
-  function choose(name) {
-    const before = inStream();
-    pick.names = [name];
-    settle();
-    afterStream(before);
-  }
-
-  // adds a variable to the sum, or takes it out (the only way to more than one: a row's + button, or Shift+Enter)
-  function toggle(name) {
-    const before = inStream();
-    pick.names = pick.names.includes(name) ? pick.names.filter((other) => other !== name) : [...pick.names, name];
-    settle();
-    if (!pick.names.length) pick.stream = null;
-    afterStream(before);
-  }
-  $("vw-clear").addEventListener("click", () => {
-    const before = inStream();
-    pick.names = [];
-    pick.stream = null;
-    afterStream(before);
-  });
-
-  function afterStream(before) {
-    stopPlay();
-    scale = null;
-    const now = inStream();
-    if (now) {
-      if (!before || before.stream !== now.stream) {
-        // the time as near the one shown as the new file type has
-        const shown = before ? streamOf(before.stream).times[pick.step] : null;
-        const times = streamOf(now.stream).times;
-        pick.step = shown ? Math.max(0, times.findIndex((time) => time >= shown)) : 0;
-      }
-      const span = windowOf(streamOf(now.stream));
-      pick.step = Math.min(Math.max(span.lo, pick.step), span.hi);
-      // levels of another kind start at the surface (the last level for output written bottom first, as GETM's)
-      const sameLevels = before && before.vertical === now.vertical && before.levels === now.levels
-        && before.surface_level === now.surface_level;
-      if (!sameLevels || pick.level >= now.levels) pick.level = now.surface_level || 0;
-    } else {
-      clearPlot();
-    }
-    renderList();
-    renderSide();
-    if (now) requestPlot(0);
-  }
-
-  function renderSide() {
-    const chosen = Boolean(catalogue && pick.names.length);
-    $("vw-chosen").hidden = !chosen;
-    $("vw-streams").hidden = !chosen;
-    const now = chosen ? inStream() : null;
-    $("vw-controls").hidden = !now;
-    if (!chosen) return;
-    const abouts = pick.names.map((name) => catalogue.variables[name]);
-    const about = abouts[0];
-    const sum = pick.names.length > 1;
-    const info = sum
-      ? [["Sum of", pick.names.map((name, index) => `${name}${abouts[index].units ? ` (${abouts[index].units})` : ""}`).join(" + "), true]]
-      // (the variable's name and description are in the list above)
-      : [["Units", about.units]];
-    if (now) {
-      const stream = streamOf(now.stream);
-      info.push(["Dimensions", now.dims.map((dim, index) => `${dim} (${now.shape[index]})`).join(", "), true]);
-      info.push(["File type", stream.pattern, true]);
-      if (now.mesh) info.push(["FVCOM mesh", now.mesh === "node" ? "values on the nodes" : "values on the elements (triangles)"]);
-      const span = windowOf(stream);
-      // the years chosen leave some of the times, and the files that hold them
-      const cut = stream.pending === 0 && stream.has_times && (span.lo > 0 || span.hi < stream.steps - 1);
-      const heldIn = cut ? new Set(stream.step_files.slice(span.lo, span.hi + 1)).size : stream.files;
-      info.push(["Files", cut ? `${heldIn.toLocaleString()} of ${stream.files.toLocaleString()}` : `${stream.files.toLocaleString()}`]);
-      if (stream.pending > 0) {
-        info.push(["Time resolution", "being read"]);
-      } else if (stream.has_times) {
-        // how often the output is ("daily"), not how many times there are
-        info.push(["Time resolution", stream.resolution]);
-        // the dates only, on one line
-        info.push(["Dates", `${stream.times[span.lo].slice(0, 10)} – ${stream.times[span.hi].slice(0, 10)}`, true]);
-      }
-    }
-    $("vw-info").replaceChildren(...info.filter(([, value]) => value).flatMap(([key, value, mono]) => [
-      el("dt", { text: key }), el("dd", { class: mono ? "is-mono" : "", text: value }),
-    ]));
-
-    // the file types that hold it (all of them, for a sum)
-    const holders = streamsFor(pick.names);
-    const box = $("vw-streams");
-    if (holders.length > 1) {
-      box.replaceChildren(...[
-        el("h2", { class: "vw-head", text: "File type" }),
-        pick.stream === null ? el("p", { class: "vw-streams__ask", text: `${sum ? pick.names.join(" and ") + " are both" : pick.names[0] + " is"} in ${holders.length} file types. Which do you want?` }) : null,
-      ].filter(Boolean),
-        ...holders.map((id) => {
-          const stream = streamOf(id);
-          const input = el("input", { type: "radio", name: "vw-stream", value: String(id) });
-          input.checked = pick.stream === id;
-          input.addEventListener("change", () => { const before = inStream(); pick.stream = id; afterStream(before); });
-          return el("label", { class: "ptr-mode" }, input, el("span", {},
-            el("code", { text: stream.pattern }),
-            el("small", { text: [plural(stream.files, "file"), stream.resolution, stream.has_times ? `${stream.first.slice(0, 10)} to ${stream.last.slice(0, 10)}` : ""].filter(Boolean).join(" · ") }),
-          ));
-        }),
-      );
-      box.hidden = false;
-    } else {
-      box.replaceChildren();
-      box.hidden = true;
-    }
-    if (!now) return;
-    renderControls(now);
-  }
-
-  function renderControls(now) {
-    const stream = streamOf(now.stream);
-    const span = windowOf(stream);
-    // until the times of every file are in there is one step to look at, and no moving through them
-    const waiting = stream.pending > 0;
-    const usesTime = now.time && (waiting || span.hi > span.lo);
-    $("vw-c-time").hidden = !usesTime;
-    $("vw-step").min = String(span.lo);
-    $("vw-step").max = String(span.hi);
-    $("vw-step").value = String(pick.step);
-    $("vw-when").textContent = stream.times[pick.step] || "";
-    $("vw-step").disabled = $("vw-play").disabled = waiting;
-    $("vw-prev").disabled = waiting || pick.step <= span.lo;
-    $("vw-next").disabled = waiting || pick.step >= span.hi;
-    $("vw-c-time").title = waiting ? "The times of the files are still being read" : "";
-    if (!usesTime || waiting) stopPlay();
-    const usesLevel = now.vertical && now.levels > 1;
-    $("vw-c-level").hidden = !usesLevel;
-    if (usesLevel) {
-      const units = now.level_units ? ` ${now.level_units}` : "";
-      // FVCOM's sigma layers are named, as a layer is at no one depth
-      const options = now.level_values.map((value, index) => el("option", {
-        value: String(index),
-        text: now.level_labels ? now.level_labels[index] : `${typeof value === "number" ? +value.toPrecision(6) : value}${units}`,
-      }));
-      $("vw-level").replaceChildren(...options);
-      $("vw-level").value = String(pick.level);
-    }
-    $("vw-cmap").value = pick.cmap;
-    $("vw-vmin").value = pick.vmin;
-    $("vw-vmax").value = pick.vmax;
-    $("vw-log").checked = pick.log;
-    // every coastline (a grid's, a mesh's) is drawn with cartopy alone
-    const canCoast = state.viewer.coast;
-    $("vw-coast").checked = pick.coast && canCoast;
-    $("vw-coast").disabled = !canCoast;
-    $("vw-coast-label").classList.toggle("is-off", $("vw-coast").disabled);
-    $("vw-coast-label").title = canCoast ? "" : "Coastlines need cartopy (conda install -c conda-forge cartopy)";
-  }
-
-  // the time: the slider and the arrows
-  function updateTime(now) {
-    const stream = streamOf(now.stream);
-    const span = windowOf(stream);
-    $("vw-step").value = String(pick.step);
-    $("vw-when").textContent = stream.times[pick.step] || "";
-    $("vw-prev").disabled = pick.step <= span.lo;
-    $("vw-next").disabled = pick.step >= span.hi;
-  }
-  function setStep(step) {
-    stopPlay();
-    const now = inStream();
-    if (!now) return;
-    const stream = streamOf(now.stream);
-    if (stream.pending > 0) return;
-    const span = windowOf(stream);
-    pick.step = Math.min(Math.max(span.lo, step), span.hi);
-    renderControls(now);
-    requestPlot(120);
-  }
-  $("vw-step").addEventListener("input", (event) => setStep(Number(event.target.value)));
-  $("vw-prev").addEventListener("click", () => setStep(pick.step - 1));
-  $("vw-next").addEventListener("click", () => setStep(pick.step + 1));
-
-  // ---- the first and last year ----
-  // The years chosen cut each file type to a window of its steps, {lo, hi}: the first step of the first year to the
-  // last step of the last year, by the times of the file type (a file type with no dates is not cut). Everything that
-  // moves through time (the slider, the arrows, Play and its colour scale) stays in it. A blank box is no limit.
-  const WHOLE = /^-?\d+$/;
-  const yearOf = (stamp) => parseInt(stamp, 10);
-  // the first and last year of the output, once the times of every file are in (else null)
-  function runYears() {
-    if (!catalogue || catalogue.streams.some((stream) => stream.pending > 0)) return null;
-    const dated = catalogue.streams.filter((stream) => stream.has_times);
-    if (!dated.length) return null;
-    return [Math.min(...dated.map((stream) => yearOf(stream.times[0]))), Math.max(...dated.map((stream) => yearOf(stream.times[stream.times.length - 1])))];
-  }
-  // the years as numbers (null for a blank box), or an error in words
-  function yearsAsked() {
-    for (const [key, label] of [["first", "First year"], ["last", "Last year"]]) {
-      if (pick[key] !== "" && !WHOLE.test(pick[key])) return { error: `${label} is a whole number, like 1990.`, field: key };
-    }
-    const first = pick.first === "" ? null : Number(pick.first);
-    const last = pick.last === "" ? null : Number(pick.last);
-    if (first !== null && last !== null && first > last) return { error: "The first year is after the last.", field: "last" };
-    return { first, last };
-  }
-  // the steps of a file type in the years (lo > hi: none of them are)
-  function stepsIn(stream, first, last) {
-    const key = `${first}|${last}`;
-    if (stream._in && stream._in.key === key) return stream._in;
-    let lo = 0, hi = stream.steps - 1;
-    while (lo <= hi && first !== null && yearOf(stream.times[lo]) < first) lo += 1;
-    while (hi >= lo && last !== null && yearOf(stream.times[hi]) > last) hi -= 1;
-    stream._in = { key, lo, hi };
-    return stream._in;
-  }
-  // the window the years leave of a file type: all of it if they are blank, wrong or leave nothing
-  function windowOf(stream) {
-    const all = { lo: 0, hi: Math.max(0, stream.steps - 1) };
-    if (!stream.has_times || stream.pending > 0) return all;
-    const asked = yearsAsked();
-    if (asked.error || (asked.first === null && asked.last === null)) return all;
-    const found = stepsIn(stream, asked.first, asked.last);
-    return found.lo > found.hi ? all : found;
-  }
-  // what is wrong with the years: {field, text}, or null. A year outside the output is only mentioned
-  function yearsProblem() {
-    const asked = yearsAsked();
-    if (asked.error) return { field: asked.field, text: asked.error };
-    const run = runYears();
-    if (!run || (asked.first === null && asked.last === null)) return null;
-    const first = asked.first === null ? run[0] : asked.first;
-    const last = asked.last === null ? run[1] : asked.last;
-    if (first > run[1] || last < run[0]) return { field: "last", text: `There is no output between ${first} and ${last}. It is from ${run[0]} to ${run[1]}.` };
-    const now = inStream();
-    if (now) {
-      const stream = streamOf(now.stream);
-      const found = stepsIn(stream, asked.first, asked.last);
-      if (stream.has_times && found.lo > found.hi) return { field: "last", text: `This file type has no output between ${first} and ${last}. It is from ${yearOf(stream.times[0])} to ${yearOf(stream.times[stream.times.length - 1])}.` };
-    }
-    return null;
-  }
-
-  // the boxes, the tracker of the times being read and what is wrong, all from the state
-  function renderYears() {
-    const times = state.viewer.times;
-    const dated = Boolean(catalogue) && catalogue.streams.some((stream) => stream.has_times || stream.pending > 0);
-    $("vw-c-years").hidden = !(state.view === "viewer" && dated);
-    if ($("vw-c-years").hidden) return;
-    const reading = Boolean(times) && !times.error;
-    const run = runYears();
-    for (const key of ["first", "last"]) {
-      const box = $(`vw-${key}`);
-      // the arrow lists the years of the output, and any year can be typed
-      box.yearChoices = run ? Array.from({ length: run[1] - run[0] + 1 }, (_, i) => run[0] + i) : [];
-      box.placeholder = run ? String(run[key === "first" ? 0 : 1]) : "…";
-      box.disabled = Boolean(times);
-      if (document.activeElement !== box) box.value = pick[key];
-      box.title = times ? "Waiting for the times of the files to be read" : "";
-    }
-    const total = reading ? times.total : 0;
-    $("vw-times").hidden = !reading;
-    $("vw-times-meter").hidden = !reading;
-    if (reading) {
-      $("vw-times-text").textContent = `Reading the times of the files: ${times.done.toLocaleString()}/${total.toLocaleString()}`;
-      $("vw-times-bar").style.width = `${total ? Math.round((100 * times.done) / total) : 0}%`;
-    }
-    const problem = yearsProblem();
-    for (const key of ["first", "last"]) {
-      const bad = Boolean(problem) && (problem.field === key || (problem.field === "last" && key === "first" && !yearsAsked().error));
-      $(`vw-${key}`).classList.toggle("is-invalid", bad);
-      $(`vw-${key}`).setAttribute("aria-invalid", String(bad));
-    }
-    // one line: the times could not be read, or what is wrong, or a year outside the output
-    let note = "", error = false;
-    if (times && times.error) { note = times.error; error = true; }
-    else if (problem) { note = problem.text; error = true; }
-    else if (run) {
-      const asked = yearsAsked();
-      if (asked.first !== null && asked.first < run[0]) note = `The output starts in ${run[0]}.`;
-      else if (asked.last !== null && asked.last > run[1]) note = `The output ends in ${run[1]}.`;
-    }
-    $("vw-years-note").hidden = !note;
-    $("vw-years-note").textContent = note;
-    $("vw-years-note").classList.toggle("is-error", error);
-  }
-
-  // a year is typed or picked: once it has settled the file types are cut to it, and the map moves into it
-  let yearsTimer = null;
-  function yearsEdited() {
-    // not at every key: "1990" is typed as 1, 19, 199, none of which is the year wanted
-    clearTimeout(yearsTimer);
-    yearsTimer = setTimeout(applyYears, 400);
-  }
-  function applyYears() {
-    stopPlay();
-    scale = null;
-    renderYears();
-    const now = inStream();
-    if (!now) return;
-    const span = windowOf(streamOf(now.stream));
-    const step = Math.min(Math.max(span.lo, pick.step), span.hi);
-    const moved = step !== pick.step;
-    pick.step = step;
-    renderSide();
-    if (moved) requestPlot(0);
-  }
-  for (const key of ["first", "last"]) {
-    const box = $(`vw-${key}`);
-    withChoices(box, []);
-    box.addEventListener("input", () => { pick[key] = box.value.trim(); yearsEdited(); });
-  }
-
-  // ---- playing: an animation ----
-  // Frames are fetched ahead (a few at a time) and shown on a clock, so the map is never covered by a "reading"
-  // message and moves as often as the files allow, up to the speed chosen. One colour scale is used for the
-  // whole run (from a few steps spread through it), so colours mean the same in every frame. The frame
-  // after the last is the first.
+  // an animation: frames a second by speed, the frames kept ready ahead, the requests at once, and the frames
+  // ready before it starts moving
   const SPEEDS = { slow: 2, normal: 5, fast: 10 };
-  const AHEAD = 8;       // frames kept ready ahead of the one shown
-  const FETCHING = 2;    // requests at once
-  const START_WITH = 3;  // frames ready before it starts moving
-  let playing = false;
-  let playRun = 0;
-  let playNext = 0;
-  const frames = new Map(); // parameters of a frame -> its reply, as a promise
-  const ready = new Set();  // those of them that are in
-  let fetching = 0;
+  const AHEAD = 8;
+  const FETCHING = 2;
+  const START_WITH = 3;
+  const WHOLE = /^-?\d+$/;
+  // the variable column: its width to start with, the least it can be (a slim strip), the most (of the panel), and an arrow key's step, in px
+  const SIDE_WIDTH = 280;
+  const SIDE_LEAST = 40;
+  // below this the column's contents cannot be read, so they are hidden (the divider stays, to drag it out again)
+  const SIDE_USABLE = 150;
+  const SIDE_MOST = 0.55;
+  const SIDE_STEP = 16;
+  const yearOf = (stamp) => parseInt(stamp, 10);
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  // how a panel's variables, file type, time and colours start
+  const freshPick = (speed = "normal") => ({
+    names: [], stream: null, step: 0, level: 0, speed, cmap: "", vmin: "", vmax: "", log: false, coast: false, first: "", last: "",
+  });
 
-  const paramsFor = (step) => ({ ...plotParams(), step: String(step) });
-  // a frame is of the files read (another simulation can have the same variables) and of their times
-  // as they were (a step can be another time once every file's times are in)
-  const frameKey = (params) => JSON.stringify([viewerShown, timesNumber, params]);
-  const keyFor = (step) => frameKey(paramsFor(step));
-  function forgetFrames() {
-    frames.clear();
-    ready.clear();
+  // the panels by number, the panel last used (whose arrow keys move its time), the panel whose box is open, and
+  // the boxes not applied, by panel number
+  const panels = new Map();
+  let activePanel = null;
+  let setupPanel = null;
+  const panelDrafts = new Map();
+
+  // the name a panel is called by: its name in the bank, else its directory (or file), else its number
+  function panelTitle(slot) {
+    const form = slot.form || {};
+    const folder = String(form.simdir || "").trim().split(/[\\/]/).filter(Boolean).pop();
+    return String(form.name || "").trim() || folder || `Simulation ${slot.id}`;
   }
-  function fetchFrame(step) {
-    const params = paramsFor(step);
-    const key = frameKey(params);
-    if (frames.has(key)) return frames.get(key);
-    fetching += 1;
-    const promise = fetch(`api/viewer/plot?${query(params)}`, { cache: "no-store" })
-      .then((response) => response.json())
-      .catch(() => ({ ok: false, error: "OceanVal is no longer running." }))
-      .then((reply) => {
-        fetching -= 1;
-        // forgotten meanwhile: the files or their times have changed
-        if (frames.get(key) !== promise) return reply;
-        if (reply.ok) ready.add(key); else frames.delete(key);
-        if (playing) topUp();
-        return reply;
+
+  // whether FVCOM output is being looked at in any panel, whose plotting the bar credits to pyfvcom2
+  const viewerFvcom = () => state.view === "viewer" && [...panels.values()].some(
+    (panel) => panel.catalogue && panel.catalogue.streams.some((stream) => stream.fvcom),
+  );
+
+  // one simulation: its reading, what is chosen to map, the animation and the figures drawn. Its box is the setup
+  // page's form (see openSetup); its state comes from the server (see oceanval.viewer_app.ViewerSlot)
+  class ViewerPanel {
+    constructor(number) {
+      this.number = number;
+      this.slot = null;
+      this.root = $("vw-panel-tpl").content.firstElementChild.cloneNode(true);
+      this.root.dataset.panel = String(number);
+      this.$ = (name) => this.root.querySelector(`[data-vw="${name}"]`);
+      // the two figures are stacked: a new one is drawn in the one behind, then shown (see draw). Bokeh embeds each by id
+      this.figIds = { plot: `vw-${number}-plot`, "plot-b": `vw-${number}-plot-b` };
+      this.$("plot").id = this.figIds.plot;
+      this.$("plot-b").id = this.figIds["plot-b"];
+      this.front = "plot";
+      this.drawn = null;
+      this.figures = { plot: [], "plot-b": [] };
+      // each figure's frame height / width (viewer_plots._render), or null to fill the box
+      this.aspects = { plot: null, "plot-b": null };
+      this.fitQueued = false;
+      // what is read: the files and their variables (catalogue), the number of the reading shown, and the times
+      this.catalogue = null;
+      this.shown = null;
+      this.timesNumber = null;
+      this.pick = freshPick();
+      this.lastClim = null;
+      // the colour scale an animation keeps: {key, vmin, vmax, cmap}, for the variables and level it was made for
+      this.scale = null;
+      this.listActive = -1;
+      this.lastWarning = null;
+      this.playing = false;
+      this.playRun = 0;
+      this.playNext = 0;
+      this.frames = new Map();
+      this.ready = new Set();
+      this.fetching = 0;
+      this.plotNumber = 0;
+      this.plotTimer = null;
+      this.yearsTimer = null;
+      this.$("cmap").replaceChildren(...COLOUR_MAPS.map((name) => el("option", { value: name, text: name || "Automatic (ncplot's choice)" })));
+      this.$("speed").value = this.pick.speed;
+      this.$("remove").hidden = number === 1;
+      this.wire();
+      this.wireSplit();
+      // the width of the variable column, dragged on its divider, kept for the panel number between visits
+      let width = SIDE_WIDTH;
+      try { width = Number(window.localStorage.getItem(`oceanval-vw-side-${number}`)) || SIDE_WIDTH; } catch (error) { /* not kept */ }
+      this.setSideWidth(width, false);
+      this.resizer = new ResizeObserver(() => {
+        if (this.fitQueued) return;
+        this.fitQueued = true;
+        requestAnimationFrame(() => {
+          this.fitQueued = false;
+          if (this.figures[this.front].length) this.fitAndSettle(this.front, this.figures[this.front][0]);
+        });
       });
-    frames.set(key, promise);
-    // a few frames behind the one shown are enough to go back to
-    while (frames.size > AHEAD * 2) {
-      const oldest = frames.keys().next().value;
-      frames.delete(oldest);
-      ready.delete(oldest);
+      this.resizer.observe(this.$("plot-wrap"));
     }
-    return promise;
-  }
-  const stepsAhead = (from, count) => {
-    const span = windowOf(streamOf(inStream().stream));
-    const total = span.hi - span.lo + 1;
-    return Array.from({ length: Math.min(count, total) }, (_, i) => span.lo + ((from - span.lo + i) % total));
-  };
-  const readyAhead = (from, count) => stepsAhead(from, count).filter((step) => ready.has(keyFor(step))).length;
-  // keeps FETCHING requests going for the frames from playNext on, until AHEAD of them have been asked for
-  function topUp() {
-    if (!playing || !inStream()) return;
-    for (const step of stepsAhead(playNext, AHEAD)) {
-      if (fetching >= FETCHING) return;
-      fetchFrame(step);
-    }
-  }
 
-  // the years chosen are part of what the scale is for
-  const scaleKey = () => {
-    const span = pick.stream === null ? null : windowOf(streamOf(pick.stream));
-    return JSON.stringify([pick.names, pick.stream, pick.level, span && span.lo, span && span.hi]);
-  };
-  // the range of the variable over the whole run, once for the variables and level shown
-  async function ensureScale(run) {
-    if (scale && scale.key === scaleKey()) return true;
-    if (pick.vmin !== "" && pick.vmax !== "") return true;
-    const key = scaleKey();
-    const span = windowOf(streamOf(pick.stream));
-    $("vw-play-status").textContent = "Preparing the animation…";
-    let reply;
-    try {
-      reply = await (await fetch(`api/viewer/limits?${query({
-        stream: String(pick.stream), vars: JSON.stringify(pick.names), level: String(pick.level), first: String(span.lo), last: String(span.hi),
-      })}`, { cache: "no-store" })).json();
-    } catch (error) {
-      reply = { ok: false, error: "OceanVal is no longer running." };
-    }
-    if (run !== playRun) return false;
-    if (!reply.ok) { showPlotError(reply.error); stopPlay(); return false; }
-    scale = { key, vmin: String(reply.vmin), vmax: String(reply.vmax), cmap: reply.symmetric ? "RdBu_r" : "" };
-    return true;
-  }
-
-  function setPlaying(on) {
-    playing = on;
-    const button = $("vw-play");
-    button.setAttribute("aria-pressed", String(on));
-    button.setAttribute("aria-label", on ? "Pause" : "Play");
-    button.title = on ? "Pause" : "Play through the times";
-    button.innerHTML = on ? "&#10074;&#10074;" : "&#9654;";
-    if (!on) $("vw-play-status").textContent = "";
-  }
-  function stopPlay() {
-    playRun += 1;
-    if (playing) setPlaying(false);
-  }
-  $("vw-play").addEventListener("click", () => {
-    if (playing) { stopPlay(); return; }
-    startPlay();
-  });
-  $("vw-speed").addEventListener("change", (event) => { pick.speed = event.target.value; });
-
-  async function startPlay() {
-    const now = inStream();
-    if (!now) return;
-    const stream = streamOf(now.stream);
-    if (stream.pending > 0) return;
-    const span = windowOf(stream);
-    const total = span.hi - span.lo + 1;
-    if (total < 2) return;
-    // nothing else is to draw while it plays
-    clearTimeout(plotTimer);
-    plotNumber += 1;
-    $("vw-plot-busy").hidden = true;
-    $("vw-plot-error").hidden = true;
-    const run = ++playRun;
-    setPlaying(true);
-    playNext = pick.step >= span.hi ? span.lo : pick.step + 1;
-    const current = () => playing && run === playRun;
-    let due = 0;
-    while (current()) {
-      if (!(await ensureScale(run))) return;
-      topUp();
-      // the first frames are waited for together, so that it starts moving smoothly
-      if (due === 0) {
-        const need = Math.min(START_WITH, total);
-        while (current() && readyAhead(playNext, need) < need) {
-          $("vw-play-status").textContent = `Loading frames ${readyAhead(playNext, need)}/${need}`;
-          topUp();
-          await sleep(60);
-        }
-        if (!current()) return;
-        $("vw-play-status").textContent = "";
+    wire() {
+      this.root.addEventListener("pointerdown", () => { activePanel = this.number; });
+      this.root.addEventListener("focusin", () => { activePanel = this.number; });
+      this.$("idle-btn").addEventListener("click", () => openSetup(this.number));
+      this.$("remove").addEventListener("click", async () => {
+        const reply = await post("api/viewer/remove", { viewer: this.number });
+        if (!reply.ok) toast(reply.error || "That cannot be done now.");
+      });
+      this.$("search").addEventListener("input", () => { this.listActive = 0; this.renderList(); });
+      this.$("search").addEventListener("keydown", (event) => this.searchKey(event));
+      this.$("clear").addEventListener("click", () => {
+        const before = this.inStream();
+        this.pick.names = [];
+        this.pick.stream = null;
+        this.afterStream(before);
+      });
+      for (const key of ["first", "last"]) {
+        const box = this.$(key);
+        withChoices(box, []);
+        box.addEventListener("input", () => { this.pick[key] = box.value.trim(); this.yearsEdited(); });
       }
-      const wanted = playNext;
-      // "Loading" is said only if the frame is more than a moment late
-      const late = due !== 0 && !ready.has(keyFor(wanted))
-        ? setTimeout(() => { if (current()) $("vw-play-status").textContent = `Loading ${readyAhead(wanted, AHEAD)}/${AHEAD}`; }, 400)
-        : null;
-      const reply = await fetchFrame(wanted);
-      clearTimeout(late);
-      if (!current()) return;
-      if (!reply.ok) { showPlotError(reply.error); stopPlay(); return; }
-      // on time: a late frame is shown at once, and the next is not rushed to catch up
-      await sleep(Math.max(0, due - performance.now()));
-      if (!current()) return;
-      due = performance.now() + 1000 / SPEEDS[pick.speed];
-      $("vw-play-status").textContent = "";
-      await showFrame(reply, wanted);
-      if (!current()) return;
-      playNext = span.lo + ((wanted - span.lo + 1) % total);
-      topUp();
+      this.$("step").addEventListener("input", (event) => this.setStep(Number(event.target.value)));
+      this.$("prev").addEventListener("click", () => this.setStep(this.pick.step - 1));
+      this.$("next").addEventListener("click", () => this.setStep(this.pick.step + 1));
+      this.$("play").addEventListener("click", () => {
+        if (this.playing) { this.stopPlay(); return; }
+        this.startPlay();
+      });
+      this.$("speed").addEventListener("change", (event) => { this.pick.speed = event.target.value; });
+      this.$("level").addEventListener("change", (event) => { this.pick.level = Number(event.target.value); this.requestPlot(0); });
+      this.$("cmap").addEventListener("change", (event) => { this.pick.cmap = event.target.value; this.requestPlot(0); });
+      for (const name of ["vmin", "vmax"]) {
+        this.$(name).addEventListener("input", (event) => {
+          this.pick[name] = event.target.value.trim();
+          const bad = this.pick[name] !== "" && !Number.isFinite(Number(this.pick[name]));
+          event.target.classList.toggle("is-invalid", bad);
+          if (!bad) this.requestPlot(500);
+        });
+      }
+      this.$("keep").addEventListener("click", () => {
+        if (!this.lastClim) return;
+        this.pick.vmin = String(+this.lastClim[0].toPrecision(6));
+        this.pick.vmax = String(+this.lastClim[1].toPrecision(6));
+        this.renderControls(this.inStream());
+        toast("The colour scale is kept for every time until you choose Automatic.");
+      });
+      this.$("auto").addEventListener("click", () => {
+        this.pick.vmin = this.pick.vmax = "";
+        this.scale = null;
+        this.renderControls(this.inStream());
+        this.requestPlot(0);
+      });
+      this.$("log").addEventListener("change", (event) => { this.pick.log = event.target.checked; this.requestPlot(0); });
+      this.$("coast").addEventListener("change", (event) => { this.pick.coast = event.target.checked; this.requestPlot(0); });
     }
-  }
 
-  // one frame of the animation: drawn behind, then shown
-  async function showFrame(reply, step) {
-    const now = inStream();
-    if (!now) return;
-    lastClim = reply.clim || null;
-    await draw(reply.item);
-    pick.step = step;
-    updateTime(now);
-  }
-  document.addEventListener("keydown", (event) => {
-    if (state.view !== "viewer" || $("vw-c-time").hidden || $("vw-controls").hidden) return;
-    const target = event.target;
-    if (target.matches && target.matches("input:not([type=range]), select, textarea")) return;
-    if (event.key === "ArrowRight") { event.preventDefault(); setStep(pick.step + 1); }
-    if (event.key === "ArrowLeft") { event.preventDefault(); setStep(pick.step - 1); }
-  });
-
-  $("vw-level").addEventListener("change", (event) => { pick.level = Number(event.target.value); requestPlot(0); });
-  $("vw-cmap").addEventListener("change", (event) => { pick.cmap = event.target.value; requestPlot(0); });
-  for (const name of ["vmin", "vmax"]) {
-    $(`vw-${name}`).addEventListener("input", (event) => {
-      pick[name] = event.target.value.trim();
-      const bad = pick[name] !== "" && !Number.isFinite(Number(pick[name]));
-      event.target.classList.toggle("is-invalid", bad);
-      if (!bad) requestPlot(500);
-    });
-  }
-  $("vw-keep").addEventListener("click", () => {
-    if (!lastClim) return;
-    pick.vmin = String(+lastClim[0].toPrecision(6));
-    pick.vmax = String(+lastClim[1].toPrecision(6));
-    renderControls(inStream());
-    toast("The colour scale is kept for every time until you choose Automatic.");
-  });
-  $("vw-auto").addEventListener("click", () => { pick.vmin = pick.vmax = ""; scale = null; renderControls(inStream()); requestPlot(0); });
-  $("vw-log").addEventListener("change", (event) => { pick.log = event.target.checked; requestPlot(0); });
-  $("vw-coast").addEventListener("change", (event) => { pick.coast = event.target.checked; requestPlot(0); });
-
-  // ---- the maps ----
-  let plotNumber = 0;
-  let plotTimer = null;
-  // what is asked for: the colour scale of an animation stands in for an automatic one
-  function plotParams() {
-    const kept = scale && scale.key === scaleKey() ? scale : null;
-    return {
-      stream: String(pick.stream), vars: JSON.stringify(pick.names), step: String(pick.step), level: String(pick.level),
-      cmap: pick.cmap || (kept ? kept.cmap : ""),
-      vmin: pick.vmin !== "" ? pick.vmin : (kept ? kept.vmin : ""),
-      vmax: pick.vmax !== "" ? pick.vmax : (kept ? kept.vmax : ""),
-      log: pick.log ? "1" : "", coast: pick.coast ? "1" : "",
-    };
-  }
-
-  // a problem with what was drawn, said once (the Natural Earth coastline that could not be fetched)
-  let lastWarning = null;
-  function tellWarning(text) {
-    if (text && text !== lastWarning) toast(text);
-    lastWarning = text || null;
-  }
-
-  function showPlotError(text) {
-    $("vw-plot-error").textContent = text;
-    $("vw-plot-error").hidden = false;
-  }
-
-  function clearPlot() {
-    stopPlay();
-    plotNumber++;
-    disposeFigures();
-    $("vw-plot-empty").hidden = false;
-    $("vw-plot-busy").hidden = true;
-    $("vw-plot-error").hidden = true;
-    if (catalogue && pick.names.length && pick.stream === null) {
-      $("vw-plot-empty").replaceChildren(el("div", {}, el("strong", { text: "Choose the file type" }), "They are in more than one: say which on the left."));
-    } else {
-      $("vw-plot-empty").replaceChildren(el("div", {}, el("strong", { text: "Choose a variable" }), "Search for it on the left."));
+    // the variable column's width in px, within what leaves the search box usable and the map its room
+    setSideWidth(width, remember = true) {
+      // (a panel not yet on the page has no width to limit it by)
+      const room = this.root.getBoundingClientRect().width;
+      const most = room ? Math.max(SIDE_LEAST, Math.floor(room * SIDE_MOST)) : Infinity;
+      this.sideWidth = Math.min(Math.max(SIDE_LEAST, Math.round(width)), most);
+      this.root.style.setProperty("--vw-side", `${this.sideWidth}px`);
+      this.root.classList.toggle("is-side-min", this.sideWidth < SIDE_USABLE);
+      const split = this.$("split");
+      split.setAttribute("aria-valuemin", String(SIDE_LEAST));
+      split.setAttribute("aria-valuemax", String(Number.isFinite(most) ? most : 9999));
+      split.setAttribute("aria-valuenow", String(this.sideWidth));
+      if (remember) {
+        try { window.localStorage.setItem(`oceanval-vw-side-${this.number}`, String(this.sideWidth)); } catch (error) { /* not kept */ }
+      }
     }
-  }
 
-  function requestPlot(delay) {
-    // an animation draws its own frames
-    if (playing) return;
-    clearTimeout(plotTimer);
-    const number = ++plotNumber;
-    $("vw-plot-busy").hidden = false;
-    plotTimer = setTimeout(async () => {
-      const reply = await fetchFrame(pick.step);
-      if (number !== plotNumber) return;
-      $("vw-plot-busy").hidden = true;
-      if (!reply.ok) {
-        showPlotError(reply.error);
+    // the divider: dragged (the pointer is captured, so it works over the map), moved by the arrow keys, reset by a double-click
+    wireSplit() {
+      const split = this.$("split");
+      let drag = null;
+      split.addEventListener("pointerdown", (event) => {
+        drag = { x: event.clientX, width: this.sideWidth };
+        split.setPointerCapture(event.pointerId);
+        split.classList.add("is-dragging");
+        event.preventDefault();
+      });
+      split.addEventListener("pointermove", (event) => {
+        if (!drag) return;
+        const width = drag.width + event.clientX - drag.x;
+        // the map is refitted by its ResizeObserver; at most once a frame
+        cancelAnimationFrame(drag.frame);
+        drag.frame = requestAnimationFrame(() => this.setSideWidth(width, false));
+      });
+      const end = () => {
+        if (!drag) return;
+        cancelAnimationFrame(drag.frame);
+        drag = null;
+        split.classList.remove("is-dragging");
+        this.setSideWidth(this.sideWidth);
+      };
+      split.addEventListener("pointerup", end);
+      split.addEventListener("pointercancel", end);
+      split.addEventListener("dblclick", () => this.setSideWidth(SIDE_WIDTH));
+      split.addEventListener("keydown", (event) => {
+        const keys = { ArrowLeft: -SIDE_STEP, ArrowRight: SIDE_STEP };
+        if (event.key in keys) this.setSideWidth(this.sideWidth + keys[event.key]);
+        else if (event.key === "Home") this.setSideWidth(0);
+        else if (event.key === "End") this.setSideWidth(Infinity);
+        else return;
+        event.preventDefault();
+      });
+    }
+
+    // the state of the panel from the server: its box and reading, and what it shows
+    update(slot) {
+      this.slot = slot;
+      this.$("title").textContent = panelTitle(slot);
+      this.$("idle-btn").setAttribute("aria-expanded", String(setupPanel === this.number));
+      this.$("error").hidden = !slot.error;
+      this.$("error").textContent = slot.error || "";
+      const scanning = slot.view === "viewer_scanning";
+      const ready = slot.view === "viewer";
+      this.$("idle").hidden = scanning || ready;
+      // an empty panel has its button in the middle; a panel with a simulation has none. The first panel's box
+      // opens by itself in the middle (see renderViewers) and cannot be closed until a simulation is given
+      this.$("idle-btn").hidden = this.number === 1;
+      this.root.classList.toggle("is-first-empty", this.number === 1 && !this.$("idle").hidden);
+      this.$("scanning").hidden = !scanning;
+      this.$("body").hidden = !ready;
+      if (scanning) this.renderScan(slot.scan);
+      // a simulation being read, or none: what was shown is gone
+      if (!ready && this.catalogue) this.reset();
+      if (!ready) return;
+      ensureBokeh();
+      if (slot.catalogue_number !== null && slot.catalogue_number !== this.shown) this.loadCatalogue();
+      // every file's times have come in
+      else if (this.catalogue && slot.times_number !== this.timesNumber) this.refreshTimes();
+      this.renderYears();
+    }
+
+    renderScan(scan) {
+      const progress = scan || { phase: "variables", done: 0, total: 0 };
+      const share = progress.total ? Math.round((100 * progress.done) / progress.total) : 0;
+      this.$("scan-meter").style.width = `${share}%`;
+      this.$("scan-text").textContent = progress.total ? `${progress.done} of ${progress.total}` : "Please wait!";
+    }
+
+    // what was shown is let go of: its reading, its map and its animation
+    reset() {
+      this.stopPlay();
+      this.disposeFigures();
+      this.catalogue = null;
+      this.shown = null;
+      this.timesNumber = null;
+      this.pick = freshPick(this.pick.speed);
+      this.scale = null;
+      this.lastClim = null;
+      this.forgetFrames();
+    }
+
+    dispose() {
+      this.stopPlay();
+      this.disposeFigures();
+      this.resizer.disconnect();
+      this.root.remove();
+    }
+
+    async loadCatalogue() {
+      const number = this.slot.catalogue_number;
+      const timesAtLoad = this.slot.times_number;
+      this.shown = number;
+      let reply;
+      try {
+        reply = await (await fetch(`api/viewer/catalogue?${query({ viewer: this.number })}`, { cache: "no-store" })).json();
+      } catch (error) {
+        this.shown = null;
         return;
       }
-      $("vw-plot-error").hidden = true;
-      lastClim = reply.clim || null;
-      tellWarning(reply.warning);
-      await draw(reply.item);
-      if (number !== plotNumber) return;
-      $("vw-plot-empty").hidden = true;
-      const now = inStream();
-      if (now) renderControls(now);
-    }, delay);
+      if (!reply.ok || reply.number !== number) return;
+      this.catalogue = reply;
+      this.timesNumber = timesAtLoad;
+      Object.assign(this.pick, { names: [], stream: null, step: 0, level: 0, first: "", last: "" });
+      this.scale = null;
+      this.forgetFrames();
+      this.$("search").value = "";
+      this.clearPlot();
+      this.renderList();
+      this.renderSide();
+      this.renderYears();
+      renderBar();
+      if (activePanel === this.number) this.$("search").focus();
+      this.toastUnreadable();
+    }
+
+    toastUnreadable() {
+      if (!this.catalogue.times_complete) return;
+      const unreadable = this.catalogue.streams.reduce((sum, stream) => sum + stream.unreadable, 0);
+      if (unreadable) toast(`The times of ${plural(unreadable, "file")} could not be read.`);
+    }
+
+    // The times of the files are read in the background (at first only the first file of each file type's are in),
+    // and the panel is told how far that has got (slot.times) and when it is done (slot.times_number). It then asks
+    // again for what the file types hold and swaps their times in, keeping what is chosen: the variables, the file
+    // type, the level and colours, the years, and the time shown (by its date, as it may have a new number).
+    async refreshTimes() {
+      this.timesNumber = this.slot.times_number;
+      let reply;
+      try {
+        reply = await (await fetch(`api/viewer/catalogue?${query({ viewer: this.number })}`, { cache: "no-store" })).json();
+      } catch (error) {
+        this.timesNumber = null;
+        return;
+      }
+      // another set of files has been opened since: loadCatalogue is on it
+      if (!reply.ok || reply.number !== this.shown || !this.catalogue) return;
+      const now = this.inStream();
+      const shown = now ? this.streamOf(now.stream).times[this.pick.step] : null;
+      this.catalogue.streams = reply.streams;
+      this.catalogue.times_complete = reply.times_complete;
+      this.scale = null;
+      this.forgetFrames();
+      if (now) {
+        const times = this.streamOf(now.stream).times;
+        const at = shown ? times.findIndex((time) => time >= shown) : 0;
+        const step = at < 0 ? times.length - 1 : at;
+        const moved = step !== this.pick.step;
+        this.pick.step = step;
+        this.renderSide();
+        if (moved) this.requestPlot(0);
+      }
+      this.renderYears();
+      this.toastUnreadable();
+    }
+
+    matching() {
+      const wanted = OceanValGUI.searchMatcher(this.$("search").value);
+      return Object.entries(this.catalogue.variables).filter(([name, about]) => wanted.test([name, about.long_name, about.units]));
+    }
+
+    renderList() {
+      if (!this.catalogue) return;
+      const found = this.matching();
+      this.listActive = Math.min(this.listActive, found.length - 1);
+      const items = found.map(([name, about], index) => {
+        const ticked = this.pick.names.includes(name);
+        // what cannot be added to the variables ticked: no file type has them all with the same dimensions
+        const why = !ticked && this.pick.names.length && !this.streamsFor([...this.pick.names, name]).length
+          ? `${name} cannot be added to ${this.pick.names.join(" + ")}: no file type holds them with the same dimensions.` : "";
+        // + adds it to the sum (greyed out when it cannot be added), - takes it out
+        const box = el("button", {
+          type: "button", class: "vw-pm", text: ticked ? "-" : "+", disabled: Boolean(why),
+          "aria-label": ticked ? `Remove ${name} from the sum` : `Add ${name} to the sum`,
+        });
+        box.addEventListener("click", (event) => { event.stopPropagation(); this.toggle(name); });
+        return el("li", {
+          role: "option", "data-name": name, title: why || null,
+          class: `${ticked ? "is-chosen" : ""}${index === this.listActive ? " is-active" : ""}${why ? " is-incompatible" : ""}`,
+          "aria-selected": String(ticked), "aria-disabled": String(Boolean(why)),
+          // a click on the row chooses it alone; only its + button adds it to the sum
+          onclick: () => {
+            if (String(window.getSelection() || "")) return;
+            if (this.pick.names.length === 1 && this.pick.names[0] === name) return;
+            this.choose(name);
+          },
+        },
+          box,
+          el("span", { class: "vw-list__name", text: name }),
+          about.long_name || about.units ? el("span", { class: "vw-list__long", text: [about.long_name, about.units && `(${about.units})`].filter(Boolean).join(" ") }) : null,
+          about.streams.length > 1 ? el("span", { class: "vw-list__more", text: `In ${about.streams.length} file types` }) : null,
+        );
+      });
+      const none = Object.keys(this.catalogue.variables).length ? "No variable matches that." : "No variable here can be mapped.";
+      this.$("list").replaceChildren(...(items.length ? items : [el("li", { class: "vw-list__none", text: none })]));
+      this.$("clear").hidden = !this.pick.names.length;
+    }
+
+    searchKey(event) {
+      if (!this.catalogue) return;
+      const found = this.matching();
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (!found.length) return;
+        this.listActive = (this.listActive + (event.key === "ArrowDown" ? 1 : -1) + found.length) % found.length;
+        this.renderList();
+        const active = this.$("list").querySelector(".is-active");
+        if (active) active.scrollIntoView({ block: "nearest" });
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        const chosen = found[Math.max(0, this.listActive)];
+        // Shift+Enter adds it to the sum; Enter chooses it alone
+        if (chosen && event.shiftKey) { if (!this.$("list").querySelector(".is-active.is-incompatible")) this.toggle(chosen[0]); }
+        else if (chosen) this.choose(chosen[0]);
+      }
+    }
+
+    streamOf(id) {
+      return this.catalogue.streams.find((stream) => stream.id === id);
+    }
+
+    // the file types that hold every one of names with the same dimensions and sizes (as the first)
+    streamsFor(names) {
+      if (!names.length) return [];
+      return this.catalogue.variables[names[0]].streams.filter((first) => names.every((name) => {
+        const entry = this.catalogue.variables[name].streams.find((other) => other.stream === first.stream);
+        return entry && String(entry.dims) === String(first.dims) && String(entry.shape) === String(first.shape);
+      })).map((entry) => entry.stream);
+    }
+
+    // the first variable as it is in the chosen file type
+    inStream() {
+      if (!this.catalogue || !this.pick.names.length || this.pick.stream === null) return null;
+      return this.catalogue.variables[this.pick.names[0]].streams.find((entry) => entry.stream === this.pick.stream) || null;
+    }
+
+    // the file type is the user's to say if the variables are in more than one
+    settle() {
+      const holders = this.streamsFor(this.pick.names);
+      this.pick.stream = holders.includes(this.pick.stream) ? this.pick.stream : (holders.length === 1 ? holders[0] : null);
+    }
+
+    // one variable alone
+    choose(name) {
+      const before = this.inStream();
+      this.pick.names = [name];
+      this.settle();
+      this.afterStream(before);
+    }
+
+    // adds a variable to the sum, or takes it out (the only way to more than one: a row's + button, or Shift+Enter)
+    toggle(name) {
+      const before = this.inStream();
+      this.pick.names = this.pick.names.includes(name) ? this.pick.names.filter((other) => other !== name) : [...this.pick.names, name];
+      this.settle();
+      if (!this.pick.names.length) this.pick.stream = null;
+      this.afterStream(before);
+    }
+
+    afterStream(before) {
+      this.stopPlay();
+      this.scale = null;
+      const now = this.inStream();
+      if (now) {
+        if (!before || before.stream !== now.stream) {
+          // the time as near the one shown as the new file type has
+          const shown = before ? this.streamOf(before.stream).times[this.pick.step] : null;
+          const times = this.streamOf(now.stream).times;
+          this.pick.step = shown ? Math.max(0, times.findIndex((time) => time >= shown)) : 0;
+        }
+        const span = this.windowOf(this.streamOf(now.stream));
+        this.pick.step = Math.min(Math.max(span.lo, this.pick.step), span.hi);
+        // levels of another kind start at the surface (the last level for output written bottom first, as GETM's)
+        const sameLevels = before && before.vertical === now.vertical && before.levels === now.levels
+          && before.surface_level === now.surface_level;
+        if (!sameLevels || this.pick.level >= now.levels) this.pick.level = now.surface_level || 0;
+      } else {
+        this.clearPlot();
+      }
+      this.renderList();
+      this.renderSide();
+      if (now) this.requestPlot(0);
+    }
+
+    renderSide() {
+      const chosen = Boolean(this.catalogue && this.pick.names.length);
+      this.$("chosen").hidden = !chosen;
+      this.$("streams").hidden = !chosen;
+      const now = chosen ? this.inStream() : null;
+      this.$("controls").hidden = !now;
+      if (!chosen) return;
+      const abouts = this.pick.names.map((name) => this.catalogue.variables[name]);
+      const about = abouts[0];
+      const sum = this.pick.names.length > 1;
+      const info = sum
+        ? [["Sum of", this.pick.names.map((name, index) => `${name}${abouts[index].units ? ` (${abouts[index].units})` : ""}`).join(" + "), true]]
+        // (the variable's name and description are in the list above)
+        : [["Units", about.units]];
+      if (now) {
+        const stream = this.streamOf(now.stream);
+        info.push(["Dimensions", now.dims.map((dim, index) => `${dim} (${now.shape[index]})`).join(", "), true]);
+        info.push(["File type", stream.pattern, true]);
+        if (now.mesh) info.push(["FVCOM mesh", now.mesh === "node" ? "values on the nodes" : "values on the elements (triangles)"]);
+        const span = this.windowOf(stream);
+        // the years chosen leave some of the times, and the files that hold them
+        const cut = stream.pending === 0 && stream.has_times && (span.lo > 0 || span.hi < stream.steps - 1);
+        const heldIn = cut ? new Set(stream.step_files.slice(span.lo, span.hi + 1)).size : stream.files;
+        info.push(["Files", cut ? `${heldIn.toLocaleString()} of ${stream.files.toLocaleString()}` : `${stream.files.toLocaleString()}`]);
+        if (stream.pending > 0) {
+          info.push(["Time resolution", "being read"]);
+        } else if (stream.has_times) {
+          // how often the output is ("daily"), not how many times there are
+          info.push(["Time resolution", stream.resolution]);
+          // the dates only, on one line
+          info.push(["Dates", `${stream.times[span.lo].slice(0, 10)} – ${stream.times[span.hi].slice(0, 10)}`, true]);
+        }
+      }
+      this.$("info").replaceChildren(...info.filter(([, value]) => value).flatMap(([key, value, mono]) => [
+        el("dt", { text: key }), el("dd", { class: mono ? "is-mono" : "", text: value }),
+      ]));
+
+      // the file types that hold it (all of them, for a sum)
+      const holders = this.streamsFor(this.pick.names);
+      const box = this.$("streams");
+      if (holders.length > 1) {
+        box.replaceChildren(...[
+          el("h2", { class: "vw-head", text: "File type" }),
+          this.pick.stream === null ? el("p", { class: "vw-streams__ask", text: `${sum ? this.pick.names.join(" and ") + " are both" : this.pick.names[0] + " is"} in ${holders.length} file types. Which do you want?` }) : null,
+        ].filter(Boolean),
+          ...holders.map((id) => {
+            const stream = this.streamOf(id);
+            const input = el("input", { type: "radio", name: `vw-stream-${this.number}`, value: String(id) });
+            input.checked = this.pick.stream === id;
+            input.addEventListener("change", () => { const before = this.inStream(); this.pick.stream = id; this.afterStream(before); });
+            return el("label", { class: "ptr-mode" }, input, el("span", {},
+              el("code", { text: stream.pattern }),
+              el("small", { text: [plural(stream.files, "file"), stream.resolution, stream.has_times ? `${stream.first.slice(0, 10)} to ${stream.last.slice(0, 10)}` : ""].filter(Boolean).join(" · ") }),
+            ));
+          }),
+        );
+        box.hidden = false;
+      } else {
+        box.replaceChildren();
+        box.hidden = true;
+      }
+      if (!now) return;
+      this.renderControls(now);
+    }
+
+    renderControls(now) {
+      const stream = this.streamOf(now.stream);
+      const span = this.windowOf(stream);
+      // until the times of every file are in there is one step to look at, and no moving through them
+      const waiting = stream.pending > 0;
+      const usesTime = now.time && (waiting || span.hi > span.lo);
+      this.$("c-time").hidden = !usesTime;
+      this.$("step").min = String(span.lo);
+      this.$("step").max = String(span.hi);
+      this.$("step").value = String(this.pick.step);
+      this.$("when").textContent = stream.times[this.pick.step] || "";
+      this.$("step").disabled = this.$("play").disabled = waiting;
+      this.$("prev").disabled = waiting || this.pick.step <= span.lo;
+      this.$("next").disabled = waiting || this.pick.step >= span.hi;
+      this.$("c-time").title = waiting ? "The times of the files are still being read" : "";
+      if (!usesTime || waiting) this.stopPlay();
+      const usesLevel = now.vertical && now.levels > 1;
+      this.$("c-level").hidden = !usesLevel;
+      if (usesLevel) {
+        const units = now.level_units ? ` ${now.level_units}` : "";
+        // FVCOM's sigma layers are named, as a layer is at no one depth
+        const options = now.level_values.map((value, index) => el("option", {
+          value: String(index),
+          text: now.level_labels ? now.level_labels[index] : `${typeof value === "number" ? +value.toPrecision(6) : value}${units}`,
+        }));
+        this.$("level").replaceChildren(...options);
+        this.$("level").value = String(this.pick.level);
+      }
+      this.$("cmap").value = this.pick.cmap;
+      this.$("vmin").value = this.pick.vmin;
+      this.$("vmax").value = this.pick.vmax;
+      this.$("log").checked = this.pick.log;
+      // every coastline (a grid's, a mesh's) is drawn with cartopy alone
+      const canCoast = state.viewer.coast;
+      this.$("coast").checked = this.pick.coast && canCoast;
+      this.$("coast").disabled = !canCoast;
+      this.$("coast-label").classList.toggle("is-off", this.$("coast").disabled);
+      this.$("coast-label").title = canCoast ? "" : "Coastlines need cartopy (conda install -c conda-forge cartopy)";
+    }
+
+    // the time: the slider and the arrows
+    updateTime(now) {
+      const stream = this.streamOf(now.stream);
+      const span = this.windowOf(stream);
+      this.$("step").value = String(this.pick.step);
+      this.$("when").textContent = stream.times[this.pick.step] || "";
+      this.$("prev").disabled = this.pick.step <= span.lo;
+      this.$("next").disabled = this.pick.step >= span.hi;
+    }
+
+    setStep(step) {
+      this.stopPlay();
+      const now = this.inStream();
+      if (!now) return;
+      const stream = this.streamOf(now.stream);
+      if (stream.pending > 0) return;
+      const span = this.windowOf(stream);
+      this.pick.step = Math.min(Math.max(span.lo, step), span.hi);
+      this.renderControls(now);
+      this.requestPlot(120);
+    }
+
+    // arrow keys move the time of the panel last used, while its time is shown
+    arrowKey(event) {
+      if (state.view !== "viewer" || this.$("c-time").hidden || this.$("controls").hidden) return;
+      const target = event.target;
+      if (target.matches && target.matches("input:not([type=range]), select, textarea")) return;
+      if (event.key === "ArrowRight") { event.preventDefault(); this.setStep(this.pick.step + 1); }
+      if (event.key === "ArrowLeft") { event.preventDefault(); this.setStep(this.pick.step - 1); }
+    }
+
+    // ---- the first and last year ----
+    // The years chosen cut each file type to a window of its steps, {lo, hi}: the first step of the first year to the
+    // last step of the last year, by the times of the file type (a file type with no dates is not cut). Everything that
+    // moves through time (the slider, the arrows, Play and its colour scale) stays in it. A blank box is no limit.
+    // the first and last year of the output, once the times of every file are in (else null)
+    runYears() {
+      if (!this.catalogue || this.catalogue.streams.some((stream) => stream.pending > 0)) return null;
+      const dated = this.catalogue.streams.filter((stream) => stream.has_times);
+      if (!dated.length) return null;
+      return [Math.min(...dated.map((stream) => yearOf(stream.times[0]))), Math.max(...dated.map((stream) => yearOf(stream.times[stream.times.length - 1])))];
+    }
+
+    // the years as numbers (null for a blank box), or an error in words
+    yearsAsked() {
+      for (const [key, label] of [["first", "First year"], ["last", "Last year"]]) {
+        if (this.pick[key] !== "" && !WHOLE.test(this.pick[key])) return { error: `${label} is a whole number, like 1990.`, field: key };
+      }
+      const first = this.pick.first === "" ? null : Number(this.pick.first);
+      const last = this.pick.last === "" ? null : Number(this.pick.last);
+      if (first !== null && last !== null && first > last) return { error: "The first year is after the last.", field: "last" };
+      return { first, last };
+    }
+
+    // the steps of a file type in the years (lo > hi: none of them are)
+    stepsIn(stream, first, last) {
+      const key = `${first}|${last}`;
+      if (stream._in && stream._in.key === key) return stream._in;
+      let lo = 0, hi = stream.steps - 1;
+      while (lo <= hi && first !== null && yearOf(stream.times[lo]) < first) lo += 1;
+      while (hi >= lo && last !== null && yearOf(stream.times[hi]) > last) hi -= 1;
+      stream._in = { key, lo, hi };
+      return stream._in;
+    }
+
+    // the window the years leave of a file type: all of it if they are blank, wrong or leave nothing
+    windowOf(stream) {
+      const all = { lo: 0, hi: Math.max(0, stream.steps - 1) };
+      if (!stream.has_times || stream.pending > 0) return all;
+      const asked = this.yearsAsked();
+      if (asked.error || (asked.first === null && asked.last === null)) return all;
+      const found = this.stepsIn(stream, asked.first, asked.last);
+      return found.lo > found.hi ? all : found;
+    }
+
+    // what is wrong with the years: {field, text}, or null. A year outside the output is only mentioned
+    yearsProblem() {
+      const asked = this.yearsAsked();
+      if (asked.error) return { field: asked.field, text: asked.error };
+      const run = this.runYears();
+      if (!run || (asked.first === null && asked.last === null)) return null;
+      const first = asked.first === null ? run[0] : asked.first;
+      const last = asked.last === null ? run[1] : asked.last;
+      if (first > run[1] || last < run[0]) return { field: "last", text: `There is no output between ${first} and ${last}. It is from ${run[0]} to ${run[1]}.` };
+      const now = this.inStream();
+      if (now) {
+        const stream = this.streamOf(now.stream);
+        const found = this.stepsIn(stream, asked.first, asked.last);
+        if (stream.has_times && found.lo > found.hi) return { field: "last", text: `This file type has no output between ${first} and ${last}. It is from ${yearOf(stream.times[0])} to ${yearOf(stream.times[stream.times.length - 1])}.` };
+      }
+      return null;
+    }
+
+    // the boxes, the tracker of the times being read and what is wrong, all from the state
+    renderYears() {
+      const times = this.slot.times;
+      const dated = Boolean(this.catalogue) && this.catalogue.streams.some((stream) => stream.has_times || stream.pending > 0);
+      this.$("c-years").hidden = !(this.slot.view === "viewer" && dated);
+      if (this.$("c-years").hidden) return;
+      const reading = Boolean(times) && !times.error;
+      const run = this.runYears();
+      for (const key of ["first", "last"]) {
+        const box = this.$(key);
+        // the arrow lists the years of the output, and any year can be typed
+        box.yearChoices = run ? Array.from({ length: run[1] - run[0] + 1 }, (_, i) => run[0] + i) : [];
+        box.placeholder = run ? String(run[key === "first" ? 0 : 1]) : "…";
+        box.disabled = Boolean(times);
+        if (document.activeElement !== box) box.value = this.pick[key];
+        box.title = times ? "Waiting for the times of the files to be read" : "";
+      }
+      const total = reading ? times.total : 0;
+      this.$("times").hidden = !reading;
+      this.$("times-meter").hidden = !reading;
+      if (reading) {
+        this.$("times-text").textContent = `Reading the times of the files: ${times.done.toLocaleString()}/${total.toLocaleString()}`;
+        this.$("times-bar").style.width = `${total ? Math.round((100 * times.done) / total) : 0}%`;
+      }
+      const problem = this.yearsProblem();
+      for (const key of ["first", "last"]) {
+        const bad = Boolean(problem) && (problem.field === key || (problem.field === "last" && key === "first" && !this.yearsAsked().error));
+        this.$(key).classList.toggle("is-invalid", bad);
+        this.$(key).setAttribute("aria-invalid", String(bad));
+      }
+      // one line: the times could not be read, or what is wrong, or a year outside the output
+      let note = "", error = false;
+      if (times && times.error) { note = times.error; error = true; }
+      else if (problem) { note = problem.text; error = true; }
+      else if (run) {
+        const asked = this.yearsAsked();
+        if (asked.first !== null && asked.first < run[0]) note = `The output starts in ${run[0]}.`;
+        else if (asked.last !== null && asked.last > run[1]) note = `The output ends in ${run[1]}.`;
+      }
+      this.$("years-note").hidden = !note;
+      this.$("years-note").textContent = note;
+      this.$("years-note").classList.toggle("is-error", error);
+    }
+
+    // a year is typed or picked: once it has settled the file types are cut to it, and the map moves into it
+    yearsEdited() {
+      // not at every key: "1990" is typed as 1, 19, 199, none of which is the year wanted
+      clearTimeout(this.yearsTimer);
+      this.yearsTimer = setTimeout(() => this.applyYears(), 400);
+    }
+
+    applyYears() {
+      this.stopPlay();
+      this.scale = null;
+      this.renderYears();
+      const now = this.inStream();
+      if (!now) return;
+      const span = this.windowOf(this.streamOf(now.stream));
+      const step = Math.min(Math.max(span.lo, this.pick.step), span.hi);
+      const moved = step !== this.pick.step;
+      this.pick.step = step;
+      this.renderSide();
+      if (moved) this.requestPlot(0);
+    }
+
+    // ---- playing: an animation ----
+    // Frames are fetched ahead (a few at a time) and shown on a clock, so the map is never covered by a "reading"
+    // message and moves as often as the files allow, up to the speed chosen. One colour scale is used for the
+    // whole run (from a few steps spread through it), so colours mean the same in every frame. The frame
+    // after the last is the first.
+    paramsFor(step) {
+      return { ...this.plotParams(), step: String(step) };
+    }
+
+    // a frame is of the files read (another simulation can have the same variables) and of their times
+    // as they were (a step can be another time once every file's times are in)
+    frameKey(params) {
+      return JSON.stringify([this.shown, this.timesNumber, params]);
+    }
+
+    keyFor(step) {
+      return this.frameKey(this.paramsFor(step));
+    }
+
+    forgetFrames() {
+      this.frames.clear();
+      this.ready.clear();
+    }
+
+    fetchFrame(step) {
+      const params = this.paramsFor(step);
+      const key = this.frameKey(params);
+      if (this.frames.has(key)) return this.frames.get(key);
+      this.fetching += 1;
+      const promise = fetch(`api/viewer/plot?${query({ ...params, viewer: this.number })}`, { cache: "no-store" })
+        .then((response) => response.json())
+        .catch(() => ({ ok: false, error: "OceanVal is no longer running." }))
+        .then((reply) => {
+          this.fetching -= 1;
+          // forgotten meanwhile: the files or their times have changed
+          if (this.frames.get(key) !== promise) return reply;
+          if (reply.ok) this.ready.add(key); else this.frames.delete(key);
+          if (this.playing) this.topUp();
+          return reply;
+        });
+      this.frames.set(key, promise);
+      // a few frames behind the one shown are enough to go back to
+      while (this.frames.size > AHEAD * 2) {
+        const oldest = this.frames.keys().next().value;
+        this.frames.delete(oldest);
+        this.ready.delete(oldest);
+      }
+      return promise;
+    }
+
+    stepsAhead(from, count) {
+      const span = this.windowOf(this.streamOf(this.inStream().stream));
+      const total = span.hi - span.lo + 1;
+      return Array.from({ length: Math.min(count, total) }, (_, i) => span.lo + ((from - span.lo + i) % total));
+    }
+
+    readyAhead(from, count) {
+      return this.stepsAhead(from, count).filter((step) => this.ready.has(this.keyFor(step))).length;
+    }
+
+    // keeps FETCHING requests going for the frames from playNext on, until AHEAD of them have been asked for
+    topUp() {
+      if (!this.playing || !this.inStream()) return;
+      for (const step of this.stepsAhead(this.playNext, AHEAD)) {
+        if (this.fetching >= FETCHING) return;
+        this.fetchFrame(step);
+      }
+    }
+
+    // the years chosen are part of what the scale is for
+    scaleKey() {
+      const span = this.pick.stream === null ? null : this.windowOf(this.streamOf(this.pick.stream));
+      return JSON.stringify([this.pick.names, this.pick.stream, this.pick.level, span && span.lo, span && span.hi]);
+    }
+
+    // the range of the variable over the whole run, once for the variables and level shown
+    async ensureScale(run) {
+      if (this.scale && this.scale.key === this.scaleKey()) return true;
+      if (this.pick.vmin !== "" && this.pick.vmax !== "") return true;
+      const key = this.scaleKey();
+      const span = this.windowOf(this.streamOf(this.pick.stream));
+      this.$("play-status").textContent = "Preparing the animation…";
+      let reply;
+      try {
+        reply = await (await fetch(`api/viewer/limits?${query({
+          stream: String(this.pick.stream), vars: JSON.stringify(this.pick.names), level: String(this.pick.level),
+          first: String(span.lo), last: String(span.hi), viewer: String(this.number),
+        })}`, { cache: "no-store" })).json();
+      } catch (error) {
+        reply = { ok: false, error: "OceanVal is no longer running." };
+      }
+      if (run !== this.playRun) return false;
+      if (!reply.ok) { this.showPlotError(reply.error); this.stopPlay(); return false; }
+      this.scale = { key, vmin: String(reply.vmin), vmax: String(reply.vmax), cmap: reply.symmetric ? "RdBu_r" : "" };
+      return true;
+    }
+
+    setPlaying(on) {
+      this.playing = on;
+      const button = this.$("play");
+      button.setAttribute("aria-pressed", String(on));
+      button.setAttribute("aria-label", on ? "Pause" : "Play");
+      button.title = on ? "Pause" : "Play through the times";
+      button.innerHTML = on ? "&#10074;&#10074;" : "&#9654;";
+      if (!on) this.$("play-status").textContent = "";
+    }
+
+    stopPlay() {
+      this.playRun += 1;
+      if (this.playing) this.setPlaying(false);
+    }
+
+    async startPlay() {
+      const now = this.inStream();
+      if (!now) return;
+      const stream = this.streamOf(now.stream);
+      if (stream.pending > 0) return;
+      const span = this.windowOf(stream);
+      const total = span.hi - span.lo + 1;
+      if (total < 2) return;
+      // nothing else is to draw while it plays
+      clearTimeout(this.plotTimer);
+      this.plotNumber += 1;
+      this.$("plot-busy").hidden = true;
+      this.$("plot-error").hidden = true;
+      const run = ++this.playRun;
+      this.setPlaying(true);
+      this.playNext = this.pick.step >= span.hi ? span.lo : this.pick.step + 1;
+      const current = () => this.playing && run === this.playRun;
+      let due = 0;
+      while (current()) {
+        if (!(await this.ensureScale(run))) return;
+        this.topUp();
+        // the first frames are waited for together, so that it starts moving smoothly
+        if (due === 0) {
+          const need = Math.min(START_WITH, total);
+          while (current() && this.readyAhead(this.playNext, need) < need) {
+            this.$("play-status").textContent = `Loading frames ${this.readyAhead(this.playNext, need)}/${need}`;
+            this.topUp();
+            await sleep(60);
+          }
+          if (!current()) return;
+          this.$("play-status").textContent = "";
+        }
+        const wanted = this.playNext;
+        // "Loading" is said only if the frame is more than a moment late
+        const late = due !== 0 && !this.ready.has(this.keyFor(wanted))
+          ? setTimeout(() => { if (current()) this.$("play-status").textContent = `Loading ${this.readyAhead(wanted, AHEAD)}/${AHEAD}`; }, 400)
+          : null;
+        const reply = await this.fetchFrame(wanted);
+        clearTimeout(late);
+        if (!current()) return;
+        if (!reply.ok) { this.showPlotError(reply.error); this.stopPlay(); return; }
+        // on time: a late frame is shown at once, and the next is not rushed to catch up
+        await sleep(Math.max(0, due - performance.now()));
+        if (!current()) return;
+        due = performance.now() + 1000 / SPEEDS[this.pick.speed];
+        this.$("play-status").textContent = "";
+        await this.showFrame(reply, wanted);
+        if (!current()) return;
+        this.playNext = span.lo + ((wanted - span.lo + 1) % total);
+        this.topUp();
+      }
+    }
+
+    // one frame of the animation: drawn behind, then shown
+    async showFrame(reply, step) {
+      const now = this.inStream();
+      if (!now) return;
+      this.lastClim = reply.clim || null;
+      await this.draw(reply.item);
+      this.pick.step = step;
+      this.updateTime(now);
+    }
+
+    // ---- the maps ----
+    // what is asked for: the colour scale of an animation stands in for an automatic one
+    plotParams() {
+      const kept = this.scale && this.scale.key === this.scaleKey() ? this.scale : null;
+      return {
+        stream: String(this.pick.stream), vars: JSON.stringify(this.pick.names), step: String(this.pick.step), level: String(this.pick.level),
+        cmap: this.pick.cmap || (kept ? kept.cmap : ""),
+        vmin: this.pick.vmin !== "" ? this.pick.vmin : (kept ? kept.vmin : ""),
+        vmax: this.pick.vmax !== "" ? this.pick.vmax : (kept ? kept.vmax : ""),
+        log: this.pick.log ? "1" : "", coast: this.pick.coast ? "1" : "",
+      };
+    }
+
+    // a problem with what was drawn, said once (the Natural Earth coastline that could not be fetched)
+    tellWarning(text) {
+      if (text && text !== this.lastWarning) toast(text);
+      this.lastWarning = text || null;
+    }
+
+    showPlotError(text) {
+      this.$("plot-error").textContent = text;
+      this.$("plot-error").hidden = false;
+    }
+
+    clearPlot() {
+      this.stopPlay();
+      this.plotNumber++;
+      this.disposeFigures();
+      this.$("plot-empty").hidden = false;
+      this.$("plot-busy").hidden = true;
+      this.$("plot-error").hidden = true;
+      if (this.catalogue && this.pick.names.length && this.pick.stream === null) {
+        this.$("plot-empty").replaceChildren(el("div", {}, el("strong", { text: "Choose the file type" }), "They are in more than one: say which on the left."));
+      } else {
+        this.$("plot-empty").replaceChildren(el("div", {}, el("strong", { text: "Choose a variable" }), "Search for it on the left."));
+      }
+    }
+
+    requestPlot(delay) {
+      // an animation draws its own frames
+      if (this.playing) return;
+      clearTimeout(this.plotTimer);
+      const number = ++this.plotNumber;
+      this.$("plot-busy").hidden = false;
+      this.plotTimer = setTimeout(async () => {
+        const reply = await this.fetchFrame(this.pick.step);
+        if (number !== this.plotNumber) return;
+        this.$("plot-busy").hidden = true;
+        if (!reply.ok) {
+          this.showPlotError(reply.error);
+          return;
+        }
+        this.$("plot-error").hidden = true;
+        this.lastClim = reply.clim || null;
+        this.tellWarning(reply.warning);
+        await this.draw(reply.item);
+        if (number !== this.plotNumber) return;
+        this.$("plot-empty").hidden = true;
+        const now = this.inStream();
+        if (now) this.renderControls(now);
+      }, delay);
+    }
+
+    // Two figures are stacked: a new one is drawn in the one behind and then shown, and the one it
+    // replaces is taken apart (Bokeh keeps a view of each figure until it is told to let it go). When the
+    // variables are the same, the new figure is zoomed as the old one was.
+    release(key) {
+      for (const view of this.figures[key]) { try { view.remove(); } catch (error) { /* already gone */ } }
+      this.figures[key] = [];
+      this.aspects[key] = null;
+      this.$(key).replaceChildren();
+    }
+
+    // The frame is made as large as fits its box at its aspect, so the map fills the box's width or its height:
+    // what is round the frame (axes, colour bar, toolbar) is the figure's size less the frame's, as last laid out
+    fitFigure(key, view) {
+      const holder = this.$(key), aspect = this.aspects[key];
+      if (!view || !view.model || !view.frame || !view.el || !aspect) {
+        holder.classList.add("is-stretch");
+        return false;
+      }
+      const box = holder.getBoundingClientRect(), outer = view.el.getBoundingClientRect(), frame = view.frame.bbox;
+      if (!box.width || !box.height || !frame.width || !frame.height) return false;
+      const aroundW = outer.width - frame.width, aroundH = outer.height - frame.height;
+      const width = Math.max(40, Math.floor(Math.min(box.width - aroundW, (box.height - aroundH) / aspect)));
+      const height = Math.max(40, Math.floor(width * aspect));
+      const model = view.model;
+      if (model.sizing_mode === "fixed" && model.frame_width === width && model.frame_height === height) return false;
+      holder.classList.remove("is-stretch");
+      model.setv({ sizing_mode: "fixed", width: null, height: null, frame_width: width, frame_height: height });
+      // a new frame size alone is not laid out until asked (a new sizing_mode is)
+      if (view.invalidate_layout) view.invalidate_layout();
+      return true;
+    }
+
+    // fitted again once laid out at its size, as the axes' labels can take a little more or less room then
+    async fitAndSettle(key, view) {
+      for (let pass = 0; pass < 3 && this.fitFigure(key, view); pass++) {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
+    }
+
+    disposeFigures() {
+      this.release("plot");
+      this.release("plot-b");
+      this.front = "plot";
+      this.drawn = null;
+      this.$("plot").classList.remove("is-back");
+      this.$("plot-b").classList.add("is-back");
+    }
+
+    async draw(item) {
+      if (!(await ensureBokeh())) {
+        this.$("plot").replaceChildren(el("p", { class: "vw-error", text: "Bokeh could not be loaded, so nothing can be drawn." }));
+        return;
+      }
+      // the first figure goes straight in; after that, in the one behind
+      const first = this.figures[this.front].length === 0;
+      const back = first ? this.front : (this.front === "plot" ? "plot-b" : "plot");
+      this.release(back);
+      // drawn filling its box, out of sight until its frame is fitted
+      this.$(back).classList.add("is-stretch", "is-back");
+      this.aspects[back] = item.aspect || null;
+      // embed_item gives a manager of the views it made: the figure is its root
+      const made = await Bokeh.embed.embed_item(item, this.figIds[back]);
+      const views = Array.from(made.roots || made);
+      const key = JSON.stringify([this.pick.names, this.pick.stream]);
+      const old = this.figures[this.front][0], next = views[0];
+      // Bokeh sets a figure's ranges (and its frame) once it has drawn it: wait for that, or the zoom set below
+      // is undone and there is no frame to fit
+      if (next && next.has_finished) {
+        for (let waited = 0; waited < 1500 && !next.has_finished(); waited += 16) await sleep(16);
+      }
+      await this.fitAndSettle(back, next);
+      if (old && next && this.drawn === key && old.model && next.model && old.model.x_range && next.model.x_range) {
+        for (const axis of ["x_range", "y_range"]) {
+          const range = next.model[axis];
+          range.start = old.model[axis].start;
+          range.end = old.model[axis].end;
+          // so that auto-ranging, which may not have run yet, does not undo it (the reset tool still does)
+          range.have_updated_interactively = true;
+        }
+      }
+      this.figures[back] = views;
+      this.$(back).classList.remove("is-back");
+      if (!first) {
+        this.$(this.front).classList.add("is-back");
+        this.release(this.front);
+      }
+      this.front = back;
+      this.drawn = key;
+    }
   }
 
-  // Two figures are stacked: a new one is drawn in the one behind and then shown, and the one it
-  // replaces is taken apart (Bokeh keeps a view of each figure until it is told to let it go). When the
-  // variables are the same, the new figure is zoomed as the old one was.
-  let front = "vw-plot";
-  let drawn = null;
-  const figures = { "vw-plot": [], "vw-plot-b": [] };
+  // the panels, from the state: one for each simulation, in order, the add button after them
+  function renderViewers() {
+    const slots = state.viewer.panels;
+    const numbers = new Set(slots.map((slot) => slot.id));
+    for (const [number, panel] of [...panels]) {
+      if (numbers.has(number)) continue;
+      if (setupPanel === number) closeSetup({ keep: false });
+      panel.dispose();
+      panels.delete(number);
+      panelDrafts.delete(number);
+    }
+    // the first panel, with no simulation yet, opens its box by itself: there is nothing else to do
+    let opening = false;
+    for (const slot of slots) {
+      if (panels.has(slot.id)) continue;
+      panels.set(slot.id, new ViewerPanel(slot.id));
+      if (slot.id === 1 && slot.view === "setup") opening = true;
+    }
+    const grid = $("vw-panels");
+    grid.dataset.count = String(slots.length);
+    for (const slot of slots) {
+      const panel = panels.get(slot.id);
+      grid.insertBefore(panel.root, $("vw-add"));
+      panel.update(slot);
+    }
+    $("vw-add").hidden = slots.length >= state.viewer.most;
+    // the first panel's box opens by itself at first, and again if its simulation could not be read
+    const first = panels.get(1);
+    if (first && setupPanel === null && first.slot && first.slot.view === "setup" && (opening || first.slot.error)) openSetup(1);
+    if (activePanel !== null && !panels.has(activePanel)) activePanel = null;
+  }
+
+  // the form for a panel's box: its draft if one was left unapplied, else the simulation's form as the server has it
+  function setupSourceFor(number) {
+    if (panelDrafts.has(number)) return panelDrafts.get(number);
+    const slot = state.viewer.panels.find((panel) => panel.id === number);
+    return slot ? slot.form : {};
+  }
+
+  // a panel's "Provide simulation info" box: the setup page's form (and its banner) move into it, and back when it closes
+  // the first panel, with no simulation yet, has its box open and cannot close it
+  const boxStays = () => setupPanel === 1 && panels.has(1) && panels.get(1).root.classList.contains("is-first-empty");
+
+  function openSetup(number) {
+    if (setupPanel === number) { if (!boxStays()) closeSetup(); return; }
+    closeSetup();
+    const panel = panels.get(number);
+    if (!panel) return;
+    setupPanel = number;
+    activePanel = number;
+    panel.$("setup-slot").append($("vw-setup-pop"));
+    $("vw-setup-pop").hidden = false;
+    $("vw-setup-body").append($("setup-error"), $("setup-form"));
+    panel.$("idle-btn").setAttribute("aria-expanded", "true");
+    fillSetup();
+    $("f-simdir").focus();
+  }
+
+  // closes the box, keeping what was typed in it as the panel's draft unless it was applied (keep: false)
+  function closeSetup({ keep = true } = {}) {
+    if (setupPanel === null) return;
+    const number = setupPanel;
+    if (keep) panelDrafts.set(number, { ...setupForm() });
+    else panelDrafts.delete(number);
+    setupPanel = null;
+    $("view-setup").append($("setup-error"), $("setup-form"));
+    $("view-viewer").append($("vw-setup-pop"));
+    $("vw-setup-pop").hidden = true;
+    const panel = panels.get(number);
+    if (panel) panel.$("idle-btn").setAttribute("aria-expanded", "false");
+  }
+
+  // the boxes of every panel are let go of when the viewer is left
+  function disposePanels() {
+    closeSetup({ keep: false });
+    for (const panel of panels.values()) panel.dispose();
+    panels.clear();
+    activePanel = null;
+  }
+
+  function stopAllPlay() {
+    for (const panel of panels.values()) panel.stopPlay();
+  }
+
+  // the arrow keys go to the panel last used
+  document.addEventListener("keydown", (event) => {
+    const panel = panels.get(activePanel);
+    if (panel) panel.arrowKey(event);
+  });
+  // a click outside the box closes it (a folder chooser or other box opened from it is not outside)
+  document.addEventListener("pointerdown", (event) => {
+    // (the lists of the box's drop-downs are put on the page body, outside it, so a press on them is inside it in effect)
+    if (setupPanel === null || boxStays() || event.target.closest(".picker, .year-list, .combo__list") || $("vw-setup-pop").contains(event.target)) return;
+    const panel = panels.get(setupPanel);
+    if (panel && panel.$("idle-btn").contains(event.target)) return;
+    closeSetup();
+  });
+  $("vw-setup-pop").addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || event.target.closest(".picker") || boxStays()) return;
+    const number = setupPanel;
+    closeSetup();
+    const panel = panels.get(number);
+    if (panel && !panel.$("idle-btn").hidden) panel.$("idle-btn").focus();
+  });
+  $("vw-setup-close").addEventListener("click", () => { if (!boxStays()) closeSetup(); });
+  $("vw-apply").addEventListener("click", () => submitSetup());
+  $("vw-add").addEventListener("click", async () => {
+    const reply = await post("api/viewer/add");
+    if (!reply.ok) toast(reply.error || "That cannot be done now.");
+  });
+
+  // ---- figures on the page, shared by the maps that are not the viewer's ----
+  // the figures drawn in each element of the page, by its id (the panels of the viewer keep their own, see ViewerPanel)
+  const figures = {};
   // each figure's frame height / width (viewer_plots._render), or null to fill the box
-  const aspects = { "vw-plot": null, "vw-plot-b": null };
+  const aspects = {};
   // the domain mask questions (see domainMaskQuestion), whose maps are let go of on leaving their step
   const domainMasks = [];
   function release(id) {
@@ -4334,65 +4826,6 @@
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
   }
-  let fitQueued = false;
-  new ResizeObserver(() => {
-    if (fitQueued) return;
-    fitQueued = true;
-    requestAnimationFrame(() => {
-      fitQueued = false;
-      if (figures[front].length) fitAndSettle(front, figures[front][0]);
-    });
-  }).observe($("vw-plot-wrap"));
-  function disposeFigures() {
-    release("vw-plot");
-    release("vw-plot-b");
-    front = "vw-plot";
-    drawn = null;
-    $("vw-plot").classList.remove("is-back");
-    $("vw-plot-b").classList.add("is-back");
-  }
-  async function draw(item) {
-    if (!(await ensureBokeh())) {
-      $("vw-plot").replaceChildren(el("p", { class: "vw-error", text: "Bokeh could not be loaded, so nothing can be drawn." }));
-      return;
-    }
-    // the first figure goes straight in; after that, in the one behind
-    const first = figures[front].length === 0;
-    const back = first ? front : (front === "vw-plot" ? "vw-plot-b" : "vw-plot");
-    release(back);
-    // drawn filling its box, out of sight until its frame is fitted
-    $(back).classList.add("is-stretch", "is-back");
-    aspects[back] = item.aspect || null;
-    // embed_item gives a manager of the views it made: the figure is its root
-    const made = await Bokeh.embed.embed_item(item, back);
-    const views = Array.from(made.roots || made);
-    const key = JSON.stringify([pick.names, pick.stream]);
-    const old = figures[front][0], next = views[0];
-    // Bokeh sets a figure's ranges (and its frame) once it has drawn it: wait for that, or the zoom set below
-    // is undone and there is no frame to fit
-    if (next && next.has_finished) {
-      for (let waited = 0; waited < 1500 && !next.has_finished(); waited += 16) await sleep(16);
-    }
-    await fitAndSettle(back, next);
-    if (old && next && drawn === key && old.model && next.model && old.model.x_range && next.model.x_range) {
-      for (const axis of ["x_range", "y_range"]) {
-        const range = next.model[axis];
-        range.start = old.model[axis].start;
-        range.end = old.model[axis].end;
-        // so that auto-ranging, which may not have run yet, does not undo it (the reset tool still does)
-        range.have_updated_interactively = true;
-      }
-    }
-    figures[back] = views;
-    $(back).classList.remove("is-back");
-    if (!first) {
-      $(front).classList.add("is-back");
-      release(front);
-    }
-    front = back;
-    drawn = key;
-  }
-
   // ---- the views ----
   const VIEWS = { home: "view-home", start: "view-start",
     analyze_menu: "view-analyze-menu", bank: "view-bank", previous_work: "view-previous-work", previous_list: "view-previous-list", previous_report: "view-previous-report", preferences: "view-preferences", about: "view-about", datastore: "view-datastore", help: "view-help",
@@ -4403,11 +4836,12 @@
     register_kind: "view-register-kind", register_point: "view-register-point", register_gridded: "view-register-gridded",
     units_table: "view-units-table", output: "view-output", point_time_res: "view-point-time-res",
     preparing: "view-run", running: "view-run", finished: "view-run",
-    viewer_scanning: "view-viewer-scanning", viewer: "view-viewer",
+    viewer: "view-viewer",
     script_saved: "view-script-saved" };
   let shownView = null;
 
   function enterView(view) {
+    if (shownView === "viewer" && view !== "viewer") disposePanels();
     for (const id of new Set(Object.values(VIEWS))) $(id).hidden = id !== VIEWS[view];
     for (const question of domainMasks) if (view !== question.view) question.release();
     if (view !== "simcompare_grids") releaseScMaps();
@@ -4496,9 +4930,6 @@
       if (first) first.focus();
     } else if (view === "own_future") {
       fillOwnFuture();
-    } else if (view === "viewer") {
-      // the files read may be others than those shown last
-      viewerShown = null;
     } else if (view === "script_saved") {
       $("script-saved-title").focus();
     } else if (view === "point_time_res") {
@@ -4513,7 +4944,7 @@
     shownView = view;
     // the viewer has the whole width of the window
     document.body.classList.toggle("is-viewer", view === "viewer");
-    if (view !== "viewer") stopPlay();
+    if (view !== "viewer") stopAllPlay();
     $("toast").hidden = true;
     // what was said as the step was left, for the step it led to
     if (pendingToast) {
@@ -4603,8 +5034,7 @@
     showGenerateStage();
     if (VIEWS[state.view] === "view-run") renderRun();
     if (state.view === "script_saved") renderSavedScript();
-    if (state.view === "viewer_scanning") renderViewerScan();
-    if (state.view === "viewer") renderViewer();
+    if (state.view === "viewer") renderViewers();
   }
 
   // ---- 1: choosing what to do ----
@@ -4645,7 +5075,7 @@
   let autoYears = false;
 
   function fillSetup() {
-    Object.assign(setup, state.setup.form);
+    Object.assign(setup, state.action === "viewer" ? setupSourceFor(setupPanel) : state.setup.form);
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
     $("f-thredds").checked = Boolean(setup.thredds);
     refreshThredds();
@@ -4763,6 +5193,9 @@
       autoNdown = true;
       if (String(setup.ndown) !== String(layout.ndown)) {
         setup.ndown = $("f-ndown").value = String(layout.ndown);
+        // told now, not once the files at that depth have been counted (refreshSetup would wait for the check asked next)
+        tellFolderStructure({ key: `setup:${setup.simdir}|${layout.pattern}|${layout.ndown}`,
+          pattern: layout.pattern, ndown: layout.ndown, focus: $("f-ndown") });
         askProbe(0);
       }
     } else if (!layout && autoNdown) {
@@ -4843,7 +5276,7 @@
     for (;;) {
       try {
         const response = await fetch(`api/viewer/missing?${query({
-          simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require,
+          simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require, viewer: String(setupPanel),
         })}`, { cache: "no-store" });
         answer = await response.json();
       } catch (error) {
@@ -4894,6 +5327,8 @@
     if (state.action !== "viewer") return setup;
     const rows = missingRows.slice(0, 1).filter((row) => row[0].trim() !== "" || row[1].trim() !== "");
     setup.missing = rows.length ? JSON.stringify(rows) : "";
+    // the panel whose box this is (see openSetup)
+    setup.viewer = setupPanel;
     return setup;
   }
 
@@ -5067,7 +5502,8 @@
 
     const problems = Object.keys(errors);
     const blocked = problems.length > 0;
-    const next = $("continue");
+    // a viewer's box is applied with its own button
+    const next = $(state.action === "viewer" ? "vw-apply" : "continue");
     if (next) {
       next.disabled = blocked;
       next.title = !blocked ? ""
@@ -5079,11 +5515,15 @@
   async function submitSetup() {
     if (Object.keys(setupProblems()).length) return;
     $("setup-error").hidden = true;
+    const viewing = state.action === "viewer";
     const reply = await post("api/setup", { form: setupForm() });
     if (!reply.ok) {
       setupErrors = reply.errors || {};
       if (reply.error) toast(reply.error);
       refreshSetup();
+    } else if (viewing) {
+      // applied: the panel reads its simulation, and its box is closed with nothing left as a draft
+      closeSetup({ keep: false });
     }
   }
 
