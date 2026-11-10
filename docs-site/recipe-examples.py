@@ -490,6 +490,28 @@ oceanval.add_point_comparison(
     vertical=False,  # set True to validate the full water column
 )
 
+# Dissolved organic carbon - Hansell et al. DOM compilation (https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html)
+# recipe: 'hansell'
+# Bottle samples, 1994–2021, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags, and values above zero, are kept.
+oceanval.add_point_comparison(
+    name="doc",
+    model_variable="doc",
+    recipe={"doc": "hansell"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Particulate organic carbon - Hansell et al. DOM compilation (https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html)
+# recipe: 'hansell'
+# Bottle samples, 1995–2018, reported in micromoles per kilogram.
+# Only samples with good (WOCE flag 2) flags, and values above zero, are kept.
+oceanval.add_point_comparison(
+    name="poc",
+    model_variable="poc",
+    recipe={"poc": "hansell"},
+    vertical=False,  # set True to validate the full water column
+)
+
 
 # ==========================================================================
 # Northwest European Shelf - ICES point observations

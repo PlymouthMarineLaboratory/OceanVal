@@ -604,6 +604,13 @@ _GLODAPV3_RECIPES = (
     ("silicate", "Silicate", "reported in micromoles per kilogram"),
 )
 
+# the Hansell et al. DOM compilation: (variable, title, what its values are, the
+# years they are in), its units as the workbook gives them (see oceanval.hansell)
+_HANSELL_RECIPES = (
+    ("doc", "Dissolved organic carbon", "reported in micromoles per kilogram", "1994–2021"),
+    ("poc", "Particulate organic carbon", "reported in micromoles per kilogram", "1995–2018"),
+)
+
 # ICES's (variable, title, dataset, units)
 _ICES_RECIPES = (
     ("temperature", "Temperature", "CTD profiles and bottle data", "degrees Celsius"),
@@ -636,6 +643,8 @@ _POINT_UNITS = {
     ("chlorophyll", "glodapv3"): "\u00b5g/kg",
     ("dic", "glodapv3"): "\u00b5mol/kg",
     ("doc", "glodapv3"): "\u00b5mol/l",
+    ("doc", "hansell"): "\u00b5mol/kg",
+    ("poc", "hansell"): "\u00b5mol/kg",
     ("nitrate", "glodapv3"): "\u00b5mol/kg",
     ("oxygen", "glodapv3"): "\u00b5mol/kg",
     ("ph", "glodapv3"): "total scale",
@@ -650,11 +659,16 @@ _POINT_COVERAGE = {
         "note": "Bottle samples from 1181 cruises, adjusted for differences between cruises.",
         "url": "https://glodap.info/index.php/merged-and-adjusted-data-product-v3/",
     },
+    "hansell": {
+        "note": "Bottle samples from 223 cruises, with good (WOCE flag 2) values kept.",
+        "url": "https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html",
+    },
 }
 
 # the section of the script each point source is written in
 POINT_SECTIONS = {
     "glodapv3": "Global - GLODAPv3 bottle data",
+    "hansell": "Global - Hansell et al. DOM compilation",
     "ices": "Northwest European Shelf - ICES point observations",
 }
 
@@ -675,6 +689,23 @@ POINT_RECIPE_CATALOGUE = tuple(
         "arguments": ("vertical=False,  # set True to validate the full water column",),
     }
     for variable, title, reported in _GLODAPV3_RECIPES
+) + tuple(
+    {
+        "variable": variable,
+        "recipe": "hansell",
+        "region": "Global",
+        "units": _POINT_UNITS[variable, "hansell"],
+        "coverage": {**_POINT_COVERAGE["hansell"], "years": years},
+        "example_variable": variable,
+        "notes": (
+            f"{title} - Hansell et al. DOM compilation (https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html)",
+            "recipe: 'hansell'",
+            f"Bottle samples, {years}, {reported}.",
+            "Only samples with good (WOCE flag 2) flags, and values above zero, are kept.",
+        ),
+        "arguments": ("vertical=False,  # set True to validate the full water column",),
+    }
+    for variable, title, reported, years in _HANSELL_RECIPES
 ) + tuple(
     {
         "variable": variable,

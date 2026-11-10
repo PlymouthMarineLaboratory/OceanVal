@@ -24,8 +24,8 @@ YEARLY = ("cobe2", "occci", "ices")
 # whose files have levels, so that only the top may be kept (as a matchup does)
 LEVELLED = ("woa23",)
 # a plain file, which is downloaded and kept whole, whatever the area: the
-# GLODAPv3 bottle data's is one file of every variable, kept a variable at a time
-WHOLE = ("glodap", "glodapv3", "mpisom", "socat", "copepod")
+# GLODAPv3 and Hansell bottle data are one file of every variable, kept a variable at a time
+WHOLE = ("glodap", "glodapv3", "hansell", "mpisom", "socat", "copepod")
 
 _decadal = {(e["variable"], e["recipe"]) for e in RECIPE_CATALOGUE if e.get("decadal")}
 
@@ -199,7 +199,7 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
     elif any(not needs_area(x["recipe"]) for x in datasets):
         box = tuple(data_store.GLOBAL)
 
-    items, codes, glodapv3 = [], {}, []
+    items, codes, glodapv3, hansell_names = [], {}, [], []
     for each in datasets:
         name, recipe = each["name"], each["recipe"]
         if recipe == "ices":
@@ -209,6 +209,9 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
         if recipe == "glodapv3":
             # one file has them all, so they are all kept at once
             glodapv3.append(name)
+            continue
+        if recipe == "hansell":
+            hansell_names.append(name)
             continue
         item = {"key": f"{name}/{recipe}", "label": _label(name, recipe, builtin), "name": name, "recipe": recipe}
         try:
@@ -226,6 +229,11 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
 
         items.append({"key": "glodapv3", "label": "GLODAPv3 bottle data (every variable)",
                       "glodapv3": glodapv3, "total": len(VARIABLES), "jobs": []})
+    if hansell_names:
+        from oceanval.hansell import VARIABLES as HANSELL_VARIABLES
+
+        items.append({"key": "hansell", "label": "Hansell et al. DOM compilation (every variable)",
+                      "hansell": hansell_names, "total": len(HANSELL_VARIABLES), "jobs": []})
     tell({"kind": "expand", "items": [{"key": i["key"], "label": i["label"], "total": i["total"]} for i in items]})
 
     everything = True
@@ -254,6 +262,13 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
             if "glodapv3" in item:
                 counts = data_store.glodapv3(
                     item["glodapv3"], _glodapv3_download(), store_only=True, on_piece=on_piece,
+                )
+                if counts is None:
+                    raise ValueError("The data store could not be used for it.")
+                failed += counts["failed"]
+            elif "hansell" in item:
+                counts = data_store.hansell(
+                    item["hansell"], _hansell_download(), store_only=True, on_piece=on_piece,
                 )
                 if counts is None:
                     raise ValueError("The data store could not be used for it.")
@@ -292,6 +307,12 @@ def _glodapv3_download():
     from oceanval import glodap
 
     return glodap.download_all
+
+
+def _hansell_download():
+    from oceanval import hansell
+
+    return hansell.download_all
 
 
 def _ices_download():

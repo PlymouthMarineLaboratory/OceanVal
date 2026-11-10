@@ -59,6 +59,7 @@ class TestCatalogue:
             "alkalinity": "Total Alkalinity",
             "dic": "Dissolved Inorganic Carbon",
             "doc": "Dissolved Organic Carbon",
+            "poc": "Particulate Organic Carbon",
             "ph": "pH",
         }
         assert listed == {

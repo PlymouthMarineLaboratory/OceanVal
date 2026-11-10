@@ -97,6 +97,8 @@ GLODAP_MAPPED = {
 GLODAPV3_VARIABLES = (
     "alkalinity", "chlorophyll", "dic", "doc", "nitrate", "oxygen", "ph", "phosphate", "silicate",
 )
+# the variables of the Hansell et al. DOM compilation (see oceanval.hansell)
+HANSELL_VARIABLES = ("doc", "poc")
 
 # WOA23's apparent oxygen utilization and oxygen saturation: variable ->
 # (the folder, the letter its files' names have, the variable in them)
@@ -250,6 +252,15 @@ def find_recipe(x, start=None, end=None, cwd=None):
             output["name"] = name.lower()
             output["point"] = True
             output["glodap_variable"] = name.lower()
+            return output
+
+    if value == "hansell":
+        if name.lower() in HANSELL_VARIABLES:
+            output["source"] = "Hansell"
+            output["source_info"] = "Hansell, D. A., Carlson, C. A., Amon, R. M. W., Álvarez-Salgado, X. A., Yamashita, Y., Romera-Castillo, C., and Bif, M. B.: Compilation of dissolved organic matter (DOM) data obtained from global ocean observations from 1994 to 2021, Version 2 (NCEI Accession 0227166), NOAA National Centers for Environmental Information, https://doi.org/10.25921/s4f4-ye35, 2021."
+            output["name"] = name.lower()
+            output["point"] = True
+            output["hansell_variable"] = name.lower()
             return output
 
     if value in BUILT_RECIPES and name.lower() in BUILT_RECIPES[value]["variables"]:
@@ -956,6 +967,8 @@ class Validator:
                 recipe = None
             elif recipe_info["builtin"] == "glodapv3":
                 recipe = dict(kind="glodapv3", variable=recipe_info["glodap_variable"])
+            elif recipe_info["builtin"] == "hansell":
+                recipe = dict(kind="hansell", variable=recipe_info["hansell_variable"])
             else:
                 recipe = dict(
                     kind="ices",

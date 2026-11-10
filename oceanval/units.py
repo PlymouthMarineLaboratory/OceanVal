@@ -153,6 +153,10 @@ def _recipe_obs_variable(variable, recipe, cwd=None):
         from oceanval.glodap import VARIABLES
 
         return VARIABLES[found["glodap_variable"]][0]
+    if found.get("hansell_variable"):
+        from oceanval.hansell import VARIABLES
+
+        return VARIABLES[found["hansell_variable"]][0]
     return found.get("obs_variable") or found.get("ices_parameter")
 
 

@@ -47,6 +47,7 @@ from oceanval import data_store as obs_store
 from oceanval import cdo_watch
 from oceanval import extent
 from oceanval import glodap
+from oceanval import hansell
 from oceanval import ices
 from oceanval import live
 from oceanval import surface
@@ -61,7 +62,7 @@ from oceanval import user_cache
 
 # the module that downloads each built-in point source, by the "kind" of the
 # recipe dict add_point_comparison keeps
-POINT_SOURCES = {"ices": ices, "glodapv3": glodap}
+POINT_SOURCES = {"ices": ices, "glodapv3": glodap, "hansell": hansell}
 
 
 def read_point(ff, nrows = None):

@@ -38,7 +38,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   which is what was asked for (NSBC's file is lon -15..13, the index says -20..13). A file under a netCDF read holds `netcdf_lock.LOCK`. The folder is the one saved in the settings,
   never one the request names.
 - **Expand** (any built-in dataset; a button on every row opens the form with that dataset fixed, **Expand multiple variables** at the top picks several with +/- buttons):
-  year range (year-based datasets, and the decades of WOA23 temperature/salinity), lon-lat extent (not GLODAP, kept whole), water column Yes/No (WOA23 only: `all`/`top`).
+  year range (year-based datasets, and the decades of WOA23 temperature/salinity), lon-lat extent (not GLODAP or Hansell, kept whole), water column Yes/No (WOA23 only: `all`/`top`).
   `store_expand.check` validates the form, `store_expand.run` fetches **with the arguments a matchup gives**, through `data_store.gridded(..., store_only=True, on_piece=)` and
   `data_store.ices(..., store_only=True, on_piece=)` (nothing opened or read back; they return counts; a callback that raises never stops the work), with the use mode forced to
   "always" (what is held is not downloaded again), so areas widen, levels replace only as a matchup's do, and `top` never downgrades `all`. It runs in a killable child (`app_child expand <json>`,

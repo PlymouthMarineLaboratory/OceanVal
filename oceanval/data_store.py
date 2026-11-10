@@ -17,7 +17,7 @@ mistake here could cost you files of your own, it keeps to four rules:
 What is replaced is not removed for a day, as another run may be reading it.
 
 Only OceanVal's own datasets are kept (WOA23, NSBC, OCCCI, COBE2, GLODAP, the
-GLODAPv3 bottle data and ICES), never data of yours. The store is used in one of two ways:
+GLODAPv3 and Hansell bottle data and ICES), never data of yours. The store is used in one of two ways:
 
 - ``"always"``: what is in the store is used, and only what is missing is
   downloaded;
@@ -43,6 +43,10 @@ What the store holds is in pieces, listed in ``oceanval_data_store.json``:
 - GLODAPv3 bottle data: one variable, the whole globe and every year, as the
   rows OceanVal keeps of it (see oceanval.glodap). Its server has it as one
   file, so every variable is kept as the file is first downloaded.
+- Hansell et al. DOM compilation: one variable (DOC or POC), the whole globe
+  and every year, as the rows OceanVal keeps of it (see oceanval.hansell).
+  Its server has it as one workbook, so every variable is kept as it is first
+  downloaded.
 
 Anything asked for inside a piece is taken from it: cropping a crop gives the
 same cells as cropping once, so the matchups are the same either way.
@@ -92,7 +96,7 @@ GLOBAL = [-180, 180, -90, 90]
 # the gridded datasets the store keeps, by their recipe key
 GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "glodap", "mpisom", "socat", "copepod")
 # the point datasets the store keeps, each in a folder of its own
-POINT_KINDS = ("ices", "glodapv3")
+POINT_KINDS = ("ices", "glodapv3", "hansell")
 # a gridded dataset kept a year at a time, as its server has every year in one file
 BY_YEAR = ("cobe2",)
 # a dataset's server address, over thredds, and where the same file can be
@@ -1139,21 +1143,25 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=
 # GLODAPv3 bottle data
 
 
-def _glodapv3_unit(variable):
-    """Whether an entry is the GLODAPv3 piece of a variable."""
+def _whole_file_unit(kind, variable):
+    """Whether an entry is the piece of a whole-file dataset (kind) for a variable."""
     def matches(entry):
-        return entry.get("kind") == "glodapv3" and entry.get("variable") == variable
+        return entry.get("kind") == kind and entry.get("variable") == variable
     return matches
 
 
-def glodapv3(variables, download, store_only=False, on_piece=None):
-    """GLODAPv3 variables by way of the data store, as {variable: DataFrame of
-    its rows}, or None when there is no store.
+def _whole_file(kind, name, what, everything, variables, download, store_only, on_piece):
+    """The variables of a dataset kept whole, one piece a variable, by way of the
+    data store, as {variable: DataFrame of its rows}, or None when there is no store.
+
+    kind is the dataset's kind and folder ("glodapv3", "hansell"); name and what
+    say it in messages ("GLODAPv3", "the GLODAPv3 bottle data"). everything is
+    every variable the dataset has.
 
     download(variables) downloads the file and returns ({variable: DataFrame},
     the url it came from) for the variables asked. Every variable the store
     lacks is asked for when any is, so the file is downloaded once for all of
-    them (see oceanval.glodap.VARIABLES).
+    them.
 
     store_only fills the store without a matchup (see oceanval.store_expand):
     every variable is kept, nothing is read back, and {"saved", "held",
@@ -1163,13 +1171,11 @@ def glodapv3(variables, download, store_only=False, on_piece=None):
     store = active()
     if store is None:
         return None
-    from oceanval.glodap import VARIABLES
 
     root_dir = store["root"]
     entries = _entries(root_dir)
-    everything = list(VARIABLES)
     asked = everything if store_only else list(variables)
-    stored = {x: _covering(entries, _glodapv3_unit(x), GLOBAL) for x in everything}
+    stored = {x: _covering(entries, _whole_file_unit(kind, x), GLOBAL) for x in everything}
 
     def wanted(variable):
         piece = stored[variable]
@@ -1184,17 +1190,17 @@ def glodapv3(variables, download, store_only=False, on_piece=None):
         except Exception as error:
             if any(stored[x] is None for x in asked):
                 raise
-            _fallen_back("the GLODAPv3 bottle data", error, [stored[x] for x in asked])
+            _fallen_back(what, error, [stored[x] for x in asked])
             for variable in asked:
                 _told(on_piece, variable, "fallen")
             counts["failed"] = len(asked)
             frames, url = {}, None
         for variable, df in frames.items():
-            entry = dict(kind="glodapv3", dataset="glodapv3", url=url, variable=variable,
+            entry = dict(kind=kind, dataset=kind, url=url, variable=variable,
                          year=None, box=list(GLOBAL), rows=int(len(df)))
             kept = _save(
                 root_dir, entry, lambda path, df=df: df.to_csv(path, index=False, compression="gzip"),
-                ".csv.gz", _glodapv3_unit(variable),
+                ".csv.gz", _whole_file_unit(kind, variable),
             )
             if kept is None:
                 _told(on_piece, variable, "unsaved")
@@ -1214,12 +1220,36 @@ def glodapv3(variables, download, store_only=False, on_piece=None):
         if not store_only:
             found[variable] = pd.read_csv(_file(stored[variable], root_dir))
     if used and not counts["failed"]:
-        print(f"GLODAPv3 {', '.join(asked)}: taken from your data store (downloaded {_when(used)})")
+        print(f"{name} {', '.join(asked)}: taken from your data store (downloaded {_when(used)})")
     elif counts["saved"]:
-        print("GLODAPv3: downloaded, and saved in your data store")
+        print(f"{name}: downloaded, and saved in your data store")
     if store_only:
         return counts
     return {x: found[x] for x in asked}
+
+
+def glodapv3(variables, download, store_only=False, on_piece=None):
+    """GLODAPv3 variables by way of the data store, as {variable: DataFrame of
+    its rows}, or None when there is no store. See _whole_file; every variable
+    is kept (see oceanval.glodap.VARIABLES)."""
+    from oceanval.glodap import VARIABLES
+
+    return _whole_file("glodapv3", "GLODAPv3", "the GLODAPv3 bottle data", list(VARIABLES),
+                       variables, download, store_only, on_piece)
+
+
+# --------------------------------------------------------------------------
+# the Hansell et al. DOM compilation
+
+
+def hansell(variables, download, store_only=False, on_piece=None):
+    """The Hansell et al. DOC and POC by way of the data store, as {variable:
+    DataFrame of its rows}, or None when there is no store. See _whole_file;
+    every variable is kept (see oceanval.hansell.VARIABLES)."""
+    from oceanval.hansell import VARIABLES
+
+    return _whole_file("hansell", "Hansell", "the Hansell et al. DOM compilation", list(VARIABLES),
+                       variables, download, store_only, on_piece)
 
 
 # --------------------------------------------------------------------------
@@ -1325,6 +1355,8 @@ def _describe(entry):
         return f"ICES {entry.get('dataset')} for {entry.get('year')}"
     if entry.get("kind") == "glodapv3":
         return f"GLODAPv3 {entry.get('variable')}"
+    if entry.get("kind") == "hansell":
+        return f"Hansell {entry.get('variable')}"
     last = str(entry.get("url")).rsplit("/", 1)[-1]
     year = f" {entry['year']}" if entry.get("year") is not None else ""
     return f"{str(entry.get('dataset')).upper()} {entry.get('variable')}{year} ({last})"
@@ -1510,7 +1542,7 @@ def check(root_dir):
         if kind == "ices":
             continue
         why = None
-        if kind == "glodapv3":
+        if kind in ("glodapv3", "hansell"):
             url = entry.get("url")
             parsed = urllib.parse.urlparse(url) if isinstance(url, str) else None
             if parsed is None or parsed.scheme not in ("http", "https") or parsed.hostname not in BUILTIN_HOSTS:

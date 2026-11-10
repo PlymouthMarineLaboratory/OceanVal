@@ -74,7 +74,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   autouse `domain_global` fixture makes `detect` return `global` (mark a test `real_domain`, or patch `detect`, for another).
 - `oceanval/create_recipes.py` scans model output directories, maps model variables to
   observational variables via netCDF `long_name` matching, and writes out a matchup script with
-  live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, ...).
+  live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, Hansell, ...).
   **`doc` and `poc` ignore the rates named after them**: `_candidate_long_names` drops long_names with a process word (loss,
   uptake, production, release, remineralisation, scavenging, grazing, depth, integrated, ...), and `variable_identify.fitting`
   drops those with flux or per-area units. `poc` finds ERSEM's carbon by `pom`/`particulate organic carbon` and refuses a

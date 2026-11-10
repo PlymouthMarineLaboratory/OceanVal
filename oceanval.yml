@@ -12,6 +12,8 @@ dependencies:
   - geoviews-core
   # the viewer's unstructured and global curvilinear grids (oceanval/viewer_grid.py)
   - scipy
+  # pressure to depth (oceanval/hansell.py)
+  - gsw
   - cdo>2.1.0
   - nco
   - notebook
