@@ -923,6 +923,10 @@
   .vw-panels[data-count="1"] .vw-idle, .vw-panels[data-count="2"] .vw-idle, .vw-panels[data-count="1"] .vw-scanning, .vw-panels[data-count="2"] .vw-scanning { flex: 1; }
   @media (max-width: 860px) { .vw-side { position: static; max-height: none; } }
   .vw-head { margin: 0 0 6px; font: 600 13px/1.3 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  /* a tip that shows at once on hover or focus (no native title delay) */
+  .vw-tip { position: relative; width: max-content; cursor: default; }
+  .vw-tip::after { content: attr(data-tip); display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 260px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--ink); color: var(--bg); font: 400 12.5px/1.45 var(--font-body); text-transform: none; letter-spacing: normal; box-shadow: var(--shadow-md); pointer-events: none; }
+  .vw-tip:hover::after, .vw-tip:focus-visible::after { display: block; }
   .vw-list { margin: 8px 0 0; padding: 4px; list-style: none; max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); }
   .vw-list li { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 8px; align-items: start; gap: 1px 8px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; }
   .vw-list li:hover, .vw-list li.is-active { background: var(--teal-50); }
@@ -936,6 +940,7 @@
   .vw-list__none { display: block !important; padding: 8px; color: var(--muted); font-size: 13px; cursor: default !important; }
   .vw-sum { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
   .vw-info { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 12.5px; }
+  .vw-about { margin-bottom: 14px; }
   .vw-info dt { color: var(--muted); }
   .vw-info dd { margin: 0; overflow-wrap: anywhere; }
   .vw-info dd.is-mono { font-family: var(--font-mono); font-size: 12px; }
@@ -946,6 +951,9 @@
   .vw-streams .ptr-mode code { font-size: 12px; overflow-wrap: anywhere; }
   .vw-streams .ptr-mode small { display: block; color: var(--muted); font-weight: 500; }
   .vw-control { display: grid; gap: 6px; }
+  /* the light teal box round Time and the years; not drawn while both are hidden */
+  .vw-teal { display: grid; gap: 14px; padding: 12px; border-radius: var(--radius-sm); background: var(--accent-soft); }
+  .vw-teal:not(:has(> :not([hidden]))) { display: none; }
   .vw-time-row { display: flex; gap: 6px; align-items: center; }
   .vw-time-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--teal-600); }
   .vw-icon-btn { flex: none; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-soft); cursor: pointer; font: 600 14px/1 var(--font-body); }
@@ -959,7 +967,14 @@
   .vw-play-status { color: var(--muted); font-size: 12.5px; }
   .vw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .vw-grid .is-wide { grid-column: 1 / -1; }
-  .vw-scale-links { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+  .vw-scale-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .vw-scale-row > .g-label { margin: 0; }
+  .vw-seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; }
+  .vw-seg button { padding: 4px 10px; border: 0; background: var(--bg); color: var(--muted); font: 500 12.5px/1.3 var(--font-body); cursor: pointer; }
+  .vw-seg button + button { border-left: 1px solid var(--line-strong); }
+  .vw-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+  .vw-minmax { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .vw-minmax[hidden] { display: none; }
   .vw-ticks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
   .vw-ticks .tick-label input { accent-color: var(--teal-600); }
   .vw-ticks .tick-label.is-off { color: var(--muted-light); cursor: not-allowed; }
@@ -1695,57 +1710,62 @@
         <aside class="vw-side card" aria-label="What to plot">
           <div class="vw-side-body" data-vw="side-body">
         <div>
-        <h2 class="vw-head">Variable</h2>
+        <h2 class="vw-head vw-tip" tabindex="0" data-tip="Click a variable to map it. Use the + buttons to map the sum of several variables.">Variable selector</h2>
         <input class="s-input" data-vw="search" type="search" placeholder="Search by name or description, e.g. P*_Chl" spellcheck="false" autocapitalize="off" autocomplete="off">
-        <p class="vw-sum"><span>Click a variable to map it. Use the + buttons to map the <strong>sum</strong> of several variables.</span><button type="button" class="link" data-vw="clear" hidden>Clear</button></p>
+        <p class="vw-sum"><button type="button" class="link" data-vw="clear" hidden>Clear</button></p>
         <ul class="vw-list" data-vw="list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
         </div>
-        <div class="vw-control vw-years" data-vw="c-years" hidden>
-        <h2 class="vw-head">Subset years</h2>
-        <div class="vw-grid">
-        <label><span class="g-label">First year</span><input class="s-input is-num" data-vw="first" inputmode="numeric" placeholder="first" spellcheck="false" autocomplete="off" disabled></label>
-        <label><span class="g-label">Last year</span><input class="s-input is-num" data-vw="last" inputmode="numeric" placeholder="last" spellcheck="false" autocomplete="off" disabled></label>
-        </div>
-        <div class="vw-times" data-vw="times" hidden><span class="identify__spinner" aria-hidden="true"></span><span data-vw="times-text" role="status" aria-live="polite"></span></div>
-        <div class="vw-meter" data-vw="times-meter" aria-hidden="true" hidden><span data-vw="times-bar"></span></div>
-        <p class="vw-years-note" data-vw="years-note" role="status" aria-live="polite" hidden></p>
-        </div>
-        <div data-vw="chosen" hidden>
-        <h2 class="vw-head">About</h2>
+        <div data-vw="chosen" class="vw-about" hidden>
         <dl class="vw-info" data-vw="info"></dl>
         </div>
-        <div data-vw="streams" class="vw-streams" hidden></div>
-        <div data-vw="controls" class="vw-streams" hidden>
-        <div class="vw-control" data-vw="c-time">
-        <h2 class="vw-head">Time</h2>
+        <div class="vw-teal">
+        <div class="vw-control" data-vw="c-time" hidden>
+        <h2 class="vw-head">Time selection and animation</h2>
         <div class="vw-time-row">
         <button type="button" class="vw-icon-btn" data-vw="prev" aria-label="Previous time" title="Previous time (left arrow)">&#8249;</button>
         <input type="range" data-vw="step" min="0" max="0" value="0">
         <button type="button" class="vw-icon-btn" data-vw="next" aria-label="Next time" title="Next time (right arrow)">&#8250;</button>
-        <button type="button" class="vw-icon-btn" data-vw="play" aria-label="Play" aria-pressed="false" title="Play through the times">&#9654;</button>
         </div>
         <div class="vw-when" data-vw="when"></div>
         <div class="vw-play-row">
+        <button type="button" class="vw-icon-btn" data-vw="play" aria-label="Play" aria-pressed="false" title="Play through the times">&#9654;</button>
         <span class="g-label">Speed</span>
         <select class="s-select" data-vw="speed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select>
         <span class="vw-play-status" data-vw="play-status" role="status" aria-live="polite"></span>
         </div>
         </div>
+        <div class="vw-control vw-years" data-vw="c-years" hidden>
+        <h2 class="vw-head">Select years</h2>
+        <div class="vw-grid">
+        <label><input class="s-input is-num" data-vw="first" aria-label="First year" inputmode="numeric" placeholder="first" spellcheck="false" autocomplete="off" disabled></label>
+        <label><input class="s-input is-num" data-vw="last" aria-label="Last year" inputmode="numeric" placeholder="last" spellcheck="false" autocomplete="off" disabled></label>
+        </div>
+        <div class="vw-times" data-vw="times" hidden><span class="identify__spinner" aria-hidden="true"></span><span data-vw="times-text" role="status" aria-live="polite"></span></div>
+        <div class="vw-meter" data-vw="times-meter" aria-hidden="true" hidden><span data-vw="times-bar"></span></div>
+        <p class="vw-years-note" data-vw="years-note" role="status" aria-live="polite" hidden></p>
+        </div>
+        </div>
+        <div data-vw="streams" class="vw-streams" hidden></div>
+        <div data-vw="controls" class="vw-streams" hidden>
         <div class="vw-control" data-vw="c-level">
         <h2 class="vw-head">Depth</h2>
         <select class="s-select" data-vw="level"></select>
         </div>
+        <div class="vw-teal">
         <div class="vw-control" data-vw="c-colour">
-        <h2 class="vw-head">Colours</h2>
+        <h2 class="vw-head">Map options</h2>
         <div class="vw-grid">
         <label class="is-wide"><span class="g-label">Colour map</span><select class="s-select" data-vw="cmap"></select></label>
-        <label><span class="g-label">Minimum</span><input class="s-input is-num" data-vw="vmin" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
-        <label><span class="g-label">Maximum</span><input class="s-input is-num" data-vw="vmax" inputmode="decimal" placeholder="auto" autocomplete="off"></label>
-        <div class="is-wide vw-scale-links"><button type="button" class="link" data-vw="keep">Keep this scale for every time</button><button type="button" class="link" data-vw="auto">Automatic scale</button></div>
+        <div class="is-wide vw-scale-row"><span class="g-label">Scale</span><div class="vw-seg" role="group" aria-label="Scale"><button type="button" data-vw="scale-fixed" aria-pressed="false">Fixed</button><button type="button" data-vw="scale-auto" aria-pressed="true">Automatic</button></div></div>
+        <div class="is-wide vw-minmax" data-vw="minmax" hidden>
+        <label><input class="s-input is-num" data-vw="vmin" aria-label="Minimum" inputmode="decimal" placeholder="Minimum" autocomplete="off"></label>
+        <label><input class="s-input is-num" data-vw="vmax" aria-label="Maximum" inputmode="decimal" placeholder="Maximum" autocomplete="off"></label>
+        </div>
         </div>
         <div class="vw-ticks">
         <label class="tick-label"><input type="checkbox" data-vw="log"> Logarithmic</label>
         <label class="tick-label" data-vw="coast-label"><input type="checkbox" data-vw="coast"> Coastlines</label>
+        </div>
         </div>
         </div>
         </div>
@@ -3637,7 +3657,7 @@
     return bokehLoading;
   }
 
-  const COLOUR_MAPS = ["", "viridis", "cividis", "plasma", "inferno", "magma", "turbo", "RdBu_r", "coolwarm", "Blues", "YlGnBu", "gray"];
+  const COLOUR_MAPS = ["", "viridis", "cividis", "plasma", "inferno", "magma", "RdBu_r", "coolwarm", "Blues", "YlGnBu", "gray"];
   // an animation: frames a second by speed, the frames kept ready ahead, the requests at once, and the frames
   // ready before it starts moving
   const SPEEDS = { slow: 2, normal: 5, fast: 10 };
@@ -3656,7 +3676,7 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   // how a panel's variables, file type, time and colours start
   const freshPick = (speed = "normal") => ({
-    names: [], stream: null, step: 0, level: 0, speed, cmap: "", vmin: "", vmax: "", log: false, coast: false, first: "", last: "",
+    names: [], stream: null, step: 0, level: 0, speed, cmap: "", vmin: "", vmax: "", log: false, coast: true, fixed: false, first: "", last: "",
   });
 
   // the panels by number, the panel last used (whose arrow keys move its time), the panel whose box is open, and
@@ -3716,7 +3736,7 @@
       this.plotNumber = 0;
       this.plotTimer = null;
       this.yearsTimer = null;
-      this.$("cmap").replaceChildren(...COLOUR_MAPS.map((name) => el("option", { value: name, text: name || "Automatic (ncplot's choice)" })));
+      this.$("cmap").replaceChildren(...COLOUR_MAPS.map((name) => el("option", { value: name, text: name || "Automatic" })));
       this.$("speed").value = this.pick.speed;
       this.$("remove").hidden = number === 1;
       this.wire();
@@ -3787,15 +3807,14 @@
           if (!bad) this.requestPlot(500);
         });
       }
-      this.$("keep").addEventListener("click", () => {
-        if (!this.lastClim) return;
-        this.pick.vmin = String(+this.lastClim[0].toPrecision(6));
-        this.pick.vmax = String(+this.lastClim[1].toPrecision(6));
+      // Fixed shows the Minimum and Maximum boxes; Automatic hides them and clears the limits
+      this.$("scale-fixed").addEventListener("click", () => {
+        this.pick.fixed = true;
         this.renderControls(this.inStream());
-        toast("The colour scale is kept for every time until you choose Automatic.");
       });
-      this.$("auto").addEventListener("click", () => {
-        this.pick.vmin = this.pick.vmax = "";
+      this.$("scale-auto").addEventListener("click", () => {
+        // the limits typed stay where they are (Fixed brings them back); Automatic just does not use them
+        this.pick.fixed = false;
         this.scale = null;
         this.renderControls(this.inStream());
         this.requestPlot(0);
@@ -4162,6 +4181,8 @@
       this.$("streams").hidden = !chosen;
       const now = chosen ? this.inStream() : null;
       this.$("controls").hidden = !now;
+      // the time sits above the subset years now, outside the controls: hidden with them when nothing is chosen
+      if (!now) this.$("c-time").hidden = true;
       if (!chosen) return;
       const abouts = this.pick.names.map((name) => this.catalogue.variables[name]);
       const about = abouts[0];
@@ -4172,22 +4193,8 @@
         : [["Units", about.units]];
       if (now) {
         const stream = this.streamOf(now.stream);
-        info.push(["Dimensions", now.dims.map((dim, index) => `${dim} (${now.shape[index]})`).join(", "), true]);
-        info.push(["File type", stream.pattern, true]);
         if (now.mesh) info.push(["FVCOM mesh", now.mesh === "node" ? "values on the nodes" : "values on the elements (triangles)"]);
-        const span = this.windowOf(stream);
-        // the years chosen leave some of the times, and the files that hold them
-        const cut = stream.pending === 0 && stream.has_times && (span.lo > 0 || span.hi < stream.steps - 1);
-        const heldIn = cut ? new Set(stream.step_files.slice(span.lo, span.hi + 1)).size : stream.files;
-        info.push(["Files", cut ? `${heldIn.toLocaleString()} of ${stream.files.toLocaleString()}` : `${stream.files.toLocaleString()}`]);
-        if (stream.pending > 0) {
-          info.push(["Time resolution", "being read"]);
-        } else if (stream.has_times) {
-          // how often the output is ("daily"), not how many times there are
-          info.push(["Time resolution", stream.resolution]);
-          // the dates only, on one line
-          info.push(["Dates", `${stream.times[span.lo].slice(0, 10)} – ${stream.times[span.hi].slice(0, 10)}`, true]);
-        }
+        if (stream.pending > 0) info.push(["Time resolution", "being read"]);
       }
       this.$("info").replaceChildren(...info.filter(([, value]) => value).flatMap(([key, value, mono]) => [
         el("dt", { text: key }), el("dd", { class: mono ? "is-mono" : "", text: value }),
@@ -4252,6 +4259,9 @@
       this.$("cmap").value = this.pick.cmap;
       this.$("vmin").value = this.pick.vmin;
       this.$("vmax").value = this.pick.vmax;
+      this.$("minmax").hidden = !this.pick.fixed;
+      this.$("scale-fixed").setAttribute("aria-pressed", String(this.pick.fixed));
+      this.$("scale-auto").setAttribute("aria-pressed", String(!this.pick.fixed));
       this.$("log").checked = this.pick.log;
       // every coastline (a grid's, a mesh's) is drawn with cartopy alone
       const canCoast = state.viewer.coast;
@@ -4366,7 +4376,7 @@
         const box = this.$(key);
         // the arrow lists the years of the output, and any year can be typed
         box.yearChoices = run ? Array.from({ length: run[1] - run[0] + 1 }, (_, i) => run[0] + i) : [];
-        box.placeholder = run ? String(run[key === "first" ? 0 : 1]) : "…";
+        box.placeholder = key === "first" ? "first" : "last";
         box.disabled = Boolean(times);
         if (document.activeElement !== box) box.value = this.pick[key];
         box.title = times ? "Waiting for the times of the files to be read" : "";
@@ -4497,7 +4507,7 @@
     // the range of the variable over the whole run, once for the variables and level shown
     async ensureScale(run) {
       if (this.scale && this.scale.key === this.scaleKey()) return true;
-      if (this.pick.vmin !== "" && this.pick.vmax !== "") return true;
+      if (this.limit("vmin") !== "" && this.limit("vmax") !== "") return true;
       const key = this.scaleKey();
       const span = this.windowOf(this.streamOf(this.pick.stream));
       this.$("play-status").textContent = "Preparing the animation…";
@@ -4595,14 +4605,19 @@
     }
 
     // ---- the maps ----
+    // a limit in use: the typed one under Fixed (kept while Automatic is chosen), none under Automatic
+    limit(name) {
+      return this.pick.fixed ? this.pick[name] : "";
+    }
+
     // what is asked for: the colour scale of an animation stands in for an automatic one
     plotParams() {
       const kept = this.scale && this.scale.key === this.scaleKey() ? this.scale : null;
       return {
         stream: String(this.pick.stream), vars: JSON.stringify(this.pick.names), step: String(this.pick.step), level: String(this.pick.level),
         cmap: this.pick.cmap || (kept ? kept.cmap : ""),
-        vmin: this.pick.vmin !== "" ? this.pick.vmin : (kept ? kept.vmin : ""),
-        vmax: this.pick.vmax !== "" ? this.pick.vmax : (kept ? kept.vmax : ""),
+        vmin: this.limit("vmin") !== "" ? this.limit("vmin") : (kept ? kept.vmin : ""),
+        vmax: this.limit("vmax") !== "" ? this.limit("vmax") : (kept ? kept.vmax : ""),
         log: this.pick.log ? "1" : "", coast: this.pick.coast ? "1" : "",
       };
     }

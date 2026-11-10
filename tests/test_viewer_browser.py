@@ -302,11 +302,13 @@ def test_viewer(page, simulation):
     assert "Units" in tab.text_content("[data-vw=info]")
     # the calendar is not shown
     assert "Calendar" not in tab.text_content("[data-vw=info]")
-    assert "Time resolutionmonthly" in tab.text_content("[data-vw=info]")
-    assert "Times" not in tab.text_content("[data-vw=info]").replace("Time resolution", "")
-    # the first and last dates are one row, without the time of day
+    # no dates or time resolution: the users can work those out from the time slider
     info = tab.text_content("[data-vw=info]")
-    assert "Dates2000-01-16 \u2013 2001-12-16" in info
+    assert "Dates" not in info and "Time resolution" not in info and "Times" not in info
+    # there are no file rows or About heading
+    assert "File type" not in info and "Files" not in info and "About" not in info
+    # the info comes before the subset years in the page (DOCUMENT_POSITION_FOLLOWING)
+    assert tab.evaluate("() => !!(document.querySelector('[data-vw=info]').compareDocumentPosition(document.querySelector('[data-vw=c-years]')) & 4)") is True
     assert "From" not in info and "To2001" not in info
     # nothing is written under the map
     assert tab.locator("#plot-notes, .stage__notes").count() == 0
@@ -586,7 +588,18 @@ def test_play_keeps_the_zoom_and_the_scale(page, simulation):
     # the scale of the animation is kept after it, so the map does not change under the user,
     # until Automatic scale is chosen
     assert tab.input_value("[data-vw=vmin]") == ""
-    tab.click("[data-vw=auto]")
+    # Automatic is the default, so the Minimum and Maximum boxes are hidden
+    assert tab.get_attribute("[data-vw=scale-auto]", "aria-pressed") == "true" and tab.is_hidden("[data-vw=minmax]")
+    tab.click("[data-vw=scale-fixed]")
+    assert tab.is_visible("[data-vw=minmax]") and tab.input_value("[data-vw=vmin]") == ""
+    # a typed limit is kept through Automatic, and comes back under Fixed
+    tab.fill("[data-vw=vmin]", "5")
+    tab.click("[data-vw=scale-auto]")
+    assert tab.is_hidden("[data-vw=minmax]")
+    tab.click("[data-vw=scale-fixed]")
+    assert tab.input_value("[data-vw=vmin]") == "5"
+    tab.click("[data-vw=scale-auto]")
+    assert tab.is_hidden("[data-vw=minmax]")
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert tab.is_hidden("[data-vw=plot-error]")
     # choosing a different variable starts from a fresh view
@@ -690,10 +703,13 @@ def test_the_viewer_opens_while_the_times_are_read(page, simulation, gated_times
     gated_times.set()
     tab.wait_for_function("() => !document.querySelector('[data-vw=first]').disabled", timeout=60000)
     assert tab.is_hidden("[data-vw=times]") and tab.is_hidden("[data-vw=times-meter]")
-    assert tab.get_attribute("[data-vw=first]", "placeholder") == "2000" and tab.get_attribute("[data-vw=last]", "placeholder") == "2001"
+    assert tab.get_attribute("[data-vw=first]", "placeholder") == "first" and tab.get_attribute("[data-vw=last]", "placeholder") == "last"
+    # the time and the years are in the teal box, with Play beside Speed
+    assert tab.locator(".vw-teal [data-vw=c-time]").count() == 1 and tab.locator(".vw-teal [data-vw=c-years]").count() == 1
+    assert tab.locator(".vw-play-row [data-vw=play]").count() == 1
     assert tab.is_enabled("[data-vw=step]") and tab.is_enabled("[data-vw=play]")
     assert tab.get_attribute("[data-vw=step]", "max") == "23"
-    assert "Dates2000-01-16 – 2001-12-16" in tab.text_content("[data-vw=info]")
+    assert "Dates" not in tab.text_content("[data-vw=info]")
     assert tab.is_hidden("[data-vw=plot-error]")
     assert "2000-01-16" in tab.text_content("[data-vw=when]")
 
@@ -716,7 +732,7 @@ def test_first_and_last_year(page, simulation):
     assert tab.get_attribute("[data-vw=step]", "max") == "23"
     tab.wait_for_function("() => document.querySelector('[data-vw=when]').textContent.startsWith('2001-01')")
     info = tab.text_content("[data-vw=info]")
-    assert "Time resolutionmonthly" in info and "Files12 of 24" in info and "Dates2001-01-16 – 2001-12-16" in info
+    assert "Dates" not in info and "Files" not in info
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert tab.is_disabled("[data-vw=prev]")
     for _ in range(11):

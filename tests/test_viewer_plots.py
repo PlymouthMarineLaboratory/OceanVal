@@ -80,9 +80,14 @@ def test_regular_grid_is_an_image(tmp_path):
     data, _ = found.field(0, "sst", 1)
     item, notes, clim = plotting.map_plot(data, found.about(0, "sst"), "sst")
     assert notes == []
-    # the map has no title: the page and the colour bar say what it is
+    # the map has no title: the page says what it is, and the colour bar has no units (the About has them)
     assert _titles(item) == []
     assert "Image" in _kinds(item)
+    # nothing beside the colour bar: hvplot would otherwise name it after the variable
+    assert "sst" not in re.findall(r"'title': '([^']*)'", str(item))
+    # the axes are hidden: no labels, numbers or ticks are drawn (both axes are there, not visible)
+    axes_visible = re.findall(r"'name': 'LinearAxis', 'id': '[a-z0-9]+', 'attributes': \{'visible': (\w+)", str(item))
+    assert axes_visible == ["False", "False"]
 
 
 def test_uneven_latitudes_are_a_quadmesh():

@@ -73,7 +73,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   `/api/viewer/plot`, `/api/viewer/limits`, `/bokeh.min.js` (the installed BokehJS, loaded by the page only once the viewer
   opens, `ensureBokeh`). **A map keeps its true proportions**: `viewer_plots._render` adds `item["aspect"]`
   (`frame_aspect`: the frame's height/width from the figure's ranges, a degree of longitude being cos(mid latitude) of
-  one of latitude; metres as they are; None for grid indices, which fill the box), and the page's `fitFigure` sets the
+  one of latitude; metres as they are; None for grid indices, which fill the box). The axes are hidden (`xaxis=None, yaxis=None` in `map_plot`: no labels, numbers or ticks; the labels stay in the json, `visible` false), and the colour bar has `clabel=""`. The page's `fitFigure` sets the
     figure `fixed` with `frame_width`/`frame_height` as large as fit the panel's plot box (what is round the frame measured from
   the laid-out figure; `invalidate_layout`, as a new frame size alone is not laid out), again on resize
   (a `ResizeObserver` for each panel); box zoom has `match_aspect`. **The page's JS block "View simulation output" is the `ViewerPanel` class,

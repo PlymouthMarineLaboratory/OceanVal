@@ -30,7 +30,7 @@ MAX_QUADS = 250_000
 # an image of more than this is thinned out too
 MAX_PIXELS = 4_000_000
 
-COLOUR_MAPS = ["viridis", "cividis", "plasma", "inferno", "magma", "turbo", "RdBu_r", "coolwarm", "Blues", "YlGnBu", "gray"]
+COLOUR_MAPS = ["viridis", "cividis", "plasma", "inferno", "magma", "RdBu_r", "coolwarm", "Blues", "YlGnBu", "gray"]
 
 
 def has_geoviews():
@@ -410,17 +410,15 @@ def map_plot(data, about, name, cmap=None, vmin=None, vmax=None, log=False, coas
         low = max(low, np.nanmin(np.where(data.values > 0, data.values, np.nan)))
     colour = cmap or ("RdBu_r" if symmetric else "viridis")
     # no title (an empty one: holoviews would make one from the slice's time or level): what it said is on
-    # the page (the variable, the time) and the colour bar (the units)
+    # the page (the variable, the time, the units), and nothing beside the colour bar (clabel "" : hvplot would
+    # otherwise name it after the variable)
     options = dict(
         x=x, y=y, cmap=colour, clim=(low, high), logz=log, title="",
-        tools=["hover"], responsive=True, colorbar=True, clabel=about.get("units") or None,
+        tools=["hover"], responsive=True, colorbar=True, clabel="",
+        # the axes are clean: no labels, numbers or ticks (hover still gives the position)
+        xaxis=None, yaxis=None,
     )
     cartesian = about.get("cartesian", False)
-    options.update(xlabel=x, ylabel=y)
-    if cartesian:
-        options.update(xlabel="x (m)", ylabel="y (m)")
-    elif lon is not None:
-        options.update(xlabel="Longitude", ylabel="Latitude")
     on_mesh = bool(about.get("mesh"))
     # no grid mapping for hvplot to find (through rioxarray) a crs in and project the map by: its axes are as they are
     data = _without_grid_mapping(data)
