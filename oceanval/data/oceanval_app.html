@@ -933,7 +933,6 @@
   .vw-list li.is-chosen { background: var(--teal-100); box-shadow: inset 3px 0 0 var(--teal-600); }
   .vw-list li > .vw-pm { grid-row: 1 / span 3; margin: 1px 0 0; }
   .vw-list li > span { grid-column: 2; }
-  .vw-list li.is-incompatible { opacity: 0.5; cursor: not-allowed; }
   .vw-list__name { font: 600 13px/18px var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
   .vw-list__long { font-size: 12.5px; color: var(--muted); }
   .vw-list__more { font-size: 11.5px; color: var(--teal-700); font-weight: 600; }
@@ -4072,8 +4071,8 @@
         return el("li", {
           role: "option", "data-name": name, title: why || null,
           class: `${ticked ? "is-chosen" : ""}${index === this.listActive ? " is-active" : ""}${why ? " is-incompatible" : ""}`,
-          "aria-selected": String(ticked), "aria-disabled": String(Boolean(why)),
-          // a click on the row chooses it alone; only its + button adds it to the sum
+          "aria-selected": String(ticked),
+          // a click on the row chooses it alone (it is never disabled: only its + button is greyed out)
           onclick: () => {
             if (String(window.getSelection() || "")) return;
             if (this.pick.names.length === 1 && this.pick.names[0] === name) return;

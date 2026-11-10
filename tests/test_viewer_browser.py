@@ -447,6 +447,10 @@ def test_sum_of_variables(page, simulation):
     assert "is-incompatible" in tab.get_attribute(row("sossheig"), "class")
     assert tab.is_disabled(f"{row('sossheig')} .vw-pm")
     assert tab.text_content(f"{row('sossheig')} .vw-pm") == '+'
+    # only the + is greyed out: the name and the row read as usual (not dimmed, so they look available)
+    assert tab.evaluate(f"() => getComputedStyle(document.querySelector({row('sossheig')!r})).opacity") == "1"
+    assert tab.evaluate(f"() => getComputedStyle(document.querySelector({row('sossheig')!r} + ' .vw-list__name')).opacity") == "1"
+    assert tab.evaluate(f"() => getComputedStyle(document.querySelector({row('sossheig')!r} + ' .vw-pm')).opacity") == "0.5"
     # votemper can (it is in two file types, but only ptrc_T has chl)
     tab.click(f"{row('votemper')} .vw-pm")
     tab.wait_for_function("() => document.querySelector('[data-vw=info]').textContent.includes('Sum of')")
