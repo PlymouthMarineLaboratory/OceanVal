@@ -1720,7 +1720,7 @@
         </div>
         <div class="vw-teal">
         <div class="vw-control" data-vw="c-time" hidden>
-        <h2 class="vw-head">Time selection and animation</h2>
+        <h2 class="vw-head">Selection and animation</h2>
         <div class="vw-time-row">
         <button type="button" class="vw-icon-btn" data-vw="prev" aria-label="Previous time" title="Previous time (left arrow)">&#8249;</button>
         <input type="range" data-vw="step" min="0" max="0" value="0">
@@ -1733,6 +1733,10 @@
         <select class="s-select" data-vw="speed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select>
         <span class="vw-play-status" data-vw="play-status" role="status" aria-live="polite"></span>
         </div>
+        </div>
+        <div class="vw-control" data-vw="c-level" hidden>
+        <h2 class="vw-head">Select depth</h2>
+        <select class="s-select" data-vw="level"></select>
         </div>
         <div class="vw-control vw-years" data-vw="c-years" hidden>
         <h2 class="vw-head">Select years</h2>
@@ -1747,10 +1751,6 @@
         </div>
         <div data-vw="streams" class="vw-streams" hidden></div>
         <div data-vw="controls" class="vw-streams" hidden>
-        <div class="vw-control" data-vw="c-level">
-        <h2 class="vw-head">Depth</h2>
-        <select class="s-select" data-vw="level"></select>
-        </div>
         <div class="vw-teal">
         <div class="vw-control" data-vw="c-colour">
         <h2 class="vw-head">Map options</h2>
@@ -3811,6 +3811,8 @@
       this.$("scale-fixed").addEventListener("click", () => {
         this.pick.fixed = true;
         this.renderControls(this.inStream());
+        // limits typed before come back with the boxes, and are used again at once
+        if (this.pick.vmin !== "" || this.pick.vmax !== "") this.requestPlot(0);
       });
       this.$("scale-auto").addEventListener("click", () => {
         // the limits typed stay where they are (Fixed brings them back); Automatic just does not use them
@@ -4181,8 +4183,8 @@
       this.$("streams").hidden = !chosen;
       const now = chosen ? this.inStream() : null;
       this.$("controls").hidden = !now;
-      // the time sits above the subset years now, outside the controls: hidden with them when nothing is chosen
-      if (!now) this.$("c-time").hidden = true;
+      // the time and the depth sit in the teal box with the years, outside the controls: hidden with them when nothing is chosen
+      if (!now) this.$("c-time").hidden = this.$("c-level").hidden = true;
       if (!chosen) return;
       const abouts = this.pick.names.map((name) => this.catalogue.variables[name]);
       const about = abouts[0];

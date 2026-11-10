@@ -4,6 +4,7 @@ curvilinear grid whose land cells have 0 longitude and latitude, a regular
 lon-lat one, and FVCOM output on a small mesh."""
 
 import os
+import re
 
 import netCDF4
 import numpy as np
@@ -307,3 +308,9 @@ def land_simulation(root, land=0.0, files=3, names=("thetao",)):
         )
         ds.to_netcdf(os.path.join(root, f"land_{number:02d}.nc"), encoding={name: {"_FillValue": None} for name in names})
     return root
+
+
+def axes_visible(item):
+    """The "visible" of each axis of a json_item's figure, as text ("False": an
+    axis is there for every map, but none is drawn)."""
+    return re.findall(r"'name': '[A-Za-z]*Axis', 'id': '[a-z0-9]+', 'attributes': \{'visible': (\w+)", str(item))

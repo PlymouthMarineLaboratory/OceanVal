@@ -7,6 +7,7 @@ installed."""
 
 import os
 import time
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -297,19 +298,9 @@ def test_viewer(page, simulation):
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # nothing is said at the bottom of the page (not the files, file types or directory)
     assert tab.text_content("#summary") == ""
-    # the name and description are in the list above, so not said again
-    assert "Name" not in tab.text_content("[data-vw=info]") and "Description" not in tab.text_content("[data-vw=info]")
-    assert "Units" in tab.text_content("[data-vw=info]")
-    # the calendar is not shown
-    assert "Calendar" not in tab.text_content("[data-vw=info]")
-    # no dates or time resolution: the users can work those out from the time slider
-    info = tab.text_content("[data-vw=info]")
-    assert "Dates" not in info and "Time resolution" not in info and "Times" not in info
-    # there are no file rows or About heading
-    assert "File type" not in info and "Files" not in info and "About" not in info
-    # the info comes before the subset years in the page (DOCUMENT_POSITION_FOLLOWING)
-    assert tab.evaluate("() => !!(document.querySelector('[data-vw=info]').compareDocumentPosition(document.querySelector('[data-vw=c-years]')) & 4)") is True
-    assert "From" not in info and "To2001" not in info
+    # the only thing said about the variable is its units: the name and description are in the list above,
+    # and the dates, time resolution, calendar and files are not shown (the slider and the year boxes give the times)
+    assert tab.locator("[data-vw=info] dt").all_text_contents() == ["Units"]
     # nothing is written under the map
     assert tab.locator("#plot-notes, .stage__notes").count() == 0
     # the map fills its box, not a strip of axes
@@ -585,21 +576,10 @@ def test_play_keeps_the_zoom_and_the_scale(page, simulation):
     assert _figure_ranges(tab) == pytest.approx(zoomed)
     # only the figure on show is kept, not one for every frame
     assert tab.evaluate("() => Object.values(Bokeh.index).filter((v) => v.model && v.model.type === 'Figure').length") == 1
-    # the scale of the animation is kept after it, so the map does not change under the user,
-    # until Automatic scale is chosen
+    # the scale of the animation is kept after it, so the map does not change under the user (it is not put
+    # in the Minimum and Maximum boxes), until Automatic is chosen again
     assert tab.input_value("[data-vw=vmin]") == ""
-    # Automatic is the default, so the Minimum and Maximum boxes are hidden
-    assert tab.get_attribute("[data-vw=scale-auto]", "aria-pressed") == "true" and tab.is_hidden("[data-vw=minmax]")
-    tab.click("[data-vw=scale-fixed]")
-    assert tab.is_visible("[data-vw=minmax]") and tab.input_value("[data-vw=vmin]") == ""
-    # a typed limit is kept through Automatic, and comes back under Fixed
-    tab.fill("[data-vw=vmin]", "5")
     tab.click("[data-vw=scale-auto]")
-    assert tab.is_hidden("[data-vw=minmax]")
-    tab.click("[data-vw=scale-fixed]")
-    assert tab.input_value("[data-vw=vmin]") == "5"
-    tab.click("[data-vw=scale-auto]")
-    assert tab.is_hidden("[data-vw=minmax]")
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert tab.is_hidden("[data-vw=plot-error]")
     # choosing a different variable starts from a fresh view
@@ -607,6 +587,97 @@ def test_play_keeps_the_zoom_and_the_scale(page, simulation):
     tab.keyboard.press("Enter")
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert _figure_ranges(tab) == pytest.approx(whole)
+
+
+def _is_plot(request):
+    return "api/viewer/plot" in request.url
+
+
+def _asked(request):
+    """What a plot request asks for, as the query's values by name (a blank one is [""])."""
+    return {name: values for name, values in parse_qs(urlparse(request.url).query, keep_blank_values=True).items()}
+
+
+def _before(tab, first, second):
+    """Whether the element of the selector first comes before that of second in the page."""
+    return tab.evaluate(
+        "([a, b]) => !!(document.querySelector(a).compareDocumentPosition(document.querySelector(b)) & Node.DOCUMENT_POSITION_FOLLOWING)",
+        [first, second],
+    )
+
+
+def test_the_side_panel_layout(page, simulation):
+    tab, app = page
+    _open_chl(tab, app, simulation)
+    side = "[data-vw=side-body]"
+    # the headings, in order (there is no About, Subset years or Colours; file type and depth come and go)
+    heads = tab.locator(f"{side} .vw-head:visible").all_text_contents()
+    ours = ["Variable selector", "Selection and animation", "Select years", "Map options"]
+    assert [head for head in heads if head in ours] == ours
+    assert not {"About", "Subset years", "Colours", "Time", "Variable"} & set(heads)
+    # the units come first of what is said about the variable, above the time and the years
+    assert _before(tab, "[data-vw=info]", "[data-vw=c-time]") and _before(tab, "[data-vw=c-time]", "[data-vw=c-years]")
+    # a light teal box holds the time, the depth and the years, in that order, and another the map options
+    boxes = tab.locator(f"{side} .vw-teal:visible")
+    assert boxes.count() == 2
+    for part in ("c-time", "c-level", "c-years"):
+        assert boxes.nth(0).locator(f"[data-vw={part}]").count() == 1
+    assert _before(tab, "[data-vw=c-time]", "[data-vw=c-level]") and _before(tab, "[data-vw=c-level]", "[data-vw=c-years]")
+    assert boxes.nth(1).locator("[data-vw=c-colour]").count() == 1
+    # Play is in the row of Speed, ahead of it, and not with the slider
+    assert tab.evaluate("() => document.querySelector('.vw-play-row').firstElementChild.dataset.vw") == "play"
+    assert tab.locator(".vw-time-row [data-vw=play]").count() == 0
+    # the year boxes say what they are in themselves, with no labels over them
+    assert tab.locator("[data-vw=c-years] .g-label").count() == 0
+    assert tab.get_attribute("[data-vw=first]", "placeholder") == "first" and tab.get_attribute("[data-vw=last]", "placeholder") == "last"
+    assert tab.get_attribute("[data-vw=first]", "aria-label") == "First year" and tab.get_attribute("[data-vw=last]", "aria-label") == "Last year"
+    # what to do with the variables is said on hovering over their heading, at once (not the browser's slow title)
+    tip = tab.locator(f"{side} .vw-tip")
+    text = "Click a variable to map it. Use the + buttons to map the sum of several variables."
+    assert tip.text_content() == "Variable selector" and tip.get_attribute("data-tip") == text and tip.get_attribute("title") is None
+    assert text not in tab.text_content(side)
+    shown = "() => getComputedStyle(document.querySelector('.vw-tip'), '::after').display"
+    assert tab.evaluate(shown) == "none"
+    tip.hover()
+    assert tab.evaluate(shown) == "block"
+    # the colour maps: Automatic first, and no turbo
+    options = tab.locator("[data-vw=cmap] option").all_text_contents()
+    assert options[0] == "Automatic" and "viridis" in options and "turbo" not in options
+    # coastlines are ticked by default, and asked for
+    if tab.is_enabled("[data-vw=coast]"):
+        assert tab.is_checked("[data-vw=coast]")
+    with tab.expect_request(_is_plot) as sent:
+        tab.select_option("[data-vw=cmap]", "plasma")
+    assert _asked(sent.value)["coast"] == ["1"]
+
+
+def test_the_scale_is_automatic_or_fixed(page, simulation):
+    tab, app = page
+    _open_chl(tab, app, simulation)
+    # Automatic is the default: the Minimum and Maximum boxes are not shown
+    assert tab.get_attribute("[data-vw=scale-auto]", "aria-pressed") == "true"
+    assert tab.get_attribute("[data-vw=scale-fixed]", "aria-pressed") == "false"
+    assert tab.is_hidden("[data-vw=minmax]")
+    # Fixed shows them, empty, with their names in them
+    tab.click("[data-vw=scale-fixed]")
+    assert tab.get_attribute("[data-vw=scale-fixed]", "aria-pressed") == "true" and tab.is_visible("[data-vw=minmax]")
+    assert tab.get_attribute("[data-vw=vmin]", "placeholder") == "Minimum" and tab.get_attribute("[data-vw=vmax]", "placeholder") == "Maximum"
+    assert tab.input_value("[data-vw=vmin]") == "" and tab.input_value("[data-vw=vmax]") == ""
+    # the limits typed are used
+    with tab.expect_request(lambda request: _is_plot(request) and "vmax=9" in request.url) as sent:
+        tab.fill("[data-vw=vmin]", "5")
+        tab.fill("[data-vw=vmax]", "9")
+    assert _asked(sent.value)["vmin"] == ["5"]
+    # Automatic hides the boxes and stops using the limits, but keeps them
+    with tab.expect_request(_is_plot) as sent:
+        tab.click("[data-vw=scale-auto]")
+    assert tab.is_hidden("[data-vw=minmax]")
+    assert _asked(sent.value).get("vmin", [""]) == [""] and _asked(sent.value).get("vmax", [""]) == [""]
+    # Fixed brings them back, in the boxes and on the map
+    with tab.expect_request(_is_plot) as sent:
+        tab.click("[data-vw=scale-fixed]")
+    assert tab.input_value("[data-vw=vmin]") == "5" and tab.input_value("[data-vw=vmax]") == "9"
+    assert _asked(sent.value)["vmin"] == ["5"] and _asked(sent.value)["vmax"] == ["9"]
 
 
 def test_fvcom_output(page, tmp_path, monkeypatch):
@@ -633,7 +704,11 @@ def test_fvcom_output(page, tmp_path, monkeypatch):
     tab.select_option("[data-vw=level]", "4")
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert tab.is_hidden("[data-vw=plot-error]")
-    assert tab.is_enabled("[data-vw=coast]")
+    # coastlines are ticked by default (so the map above has one): off and on again redraws it each time
+    assert tab.is_enabled("[data-vw=coast]") and tab.is_checked("[data-vw=coast]")
+    tab.uncheck("[data-vw=coast]")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_hidden("[data-vw=plot-error]")
     tab.check("[data-vw=coast]")
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert tab.is_hidden("[data-vw=plot-error]")
@@ -697,19 +772,15 @@ def test_the_viewer_opens_while_the_times_are_read(page, simulation, gated_times
     assert tab.is_hidden("[data-vw=plot-error]")
     assert tab.is_disabled("[data-vw=step]") and tab.is_disabled("[data-vw=play]") and tab.is_disabled("[data-vw=next]")
     assert "being read" in tab.text_content("[data-vw=info]")
-    assert "Dates" not in tab.text_content("[data-vw=info]")
     assert tab.is_enabled("[data-vw=level]") and tab.is_enabled("[data-vw=cmap]")
     # the times come in: the years and the time can be used, and the map is as it was
     gated_times.set()
     tab.wait_for_function("() => !document.querySelector('[data-vw=first]').disabled", timeout=60000)
     assert tab.is_hidden("[data-vw=times]") and tab.is_hidden("[data-vw=times-meter]")
-    assert tab.get_attribute("[data-vw=first]", "placeholder") == "first" and tab.get_attribute("[data-vw=last]", "placeholder") == "last"
-    # the time and the years are in the teal box, with Play beside Speed
-    assert tab.locator(".vw-teal [data-vw=c-time]").count() == 1 and tab.locator(".vw-teal [data-vw=c-years]").count() == 1
-    assert tab.locator(".vw-play-row [data-vw=play]").count() == 1
+    # (the year boxes' arrow lists the years of the output: see test_first_and_last_year)
     assert tab.is_enabled("[data-vw=step]") and tab.is_enabled("[data-vw=play]")
     assert tab.get_attribute("[data-vw=step]", "max") == "23"
-    assert "Dates" not in tab.text_content("[data-vw=info]")
+    assert "being read" not in tab.text_content("[data-vw=info]")
     assert tab.is_hidden("[data-vw=plot-error]")
     assert "2000-01-16" in tab.text_content("[data-vw=when]")
 
@@ -731,8 +802,6 @@ def test_first_and_last_year(page, simulation):
     tab.wait_for_function("() => document.querySelector('[data-vw=step]').min === '12'")
     assert tab.get_attribute("[data-vw=step]", "max") == "23"
     tab.wait_for_function("() => document.querySelector('[data-vw=when]').textContent.startsWith('2001-01')")
-    info = tab.text_content("[data-vw=info]")
-    assert "Dates" not in info and "Files" not in info
     tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert tab.is_disabled("[data-vw=prev]")
     for _ in range(11):

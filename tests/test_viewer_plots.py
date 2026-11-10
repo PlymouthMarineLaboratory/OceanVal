@@ -7,7 +7,7 @@ import re
 import numpy as np
 import pytest
 import xarray as xr
-from viewer_simulations import regular_file
+from viewer_simulations import axes_visible, regular_file
 
 from oceanval import viewer_catalogue as catalogue
 from oceanval import viewer_plots as plotting
@@ -80,14 +80,44 @@ def test_regular_grid_is_an_image(tmp_path):
     data, _ = found.field(0, "sst", 1)
     item, notes, clim = plotting.map_plot(data, found.about(0, "sst"), "sst")
     assert notes == []
-    # the map has no title: the page says what it is, and the colour bar has no units (the About has them)
-    assert _titles(item) == []
     assert "Image" in _kinds(item)
-    # nothing beside the colour bar: hvplot would otherwise name it after the variable
-    assert "sst" not in re.findall(r"'title': '([^']*)'", str(item))
-    # the axes are hidden: no labels, numbers or ticks are drawn (both axes are there, not visible)
-    axes_visible = re.findall(r"'name': 'LinearAxis', 'id': '[a-z0-9]+', 'attributes': \{'visible': (\w+)", str(item))
-    assert axes_visible == ["False", "False"]
+
+
+def _regular(tmp_path):
+    regular_file(str(tmp_path / "r.nc"))
+    found = catalogue.scan(str(tmp_path), 0)
+    data, _ = found.field(0, "sst", 1)
+    return data, found.about(0, "sst"), "sst"
+
+
+def _curvilinear(tmp_path):
+    y, x = np.meshgrid(np.arange(8), np.arange(6), indexing="ij")
+    data = xr.DataArray(
+        np.random.default_rng(0).random((8, 6)), dims=("y", "x"),
+        coords={"lon": (("y", "x"), -10 + x + 0.1 * y), "lat": (("y", "x"), 50 + y + 0.1 * x)},
+    )
+    return data, {"horizontal": ["y", "x"], "lon": "lon", "lat": "lat", "units": "K", "long_name": "t"}, "t"
+
+
+def _by_index(tmp_path):
+    data = xr.DataArray(
+        np.ones((5, 4)), dims=("y", "x"),
+        coords={"lon": (("y", "x"), np.full((5, 4), np.nan)), "lat": (("y", "x"), np.full((5, 4), np.nan))},
+    )
+    return data, {"horizontal": ["y", "x"], "lon": "lon", "lat": "lat", "units": "K", "long_name": "t"}, "t"
+
+
+@pytest.mark.parametrize("make", [_regular, _curvilinear, _by_index], ids=["image", "quadmesh", "indices"])
+def test_a_map_has_no_title_colour_bar_label_or_axes(make, tmp_path):
+    """The page says what the map is (variable, time, units), so the figure has
+    nothing else: no title, nothing beside the colour bar (hvplot would name it
+    after the variable), and no axis labels, numbers or ticks (both axes are
+    there, not visible), whatever the kind of map."""
+    data, about, name = make(tmp_path)
+    item, _, _ = plotting.map_plot(data, about, name)
+    assert _titles(item) == []
+    assert name not in re.findall(r"'title': '([^']*)'", str(item))
+    assert axes_visible(item) == ["False", "False"]
 
 
 def test_uneven_latitudes_are_a_quadmesh():

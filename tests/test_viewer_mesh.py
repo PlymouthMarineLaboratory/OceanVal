@@ -7,7 +7,7 @@ import json
 import netCDF4
 import numpy as np
 import pytest
-from viewer_simulations import fvcom_file, fvcom_mesh, fvcom_simulation
+from viewer_simulations import axes_visible, fvcom_file, fvcom_mesh, fvcom_simulation
 
 from oceanval import viewer_catalogue as catalogue
 from oceanval import viewer_mesh as fvcom
@@ -114,7 +114,8 @@ def test_a_mesh_in_metres(tmp_path):
         assert mesh.cartesian and mesh.x.max() == pytest.approx(70000)
         data, _ = found.field(0, ["temp"], 0, 0)
         item, notes, clim = plotting.map_plot(data, found.combined(0, ["temp"]), "temp", coast=True, mesh=mesh)
-        assert "x (m)" in str(item)
+        # no axes are drawn (no labels, numbers or ticks), in metres as anywhere
+        assert axes_visible(item) == ["False", "False"]
         # metres east and north are drawn on one scale
         span = (mesh.y.max() - mesh.y.min()) / (mesh.x.max() - mesh.x.min())
         assert item["aspect"] == pytest.approx(span, rel=0.05)
@@ -192,7 +193,8 @@ def test_the_coastline_on_a_mesh(found, monkeypatch):
     assert _lines(item) == 1
     (x0, x1), (y0, y1), scale = asked[0]
     assert x0 < -5 and x1 > -4 and y0 < 50 and y1 > 51 and scale == "10m"
-    assert "Longitude" in str(item)
+    # (the axes stay hidden with the coastline over the map)
+    assert axes_visible(item) == ["False", "False"]
     # without cartopy, none
     monkeypatch.setattr(plotting, "has_cartopy", lambda: False)
     item, notes, _ = _temp_map(found, coast=True)
