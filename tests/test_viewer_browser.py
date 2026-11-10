@@ -668,12 +668,16 @@ def test_the_scale_is_automatic_or_fixed(page, simulation):
         tab.fill("[data-vw=vmin]", "5")
         tab.fill("[data-vw=vmax]", "9")
     assert _asked(sent.value)["vmin"] == ["5"]
-    # Automatic hides the boxes and stops using the limits, but keeps them
-    with tab.expect_request(_is_plot) as sent:
-        tab.click("[data-vw=scale-auto]")
+    # Automatic hides the boxes (the map it goes back to was fetched before, so nothing is asked for)...
+    tab.click("[data-vw=scale-auto]")
     assert tab.is_hidden("[data-vw=minmax]")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    # ...and stops using the limits, but keeps them: the next time drawn is asked for without them
+    with tab.expect_request(_is_plot) as sent:
+        tab.click("[data-vw=next]")
     assert _asked(sent.value).get("vmin", [""]) == [""] and _asked(sent.value).get("vmax", [""]) == [""]
-    # Fixed brings them back, in the boxes and on the map
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    # Fixed brings them back, in the boxes and on the map at once (that time was not drawn with them yet)
     with tab.expect_request(_is_plot) as sent:
         tab.click("[data-vw=scale-fixed]")
     assert tab.input_value("[data-vw=vmin]") == "5" and tab.input_value("[data-vw=vmax]") == "9"
