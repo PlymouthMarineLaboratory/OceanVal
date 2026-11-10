@@ -30,7 +30,7 @@ class TestCatalogue:
         listed = {}
         for row in rows:
             cells = re.findall(r"<td>(.*?)</td>", row, re.S)
-            variable = re.sub(r"<.*?>", "", cells[1]).lower()
+            variable = re.sub(r"<.*?>", "", cells[1]).lower().replace(" ", "")
             recipe = re.sub(r"<.*?>", "", cells[2])
             listed[variable, recipe] = html.unescape(re.sub(r"<.*?>", "", cells[-1]))
 
@@ -44,17 +44,29 @@ class TestCatalogue:
             pytest.skip("the docs site is not part of the installed package")
         page = open(DOCS).read()
         table = page[page.index('id="point-recipes"') :]
+        # a row is (region, variable, recipe): GLODAPv3 and ICES both have an
+        # alkalinity and a pH, in different units
         listed = {}
-        for row in re.findall(r"<tr>\s*(<td>Northeast.*?)</tr>", table, re.S):
+        for row in re.findall(r"<tr>\s*(<td>(?:Global|Northeast).*?)</tr>", table, re.S):
             cells = [
                 html.unescape(re.sub(r"<.*?>", "", cell))
                 for cell in re.findall(r"<td>(.*?)</td>", row, re.S)
             ]
-            listed[cells[1]] = cells[4]
+            listed[cells[0], cells[1], cells[2]] = cells[4]
 
-        titles = {"alkalinity": "Total Alkalinity", "ph": "pH"}
+        regions = {"Global": "Global", "Northwest European Shelf": "Northeast Atlantic"}
+        titles = {
+            "alkalinity": "Total Alkalinity",
+            "dic": "Dissolved Inorganic Carbon",
+            "doc": "Dissolved Organic Carbon",
+            "ph": "pH",
+        }
         assert listed == {
-            titles.get(entry["variable"], entry["variable"].title()): entry["units"]
+            (
+                regions[entry["region"]],
+                titles.get(entry["variable"], entry["variable"].title()),
+                entry["recipe"],
+            ): entry["units"]
             for entry in POINT_RECIPE_CATALOGUE
         }
 

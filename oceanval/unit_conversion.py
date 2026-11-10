@@ -105,6 +105,8 @@ _KINDS = {
     "amount per mass": "[substance] / [mass]",
     "mass per volume": "[mass] / [length] ** 3",
     "per length": "1 / [length]",
+    "pressure": "[pressure]",
+    "amount per area per time": "[substance] / [length] ** 2 / [time]",
 }
 
 # prefixes, as written, and pint's names for them
@@ -146,6 +148,10 @@ _UNITS = {
     "Eq": "equivalent",
     "equivalent": "equivalent",
     "equivalents": "equivalent",
+    "atm": "atm",
+    "percent": "percent",
+    "yr": "year",
+    "year": "year",
 }
 
 # a unit, with its prefix and power: "mmol", "m-3", "m^3", "kg**-1"

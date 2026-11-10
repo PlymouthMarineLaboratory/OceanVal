@@ -298,6 +298,188 @@
             <p>Uses a decadal climatology, vertically resolved to ~800 m. <code>start</code>/<code>end</code> must fall within one supported period (see below).</p>
           </div></td></tr>
 
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>DIC</td><td><code>glodap</code></td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"dic"</span>,
+    model_variable=<span class="tok-str">"dissic"</span>,
+    recipe={<span class="tok-str">"dic"</span>: <span class="tok-str">"glodap"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Annual climatology covering 1972–2013, surface-only. Reported in micromoles per kilogram. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Nitrate</td><td><code>glodap</code></td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"nitrate"</span>,
+    model_variable=<span class="tok-str">"no3"</span>,
+    recipe={<span class="tok-str">"nitrate"</span>: <span class="tok-str">"glodap"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Annual climatology covering 1972–2013, surface-only. Reported in micromoles per kilogram. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Omega aragonite</td><td><code>glodap</code></td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"omegaaragonite"</span>,
+    model_variable=<span class="tok-str">"omega_arg"</span>,
+    recipe={<span class="tok-str">"omegaaragonite"</span>: <span class="tok-str">"glodap"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Aragonite saturation state, an annual climatology covering 1972–2013, surface-only. Calculated at in situ temperature and pressure; no units.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Omega calcite</td><td><code>glodap</code></td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"omegacalcite"</span>,
+    model_variable=<span class="tok-str">"omega_cal"</span>,
+    recipe={<span class="tok-str">"omegacalcite"</span>: <span class="tok-str">"glodap"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Calcite saturation state, an annual climatology covering 1972–2013, surface-only. Calculated at in situ temperature and pressure; no units.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Oxygen</td><td><code>glodap</code></td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"oxygen"</span>,
+    model_variable=<span class="tok-str">"o2"</span>,
+    recipe={<span class="tok-str">"oxygen"</span>: <span class="tok-str">"glodap"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Annual climatology covering 1972–2013, surface-only. Reported in micromoles per kilogram. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Phosphate</td><td><code>glodap</code></td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"phosphate"</span>,
+    model_variable=<span class="tok-str">"po4"</span>,
+    recipe={<span class="tok-str">"phosphate"</span>: <span class="tok-str">"glodap"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Annual climatology covering 1972–2013, surface-only. Reported in micromoles per kilogram. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Silicate</td><td><code>glodap</code></td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"silicate"</span>,
+    model_variable=<span class="tok-str">"si"</span>,
+    recipe={<span class="tok-str">"silicate"</span>: <span class="tok-str">"glodap"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Annual climatology covering 1972–2013, surface-only. Reported in micromoles per kilogram. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>AOU</td><td><code>woa23</code></td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>micromoles_per_kilogram</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"aou"</span>,
+    model_variable=<span class="tok-str">"aou"</span>,
+    recipe={<span class="tok-str">"aou"</span>: <span class="tok-str">"woa23"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Apparent oxygen utilization: the oxygen a water has lost since it left the surface, a measure of how much organic matter has been respired. A climatology of 1965–2022, surface-only. Reported in micromoles per kilogram.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>O2sat</td><td><code>woa23</code></td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>percent</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"o2sat"</span>,
+    model_variable=<span class="tok-str">"o2sat"</span>,
+    recipe={<span class="tok-str">"o2sat"</span>: <span class="tok-str">"woa23"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Oxygen saturation: dissolved oxygen as a percentage of its saturation value at the water's temperature and salinity. A climatology of 1965–2022, surface-only.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>pCO2</td><td><code>mpisom</code></td><td><a href="https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">MPI-SOM-FFN v2025</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>uatm</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"pco2_mpisom"</span>,
+    model_variable=<span class="tok-str">"spco2"</span>,
+    recipe={<span class="tok-str">"pco2"</span>: <span class="tok-str">"mpisom"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Surface ocean pCO2 from a gap-free monthly reconstruction (a neural network trained on SOCAT's fCO2), 1 degree, surface only. A climatology of 1985–2024, reported in micro-atmospheres.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>CO2flux</td><td><code>mpisom</code></td><td><a href="https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">MPI-SOM-FFN v2025</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>mol m-2 yr-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"co2flux"</span>,
+    model_variable=<span class="tok-str">"fgco2"</span>,
+    recipe={<span class="tok-str">"co2flux"</span>: <span class="tok-str">"mpisom"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Air-sea CO2 flux worked out from the reconstructed pCO2, a monthly climatology of 1985–2024 in moles of carbon per square metre per year. Positive is into the ocean, as in CMIP6's fgco2.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>pCO2</td><td><code>socat</code></td><td><a href="https://www.socat.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">SOCATv2026</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>uatm</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"pco2_socat"</span>,
+    model_variable=<span class="tok-str">"spco2"</span>,
+    recipe={<span class="tok-str">"pco2"</span>: <span class="tok-str">"socat"</span>},
+    climatology=<span class="tok-kw">False</span>,
+)</pre></div>
+            <p>Monthly 1 degree means of ship and mooring measurements, 1970 to 2025, with nothing where nothing was measured. It is fCO2, which is within about 0.5% of pCO2.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Mesozooplankton</td><td><code>copepod</code></td><td><a href="https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">NOAA COPEPOD</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"mesozooplankton"</span>,
+    model_variable=<span class="tok-str">"zmeso"</span>,
+    recipe={<span class="tok-str">"mesozooplankton"</span>: <span class="tok-str">"copepod"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Monthly climatology of net-sampled zooplankton carbon biomass on a 0.25 degree grid, a mean over the top 200 m (or the sea floor, where that is shallower). Reported in milligrams of carbon per cubic metre.</p>
+          </div></td></tr>
+
           <tr class="recipe-row" data-region="nwes">
             <td>NW European Shelf</td><td>Ammonium</td><td><code>nsbc</code></td><td>North Sea Biogeochemical Climatology</td><td><span class="badge badge-yes">Yes</span></td>
           <td><code>mmol/m^3</code></td>
@@ -429,6 +611,33 @@
           </tr>
         </thead>
         <tbody>
+          <tr>
+            <td>Global</td><td>Total Alkalinity</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;mol/kg</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Chlorophyll</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;g/kg</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Dissolved Inorganic Carbon</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;mol/kg</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Dissolved Organic Carbon</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;mol/l</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Nitrate</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;mol/kg</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Oxygen</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;mol/kg</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>pH</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>total scale</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Phosphate</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;mol/kg</td><td><span class="badge badge-no">No</span></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Silicate</td><td><code>glodapv3</code></td><td><a href="https://glodap.info">GLODAPv3 bottle data</a>, bottle samples from 1972 to 2023</td><td>&micro;mol/kg</td><td><span class="badge badge-no">No</span></td>
+          </tr>
           <tr>
             <td>Northeast Atlantic</td><td>Temperature</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>&deg;C</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
