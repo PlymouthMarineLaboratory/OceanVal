@@ -32,7 +32,7 @@ def test_recipe_returns_required_metadata(name, source):
     assert result["obs_path"]
     assert result["source"]
     assert isinstance(result["climatology"], bool)
-    assert result["thredds"] is ("glodap" not in source.lower())
+    assert result["thredds"] is (source.lower() not in {"glodap", "mpisom", "socat", "copepod"})
     # every recipe here is gridded
     assert result["point"] is False
 

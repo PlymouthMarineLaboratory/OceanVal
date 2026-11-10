@@ -46,6 +46,8 @@ class TestFields:
     )
     def test_every_argument_but_the_recipe_is_offered(self, kind, function):
         arguments = set(inspect.signature(function).parameters) - {"self", "recipe"}
+        # a depth mean is only for the datasets OceanVal builds itself
+        arguments -= {"depth_mean"}
         offered = [field["name"] for field in own_data.FIELDS[kind]]
 
         assert set(offered) == arguments

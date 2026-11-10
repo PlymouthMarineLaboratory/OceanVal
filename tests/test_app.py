@@ -8698,14 +8698,15 @@ class TestInfo:
         glodap = next(
             r for r in rows if r["recipe"] == "glodap" and r["variable"] == "Total alkalinity of sea water"
         )
-        assert not glodap["water_column"] and glodap["region"] == "Global"
+        # the gridded GLODAPv2 climatology is vertically resolved, so it has the option
+        assert glodap["water_column"] and glodap["region"] == "Global"
         nsbc = next(r for r in rows if r["recipe"] == "nsbc")
         assert nsbc["dataset"] == "North Sea Biogeochemical Climatology"
         assert nsbc["url"] == "https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html"
         ices = next(r for r in rows if r["recipe"] == "ices")
         assert ices["url"] == "https://www.ices.dk/data/data-portals/Pages/ocean.aspx"
         assert all(r["url"] for r in rows)
-        assert {r["region"] for r in rows if r["point"]} == {"Northeast Atlantic"}
+        assert {r["region"] for r in rows if r["point"]} == {"Global", "Northeast Atlantic"}
 
     def test_the_version_is_the_packages(self, app):
         import oceanval
@@ -8762,6 +8763,8 @@ class TestInfo:
             app.close()
 
     def test_the_about_page_in_a_browser(self, browser, tmp_path):
+        from oceanval.create_recipes import POINT_RECIPE_CATALOGUE, RECIPE_CATALOGUE
+
         app = App(cwd=str(tmp_path))
         url = _tools_page(app)
         try:
@@ -8776,8 +8779,8 @@ class TestInfo:
             assert page.text_content("#info-version") == f"Version {app.state()['oceanval_version']}"
             assert page.get_attribute("#info-website", "href") == "https://PlymouthMarineLaboratory.github.io/OceanVal/"
             assert page.get_attribute("#info-github", "href") == "https://github.com/PlymouthMarineLaboratory/oceanVal"
-            assert page.locator("#info-gridded tbody tr").count() == 19
-            assert page.locator("#info-point tbody tr").count() == 10
+            assert page.locator("#info-gridded tbody tr").count() == len(RECIPE_CATALOGUE)
+            assert page.locator("#info-point tbody tr").count() == len(POINT_RECIPE_CATALOGUE)
             assert page.locator("#info-gridded tbody tr", has_text="GLODAPv2.2016b").first.is_visible()
             # the credit, under the tables
             credit = page.locator("#view-about .info__credit")

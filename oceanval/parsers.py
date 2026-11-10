@@ -170,7 +170,6 @@ recipe_list = [
     {"co2flux": "mpisom"},
     {"pco2": "socat"},
     {"mesozooplankton": "copepod"},
-    {"doc": "hansell"},
     {"kd490": "occci"},
     {"ph": "glodap"},
     {"alkalinity": "glodap"},

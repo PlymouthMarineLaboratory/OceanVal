@@ -258,8 +258,8 @@ class TestForms:
         assert "obs_variable" not in recipe_forms.default_form("point")
 
     def test_what_is_sent_is_limited_to_the_boxes(self):
-        cleaned = recipe_forms.clean("point", {"variable": " dic ", "nonsense": 1, "units": None})
-        assert cleaned["variable"] == "dic" and cleaned["units"] == "" and "nonsense" not in cleaned
+        cleaned = recipe_forms.clean("point", {"variable": " tracer ", "nonsense": 1, "units": None})
+        assert cleaned["variable"] == "tracer" and cleaned["units"] == "" and "nonsense" not in cleaned
 
     def test_names_are_checked_as_they_are_typed(self, tmp_path):
         errors, warnings, info = recipe_forms.check_names("gridded", form(variable="", source="x y"), str(tmp_path))
@@ -290,10 +290,10 @@ class TestForms:
 
     def test_a_new_variable_is_named(self, tmp_path):
         recipe, errors, _, _ = recipe_forms.check_save(
-            "gridded", form(variable="dic", short_title="DIC"), str(tmp_path)
+            "gridded", form(variable="tracer", short_title="DIC"), str(tmp_path)
         )
         assert errors == {}
-        assert (recipe["long_name"], recipe["short_name"], recipe["short_title"]) == ("dic", "dic", "DIC")
+        assert (recipe["long_name"], recipe["short_name"], recipe["short_title"]) == ("tracer", "tracer", "DIC")
 
     def test_a_known_variable_keeps_its_names(self, tmp_path):
         recipe, _, _, _ = recipe_forms.check_save(
@@ -340,7 +340,7 @@ class TestForms:
 
     def test_a_point_form(self, tmp_path):
         recipe, errors, _, _ = recipe_forms.check_save(
-            "point", form("point", variable="dic", short_title="DIC", obs_path=POINTS), str(tmp_path)
+            "point", form("point", variable="tracer", short_title="DIC", obs_path=POINTS), str(tmp_path)
         )
         assert errors == {}
         assert recipe["obs_path"] == POINTS and recipe["depth_resolved"] is False

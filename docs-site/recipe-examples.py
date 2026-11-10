@@ -205,6 +205,79 @@ oceanval.add_gridded_comparison(
     vertical=False,  # set True to validate the full water column
 )
 
+# Apparent oxygen utilization - World Ocean Atlas 2023 (https://www.ncei.noaa.gov/products/world-ocean-atlas)
+# recipe: 'woa23'
+# The oxygen a water has lost since it left the surface, a measure of how
+# much organic matter has been respired. Reported in micromoles per kilogram.
+oceanval.add_gridded_comparison(
+    name="aou",
+    model_variable="aou",
+    recipe={"aou": "woa23"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Oxygen saturation - World Ocean Atlas 2023 (https://www.ncei.noaa.gov/products/world-ocean-atlas)
+# recipe: 'woa23'
+# Dissolved oxygen as a percentage of its saturation value at the water's
+# temperature and salinity.
+oceanval.add_gridded_comparison(
+    name="o2sat",
+    model_variable="o2sat",
+    recipe={"o2sat": "woa23"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Surface ocean pCO2 - MPI-SOM-FFN v2025 (https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html)
+# recipe: 'mpisom'
+# Monthly climatology of a gap-free reconstruction (a neural network trained on
+# SOCAT's fCO2), 1 degree, surface only. Reported in micro-atmospheres.
+oceanval.add_gridded_comparison(
+    name="pco2",
+    model_variable="spco2",
+    recipe={"pco2": "mpisom"},
+    climatology=True,
+)
+
+# Air-sea CO2 flux - MPI-SOM-FFN v2025 (https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html)
+# recipe: 'mpisom'
+# Monthly climatology of the flux worked out from the reconstructed pCO2, in
+# moles of carbon per square metre per year. The product is negative where the
+# ocean takes CO2 up: OceanVal reverses it, so that, as in CMIP6's fgco2 and
+# ERSEM's fair, positive is into the ocean.
+oceanval.add_gridded_comparison(
+    name="co2flux",
+    model_variable="fgco2",
+    recipe={"co2flux": "mpisom"},
+    climatology=True,
+)
+
+# Surface ocean fCO2 - SOCATv2026 (https://www.socat.info/)
+# recipe: 'socat'
+# Monthly 1 degree means of ship and mooring measurements (the cruise-weighted
+# mean fCO2, flags A to D, WOCE 2), 1970 to 2025, with nothing where nothing
+# was measured. It is fCO2, which is within about 0.5% of pCO2.
+oceanval.add_gridded_comparison(
+    name="pco2",
+    model_variable="spco2",
+    recipe={"pco2": "socat"},
+    climatology=False,
+)
+
+# Mesozooplankton carbon biomass - NOAA COPEPOD (https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html)
+# recipe: 'copepod'
+# Monthly climatology of net-sampled zooplankton (330 um mesh) as carbon, on a
+# 0.25 degree grid where there are samples, in milligrams of carbon per cubic
+# metre, a mean over the top 200 m: the simulation is averaged over 0-200 m too
+# (or the sea floor, where that is shallower), which needs the cell thickness.
+oceanval.add_gridded_comparison(
+    name="mesozooplankton",
+    model_variable="zmeso",
+    recipe={"mesozooplankton": "copepod"},
+    climatology=True,
+)
+
 # Temperature - COBE-SST 2 (https://psl.noaa.gov/data/gridded/data.cobe2.html)
 # recipe: 'cobe2'
 # Monthly sea surface temperature, useful for validating against a full time

@@ -18,7 +18,7 @@ from oceanval import domain_mask, sim_unify
 from oceanval.app import App
 from oceanval.session import session_info
 
-from test_app import get_json, leftover_dir, output_continue, post, through_output, wait_for  # noqa: F401 (leftover_dir is autouse)
+from test_app import get_json, leftover_dir, output_continue, post, stub_pattern_checks, through_output, wait_for  # noqa: F401 (leftover_dir and stub_pattern_checks are autouse)
 
 
 def lonlat(lon, lat):

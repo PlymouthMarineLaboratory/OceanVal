@@ -537,10 +537,13 @@ class TestGeneratedScript:
         script = scripts["global"]
 
         # by default only one recipe per variable is left live - the others
-        # are written out commented, to be added as further sources
+        # are written out commented, to be added as further sources. The
+        # gridded and the point recipes are separate: a variable can have one
+        # live recipe of each kind.
+        gridded = script.split("# Global - GLODAPv3 bottle data")[0]
         live = [
             line
-            for line in script.splitlines()
+            for line in gridded.splitlines()
             if line.startswith("    name=") and not line.startswith("#")
         ]
         assert len(live) == len(set(live))
@@ -637,11 +640,14 @@ class TestGeneratedScript:
         assert simulation_years("/sim", paths) == (2003, 2003)
 
 
+ICES_CATALOGUE = [entry for entry in POINT_RECIPE_CATALOGUE if entry["recipe"] == "ices"]
+
+
 class TestPointRecipes:
     def test_ices_recipes_are_included_when_domain_is_nwes(self, scripts):
         script = scripts["nwes"]
 
-        assert script.count("add_point_comparison(") == len(POINT_RECIPE_CATALOGUE)
+        assert script.count("add_point_comparison(") == len(ICES_CATALOGUE)
         assert 'recipe={"temperature": "ices"}' in script
         # the simulation fixture holds a model variable for every ICES
         # variable, so every point block should be live, not commented
@@ -651,7 +657,6 @@ class TestPointRecipes:
     def test_ices_recipes_are_excluded_when_domain_is_global(self, scripts):
         script = scripts["global"]
 
-        assert "add_point_comparison(" not in script
         assert '"ices"' not in script
 
     def test_unmatched_ices_recipes_are_commented_out(self, tmp_path):
@@ -671,7 +676,7 @@ class TestPointRecipes:
         script = open(out).read()
 
         # every point recipe is still there, so nothing is silently dropped
-        assert script.count("add_point_comparison(") == len(POINT_RECIPE_CATALOGUE)
+        assert script.count("add_point_comparison(") == len(ICES_CATALOGUE)
         assert '\noceanval.add_point_comparison(' not in script
         assert "# No temperature variable was found in the model output." in script
 

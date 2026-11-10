@@ -44,7 +44,7 @@ def gridded_form(**changes):
 def point_form(**changes):
     form = recipe_forms.default_form("point")
     form.update(
-        variable="dic", source="DicPts", source_info="DIC samples", units="umol/kg",
+        variable="tracer", source="DicPts", source_info="DIC samples", units="umol/kg",
         where="global", obs_path=POINTS, short_title="DIC",
     )
     form.update(changes)
@@ -196,7 +196,7 @@ class TestSaving:
         status, reply = post(app, "/api/recipe_save", {"kind": "point", "form": point_form()})
         assert status == 200, reply
         data = json.load(open(user_recipes.global_path()))
-        assert data["recipes"]["dic"]["dicpts"]["short_title"] == "DIC"
+        assert data["recipes"]["tracer"]["dicpts"]["short_title"] == "DIC"
         assert not os.path.exists(tmp_path / ".oceanvalrc")
 
     def test_what_cannot_be_saved_is_sent_back(self, app, tmp_path):
@@ -298,7 +298,7 @@ class TestUsingThem:
         post(app, "/api/own_data", {"answer": False})
         wait_for(lambda: app.view == "recipes")
         rows = {row["variable"]: row for row in page_state(get(app, "/recipes/")[1])["rows"]}
-        dic = rows["dic"]
+        dic = rows["tracer"]
         assert dic["model_variable"] == ""
         assert [d["ticked"] for d in dic["point"]] == [False]
         assert dic["point"][0]["label"] == "DicPts"
@@ -315,7 +315,7 @@ def own_gridded(**changes):
 
 
 def own_point(**changes):
-    form = {"name": "dic", "source": "DicPts", "model_variable": "thetao", "obs_path": POINTS}
+    form = {"name": "tracer", "source": "DicPts", "model_variable": "thetao", "obs_path": POINTS}
     form.update(changes)
     return form
 
@@ -383,7 +383,7 @@ class TestFromOwnData:
         # csv files do not say what their units are, and dic is a variable of the user's own
         assert {box["name"]: box["assumed"] for box in future["boxes"]} == {
             "units": None, "source_info": "Source for DicPts",
-            "long_name": "dic", "short_name": "dic", "short_title": "Dic", "where": "global",
+            "long_name": "tracer", "short_name": "tracer", "short_title": "Tracer", "where": "global",
         }
         assert future["labels"] is None
 
@@ -395,9 +395,9 @@ class TestFromOwnData:
         typed = {"units": "umol/kg", "source_info": "DIC samples", "short_title": "DIC", "where": "local"}
         status, reply = post(app, "/api/own_future_save", {"boxes": typed})
         assert status == 200, reply
-        saved = json.load(open(tmp_path / ".oceanvalrc"))["recipes"]["dic"]["dicpts"]
+        saved = json.load(open(tmp_path / ".oceanvalrc"))["recipes"]["tracer"]["dicpts"]
         assert (saved["units"], saved["source_info"]) == ("umol/kg", "DIC samples")
-        assert (saved["long_name"], saved["short_name"], saved["short_title"]) == ("dic", "dic", "DIC")
+        assert (saved["long_name"], saved["short_name"], saved["short_title"]) == ("tracer", "tracer", "DIC")
         # what was typed for the report is used now as well, and what was
         # assumed is left to the call, which assumes the same
         entry = app.own_data["point"][0]
@@ -410,7 +410,7 @@ class TestFromOwnData:
         # taking it out of the run leaves the recipe saved
         assert post(app, "/api/own_remove", {"kind": "point", "index": 0})[0] == 200
         assert app.state(console=False)["own"]["saved"]["point"] == [None]
-        assert user_recipes.get("dic", "dicpts", app.cwd) is not None
+        assert user_recipes.get("tracer", "dicpts", app.cwd) is not None
 
     def test_what_a_recipe_cannot_be_is_said_on_the_form(self, app, tmp_path):
         own_step(app, tmp_path)
@@ -652,14 +652,14 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         assert page.text_content("#own-add-point") == "Add this data for use now only"
         assert page.text_content("#own-future-point") == "Add this data for use now and in future"
 
-        page.fill("#o-point-name", "dic")
+        page.fill("#o-point-name", "tracer")
         page.fill("#o-point-source", "DicPts")
         page.fill("#o-point-model_variable", "thetao")
         page.fill("#o-point-obs_path", POINTS)
         page.click("#own-future-point")
         page.wait_for_selector("#view-own-future:not([hidden])")
         assert page.text_content("#title") == "Save your point data for future use"
-        assert 'recipe={"dic": "dicpts"}' in page.text_content(".future-summary")
+        assert 'recipe={"tracer": "dicpts"}' in page.text_content(".future-summary")
         assert "Simulation variable (thetao)" in page.text_content("#fu-run")
 
         # a csv file says nothing of its units, so they have to be given
@@ -669,7 +669,7 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         assert page.is_disabled("#future-save")
         # what OceanVal assumes is amber
         assert page.input_value("#fu-source_info") == "Source for DicPts"
-        assert page.input_value("#fu-short_title") == "Dic"
+        assert page.input_value("#fu-short_title") == "Tracer"
         for selector in ("#fu-source_info", "#fu-short_title", "#fu-where-global-title"):
             assert colour(selector) == amber
         assert page.is_checked("#fu-where-global")
@@ -682,7 +682,7 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         # Back keeps the form, and what was typed here
         page.click("#back-open")
         page.wait_for_selector("#own-form-point")
-        assert page.input_value("#o-point-name") == "dic"
+        assert page.input_value("#o-point-name") == "tracer"
         page.click("#own-future-point")
         page.wait_for_selector("#view-own-future:not([hidden])")
         assert page.input_value("#fu-units") == "umol/kg"
@@ -692,9 +692,9 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
         page.click("#future-save")
         page.wait_for_function("document.querySelector('#toast').textContent.includes('saved for future use')")
         page.wait_for_selector("#view-point:not([hidden]) #own-list-point:not([hidden])")
-        assert 'Also saved for future use, as recipe={"dic": "dicpts"}' in page.text_content("#own-list-point")
+        assert 'Also saved for future use, as recipe={"tracer": "dicpts"}' in page.text_content("#own-list-point")
         assert page.input_value("#o-point-name") == ""
-        saved = json.load(open(user_recipes.global_path()))["recipes"]["dic"]["dicpts"]
+        saved = json.load(open(user_recipes.global_path()))["recipes"]["tracer"]["dicpts"]
         assert (saved["units"], saved["short_title"]) == ("umol/kg", "DIC")
         assert app.own_data["point"][0]["short_title"] == "DIC"
 
