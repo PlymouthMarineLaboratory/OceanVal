@@ -156,7 +156,7 @@ class TestSimulations:
         assert status == 400 and "same name" in reply["errors"]["rows"]["1"]["name"]
 
     def test_the_files_skipped_start_empty_and_a_row_of_nothing_is_unused(self, app, sims, tmp_path):
-        assert sim_compare_forms.blank_sim()["exclude"] == ""
+        assert sim_compare_forms.blank_sim()["exclude"] == "restart spinup"
         assert "default_exclude" not in state(app)
         # the rows as they start are no simulations, and nothing is wrong with them
         assert sim_compare_forms.check_sims(sim_compare_forms.default_sims_form(str(tmp_path)), str(tmp_path)) == (
