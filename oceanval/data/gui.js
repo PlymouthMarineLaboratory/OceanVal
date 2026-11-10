@@ -1234,48 +1234,93 @@ const OceanValGUI = (() => {
   setInterval(() => { if (!document.hidden) syncRequired(); }, 300);
   syncRequired();
 
-  // ---- words to skip, offered under a "Skip file names containing" box (the user's rule, 2026-11-06) ----
-  // A click adds the word to the box (separated by a space, never twice) and fires an input event, so the box's own
-  // handler takes it as if typed. Nothing is added unless clicked: the box still starts empty. A word in the box
-  // already is shown added. A value a script writes fires no event, so the words are looked at again now and then.
-  const SKIP_WORDS = ["restart", "spinup"];
-  const skipWordBoxes = [];
   const wordsOf = (text) => String(text || "").split(/\s+/).filter(Boolean);
 
-  function skipWords(input, words = SKIP_WORDS) {
-    if (!input || input.dataset.skipWords) return null;
-    input.dataset.skipWords = "1";
-    const buttons = words.map((word) => {
-      const button = el("button", { type: "button", class: "skip-word", text: word, "aria-label": `Skip file names containing ${word}` });
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        const have = wordsOf(input.value);
-        if (have.includes(word)) return;
-        input.value = [...have, word].join(" ");
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        refresh();
-      });
-      return button;
-    });
-    const refresh = () => {
-      const have = new Set(wordsOf(input.value));
-      buttons.forEach((button, index) => {
-        const added = have.has(words[index]);
-        button.disabled = added || input.disabled;
-        button.classList.toggle("is-added", added);
-      });
+  // ---- a list of words: typed into a box and added with Enter, and shown below with an × to remove each ----
+  // The words are kept, separated by spaces, in a hidden input (the box the page reads), so nothing else changes.
+  // A value a script writes fires no event, so the list is looked at again now and then.
+  const wordLists = [];
+  function wordList({ store, add, items, empty = "" }) {
+    const storeEl = $(store), addEl = $(add), listEl = $(items);
+    if (!storeEl || storeEl.dataset.wordList) return null;
+    storeEl.dataset.wordList = "1";
+    let edited = false;
+    let shown = null;
+    const current = () => [...new Set(wordsOf(storeEl.value))];
+    const write = (words) => {
+      storeEl.value = words.join(" ");
+      storeEl.dispatchEvent(new Event("input", { bubbles: true }));
+      render(true);
     };
-    input.addEventListener("input", refresh);
-    input.after(el("span", { class: "skip-words" }, el("span", { class: "skip-words__label", text: "Add:" }), ...buttons));
-    skipWordBoxes.push(refresh);
-    refresh();
-    return { refresh };
+    const addWords = () => {
+      const typed = wordsOf(addEl.value);
+      addEl.value = "";
+      if (!typed.length) return;
+      edited = true;
+      const have = current();
+      write([...have, ...typed.filter((word) => !have.includes(word))]);
+      addEl.focus();
+    };
+    function render(force = false) {
+      addEl.disabled = storeEl.disabled;
+      const words = current();
+      const key = `${words.join(" ")}|${edited}|${addEl.disabled}`;
+      if (!force && key === shown) return;
+      shown = key;
+      const rows = words.map((word) => {
+        const remove = el("button", { type: "button", class: "word-list__remove", text: "×", "aria-label": `Remove ${word}`, title: `Remove ${word}` });
+        remove.disabled = addEl.disabled;
+        remove.addEventListener("click", () => {
+          edited = true;
+          write(current().filter((other) => other !== word));
+          addEl.focus();
+        });
+        return el("li", { class: "word-list__item" },
+          el("span", { class: "word-list__word", text: word }), remove);
+      });
+      if (!words.length && empty) rows.push(el("li", { class: "word-list__none", text: empty }));
+      listEl.replaceChildren(...rows);
+    }
+    addEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addWords();
+    });
+    wordLists.push(render);
+    render(true);
+    return { render };
   }
-  setInterval(() => { if (!document.hidden) skipWordBoxes.forEach((refresh) => refresh()); }, 300);
+  setInterval(() => { if (!document.hidden) wordLists.forEach((render) => render()); }, 300);
+
+
+  // ---- the two file filters of a window, built into a host: <div class="word-filters" data-skip="ID" data-only="ID">
+  // The store inputs keep their ids (the page reads and writes them); the words, the boxes and the labels are made here.
+  function wordFilters(host) {
+    const pairs = [
+      { store: host.dataset.skip, label: "Skip file names containing", empty: "Nothing is skipped yet", placeholder: "e.g. restart" },
+      { store: host.dataset.only, label: "Only include file names containing", empty: "No terms are required", placeholder: "e.g. grid_T" },
+    ];
+    for (const { store, label, empty, placeholder } of pairs) {
+      if (!store || $(store)) continue;
+      const block = el("div", { class: "g-row word-list" },
+        el("span", { class: "g-label", id: `${store}-label`, text: label }),
+        el("input", { type: "hidden", id: store }),
+        el("div", { class: "word-list__add" },
+          el("input", { class: "s-input is-mono", id: `${store}-add`, placeholder, "aria-labelledby": `${store}-label`,
+            spellcheck: "false", autocapitalize: "off", autocomplete: "off" })),
+        el("ul", { class: "word-list__items", id: `${store}-items`, "aria-labelledby": `${store}-label` }));
+      host.append(block);
+      wordList({ store, add: `${store}-add`, items: `${store}-items`, empty });
+    }
+    host.classList.add("word-filters");
+    return host;
+  }
+  // every filter box in the page, built once
+  const buildWordFilters = () => document.querySelectorAll(".word-filters[data-skip]").forEach((host) => { if (!host.dataset.built) { host.dataset.built = "1"; wordFilters(host); } });
 
   return {
     ICONS, COG, PML_LOGO, $, el, icon, shorten, plural, toast, pageId, heartbeat, tellVisibility, mountChrome, setBack, variableBox, nameBox, searchMatcher,
     expression, nameAt,
-    withChoices, choicesOpen, closeChoices, syncRequired, skipWords, SKIP_WORDS,
+    withChoices, choicesOpen, closeChoices, syncRequired, wordList, wordFilters, buildWordFilters,
   };
 })();

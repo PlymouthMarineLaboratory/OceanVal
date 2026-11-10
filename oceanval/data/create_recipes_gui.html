@@ -428,8 +428,7 @@
           </fieldset>
           <fieldset class="group" id="group-files">
             <legend>File filters</legend>
-            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="s-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-            <label class="g-row"><span class="g-label">Only file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="s-require" placeholder="e.g. grid_T" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <div class="word-filters" data-skip="s-exclude" data-only="s-require"></div>
             <p class="group__msg" id="g-files"></p>
           </fieldset>
         </div>
@@ -527,7 +526,7 @@
     OceanValGUI.tellVisibility(state.token, "../");
   }
   // the words that can be clicked into the "Skip file names containing" box
-  OceanValGUI.skipWords($("s-exclude"));
+  OceanValGUI.buildWordFilters();
   // in the app, the window starts as it was last left, for Back from a later
   // step or after going back before it (see app.recipes_restore)
   const restore = (app && app.restore) || null;

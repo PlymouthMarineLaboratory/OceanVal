@@ -47,7 +47,8 @@ def default_setup_form():
     [from, to] (see parse_missing)."""
     from oceanval.app import default_setup_form as setup_form
 
-    return dict(setup_form(), missing="", thredds="")
+    # the common words for files that are not the output: they start in the Skip list, and can be removed
+    return dict(setup_form(), exclude="restart spinup", missing="", thredds="")
 
 
 def check_setup(form, cwd, find=None):

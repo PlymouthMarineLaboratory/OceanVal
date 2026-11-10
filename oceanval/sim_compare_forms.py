@@ -18,7 +18,7 @@ MOST_ROWS = analysis_forms.MOST_ROWS
 
 
 def blank_sim():
-    return {"name": "", "simdir": "", "ndown": "", "exclude": "", "require": ""}
+    return {"name": "", "simdir": "", "ndown": "", "exclude": "restart spinup", "require": ""}
 
 
 def row_is_blank(row):

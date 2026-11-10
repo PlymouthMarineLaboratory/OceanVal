@@ -1259,6 +1259,16 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
         app.close()
 
 
+def set_words(page, store, text):
+    """Sets a file filter's words as typing them into its list would: the
+    store is a hidden input, so it is written and its input event fired."""
+    page.evaluate(
+        "([id, value]) => { const node = document.getElementById(id); node.value = value;"
+        " node.dispatchEvent(new Event('input', { bubbles: true })); }",
+        [store.lstrip("#"), text],
+    )
+
+
 def test_a_simulation_row_starts_skipping_nothing(browser, tmp_path):
     write_analysis_simulation(str(tmp_path / "base"), years=(2013, 2014), daily=False)
     app = App(cwd=str(tmp_path))
@@ -1271,8 +1281,8 @@ def test_a_simulation_row_starts_skipping_nothing(browser, tmp_path):
         page.click("#home-analyze")
         page.click("#menu-simcompare")
         page.wait_for_selector("#view-simcompare-sims:not([hidden])")
-        # every row starts with nothing skipped, and an unused row is not a simulation to name
-        assert [page.input_value(f"#sc-exclude_{n}") for n in (1, 2)] == ["", ""]
+        # every row starts with restart and spinup skipped, and an unused row is not a simulation to name
+        assert [page.input_value(f"#sc-exclude_{n}") for n in (1, 2)] == ["restart spinup", "restart spinup"]
         assert not amber(1) and not amber(2)
         assert page.is_hidden("#sc-row-3")
         assert "skipped" not in page.inner_text("#sc-m-1")
@@ -1282,18 +1292,21 @@ def test_a_simulation_row_starts_skipping_nothing(browser, tmp_path):
         assert "skipped" not in page.inner_text("#sc-m-1")
         # a row added starts the same way
         page.click("#sc-add")
-        assert page.input_value("#sc-exclude_3") == "" and not amber(3)
+        assert page.input_value("#sc-exclude_3") == "restart spinup" and not amber(3)
         # changing it: the filters are always shown, not behind an expander (the user's rule, 2026-11-06)
         assert page.locator("#sc-row-1 details, #sc-row-1 summary").count() == 0
-        assert page.is_visible("#sc-exclude_1") and page.is_visible("#sc-require_1")
-        # the words to skip are there to click
-        assert page.locator("#sc-row-1 .skip-word").all_inner_texts() == ["restart", "spinup"]
-        page.click("#sc-row-1 .skip-word >> text=spinup")
-        assert page.input_value("#sc-exclude_1") == "spinup"
-        page.fill("#sc-exclude_1", "restart 5d")
+        assert page.is_visible("#sc-exclude_1-add") and page.is_visible("#sc-require_1-add")
+        # the words are typed and added with Enter, and an x removes them
+        assert page.locator("#sc-row-1 .word-list__word").all_inner_texts() == ["restart", "spinup"]
+        page.fill("#sc-exclude_1-add", "5d")
+        page.press("#sc-exclude_1-add", "Enter")
+        assert page.input_value("#sc-exclude_1") == "restart spinup 5d"
+        page.click("#sc-row-1 .word-list__item:has-text('5d') .word-list__remove")
+        assert page.input_value("#sc-exclude_1") == "restart spinup"
+        set_words(page, "#sc-exclude_1", "restart 5d")
         assert not amber(1)
         assert "skipped" not in page.inner_text("#sc-m-1")
-        page.fill("#sc-exclude_1", "")
+        set_words(page, "#sc-exclude_1", "")
         assert not amber(1)
     finally:
         app.close()
@@ -1916,7 +1929,7 @@ def open_compare_variables(browser, tmp_path, exclude_second=""):
         page.fill(f"#sc-dir_{number}", folder)
         page.fill(f"#sc-ndown_{number}", "1")
     if exclude_second:
-        page.fill("#sc-exclude_2", exclude_second)
+        set_words(page, "#sc-exclude_2", exclude_second)
     page.wait_for_function("() => document.querySelector('#sc-m-2').innerText.includes('netCDF files')")
     page.wait_for_function("() => !document.querySelector('#sc-continue').disabled")
     page.click("#sc-continue")

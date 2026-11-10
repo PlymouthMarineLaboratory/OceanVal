@@ -115,6 +115,8 @@ def default_form(start, end, exclude=None, require=None):
     """The Global settings as the page's boxes show them to start with:
     as default_settings, with any file filters create_recipes was given."""
     settings = default_settings(start, end)
+    # the window's Skip list starts with the common words for files that are not the output
+    settings["exclude"] = ["restart", "spinup"]
     if exclude is not None:
         settings["exclude"] = list(exclude)
     if require is not None:

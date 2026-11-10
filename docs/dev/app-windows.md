@@ -17,10 +17,11 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   (which reads the same function for the reports it opens) obeys it. When none is opened the link and `remote_hint` (`ssh -L`) are printed.
 - **Files are never left out unasked.** No code drops a file for having "restart" in its name: `create_recipes.simulation_paths`
   (Analyze, Compare, the window's live check and the output years), `_has_nc`, `model_check` and `matchall` leave that to `exclude`/`require`.
-  **The window's Skip file names containing boxes start empty** (Validate, Analyze and each Compare row: `default_setup_form`,
-  `sim_compare_forms.blank_sim`; the user's rule, 2026-10-30, reversing an earlier start with `restart`): what is skipped is left to the user,
-  and `"restart"` must never be added to an `exclude` by default, in the window or the Python API (`matchup(exclude=[])`, `analyze(exclude=None)`;
-  `tests/test_app.py::test_the_files_skipped_start_empty` checks). A Compare row is unused when all its boxes are empty (`sim_compare_forms.row_is_blank`, `scRowEmpty`).
+  **Every window's Skip file names containing list starts with `restart` and `spinup`** (the user's rule, 2026-11-10, reversing the
+  2026-10-30 empty start): Validate, Analyze and View (`default_setup_form`), each Compare row (`sim_compare_forms.blank_sim`), the bank
+  pop-out (`#bank-exclude`, when the simulation has no info yet) and the recipes window (`recipes_gui.default_form`). The words are removed
+  with the × beside them. The Python API is unchanged: `matchup(exclude=[])` and `analyze(exclude=None)` still skip nothing by default, so
+  `"restart"` must not be added to an `exclude` default there. `tests/test_app.py::test_the_files_skipped_start_as_they_should_in_a_browser` checks the windows. A Compare row is unused when all its boxes are empty (`sim_compare_forms.row_is_blank`, `scRowEmpty`).
 - **The live file check shows "Finding files"** (a spinner, `.is-finding`) from the edit of the directory, depth or filter boxes until the
   `/api/probe` answer is in: `probePending` in `askProbe` (the badge `#ndown-found`, Validate/Matchup/Analyze) and `scSims.pending[n]` in
   `scAskProbe` (`#sc-m-n`). The check's number is taken at the edit, so an earlier answer still on its way is dropped, and the last count is not
@@ -147,9 +148,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   intros of `#phen-dialog`/`#chg-dialog`/`#trans-dialog`), no "Marked Required is what has to be given" legend and no "Tick at least one"
   (the layer columns' tag is just "Required"; Confirm stays disabled until a variable is ticked, with no message). The compatibility check's
   page is one paragraph. "Only file names are checked, not directories." is said nowhere in the window.
-- **The file filters** (the user's rules, 2026-11-06): every "Skip file names containing" box (`#f-exclude`, `#sc-exclude_1..5`,
-  `#review-exclude`, `#bank-exclude`, the recipes window's `#s-exclude`) has `OceanValGUI.skipWords` under it: `restart` and `spinup`
-  (`SKIP_WORDS`) to click in (added once, an `input` event fired, nothing added unless clicked); a new Skip box must call it. Compare's
+- **The file filters** (the user's rules, 2026-11-10): every "Skip file names containing" and "Only include file names containing" pair is a word list, built by `OceanValGUI.wordFilters(host)` from `<div class="word-filters" data-skip="ID" data-only="ID">` (`buildWordFilters()` builds every host at load). The store inputs keep their ids (`#f-exclude`, `#sc-exclude_1..5`, `#review-exclude`, `#bank-exclude`, the recipes window's `#s-exclude`; `#s-require` etc.): a hidden input holding the words separated by spaces, written by the list. Words are typed and added with Enter, and each shows below with an × to remove it. Every window's Skip list starts with `restart` and `spinup` (`app.default_setup_form`, `sim_compare_forms.blank_sim`, `recipes_gui.default_form`); a new filter pair must use `wordFilters`, not a text box. Compare's
   filters are always shown (no "Only use some of the files" expander). **View the files in a random subdirectory** is a button
   (`.btn--sample`) right of the file count in the `.ndown-row` (setup page `#view-files`, bank info `#bank-info-view`), and
   `App.sample_files(exclude=, require=)` lists only the files the filters let through (`filtered_out` when none do). The viewer's

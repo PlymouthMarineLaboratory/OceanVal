@@ -4984,10 +4984,11 @@ def test_the_files_skipped_start_empty(app, tmp_path):
     assert check_setup(dict(SETUP_FORM, exclude=""), str(tmp_path))[0]["exclude"] is None
 
 
-def test_words_to_skip_can_be_clicked_in_a_browser(browser, tmp_path):
-    """Under every "Skip file names containing" box, restart and spinup can be
-    clicked in (the user's rule, 2026-11-06): each is added once, and the live
-    check takes it as typed. Nothing is added unless clicked."""
+def test_words_to_skip_are_a_list_in_a_browser(browser, tmp_path):
+    """Every "Skip file names containing" box is a list of words (the user's
+    rule, 2026-11-10): a word typed and added with Enter shows below with an x
+    to remove it, each word is added once, and the live check takes the words
+    as typed. Validate's list starts empty."""
     write_simulation(tmp_path / "sim", tracers=True)
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
@@ -4998,34 +4999,50 @@ def test_words_to_skip_can_be_clicked_in_a_browser(browser, tmp_path):
         page.click("#home-validate")
         page.click('button.choice[data-action="matchup_validate"]')
         page.wait_for_selector("#view-setup:not([hidden])")
-        # every box of the window has them: the setup page's, Compare's five, the files review's and the bank's
-        assert page.locator(".skip-words").count() == 8
-        words = page.locator("#view-setup .skip-word")
-        assert words.all_inner_texts() == ["restart", "spinup"]
-        assert page.input_value("#f-exclude") == ""
+        assert page.locator("#f-require-items .word-list__none").inner_text() == "No terms are required"
+        assert page.input_value("#f-exclude") == "restart spinup"
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "1")
-        words.nth(0).click()
+        set_words(page, "#f-exclude", "")
+        assert page.locator("#f-exclude-items .word-list__none").inner_text() == "Nothing is skipped yet"
+        page.fill("#f-exclude-add", "restart")
+        page.press("#f-exclude-add", "Enter")
         assert page.input_value("#f-exclude") == "restart"
-        assert words.nth(0).is_disabled() and words.nth(1).is_enabled()
-        words.nth(1).click()
+        assert page.input_value("#f-exclude-add") == ""
+        page.fill("#f-exclude-add", "spinup")
+        page.press("#f-exclude-add", "Enter")
         assert page.input_value("#f-exclude") == "restart spinup"
+        assert page.locator("#f-exclude-items .word-list__word").all_inner_texts() == ["restart", "spinup"]
         # taken as typed: the line under the boxes says the filters are passed on
         page.wait_for_function("() => document.querySelector('#m-simulation').innerText.includes('The filters are passed on')")
-        # what is typed is kept, and a word typed is not offered again
-        page.fill("#f-exclude", "5d spinup")
-        page.wait_for_function("() => !document.querySelectorAll('#view-setup .skip-word')[0].disabled")
-        assert words.nth(1).is_disabled()
-        words.nth(0).click()
-        assert page.input_value("#f-exclude") == "5d spinup restart"
+        # a word typed again is not added twice, and the x removes a word
+        page.fill("#f-exclude-add", "5d spinup")
+        page.press("#f-exclude-add", "Enter")
+        assert page.input_value("#f-exclude") == "restart spinup 5d"
+        page.click("#f-exclude-items .word-list__item:has-text('restart') .word-list__remove")
+        assert page.input_value("#f-exclude") == "spinup 5d"
+        page.click("#f-exclude-items .word-list__item:has-text('5d') .word-list__remove")
+        page.click("#f-exclude-items .word-list__item:has-text('spinup') .word-list__remove")
+        assert page.input_value("#f-exclude") == ""
+        assert page.locator("#f-exclude-items .word-list__none").inner_text() == "Nothing is skipped yet"
     finally:
         app.close()
 
 
+def set_words(page, store, text):
+    """Sets a file filter's words as typing them into its list would: the
+    store is a hidden input, so it is written and its input event fired."""
+    page.evaluate(
+        "([id, value]) => { const node = document.getElementById(id); node.value = value;"
+        " node.dispatchEvent(new Event('input', { bubbles: true })); }",
+        [store.lstrip("#"), text],
+    )
+
+
 @pytest.mark.parametrize("tile", ["#home-viewer", "#home-analyze", "#home-validate"])
-def test_the_files_skipped_start_empty_in_a_browser(browser, tmp_path, tile):
-    """Validate, Analyze and View simulation output share the box: it starts
-    empty, so nothing is skipped unless the user types it."""
+def test_the_files_skipped_start_as_they_should_in_a_browser(browser, tmp_path, tile):
+    """Every Skip list starts with restart and spinup (the user's rule,
+    2026-11-10), in Validate, Analyze and View simulation output alike."""
     write_simulation(tmp_path / "sim", tracers=True)
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
@@ -5040,17 +5057,17 @@ def test_the_files_skipped_start_empty_in_a_browser(browser, tmp_path, tile):
             page.click('button.choice[data-action="matchup_validate"]')
         amber = lambda: page.locator("#f-exclude").evaluate("node => node.classList.contains('is-detected')")
         page.wait_for_selector("#view-setup:not([hidden])")
-        assert page.input_value("#f-exclude") == ""
+        assert page.input_value("#f-exclude") == "restart spinup"
         assert not amber()
         assert "Only file names are checked" not in page.inner_text("#m-simulation")
         assert "The filters are passed on" not in page.inner_text("#m-simulation")
-        page.fill("#f-exclude", "restart 5d")
+        set_words(page, "#f-exclude", "restart 5d")
         assert not amber()
         assert "skipped. Remove restart" not in page.inner_text("#m-simulation")
         # the line that said only file names are checked is gone (the user's rule, 2026-11-06)
         assert "Only file names are checked" not in page.inner_text("#m-simulation")
         assert ("The filters are passed on" in page.inner_text("#m-simulation")) == (tile != "#home-viewer")
-        page.fill("#f-exclude", "")
+        set_words(page, "#f-exclude", "")
         assert not amber()
     finally:
         app.close()
@@ -7802,15 +7819,15 @@ def test_viewing_files_in_a_random_directory_in_a_browser(browser, tmp_path):
         assert page.is_hidden("#sample")
 
         # only the files the filters let through are listed (the user's rule, 2026-11-06)
-        page.fill("#f-exclude", "ptrc")
+        set_words(page, "#f-exclude", "ptrc")
         page.click("#view-files")
         page.wait_for_selector("#sample-list .picker__file")
         assert page.eval_on_selector_all(
             "#sample-list .picker__file", "nodes => nodes.map(n => n.textContent)"
         ) == ["a_grid_T.nc"]
         page.click("#sample-close")
-        page.fill("#f-exclude", "")
-        page.fill("#f-require", "nothing")
+        set_words(page, "#f-exclude", "")
+        set_words(page, "#f-require", "nothing")
         page.click("#view-files")
         page.wait_for_selector("#sample-list .picker__empty:has-text('pass the file filters')")
         page.click("#sample-close")

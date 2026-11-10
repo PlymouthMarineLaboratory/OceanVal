@@ -193,7 +193,8 @@ def default_setup_form():
         "ndown": "",
         "start": "",
         "end": "",
-        "exclude": "",
+        # every window's Skip list starts with the common words for files that are not the output (the user's rule, 2026-11-10)
+        "exclude": "restart spinup",
         "require": "",
         # only Analyze asks for it: what to call the simulation in the bank
         "name": "",

@@ -165,6 +165,7 @@
   #view-setup .form__row + .form__row { margin-top: 24px; }
   #view-setup .ndown-row { margin-top: 54px; }
   #view-setup .form__row.is-pair { margin-top: 22px; }
+  #view-setup .word-filters { margin-top: 22px; }
   #view-setup .group__intro, #view-output .group__intro { margin: 22px 0 16px; }
   #view-output .setup-box__script { margin-top: 40px; }
   #view-output .existing { margin-top: 38px; }
@@ -174,6 +175,7 @@
     #view-setup .form__row + .form__row { margin-top: 14px; }
     #view-setup .ndown-row { margin-top: 46px; }
     #view-setup .form__row.is-pair { margin-top: 14px; }
+    #view-setup .word-filters { margin-top: 14px; }
     #view-setup .group__intro, #view-output .group__intro { margin-top: 14px; }
     #view-output .setup-box__script { margin-top: 32px; }
     #view-output .existing { margin-top: 30px; }
@@ -1548,9 +1550,19 @@
           <span class="ndown-found" id="ndown-found" role="status" hidden></span>
           <button type="button" class="btn btn--ghost btn--field btn--sample" id="view-files" aria-haspopup="dialog">View the files in a random subdirectory</button>
         </div>
-        <div class="form__row is-pair">
-          <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-          <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="f-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+        <div class="word-filters">
+          <div class="g-row word-list" id="f-exclude-list">
+            <span class="g-label" id="f-exclude-label">Skip file names containing</span>
+            <input type="hidden" id="f-exclude">
+            <div class="word-list__add"><input class="s-input is-mono" id="f-exclude-add" placeholder="e.g. restart" aria-labelledby="f-exclude-label" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+            <ul class="word-list__items" id="f-exclude-items" aria-labelledby="f-exclude-label"></ul>
+          </div>
+          <div class="g-row word-list" id="f-require-list">
+            <span class="g-label" id="f-require-label">Only include file names containing</span>
+            <input type="hidden" id="f-require">
+            <div class="word-list__add"><input class="s-input is-mono" id="f-require-add" placeholder="e.g. grid_T" aria-labelledby="f-require-label" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+            <ul class="word-list__items" id="f-require-items" aria-labelledby="f-require-label"></ul>
+          </div>
         </div>
         <p class="group__msg" id="m-simulation"></p>
       </fieldset>
@@ -2229,10 +2241,7 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="g-note bank-hint" id="sc-dir_1-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_1" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <div class="form__row is-pair" style="margin-top:10px">
-            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_1" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_1" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-          </div>
+          <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_1" data-only="sc-require_1"></div>
           <p class="group__msg" id="sc-m-1"></p>
         </div>
         <div class="sc-sim" id="sc-row-2">
@@ -2242,10 +2251,7 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="g-note bank-hint" id="sc-dir_2-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_2" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <div class="form__row is-pair" style="margin-top:10px">
-            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_2" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_2" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-          </div>
+          <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_2" data-only="sc-require_2"></div>
           <p class="group__msg" id="sc-m-2"></p>
         </div>
         <div class="sc-sim" id="sc-row-3" hidden>
@@ -2255,10 +2261,7 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="g-note bank-hint" id="sc-dir_3-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_3" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <div class="form__row is-pair" style="margin-top:10px">
-            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_3" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_3" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-          </div>
+          <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_3" data-only="sc-require_3"></div>
           <p class="group__msg" id="sc-m-3"></p>
         </div>
         <div class="sc-sim" id="sc-row-4" hidden>
@@ -2268,10 +2271,7 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="g-note bank-hint" id="sc-dir_4-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_4" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <div class="form__row is-pair" style="margin-top:10px">
-            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_4" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_4" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-          </div>
+          <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_4" data-only="sc-require_4"></div>
           <p class="group__msg" id="sc-m-4"></p>
         </div>
         <div class="sc-sim" id="sc-row-5" hidden>
@@ -2281,10 +2281,7 @@
             <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="g-note bank-hint" id="sc-dir_5-hint" hidden>(Use the drop-down for simulations in the bank)</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div></div>
             <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_5" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
           </div>
-          <div class="form__row is-pair" style="margin-top:10px">
-            <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-exclude_5" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-            <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="sc-require_5" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-          </div>
+          <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_5" data-only="sc-require_5"></div>
           <p class="group__msg" id="sc-m-5"></p>
         </div>
         <div class="analyze-foot">
@@ -2494,10 +2491,7 @@
       <div class="review__filters" id="review-filters">
         <h3 class="review__filters-title">Not the right files?</h3>
         <p class="review__filters-intro">Change which file names are used. OceanVal will read the simulation again with them and return to the recipes, to check the simulation variables, keeping your choices where they still apply.</p>
-        <div class="form__row is-pair">
-          <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-          <label class="g-row"><span class="g-label">Only file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="review-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-        </div>
+        <div class="word-filters" data-skip="review-exclude" data-only="review-require"></div>
         <div class="review__filters-foot">
           <button type="button" class="btn btn--ghost" id="review-refilter" disabled>Use these filters</button>
           <p class="group__msg" id="review-filters-msg" role="status" aria-live="polite"></p>
@@ -2614,10 +2608,7 @@
         <input class="s-input is-num" id="bank-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" autocomplete="off">
         <button type="button" class="btn btn--ghost btn--field btn--sample" id="bank-info-view" aria-haspopup="dialog" hidden>View the files in a random subdirectory</button>
       </div>
-      <div class="form__row is-pair">
-        <label class="g-row"><span class="g-label">Skip file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="bank-exclude" placeholder="e.g. restart 5d" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-        <label class="g-row"><span class="g-label">Only include file names containing <span class="g-note">(separate words with a space)</span></span><input class="s-input is-mono" id="bank-require" placeholder="e.g. grid_T" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
-      </div>
+      <div class="word-filters" data-skip="bank-exclude" data-only="bank-require"></div>
       <p class="bank-info__count" id="bank-info-count" role="status"></p>
     </div>
     <div class="picker__foot">
@@ -2736,7 +2727,7 @@
     <div class="how__body">
       <p><strong>Where it looks.</strong> OceanVal searches the directory you give, and the number of directories below it that you say, for netCDF files. Once you have told it the names of your simulation variables, it works out which files contain each one.</p>
       <p><strong>Which files it uses.</strong> Where a variable is held at more than one time resolution, for example in both daily and monthly files, OceanVal uses the files with the highest temporal resolution, so your matchups are as detailed as your output allows.</p>
-      <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Put words from the names of the files to leave out in <strong>Skip file names containing</strong> (for example <code>restart 5d</code>; nothing is left out that you have not asked for), or words that the files you want share in <strong>Only include file names containing</strong> (for example <code>grid_T</code>).</p>
+      <p><strong>When to help it.</strong> A simulation directory often holds files that are not the output you want to validate: restart files, test runs, 5-day means, or files for a spatial subregion beside files for the whole domain. If these are picked up, the matchups can be wrong. Don&rsquo;t worry, OceanVal will tell you exactly what files it&rsquo;s going to use for matchups later on. Type words from the names of the files to leave out into <strong>Skip file names containing</strong> and press Enter (for example <code>restart</code> or <code>5d</code>), or words that the files you want share into <strong>Only include file names containing</strong> (for example <code>grid_T</code>). Each word appears in a list below its box; the &times; at its top right removes it. Every Skip list starts with <code>restart</code> and <code>spinup</code>, the files that are not the output; the &times; beside a word removes it.</p>
       <p>To choose words, look at the names of the files in your simulation with &ldquo;View the files in a random subdirectory&rdquo;.</p>
     </div>
     <div class="picker__foot">
@@ -4637,9 +4628,11 @@
   const setup = {};
   depthBox($("f-ndown"));
   // the words that can be clicked into every "Skip file names containing" box
-  for (const id of ["f-exclude", "sc-exclude_1", "sc-exclude_2", "sc-exclude_3", "sc-exclude_4", "sc-exclude_5", "review-exclude", "bank-exclude"]) {
-    OceanValGUI.skipWords($(id));
-  }
+  // the simulation step's file filters are word lists too (see OceanValGUI.wordList); the starter words are OceanVal's
+  OceanValGUI.wordList({ store: "f-exclude", add: "f-exclude-add", items: "f-exclude-items", empty: "Nothing is skipped yet" });
+  OceanValGUI.wordList({ store: "f-require", add: "f-require-add", items: "f-require-items", empty: "No terms are required" });
+  // the file filters of every window are word lists (OceanValGUI.wordFilters), built from their hosts
+  OceanValGUI.buildWordFilters();
   let setupErrors = {};
   let probe = null;
   let probeNumber = 0;
@@ -12041,7 +12034,7 @@
     $("bank-info-title").textContent = `Simulation info: ${entry.name}`;
     $("bank-info-where").textContent = entry.path;
     $("bank-ndown").value = info ? String(info.ndown) : "";
-    $("bank-exclude").value = info ? info.exclude.join(" ") : "";
+    $("bank-exclude").value = info ? info.exclude.join(" ") : "restart spinup";
     $("bank-require").value = info ? info.require.join(" ") : "";
     $("bank-info").hidden = false;
     BEHIND.forEach((node) => { node.inert = true; });

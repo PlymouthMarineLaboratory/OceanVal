@@ -10,6 +10,17 @@ import time
 
 import pytest
 
+
+def set_words(page, store, text):
+    """Sets a file filter's words as typing them into its list would: the
+    store is a hidden input, so it is written and its input event fired."""
+    page.evaluate(
+        "([id, value]) => { const node = document.getElementById(id); node.value = value;"
+        " node.dispatchEvent(new Event('input', { bubbles: true })); }",
+        [store.lstrip("#"), text],
+    )
+
+
 from oceanval import viewer_app
 from oceanval.app import App
 from test_app import leftover_dir  # noqa: F401 (autouse)
@@ -59,10 +70,10 @@ def test_files_page_finds_the_depth(page, simulation):
     assert "is-detected" in tab.get_attribute("#f-ndown", "class")
     assert tab.is_enabled("#continue")
     # the files the filters leave out are not mentioned, only the number there are
-    tab.fill("#f-exclude", "grid_T")
+    set_words(tab, "#f-exclude", "grid_T")
     tab.wait_for_function("() => document.querySelector('#ndown-found').textContent.startsWith('24 ')")
     assert tab.text_content("#ndown-found") == "24 netCDF files found"
-    tab.fill("#f-exclude", "")
+    set_words(tab, "#f-exclude", "")
     # typing a depth makes it the user's own
     tab.fill("#f-ndown", "1")
     tab.wait_for_selector("#m-simulation .is-nofiles")
