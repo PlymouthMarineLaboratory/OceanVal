@@ -12731,6 +12731,8 @@
   // ---- the simulations ----
   const scSims = { shown: 2, errors: {}, probes: {}, pending: {}, timers: {}, numbers: {}, auto: {}, busy: false };
   const SC_BOXES = { name: "name", simdir: "dir", ndown: "ndown", exclude: "exclude", require: "require" };
+  // every row's Skip list starts with these, so they alone do not make a row used
+  const SC_SKIPPED = "restart spinup";
 
   function scReadSims() {
     const rows = [];
@@ -12754,7 +12756,9 @@
     for (let n = 1; n <= SC_MOST; n++) {
       // a row the form has none for starts as any other does
       const row = form.rows[n - 1] || {};
-      for (const [field, id] of Object.entries(SC_BOXES)) $(`sc-${id}_${n}`).value = row[field] || "";
+      for (const [field, id] of Object.entries(SC_BOXES)) {
+        $(`sc-${id}_${n}`).value = row[field] !== undefined ? row[field] : field === "exclude" ? SC_SKIPPED : "";
+      }
       $(`sc-swatch-${n}`).style.background = scColour(n - 1);
     }
   }
@@ -12764,7 +12768,7 @@
     // the rows that have something in them are shown, and at least two
     let shown = 2;
     form.rows.forEach((row, index) => {
-      const filled = Object.values(row).some((box) => String(box).trim());
+      const filled = Object.entries(row).some(([field, box]) => String(box).trim() && !(field === "exclude" && String(box).trim() === SC_SKIPPED));
       if (filled) shown = Math.max(shown, index + 1);
     });
     scSims.shown = Math.min(SC_MOST, Math.max(shown, form.rows.length > 2 ? form.rows.length : 2));
@@ -12780,7 +12784,10 @@
   }
 
   function scRowEmpty(n) {
-    return Object.values(SC_BOXES).every((id) => !$(`sc-${id}_${n}`).value.trim());
+    return Object.entries(SC_BOXES).every(([field, id]) => {
+      const value = $(`sc-${id}_${n}`).value.trim();
+      return !value || (field === "exclude" && value === SC_SKIPPED);
+    });
   }
 
   function scAskProbe(n, delay) {

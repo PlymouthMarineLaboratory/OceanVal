@@ -1297,6 +1297,8 @@ def test_a_simulation_row_starts_skipping_nothing(browser, tmp_path):
         assert page.locator("#sc-row-1 details, #sc-row-1 summary").count() == 0
         assert page.is_visible("#sc-exclude_1-add") and page.is_visible("#sc-require_1-add")
         # the words are typed and added with Enter, and an x removes them
+        # (the word lists are redrawn when they notice the box changed, every 0.3 s)
+        page.wait_for_selector("#sc-row-1 .word-list__word")
         assert page.locator("#sc-row-1 .word-list__word").all_inner_texts() == ["restart", "spinup"]
         page.fill("#sc-exclude_1-add", "5d")
         page.press("#sc-exclude_1-add", "Enter")

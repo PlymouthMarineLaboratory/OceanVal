@@ -408,7 +408,7 @@ class TestServer:
                 ("temperature", "ices"),
                 ("chlorophyll", "nsbc"),
             },
-            default_settings(2011, 2012),
+            dict(default_settings(2011, 2012), exclude=["restart", "spinup"]),
             {},
             {},
         )
@@ -623,7 +623,7 @@ class TestSettingsChecks:
         settings, errors = self.check()
 
         assert errors == {}
-        assert settings == default_settings(2011, 2012)
+        assert settings == dict(default_settings(2011, 2012), exclude=["restart", "spinup"])
 
     def test_no_years_is_fine_when_nothing_needs_them(self):
         settings, errors = self.check(start="", end="", clim_start="1990", clim_end="2000")
@@ -721,7 +721,7 @@ class TestSettingsChecks:
         ]
         settings, errors = self.check(fvcom=True)
         assert errors == {}
-        assert settings == default_settings(2011, 2012)
+        assert settings == dict(default_settings(2011, 2012), exclude=["restart", "spinup"])
 
     def test_fvcom_settings_are_numbers_kept_whole_when_they_are(self):
         settings, errors = self.check(
@@ -753,7 +753,7 @@ class TestSettingsChecks:
     def test_other_output_is_not_asked_about_fvcom(self):
         settings, errors = self.check(fvcom_res="nonsense", fvcom_dz="0")
         assert errors == {}
-        assert settings == default_settings(2011, 2012)
+        assert settings == dict(default_settings(2011, 2012), exclude=["restart", "spinup"])
 
     def test_out_dir_must_not_be_a_file(self, tmp_path):
         path = tmp_path / "a_file"
@@ -1427,7 +1427,8 @@ class TestChooseRecipes:
         assert result == (
             {"temperature": "thetao"},
             {("temperature", "woa23")},
-            default_settings(2011, 2012),
+            # the window's Skip list starts with restart and spinup
+            dict(default_settings(2011, 2012), exclude=["restart", "spinup"]),
             {},
             {},
         )

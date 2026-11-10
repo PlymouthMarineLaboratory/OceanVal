@@ -132,10 +132,12 @@ def test_maps_are_drawn(output, tmp_path):
     try:
         assert app.choose("viewer")
         assert app.setup({"simdir": output, "ndown": "0", "exclude": ""}) == (200, {"ok": True})
-        for _ in range(600):
-            if app.view == "viewer":
-                break
+        # app.view is "viewer" from the moment it is chosen: it is the panel
+        # that is ready once the simulation has been read in the background
+        deadline = time.monotonic() + 60
+        while app.viewers[1].view != "viewer" and time.monotonic() < deadline:
             time.sleep(0.05)
+        assert app.viewers[1].view == "viewer"
         for name, level in (("temp", 2), ("u", 0), ("zeta", 0), ("h", 0)):
             reply = app.viewer_plot({"stream": "0", "vars": f'["{name}"]', "step": "4", "level": str(level)})
             assert reply["ok"], reply
@@ -143,10 +145,10 @@ def test_maps_are_drawn(output, tmp_path):
         temp = app.viewer_plot({"stream": "0", "vars": '["temp"]', "step": "4", "level": "2"})
         assert temp["clim"] == [pytest.approx(11, abs=0.01), pytest.approx(12, abs=0.01)]
         # the user's missing values blank the triangles of the nodes they are at
-        app.viewer_missing = [(0, 11.5)]
+        app.viewers[1].missing = [(0, 11.5)]
         blanked = app.viewer_plot({"stream": "0", "vars": '["temp"]', "step": "4", "level": "2"})
         assert blanked["ok"] and blanked["clim"][0] > 11.5
-        app.viewer_missing = []
+        app.viewers[1].missing = []
         # Play's colour scale
         limits = app.viewer_limits({"stream": "0", "vars": '["temp"]', "level": "0"})
         assert (limits["vmin"], limits["vmax"]) == (pytest.approx(5), pytest.approx(17))

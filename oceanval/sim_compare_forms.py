@@ -22,8 +22,10 @@ def blank_sim():
 
 
 def row_is_blank(row):
-    """Whether a simulation's boxes are all empty."""
-    return not any(row.values())
+    """Whether a simulation's boxes are all empty, bar the Skip list as it
+    starts (see blank_sim)."""
+    start = blank_sim()
+    return not any(value for box, value in row.items() if value != start.get(box))
 
 
 def default_sims_form(cwd):

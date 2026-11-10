@@ -29,6 +29,7 @@ import pytest
 import xarray as xr
 
 import oceanval
+from oceanval import pattern_checks
 from oceanval import app as app_module
 from oceanval import analysis_report, app_child, cdo_watch, domain_detect, leftovers, live, model_check, prompts, sim_compare
 from oceanval.app import (
@@ -4047,6 +4048,22 @@ def stub_model_check(monkeypatch):
     monkeypatch.setattr(model_check, "ModelCheck", StubCheck)
 
 
+class StubPatternChecks(pattern_checks.PatternChecks):
+    """The compatibility checks of the file patterns, passed without opening a file
+    (the stand-in simulations have none a check could read)."""
+
+    def start(self):
+        return self
+
+    def state(self):
+        return {"patterns": [], "done": True, "passed": True, "failed": 0, "total": 1}
+
+
+@pytest.fixture(autouse=True)
+def stub_pattern_checks(monkeypatch):
+    monkeypatch.setattr(pattern_checks, "PatternChecks", StubPatternChecks)
+
+
 class TestDatesOfTheFiles:
     """The check of the dates of the files the matchups page lists, made
     while the matchups are asked about (see oceanval.model_check)."""
@@ -4453,7 +4470,9 @@ class TestBack:
                 "selected": ["cobe2"],
                 "gridded": {"cobe2": {"start": "2012", "end": "", "vertical": False, "typed": ["start"]}},
                 "point": {},
-            }
+            },
+            # ticked as it was, so it is still ticked when the window comes back
+            "nitrate": {"model_variable": "N3_n", "selected": ["woa23"], "gridded": {}, "point": {}},
         }
         assert runs == []
 
@@ -4835,7 +4854,7 @@ class TestBack:
         assert post(app, "/api/units_continue", {"conversions": conversions, "confirmed": True})[0] == 200
         wait_for(lambda: app.question is not None)
         first = app.run
-        assert get_json(app, "/api/state")[1]["run"]["filters"] == {"exclude": "", "require": ""}
+        assert get_json(app, "/api/state")[1]["run"]["filters"] == {"exclude": "restart spinup", "require": ""}
 
         assert post(app, "/api/refilter", {"exclude": " restart  5d", "require": ""})[0] == 200
         # the model variables can differ in the files that pass them, so
@@ -4970,9 +4989,9 @@ def test_the_files_skipped_start_empty(app, tmp_path):
 
     from oceanval import analysis_forms, sim_compare_forms
 
-    assert app_module.default_setup_form()["exclude"] == ""
-    assert analysis_forms.default_setup_form(str(tmp_path))["exclude"] == ""
-    assert sim_compare_forms.blank_sim()["exclude"] == ""
+    assert app_module.default_setup_form()["exclude"] == "restart spinup"
+    assert analysis_forms.default_setup_form(str(tmp_path))["exclude"] == "restart spinup"
+    assert sim_compare_forms.blank_sim()["exclude"] == "restart spinup"
     assert "default_exclude" not in get_json(app, "/api/state")[1]
     assert not hasattr(oceanval.create_recipes, "DEFAULT_EXCLUDE")
     # nor do the Python functions start excluding anything
