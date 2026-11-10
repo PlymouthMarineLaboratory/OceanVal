@@ -403,6 +403,16 @@ def registered(work):
     return work
 
 
+@pytest.fixture
+def zooc_recipe(registered):
+    """A recipe for a variable OceanVal has no recipe for, so the variable is new
+    and its names come with the recipe. (poc is built in now: see TestCatalogues.)"""
+    user_recipes.save(gridded(variable="zooc", source="ZoocSat", depth_resolved=True,
+                              long_name="zooplankton carbon", short_name="Zooc",
+                              short_title="Zooc", obs_path=NITRATE), "local", registered)
+    return registered
+
+
 class TestCatalogues:
     def test_the_built_in_catalogues_are_not_changed(self, registered):
         gridded_entries = gridded_catalogue(registered)
@@ -425,9 +435,9 @@ class TestCatalogues:
         assert poc["arguments"][0].startswith("vertical=")
         assert [e["recipe"] for e in point_catalogue(registered) if e.get("user")] == ["pocpts"]
 
-    def test_there_are_variables_of_the_users_own(self, registered):
-        assert recipe_variables(registered)[-1] == "poc"
-        assert recipe_variables(registered)[:-1] == RECIPE_VARIABLES
+    def test_there_are_variables_of_the_users_own(self, zooc_recipe):
+        assert recipe_variables(zooc_recipe)[-1] == "zooc"
+        assert recipe_variables(zooc_recipe)[:-1] == RECIPE_VARIABLES
 
     def test_nothing_is_added_without_recipes(self, work):
         assert gridded_catalogue(work) == RECIPE_CATALOGUE
@@ -451,15 +461,16 @@ class TestIdentification:
         mapping = generate_recipe_mapping(path, cwd=registered)
         assert mapping["poc"] == "DIC"
 
-    def test_a_variable_named_for_it_is_found(self, registered, tmp_path):
-        path = model_file(tmp_path / "m.nc", poc="carbon of some kind")
-        assert generate_recipe_mapping(path, cwd=registered)["poc"] == "poc"
+    def test_a_variable_named_for_it_is_found(self, zooc_recipe, tmp_path):
+        path = model_file(tmp_path / "m.nc", zooc="carbon of some kind")
+        assert generate_recipe_mapping(path, cwd=zooc_recipe)["zooc"] == "zooc"
 
-    def test_an_ambiguous_variable_is_left_blank(self, registered, tmp_path):
+    def test_several_pools_of_particulate_carbon_are_summed(self, registered, tmp_path):
+        # poc sums its parts (as create_recipes does for chlorophyll and doc), unless one is a total
         path = model_file(
-            tmp_path / "m.nc", A="particulate organic carbon", B="particulate organic carbon flux"
+            tmp_path / "m.nc", A="particulate organic carbon", B="particulate organic carbon, large"
         )
-        assert generate_recipe_mapping(path, cwd=registered)["poc"] is None
+        assert generate_recipe_mapping(path, cwd=registered)["poc"] == "A+B"
 
     def test_a_variable_that_is_not_there_is_left_blank(self, registered, tmp_path):
         path = model_file(tmp_path / "m.nc", thetao="sea temperature")
@@ -486,19 +497,19 @@ class TestSelection:
         mapping = {"nitrate": "N"}
         assert default_selection(mapping, "global", work) == default_selection(mapping, "global")
 
-    def test_the_window_has_a_row_for_a_new_variable(self, registered):
-        rows = recipes_gui.recipe_rows({"nitrate": "N", "poc": None}, "global", registered)
+    def test_the_window_has_a_row_for_a_new_variable(self, zooc_recipe):
+        rows = recipes_gui.recipe_rows({"nitrate": "N", "zooc": None}, "global", zooc_recipe)
         by_variable = {row["variable"]: row for row in rows}
-        poc = by_variable["poc"]
-        assert poc["title"] == "POC"
+        zooc = by_variable["zooc"]
+        assert zooc["title"] == "Zooc"
         # not identified, so blank, with nothing ticked
-        assert poc["model_variable"] == ""
-        assert [d["ticked"] for d in poc["gridded"] + poc["point"]] == [False, False]
-        assert [(d["label"], d["region"], d["user"]) for d in poc["gridded"]] == [("PocSat", "Yours", True)]
-        assert poc["gridded"][0]["vertical_option"] is True
+        assert zooc["model_variable"] == ""
+        assert [d["ticked"] for d in zooc["gridded"] + zooc["point"]] == [False]
+        assert [(d["label"], d["region"], d["user"]) for d in zooc["gridded"]] == [("ZoocSat", "Yours", True)]
+        assert zooc["gridded"][0]["vertical_option"] is True
         # ticked once there is a model variable for it
-        again = recipes_gui.recipe_rows({"poc": "POC"}, "global", registered)
-        assert all(d["ticked"] for d in {r["variable"]: r for r in again}["poc"]["gridded"])
+        again = recipes_gui.recipe_rows({"zooc": "Zooc"}, "global", zooc_recipe)
+        assert all(d["ticked"] for d in {r["variable"]: r for r in again}["zooc"]["gridded"])
         nitrate = by_variable["nitrate"]
         assert [d["label"] for d in nitrate["gridded"]][-1] == "MySat"
         assert nitrate["gridded"][-1]["ticked"] is True

@@ -107,12 +107,13 @@ class TestRows:
 
         rows = recipe_rows({}, "global", cwd)
         assert datasets(rows, "nitrate") == ["woa23", "glodap", "nsbc", "mysat", "glodapv3", "ices"]
-        assert datasets(rows, "poc") == ["pocpts"]
+        # poc is built in (Hansell's bottle data), so its row stays, with the user's first
+        assert datasets(rows, "poc") == ["hansell", "pocpts"]
         rows = recipe_rows({"nitrate": "N3_n"}, "global", cwd, replaced)
         assert datasets(rows, "nitrate") == ["woa23", "glodap", "nsbc", "glodapv3", "ices"]
         assert "occci" in datasets(rows, "chlorophyll")
-        # a variable only those recipes were for has no row left
-        assert datasets(rows, "poc") is None
+        # the user's poc recipe is left out, and the built-in one remains
+        assert datasets(rows, "poc") == ["hansell"]
 
     def test_the_users_own_data_is_shown_in_its_variables_row(self, tmp_path):
         cwd = str(tmp_path)
@@ -125,8 +126,8 @@ class TestRows:
             "point": [{"name": "Temperature", "source": "pygetm", "model_variable": "temp",
                        "obs_path": "/points", "vertical": True}],
             "gridded": [
-                {"name": "poc", "source": "MyPoc", "model_variable": "O3_poc",
-                 "obs_path": "/dic.nc", "short_title": "POC"},
+                {"name": "bact", "source": "MyBact", "model_variable": "O3_bact",
+                 "obs_path": "/dic.nc", "short_title": "Bacteria"},
                 {"name": "zooc", "source": "Zoo", "model_variable": "Z4_c", "obs_path": "/zoo.nc"},
             ],
         }
@@ -152,14 +153,14 @@ class TestRows:
         }]
         # a variable only the user's own data is for has a row with it alone,
         # named as add_gridded_comparison names it
-        assert (found["poc"]["title"], found["zooc"]["title"]) == ("POC", "Zooc")
-        for index, (variable, source) in enumerate((("poc", "MyPoc"), ("zooc", "Zoo"))):
+        assert (found["bact"]["title"], found["zooc"]["title"]) == ("Bacteria", "Zooc")
+        for index, (variable, source) in enumerate((("bact", "MyBact"), ("zooc", "Zoo"))):
             assert found[variable]["gridded"] == found[variable]["point"] == []
             assert [(item["label"], item["index"], item["saved"]) for item in found[variable]["own"]] == [
                 (source, index, False)
             ]
-        assert found["poc"]["own"][0]["opts"] == {"start": "", "end": "", "vertical": False}
-        assert all(row["own"] == [] for row in rows if row["variable"] not in ("temperature", "poc", "zooc"))
+        assert found["bact"]["own"][0]["opts"] == {"start": "", "end": "", "vertical": False}
+        assert all(row["own"] == [] for row in rows if row["variable"] not in ("temperature", "bact", "zooc"))
 
         # without it, every row's is empty
         assert all(row["own"] == [] for row in recipe_rows({}, "global", cwd))
@@ -268,8 +269,8 @@ class TestErsemDetection:
             if dataset["vertical_option"]
         }
 
-        # woa23, nsbc, ices are depth-resolved gridded/point; glodap and glodapv3 too
-        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3"}
+        # woa23, nsbc, ices are depth-resolved gridded/point; glodap, glodapv3 and hansell's bottle data too
+        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3", "hansell"}
         # surface-only: satellite and sea surface temperature
         assert not offered & {
             ("chlorophyll", "occci"), ("kd490", "occci"),
