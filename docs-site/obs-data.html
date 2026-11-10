@@ -118,7 +118,7 @@
       <li><strong>Can my data be plotted interactively?</strong> The map View simulation output draws, which you can zoom and pan.</li>
       <li><strong>Can my data be plotted as a climatology?</strong> The map Analyze simulations draws: the sea surface's climatology, a mean over the file's first 12 time steps.</li>
     </ul>
-    <p>FVCOM output is recognised first. It should be compatible, as OceanVal regrids it itself, so the CDO, regridding and spatial-average checks are skipped (as is the climatology map, as Analyze simulations does not work with FVCOM output yet), and the time check and interactive plot are made.</p>
+    <p>FVCOM output is recognised first. It should be compatible, as OceanVal regrids it itself, so the CDO, regridding and spatial-average checks are skipped, and the time check, the interactive plot and the climatology map are made, the map drawn on the mesh as Analyze simulations draws FVCOM output.</p>
 
     <h2 id="gridded">Gridded observational data</h2>
     <p>Gridded observations (e.g. satellite data) should also be in NetCDF format — in a single file or multiple files, which OceanVal will merge. Files must be CF-compliant, which gridded observational products almost always are.</p>

@@ -41,7 +41,7 @@ The OceanVal app checks your model output files for you. Run ``oceanval`` and, w
 * **Can my data be plotted interactively?** The map View simulation output draws, which you can zoom and pan.
 * **Can my data be plotted as a climatology?** The map Analyze simulations draws: the sea surface's climatology, a mean over the file's first 12 time steps.
 
-FVCOM output is recognised first. It should be compatible, as OceanVal regrids it itself, so the CDO, regridding and spatial-average checks are skipped (as is the climatology map, as Analyze simulations does not work with FVCOM output yet), and the time check and interactive plot are made.
+FVCOM output is recognised first. It should be compatible, as OceanVal regrids it itself, so the CDO, regridding and spatial-average checks are skipped, and the time check, the interactive plot and the climatology map are made, the map drawn on the mesh as Analyze simulations draws FVCOM output.
 
 
 Gridded observational data

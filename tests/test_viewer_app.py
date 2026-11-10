@@ -164,8 +164,14 @@ def test_parse_names():
 # ---- the viewer ----
 
 def test_the_token_is_needed(app):
-    for route in ("/api/viewer/catalogue", "/api/viewer/plot", "/api/viewer/limits", "/api/viewer/missing", "/bokeh.min.js"):
+    for route in ("/api/viewer/catalogue", "/api/viewer/plot", "/api/viewer/limits", "/api/viewer/missing", "/api/pattern_checks/plot", "/bokeh.min.js"):
         assert get(app, route, token="wrong")[0] == 403
+
+
+def test_the_pattern_map_is_answered_as_json(app):
+    # the output step's card asks for its map as JSON: a route left off the list is a plain 404
+    status, body = get_json(app, "/api/pattern_checks/plot", number="0")
+    assert status == 200 and body == {"ok": False, "error": "There is no map."}
 
 
 def test_the_missing_value_guess(app, tmp_path):

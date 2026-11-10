@@ -16,8 +16,9 @@ The variables are those View simulation output finds in the file
 
 Raw FVCOM output is told first (`create_recipes._looks_like_fvcom`): it should be
 compatible, CDO cannot read it (OceanVal regrids it itself), so the cdo, regrid and
-mean rows are skipped, as is the climatology map (Analyze does not work with FVCOM
-output yet). The time check and the interactive plot are made.
+mean rows are skipped. The time check, the interactive plot and the climatology map
+are made, the last drawn on the mesh as Analyze simulations draws FVCOM output
+(`mesh_maps`), from the surface layer.
 
 The checks run in a process of their own (`Compat`, which runs `main`), killed by
 `cancel` or if a step takes longer than STEP_TIMEOUT: CDO can crash, and
@@ -430,6 +431,59 @@ def _climatology(path, variable, about, emit):
     return _row(emit, "climatology", OK, f"Drawn: the mean of {variable} at the surface over the file's first {_plural(CLIMATOLOGY_STEPS, 'time step')}.")
 
 
+def _fvcom_climatology(path, variable, emit):
+    """The map Analyze simulations draws of the annual mean of the surface's climatology, for raw FVCOM output:
+    drawn on its mesh (oceanval.mesh_maps), from the surface layer (the first of the sigma layers, as the
+    interactive map takes it) over the first CLIMATOLOGY_STEPS time steps, read a time at a time."""
+    from oceanval import analysis_plots, mesh_maps, viewer_mesh
+    from oceanval.netcdf_lock import LOCK
+
+    _row(emit, "climatology", WORKING)
+    try:
+        import netCDF4
+        import numpy as np
+
+        with LOCK, netCDF4.Dataset(path) as handle:
+            var = handle.variables[variable]
+            var.set_auto_maskandscale(True)
+            where = viewer_mesh.mesh_location(var.dimensions)
+            if where is None or "time" not in var.dimensions:
+                raise ValueError(f"{variable} is not a variable of the mesh over time.")
+            units = str(getattr(var, "units", ""))
+            long_name = str(getattr(var, "long_name", "")) or variable
+            steps = min(CLIMATOLOGY_STEPS, handle.dimensions["time"].size)
+            index = tuple(
+                slice(0, steps) if dim == "time" else 0 if dim in ("siglay", "siglev") else slice(None)
+                for dim in var.dimensions
+            )
+            values = np.ma.filled(np.ma.asarray(var[index]).astype("float64"), np.nan)
+        # one row for each time step, one column for each node or element
+        values = values.reshape(steps, -1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            mean = np.nanmean(values, axis=0)
+        mesh = mesh_maps._mesh(path)
+        limits = mesh_maps._robust(mean) or [0.0, 1.0]
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure(figsize=(8, 6))
+        ax = mesh_maps._map_axes(fig, fig.add_gridspec(1, 1)[0, 0], mesh, False)
+        drawn = mesh_maps._draw(ax, mesh, mean, where, limits, "viridis", not mesh.cartesian)
+        if drawn is not None:
+            bar = fig.colorbar(drawn, ax=ax, extend=mesh_maps._extend(mean, limits), shrink=0.8)
+            bar.set_label(analysis_plots.legend(long_name, units))
+        image = _png()
+    except Exception as error:
+        import matplotlib.pyplot as plt
+
+        plt.close("all")
+        return _row(emit, "climatology", FAILED, "The map could not be drawn: " + _short(error))
+    emit({"event": "image", "data": image})
+    if not np.isfinite(mean).any():
+        return _row(emit, "climatology", WARNING, f"Drawn, but every value of {variable} is missing in the first time steps at the surface.")
+    return _row(emit, "climatology", OK, f"Drawn on the mesh: the mean of {variable} at the surface over the file's first {_plural(steps, 'time step')}.")
+
+
 def _variables(path):
     """(the viewer's Catalogue of the file, its variables {name: about}, why not): the variables View simulation
     output finds in it. The Catalogue is None if the file cannot be read."""
@@ -484,7 +538,7 @@ def run(path, emit, variable=None, choose=None):
                 "event": "fvcom",
                 "notice": "This is FVCOM output. It should be compatible with OceanVal. CDO cannot read raw FVCOM "
                 "files, so OceanVal regrids them itself and the CDO, regridding and spatial-average checks do not "
-                "apply. The time check and the interactive plot are made.",
+                "apply. The time check, the interactive plot and the climatology map are made.",
             })
             for key in ("cdo", "regrid", "mean"):
                 _row(emit, key, SKIPPED, "Not needed for FVCOM output: OceanVal reads and regrids it itself.")
@@ -493,7 +547,10 @@ def run(path, emit, variable=None, choose=None):
                 _row(emit, "interactive", FAILED, "The map could not be drawn: " + (trouble or "the file could not be read."))
             else:
                 _interactive(catalogue, variable, emit)
-            _row(emit, "climatology", SKIPPED, "Analyze simulations does not work with FVCOM output yet.")
+            if variable is None:
+                _row(emit, "climatology", SKIPPED, "Not tried: the file has no variable that can be mapped.")
+            else:
+                _fvcom_climatology(path, variable, emit)
             return
         found = {"variable": variable}
         _cdo(path, emit, found)

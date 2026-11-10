@@ -245,11 +245,12 @@ class TestRun:
         notice = [event for event in events if event["event"] == "fvcom"]
         assert len(notice) == 1 and "FVCOM" in notice[0]["notice"] and "should be compatible" in notice[0]["notice"]
         assert statuses(rows) == {
-            "cdo": SKIPPED, "regrid": SKIPPED, "mean": SKIPPED, "time": OK, "interactive": OK, "climatology": SKIPPED,
+            "cdo": SKIPPED, "regrid": SKIPPED, "mean": SKIPPED, "time": OK, "interactive": OK, "climatology": OK,
         }
         assert "3 time steps" in rows["time"][1]
-        assert "does not work with FVCOM" in rows["climatology"][1]
+        assert "Drawn on the mesh" in rows["climatology"][1]
         assert any(event["event"] == "item" for event in events)
+        assert any(event["event"] == "image" and event["data"].startswith("data:image/png") for event in events)
 
     @pytest.mark.cdo_check
     def test_a_segfault_of_cdo_is_said_and_stops_the_rest(self, tmp_path, fake_cdo):

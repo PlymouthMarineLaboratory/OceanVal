@@ -5927,6 +5927,7 @@ class _Handler(recipes_gui._Handler):
             "/api/viewer/plot",
             "/api/viewer/limits",
             "/api/viewer/missing",
+            "/api/pattern_checks/plot",
             "/bokeh.min.js",
         ):
             self._reply(404, "Not found", "text/plain; charset=utf-8")
