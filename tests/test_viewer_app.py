@@ -36,19 +36,21 @@ def _form(simulation, **changes):
     return dict({"simdir": simulation, "ndown": "2", "exclude": "restart", "require": "", "missing": ""}, **changes)
 
 
-def _wait_for(app, view, seconds=60):
+def _wait_for(app, view, seconds=60, panel=1):
+    """Waits for a panel of the viewer to reach a state ("setup", "viewer_scanning" or "viewer")."""
     deadline = time.monotonic() + seconds
-    while app.view != view and time.monotonic() < deadline:
+    while app.viewers[panel].view != view and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert app.view == view
+    assert app.viewers[panel].view == view
 
 
-def _wait_for_times(app, seconds=60):
-    """The times of every file are read in the background once the viewer has opened."""
+def _wait_for_times(app, seconds=60, panel=1):
+    """The times of every file are read in the background once a panel has opened."""
+    slot = app.viewers[panel]
     deadline = time.monotonic() + seconds
-    while (app.viewer_times is not None or not app.viewer_catalogue.times_complete) and time.monotonic() < deadline:
+    while (slot.times is not None or not slot.catalogue.times_complete) and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert app.viewer_catalogue.times_complete and app.viewer_times is None
+    assert slot.catalogue.times_complete and slot.times is None
 
 
 def _guessed(app, seconds=60, **asked):
@@ -62,10 +64,14 @@ def _guessed(app, seconds=60, **asked):
         time.sleep(0.02)
 
 
-def _view(app, simulation, **changes):
-    assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
-    assert post(app, "/api/setup", {"form": _form(simulation, **changes)}) == (200, {"ok": True})
-    _wait_for(app, "viewer")
+def _view(app, simulation, panel=1, **changes):
+    """Opens the viewer if it is not open, and gives a panel its simulation."""
+    if app.view != "viewer":
+        assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
+    while panel not in app.viewers:
+        assert post(app, "/api/viewer/add") == (200, {"ok": True})
+    assert post(app, "/api/setup", {"form": dict(_form(simulation, **changes), viewer=panel)}) == (200, {"ok": True})
+    _wait_for(app, "viewer", panel=panel)
 
 
 def _plot(app, **params):
@@ -85,21 +91,24 @@ def test_the_tile_is_first_on_the_landing_page(app):
     assert "View simulation output" in page and "Interactively view netCDF files" in page
 
 
-def test_the_tile_goes_to_the_setup_page_and_back(app, simulation):
+def test_the_tile_goes_to_the_viewer_with_one_panel_and_back(app, simulation):
     assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
     shown = get_json(app, "/api/state")[1]
-    assert shown["view"] == "setup" and shown["action"] == "viewer"
-    # the setup page's boxes, with the files skipped left to the user
-    assert shown["setup"]["form"]["exclude"] == "" and shown["setup"]["form"]["missing"] == ""
-    # Back keeps what was typed, for when the tile is chosen again
+    # there is no setup page: the viewer is open, with one panel that has no simulation yet
+    assert shown["view"] == "viewer" and shown["action"] == "viewer"
+    [panel] = shown["viewer"]["panels"]
+    assert panel["id"] == 1 and panel["view"] == "setup" and shown["viewer"]["most"] == 4
+    # the panel's boxes, with the files skipped left to the user
+    assert panel["form"]["exclude"] == "restart spinup" and panel["form"]["missing"] == ""
+    # Back keeps what was typed and not applied (sent by the page, by panel number), for when the tile is chosen again
     form = _form(simulation, missing='[["-999", ""]]')
-    assert post(app, "/api/back", {"form": form}) == (200, {"ok": True})
-    assert app.view == "home"
+    assert post(app, "/api/back", {"forms": {"1": form}}) == (200, {"ok": True})
+    assert app.view == "home" and app.viewers == {}
     assert post(app, "/api/choose", {"action": "viewer"})[0] == 200
-    kept = get_json(app, "/api/state")[1]["setup"]["form"]
+    kept = get_json(app, "/api/state")[1]["viewer"]["panels"][0]["form"]
     assert kept["simdir"] == simulation and kept["missing"] == '[["-999", ""]]'
     # the other tiles are not changed by it
-    post(app, "/api/back", {"form": form})
+    post(app, "/api/back")
     assert post(app, "/api/choose", {"action": "validate_menu"})[0] == 200
     assert post(app, "/api/back")[0] == 200 and app.view == "home"
 
@@ -130,7 +139,7 @@ def test_what_the_setup_page_refuses(app, simulation):
     assert status == 400 and reply["errors"] == {"missing": "Missing value 1: 'abc' is not a number."}
     status, reply = post(app, "/api/setup", {"form": _form(simulation, simdir="")})
     assert status == 400 and "simdir" in reply["errors"]
-    assert app.view == "setup" and app.viewer_catalogue is None
+    assert app.viewers[1].view == "setup" and app.viewers[1].catalogue is None
 
 
 def test_restart_files_are_left_out_only_by_the_skip_box(app, tmp_path):
@@ -178,6 +187,7 @@ def test_the_missing_value_guess(app, tmp_path):
     from viewer_simulations import land_simulation
 
     root = land_simulation(str(tmp_path / "sim"), land=-999.0)
+    post(app, "/api/choose", {"action": "viewer"})
     asked = dict(simdir=root, ndown="0", exclude="", require="")
     # the first ask starts the search and comes back at once, holding nothing up
     assert get_json(app, "/api/viewer/missing", **asked)[1] == {
@@ -221,17 +231,18 @@ def test_a_missing_value_search_moved_on_from_gives_up(app, tmp_path, monkeypatc
         return {"value": None, "ersem": False}
 
     monkeypatch.setattr(viewer_missing, "guess", slow)
+    post(app, "/api/choose", {"action": "viewer"})
     asked = dict(simdir=root, ndown="0", exclude="", require="")
     assert get_json(app, "/api/viewer/missing", **asked)[1]["status"] == "reading"
     assert asking.wait(10)
     with app._lock:
-        app._viewer_drop()
+        app._viewer_drop(app.viewers[1])
     deadline = time.monotonic() + 10
     while not gave_up and time.monotonic() < deadline:
         time.sleep(0.01)
     assert gave_up == [True]
     # nothing of the search that gave up is kept, so asking again looks afresh
-    assert app._viewer_guess is None
+    assert app.viewers[1].guess is None
 
 
 class TestContinueDoesNotFindTheFilesAgain:
@@ -296,30 +307,30 @@ class TestContinueDoesNotFindTheFilesAgain:
         _wait_for(app, "viewer")
         assert len(reads) == 1, "the output was read again after the missing value search read it"
         # it is the reading the viewer works with
-        assert app.viewer_catalogue is not None and app.viewer_catalogue.streams
-        assert app._viewer_scanned is None
+        assert app.viewers[1].catalogue is not None and app.viewers[1].catalogue.streams
+        assert app.viewers[1].scanned is None
         _wait_for_times(app)
 
     def test_a_search_of_other_files_is_not_taken_over(self, app, simulation):
         assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
         # asked about without the filter, Continue is pressed with it
         assert _guessed(app, **self._ask(app, simulation, exclude=""))["status"] == "done"
-        kept = app._viewer_scanned
+        kept = app.viewers[1].scanned
         assert kept is not None
         assert post(app, "/api/setup", {"form": _form(simulation)}) == (200, {"ok": True})
         _wait_for(app, "viewer")
-        assert app.viewer_catalogue is not kept[1]
-        assert app._viewer_scanned is None
+        assert app.viewers[1].catalogue is not kept[1]
+        assert app.viewers[1].scanned is None
         # what was not taken is let go of
         assert kept[1]._stop.is_set()
 
     def test_nothing_is_kept_when_the_user_goes_back(self, app, simulation):
         assert post(app, "/api/choose", {"action": "viewer"}) == (200, {"ok": True})
         assert _guessed(app, **self._ask(app, simulation))["status"] == "done"
-        kept = app._viewer_scanned[1]
+        kept = app.viewers[1].scanned[1]
         with app._lock:
-            app._viewer_drop()
-        assert app._viewer_scanned is None and kept._stop.is_set()
+            app._viewer_drop(app.viewers[1])
+        assert app.viewers[1].scanned is None and kept._stop.is_set()
 
     def test_the_page_is_told_only_of_the_variables_being_read(self, app, simulation, monkeypatch):
         """The files are known, so the first news is how many kinds of file
@@ -332,7 +343,7 @@ class TestContinueDoesNotFindTheFilesAgain:
 
         def held(*args, **kwargs):
             with app._lock:
-                seen.append(dict(app.viewer_scan))
+                seen.append(dict(app.viewers[1].scan))
             release.wait(30)
             return original(*args, **kwargs)
 
@@ -358,7 +369,7 @@ def test_bokeh_is_served(app):
 
 def test_probe_then_view(app, simulation):
     _view(app, simulation, missing='[["-999",""]]')
-    assert app.viewer_missing == [(-999.0, -999.0)]
+    assert app.viewers[1].missing == [(-999.0, -999.0)]
     _wait_for_times(app)
     summary = get_json(app, "/api/viewer/catalogue")[1]
     assert summary["files"] == 48
@@ -369,14 +380,14 @@ def test_probe_then_view(app, simulation):
     assert reply["n_missing"] == 0
     # the warmest and coldest cells set missing go, and the scale narrows
     lo, hi = reply["clim"]
-    app.viewer_missing = [(lo, lo + 0.01), (hi - 0.01, hi)]
+    app.viewers[1].missing = [(lo, lo + 0.01), (hi - 0.01, hi)]
     narrower = _plot(app, stream=0, vars='["votemper"]', step=3, level=1)
     assert narrower["n_missing"] > 0
     assert lo < narrower["clim"][0] and narrower["clim"][1] < hi
-    app.viewer_missing = [(-1e9, 1e9)]
+    app.viewers[1].missing = [(-1e9, 1e9)]
     everything = _plot(app, stream=0, vars='["votemper"]', step=3, level=1)
     assert everything["ok"] and any("Every cell is missing" in note for note in everything["notes"])
-    app.viewer_missing = []
+    app.viewers[1].missing = []
     reply = _plot(app, stream=0, vars='["votemper"]', vmin=0, vmax=30)
     assert reply["clim"] == [0, 30]
     assert _plot(app, stream=0, vars='["nothing"]')["ok"] is False
@@ -396,16 +407,18 @@ def test_probe_then_view(app, simulation):
     # the range over the whole run, for an animation's one colour scale
     limits = _limits(app, stream=1, vars='["chl"]', level=1)
     assert limits["ok"] and limits["vmin"] < limits["vmax"] and limits["symmetric"] is False
-    app.viewer_missing = [(-1e9, 1e9)]
+    app.viewers[1].missing = [(-1e9, 1e9)]
     assert "Every cell is missing" in _limits(app, stream=1, vars='["chl"]')["error"]
-    app.viewer_missing = []
+    app.viewers[1].missing = []
     assert _limits(app, stream=0, vars='["votemper", "sossheig"]')["error"].endswith("cannot be added.")
     assert _limits(app, stream=0, vars="[]")["error"] == "Choose a variable."
-    # Back goes to the setup page, with the boxes as they were
+    # Back goes to the landing page, letting go of the reading and keeping the boxes as they were
+    slot = app.viewers[1]
     assert post(app, "/api/back")[0] == 200
     shown = get_json(app, "/api/state")[1]
-    assert shown["view"] == "setup" and shown["setup"]["form"]["missing"] == '[["-999",""]]'
-    assert app.viewer_catalogue is None
+    assert shown["view"] == "home" and shown["viewer"]["panels"] == []
+    assert app.viewer_kept[1]["missing"] == '[["-999",""]]'
+    assert slot.catalogue is None
     assert _plot(app, stream=0, vars='["votemper"]')["error"] == "Nothing has been read yet."
 
 
@@ -448,7 +461,8 @@ def test_the_viewer_opens_while_the_times_are_read(app, simulation, slow_times):
     _view(app, simulation)
     shown = get_json(app, "/api/state")[1]
     # the viewer is there, and says how many of the files' times are in
-    assert shown["view"] == "viewer" and shown["viewer"]["times"]["total"] == 48 and shown["viewer"]["times_number"] == 0
+    panel = shown["viewer"]["panels"][0]
+    assert shown["view"] == "viewer" and panel["times"]["total"] == 48 and panel["times_number"] == 0
     summary = get_json(app, "/api/viewer/catalogue")[1]
     assert summary["times_complete"] is False
     assert [(stream["steps"], stream["pending"]) for stream in summary["streams"]] == [(1, 23), (1, 23)]
@@ -458,10 +472,10 @@ def test_the_viewer_opens_while_the_times_are_read(app, simulation, slow_times):
     # the times come in, and the page is told
     slow_times.set()
     deadline = time.monotonic() + 30
-    while app.viewer_times is not None and time.monotonic() < deadline:
+    while app.viewers[1].times is not None and time.monotonic() < deadline:
         time.sleep(0.05)
     shown = get_json(app, "/api/state")[1]
-    assert shown["viewer"]["times"] is None and shown["viewer"]["times_number"] == 1
+    assert shown["viewer"]["panels"][0]["times"] is None and shown["viewer"]["panels"][0]["times_number"] == 1
     summary = get_json(app, "/api/viewer/catalogue")[1]
     assert summary["times_complete"] is True
     assert [(stream["steps"], stream["pending"]) for stream in summary["streams"]] == [(24, 0), (24, 0)]
@@ -474,44 +488,128 @@ def test_the_viewer_opens_while_the_times_are_read(app, simulation, slow_times):
 
 def test_going_back_stops_the_times_being_read(app, simulation, slow_times):
     _view(app, simulation)
-    assert app.viewer_times is not None
+    slot = app.viewers[1]
+    assert slot.times is not None
     assert post(app, "/api/back")[0] == 200
-    assert app.view == "setup" and app.viewer_times is None
+    assert app.view == "home" and app.viewers == {} and slot.times is None
     # what was waiting is let go, and the reading stops: it does not say it is done
     slow_times.set()
     time.sleep(0.5)
-    assert app.viewer_times is None and app.viewer_times_number == 0
-    assert get_json(app, "/api/state")[1]["viewer"]["times"] is None
+    assert slot.times is None and slot.times_number == 0
+    assert get_json(app, "/api/state")[1]["viewer"]["panels"] == []
 
 
-def test_a_new_reading_replaces_the_one_going(app, simulation, slow_times):
+def test_a_new_reading_in_a_panel_replaces_the_one_going(app, simulation, slow_times):
     _view(app, simulation)
-    first = app.viewer_catalogue
-    assert post(app, "/api/back")[0] == 200
+    slot = app.viewers[1]
+    first = slot.catalogue
     assert post(app, "/api/setup", {"form": _form(simulation)}) == (200, {"ok": True})
     deadline = time.monotonic() + 30
-    while app.viewer_catalogue in (first, None) and time.monotonic() < deadline:
+    while slot.catalogue in (first, None) and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert app.viewer_catalogue is not first
+    assert slot.catalogue is not first
     slow_times.set()
     deadline = time.monotonic() + 30
-    while app.viewer_times is not None and time.monotonic() < deadline:
+    while slot.times is not None and time.monotonic() < deadline:
         time.sleep(0.05)
     # one set of times came in, not two
-    assert app.viewer_times_number == 1 and app.viewer_catalogue.times_complete
+    assert slot.times_number == 1 and slot.catalogue.times_complete
 
 
 def test_restart_from_the_viewer(app, simulation, slow_times):
     _view(app, simulation, missing='[["0",""]]')
+    slot = app.viewers[1]
     assert post(app, "/api/restart_all")[0] == 200
     shown = get_json(app, "/api/state")[1]
-    assert shown["view"] == "home" and shown["action"] is None and shown["viewer"]["catalogue_number"] is None
+    assert shown["view"] == "home" and shown["action"] is None and shown["viewer"]["panels"] == []
     slow_times.set()
     time.sleep(0.5)
-    assert app.viewer_times is None and app.viewer_times_number == 0 and app.viewer_missing == []
+    assert slot.times is None and slot.times_number == 0 and app.viewers == {} and app.viewer_kept == {}
     # the boxes start afresh
     post(app, "/api/choose", {"action": "viewer"})
-    assert get_json(app, "/api/state")[1]["setup"]["form"]["missing"] == ""
+    assert get_json(app, "/api/state")[1]["viewer"]["panels"][0]["form"]["missing"] == ""
+
+
+# ---- the panels ----
+
+def test_a_panel_is_added_and_removed_up_to_four(app, simulation):
+    assert post(app, "/api/viewer/add")[0] == 409, "there is no viewer to add to before the tile is chosen"
+    assert post(app, "/api/choose", {"action": "viewer"})[0] == 200
+    for _ in range(3):
+        assert post(app, "/api/viewer/add") == (200, {"ok": True})
+    assert sorted(app.viewers) == [1, 2, 3, 4]
+    # no more than four
+    assert post(app, "/api/viewer/add")[0] == 409
+    # panel 1 stays; the others go, and the lowest number free is used next
+    assert post(app, "/api/viewer/remove", {"viewer": 1})[0] == 409
+    assert post(app, "/api/viewer/remove", {"viewer": 3}) == (200, {"ok": True})
+    assert post(app, "/api/viewer/remove", {"viewer": 3})[0] == 409
+    assert sorted(app.viewers) == [1, 2, 4]
+    assert [p["id"] for p in get_json(app, "/api/state")[1]["viewer"]["panels"]] == [1, 2, 4]
+    assert post(app, "/api/viewer/add") == (200, {"ok": True})
+    assert sorted(app.viewers) == [1, 2, 3, 4]
+
+
+def test_a_second_simulation_does_not_replace_the_first(app, simulation, tmp_path, slow_times):
+    other = nemo_simulation(str(tmp_path / "other"), years=(2000,))
+    _view(app, simulation, panel=1)
+    first = app.viewers[1].catalogue
+    _view(app, other, panel=2, ndown="2")
+    second = app.viewers[2].catalogue
+    # each panel has its own reading, and the first is still there and still maps
+    assert app.viewers[1].catalogue is first and second is not first and not first._stop.is_set()
+    one = _plot(app, viewer=1, stream=1, vars='["chl"]', step=0, level=1)
+    two = _plot(app, viewer=2, stream=1, vars='["chl"]', step=0, level=1)
+    assert one["ok"] and two["ok"]
+    assert get_json(app, "/api/viewer/catalogue", viewer=1)[1]["files"] == 48
+    assert get_json(app, "/api/viewer/catalogue", viewer=2)[1]["files"] == 24
+    # a request for a panel that is not there, or has nothing, is told so
+    assert get_json(app, "/api/viewer/catalogue", viewer=3)[1] == {"ok": False, "error": "Nothing has been read yet."}
+    # the times are read one panel's at a time, and both come in
+    slow_times.set()
+    _wait_for_times(app, panel=1)
+    _wait_for_times(app, panel=2)
+    states = {p["id"]: p for p in get_json(app, "/api/state")[1]["viewer"]["panels"]}
+    assert states[1]["times"] is None and states[2]["times"] is None
+
+
+def test_removing_a_panel_lets_go_of_its_files_only(app, simulation, tmp_path, slow_times):
+    other = nemo_simulation(str(tmp_path / "other"), years=(2000,))
+    _view(app, simulation, panel=1)
+    _view(app, other, panel=2)
+    kept, gone = app.viewers[1].catalogue, app.viewers[2].catalogue
+    assert post(app, "/api/viewer/remove", {"viewer": 2}) == (200, {"ok": True})
+    assert gone._stop.is_set() and not kept._stop.is_set()
+    assert _plot(app, viewer=2, stream=1, vars='["chl"]')["error"] == "Nothing has been read yet."
+    assert _plot(app, viewer=1, stream=1, vars='["chl"]', step=0, level=1)["ok"]
+
+
+def test_back_and_restart_let_go_of_every_panel(app, simulation, tmp_path, slow_times):
+    other = nemo_simulation(str(tmp_path / "other"), years=(2000,))
+    _view(app, simulation, panel=1)
+    _view(app, other, panel=2)
+    both = [app.viewers[1].catalogue, app.viewers[2].catalogue]
+    assert post(app, "/api/back")[0] == 200
+    assert app.viewers == {} and all(found._stop.is_set() for found in both)
+    # the forms are kept, for the panels to come back with their boxes as they were
+    assert sorted(app.viewer_kept) == [1, 2] and app.viewer_kept[2]["simdir"] == other
+    assert post(app, "/api/choose", {"action": "viewer"})[0] == 200
+    shown = {p["id"]: p for p in get_json(app, "/api/state")[1]["viewer"]["panels"]}
+    assert sorted(shown) == [1, 2] and shown[1]["form"]["simdir"] == simulation
+    # the reading is not kept: the panels are as they were before Apply
+    assert shown[1]["view"] == "setup" and shown[2]["view"] == "setup"
+    # Restart clears it all
+    _view(app, simulation, panel=1)
+    again = app.viewers[1].catalogue
+    assert post(app, "/api/restart_all")[0] == 200
+    assert app.viewers == {} and app.viewer_kept == {} and again._stop.is_set()
+
+
+def test_a_panel_asked_for_without_a_number_is_the_first(app, simulation):
+    _view(app, simulation)
+    assert get_json(app, "/api/viewer/catalogue")[1] == get_json(app, "/api/viewer/catalogue", viewer=1)[1]
+    assert get_json(app, "/api/viewer/catalogue", viewer="x")[1]["ok"] is False
+    assert get_json(app, "/api/viewer/catalogue", viewer=9)[1]["ok"] is False
 
 
 def test_the_page_says_how_to_open_it(app):
@@ -574,6 +672,7 @@ class TestOneFile:
         assert app.probe(one_file, "0", "")["directory"] == "missing"
 
     def test_the_missing_value_is_looked_for_without_a_depth(self, one_file, app):
+        post(app, "/api/choose", {"action": "viewer"})
         asked = dict(simdir=one_file, ndown="", exclude="restart", require="")
         assert app.viewer_missing_guess(dict(asked))["status"] == "reading"
         assert _guessed(app, **asked) == {"status": "done", "value": "-999", "ersem": False}
@@ -586,11 +685,11 @@ def test_closing_the_browser_quits_while_viewing(app, simulation):
     quits the command and lets go of what it was reading."""
     app.page_timeout = 2
     _view(app, simulation)
-    catalogue = app.viewer_catalogue
+    catalogue = app.viewers[1].catalogue
     assert get_json(app, "/api/state", page="a")[0] == 200
     assert app.closed.wait(15)
     assert app.closed_reason == "The browser window was closed."
-    assert app.viewer_catalogue is None and catalogue._stop.is_set()
+    assert app.viewers[1].catalogue is None and catalogue._stop.is_set()
 
 
 def test_closing_the_browser_quits_while_the_files_are_read(app, simulation, monkeypatch):

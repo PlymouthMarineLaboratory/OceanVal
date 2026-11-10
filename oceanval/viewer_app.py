@@ -287,8 +287,8 @@ class ViewerSteps:
         self.viewer_kept = {}
 
     def _viewer_slot_of(self, value):
-        """The panel a request names by its number, or None."""
-        number = _panel_number(value)
+        """The panel a request names by its number (panel 1 if it names none), or None."""
+        number = _panel_number(1 if value in (None, "") else value)
         return self.viewers.get(number) if number is not None else None
 
     def _viewer_drop(self, slot):

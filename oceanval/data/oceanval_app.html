@@ -860,6 +860,16 @@
   .vw-panel:has(.vw-setup-pop:not([hidden])) { z-index: 20; }
   .vw-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
   .vw-panel__title { margin: 0; min-width: 0; font: 600 16px/1.3 var(--font-head); color: var(--ink); overflow-wrap: anywhere; }
+  .vw-panel__name { display: flex; align-items: center; gap: 12px; min-width: 0; flex-wrap: wrap; }
+  .vw-tab-btn { height: 30px; padding: 0 10px; gap: 6px; font-size: 13px; }
+  .vw-tab-btn svg { width: 15px; height: 15px; flex: none; }
+  .vw-tab-btn[hidden] { display: none; }
+  /* a tab opened from a panel (?mirror=N) shows that panel alone: Back and Restart would end the other tab's work too */
+  body.is-mirror .back-open, body.is-mirror .restart-open, body.is-mirror #vw-add, body.is-mirror [data-vw="remove"] { display: none; }
+  .mirror-closed { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: var(--bg-alt); padding: 20px; }
+  .mirror-closed[hidden] { display: none; }
+  .mirror-closed .card { display: flex; flex-direction: column; gap: 6px; padding: 28px 36px; text-align: center; color: var(--muted); }
+  .mirror-closed strong { color: var(--ink); font: 600 18px/1.3 var(--font-head); }
   .vw-panel__tools { display: flex; gap: 8px; align-items: center; flex: none; }
   .vw-panel__setup { position: relative; height: 0; }
   .vw-idle, .vw-scanning { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 360px; padding: 20px; text-align: center; color: var(--muted); }
@@ -880,6 +890,8 @@
   .vw-setup-pop { position: absolute; top: 0; right: 0; z-index: 40; width: min(600px, calc(100vw - 80px)); max-height: 75vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
   .vw-setup-pop[hidden] { display: none; }
   /* the first panel with no simulation: its box is in the middle of the panel and has no close button */
+  /* after the first simulation the box is a dialog over the page, dimmed behind it (under the .picker dialogs it opens, 25) */
+  .vw-setup-pop.is-dialog { position: fixed; top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); z-index: 24; box-shadow: 0 0 0 200vmax var(--overlay), var(--shadow-lg); }
   .vw-panel.is-first-empty .vw-panel__setup { position: static; }
   .vw-panel.is-first-empty .vw-setup-pop { top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); }
   .vw-panel.is-first-empty #vw-setup-close { display: none; }
@@ -973,9 +985,6 @@
   .vw-empty[hidden] { display: none; }
   .vw-empty strong { display: block; color: var(--ink); font: 600 18px/1.3 var(--font-head); margin-bottom: 6px; }
   .vw-error { margin: 8px 0 0; color: var(--ink); font-weight: 600; font-size: 13px; }
-  /* FVCOM output is drawn in pyfvcom2's way, which the bar says */
-  .vw-credit { align-self: center; margin-right: 6px; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
-  .vw-credit:hover { color: var(--teal-700); }
 
   /* ---- Compare simulations (see oceanval.sim_compare_app) ---- */
   .sc-sim { padding: 18px 0 8px; border-top: 1px solid var(--line); }
@@ -1359,6 +1368,10 @@
   </div>
 </header>
 
+<div class="mirror-closed" id="mirror-closed" role="status" hidden>
+  <div class="card"><strong>This simulation was closed in the other tab.</strong><span>You can close this tab.</span></div>
+</div>
+
 <main class="wrap">
   <section id="view-home" hidden>
     <div class="choices is-four">
@@ -1661,7 +1674,10 @@
   <template id="vw-panel-tpl">
     <article class="vw-panel card" aria-label="A simulation">
       <header class="vw-panel__head">
-        <h2 class="vw-panel__title" data-vw="title">Simulation</h2>
+        <div class="vw-panel__name">
+          <h2 class="vw-panel__title" data-vw="title">Simulation</h2>
+          <button type="button" class="btn btn--ghost vw-tab-btn" data-vw="open-tab" title="Open this simulation in another tab. The two tabs follow each other." hidden><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>Open in another tab</button>
+        </div>
         <div class="vw-panel__tools">
           <button type="button" class="vw-icon-btn" data-vw="remove" aria-label="Remove this simulation" title="Remove this simulation">&times;</button>
         </div>
@@ -3372,7 +3388,7 @@
     const key = [view, state.action, state.run.status, Boolean(stopArmed), state.question ? state.question.id : null,
       Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
-      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number, viewerFvcom(),
+      state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number,
       scUnits.page].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
@@ -3402,10 +3418,6 @@
         button("Continue", "primary", submitSetup, { id: "continue" }));
     } else if (view === "viewer") {
       // to the landing page; what is being read is stopped, and the boxes not applied are kept for the viewer's next opening
-      if (viewerFvcom()) {
-        actions.push(el("a", { class: "vw-credit", id: "vw-fvcom-credit", href: "https://github.com/PlymouthMarineLaboratory/pyfvcom2",
-          target: "_blank", rel: "noopener noreferrer", text: "Plotting is influenced by pyfvcom2" }));
-      }
       actions.push(backTo(() => {
         stopAllPlay();
         closeSetup();
@@ -3650,6 +3662,11 @@
   // the panels by number, the panel last used (whose arrow keys move its time), the panel whose box is open, and
   // the boxes not applied, by panel number
   const panels = new Map();
+  // a tab opened by a panel's "Open in another tab" (?mirror=<panel>) shows that panel alone, and the two follow each
+  // other over a BroadcastChannel (same browser, same address): see ViewerPanel.broadcast and applyMirror
+  const MIRROR = Number(new URLSearchParams(window.location.search).get("mirror")) || null;
+  if (MIRROR) document.body.classList.add("is-mirror");
+  const mirrorChannel = "BroadcastChannel" in window ? new BroadcastChannel("oceanval-viewer") : null;
   let activePanel = null;
   let setupPanel = null;
   const panelDrafts = new Map();
@@ -3660,11 +3677,6 @@
     const folder = String(form.simdir || "").trim().split(/[\\/]/).filter(Boolean).pop();
     return String(form.name || "").trim() || folder || `Simulation ${slot.id}`;
   }
-
-  // whether FVCOM output is being looked at in any panel, whose plotting the bar credits to pyfvcom2
-  const viewerFvcom = () => state.view === "viewer" && [...panels.values()].some(
-    (panel) => panel.catalogue && panel.catalogue.streams.some((stream) => stream.fvcom),
-  );
 
   // one simulation: its reading, what is chosen to map, the animation and the figures drawn. Its box is the setup
   // page's form (see openSetup); its state comes from the server (see oceanval.viewer_app.ViewerSlot)
@@ -3728,6 +3740,18 @@
       this.root.addEventListener("pointerdown", () => { activePanel = this.number; });
       this.root.addEventListener("focusin", () => { activePanel = this.number; });
       this.$("idle-btn").addEventListener("click", () => openSetup(this.number));
+      this.$("open-tab").addEventListener("click", () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("mirror", String(this.number));
+        window.open(url.toString(), "_blank");
+      });
+      // whatever the panel's owner does, the other tab is told once it has taken effect (see broadcast)
+      for (const type of ["input", "change", "click", "keydown"]) {
+        this.root.addEventListener(type, (event) => {
+          const typed = type === "input" && event.target.matches && event.target.matches("input:not([type=range])");
+          this.queueBroadcast(typed ? 450 : 0);
+        }, true);
+      }
       this.$("remove").addEventListener("click", async () => {
         const reply = await post("api/viewer/remove", { viewer: this.number });
         if (!reply.ok) toast(reply.error || "That cannot be done now.");
@@ -3850,6 +3874,7 @@
       this.root.classList.toggle("is-first-empty", this.number === 1 && !this.$("idle").hidden);
       this.$("scanning").hidden = !scanning;
       this.$("body").hidden = !ready;
+      this.$("open-tab").hidden = !ready || Boolean(MIRROR) || !mirrorChannel;
       if (scanning) this.renderScan(slot.scan);
       // a simulation being read, or none: what was shown is gone
       if (!ready && this.catalogue) this.reset();
@@ -3913,6 +3938,54 @@
       renderBar();
       if (activePanel === this.number) this.$("search").focus();
       this.toastUnreadable();
+      if (this.mirrorPending) this.applyMirror(this.mirrorPending);
+    }
+
+    // ---- following the same simulation in another tab ----
+    // what is chosen, as the other tab needs it. While playing, each tab moves through the times itself, so the step is left out.
+    mirrorSnapshot() {
+      return {
+        panel: this.number,
+        pick: { ...this.pick, step: this.playing ? null : this.pick.step },
+        playing: this.playing,
+      };
+    }
+
+    queueBroadcast(delay) {
+      if (!mirrorChannel || !this.catalogue) return;
+      clearTimeout(this.mirrorTimer);
+      this.mirrorTimer = setTimeout(() => this.broadcast(), delay);
+    }
+
+    broadcast() {
+      if (!mirrorChannel || !this.catalogue) return;
+      const snapshot = this.mirrorSnapshot();
+      const text = JSON.stringify(snapshot);
+      if (text === this.mirrorLast) return;
+      this.mirrorLast = text;
+      mirrorChannel.postMessage({ type: "pick", ...snapshot });
+    }
+
+    // the other tab's choices become this panel's (kept until the files' variables are in, if they are not yet)
+    applyMirror(snapshot) {
+      if (!this.catalogue || !this.slot || this.slot.view !== "viewer") { this.mirrorPending = snapshot; return; }
+      this.mirrorPending = null;
+      this.mirrorLast = JSON.stringify({ panel: snapshot.panel, pick: snapshot.pick, playing: snapshot.playing });
+      const step = snapshot.pick.step === null ? this.pick.step : snapshot.pick.step;
+      this.stopPlay();
+      Object.assign(this.pick, snapshot.pick, { step });
+      this.scale = null;
+      this.$("speed").value = this.pick.speed;
+      this.renderList();
+      this.renderSide();
+      this.renderYears();
+      const now = this.inStream();
+      if (!now) { this.clearPlot(); return; }
+      const span = this.windowOf(this.streamOf(now.stream));
+      this.pick.step = Math.min(Math.max(span.lo, this.pick.step), span.hi);
+      this.renderControls(now);
+      if (snapshot.playing) this.startPlay();
+      else this.requestPlot(0);
     }
 
     toastUnreadable() {
@@ -4677,7 +4750,8 @@
 
   // the panels, from the state: one for each simulation, in order, the add button after them
   function renderViewers() {
-    const slots = state.viewer.panels;
+    // a tab opened by a panel has that panel alone
+    const slots = MIRROR ? state.viewer.panels.filter((slot) => slot.id === MIRROR) : state.viewer.panels;
     const numbers = new Set(slots.map((slot) => slot.id));
     for (const [number, panel] of [...panels]) {
       if (numbers.has(number)) continue;
@@ -4690,8 +4764,11 @@
     let opening = false;
     for (const slot of slots) {
       if (panels.has(slot.id)) continue;
-      panels.set(slot.id, new ViewerPanel(slot.id));
-      if (slot.id === 1 && slot.view === "setup") opening = true;
+      const made = new ViewerPanel(slot.id);
+      panels.set(slot.id, made);
+      // the first thing a new tab does is ask where the other has got to
+      if (MIRROR && mirrorChannel) mirrorChannel.postMessage({ type: "hello", panel: slot.id });
+      if (slot.id === 1 && slot.view === "setup" && !MIRROR) opening = true;
     }
     const grid = $("vw-panels");
     grid.dataset.count = String(slots.length);
@@ -4700,10 +4777,10 @@
       grid.insertBefore(panel.root, $("vw-add"));
       panel.update(slot);
     }
-    $("vw-add").hidden = slots.length >= state.viewer.most;
+    $("vw-add").hidden = MIRROR || slots.length >= state.viewer.most;
     // the first panel's box opens by itself at first, and again if its simulation could not be read
     const first = panels.get(1);
-    if (first && setupPanel === null && first.slot && first.slot.view === "setup" && (opening || first.slot.error)) openSetup(1);
+    if (!MIRROR && first && setupPanel === null && first.slot && first.slot.view === "setup" && (opening || first.slot.error)) openSetup(1);
     if (activePanel !== null && !panels.has(activePanel)) activePanel = null;
   }
 
@@ -4725,7 +4802,11 @@
     if (!panel) return;
     setupPanel = number;
     activePanel = number;
-    panel.$("setup-slot").append($("vw-setup-pop"));
+    // the first panel's own box opens in the middle of that panel, undismissed; every other is a dialog over the page
+    const inPanel = number === 1 && panel.root.classList.contains("is-first-empty");
+    if (inPanel) panel.$("setup-slot").append($("vw-setup-pop"));
+    else $("view-viewer").append($("vw-setup-pop"));
+    $("vw-setup-pop").classList.toggle("is-dialog", !inPanel);
     $("vw-setup-pop").hidden = false;
     $("vw-setup-body").append($("setup-error"), $("setup-form"));
     panel.$("idle-btn").setAttribute("aria-expanded", "true");
@@ -4998,7 +5079,22 @@
       el("div", { class: "server-trouble__rows" }, ...list.map(serverTroubleRow)), close));
   }
 
+  // the other tab's choices, and a new tab asking for them
+  if (mirrorChannel) {
+    mirrorChannel.onmessage = (event) => {
+      const message = event.data || {};
+      const panel = panels.get(message.panel);
+      if (!panel) return;
+      if (message.type === "hello") { if (panel.catalogue) { panel.mirrorLast = null; panel.broadcast(); } }
+      else if (message.type === "pick") panel.applyMirror(message);
+    };
+  }
+
   function render() {
+    if (MIRROR) {
+      const slot = state.view === "viewer" ? state.viewer.panels.find((one) => one.id === MIRROR) : null;
+      $("mirror-closed").hidden = Boolean(slot && slot.view !== "setup");
+    }
     if (state.view !== shownView) enterView(state.view);
     renderHeader();
     renderBar();

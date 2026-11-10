@@ -38,6 +38,8 @@ Supported Python: 3.10–3.13.
 
 ## Running tests
 
+**Use the `ov_testing` conda env for all oceanval testing** (2026-11-10, the user's rule): `source /local1/data/scratch/pmlersem/rwi/miniforge3/etc/profile.d/conda.sh && conda activate ov_testing`, or call `/local1/data/scratch/pmlersem/rwi/miniforge3/envs/ov_testing/bin/python -m pytest` directly. It is `oceanval.yml` plus pytest, pytest-timeout, pytest-cov, playwright with Chromium, jupyter-book 2 and pandoc, so the browser tests run instead of skipping and nothing needs borrowing from another env. oceanval itself is **not** installed in it: the scratch copy is what is imported (report tests that start kernels need `PYTHONPATH=<scratch copy>`). If playwright or Chromium go missing, fix them there (`pip install playwright && playwright install chromium`), not by symlinks.
+
 **Always `python -m pytest`, never bare `pytest`.** The bare `pytest` entry point resolves the
 *installed* oceanval in site-packages rather than the repo copy, so tests silently run against
 stale code.

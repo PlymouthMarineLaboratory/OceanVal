@@ -41,7 +41,7 @@ def page(browser, tmp_path):
     tab.on("pageerror", lambda error: errors.append(str(error)))
     tab.goto(url)
     tab.click("#home-viewer")
-    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
     yield tab, app
     assert errors == []
     tab.close()
@@ -51,11 +51,11 @@ def page(browser, tmp_path):
 def _times_in(tab, app):
     """Waits for the times of every file, which are read in the background once the viewer has opened."""
     for _ in range(600):
-        if app.viewer_catalogue is not None and app.viewer_catalogue.times_complete and app.viewer_times is None:
+        if app.viewers[1].catalogue is not None and app.viewers[1].catalogue.times_complete and app.viewers[1].times is None:
             break
         time.sleep(0.1)
-    assert app.viewer_catalogue.times_complete
-    tab.wait_for_function("() => !document.getElementById('vw-first').disabled", timeout=60000)
+    assert app.viewers[1].catalogue.times_complete
+    tab.wait_for_function("() => !document.querySelector('[data-vw=first]').disabled", timeout=60000)
 
 
 def test_files_page_finds_the_depth(page, simulation):
@@ -68,7 +68,7 @@ def test_files_page_finds_the_depth(page, simulation):
     assert tab.evaluate("() => getComputedStyle(document.querySelector('#f-ndown')).fontWeight") == "700"
     assert tab.locator("#ndown-layout").count() == 0
     assert "is-detected" in tab.get_attribute("#f-ndown", "class")
-    assert tab.is_enabled("#continue")
+    assert tab.is_enabled("#vw-apply")
     # the files the filters leave out are not mentioned, only the number there are
     set_words(tab, "#f-exclude", "grid_T")
     tab.wait_for_function("() => document.querySelector('#ndown-found').textContent.startsWith('24 ')")
@@ -78,22 +78,22 @@ def test_files_page_finds_the_depth(page, simulation):
     tab.fill("#f-ndown", "1")
     tab.wait_for_selector("#m-simulation .is-nofiles")
     assert "is-detected" not in tab.get_attribute("#f-ndown", "class")
-    assert not tab.is_enabled("#continue")
+    assert not tab.is_enabled("#vw-apply")
 
 
 def test_missing_values_on_the_files_page(page, simulation):
     tab, app = page
     tab.fill("#f-simdir", simulation)
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
     # the boxes are there from the start, empty, and an untouched row stops nothing
     assert tab.locator("#missing-rows .missing-rows__row").count() == 1
     assert tab.is_visible("#missing-from-0") and tab.is_visible("#missing-to-0")
     assert tab.input_value("#missing-from-0") == ""
-    assert tab.is_enabled("#continue")
+    assert tab.is_enabled("#vw-apply")
     tab.fill("#missing-from-0", "abc")
     # a box that is not a number is marked, and Continue waits
     assert "is-invalid" in tab.get_attribute("#missing-from-0", "class")
-    assert tab.is_disabled("#continue")
+    assert tab.is_disabled("#vw-apply")
     assert "not a number" in tab.text_content("#m-missing-rows")
     # there is one From and one To, with no way to add another
     tab.fill("#missing-from-0", "-999")
@@ -101,19 +101,20 @@ def test_missing_values_on_the_files_page(page, simulation):
     assert tab.locator(".missing-rows__add, .missing-rows__remove").count() == 0
     assert tab.locator("#missing-rows .missing-rows__row").count() == 1
     tab.fill("#missing-to-0", "-900")
-    assert tab.is_enabled("#continue")
+    assert tab.is_enabled("#vw-apply")
     # clearing the From box leaves it to fill in again
     tab.fill("#missing-from-0", "")
     assert tab.input_value("#missing-from-0") == ""
     tab.fill("#missing-to-0", "")
     tab.fill("#missing-from-0", "10")
     tab.fill("#missing-to-0", "12.5")
-    tab.click("#continue")
-    tab.wait_for_function("() => document.querySelector('#view-viewer:not([hidden])')", timeout=60000)
-    assert app.viewer_missing == [(10.0, 12.5)]
-    # going back shows it again
+    tab.click("#vw-apply")
+    tab.wait_for_function("() => document.querySelector('[data-vw=body]:not([hidden])')", timeout=60000)
+    assert app.viewers[1].missing == [(10.0, 12.5)]
+    # going back and choosing the tile again shows it again, in the panel's box
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.click("#home-viewer")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
     assert tab.input_value("#missing-from-0") == "10"
     assert tab.input_value("#missing-to-0") == "12.5"
     assert tab.locator("#missing-rows .missing-rows__row").count() == 1
@@ -134,7 +135,7 @@ def test_a_missing_value_found_in_the_files_is_filled_in_to_be_checked(page, tmp
     assert tab.input_value("#missing-to-0") == "-999"
     assert "is-found" in tab.get_attribute("#missing-from-0", "class")
     assert tab.is_visible("#missing-found") and tab.is_hidden("#missing-ersem")
-    assert tab.is_enabled("#continue")
+    assert tab.is_enabled("#vw-apply")
     # typing over it makes it the user's: the amber goes, and nothing is put there again
     tab.fill("#missing-from-0", "-9")
     assert "is-found" not in tab.get_attribute("#missing-from-0", "class")
@@ -144,9 +145,9 @@ def test_a_missing_value_found_in_the_files_is_filled_in_to_be_checked(page, tmp
     time.sleep(0.5)
     assert tab.input_value("#missing-from-0") == "-9"
     # and what is in the rows is what Continue is given
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
-    assert app.viewer_missing == [(-9.0, -999.0)]
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
+    assert app.viewers[1].missing == [(-9.0, -999.0)]
 
 
 def test_the_page_says_it_is_identifying_the_missing_value(page, tmp_path, monkeypatch):
@@ -225,13 +226,13 @@ def test_the_path_of_one_file_can_be_given(page, tmp_path):
     tab.wait_for_function("() => document.querySelector('#f-ndown').disabled")
     tab.wait_for_selector("#ndown-found:not(.is-finding):not([hidden])")
     assert tab.text_content("#ndown-found") == "1 netCDF file found"
-    assert tab.is_enabled("#continue")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
-    assert [len(stream["files"]) for stream in app.viewer_catalogue.streams] == [1]
+    assert tab.is_enabled("#vw-apply")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
+    assert [len(stream["files"]) for stream in app.viewers[1].catalogue.streams] == [1]
     # back to a directory: the depth is asked and found again
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
     tab.fill("#f-simdir", root)
     tab.wait_for_function("() => !document.querySelector('#f-ndown').disabled && document.querySelector('#f-ndown').value === '0'")
 
@@ -272,63 +273,63 @@ def test_an_ersem_simulation_has_zeros_assumed_to_be_missing(page, simulation, m
 def test_viewer(page, simulation):
     tab, app = page
     tab.fill("#f-simdir", simulation)
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
     # the coldest cells of the first map, which the colour scale then leaves out
     tab.fill("#missing-from-0", "0")
     tab.fill("#missing-to-0", "11.3")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
     _times_in(tab, app)
-    tab.fill("#vw-search", "chloro")
-    assert tab.locator("#vw-list li").count() == 1
+    tab.fill("[data-vw=search]", "chloro")
+    assert tab.locator("[data-vw=list] li").count() == 1
     # * and ? stand for characters, and are matched within the name, the long name or the units
-    tab.fill("#vw-search", "ch*phyll")
-    assert tab.locator("#vw-list li").count() == 1
-    tab.fill("#vw-search", "*")
-    assert tab.locator("#vw-list li").count() > 1
-    tab.fill("#vw-search", "temp")
+    tab.fill("[data-vw=search]", "ch*phyll")
+    assert tab.locator("[data-vw=list] li").count() == 1
+    tab.fill("[data-vw=search]", "*")
+    assert tab.locator("[data-vw=list] li").count() > 1
+    tab.fill("[data-vw=search]", "temp")
     tab.keyboard.press("Enter")
     # in two file types: nothing is plotted until one is chosen
-    assert "Which do you want?" in tab.text_content("#vw-streams")
-    assert tab.locator("#vw-plot-wrap [class^=bk]").count() == 0
-    tab.click("#vw-streams label.ptr-mode >> nth=1")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    assert "Which do you want?" in tab.text_content("[data-vw=streams]")
+    assert tab.locator("[data-vw=plot-wrap] [class^=bk]").count() == 0
+    tab.click("[data-vw=streams] label.ptr-mode >> nth=1")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # nothing is said at the bottom of the page (not the files, file types or directory)
     assert tab.text_content("#summary") == ""
     # the name and description are in the list above, so not said again
-    assert "Name" not in tab.text_content("#vw-info") and "Description" not in tab.text_content("#vw-info")
-    assert "Units" in tab.text_content("#vw-info")
+    assert "Name" not in tab.text_content("[data-vw=info]") and "Description" not in tab.text_content("[data-vw=info]")
+    assert "Units" in tab.text_content("[data-vw=info]")
     # the calendar is not shown
-    assert "Calendar" not in tab.text_content("#vw-info")
-    assert "Time resolutionmonthly" in tab.text_content("#vw-info")
-    assert "Times" not in tab.text_content("#vw-info").replace("Time resolution", "")
+    assert "Calendar" not in tab.text_content("[data-vw=info]")
+    assert "Time resolutionmonthly" in tab.text_content("[data-vw=info]")
+    assert "Times" not in tab.text_content("[data-vw=info]").replace("Time resolution", "")
     # the first and last dates are one row, without the time of day
-    info = tab.text_content("#vw-info")
+    info = tab.text_content("[data-vw=info]")
     assert "Dates2000-01-16 \u2013 2001-12-16" in info
     assert "From" not in info and "To2001" not in info
     # nothing is written under the map
     assert tab.locator("#plot-notes, .stage__notes").count() == 0
     # the map fills its box, not a strip of axes
-    assert tab.locator("#vw-plot-wrap [class^=bk]").first.bounding_box()["height"] > 300
-    tab.click("#vw-next")
-    tab.wait_for_function("() => document.querySelector('#vw-when').textContent.startsWith('2000-02')")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    assert tab.locator("[data-vw=plot-wrap] [class^=bk]").first.bounding_box()["height"] > 300
+    tab.click("[data-vw=next]")
+    tab.wait_for_function("() => document.querySelector('[data-vw=when]').textContent.startsWith('2000-02')")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # a deeper level is drawn too
-    tab.select_option("#vw-level", "3")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.is_hidden("#vw-plot-error")
+    tab.select_option("[data-vw=level]", "3")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_hidden("[data-vw=plot-error]")
     # nothing but the map: no other plots to choose
-    assert tab.locator("#vw-kind, #vw-point, #vw-c-cell").count() == 0
+    assert tab.locator("[data-vw=kind], [data-vw=point], [data-vw=c-cell]").count() == 0
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
 
 
 _FRAME = """() => {
   const index = Bokeh.index;
   const views = index.roots ? [...index.roots] : (index[Symbol.iterator] ? [...index] : Object.values(index));
   const shown = views.find((view) => view.el.isConnected && !view.el.closest(".is-back"));
-  const box = document.getElementById("vw-plot-wrap").getBoundingClientRect();
+  const box = document.querySelector('[data-vw=plot-wrap]').getBoundingClientRect();
   const outer = shown.el.getBoundingClientRect();
   return {frame: [shown.frame.bbox.width, shown.frame.bbox.height], outer: [outer.width, outer.height],
           box: [box.width, box.height], centre: [outer.left + outer.width / 2 - box.left - box.width / 2,
@@ -359,20 +360,20 @@ def test_the_map_keeps_distances_on_one_scale(page, tmp_path):
     regular_file(str(root / "r.nc"))
     tab, app = page
     tab.fill("#f-simdir", str(root))
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
     _times_in(tab, app)
-    tab.fill("#vw-search", "sst")
+    tab.fill("[data-vw=search]", "sst")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # 40-65N by 20W-10E, cells of a degree, reaching half a cell past the outer points
     aspect = 26 / (31 * np.cos(np.radians(52.5)))
     _fits(tab, aspect)
     # the next time step, drawn behind and then shown, is fitted too
-    tab.click("#vw-next")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    tab.click("[data-vw=next]")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     _fits(tab, aspect)
     # a narrower window: the map is fitted again
     tab.set_viewport_size({"width": 900, "height": 900})
@@ -391,21 +392,21 @@ def test_levels_written_bottom_first_start_at_the_surface(page, tmp_path):
     levels_file(str(root / "levels.nc"), height="up")
     tab, app = page
     tab.fill("#f-simdir", str(root))
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
     _times_in(tab, app)
-    tab.fill("#vw-search", "temp")
+    tab.fill("[data-vw=search]", "temp")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.locator("#vw-level option").all_text_contents() == ["0 (bottom)", "1", "2", "3", "4 (surface)"]
-    assert tab.input_value("#vw-level") == "4"
-    assert tab.is_hidden("#vw-plot-error")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.locator("[data-vw=level] option").all_text_contents() == ["0 (bottom)", "1", "2", "3", "4 (surface)"]
+    assert tab.input_value("[data-vw=level]") == "4"
+    assert tab.is_hidden("[data-vw=plot-error]")
     # a level chosen is kept
-    tab.select_option("#vw-level", "0")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.input_value("#vw-level") == "0"
+    tab.select_option("[data-vw=level]", "0")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.input_value("[data-vw=level]") == "0"
 
 
 def test_another_simulation_is_drawn_after_back(page, simulation, tmp_path):
@@ -420,95 +421,96 @@ def test_another_simulation_is_drawn_after_back(page, simulation, tmp_path):
 
     def view(directory):
         tab.fill("#f-simdir", directory)
-        tab.wait_for_function("() => !document.querySelector('#continue').disabled")
-        tab.click("#continue")
-        tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
-        tab.fill("#vw-search", "sossheig")
+        tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
+        tab.click("#vw-apply")
+        tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
+        tab.fill("[data-vw=search]", "sossheig")
         tab.keyboard.press("Enter")
-        tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-        tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+        tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+        tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
 
     view(simulation)
     assert len(asked) == 1
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.click("#home-viewer")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
     view(other)
     assert len(asked) == 2
-    assert tab.text_content("#vw-when").startswith("2010-01")
+    assert tab.text_content("[data-vw=when]").startswith("2010-01")
 
 
 def test_sum_of_variables(page, simulation):
     tab, app = page
     tab.fill("#f-simdir", simulation)
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
-    row = lambda name: f"#vw-list li[data-name='{name}']"  # noqa: E731
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
+    row = lambda name: f"[data-vw=list] li[data-name='{name}']"  # noqa: E731
     # add chl with its + button: ptrc_T is its only file type, so it is chosen and drawn
     tab.click(f"{row('chl')} .vw-pm")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # sossheig cannot be added to chl: not the same dimensions
     assert "is-incompatible" in tab.get_attribute(row("sossheig"), "class")
     assert tab.is_disabled(f"{row('sossheig')} .vw-pm")
     assert tab.text_content(f"{row('sossheig')} .vw-pm") == '+'
     # votemper can (it is in two file types, but only ptrc_T has chl)
     tab.click(f"{row('votemper')} .vw-pm")
-    tab.wait_for_function("() => document.querySelector('#vw-info').textContent.includes('Sum of')")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert "chl (mg m-3) + votemper (degC)" in tab.text_content("#vw-info")
-    assert tab.is_hidden("#vw-plot-error")
+    tab.wait_for_function("() => document.querySelector('[data-vw=info]').textContent.includes('Sum of')")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert "chl (mg m-3) + votemper (degC)" in tab.text_content("[data-vw=info]")
+    assert tab.is_hidden("[data-vw=plot-error]")
     # the file type is not asked: only one holds both
-    assert tab.is_hidden("#vw-streams")
+    assert tab.is_hidden("[data-vw=streams]")
     # Clear takes everything out
-    tab.click("#vw-clear")
-    assert tab.locator("#vw-list li.is-chosen").count() == 0
-    assert tab.is_hidden("#vw-chosen")
+    tab.click("[data-vw=clear]")
+    assert tab.locator("[data-vw=list] li.is-chosen").count() == 0
+    assert tab.is_hidden("[data-vw=chosen]")
     # a click on a row chooses that variable alone: a second click replaces the first
     tab.click(f"{row('chl')} .vw-list__name")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
     tab.click(row("votemper"), position={"x": 200, "y": 10})
-    assert tab.locator("#vw-list li.is-chosen").count() == 1
+    assert tab.locator("[data-vw=list] li.is-chosen").count() == 1
     assert tab.text_content(f"{row('votemper')} .vw-pm") == '-'
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert "Sum of" not in tab.text_content("#vw-info")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert "Sum of" not in tab.text_content("[data-vw=info]")
     # only the + button adds to the sum
     tab.click(f"{row('chl')} .vw-pm")
-    assert tab.locator("#vw-list li.is-chosen").count() == 2
-    tab.wait_for_function("() => document.querySelector('#vw-info').textContent.includes('Sum of')")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    assert tab.locator("[data-vw=list] li.is-chosen").count() == 2
+    tab.wait_for_function("() => document.querySelector('[data-vw=info]').textContent.includes('Sum of')")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # an incompatible row's + is greyed out, but a click chooses it alone
     assert tab.is_disabled(f"{row('sossheig')} .vw-pm")
     tab.click(f"{row('sossheig')} .vw-list__name")
-    assert tab.locator("#vw-list li.is-chosen").count() == 1
+    assert tab.locator("[data-vw=list] li.is-chosen").count() == 1
     assert tab.text_content(f"{row('sossheig')} .vw-pm") == '-'
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # the - button leaves nothing chosen
     tab.click(f"{row('sossheig')} .vw-pm")
-    assert tab.locator("#vw-list li.is-chosen").count() == 0
+    assert tab.locator("[data-vw=list] li.is-chosen").count() == 0
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
 
 
 def _open_chl(tab, app, simulation):
     tab.fill("#f-simdir", simulation)
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
     _times_in(tab, app)
-    tab.fill("#vw-search", "chl")
+    tab.fill("[data-vw=search]", "chl")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
 
 
 def _watch_play(tab):
     """Records the dates shown, and any time the "reading the data" cover is up, from now on."""
     tab.evaluate("""() => {
         window.__seen = []; window.__covered = 0;
-        const busy = document.getElementById('vw-plot-busy');
+        const busy = document.querySelector('[data-vw=plot-busy]');
         new MutationObserver(() => { if (!busy.hidden) window.__covered += 1; }).observe(busy, {attributes: true});
-        const when = document.getElementById('vw-when');
+        const when = document.querySelector('[data-vw=when]');
         new MutationObserver(() => window.__seen.push(when.textContent.slice(0, 10)))
             .observe(when, {childList: true, characterData: true, subtree: true});
     }""")
@@ -520,12 +522,12 @@ def test_play_is_an_animation(page, simulation):
     plots = []
     tab.on("request", lambda request: plots.append(request.url) if "api/viewer/plot" in request.url else None)
     _watch_play(tab)
-    tab.click("#vw-play")
+    tab.click("[data-vw=play]")
     # it moves through the times, and the map is never covered or empty
     tab.wait_for_function("() => window.__seen.length >= 4", timeout=30000)
     assert tab.evaluate("() => window.__covered") == 0
-    assert tab.locator("#vw-plot-wrap [class^=bk]:visible").count() > 0
-    assert tab.get_attribute("#vw-play", "aria-pressed") == "true"
+    assert tab.locator("[data-vw=plot-wrap] [class^=bk]:visible").count() > 0
+    assert tab.get_attribute("[data-vw=play]", "aria-pressed") == "true"
     # each date is the next one in the run
     seen = tab.evaluate("() => window.__seen")
     assert seen[:2] == ["2000-02-15", "2000-03-16"]
@@ -533,25 +535,25 @@ def test_play_is_an_animation(page, simulation):
     scales = {tuple(url.split(name + "=")[1].split("&")[0] for name in ("vmin", "vmax")) for url in plots[1:]}
     assert len(scales) == 1 and "" not in next(iter(scales))
     # pausing stops it
-    tab.click("#vw-play")
-    assert tab.get_attribute("#vw-play", "aria-pressed") == "false"
+    tab.click("[data-vw=play]")
+    assert tab.get_attribute("[data-vw=play]", "aria-pressed") == "false"
     settled = tab.evaluate("() => window.__seen.length")
     tab.wait_for_timeout(800)
     assert tab.evaluate("() => window.__seen.length") <= settled + 1
-    assert tab.is_hidden("#vw-plot-error")
+    assert tab.is_hidden("[data-vw=plot-error]")
 
 
 def test_play_speed(page, simulation):
     tab, app = page
     _open_chl(tab, app, simulation)
-    assert tab.input_value("#vw-speed") == "normal"
+    assert tab.input_value("[data-vw=speed]") == "normal"
     rates = {}
     for speed in ("slow", "fast"):
-        tab.select_option("#vw-speed", speed)
+        tab.select_option("[data-vw=speed]", speed)
         _watch_play(tab)
-        tab.click("#vw-play")
+        tab.click("[data-vw=play]")
         tab.wait_for_timeout(3000)
-        tab.click("#vw-play")
+        tab.click("[data-vw=play]")
         rates[speed] = tab.evaluate("() => window.__seen.length")
     assert rates["fast"] > rates["slow"] + 3
 
@@ -575,22 +577,22 @@ def test_play_keeps_the_zoom_and_the_scale(page, simulation):
     zoomed = [x0 + (x1 - x0) * 0.2, x0 + (x1 - x0) * 0.6, y0 + (y1 - y0) * 0.1, y0 + (y1 - y0) * 0.4]
     _figure_ranges(tab, zoomed)
     _watch_play(tab)
-    tab.click("#vw-play")
+    tab.click("[data-vw=play]")
     tab.wait_for_function("() => window.__seen.length >= 3", timeout=30000)
-    tab.click("#vw-play")
+    tab.click("[data-vw=play]")
     assert _figure_ranges(tab) == pytest.approx(zoomed)
     # only the figure on show is kept, not one for every frame
     assert tab.evaluate("() => Object.values(Bokeh.index).filter((v) => v.model && v.model.type === 'Figure').length") == 1
     # the scale of the animation is kept after it, so the map does not change under the user,
     # until Automatic scale is chosen
-    assert tab.input_value("#vw-vmin") == ""
-    tab.click("#vw-auto")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.is_hidden("#vw-plot-error")
+    assert tab.input_value("[data-vw=vmin]") == ""
+    tab.click("[data-vw=auto]")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_hidden("[data-vw=plot-error]")
     # choosing a different variable starts from a fresh view
-    tab.fill("#vw-search", "sossheig")
+    tab.fill("[data-vw=search]", "sossheig")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     assert _figure_ranges(tab) == pytest.approx(whole)
 
 
@@ -603,46 +605,41 @@ def test_fvcom_output(page, tmp_path, monkeypatch):
     tab.reload()
     root = fvcom_simulation(str(tmp_path / "fvcom"))
     tab.fill("#f-simdir", root)
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
     _times_in(tab, app)
-    # pyfvcom2, whose way the mesh is drawn, is credited at the bottom right
-    credit = tab.locator("#vw-fvcom-credit")
-    assert credit.is_visible() and credit.text_content() == "Plotting is influenced by pyfvcom2"
-    assert credit.get_attribute("href") == "https://github.com/PlymouthMarineLaboratory/pyfvcom2"
-    tab.fill("#vw-search", "temperature")
+    tab.fill("[data-vw=search]", "temperature")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.is_hidden("#vw-plot-error")
-    assert "values on the nodes" in tab.text_content("#vw-info")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_hidden("[data-vw=plot-error]")
+    assert "values on the nodes" in tab.text_content("[data-vw=info]")
     # the sigma layers, by name
-    assert tab.locator("#vw-level option").all_text_contents() == ["Layer 1 (surface)", "Layer 2", "Layer 3", "Layer 4", "Layer 5 (bottom)"]
-    tab.select_option("#vw-level", "4")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.is_hidden("#vw-plot-error")
-    assert tab.is_enabled("#vw-coast")
-    tab.check("#vw-coast")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.is_hidden("#vw-plot-error")
+    assert tab.locator("[data-vw=level] option").all_text_contents() == ["Layer 1 (surface)", "Layer 2", "Layer 3", "Layer 4", "Layer 5 (bottom)"]
+    tab.select_option("[data-vw=level]", "4")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_hidden("[data-vw=plot-error]")
+    assert tab.is_enabled("[data-vw=coast]")
+    tab.check("[data-vw=coast]")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_hidden("[data-vw=plot-error]")
     tab.screenshot(path=os.environ.get("OCEANVAL_VIEWER_SCREENSHOT", "/dev/null"), type="png")
     # it plays
     _watch_play(tab)
-    tab.click("#vw-play")
+    tab.click("[data-vw=play]")
     tab.wait_for_function("() => window.__seen.length >= 3", timeout=30000)
-    tab.click("#vw-play")
-    assert tab.is_hidden("#vw-plot-error")
+    tab.click("[data-vw=play]")
+    assert tab.is_hidden("[data-vw=plot-error]")
     # a variable on the elements
-    tab.fill("#vw-search", "velocity")
+    tab.fill("[data-vw=search]", "velocity")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert "values on the elements" in tab.text_content("#vw-info")
-    assert tab.is_hidden("#vw-plot-error")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert "values on the elements" in tab.text_content("[data-vw=info]")
+    assert tab.is_hidden("[data-vw=plot-error]")
     # not for other output
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
-    assert tab.is_hidden("#vw-fvcom-credit")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
 
 
 @pytest.fixture
@@ -666,134 +663,134 @@ def gated_times(monkeypatch):
 
 def _open_viewer(tab, simulation):
     tab.fill("#f-simdir", simulation)
-    tab.wait_for_function("() => !document.querySelector('#continue').disabled")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
 
 
 def test_the_viewer_opens_while_the_times_are_read(page, simulation, gated_times):
     tab, app = page
     _open_viewer(tab, simulation)
     # the years wait for the times, with a count of the files' times read
-    tab.wait_for_selector("#vw-c-years:not([hidden])")
-    assert tab.is_disabled("#vw-first") and tab.is_disabled("#vw-last")
-    tab.wait_for_function("() => /Reading the times of the files: \\d+\\/48/.test(document.getElementById('vw-times-text').textContent)")
-    assert tab.is_visible("#vw-times") and tab.is_visible("#vw-times-meter")
+    tab.wait_for_selector("[data-vw=c-years]:not([hidden])")
+    assert tab.is_disabled("[data-vw=first]") and tab.is_disabled("[data-vw=last]")
+    tab.wait_for_function("() => /Reading the times of the files: \\d+\\/48/.test(document.querySelector('[data-vw=times-text]').textContent)")
+    assert tab.is_visible("[data-vw=times]") and tab.is_visible("[data-vw=times-meter]")
     # a variable is mapped meanwhile (its first time), and its time cannot be moved yet
-    tab.fill("#vw-search", "chl")
+    tab.fill("[data-vw=search]", "chl")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.is_hidden("#vw-plot-error")
-    assert tab.is_disabled("#vw-step") and tab.is_disabled("#vw-play") and tab.is_disabled("#vw-next")
-    assert "being read" in tab.text_content("#vw-info")
-    assert "Dates" not in tab.text_content("#vw-info")
-    assert tab.is_enabled("#vw-level") and tab.is_enabled("#vw-cmap")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_hidden("[data-vw=plot-error]")
+    assert tab.is_disabled("[data-vw=step]") and tab.is_disabled("[data-vw=play]") and tab.is_disabled("[data-vw=next]")
+    assert "being read" in tab.text_content("[data-vw=info]")
+    assert "Dates" not in tab.text_content("[data-vw=info]")
+    assert tab.is_enabled("[data-vw=level]") and tab.is_enabled("[data-vw=cmap]")
     # the times come in: the years and the time can be used, and the map is as it was
     gated_times.set()
-    tab.wait_for_function("() => !document.getElementById('vw-first').disabled", timeout=60000)
-    assert tab.is_hidden("#vw-times") and tab.is_hidden("#vw-times-meter")
-    assert tab.get_attribute("#vw-first", "placeholder") == "2000" and tab.get_attribute("#vw-last", "placeholder") == "2001"
-    assert tab.is_enabled("#vw-step") and tab.is_enabled("#vw-play")
-    assert tab.get_attribute("#vw-step", "max") == "23"
-    assert "Dates2000-01-16 – 2001-12-16" in tab.text_content("#vw-info")
-    assert tab.is_hidden("#vw-plot-error")
-    assert "2000-01-16" in tab.text_content("#vw-when")
+    tab.wait_for_function("() => !document.querySelector('[data-vw=first]').disabled", timeout=60000)
+    assert tab.is_hidden("[data-vw=times]") and tab.is_hidden("[data-vw=times-meter]")
+    assert tab.get_attribute("[data-vw=first]", "placeholder") == "2000" and tab.get_attribute("[data-vw=last]", "placeholder") == "2001"
+    assert tab.is_enabled("[data-vw=step]") and tab.is_enabled("[data-vw=play]")
+    assert tab.get_attribute("[data-vw=step]", "max") == "23"
+    assert "Dates2000-01-16 – 2001-12-16" in tab.text_content("[data-vw=info]")
+    assert tab.is_hidden("[data-vw=plot-error]")
+    assert "2000-01-16" in tab.text_content("[data-vw=when]")
 
 
 def test_first_and_last_year(page, simulation):
     tab, app = page
     _open_viewer(tab, simulation)
     _times_in(tab, app)
-    tab.fill("#vw-search", "chl")
+    tab.fill("[data-vw=search]", "chl")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
     # the arrow lists the years of the output
-    tab.click("#vw-first", position={"x": tab.locator("#vw-first").bounding_box()["width"] - 8, "y": 10})
+    tab.click("[data-vw=first]", position={"x": tab.locator("[data-vw=first]").bounding_box()["width"] - 8, "y": 10})
     assert tab.locator(".year-list li").all_text_contents() == ["2000", "2001"]
     tab.click(".year-list li >> text=2001")
-    assert tab.input_value("#vw-first") == "2001"
+    assert tab.input_value("[data-vw=first]") == "2001"
     # the time is cut to 2001: the slider, the arrows and the dates
-    tab.wait_for_function("() => document.getElementById('vw-step').min === '12'")
-    assert tab.get_attribute("#vw-step", "max") == "23"
-    tab.wait_for_function("() => document.getElementById('vw-when').textContent.startsWith('2001-01')")
-    info = tab.text_content("#vw-info")
+    tab.wait_for_function("() => document.querySelector('[data-vw=step]').min === '12'")
+    assert tab.get_attribute("[data-vw=step]", "max") == "23"
+    tab.wait_for_function("() => document.querySelector('[data-vw=when]').textContent.startsWith('2001-01')")
+    info = tab.text_content("[data-vw=info]")
     assert "Time resolutionmonthly" in info and "Files12 of 24" in info and "Dates2001-01-16 – 2001-12-16" in info
-    tab.wait_for_selector("#vw-plot-busy[hidden]", state="attached")
-    assert tab.is_disabled("#vw-prev")
+    tab.wait_for_selector("[data-vw=plot-busy][hidden]", state="attached")
+    assert tab.is_disabled("[data-vw=prev]")
     for _ in range(11):
-        tab.click("#vw-next")
-    assert tab.is_disabled("#vw-next") and tab.get_attribute("#vw-step", "max") == tab.input_value("#vw-step")
-    assert tab.text_content("#vw-when").startswith("2001-12")
+        tab.click("[data-vw=next]")
+    assert tab.is_disabled("[data-vw=next]") and tab.get_attribute("[data-vw=step]", "max") == tab.input_value("[data-vw=step]")
+    assert tab.text_content("[data-vw=when]").startswith("2001-12")
     # Play stays in the years
-    tab.fill("#vw-last", "2001")
+    tab.fill("[data-vw=last]", "2001")
     # (the years settle a moment after they are typed, and stop an animation that is going)
     tab.wait_for_timeout(800)
     _watch_play(tab)
-    tab.click("#vw-play")
+    tab.click("[data-vw=play]")
     tab.wait_for_function("() => window.__seen.length >= 4", timeout=30000)
-    tab.click("#vw-play")
+    tab.click("[data-vw=play]")
     assert all(date.startswith("2001-") for date in tab.evaluate("() => window.__seen"))
-    assert tab.is_hidden("#vw-plot-error")
+    assert tab.is_hidden("[data-vw=plot-error]")
     # the colour scale of the animation is for those years only
-    assert tab.input_value("#vw-vmin") == ""
+    assert tab.input_value("[data-vw=vmin]") == ""
     # one year: the slider's steps are the year's
-    tab.fill("#vw-first", "2000")
-    tab.fill("#vw-last", "2000")
-    tab.wait_for_function("() => document.getElementById('vw-step').max === '11'")
-    assert tab.get_attribute("#vw-step", "min") == "0"
+    tab.fill("[data-vw=first]", "2000")
+    tab.fill("[data-vw=last]", "2000")
+    tab.wait_for_function("() => document.querySelector('[data-vw=step]').max === '11'")
+    assert tab.get_attribute("[data-vw=step]", "min") == "0"
     # the time shown (December 2001) was outside, so the map is moved to the nearest time inside
-    tab.wait_for_function("() => document.getElementById('vw-when').textContent.startsWith('2000-12')")
+    tab.wait_for_function("() => document.querySelector('[data-vw=when]').textContent.startsWith('2000-12')")
     # blank boxes are no limit
-    tab.fill("#vw-first", "")
-    tab.fill("#vw-last", "")
-    tab.wait_for_function("() => document.getElementById('vw-step').max === '23'")
-    assert tab.is_hidden("#vw-years-note")
+    tab.fill("[data-vw=first]", "")
+    tab.fill("[data-vw=last]", "")
+    tab.wait_for_function("() => document.querySelector('[data-vw=step]').max === '23'")
+    assert tab.is_hidden("[data-vw=years-note]")
 
 
 def test_years_that_cannot_be_used(page, simulation):
     tab, app = page
     _open_viewer(tab, simulation)
     _times_in(tab, app)
-    tab.fill("#vw-search", "chl")
+    tab.fill("[data-vw=search]", "chl")
     tab.keyboard.press("Enter")
-    tab.wait_for_selector("#vw-plot-wrap [class^=bk]", timeout=30000)
-    tab.fill("#vw-first", "20x")
-    tab.wait_for_selector("#vw-years-note:not([hidden])")
-    assert "First year is a whole number" in tab.text_content("#vw-years-note")
-    assert "is-invalid" in tab.get_attribute("#vw-first", "class")
-    tab.fill("#vw-first", "2001")
-    tab.fill("#vw-last", "2000")
-    tab.wait_for_function("() => document.getElementById('vw-years-note').textContent.includes('after the last')")
-    assert "is-invalid" in tab.get_attribute("#vw-last", "class")
+    tab.wait_for_selector("[data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    tab.fill("[data-vw=first]", "20x")
+    tab.wait_for_selector("[data-vw=years-note]:not([hidden])")
+    assert "First year is a whole number" in tab.text_content("[data-vw=years-note]")
+    assert "is-invalid" in tab.get_attribute("[data-vw=first]", "class")
+    tab.fill("[data-vw=first]", "2001")
+    tab.fill("[data-vw=last]", "2000")
+    tab.wait_for_function("() => document.querySelector('[data-vw=years-note]').textContent.includes('after the last')")
+    assert "is-invalid" in tab.get_attribute("[data-vw=last]", "class")
     # nothing is cut until they are right
-    assert tab.get_attribute("#vw-step", "min") == "0" and tab.get_attribute("#vw-step", "max") == "23"
-    tab.fill("#vw-first", "1990")
-    tab.fill("#vw-last", "1995")
-    tab.wait_for_function("() => document.getElementById('vw-years-note').textContent.includes('no output between 1990 and 1995')")
-    assert "from 2000 to 2001" in tab.text_content("#vw-years-note")
-    assert tab.get_attribute("#vw-step", "max") == "23"
+    assert tab.get_attribute("[data-vw=step]", "min") == "0" and tab.get_attribute("[data-vw=step]", "max") == "23"
+    tab.fill("[data-vw=first]", "1990")
+    tab.fill("[data-vw=last]", "1995")
+    tab.wait_for_function("() => document.querySelector('[data-vw=years-note]').textContent.includes('no output between 1990 and 1995')")
+    assert "from 2000 to 2001" in tab.text_content("[data-vw=years-note]")
+    assert tab.get_attribute("[data-vw=step]", "max") == "23"
     # a year beyond the output is only mentioned: the rest of the range is used
-    tab.fill("#vw-first", "1990")
-    tab.fill("#vw-last", "2000")
-    tab.wait_for_function("() => document.getElementById('vw-step').max === '11'")
-    assert "is-invalid" not in tab.get_attribute("#vw-first", "class")
-    assert "starts in 2000" in tab.text_content("#vw-years-note")
-    assert tab.is_hidden("#vw-plot-error")
+    tab.fill("[data-vw=first]", "1990")
+    tab.fill("[data-vw=last]", "2000")
+    tab.wait_for_function("() => document.querySelector('[data-vw=step]').max === '11'")
+    assert "is-invalid" not in tab.get_attribute("[data-vw=first]", "class")
+    assert "starts in 2000" in tab.text_content("[data-vw=years-note]")
+    assert tab.is_hidden("[data-vw=plot-error]")
 
 
 def test_years_are_forgotten_with_new_files(page, simulation):
     tab, app = page
     _open_viewer(tab, simulation)
     _times_in(tab, app)
-    tab.fill("#vw-first", "2001")
+    tab.fill("[data-vw=first]", "2001")
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
-    tab.click("#continue")
-    tab.wait_for_selector("#view-viewer:not([hidden])", timeout=60000)
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
+    tab.click("#vw-apply")
+    tab.wait_for_selector("[data-vw=body]:not([hidden])", timeout=60000)
     _times_in(tab, app)
-    assert tab.input_value("#vw-first") == "" and tab.input_value("#vw-last") == ""
+    assert tab.input_value("[data-vw=first]") == "" and tab.input_value("[data-vw=last]") == ""
 
 
 @pytest.mark.parametrize("width, rows", [(1300, 2), (900, 3)])
@@ -826,7 +823,7 @@ def test_the_simulation_box_lists_the_bank(page, simulation):
     user_cache.add_to_bank("Viewed", simulation)
     _open_viewer(tab, simulation)
     tab.click("#back-open")
-    tab.wait_for_selector("#view-setup:not([hidden])")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
     tab.fill("#f-simdir", "")
     tab.click("#f-simdir-recent-toggle")
     assert tab.locator("#f-simdir-recent .combo__head").text_content() == "In the simulation bank"
@@ -834,3 +831,166 @@ def test_the_simulation_box_lists_the_bank(page, simulation):
     assert tab.input_value("#f-simdir") == simulation
     assert tab.input_value("#f-name") == "Viewed"
 
+
+
+# ---- up to four simulations side by side ----
+
+def _apply(tab, number, directory):
+    """Gives a panel its simulation through its box, and waits for the panel to show it."""
+    tab.fill("#f-simdir", directory)
+    tab.wait_for_function("() => !document.querySelector('#vw-apply').disabled", timeout=60000)
+    tab.click("#vw-apply")
+    tab.wait_for_selector(f"[data-panel='{number}'] [data-vw=body]:not([hidden])", timeout=120000)
+
+
+def test_the_first_panels_box_opens_by_itself_and_stays_until_a_simulation_is_given(page, simulation):
+    tab, app = page
+    # in the middle of the panel, with no button for it and no way to close it
+    assert tab.is_hidden("[data-panel='1'] [data-vw=idle-btn]")
+    assert tab.is_hidden("#vw-setup-close")
+    box = tab.locator("#vw-setup-pop").bounding_box()
+    panel = tab.locator("[data-panel='1']").bounding_box()
+    assert abs((box["x"] + box["width"] / 2) - (panel["x"] + panel["width"] / 2)) < 4
+    tab.keyboard.press("Escape")
+    tab.mouse.click(5, 600)
+    assert tab.is_visible("#vw-setup-pop")
+    _apply(tab, 1, simulation)
+    # applied: the box goes, and the panel has no "Provide simulation info" button
+    assert tab.is_hidden("#vw-setup-pop")
+    assert tab.locator("[data-vw=info-btn]").count() == 0
+    assert tab.locator("[data-panel='1'] [data-vw=remove]").is_hidden()
+
+
+def test_panels_are_added_and_removed(page, simulation, tmp_path):
+    from viewer_simulations import nemo_simulation
+
+    tab, app = page
+    other = nemo_simulation(str(tmp_path / "other"), years=(2000,))
+    _apply(tab, 1, simulation)
+    # one panel: the + is beside it, and an added panel has a large button, which opens its own box
+    assert tab.get_attribute("#vw-panels", "data-count") == "1"
+    tab.click("#vw-add")
+    tab.wait_for_selector("[data-panel='2'] [data-vw=idle-btn]")
+    assert tab.get_attribute("#vw-panels", "data-count") == "2"
+    big = tab.locator("[data-panel='2'] [data-vw=idle-btn]").bounding_box()
+    assert big["width"] > 300 and big["width"] > big["height"]
+    tab.click("[data-panel='2'] [data-vw=idle-btn]")
+    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
+    # this box can be closed, and the button is back
+    tab.keyboard.press("Escape")
+    assert tab.is_hidden("#vw-setup-pop") and tab.is_visible("[data-panel='2'] [data-vw=idle-btn]")
+    tab.click("[data-panel='2'] [data-vw=idle-btn]")
+    _apply(tab, 2, other)
+    # each panel keeps its own simulation, and plots on its own
+    assert [app.viewers[n].catalogue is not None for n in (1, 2)] == [True, True]
+    tab.fill("[data-panel='1'] [data-vw=search]", "sossheig")
+    tab.keyboard.press("Enter")
+    tab.fill("[data-panel='2'] [data-vw=search]", "chl")
+    tab.keyboard.press("Enter")
+    for number in (1, 2):
+        tab.wait_for_selector(f"[data-panel='{number}'] [data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    # up to four, and the + goes at four
+    tab.click("#vw-add")
+    tab.click("#vw-add")
+    tab.wait_for_selector("[data-panel='4']")
+    assert tab.is_hidden("#vw-add")
+    # the x closes a panel and lets go of its files
+    gone = app.viewers[2].catalogue
+    tab.click("[data-panel='2'] [data-vw=remove]")
+    tab.wait_for_selector("[data-panel='2']", state="detached")
+    assert gone._stop.is_set() and app.viewers[1].catalogue is not None
+    assert tab.is_visible("#vw-add")
+
+
+def test_the_depth_list_does_not_close_a_box(page, simulation):
+    tab, app = page
+    _apply(tab, 1, simulation)
+    tab.click("#vw-add")
+    tab.click("[data-panel='2'] [data-vw=idle-btn]")
+    tab.fill("#f-simdir", simulation)
+    tab.wait_for_function("() => document.querySelector('#f-ndown').value === '2'")
+    box = tab.locator("#f-ndown").bounding_box()
+    tab.mouse.click(box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+    tab.wait_for_selector(".year-list:not([hidden]) li")
+    tab.locator(".year-list li").nth(1).click()
+    assert tab.is_visible("#vw-setup-pop") and tab.input_value("#f-ndown") == "1"
+
+
+def test_the_variable_list_is_resized_by_its_divider(page, simulation):
+    tab, app = page
+    _apply(tab, 1, simulation)
+    tab.fill("[data-panel='1'] [data-vw=search]", "sossheig")
+    tab.keyboard.press("Enter")
+    tab.wait_for_selector("[data-panel='1'] [data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    side = lambda: tab.evaluate("() => document.querySelector('[data-panel=\"1\"] .vw-side').getBoundingClientRect().width")
+    plot = lambda: tab.evaluate("() => document.querySelector('[data-panel=\"1\"] [data-vw=plot-wrap]').getBoundingClientRect().width")
+    start, plot_before = side(), plot()
+    assert round(start) == 280
+    divider = tab.locator("[data-panel='1'] [data-vw=split]").bounding_box()
+    x, y = divider["x"] + divider["width"] / 2, divider["y"] + divider["height"] / 2
+    tab.mouse.move(x, y)
+    tab.mouse.down()
+    tab.mouse.move(x - 100, y, steps=8)
+    tab.mouse.up()
+    tab.wait_for_function("() => document.querySelector('[data-panel=\"1\"] .vw-side').getBoundingClientRect().width < 200")
+    assert round(side()) == 180 and plot() > plot_before + 90
+    # as small as a thin strip, with the contents hidden and the divider still there to drag out
+    tab.focus("[data-panel='1'] [data-vw=split]")
+    tab.keyboard.press("Home")
+    assert round(side()) == 40 and tab.is_hidden("[data-panel='1'] [data-vw=side-body]")
+    tab.keyboard.press("ArrowRight")
+    tab.keyboard.press("End")
+    assert tab.is_visible("[data-panel='1'] [data-vw=side-body]") and side() > 280
+    # a double-click resets it, and the width is kept for the panel
+    tab.dblclick("[data-panel='1'] [data-vw=split]")
+    assert round(side()) == 280
+
+
+def test_two_panels_fill_the_window_side_by_side(page, simulation, tmp_path):
+    from viewer_simulations import nemo_simulation
+
+    tab, app = page
+    _apply(tab, 1, simulation)
+    tab.click("#vw-add")
+    tab.click("[data-panel='2'] [data-vw=idle-btn]")
+    _apply(tab, 2, nemo_simulation(str(tmp_path / "other"), years=(2000,)))
+    one, two = (tab.locator(f"[data-panel='{n}']").bounding_box() for n in (1, 2))
+    assert abs(one["y"] - two["y"]) < 2 and one["x"] + one["width"] <= two["x"] + 1
+    assert one["width"] > 600 and two["width"] > 600
+
+
+def test_a_panel_opened_in_another_tab_follows_the_first_both_ways(page, simulation):
+    tab, app = page
+    _apply(tab, 1, simulation)
+    tab.wait_for_selector("[data-panel='1'] [data-vw=list] li")
+    tab.click("[data-panel='1'] [data-vw=list] li >> nth=0")
+    tab.wait_for_selector("[data-panel='1'] [data-vw=plot-wrap] [class^=bk]", timeout=30000)
+    with tab.context.expect_page() as opened:
+        tab.click("[data-panel='1'] [data-vw=open-tab]")
+    other = opened.value
+    errors = []
+    other.on("pageerror", lambda error: errors.append(str(error)))
+    other.wait_for_selector("[data-panel='1'] [data-vw=body]:not([hidden])", timeout=60000)
+    # that panel alone, with nothing that would end the other tab's work, and no button to open a third
+    assert other.locator("[data-panel]").count() == 1
+    for hidden in ("#back-open", "#restart-open", "#vw-add", "[data-vw=remove]", "[data-vw=open-tab]"):
+        assert other.is_hidden(hidden)
+    ticked = "[data-panel='1'] [data-vw=list] li.is-chosen"
+    other.wait_for_selector(ticked, timeout=30000)
+    # a choice in the new tab reaches the first
+    other.click("[data-panel='1'] [data-vw=list] li >> nth=2")
+    tab.wait_for_function("() => [...document.querySelectorAll(\"[data-panel='1'] [data-vw=list] li.is-chosen\")].some((li) => li.textContent.includes('votemper'))", timeout=30000)
+    # and one in the first reaches the new tab
+    tab.click("[data-panel='1'] [data-vw=next]")
+    step = tab.input_value("[data-panel='1'] [data-vw=step]")
+    other.wait_for_function(f"() => document.querySelector(\"[data-panel='1'] [data-vw=step]\").value === '{step}'", timeout=30000)
+    # Play and Pause
+    other.click("[data-panel='1'] [data-vw=play]")
+    tab.wait_for_function("() => document.querySelector(\"[data-panel='1'] [data-vw=play]\").getAttribute('aria-pressed') === 'true'", timeout=30000)
+    other.click("[data-panel='1'] [data-vw=play]")
+    tab.wait_for_function("() => document.querySelector(\"[data-panel='1'] [data-vw=play]\").getAttribute('aria-pressed') === 'false'", timeout=30000)
+    # the first going back to the first page tells the new tab
+    tab.click("#back-open")
+    other.wait_for_selector("#mirror-closed:not([hidden])", timeout=30000)
+    assert errors == []
+    other.close()

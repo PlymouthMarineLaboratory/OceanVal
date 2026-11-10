@@ -23,9 +23,25 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 
 - Ported from the standalone ncviewer (2026-10-28): the landing page's first tile (`#home-viewer`, `data-action="viewer"`,
   `viewer_app.VIEWER`; Tools & checks is last); the landing page's four tiles are 2 x 2 (`.choices.is-four`). Mixin
-  `viewer_app.ViewerSteps` of `App` (views `setup` → `viewer_scanning` → `viewer`). **Page 1 is the shared setup view**
-  (`action == "viewer"`: `simulationOnly()` in the page hides the domain/years as for Analyze), so the directories-down
-  logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own; only
+  `viewer_app.ViewerSteps` of `App`. **Up to four simulations are shown side by side (2026-11-10, the user's redesign).** The tile opens the
+  viewer page at once (`App.view == "viewer"` for the whole action; there is no setup page and `viewer_scanning` is no longer a view):
+  each simulation is a panel, a `viewer_app.ViewerSlot` kept in `App.viewers {1..VIEWERS_MOST: slot}` (`slot.view`
+  is `setup` → `viewer_scanning` → `viewer`; the catalogue, missing values, scan, times, the reading counter `reading`, the missing-value
+  guess and the search it kept are the slot's own). `_viewer_current(slot, number)` is how a thread knows it is still wanted (the panel is
+  still there and nothing was dropped). **Every viewer endpoint takes `viewer=<panel number>`** (`_viewer_slot_of`: none means panel 1;
+  nothing read is "Nothing has been read yet."); `/api/setup` takes it as `form["viewer"]`; `/api/viewer/add` (the lowest number free, up to
+  four) and `/api/viewer/remove` (not panel 1) are steps. Opening or setting up one panel never closes another. Back drops every
+  slot (`_viewer_drop_all`) and keeps each form in `App.viewer_kept` (the forms the page sends as `forms {number: form}` win, they are the
+  boxes not applied) for the next `choose` to start from (`_viewer_enter`: panel 1 and each kept panel, their readings not kept); Restart
+  clears both. **The times of the files are read one panel's at a time** (`_viewer_turn`, a Lock waited for in `_viewer_their_turn`
+  while still wanted; each reading starts processes of its own) and **maps are drawn one at a time** (`_viewer_drawing` around
+  `map_plot`: geoviews keeps state between maps). `state.viewer` is `{panels: [slot.state()], most, coast}`.
+  **The panel's box is the shared setup form, moved into a pop-out** (`#vw-setup-pop`, one instance: `openSetup(number)` moves
+  `#setup-error` and `#setup-form` into it under the panel asked, `closeSetup` moves them back into `#view-setup`; a draft of what was
+  typed and not applied is kept per panel in `panelDrafts`). So the directories-down
+  logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own (`fillSetup` fills from the
+  panel's form or draft, `setupForm()` sends `viewer`, `refreshSetup` enables `#vw-apply`, `submitSetup` closes the box on success;
+  `simulationOnly()` hides the domain/years as for Analyze); only
   the **Missing values** fieldset (`#setup-missing`, `missingRows`; **one From and one optional To only, the user's rule, 2026-10-30: no + or ×, and `fillMissingRows`/`setupForm` keep only the first row**; sent as JSON `missing` by `setupForm()`,
   `viewer_app.parse_missing`, which still takes a list of ranges) is the viewer's. **Its row starts filled in from the files** (`viewer_missing.guess` via
   `/api/viewer/missing`, asked by `askMissingGuess` after each `/api/probe` answer with files; `scan(wait=False)`, then
@@ -58,10 +74,23 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   opens, `ensureBokeh`). **A map keeps its true proportions**: `viewer_plots._render` adds `item["aspect"]`
   (`frame_aspect`: the frame's height/width from the figure's ranges, a degree of longitude being cos(mid latitude) of
   one of latitude; metres as they are; None for grid indices, which fill the box), and the page's `fitFigure` sets the
-  figure `fixed` with `frame_width`/`frame_height` as large as fit `#vw-plot-wrap` (what is round the frame measured from
+    figure `fixed` with `frame_width`/`frame_height` as large as fit the panel's plot box (what is round the frame measured from
   the laid-out figure; `invalidate_layout`, as a new frame size alone is not laid out), again on resize
-  (`ResizeObserver`); box zoom has `match_aspect`. The page's JS block "View simulation output" uses `vw-` ids/classes throughout. A thread setting
-  `view` checks `_viewer_number` (bumped by `_viewer_drop`: Back, Restart, quit, a new Continue).
+  (a `ResizeObserver` for each panel); box zoom has `match_aspect`. **The page's JS block "View simulation output" is the `ViewerPanel` class,
+  one per panel**: the panel's markup is `<template id="vw-panel-tpl">`, its elements found by `this.$("name")` (`data-vw="name"`, so no ids
+  but the two figure containers' `vw-<n>-plot`, which Bokeh embeds by id), its variables, time, colours, years, animation, frames and figures
+  its own, the arrow keys going to the panel last used (`activePanel`). `renderViewers()` reconciles the panels with `state.viewer.panels`;
+  `enterView` disposes them on leaving. The figure helpers `figures`/`aspects`/`release`/`fitFigure`/`fitAndSettle` after the block are the
+  shared ones of the other windows' maps (Compare, the domain mask, the report's pattern maps), not the viewer's.
+  **Layout** (`.vw-panels[data-count]`): one panel fills the window with the dashed `+` beside it; two fill its height side by side with the
+  `+` bar under them; three and four are 2 x 2 and the `+` goes at four. The first panel's box opens by itself in the middle and cannot be
+  closed until a simulation is given (`.is-first-empty`, `boxStays`); empty panels 2-4 have a large button that opens theirs; a loaded panel
+  has no button to change its simulation (Back, or × and a new panel). **The variable column** is a container-query grid (`@container
+  (min-width: 520px)`) with a draggable divider (`.vw-split`: pointer capture, arrow keys, Home/End, double-click resets; 40 px to 55 % of the
+  panel, `SIDE_*` constants; the contents hide below `SIDE_USABLE`; the width is kept per panel number in `localStorage`
+  `oceanval-vw-side-<n>`). **The folder structure message is told by `useProbe` the moment the depth is filled in** (not by `refreshSetup`,
+  which waits for the next count). A panel with its box open is `z-index: 20`, under the `.picker` dialogs (25) its box opens; the outside-click
+  handler ignores `.picker`, `.year-list` and `.combo__list` (the drop-downs' lists are on the body).
 - **Grids a quadmesh cannot draw** (`oceanval/viewer_grid.py`, `viewer_plots.cells_image`/`needs_raster`): an unstructured grid (one horizontal
   dim with 1-D lon/lat on it, `about["cells"]`, which `mappable` accepts: ICON, FESOM) and a curvilinear one with a seam (|Δlon| > 180),
   cells in one place (a north fold) or cells without coordinates are drawn as an image on a regular lon-lat grid: each pixel takes the
@@ -80,4 +109,13 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   the wet cells of its first and last level (z-levels); else bare indices. Only a strided slice of the first time step
   is read. `surface_level` is where the page's level starts. Levels with depths and FVCOM's layers are unchanged.
 - Tests: `tests/test_viewer_*.py` (simulations in `tests/viewer_simulations.py`, fixture `viewer_simulation`), spread over the CI groups.
+  `test_viewer_app.py` reaches a panel as `app.viewers[n]` (`_view(app, sim, panel=n)`, `_wait_for(app, view, panel=n)`); `test_viewer_browser.py`
+  drives the page by `[data-panel="n"] [data-vw="name"]`.
 
+- **Open in another tab (2026-11-10).** A panel's `open-tab` button opens the page's own address with `?mirror=<panel>` (`MIRROR` in
+  `oceanval_app.html`): that tab (`body.is-mirror`) shows only that panel, with no Back/Restart/+/×, and the server needs nothing new
+  (a slot is already shared by every page). The tabs follow each other over `BroadcastChannel("oceanval-viewer")`:
+  `ViewerPanel.broadcast` sends `{panel, pick, playing}` after any input/change/click/keydown in the panel when it differs from the last
+  snapshot sent or received (so no echo), leaving `step` out while playing (each tab plays its own frames); `applyMirror` sets `pick`,
+  redraws and starts or stops Play, held in `mirrorPending` until the catalogue is loaded. A new tab sends `hello` and the other answers.
+  Zoom is not mirrored. When the panel's slot goes (Back/Restart), `#mirror-closed` covers the page.

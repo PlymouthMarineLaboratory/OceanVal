@@ -87,7 +87,7 @@
   </aside>
 
   <div class="docs-content">
-    <p><strong>View simulation output</strong> lets you look at what a simulation&rsquo;s netCDF files hold, and map any variable in them at the time, depth and years you choose. Run <code>oceanval</code> in a terminal and choose <strong>View simulation output</strong>. Nothing is written but a record of the files&rsquo; times, and only the map on show is ever read from the files: one time step at one depth of one file, so output of many GB stays quick to look at.</p>
+    <p><strong>View simulation output</strong> lets you look at what a simulation&rsquo;s netCDF files hold, and map any variable in them at the time, depth and years you choose. Run <code>oceanval</code> in a terminal and choose <strong>View simulation output</strong>. You can look at up to four simulations side by side, each in a panel of its own. Nothing is written but a record of the files&rsquo; times, and only the map on show is ever read from the files: one time step at one depth of one file, so output of many GB stays quick to look at.</p>
 
     <div class="code-card hero-video-card">
       <div class="code-card__bar">
@@ -104,12 +104,18 @@
     </div>
 
     <h2 id="setup">Choosing the simulation</h2>
+    <p>The viewer opens with its first panel and the <strong>Provide simulation info</strong> box in the middle of it, which stays until you have given a simulation:</p>
     <ol>
       <li>Give the <strong>directory</strong> the output is in (or the path of a single file) and how many directories down its files are. OceanVal fills the number in when it recognises the folders. The arrow in the directory box lists simulations you have viewed before.</li>
       <li>Use <strong>Skip file names containing</strong> to leave files out. It starts with <code>restart</code> and <code>spinup</code> in its list; type a word and press Enter to add one, and the &times; beside a word removes it. <strong>Only include file names containing</strong> starts with no terms. <strong>View the files in a random subdirectory</strong>, beside the count of files, lists the names of the files the filters let through in one folder.</li>
       <li>Optionally give <strong>Missing values</strong>: numbers in the files that mean there is no data, such as 0 or -999. OceanVal looks for a value that the same cells have in every file and fills it in for you to check.</li>
-      <li><strong>Continue</strong> reads the variables of the first file of each kind and opens the viewer straight away. The times of all the files are read in the background; until they are in you can map the first time of any variable. They are kept in <code>.oceanvaltimes</code> in your home directory, so a simulation opened again has them at once.</li>
+      <li><strong>Apply</strong> reads the variables of the first file of each kind and shows the panel straight away. The times of all the files are read in the background; until they are in you can map the first time of any variable. They are kept in <code>.oceanvaltimes</code> in your home directory, so a simulation opened again has them at once.</li>
     </ol>
+
+    <h2 id="panels">Up to four simulations</h2>
+    <p>Press the <strong>+</strong> beside the panel to split the window in two, with a second panel and a large <strong>Provide simulation info</strong> button of its own. Below two panels a <strong>+</strong> bar adds a third and a fourth, which makes a grid of two by two. Each panel is independent: its own variable, time, years and colours. The &times; at the top of the second, third and fourth panels closes them and lets go of their files. One or two panels fill the height of the window. <strong>Back</strong> (at the top of the page) returns to the first page and lets go of every panel, keeping what you had typed for when you come back.</p>
+    <p>Drag the thin divider between a panel&rsquo;s variable list and its map to make the list narrower (down to a thin strip) or wider, so the map is as big as you want; double-click it to reset. The panel remembers its width.</p>
+    <p>The <strong>Open in another tab</strong> button beside a simulation&rsquo;s name opens it alone in a new browser tab, which is handy for a second screen. The two tabs mirror each other: a variable, years, time, depth or colour chosen in either appears in the other, and Play and Pause go to both. Each tab keeps its own zoom. If you press Back in the first tab, the new one says the simulation was closed.</p>
 
     <h2 id="viewer">The viewer</h2>
     <p>On the left, search the variables by name, description or units (<code>*</code> stands for any characters and <code>?</code> for one, so <code>P*_Chl</code> finds <code>P1_Chl</code> and <code>P2_Chl</code>). Clicking a variable maps it. To map the <strong>sum</strong> of several variables, use their <strong>+</strong> buttons (a <strong>&minus;</strong> takes one out; a <strong>+</strong> that is greyed out cannot be added to those chosen). The controls are:</p>
