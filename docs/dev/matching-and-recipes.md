@@ -75,6 +75,12 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 - `oceanval/create_recipes.py` scans model output directories, maps model variables to
   observational variables via netCDF `long_name` matching, and writes out a matchup script with
   live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, ...).
+  **`doc` and `poc` ignore the rates named after them**: `_candidate_long_names` drops long_names with a process word (loss,
+  uptake, production, release, remineralisation, scavenging, grazing, depth, integrated, ...), and `variable_identify.fitting`
+  drops those with flux or per-area units. `poc` finds ERSEM's carbon by `pom`/`particulate organic carbon` and refuses a
+  `POC` that is the object of a process ("loss to POC", "uptake of POC"; "concentration of POC" is fine), so
+  `R4_c+R6_c+R8_c` is found and `Z4_fZIRPc` ("mesozooplankton loss to POC") is not. Both sum several matches unless
+  exactly one is a "total". Tested on the COMFORT `ptrc` files' long_names in `tests/test_create_recipes.py`.
 - `oceanval/pyplots.py` holds the plotting functions (maps, scatter, Taylor diagrams, seasonal
   grids, etc.) used inside the generated notebooks.
 - **Earlier matchups**: `matchup()` never removes matchups from `out_dir`. It records the ones each run made or kept

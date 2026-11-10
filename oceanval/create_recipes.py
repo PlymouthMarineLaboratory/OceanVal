@@ -949,10 +949,17 @@ def _candidate_long_names(variable, contents):
 
     if variable == "doc":
         # ERSEM's is the carbon of its labile, semi-labile and semi-refractory
-        # dissolved organic matter (R1 to R3), which are summed
-        return [
+        # dissolved organic matter (R1 to R3), which are summed. A rate (of
+        # loss, remineralisation...) or a depth integral is named after the
+        # same carbon and is not the concentration.
+        process_words = (
+            "production", "release", "uptake", "loss", "remineral", "degradation", "decay",
+            "respiration", "exudation", "excretion", "mortality", "sinking", "export",
+            "integrated", "depth",
+        )
+        matches = [
             name
-            for name in plain("", *carbon_excluded, "production", "release", "uptake")
+            for name in plain("", *carbon_excluded, *process_words)
             if "dissolved organic carbon" in name.lower()
             or ("dissolved organic matter" in name.lower() and name.lower().endswith("carbon"))
         ]
@@ -987,6 +994,39 @@ def _candidate_long_names(variable, contents):
             for name in plain(mineral, "flux", "rate", "production", "dissolution")
             if "saturation" in name.lower() or "omega" in name.lower()
         ]
+        # a model's total is the sum of its parts, so it stands alone
+        totals = [name for name in matches if "total" in name.lower()]
+        return totals if len(totals) == 1 else matches
+
+    if variable == "poc":
+        # ERSEM's is the carbon of its small, medium and large particulate organic
+        # matter ("pom": R4, R6, R8), summed, and nothing in it says "POC". What does
+        # say "POC" is the rates around it: "loss to POC", "uptake of POC", "flux of
+        # particulate organic carbon". So the carbon must be named, as a thing and
+        # not as the object of a process, and the processes' words are left out.
+        process_words = (
+            "production", "release", "uptake", "loss", "loass", "remineral", "degradation", "decay",
+            "respiration", "exudation", "excretion", "mortality", "sinking", "export", "integrated",
+            "depth", "penetration", "scaveng", "grazing", "predation", "ingestion", "egestion",
+            "sedimentation", "burial", "buried",
+        )
+        carbon_of_particles = re.compile(
+            r"\bpoc\b|particulate organic carbon|"
+            r"(?:\bpom\b|particulate organic matter|particulate matter|detri\w+).*\bcarbon\b"
+        )
+        # "loss to POC", "uptake of buried POC", "flux of particulate organic carbon from ..."
+        object_of_process = re.compile(
+            r"\b(?:to|of|from|into)\s+(?:(?:buried|detrital|benthic|pelagic)\s+)?"
+            r"(?:poc|particulate organic (?:carbon|matter))"
+        )
+        matches = []
+        for name in plain("", *carbon_excluded, *process_words):
+            lowered = re.sub(r"\b(?:concentration|content|amount|biomass|stock)s? of ", "", name.lower())
+            if carbon_of_particles.search(lowered) and not object_of_process.search(lowered):
+                matches.append(name)
+        # a model's total is the sum of its parts, so it stands alone
+        totals = [name for name in matches if "total" in name.lower()]
+        return totals if len(totals) == 1 else matches
 
     return plain(variable)
 
@@ -1082,7 +1122,7 @@ def contents_mapping(contents, cwd=None, standard_names=None):
             model_variables = _matching_variables(
                 search, _candidate_long_names(variable, search)
             )
-            if len(model_variables) > 1 and variable not in ("chlorophyll", "doc"):
+            if len(model_variables) > 1 and variable not in ("chlorophyll", "doc", "poc"):
                 # no way to tell which of them the recipe wants
                 break
             if model_variables:

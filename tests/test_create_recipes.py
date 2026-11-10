@@ -21,7 +21,7 @@ from oceanval.create_recipes import (
 )
 
 
-def write_netcdf(path, variables, nz=5):
+def write_netcdf(path, variables, nz=5, units="1"):
     """A model output file, with one long_name per variable.
 
     A long_name prefixed "SURF:" is written as a surface field, which is how
@@ -31,7 +31,7 @@ def write_netcdf(path, variables, nz=5):
     dataset = xr.Dataset()
     for name, long_name in variables.items():
         surface = long_name.startswith("SURF:")
-        attributes = {"long_name": long_name.replace("SURF:", ""), "units": "1"}
+        attributes = {"long_name": long_name.replace("SURF:", ""), "units": units}
         if surface:
             values = np.random.rand(1, 4, 4).astype("f4")
             dims = ("time", "y", "x")
@@ -378,6 +378,112 @@ class TestVariableIdentification:
         # the model reports a total as well as its types, and counting both
         # would double the chlorophyll
         assert mapping["chlorophyll"] == "P1_Chl+P2_Chl"
+
+    def test_a_loss_of_dissolved_organic_carbon_is_not_summed_into_it(self, tmp_path):
+        path = str(tmp_path / "sim" / "doc_loss.nc")
+        write_netcdf(
+            path,
+            {
+                "R1_c": "dissolved organic carbon in labile matter",
+                # a rate of loss is named after the same carbon, and must not join the sum
+                "loss_doc": "Loss of dissolved organic carbon in labile matter",
+            },
+        )
+
+        assert generate_recipe_mapping(path)["doc"] == "R1_c"
+
+    def test_a_total_dissolved_organic_carbon_is_used_alone(self, tmp_path):
+        path = str(tmp_path / "sim" / "doc_total.nc")
+        write_netcdf(
+            path,
+            {
+                "DOCt": "total dissolved organic carbon",
+                "R1_c": "dissolved organic carbon labile",
+                "R2_c": "dissolved organic carbon semi-labile",
+            },
+        )
+
+        # the total is the sum of its parts, so adding the parts would double count
+        assert generate_recipe_mapping(path)["doc"] == "DOCt"
+
+    def test_dissolved_organic_carbon_parts_are_summed_without_a_total(self, tmp_path):
+        path = str(tmp_path / "sim" / "doc_parts.nc")
+        write_netcdf(
+            path,
+            {
+                "R1_c": "dissolved organic carbon labile",
+                "R2_c": "dissolved organic carbon semi-labile",
+                "R3_c": "dissolved organic carbon semi-refractory",
+            },
+        )
+
+        assert generate_recipe_mapping(path)["doc"] == "R1_c+R2_c+R3_c"
+
+    def test_a_depth_integrated_dissolved_organic_carbon_is_not_taken(self, tmp_path):
+        path = str(tmp_path / "sim" / "doc_integrated.nc")
+        write_netcdf(
+            path,
+            {
+                "DOCi": "depth-integrated dissolved organic carbon",
+                "R1_c": "dissolved organic carbon labile",
+            },
+        )
+
+        assert generate_recipe_mapping(path)["doc"] == "R1_c"
+
+    def test_particulate_organic_carbon_is_the_pom_not_the_rates_named_after_it(self, tmp_path):
+        path = str(tmp_path / "sim" / "poc.nc")
+        # long_names as ERSEM writes them (the COMFORT ptrc files): the carbon of the
+        # particulate matter never says "POC", the rates and neighbours around it do
+        write_netcdf(
+            path,
+            {
+                "R4_c": "small-size pom carbon",
+                "R6_c": "medium-size pom carbon",
+                "R8_c": "large-size pom carbon",
+                "Z4_fZIRPc": "mesozooplankton loss to POC",
+                "B1_fRPB1c": "bacteria total uptake of POC",
+                "phyto_loss": "phytoplankton loss to particulate organic carbon result",
+                "Z4_fdetrc": "mesozooplankton scavenging of particulate organic carbon",
+                "PON": "particulate organic nitrogen result",
+                "POP": "particulate organic phosphorus result",
+                "PelBen": "SURF:flux of particulate organic carbon from pelagic to benthos result",
+                "Q6_c": "SURF:benthic particulate organic matter carbon",
+                "H1_fHQPc": "SURF:benthic aerobic bacteria production of particulate organic carbon",
+            },
+        )
+
+        assert generate_recipe_mapping(path)["poc"] == "R4_c+R6_c+R8_c"
+
+    def test_particulate_organic_carbon_is_not_taken_from_rates_alone(self, tmp_path):
+        path = str(tmp_path / "sim" / "poc_rates.nc")
+        write_netcdf(
+            path,
+            {
+                "Z4_fZIRPc": "mesozooplankton loss to POC",
+                "B1_fRPB1c": "bacteria total uptake of POC",
+                "PON": "particulate organic nitrogen result",
+            },
+        )
+
+        assert generate_recipe_mapping(path)["poc"] is None
+
+    def test_a_particulate_organic_carbon_concentration_is_taken(self, tmp_path):
+        path = str(tmp_path / "sim" / "poc_plain.nc")
+        write_netcdf(path, {"poc": "Concentration of particulate organic carbon"})
+
+        assert generate_recipe_mapping(path)["poc"] == "poc"
+
+    def test_a_dissolved_organic_carbon_in_flux_units_is_not_taken(self, tmp_path):
+        path = str(tmp_path / "sim" / "doc_flux.nc")
+        write_netcdf(
+            path,
+            {"DOCf": "dissolved organic carbon"},
+            units="mmol/m2/d",
+        )
+
+        # a flux of carbon per area is not a concentration, whatever its long_name
+        assert generate_recipe_mapping(path)["doc"] is None
 
     def test_an_ambiguous_variable_is_left_unmatched(self, tmp_path):
         path = str(tmp_path / "sim" / "ambiguous.nc")

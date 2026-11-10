@@ -245,7 +245,7 @@ def fitting(variable, contents):
     """The rows of contents whose units suit variable, for the variables with
     a rule of their own (those whose long_names are easily taken for another
     quantity); every row for the rest, whose matches have always been as they are."""
-    if variable not in ("aou", "co2flux", "mesozooplankton", "o2sat", "pco2"):
+    if variable not in ("aou", "co2flux", "doc", "mesozooplankton", "o2sat", "pco2", "poc"):
         return contents
     units = _units_of(contents)
     return contents.loc[[units_fit(variable, units.get(str(x))) for x in contents.variable]]
