@@ -1226,7 +1226,6 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
     url = app.start()
     page = browser.new_page(viewport={"width": 1280, "height": 1000})
     try:
-        page.add_init_script("window.__keepFolderStructure = true")
         page.goto(url)
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-analyze")
@@ -1237,18 +1236,9 @@ def test_a_simulation_row_fills_in_the_directories_down_from_the_layout(browser,
         box = page.locator("#sc-ndown_1")
         assert box.evaluate("node => node.classList.contains('is-detected')")
         assert box.evaluate("node => getComputedStyle(node).fontWeight") == "700"
-        popout = page.locator("#folder-structure")
-        popout.wait_for(state="visible")
-        assert "For Simulation 1, it looks like the folder structure is YYYY/MM/**.nc" in popout.inner_text()
-        assert "directories down is assumed to be 2" in popout.inner_text()
         assert "Folder structure was identified" not in page.inner_text("#sc-m-1")
-        page.click("#folder-structure-continue")
-        assert popout.is_hidden()
         page.fill("#sc-dir_2", "flat")
         page.wait_for_function("document.querySelector('#sc-ndown_2').value === '0'")
-        popout.wait_for(state="visible")
-        assert "For Simulation 2, it looks like the folder structure is *.nc" in popout.inner_text()
-        page.click("#folder-structure-continue")
         # typing over it makes it the user's, and the suggestion goes
         page.fill("#sc-ndown_1", "1")
         assert not page.locator("#sc-ndown_1").evaluate("node => node.classList.contains('is-detected')")

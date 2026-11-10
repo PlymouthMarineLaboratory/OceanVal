@@ -88,8 +88,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   has no button to change its simulation (Back, or × and a new panel). **The variable column** is a container-query grid (`@container
   (min-width: 520px)`) with a draggable divider (`.vw-split`: pointer capture, arrow keys, Home/End, double-click resets; 40 px to 55 % of the
   panel, `SIDE_*` constants; the contents hide below `SIDE_USABLE`; the width is kept per panel number in `localStorage`
-  `oceanval-vw-side-<n>`). **The folder structure message is told by `useProbe` the moment the depth is filled in** (not by `refreshSetup`,
-  which waits for the next count). A panel with its box open is `z-index: 20`, under the `.picker` dialogs (25) its box opens; the outside-click
+  `oceanval-vw-side-<n>`). The depth is filled in from the folders' layout by `useProbe`, with no pop-out (removed 2026-11-10). A panel with its box open is `z-index: 20`, under the `.picker` dialogs (25) its box opens; the outside-click
   handler ignores `.picker`, `.year-list` and `.combo__list` (the drop-downs' lists are on the body).
 - **Grids a quadmesh cannot draw** (`oceanval/viewer_grid.py`, `viewer_plots.cells_image`/`needs_raster`): an unstructured grid (one horizontal
   dim with 1-D lon/lat on it, `about["cells"]`, which `mappable` accepts: ICON, FESOM) and a curvilinear one with a seam (|Δlon| > 180),

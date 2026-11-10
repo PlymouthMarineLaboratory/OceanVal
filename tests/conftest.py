@@ -402,14 +402,13 @@ def browser():
     except Exception as error:
         playwright.stop()
         pytest.skip(f"Chromium is not available: {error}")
-    # the pop-out that says the directories down were filled in from the folders' layout would cover the page
-    # for every test that points at a simulation, so each page dismisses it, unless the test sets
-    # window.__keepFolderStructure (before it goes to the page) to look at it
+    # the question of the history and the first-time Validate intro would cover the page, so each page answers them,
+    # unless the test sets window.__keepHistoryQuestion or window.__keepValidateIntro (before it goes to the page)
     new_page = chromium.new_page
 
     def new_page_dismissing(*args, **kwargs):
         page = new_page(*args, **kwargs)
-        page.context.add_init_script(DISMISS_FOLDER_STRUCTURE)
+        page.context.add_init_script(DISMISS_POP_OUTS)
         return page
 
     chromium.new_page = new_page_dismissing
@@ -418,13 +417,9 @@ def browser():
     playwright.stop()
 
 
-DISMISS_FOLDER_STRUCTURE = """
+DISMISS_POP_OUTS = """
 document.addEventListener("DOMContentLoaded", () => {
   new MutationObserver(() => {
-    const dialog = document.getElementById("folder-structure");
-    if (dialog && !dialog.hidden && !window.__keepFolderStructure) {
-      document.getElementById("folder-structure-continue").click();
-    }
     // the question of whether to add the work to the history is answered No, unless the test looks at it
     for (const prefix of ["ao", "v", "c"]) {
       const no = document.getElementById(`${prefix}-history-no`);

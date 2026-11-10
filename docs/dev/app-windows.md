@@ -161,12 +161,11 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   **A blank box is filled from the folders' layout** (`create_recipes.folder_layout`, in `/api/probe`'s `layout`: `{pattern, ndown}`
   whatever depth is typed): a year directory with all of `01`..`12` and `.nc` files (`YYYY/MM/**.nc`, 2), the twelve months in the
   directory (`MM/*.nc`, 1), or no subdirectories and `.nc` files (`*.nc`, 0). It is only a few `scandir`s (NFS). The fill is bold
-  (`is-detected` on a `.is-depth` box: ordinary colours, never amber, the user's rule, 2026-10-31) and is told once in a modal pop-out,
-  `#folder-structure` (`tellFolderStructure`, "It looks like the folder structure is <pattern> and the number of directories down is assumed to
-  be <n>. Change it if this is not correct." and Continue; Compare names the simulation), keyed by directory + layout, one at a time and not over
-  another pop-out (`autoNdown` for setup, `scSims.auto[n]` for Compare); typing or picking sets the flag off and the value is the user's for good
-  (`forgetFolderStructure`), and a directory without a layout empties a value OceanVal filled. The tests' `browser` fixture dismisses the pop-out
-  on every page (`DISMISS_FOLDER_STRUCTURE`) unless the test sets `window.__keepFolderStructure`. The probe is asked again once it fills, to count the files.
+  (`is-detected` on a `.is-depth` box: ordinary colours, never amber, the user's rule, 2026-10-31). No pop-out tells it (the pop-out was
+  removed, 2026-11-10, on every window: Visualize, Analyze, Validate, Compare simulations and the bank). `autoNdown` (setup) and `scSims.auto[n]`
+  (Compare) say whether the value is OceanVal's; typing or picking sets the flag off and the value is the user's for good, and a directory without
+  a layout empties a value OceanVal filled. The tests' `browser` fixture answers the history question and the Validate intro on every page
+  (`DISMISS_POP_OUTS`) unless the test sets `window.__keepHistoryQuestion` or `window.__keepValidateIntro`. The probe is asked again once it fills, to count the files.
 - Both windows inline `data/gui.css` and `data/gui.js` (shared look and helpers, including
   `OceanValGUI.variableBox`, the box that opens the pop-out of the model's variables) via
   `recipes_gui.render_page`. The browser tests (`browser` fixture in `tests/conftest.py`) skip

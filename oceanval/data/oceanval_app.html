@@ -239,7 +239,7 @@
   /* the directories down OceanVal filled in from the layout of the folders: an assumption, amber */
   .group__line.is-detected { color: var(--amber); font-weight: 600; }
   .s-input.is-detected { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
-  /* the directories down are told in a pop-out (tellFolderStructure), so the box is only bold, not amber */
+  /* the directories down filled in from the folders' layout are bold, never amber */
   .s-input.is-depth.is-detected { border-color: var(--line-strong); background-color: var(--bg); color: var(--ink); font-weight: 700; }
   .banner {
     display: flex;
@@ -3053,7 +3053,6 @@
 </div>
 
 <!-- CDO crashed on the simulation's files: nothing can be done with them, so there is no way on from here but starting again -->
-<!-- the directories down OceanVal filled in from the folders' layout (tellFolderStructure) -->
 <div class="picker" id="validate-intro" hidden>
   <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="validate-intro-title" aria-describedby="validate-intro-text">
     <div class="picker__head">
@@ -3062,17 +3061,6 @@
     <p class="picker__info" id="validate-intro-text"></p>
     <div class="picker__foot">
       <button type="button" class="btn btn--primary" id="validate-intro-continue">Close</button>
-    </div>
-  </div>
-</div>
-<div class="picker" id="folder-structure" hidden>
-  <div class="picker__card picker__card--narrow" role="dialog" aria-modal="true" aria-labelledby="folder-structure-title" aria-describedby="folder-structure-text">
-    <div class="picker__head">
-      <h2 id="folder-structure-title">Folder structure</h2>
-    </div>
-    <p class="picker__info" id="folder-structure-text"></p>
-    <div class="picker__foot">
-      <button type="button" class="btn btn--primary" id="folder-structure-continue">Continue</button>
     </div>
   </div>
 </div>
@@ -3193,55 +3181,6 @@
     input.choiceHints = Object.fromEntries(DEPTHS.map((depth) => [depth, depthText(depth).replace(/^\d+ /, "")]));
     return withChoices(input, DEPTHS);
   }
-
-  // ---- the pop-out that says the directories down were filled in from the folders' layout ----
-  // told once for each finding (its key), one at a time, and not over another pop-out
-  const folderStructure = { told: new Set(), queue: [], open: null, waiting: false };
-
-  function tellFolderStructure({ key, who, pattern, ndown, focus }) {
-    const fs = folderStructure;
-    if (fs.told.has(key)) return;
-    fs.told.add(key);
-    fs.queue.push({ key, who, pattern, ndown, focus });
-    showFolderStructure();
-  }
-
-  // a different directory or a typed depth forgets what was told, so the layout is told again if found again
-  function forgetFolderStructure(prefix) {
-    folderStructure.told = new Set([...folderStructure.told].filter((key) => !key.startsWith(prefix)));
-    folderStructure.queue = folderStructure.queue.filter((item) => !item.key.startsWith(prefix));
-  }
-
-  function showFolderStructure() {
-    const fs = folderStructure;
-    if (fs.open || !fs.queue.length) return;
-    const dialog = $("folder-structure");
-    if ([...document.querySelectorAll(".picker")].some((other) => other !== dialog && !other.hidden)) {
-      if (!fs.waiting) { fs.waiting = true; setTimeout(() => { fs.waiting = false; showFolderStructure(); }, 300); }
-      return;
-    }
-    fs.open = fs.queue.shift();
-    const { who, pattern, ndown } = fs.open;
-    $("folder-structure-text").textContent = `${who ? `For ${who}, it` : "It"} looks like the folder structure is ${pattern} `
-      + `and the number of directories down is assumed to be ${ndown}. Change it if this is not correct.`;
-    dialog.hidden = false;
-    $("folder-structure-continue").focus();
-  }
-
-  function closeFolderStructure() {
-    const fs = folderStructure;
-    if (!fs.open) return;
-    const { focus } = fs.open;
-    fs.open = null;
-    $("folder-structure").hidden = true;
-    showFolderStructure();
-    if (!fs.open && focus) focus.focus();
-  }
-  $("folder-structure-continue").addEventListener("click", closeFolderStructure);
-  $("folder-structure").addEventListener("click", (event) => { if (event.target === $("folder-structure")) closeFolderStructure(); });
-  $("folder-structure").addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { event.preventDefault(); closeFolderStructure(); }
-  });
 
   // the first time Validate is opened: OceanVal downloads observations, and Preferences can keep them
   const validateIntro = { open: false, waiting: false, done: false };
@@ -5210,7 +5149,7 @@
       setup[name] = event.target.value;
       delete setupErrors[name];
       if (name === "start" || name === "end") autoYears = false;
-      if (name === "ndown") { autoNdown = false; forgetFolderStructure("setup:"); }
+      if (name === "ndown") { autoNdown = false; }
       if (name === "simdir" && state.action === "viewer") newSimulationForViewer();
       else if (name === "simdir") newDirectoryDepth();
       if (PROBED.has(name)) askProbe(400);
@@ -5239,7 +5178,6 @@
   function newDirectoryDepth() {
     setup.ndown = $("f-ndown").value = "";
     autoNdown = false;
-    forgetFolderStructure("setup:");
     $("f-ndown").classList.remove("is-oceanval");
     delete setupErrors.ndown;
   }
@@ -5305,14 +5243,10 @@
       autoNdown = true;
       if (String(setup.ndown) !== String(layout.ndown)) {
         setup.ndown = $("f-ndown").value = String(layout.ndown);
-        // told now, not once the files at that depth have been counted (refreshSetup would wait for the check asked next)
-        tellFolderStructure({ key: `setup:${setup.simdir}|${layout.pattern}|${layout.ndown}`,
-          pattern: layout.pattern, ndown: layout.ndown, focus: $("f-ndown") });
         askProbe(0);
       }
     } else if (!layout && autoNdown) {
       autoNdown = false;
-      forgetFolderStructure("setup:");
       setup.ndown = $("f-ndown").value = "";
       askProbe(0);
     }
@@ -5600,10 +5534,6 @@
     // the depth was filled in from the layout of the folders: bold, and told once in a pop-out
     const detected = autoNdown && !finding && Boolean(probe && probe.layout) && probe.directory === "found";
     $("f-ndown").classList.toggle("is-detected", detected);
-    if (detected) {
-      tellFolderStructure({ key: `setup:${setup.simdir}|${probe.layout.pattern}|${probe.layout.ndown}`,
-        pattern: probe.layout.pattern, ndown: probe.layout.ndown, focus: $("f-ndown") });
-    }
     const badge = $("ndown-found");
     badge.classList.toggle("is-finding", finding);
     if (finding) badge.replaceChildren(el("span", { class: "identify__spinner", "aria-hidden": "true" }), "Finding files");
@@ -12841,7 +12771,6 @@
       if (box.value !== String(layout.ndown)) { box.value = String(layout.ndown); scAskProbe(n, 0); }
     } else if (!layout && scSims.auto[n]) {
       scSims.auto[n] = false;
-      forgetFolderStructure(`sc${n}:`);
       box.value = "";
       scAskProbe(n, 0);
     }
@@ -12909,11 +12838,6 @@
           lines.push(line(`No netCDF files ${depthText(depth)}.`, "nofiles"));
         }
       }
-      if (detected) {
-        tellFolderStructure({ key: `sc${n}:${$(`sc-dir_${n}`).value}|${probe.layout.pattern}|${probe.layout.ndown}`,
-          who: $(`sc-name_${n}`).value.trim() || `Simulation ${n}`, pattern: probe.layout.pattern, ndown: probe.layout.ndown,
-          focus: $(`sc-ndown_${n}`) });
-      }
       message(`sc-m-${n}`, lines, false);
     }
     const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);
@@ -12936,7 +12860,7 @@
         scSims.touched = scSims.touched || {};
         scSims.touched[n] = true;
         delete scSims.errors[String(n - 1)];
-        if (id === "ndown") { scSims.auto[n] = false; forgetFolderStructure(`sc${n}:`); }
+        if (id === "ndown") { scSims.auto[n] = false; }
         if (id === "dir" || id === "ndown" || id === "exclude" || id === "require") scAskProbe(n, 400);
         refreshScSims();
       });
