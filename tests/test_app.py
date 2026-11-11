@@ -219,10 +219,18 @@ def fill_required_recipe_settings(page):
     page.fill("#s-point_end", "2012")
 
 
+def to_save_page(page):
+    """On the output step, past the checks of the file patterns (the first page, which
+    has Continue only once they have all passed) to where the matchups are saved."""
+    page.wait_for_selector("#view-output:not([hidden])")
+    page.click("#output-next")
+    page.wait_for_selector("#output-form:not([hidden])")
+
+
 def through_output(page):
     """Carry on from where the matchups are saved, once they are confirmed,
     as it starts (and with a core, for matchup alone, which asks for it there)."""
-    page.wait_for_selector("#view-output:not([hidden])")
+    to_save_page(page)
     if page.is_visible("#f-cores"):
         page.select_option("#f-cores", "1")
     page.wait_for_function("!document.getElementById('output-run').disabled")
@@ -5343,6 +5351,13 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         # then where the matchups are saved: where oceanval was started, unless changed,
         # and, with no report options to ask it with, the number of cores, which has no default
         page.wait_for_selector("#view-output:not([hidden])")
+        # the checks of the file patterns come first, with Continue as the only button, and no title
+        assert page.is_visible("#pc") and page.is_hidden("#output-form")
+        assert page.is_hidden("#title")
+        assert [button.text_content() for button in page.locator("#actions button").all()] == ["Continue"]
+        page.click("#output-next")
+        page.wait_for_selector("#output-form:not([hidden])")
+        assert page.is_hidden("#pc")
         assert page.text_content("#title") == "Where do you want the matchups to be saved?"
         assert page.input_value("#f-out_dir") == str(tmp_path)
         assert page.text_content("#f-out_dir-label") == "Where do you want matchups to be saved?"
@@ -7025,6 +7040,73 @@ def test_finding_key_information_in_a_browser(browser, tmp_path):
         app.close()
 
 
+def test_output_step_checks_page_has_continue_only_when_every_check_passes(browser, tmp_path, monkeypatch):
+    """The output step's first page is the checks of the file patterns: with one failed, or
+    still going, the bar shows nothing; once all pass it shows Continue only, and that goes
+    to where the matchups are saved, whose Back returns to the checks with the box kept."""
+    write_simulation(tmp_path / "sim")
+    stand_in = tmp_path / "stand_in.py"
+    stand_in.write_text(
+        textwrap.dedent(
+            f"""
+            from oceanval import prompts
+            question = "Are you happy with these matchups? (y/n) "
+            print("answer:", prompts.ask(question, ("y", "n"), details={MATCHUPS!r}))
+            """
+        )
+    )
+    verdict = {"done": True, "passed": False, "failed": 1, "total": 1}
+    monkeypatch.setattr(
+        StubPatternChecks, "state", lambda self: {"patterns": [], **verdict}
+    )
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    start_run = app.start_run
+    monkeypatch.setattr(app, "start_run", lambda args, label: start_run([args[0], str(stand_in)], label))
+    url = app.start()
+    try:
+        page = browser.new_page()
+        page.goto(url)
+        page.click('button.choice[data-action="matchup"]')
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        page.click("#continue")
+        page.click("#own-no")
+        page.wait_for_url("**/recipes/**", timeout=90000)
+        fill_required_recipe_settings(page)
+        page.click("#write")
+        page.wait_for_selector("#units-body-gridded tr[data-units-row]")
+        page.check("#units-confirm")
+        page.click("#units-continue")
+        page.wait_for_selector("#review:not([hidden])", timeout=90000)
+        page.click("#actions button:has-text('Yes')")
+        page.wait_for_selector("#view-output:not([hidden])")
+        # a failed check: nothing at the bottom, and the second page is not reachable
+        page.wait_for_selector("#pc:not([hidden])")
+        assert page.locator("#actions button").count() == 0
+        assert page.is_hidden("#bar-main")
+        assert page.is_hidden("#output-form")
+        # every check passes: Continue only
+        verdict.update(passed=True, failed=0)
+        with app._lock:
+            app._notify()
+        page.wait_for_selector("#output-next")
+        assert [button.text_content() for button in page.locator("#actions button").all()] == ["Continue"]
+        page.click("#output-next")
+        page.wait_for_selector("#output-form:not([hidden])")
+        assert page.is_hidden("#pc")
+        page.fill("#f-out_dir", "kept")
+        # Back goes to the checks, and Continue to the box as it was
+        page.click("#back-open")
+        page.wait_for_selector("#pc:not([hidden])")
+        assert page.is_hidden("#output-form")
+        page.click("#output-next")
+        assert page.input_value("#f-out_dir") == "kept"
+    finally:
+        app.close()
+
+
 @pytest.mark.parametrize("action", ["matchup", "matchup_validate"])
 def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, monkeypatch, action):
     """In the output step, once the matchups are confirmed, a grid of the
@@ -7089,7 +7171,7 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         page.click("#units-continue")
         page.wait_for_selector("#review:not([hidden])", timeout=90000)
         page.click("#actions button:has-text('Yes')")
-        page.wait_for_selector("#view-output:not([hidden])")
+        to_save_page(page)
         assert page.text_content("#actions button.btn--primary") == ("Continue" if report else "Match up")
         if not report:
             page.select_option("#f-cores", "1")
@@ -7458,7 +7540,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
                                    timeout=90000)
 
         def to_output():
-            page.wait_for_selector("#view-output:not([hidden])")
+            to_save_page(page)
             page.wait_for_function("!document.getElementById('output-run').disabled")
 
         page.goto(url)

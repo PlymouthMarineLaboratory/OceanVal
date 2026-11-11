@@ -565,6 +565,7 @@
   .compat-note[hidden], .compat-summary[hidden], .compat-error[hidden], .compat-grid[hidden] { display: none; }
   /* the compatibility checks of each file pattern, on the output step (see oceanval.pattern_checks) */
   #view-output .pc { margin-bottom: 28px; }
+  #view-output .setup-form[hidden] { display: none; }
   .pc__list { display: grid; gap: 16px; margin-top: 16px; }
   .pc-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; }
   .pc-card[data-state="failed"] { border-color: var(--danger); }
@@ -2486,7 +2487,6 @@
       <fieldset class="group card sc-choice" style="margin-top:18px">
         <legend>How should they be put on one grid? <span class="own-req">Required</span></legend>
         <div role="radiogroup" aria-label="How to put the simulations on one grid" class="ptr-modes" style="padding:0">
-          <label class="ptr-mode"><input type="radio" name="scg-method" value="box" id="scg-method-box">A lon/lat box and a resolution I give</label>
           <label class="ptr-mode"><input type="radio" name="scg-method" value="baseline" id="scg-method-baseline">The grid of one of the simulations, a baseline</label>
         </div>
         <p class="group__msg" id="scg-method-msg"></p>
@@ -3269,11 +3269,10 @@
       case "analyze_options": return "";  // the pages say what they ask for
       case "simcompare_sims": return "";  // the + button says what it does
       case "simcompare_variables": return "";  // the lede above the table asks it
-      case "simcompare_units": return "Do the units match up?";
+      case "simcompare_units": return "";
       case "simcompare_files": return scState().shift && scState().shift.status === "asked"
-        && !scState().shift.choice ? "Are the models' times at the end of each mean?"
-        : "Check the files of each simulation";
-      case "simcompare_grids": return "Do the simulations need to be on one grid?";
+        && !scState().shift.choice ? "Are the models' times at the end of each mean?" : "";
+      case "simcompare_grids": return "";
       case "own_data": return "";  // asked on the page itself
       case "register_kind": return "Which kind of data is your recipe for?";
       case "register_point": return "Register a point data recipe";
@@ -3284,7 +3283,7 @@
       case "preparing": return "";  // the box in the middle of the page says it
       case "viewer": return "";  // the map has the room
       case "units_table": return "";  // the page heads itself, top left
-      case "output": return state.action === "matchup" ? "Where do you want the matchups to be saved?"
+      case "output": return state.action === "matchup" && outputPage.number === 2 ? "Where do you want the matchups to be saved?"
         : "";
       case "validate": return "Build a validation report";
       case "compare": return "Which validations do you want to compare?";
@@ -3340,7 +3339,7 @@
       Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
       state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number,
-      scUnits.page].join("|");
+      scUnits.page, outputPage.number, outputChecksPassed()].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
       if (view === "output") refreshMatchupOutput();
@@ -3472,9 +3471,16 @@
     } else if (view === "output") {
       // to the matchups, with the boxes, which are shown again as they are; to validate too,
       // the report options come next, and matchup alone carries on from here
-      actions.push(backTo(() => post("api/back", { form: output })),
-        button(state.action === "matchup" ? "Match up" : "Continue", "primary", submitMatchupOutput,
-          { id: "output-run", disabled: true }));
+      if (outputPage.number === 1) {
+        // the checks: Continue only when every one has passed, else nothing at the bottom
+        actions.push(backTo(() => post("api/back", { form: output })),
+          outputChecksPassed() ? button("Continue", "primary", () => { outputPage.number = 2; render(); $("f-out_dir").focus(); },
+            { id: "output-next" }) : null);
+      } else {
+        actions.push(backTo(() => { outputPage.number = 1; render(); }),
+          button(state.action === "matchup" ? "Match up" : "Continue", "primary", submitMatchupOutput,
+            { id: "output-run", disabled: true }));
+      }
     } else if (view === "running") {
       // while the matchup is still finding the files, or asking about them, it
       // has matched nothing up, so can be stopped to go back to the units
@@ -5009,8 +5015,8 @@
       unitsUnconfirm();
       fillUnits();
     } else if (view === "output") {
+      outputPage.number = 1;
       fillMatchupOutput();
-      $("f-out_dir").focus();
     } else if (view === "register_kind") {
       // the answer given before, as it is reached again
       for (const kind of ["point", "gridded"]) {
@@ -5559,6 +5565,8 @@
   // the boxes, what the server said of them, and the live check of the directory and the script's name
   const output = {};
   const matchupOutput = { errors: {}, probe: null, timer: null, number: 0 };
+  // the output step is two pages: the checks of the file patterns (1), then where to save (2)
+  const outputPage = { number: 1 };
 
   // the matchups the output directory has already (see oceanval.app.matchups_asked_about): each row
   // is a "variable/source", to be used as it is (as each is to start with), or not (output.unused):
@@ -5849,9 +5857,16 @@
     return "";
   }
 
+  // every check is done and none failed
+  function outputChecksPassed() {
+    // with no checks (the server holds none back either) there is nothing to wait for
+    return !patternsBlock();
+  }
+
   function renderPatternChecks() {
     const found = state.pattern_checks;
-    $("pc").hidden = !found;
+    $("pc").hidden = !found || outputPage.number !== 1;
+    $("output-form").hidden = outputPage.number !== 2;
     if (!found) return;
     const list = $("pc-list");
     found.patterns.forEach((one, number) => {
@@ -6077,25 +6092,19 @@
     const picked = analyzePicker();
     OceanValGUI.variableBox(model, { available: picked.available, longNames: picked.long_names, multi: true, keepSearch: true });
     // the names matching what is typed in the name box are listed under it; a click on one fills in the model variable the matchups would use for it
-    const presets = state.analyze.presets || [];
+    // only the names the model holds a variable for are listed
+    const presets = (state.analyze.presets || []).filter((preset) => preset.model_variable);
     if (presets.length) {
       OceanValGUI.nameBox(name, {
-        items: presets.map((preset) => ({ name: preset.name, found: preset.model_variable ? [preset.model_variable] : [], shown: preset.model_variable || "not found in this model" })),
+        items: presets.map((preset) => ({ name: preset.name, found: [preset.model_variable], shown: preset.model_variable })),
         onPick: (value) => {
           const preset = presets.find((one) => one.name === value);
           if (!preset) return;
           // what the user typed in the model box is theirs: only an empty box, or one the name box filled, is filled in
           if (item.model_variable.trim() && !item.auto && !item.filled) return;
-          if (preset.model_variable) {
-            item.model_variable = model.value = preset.model_variable;
-            item.auto = item.filled = true;
-            [name, model].forEach((box) => box.classList.add("is-oceanval"));
-          } else {
-            // the model name the last choice filled in is not this one's
-            if (item.auto) item.model_variable = model.value = "";
-            item.auto = false;
-            item.hint = `OceanVal could not tell which model variable holds ${value}: type its name in the box.`;
-          }
+          item.model_variable = model.value = preset.model_variable;
+          item.auto = item.filled = true;
+          [name, model].forEach((box) => box.classList.add("is-oceanval"));
           refreshAnalyzeVariables();
         },
       });
@@ -12882,7 +12891,8 @@
     });
     // the names matching what is typed in the name box are listed under it; a click on one fills in each simulation's model variable, where it is empty
     const first = sims[0];
-    const names = first ? (first.presets || []) : [];
+    // only the names at least one simulation holds a variable for are listed
+    const names = first ? (first.presets || []).filter((preset) => sims.some((sim) => ((sim.presets || []).find((one) => one.name === preset.name) || {}).model_variable)) : [];
     if (names.length) {
       const modelIn = (sim, value) => ((sim.presets || []).find((one) => one.name === value) || {}).model_variable || "";
       OceanValGUI.nameBox(name, {
@@ -13347,7 +13357,6 @@
     scGrids.errors = {};
     $("scg-need-yes").checked = form.need === "yes";
     $("scg-need-no").checked = form.need === "no";
-    $("scg-method-box").checked = form.method === "box";
     $("scg-method-baseline").checked = form.method === "baseline";
     const sims = scState().sims;
     // FVCOM output is a mesh: it is regridded to the baseline's grid, so it cannot be the baseline

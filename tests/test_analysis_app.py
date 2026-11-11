@@ -2066,11 +2066,11 @@ def test_the_names_list_what_is_typed_and_the_missing_value_in_a_browser(browser
         name.fill("Temp")
         assert shown() == ["Temperature"]
         assert page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden]) td").nth(1).inner_text() == "thetao"
-        # with nothing typed every name is listed, and one the model has no variable for says so
+        # with nothing typed every name the model holds a variable for is listed; one it has none for is left out
         name.fill("")
         options = page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])")
-        assert any(text.startswith("Salinity") for text in options.all_inner_texts())
-        assert "not found in this model" in options.filter(has_text="Salinity").first.inner_text()
+        assert any(text.startswith("Temperature") for text in options.all_inner_texts())
+        assert not any(text.startswith("Salinity") for text in options.all_inner_texts())
         # a click chooses it: the name, and the model variable in bold
         page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])", has_text="Temperature").click()
         assert name.input_value() == "Temperature" and model.input_value() == "thetao"

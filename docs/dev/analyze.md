@@ -189,8 +189,8 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   the "Environmental variable" box (was "Your name"; the model column is "Variable name in the simulation", with the hint "Enter variable names or search
   terms that will look up the variable and name and descriptions in files" under its heading) has no arrow (the user's rule, 2026-11-06: the drop-down was
   confusing): `OceanValGUI.nameBox` lists, under the box as it is typed in (and on focus), the recipe variables (hint under its heading: "Enter your own or select from available presets"; `analysis_forms.presets`, `state.analyze.presets`,
-  `sim["presets"]` for Compare) whose name or model variable the search matches, each with the model variable it resolves to (`create_recipes.voted_mapping`),
-  or "not found in this model". A click or Enter on a row sets the name (as typed, an input event) and calls `onPick`, which fills the model variable in
+  `sim["presets"]` for Compare) whose name or model variable the search matches, each with the model variable it resolves to (`create_recipes.voted_mapping`);
+  a name the model holds no variable for is left out of the list (filtered in the page; Compare keeps a name at least one simulation holds). A click or Enter on a row sets the name (as typed, an input event) and calls `onPick`, which fills the model variable in
   red/bold unless the user typed it.
 - The long-term series also take `window` (rolling mean of the annual means, trailing, 1 = none) and `show` (`absolute` | `absolute_change` | `percentage_change`, from the first year with a value), `analysis.SHOWS`/`_series_options`, applied in `analysis_series.smooth_and_change` after `annual_series` (the missing/incomplete years are worked out before, from the means as they are); the csv holds the values as shown and `saved["show"]`/units `%` say what they are. In the window they are two columns after Water column in the long-term pop-out only (`is-series` cells), `analysis_forms._check_series_options`.
 - Map temporal changes are `oceanval/analysis_changes.py` (`map_changes={name: {"historical":
