@@ -540,7 +540,8 @@ def test_a_panel_is_added_and_removed_up_to_four(app, simulation):
     assert sorted(app.viewers) == [1, 2, 3, 4]
     # no more than four
     assert post(app, "/api/viewer/add")[0] == 409
-    # panel 1 stays; the others go, and the lowest number free is used next
+    # panel 1 stays (it is refused while it is empty, see test_closing_panel_1_empties_it); the others go, and the
+    # lowest number free is used next
     assert post(app, "/api/viewer/remove", {"viewer": 1})[0] == 409
     assert post(app, "/api/viewer/remove", {"viewer": 3}) == (200, {"ok": True})
     assert post(app, "/api/viewer/remove", {"viewer": 3})[0] == 409
@@ -582,6 +583,20 @@ def test_removing_a_panel_lets_go_of_its_files_only(app, simulation, tmp_path, s
     assert gone._stop.is_set() and not kept._stop.is_set()
     assert _plot(app, viewer=2, stream=1, vars='["chl"]')["error"] == "Nothing has been read yet."
     assert _plot(app, viewer=1, stream=1, vars='["chl"]', step=0, level=1)["ok"]
+
+
+def test_closing_panel_1_empties_it(app, simulation, slow_times):
+    _view(app, simulation, panel=1, missing='[["-999",""]]')
+    _wait_for_times(app)
+    kept = app.viewers[1].catalogue
+    assert post(app, "/api/viewer/remove", {"viewer": 1}) == (200, {"ok": True})
+    # panel 1 is still there, empty: its box asks for a directory again, with nothing kept from the simulation
+    assert sorted(app.viewers) == [1]
+    assert app.viewers[1].view == "setup"
+    assert app.viewers[1].catalogue is None and app.viewers[1].missing == []
+    assert app.viewers[1].missing_source is None and app.viewers[1].form.get("missing", "") == ""
+    assert kept._stop.is_set()
+    assert post(app, "/api/viewer/remove", {"viewer": 1})[0] == 409
 
 
 def test_back_and_restart_let_go_of_every_panel(app, simulation, tmp_path, slow_times):

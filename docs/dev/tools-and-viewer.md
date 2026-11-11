@@ -42,28 +42,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   logic, `depthBox`, "Finding files", the recent-directories arrow and the `restart` Skip box are OceanVal's own (`fillSetup` fills from the
   panel's form or draft, `setupForm()` sends `viewer`, `refreshSetup` enables `#vw-apply`, `submitSetup` closes the box on success;
   `simulationOnly()` hides the domain/years as for Analyze); only
-  the **Missing values** fieldset (`#setup-missing`, `missingRows`; **one From and one optional To only, the user's rule, 2026-10-30: no + or ×, and `fillMissingRows`/`setupForm` keep only the first row**; sent as JSON `missing` by `setupForm()`,
-  `viewer_app.parse_missing`, which still takes a list of ranges) is the viewer's. **Its row starts filled in from the files** (`viewer_missing.guess` via
-  `/api/viewer/missing`, asked by `askMissingGuess` after each `/api/probe` answer with files; `scan(wait=False)`, then
-  `missing_probe.probe` on the first mappable variable of the first file type, else 0 for `is_likely_nemo_ersem` names): amber
-  `is-found` / `is-ersem` with Analyze's wording, "Attempting to identify missing value range" and a spinner while it runs. Typing in
-  the boxes (`missingEdited`) makes them the user's for good; a value OceanVal filled is emptied when the simulation or
-  filters change. A simulation viewed is recorded in `.oceanvalcache` (`record_sim_dir`).
-  **Editing the simulation directory searches afresh** (`newSimulationForViewer`): the directories down are blanked for the folders' layout to
-  fill again, and the missing-value boxes (even typed ones) are emptied and looked for again. Viewer only: Validate/Analyze keep a typed depth.
-  **The simulation box also takes the path of one file** (`viewer_catalogue.viewer_paths`, the viewer's `check_setup`, `probe()["file"]`): used as it is, whatever its name, not filtered by exclude/require, with no directories down (the box is disabled; the label says "directory or file path"). Browse… stays a folder picker.
-- `viewer_catalogue.scan(wait=False)` reads the variables of each file type's first file; `Catalogue.read_times` then reads
-  every file's times **in a process of its own**: `viewer_times.py` is run as a script by path (`python -I`), imports nothing
-  of OceanVal (a test checks), and has its own spawn pool (half the cores); `Reading.cancel` kills it, which Back and Restart
-  do (`Catalogue.stop_times`). Fewer than `PARALLEL_FROM` files are read in the window's process under `netcdf_lock.LOCK`
-  (a plain Lock: nothing in the viewer takes it twice). Times are cached in `~/.oceanvaltimes` / `$OCEANVALTIMES` (JSON,
-  read-merge-write, never raises; autouse `oceanvaltimes` fixture), not `.oceanvalcache`.
-- **A simulation's files are found once, and read once** (the user's complaint, 2026-11-05: Continue went back to "Finding the files"). The live
-  check (`App.probe`) lists the directories into `App._simulation_listing` (unfiltered, keyed `(path, depth)`, `LISTING_KEPT` 5 s while typing; the
-  filters are applied to it by `create_recipes.filter_paths`), and **every step after Continue takes it with `kept=None`**, however old, through
-  `App._simulation_files`: `_cdo_run` (so Validate, Analyze, Compare and the viewer), `check_setup(find=)`, `scan(paths=)`, `analysis.streams(paths=)`,
-  `simulation_files/_variable_long_names/extract_recipe_variable_mapping(paths=/files=)`. A new step that finds a simulation's files must use it, not
-  `simulation_paths`. The missing value search (`viewer_missing.guess(keep=)`) keeps the `Catalogue` it read as `_viewer_scanned = (key, catalogue)`
+  the missing value is the panel's own, set in the **Map options** box (`mv-from`/`mv-to`, the bottom of the box; one From and one optional To, the user's rule, 2026-10-30; `viewer_app.parse_missing` takes the JSON rows, sent by `api/viewer/set_missing`). The setup page has no missing value box (removed 2026-11-11). **The server applies the guess** (`viewer_missing.guess`, asked by the setup page's `askMissingGuess` through `/api/viewer/missing` once files are found, and kept by `_viewer_guess_thread`): `_apply_guess` puts it in the panel when the guess is for the panel's simulation (`ViewerSlot.missing_key`, `_guess_key`) and the user has not typed a value (`missing_source == "user"`), with `missing_source` `found` (amber) or `ersem` (assumed). `state()` gives `missing_looking` for the spinner line "Attempting to identify missing value range". Continue keeps the panel's own value only for the same simulation. Typing in a box drops the colour at once. The map is drawn again when the server changes the value. `simulation_paths`. The missing value search (`viewer_missing.guess(keep=)`) keeps the `Catalogue` it read as `_viewer_scanned = (key, catalogue)`
   and `_viewer_setup` takes it over (`_viewer_taken`, key = simdir, ndown, split exclude, split require) instead of scanning again; `_viewer_drop` closes
   one nobody took. The scanning page therefore says only "Reading the variables of each file type: n of m". `viewer_times.load_cache` stats by threads.
   **`viewer_catalogue._lonlat` must read through `ds.variables[...]`, never `ds[...]`** (a DataArray each time made it quadratic: a 335-variable NEMO
@@ -118,3 +97,5 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   snapshot sent or received (so no echo), leaving `step` out while playing (each tab plays its own frames); `applyMirror` sets `pick`,
   redraws and starts or stops Play, held in `mirrorPending` until the catalogue is loaded. A new tab sends `hello` and the other answers.
   Zoom is not mirrored. When the panel's slot goes (Back/Restart), `#mirror-closed` covers the page.
+
+- `viewer_remove` (`/api/viewer/remove`): panel 1's × empties it (a fresh `ViewerSlot(1)`, its box reopens blank via `ViewerPanel.justEmptied` in `renderViewers`); panels 2–4 are removed. Panel 1's × shows only while it has a simulation.

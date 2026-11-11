@@ -208,8 +208,12 @@ class ViewerSlot:
         self.form = form if form is not None else default_setup_form()
         # what went wrong reading the simulation, for the panel's setup box
         self.error = None
-        # the numbers the user says are missing, as (low, high) ranges
+        # the numbers the user says are missing, as (low, high) ranges, and where they came from: None,
+        # "found" or "ersem" (the guess, see _apply_guess), or "user" (typed in Map options, which keeps them)
         self.missing = []
+        self.missing_source = None
+        # the simulation (see _guess_key) the missing value is for: a new one starts with the guess again
+        self.missing_key = None
         # how far the variables are being read: {"phase", "done", "total"}
         self.scan = None
         self.catalogue = None
@@ -243,7 +247,16 @@ class ViewerSlot:
             "catalogue_number": self.catalogue_number if self.catalogue else None,
             "times": dict(self.times) if self.times else None,
             "times_number": self.times_number,
+            "missing_source": self.missing_source,
+            "missing_looking": self.missing_looking(),
         }
+
+    def missing_looking(self):
+        """Whether the guess at the missing value is still being looked for for this panel's simulation."""
+        return bool(
+            self.guess and self.guess["status"] == "reading" and self.guess["key"] == self.missing_key
+            and self.missing_source != "user"
+        )
 
 
 def _panel_number(value):
@@ -338,13 +351,21 @@ class ViewerSteps:
             return True
 
     def viewer_remove(self, value):
-        """Remove a panel, letting go of its simulation. Panel 1 stays. The
-        steps' reply is whether it was removed."""
+        """Remove a panel, letting go of its simulation. Panel 1 is not
+        removed: with a simulation it is emptied, as a fresh viewer starts
+        (its box asks for a directory again). The steps' reply is whether it
+        was removed or emptied."""
         number = _panel_number(value)
         with self._lock:
-            if number in (None, 1) or number not in self.viewers or self.view != "viewer":
+            if number is None or number not in self.viewers or self.view != "viewer":
                 return False
-            old = self._viewer_drop(self.viewers.pop(number))
+            if number == 1:
+                if self.viewers[1].view == "setup":
+                    return False
+                old = self._viewer_drop(self.viewers[1])
+                self.viewers[1] = ViewerSlot(1)
+            else:
+                old = self._viewer_drop(self.viewers.pop(number))
             self._notify()
         # outside the lock: it waits for any file being read
         if old is not None:
@@ -371,18 +392,26 @@ class ViewerSteps:
             slot = self._viewer_slot_of(form.get("viewer"))
             if slot is None:
                 return 409, {"ok": False, "error": "That panel is not there."}
+            previous_key, previous_text = slot.missing_key, slot.form.get("missing", "")
             slot.form = self._viewer_form(form)
             arguments, errors = check_setup(slot.form, self.cwd, find=self._found_files)
             if errors:
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
+            # the missing value is the panel's own for the same simulation; for another, the guess starts again
+            key = _guess_key(arguments)
+            if key == previous_key:
+                slot.form = dict(slot.form, missing=previous_text)
+            else:
+                slot.missing_key = key
+                self._set_missing(slot, "", None)
+                self._apply_guess(slot)
             # taken before _viewer_drop, which closes a reading nobody is carrying on with
             scanned = self._viewer_taken(slot, arguments)
             old = self._viewer_drop(slot)
             number = slot.reading
             self._start_cdo_check([arguments])
             slot.error = None
-            slot.missing = arguments["missing"]
             # the files are known, so the only reading left is the variables of each file type
             slot.scan = {"phase": "variables", "done": 0, "total": _file_types(arguments["files"])}
             slot.view = "viewer_scanning"
@@ -609,6 +638,7 @@ class ViewerSteps:
             if not wanted() or self.closed.is_set():
                 return
             slot.guess = {"key": key, "status": "done", "answer": answer}
+            self._apply_guess(slot)
             self._notify()
 
     def _viewer_keep(self, slot, number, key, catalogue):
@@ -674,6 +704,44 @@ class ViewerSteps:
         except Exception as error:  # noqa: BLE001 - told to the page
             traceback.print_exc()
             return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+
+    def _set_missing(self, slot, text, source):
+        """Put a panel's missing value in place: the JSON rows of the setup box (see parse_missing), and where
+        it came from. Called with the lock held."""
+        slot.missing = parse_missing(text)
+        slot.form = dict(slot.form, missing=text)
+        slot.missing_source = source
+
+    def _apply_guess(self, slot):
+        """Put the guess at the missing value (see viewer_missing_guess) in the panel, once the guess is for the
+        panel's simulation and the user has not typed a value of their own. Called with the lock held."""
+        guess = slot.guess
+        if slot.missing_source == "user" or slot.missing_key is None or guess is None:
+            return
+        if guess["status"] != "done" or guess["key"] != slot.missing_key:
+            return
+        answer = guess["answer"]
+        if answer["value"] is not None:
+            self._set_missing(slot, json.dumps([[answer["value"], answer["value"]]]), "found")
+        elif answer["ersem"]:
+            self._set_missing(slot, json.dumps([["0", "0"]]), "ersem")
+
+    def viewer_set_missing(self, number, text):
+        """A panel's missing value, set from its Map options box: the JSON
+        rows of the setup box (see parse_missing). The panel's setup box
+        shows it too. Returns {"ok"}, or {"ok": False, "error"} in words."""
+        with self._lock:
+            slot = self._viewer_slot_of(number)
+            if slot is None:
+                return {"ok": False, "error": "That panel is not there."}
+            text = text if isinstance(text, str) else ""
+            try:
+                parse_missing(text)
+            except ValueError as error:
+                return {"ok": False, "error": str(error)}
+            self._set_missing(slot, text, "user")
+            self._notify()
+        return {"ok": True}
 
     def viewer_limits(self, query):
         """The range of the variable (or sum) over the whole run, or the years

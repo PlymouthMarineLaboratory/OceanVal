@@ -226,7 +226,6 @@
   .ndown-found.is-finding { color: var(--muted); background: transparent; }
   .ndown-found .identify__spinner, .group__line.is-finding .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
   .group__line.is-finding { color: var(--muted); }
-  #missing-identifying[hidden] { display: none; }
   .group__intro { margin: -2px 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
   .group__line.is-ok { color: var(--teal-700); }
   .group__line .link { font-size: inherit; }
@@ -831,10 +830,6 @@
   .history__frame { display: block; width: 100%; height: calc(100vh - var(--masthead-h, 80px) - 120px); min-height: 480px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
 
   /* ---- View simulation output (see oceanval.viewer_app) ---- */
-  /* the setup page's missing values, asked there for viewing only */
-  .missing-rows { display: grid; gap: 8px; margin-bottom: 8px; }
-  .missing-rows__row { display: grid; grid-template-columns: max-content 140px max-content 140px; gap: 8px; align-items: center; }
-  .missing-rows__row label { color: var(--ink-soft); font-size: 12.5px; font-weight: 500; }
   /* reading the files */
   .vw-meter { width: 100%; height: 8px; margin-top: 26px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
   .vw-meter > span { display: block; height: 100%; width: 0; background: var(--teal-500); transition: width 0.2s; }
@@ -872,30 +867,16 @@
   .mirror-closed strong { color: var(--ink); font: 600 18px/1.3 var(--font-head); }
   .vw-panel__tools { display: flex; gap: 8px; align-items: center; flex: none; }
   .vw-panel__setup { position: relative; height: 0; }
-  .vw-idle, .vw-scanning { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 360px; padding: 20px; text-align: center; color: var(--muted); }
-  .vw-idle[hidden], .vw-scanning[hidden], .vw[hidden] { display: none; }
-  /* an empty panel: one button in the middle, twice the size of the one in the header */
-  /* about a quarter of the way down */
-  .vw-idle { justify-content: flex-start; padding-top: 0; }
-  .vw-idle::before { content: ""; flex: 1; }
-  .vw-idle::after { content: ""; flex: 3; }
-  .vw-idle__btn { width: 380px; height: 200px; padding: 24px; font-size: 22px; white-space: nowrap; border-radius: var(--radius-md); background: var(--teal-400); border-color: var(--teal-400); }
-  .vw-idle__btn { transition: transform 0.18s ease, background-color 0.18s; }
-  /* it grows under the pointer (and when focused by keyboard) */
-  .vw-idle__btn:hover:not(:disabled), .vw-idle__btn:focus-visible { transform: scale(1.12); background: var(--teal-500); border-color: var(--teal-500); }
-  @media (prefers-reduced-motion: reduce) { .vw-idle__btn { transition: none; } }
+  .vw-scanning { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 360px; padding: 20px; text-align: center; color: var(--muted); }
+  .vw-scanning[hidden], .vw[hidden] { display: none; }
   .vw-scanning__title { margin: 14px 0 0; font-weight: 600; color: var(--ink-soft); }
   .vw-scanning .vw-meter { width: min(320px, 100%); margin-top: 16px; }
   /* the box beside a panel's "Provide simulation info" button: the setup form, moved into it while it is open */
   .vw-setup-pop { position: absolute; top: 0; right: 0; z-index: 40; width: min(600px, calc(100vw - 80px)); max-height: 75vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
   .vw-setup-pop[hidden] { display: none; }
-  /* the first panel with no simulation: its box is in the middle of the panel and has no close button */
-  /* after the first simulation the box is a dialog over the page, dimmed behind it (under the .picker dialogs it opens, 25) */
-  .vw-setup-pop.is-dialog { position: fixed; top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); z-index: 24; box-shadow: 0 0 0 200vmax var(--overlay), var(--shadow-lg); }
-  .vw-panel.is-first-empty .vw-panel__setup { position: static; }
-  .vw-panel.is-first-empty .vw-setup-pop { top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); }
-  .vw-panel.is-first-empty #vw-setup-close { display: none; }
-  .vw-setup-pop__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 0; }
+  /* an empty panel (no simulation yet): its box is in the middle of the panel, in the flow, with no close button */
+  .vw-panel.is-empty .vw-panel__setup { position: static; height: auto; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .vw-panel.is-empty .vw-setup-pop { position: static; width: min(600px, 100%); max-height: none; margin: 0 auto; box-shadow: var(--shadow-md); }
   .vw-setup-pop__body { min-height: 0; overflow-y: auto; padding: 12px 16px; }
   .vw-setup-pop__body .setup-form { gap: 14px; }
   .vw-setup-pop__foot { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); }
@@ -920,7 +901,7 @@
   .vw-panels[data-count="1"] .vw, .vw-panels[data-count="2"] .vw { flex: 1; align-items: stretch; }
   .vw-panels[data-count="1"] .vw-side, .vw-panels[data-count="2"] .vw-side { max-height: calc(100vh - var(--masthead-h, 80px) - 120px); }
   .vw-panels[data-count="1"] .vw-plot, .vw-panels[data-count="2"] .vw-plot { min-height: 0; }
-  .vw-panels[data-count="1"] .vw-idle, .vw-panels[data-count="2"] .vw-idle, .vw-panels[data-count="1"] .vw-scanning, .vw-panels[data-count="2"] .vw-scanning { flex: 1; }
+  .vw-panels[data-count="1"] .vw-scanning, .vw-panels[data-count="2"] .vw-scanning { flex: 1; }
   @media (max-width: 860px) { .vw-side { position: static; max-height: none; } }
   .vw-head { margin: 0 0 6px; font: 600 13px/1.3 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
   /* a tip that shows at once on hover or focus (no native title delay) */
@@ -977,6 +958,9 @@
   .vw-ticks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
   .vw-ticks .tick-label input { accent-color: var(--teal-600); }
   .vw-ticks .tick-label.is-off { color: var(--muted-light); cursor: not-allowed; }
+  .vw-missing { display: grid; gap: 6px; margin-top: 4px; }
+  .vw-missing .span-row { display: flex; align-items: center; gap: 6px; }
+  .vw-missing .span-row .s-input { min-width: 0; flex: 1; }
   .vw-times { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12.5px; font-weight: 600; }
   .vw-times .identify__spinner { width: 14px; height: 14px; border-width: 2px; }
   .vw-years-note { margin: 0; color: var(--muted); font-size: 12.5px; }
@@ -1150,10 +1134,10 @@
   .analyze-options .choice { aspect-ratio: auto; min-height: 200px; padding-top: 30px; }
   .analyze-area { max-width: 980px; margin: 28px 0 0; }
   .analyze-area .s-select { width: auto; min-width: 280px; }
-  .analyze-area .group__line.is-ersem, .missing-field .group__line.is-ersem, #setup-missing .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
-  .analyze-area .group__line.is-found, #setup-missing .group__line.is-found { color: var(--amber); font-weight: 600; }
-  .analyze-area .s-input.is-found, #setup-missing .s-input.is-found { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
-  .analyze-area .s-input.is-ersem, .missing-field .s-input.is-ersem, #setup-missing .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
+  .analyze-area .group__line.is-ersem, .missing-field .group__line.is-ersem, .vw-missing .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
+  .analyze-area .group__line.is-found, .vw-missing .group__line.is-found { color: var(--amber); font-weight: 600; }
+  .analyze-area .s-input.is-found, .vw-missing .s-input.is-found { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
+  .analyze-area .s-input.is-ersem, .missing-field .s-input.is-ersem, .vw-missing .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
   /* the boxes matchup is given with its cores: as wide as the report options' subset */
   .missing-field .span-row, #row-f-subset .span-row { max-width: 560px; }
   .analyze-code { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; }
@@ -1658,15 +1642,6 @@
         </div>
         <p class="group__msg" id="m-simulation"></p>
       </fieldset>
-      <fieldset class="group card setup-box" id="setup-missing" hidden>
-        <legend>Missing values <span class="g-note">(optional)</span></legend>
-        <p class="group__intro">Numbers in the files that mean there is no data, such as 0 or -999, and are not marked as missing in them. Give one number, or fill in To as well for a range (both ends are included). They apply to every variable.</p>
-        <div class="missing-rows" id="missing-rows"></div>
-        <p class="group__line is-finding" id="missing-identifying" hidden><span class="identify__spinner" aria-hidden="true"></span>Attempting to identify missing value range</p>
-        <p class="group__line is-found" id="missing-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data before you continue.</p>
-        <p class="group__line is-ersem" id="missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
-        <p class="group__msg" id="m-missing-rows"></p>
-      </fieldset>
       <input type="hidden" id="f-start">
       <input type="hidden" id="f-end">
       <button type="submit" hidden></button>
@@ -1679,8 +1654,7 @@
     <div class="vw-panels" id="vw-panels" data-count="0">
       <button type="button" class="vw-add" id="vw-add" aria-label="Add a simulation" title="Add a simulation"><span class="vw-add__plus" aria-hidden="true">+</span><span class="vw-add__text">Add a simulation</span></button>
     </div>
-    <div class="vw-setup-pop card" id="vw-setup-pop" role="dialog" aria-labelledby="vw-setup-title" hidden>
-      <div class="vw-setup-pop__head"><h2 class="vw-head" id="vw-setup-title">Provide simulation info</h2><button type="button" class="vw-icon-btn" id="vw-setup-close" aria-label="Close this box">&times;</button></div>
+    <div class="vw-setup-pop card" id="vw-setup-pop" role="dialog" aria-label="Provide simulation info" hidden>
       <div class="vw-setup-pop__body" id="vw-setup-body"></div>
       <div class="vw-setup-pop__foot"><button type="button" class="btn btn--primary" id="vw-apply">Apply</button></div>
     </div>
@@ -1698,7 +1672,6 @@
       </header>
       <div class="vw-panel__setup" data-vw="setup-slot"></div>
       <p class="vw-error" data-vw="error" role="alert" hidden></p>
-      <div class="vw-idle" data-vw="idle"><button type="button" class="btn btn--primary vw-idle__btn" data-vw="idle-btn" aria-haspopup="dialog" aria-expanded="false">Provide simulation info</button></div>
       <div class="vw-scanning" data-vw="scanning" hidden>
         <span class="prepare__spinner" aria-hidden="true"></span>
         <p class="vw-scanning__title">Reading the variables of each file type</p>
@@ -1764,6 +1737,18 @@
         <div class="vw-ticks">
         <label class="tick-label"><input type="checkbox" data-vw="log"> Logarithmic</label>
         <label class="tick-label" data-vw="coast-label"><input type="checkbox" data-vw="coast"> Coastlines</label>
+        </div>
+        <div class="vw-missing">
+        <span class="g-label">Set to missing value</span>
+        <div class="span-row">
+        <input class="s-input is-num" data-vw="mv-from" placeholder="value" aria-label="Missing value, from" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off">
+        <span class="dash">–</span>
+        <input class="s-input is-num" data-vw="mv-to" placeholder="to" aria-label="Missing value, to" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off">
+        </div>
+        <p class="group__msg" data-vw="mv-msg" role="status" aria-live="polite" hidden></p>
+        <p class="group__line is-finding" data-vw="mv-looking" hidden><span class="identify__spinner" aria-hidden="true"></span>Attempting to identify missing value range</p>
+        <p class="group__line is-found" data-vw="mv-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data.</p>
+        <p class="group__line is-ersem" data-vw="mv-ersem" hidden>This appears to be an ERSEM simulation and the value is assumed.</p>
         </div>
         </div>
         </div>
@@ -3642,6 +3627,8 @@
     constructor(number) {
       this.number = number;
       this.slot = null;
+      // a panel with no simulation shows its setup box (see renderViewers): a new one does, and so does one emptied
+      this.wantsBox = true;
       this.root = $("vw-panel-tpl").content.firstElementChild.cloneNode(true);
       this.root.dataset.panel = String(number);
       this.$ = (name) => this.root.querySelector(`[data-vw="${name}"]`);
@@ -3671,12 +3658,15 @@
       this.frames = new Map();
       this.ready = new Set();
       this.fetching = 0;
+      // bumped when the missing value is changed, so frames read with the old one are not used
+      this.missingNumber = 0;
+      // the missing value as the server last had it, and the boxes' state once it has been put in them
+      this.missingSeen = null;
       this.plotNumber = 0;
       this.plotTimer = null;
       this.yearsTimer = null;
       this.$("cmap").replaceChildren(...COLOUR_MAPS.map((name) => el("option", { value: name, text: name || "Automatic" })));
       this.$("speed").value = this.pick.speed;
-      this.$("remove").hidden = number === 1;
       this.wire();
       this.wireSplit();
       // the width of the variable column, dragged on its divider, kept for the panel number between visits
@@ -3697,7 +3687,6 @@
     wire() {
       this.root.addEventListener("pointerdown", () => { activePanel = this.number; });
       this.root.addEventListener("focusin", () => { activePanel = this.number; });
-      this.$("idle-btn").addEventListener("click", () => openSetup(this.number));
       this.$("open-tab").addEventListener("click", () => {
         const url = new URL(window.location.href);
         url.searchParams.set("mirror", String(this.number));
@@ -3761,6 +3750,68 @@
       });
       this.$("log").addEventListener("change", (event) => { this.pick.log = event.target.checked; this.requestPlot(0); });
       this.$("coast").addEventListener("change", (event) => { this.pick.coast = event.target.checked; this.requestPlot(0); });
+      for (const name of ["mv-from", "mv-to"]) {
+        this.$(name).addEventListener("change", () => this.applyMissing());
+        this.$(name).addEventListener("input", () => this.showMissingSource({ missing_source: "user", missing_looking: false }));
+        this.$(name).addEventListener("keydown", (event) => { if (event.key === "Enter") this.applyMissing(); });
+      }
+    }
+
+    // the boxes show the panel's missing value: the first row of the setup box's JSON, as text
+    fillMissingBoxes(text) {
+      let row = ["", ""];
+      try {
+        const rows = JSON.parse(text || "[]");
+        if (Array.isArray(rows) && rows.length) row = [String(rows[0][0] ?? ""), String(rows[0][1] ?? "")];
+      } catch (error) {
+        row = ["", ""];
+      }
+      this.$("mv-from").value = row[0];
+      this.$("mv-to").value = row[1];
+      this.$("mv-from").classList.remove("is-invalid");
+      this.$("mv-to").classList.remove("is-invalid");
+      this.$("mv-msg").hidden = true;
+    }
+
+    // where the value came from: amber if found in the files, ERSEM-coloured if assumed, plain if typed; and the
+    // look for it while it is going on
+    showMissingSource(slot) {
+      const source = slot.missing_source;
+      for (const name of ["mv-from", "mv-to"]) {
+        this.$(name).classList.toggle("is-found", source === "found");
+        this.$(name).classList.toggle("is-ersem", source === "ersem");
+      }
+      this.$("mv-looking").hidden = !slot.missing_looking;
+      this.$("mv-found").hidden = source !== "found";
+      this.$("mv-ersem").hidden = source !== "ersem";
+    }
+
+    // the boxes' missing value, sent to the panel, which then draws its map again with it
+    async applyMissing() {
+      const from = this.$("mv-from").value.trim(), to = this.$("mv-to").value.trim();
+      const num = (text) => Number.isFinite(Number(text));
+      let problem = "";
+      if (from === "" && to !== "") problem = "Fill in the value as well as the To.";
+      else if (from !== "" && !num(from)) problem = "The missing value must be a number.";
+      else if (to !== "" && !num(to)) problem = "The To must be a number.";
+      this.$("mv-from").classList.toggle("is-invalid", from !== "" && !num(from));
+      this.$("mv-to").classList.toggle("is-invalid", to !== "" && !num(to));
+      this.$("mv-msg").hidden = !problem;
+      this.$("mv-msg").textContent = problem;
+      if (problem) return;
+      const text = from === "" ? "" : JSON.stringify([[from, to]]);
+      if (text === this.missingSeen) return;
+      const reply = await post("api/viewer/set_missing", { viewer: this.number, missing: text });
+      if (!reply.ok) {
+        this.$("mv-msg").hidden = false;
+        this.$("mv-msg").textContent = reply.error || "The missing value could not be set.";
+        return;
+      }
+      this.missingSeen = text;
+      this.missingNumber += 1;
+      this.scale = null;
+      this.forgetFrames();
+      this.requestPlot(0);
     }
 
     // the variable column's width in px, within what leaves the search box usable and the map its room
@@ -3821,16 +3872,38 @@
     update(slot) {
       this.slot = slot;
       this.$("title").textContent = panelTitle(slot);
-      this.$("idle-btn").setAttribute("aria-expanded", String(setupPanel === this.number));
       this.$("error").hidden = !slot.error;
       this.$("error").textContent = slot.error || "";
+      // the missing value boxes take the simulation's value when it changes (not while one is being typed in)
+      const missingText = String((slot.form && slot.form.missing) || "");
+      if (missingText !== this.missingSeen) {
+        const changed = this.missingSeen !== null;
+        this.missingSeen = missingText;
+        if (!this.$("mv-from").matches(":focus") && !this.$("mv-to").matches(":focus")) this.fillMissingBoxes(missingText);
+        // a value the server put in (the guess) changes the map, as a typed one does
+        if (changed) {
+          this.missingNumber += 1;
+          this.scale = null;
+          this.forgetFrames();
+          if (this.pick.names.length && slot.view === "viewer") this.requestPlot(0);
+        }
+      }
+      this.showMissingSource(slot);
+      // panel 1's × shows while it has a simulation: closing it empties the panel (see oceanval.viewer_app.viewer_remove)
+      const hasSimulation = slot.view === "viewer" || slot.view === "viewer_scanning";
+      const remove = this.$("remove");
+      remove.hidden = this.number === 1 && !hasSimulation;
+      const label = this.number === 1 ? "Close this simulation" : "Remove this simulation";
+      remove.setAttribute("aria-label", label);
+      remove.title = label;
+      // a panel that had a simulation and is empty again opens its box again, blank, for a new directory
+      if (slot.view === "setup" && this.hadSimulation) { this.wantsBox = true; panelDrafts.delete(this.number); }
+      if (slot.view === "setup" && slot.error) this.wantsBox = true;
+      this.hadSimulation = hasSimulation;
       const scanning = slot.view === "viewer_scanning";
       const ready = slot.view === "viewer";
-      this.$("idle").hidden = scanning || ready;
-      // an empty panel has its button in the middle; a panel with a simulation has none. The first panel's box
-      // opens by itself in the middle (see renderViewers) and cannot be closed until a simulation is given
-      this.$("idle-btn").hidden = this.number === 1;
-      this.root.classList.toggle("is-first-empty", this.number === 1 && !this.$("idle").hidden);
+      // an empty panel has its setup box in its middle (see renderViewers)
+      this.root.classList.toggle("is-empty", slot.view === "setup");
       this.$("scanning").hidden = !scanning;
       this.$("body").hidden = !ready;
       this.$("open-tab").hidden = !ready || Boolean(MIRROR) || !mirrorChannel;
@@ -4381,7 +4454,7 @@
     // a frame is of the files read (another simulation can have the same variables) and of their times
     // as they were (a step can be another time once every file's times are in)
     frameKey(params) {
-      return JSON.stringify([this.shown, this.timesNumber, params]);
+      return JSON.stringify([this.shown, this.timesNumber, this.missingNumber, params]);
     }
 
     keyFor(step) {
@@ -4715,15 +4788,12 @@
       panels.delete(number);
       panelDrafts.delete(number);
     }
-    // the first panel, with no simulation yet, opens its box by itself: there is nothing else to do
-    let opening = false;
     for (const slot of slots) {
       if (panels.has(slot.id)) continue;
       const made = new ViewerPanel(slot.id);
       panels.set(slot.id, made);
       // the first thing a new tab does is ask where the other has got to
       if (MIRROR && mirrorChannel) mirrorChannel.postMessage({ type: "hello", panel: slot.id });
-      if (slot.id === 1 && slot.view === "setup" && !MIRROR) opening = true;
     }
     const grid = $("vw-panels");
     grid.dataset.count = String(slots.length);
@@ -4732,10 +4802,13 @@
       grid.insertBefore(panel.root, $("vw-add"));
       panel.update(slot);
     }
-    $("vw-add").hidden = MIRROR || slots.length >= state.viewer.most;
-    // the first panel's box opens by itself at first, and again if its simulation could not be read
-    const first = panels.get(1);
-    if (!MIRROR && first && setupPanel === null && first.slot && first.slot.view === "setup" && (opening || first.slot.error)) openSetup(1);
+    // one form serves every empty panel, so the + waits until the empty panel has its simulation or is removed
+    $("vw-add").hidden = MIRROR || slots.length >= state.viewer.most || slots.some((slot) => slot.view === "setup");
+    // an empty panel's box opens by itself: a new one, one emptied, or one whose simulation could not be read
+    if (!MIRROR && setupPanel === null) {
+      const next = slots.find((slot) => slot.view === "setup" && panels.get(slot.id).wantsBox);
+      if (next) openSetup(next.id);
+    }
     if (activePanel !== null && !panels.has(activePanel)) activePanel = null;
   }
 
@@ -4746,25 +4819,19 @@
     return slot ? slot.form : {};
   }
 
-  // a panel's "Provide simulation info" box: the setup page's form (and its banner) move into it, and back when it closes
-  // the first panel, with no simulation yet, has its box open and cannot close it
-  const boxStays = () => setupPanel === 1 && panels.has(1) && panels.get(1).root.classList.contains("is-first-empty");
-
+  // an empty panel's "Provide simulation info" box: the setup page's form (and its banner) move into the panel's middle,
+  // and back when the box closes (a simulation given, the panel removed, or Back)
   function openSetup(number) {
-    if (setupPanel === number) { if (!boxStays()) closeSetup(); return; }
+    if (setupPanel === number) return;
     closeSetup();
     const panel = panels.get(number);
     if (!panel) return;
     setupPanel = number;
     activePanel = number;
-    // the first panel's own box opens in the middle of that panel, undismissed; every other is a dialog over the page
-    const inPanel = number === 1 && panel.root.classList.contains("is-first-empty");
-    if (inPanel) panel.$("setup-slot").append($("vw-setup-pop"));
-    else $("view-viewer").append($("vw-setup-pop"));
-    $("vw-setup-pop").classList.toggle("is-dialog", !inPanel);
+    panel.wantsBox = false;
+    panel.$("setup-slot").append($("vw-setup-pop"));
     $("vw-setup-pop").hidden = false;
     $("vw-setup-body").append($("setup-error"), $("setup-form"));
-    panel.$("idle-btn").setAttribute("aria-expanded", "true");
     fillSetup();
     $("f-simdir").focus();
   }
@@ -4779,8 +4846,6 @@
     $("view-setup").append($("setup-error"), $("setup-form"));
     $("view-viewer").append($("vw-setup-pop"));
     $("vw-setup-pop").hidden = true;
-    const panel = panels.get(number);
-    if (panel) panel.$("idle-btn").setAttribute("aria-expanded", "false");
   }
 
   // the boxes of every panel are let go of when the viewer is left
@@ -4800,22 +4865,6 @@
     const panel = panels.get(activePanel);
     if (panel) panel.arrowKey(event);
   });
-  // a click outside the box closes it (a folder chooser or other box opened from it is not outside)
-  document.addEventListener("pointerdown", (event) => {
-    // (the lists of the box's drop-downs are put on the page body, outside it, so a press on them is inside it in effect)
-    if (setupPanel === null || boxStays() || event.target.closest(".picker, .year-list, .combo__list") || $("vw-setup-pop").contains(event.target)) return;
-    const panel = panels.get(setupPanel);
-    if (panel && panel.$("idle-btn").contains(event.target)) return;
-    closeSetup();
-  });
-  $("vw-setup-pop").addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || event.target.closest(".picker") || boxStays()) return;
-    const number = setupPanel;
-    closeSetup();
-    const panel = panels.get(number);
-    if (panel && !panel.$("idle-btn").hidden) panel.$("idle-btn").focus();
-  });
-  $("vw-setup-close").addEventListener("click", () => { if (!boxStays()) closeSetup(); });
   $("vw-apply").addEventListener("click", () => submitSetup());
   $("vw-add").addEventListener("click", async () => {
     const reply = await post("api/viewer/add");
@@ -5104,8 +5153,6 @@
   const SETUP_FIELDS = ["name", "simdir", "ndown", "exclude", "require", "start", "end"];
   // the boxes the live check depends on
   const PROBED = new Set(["simdir", "ndown", "exclude", "require"]);
-  // how often the missing value being looked for is asked about again, in ms (see askMissingGuess)
-  const MISSING_GUESS_AGAIN = 400;
   const setup = {};
   depthBox($("f-ndown"));
   // the words that can be clicked into every "Skip file names containing" box
@@ -5130,12 +5177,9 @@
     for (const name of SETUP_FIELDS) $(`f-${name}`).value = setup[name];
     $("f-thredds").checked = Boolean(setup.thredds);
     refreshThredds();
-    // the numbers to treat as missing are asked here only for viewing (an analysis asks them with its options)
-    $("setup-missing").hidden = state.action !== "viewer";
     // viewing can also be given the path of one file
     $("simdir-question").textContent = state.action === "viewer"
       ? "Which directory, file path or web address stores your simulation data?" : "Which directory stores your simulation data?";
-    fillMissingRows();
     setupErrors = {};
     autoYears = Boolean(setup.start && setup.end);
     autoNdown = false;
@@ -5183,13 +5227,6 @@
   }
   function newSimulationForViewer() {
     newDirectoryDepth();
-    missingRows = [];
-    missingTouched = false;
-    missingGuess = null;
-    missingKey = null;
-    missingNumber++;
-    missingLooking = false;
-    renderMissingRows();
   }
 
   function askProbe(delay) {
@@ -5254,125 +5291,24 @@
 
   const isInteger = (text) => /^[+-]?\d+$/.test(String(text).trim());
 
-  // ---- the numbers to treat as missing, asked on this page for viewing the output ----
-  // the one row of [from, to] as typed, kept as text; to empty is a single number, and an empty row is not sent
-  let missingRows = [];
-  // what OceanVal put in the rows from the files (see askMissingGuess): null, "found" or "ersem"; whether the
-  // user has typed in or removed a row, after which nothing is put there; and the simulation last asked about
-  let missingGuess = null, missingTouched = false, missingKey = null, missingNumber = 0, missingLooking = false;
-  const isNumber = (text) => text.trim() !== "" && Number.isFinite(Number(text));
-  const missingRowOk = (row) => (row[0].trim() === "" ? row[1].trim() === "" : isNumber(row[0]) && (row[1].trim() === "" || isNumber(row[1])));
-  function fillMissingRows() {
-    try {
-      // only the first row is kept: there is one From and one To
-      missingRows = JSON.parse(setup.missing || "[]").slice(0, 1).map((row) => [String(row[0] || ""), String(row[1] || "")]);
-    } catch (error) {
-      missingRows = [];
-    }
-    // a row that is filled in, coming back from the viewer, is the user's to keep
-    missingTouched = missingRows.some((row) => row[0].trim() !== "" || row[1].trim() !== "");
-    missingGuess = null;
-    missingKey = null;
-    missingNumber++;
-    missingLooking = false;
-    renderMissingRows();
-  }
-  // the boxes and the lines under them say what OceanVal filled in
-  function markMissingGuess() {
-    for (const id of ["missing-from-0", "missing-to-0"]) {
-      // the row is not there while the page is not the viewer's (its answer can come after the page has changed)
-      if (!$(id)) continue;
-      $(id).classList.toggle("is-found", missingGuess === "found");
-      $(id).classList.toggle("is-ersem", missingGuess === "ersem");
-    }
-    $("missing-identifying").hidden = !missingLooking;
-    $("missing-found").hidden = missingGuess !== "found";
-    $("missing-ersem").hidden = missingGuess !== "ersem";
-  }
-  // what the user types in the boxes makes them theirs
-  function missingEdited() {
-    missingTouched = true;
-    missingGuess = null;
-    missingLooking = false;
-    missingNumber++;
-    markMissingGuess();
-  }
-  // the value many cells share in the files, or 0 for an ERSEM simulation, put in the rows if the user has not
+  // ---- the missing value is the panel\'s (see oceanval.viewer_app): the server looks for the guess at it and
+  // puts it in the panel's Map options boxes, so the setup page only starts the look ----
+  // the look starts once the files are found; the server keeps the answer for the simulation, so asking again is cheap
   async function askMissingGuess() {
     if (state.action !== "viewer") return;
-    if (!probe || probe.directory !== "found" || !(probe.files > 0)) {
-      if (missingGuess) { missingRows = []; missingGuess = null; renderMissingRows(); }
-      missingKey = null;
-      missingNumber++;
-      missingLooking = false;
-      markMissingGuess();
-      return;
+    if (!probe || probe.directory !== "found" || !(probe.files > 0)) return;
+    try {
+      await fetch(`api/viewer/missing?${query({
+        simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require, viewer: String(setupPanel),
+      })}`, { cache: "no-store" });
+    } catch (error) {
+      // the panel simply has no guess; the boxes can be filled in by hand
     }
-    const key = JSON.stringify([setup.simdir, setup.ndown, setup.exclude, setup.require]);
-    if (key === missingKey) return;
-    missingKey = key;
-    // rows OceanVal filled for another simulation are not this one's
-    if (missingGuess) { missingRows = []; missingGuess = null; renderMissingRows(); }
-    if (missingTouched) return;
-    const number = ++missingNumber;
-    missingLooking = true;
-    markMissingGuess();
-    // the server looks in a thread of its own, so the answer is asked for again while it reads
-    let answer;
-    for (;;) {
-      try {
-        const response = await fetch(`api/viewer/missing?${query({
-          simdir: setup.simdir, ndown: setup.ndown, exclude: setup.exclude, require: setup.require, viewer: String(setupPanel),
-        })}`, { cache: "no-store" });
-        answer = await response.json();
-      } catch (error) {
-        if (number === missingNumber) { missingLooking = false; markMissingGuess(); }
-        return;
-      }
-      if (number !== missingNumber || missingTouched) return;
-      if (answer.status !== "reading") break;
-      await new Promise((again) => setTimeout(again, MISSING_GUESS_AGAIN));
-      if (number !== missingNumber || missingTouched) return;
-    }
-    missingLooking = false;
-    const value = answer.value !== null ? answer.value : answer.ersem ? "0" : null;
-    if (value === null) { markMissingGuess(); return; }
-    missingRows = [[value, value]];
-    missingGuess = answer.value !== null ? "found" : "ersem";
-    renderMissingRows();
-    refreshSetup();
   }
-  function renderMissingRows() {
-    // the boxes are always there: an empty row if there is none, and there is never more than the one
-    if (!missingRows.length) missingRows.push(["", ""]);
-    missingRows.length = 1;
-    $("missing-rows").replaceChildren(...missingRows.map((row, index) => {
-      const box = (position, id, placeholder) => {
-        const input = el("input", { class: "s-input is-num", id, inputmode: "decimal", placeholder, spellcheck: "false", autocomplete: "off",
-          "aria-label": `Missing value, ${position === 0 ? "from" : "to"}` });
-        input.value = row[position];
-        input.classList.toggle("is-invalid", input.value.trim() !== "" && !isNumber(input.value));
-        input.addEventListener("input", () => {
-          row[position] = input.value;
-          input.classList.toggle("is-invalid", input.value.trim() !== "" && !isNumber(input.value));
-          missingEdited();
-          delete setupErrors.missing;
-          refreshSetup();
-        });
-        return input;
-      };
-      return el("div", { class: "missing-rows__row" },
-        el("label", { for: `missing-from-${index}`, text: "From" }), box(0, `missing-from-${index}`, "e.g. -999"),
-        el("label", { for: `missing-to-${index}`, text: "To" }), box(1, `missing-to-${index}`, "optional"),
-      );
-    }));
-    markMissingGuess();
-  }
-  // what the setup page sends: for viewing, with the missing value as a JSON row (an empty row left out)
+
+  // what the setup page sends: for viewing, the panel whose box this is
   function setupForm() {
     if (state.action !== "viewer") return setup;
-    const rows = missingRows.slice(0, 1).filter((row) => row[0].trim() !== "" || row[1].trim() !== "");
-    setup.missing = rows.length ? JSON.stringify(rows) : "";
     // the panel whose box this is (see openSetup)
     setup.viewer = setupPanel;
     return setup;
@@ -5397,10 +5333,6 @@
       if (!isInteger(setup[name])) errors[name] = errors[name] || (text(name) ? `${name === "start" ? "Start" : "End"} must be a year, e.g. 2011.` : "");
     }
     if (!errors.start && !errors.end && +setup.end < +setup.start && !analyzing) errors.end = "End must not be before start.";
-    if (state.action === "viewer") {
-      const bad = missingRows.findIndex((row) => !missingRowOk(row));
-      if (bad >= 0) errors.missing = `Missing value: ${missingRows[bad][0].trim() === "" ? "fill in From" : "that is not a number"}.`;
-    }
     // the files are still being looked for: Continue would go on with the count of the check
     // before, which a file name filter just typed in has made wrong. Not a field, so nothing
     // is marked red: the box beside "directories down" already says "Finding files"
@@ -5540,7 +5472,6 @@
     else badge.textContent = counted;
     badge.hidden = !finding && !counted;
     message("m-simulation", simulation, false);
-    message("m-missing-rows", errors.missing ? [line(errors.missing, "error")] : [], Boolean(errors.missing));
 
     const problems = Object.keys(errors);
     const blocked = problems.length > 0;
