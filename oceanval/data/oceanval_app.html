@@ -1639,13 +1639,13 @@
           <div class="g-row word-list" id="f-exclude-list">
             <span class="g-label" id="f-exclude-label">Skip file names containing</span>
             <input type="hidden" id="f-exclude">
-            <div class="word-list__add"><input class="s-input is-mono" id="f-exclude-add" placeholder="e.g. restart" aria-labelledby="f-exclude-label" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></div>
+            <div class="word-list__add"><input class="s-input is-mono" id="f-exclude-add" placeholder="Type term and press ↵" aria-labelledby="f-exclude-label" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></div>
             <ul class="word-list__items" id="f-exclude-items" aria-labelledby="f-exclude-label"></ul>
           </div>
           <div class="g-row word-list" id="f-require-list">
             <span class="g-label" id="f-require-label">Only include file names containing</span>
             <input type="hidden" id="f-require">
-            <div class="word-list__add"><input class="s-input is-mono" id="f-require-add" placeholder="e.g. grid_T" aria-labelledby="f-require-label" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></div>
+            <div class="word-list__add"><input class="s-input is-mono" id="f-require-add" placeholder="Type term and press ↵" aria-labelledby="f-require-label" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></div>
             <ul class="word-list__items" id="f-require-items" aria-labelledby="f-require-label"></ul>
           </div>
         </div>
@@ -5181,7 +5181,7 @@
   // the words that can be clicked into every "Skip file names containing" box
   // the simulation step's file filters are word lists too (see OceanValGUI.wordList); the starter words are OceanVal's
   OceanValGUI.wordList({ store: "f-exclude", add: "f-exclude-add", items: "f-exclude-items", empty: "Nothing is skipped yet" });
-  OceanValGUI.wordList({ store: "f-require", add: "f-require-add", items: "f-require-items", empty: "No terms are required" });
+  OceanValGUI.wordList({ store: "f-require", add: "f-require-add", items: "f-require-items", empty: "" });
   // the file filters of every window are word lists (OceanValGUI.wordFilters), built from their hosts
   OceanValGUI.buildWordFilters();
   let setupErrors = {};
@@ -5482,9 +5482,6 @@
       counted = "1 netCDF file found";
       simulation.push(line(setup.thredds ? "The file is read from the server as it is: directories down and the file name filters do not apply."
         : "A single file is used as it is: directories down and the file name filters do not apply."));
-    }
-    if (state.action !== "viewer" && (String(setup.require).trim() || String(setup.exclude).trim())) {
-      simulation.push(line(`The filters are passed on to ${state.action === "analyze" ? "the analysis" : "matchup"}, too.`));
     }
     // the depth was filled in from the layout of the folders: bold, and told once in a pop-out
     const detected = autoNdown && !finding && Boolean(probe && probe.layout) && probe.directory === "found";

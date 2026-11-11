@@ -22,6 +22,14 @@ The OceanVal app (the `oceanval` command's browser windows: `oceanval_app.html`,
 that the page fits one. A narrowed desktop window is still handled (the 720px-and-wider rules, e.g. the grid's ≤860px sizes). The public docs
 website (`docs-site/`, `docs/source/`) and the generated HTML report (its ≤720px sidebar) are read on any device and keep their own responsive CSS.
 
+## Hover rule for tiles and buttons
+
+In the OceanVal app's windows (`oceanval_app.html`, `create_recipes_gui.html`, `gui.css`), **every tile (`.choice`) and every
+button (`.btn`, all variants) grows 5% and lifts 2px on hover** (`transform: translateY(-2px) scale(1.05)`, the user's rule,
+2026-11-11). A disabled button does not grow (`.btn:hover:not(:disabled)`), and the reduced-motion block turns the transition
+off. A new tile or button class that is not built on `.btn`/`.choice` must follow the same rule. Icon-only controls (info, gear,
+pills, row remove ×) are not covered.
+
 ## Environment setup
 
 Conda is the supported environment (`oceanval.yml`) — R packages (rpy2, r-tidyverse, r-ggtext,

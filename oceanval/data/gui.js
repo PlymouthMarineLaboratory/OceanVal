@@ -1340,8 +1340,8 @@ const OceanValGUI = (() => {
   // The store inputs keep their ids (the page reads and writes them); the words, the boxes and the labels are made here.
   function wordFilters(host) {
     const pairs = [
-      { store: host.dataset.skip, label: "Skip file names containing", empty: "Nothing is skipped yet", placeholder: "e.g. restart" },
-      { store: host.dataset.only, label: "Only include file names containing", empty: "No terms are required", placeholder: "e.g. grid_T" },
+      { store: host.dataset.skip, label: "Skip file names containing", empty: "Nothing is skipped yet", placeholder: "Type term and press ↵" },
+      { store: host.dataset.only, label: "Only include file names containing", empty: "", placeholder: "Type term and press ↵" },
     ];
     for (const { store, label, empty, placeholder } of pairs) {
       if (!store || $(store)) continue;

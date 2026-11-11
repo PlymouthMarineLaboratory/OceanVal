@@ -285,8 +285,10 @@ input.tick { cursor: pointer; }
   border-radius: 10px;
   font: 600 14px/1 var(--font-body);
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s, transform 0.15s;
 }
+/* hovering grows a button by 5% and lifts it 2px, as it does a tile (.choice); a disabled button stays put */
+.btn:hover:not(:disabled) { transform: translateY(-2px) scale(1.05); }
 .btn:focus-visible { outline: none; box-shadow: var(--focus); }
 .btn--primary {
   min-width: 132px;
@@ -674,7 +676,7 @@ tr.is-picked .vars__pm, li.is-chosen .vw-pm { border-color: var(--teal-600); bac
 .prefs__choices.is-disabled .prefs__use input[type="radio"]:checked::after { background: var(--tick-line); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ptr-mode, .prefs__use, .reg-where label { transition: none; }
+  .ptr-mode, .prefs__use, .reg-where label, .btn { transition: none; }
 }
 
 /* No Required tags are shown: a box that must be given is outlined in red while it is empty (OceanValGUI.syncRequired

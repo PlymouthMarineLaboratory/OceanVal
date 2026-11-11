@@ -5018,7 +5018,7 @@ def test_words_to_skip_are_a_list_in_a_browser(browser, tmp_path):
         page.click("#home-validate")
         page.click('button.choice[data-action="matchup_validate"]')
         page.wait_for_selector("#view-setup:not([hidden])")
-        assert page.locator("#f-require-items .word-list__none").inner_text() == "No terms are required"
+        assert page.locator("#f-require-items .word-list__none").count() == 0
         assert page.input_value("#f-exclude") == "restart spinup"
         page.fill("#f-simdir", "sim")
         page.fill("#f-ndown", "1")
