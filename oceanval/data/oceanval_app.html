@@ -3904,8 +3904,15 @@
       const ready = slot.view === "viewer";
       // an empty panel has its setup box in its middle (see renderViewers)
       this.root.classList.toggle("is-empty", slot.view === "setup");
+      // a hidden subtree forgets its scroll, so put it back when the body returns
+      const side = this.$("body").querySelector(".vw-side");
+      const sideTop = side ? side.scrollTop : 0;
+      const listTop = this.$("list").scrollTop;
+      const wasHidden = this.$("body").hidden;
       this.$("scanning").hidden = !scanning;
       this.$("body").hidden = !ready;
+      if (ready && wasHidden && this.keptScroll) { if (side) side.scrollTop = this.keptScroll.side; this.$("list").scrollTop = this.keptScroll.list; }
+      if (!ready && !wasHidden) this.keptScroll = { side: sideTop, list: listTop };
       this.$("open-tab").hidden = !ready || Boolean(MIRROR) || !mirrorChannel;
       if (scanning) this.renderScan(slot.scan);
       // a simulation being read, or none: what was shown is gone
@@ -3968,7 +3975,7 @@
       this.renderSide();
       this.renderYears();
       renderBar();
-      if (activePanel === this.number) this.$("search").focus();
+      if (activePanel === this.number) this.$("search").focus({ preventScroll: true });
       this.toastUnreadable();
       if (this.mirrorPending) this.applyMirror(this.mirrorPending);
     }
@@ -4098,7 +4105,10 @@
         );
       });
       const none = Object.keys(this.catalogue.variables).length ? "No variable matches that." : "No variable here can be mapped.";
-      this.$("list").replaceChildren(...(items.length ? items : [el("li", { class: "vw-list__none", text: none })]));
+      const list = this.$("list");
+      const kept = list.scrollTop;
+      list.replaceChildren(...(items.length ? items : [el("li", { class: "vw-list__none", text: none })]));
+      list.scrollTop = kept;
       this.$("clear").hidden = !this.pick.names.length;
     }
 
@@ -4111,7 +4121,12 @@
         this.listActive = (this.listActive + (event.key === "ArrowDown" ? 1 : -1) + found.length) % found.length;
         this.renderList();
         const active = this.$("list").querySelector(".is-active");
-        if (active) active.scrollIntoView({ block: "nearest" });
+        if (active) {
+          // scroll the list alone: scrollIntoView would move the sidebar and the page too
+          const list = this.$("list");
+          if (active.offsetTop < list.scrollTop) list.scrollTop = active.offsetTop;
+          else if (active.offsetTop + active.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = active.offsetTop + active.offsetHeight - list.clientHeight;
+        }
       } else if (event.key === "Enter") {
         event.preventDefault();
         const chosen = found[Math.max(0, this.listActive)];
@@ -4799,7 +4814,9 @@
     grid.dataset.count = String(slots.length);
     for (const slot of slots) {
       const panel = panels.get(slot.id);
-      grid.insertBefore(panel.root, $("vw-add"));
+      // moving an attached node resets the scroll of everything inside it, so only place a root that is new or out of order
+      const at = slots.indexOf(slot);
+      if (panel.root.parentNode !== grid || grid.children[at] !== panel.root) grid.insertBefore(panel.root, $("vw-add"));
       panel.update(slot);
     }
     // one form serves every empty panel, so the + waits until the empty panel has its simulation or is removed
