@@ -9,6 +9,7 @@
   /*__OCEANVAL_GUI_CSS__*/
 
   table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+  col.c-num { width: 48px; }
   col.c-obs { width: 156px; }
   col.c-model { width: 26.5%; }
   col.c-point { width: 220px; }
@@ -28,6 +29,7 @@
     text-transform: uppercase;
   }
   thead th:first-child { border-top-left-radius: var(--radius-md); }
+  thead th.num, tbody td.num { width: 48px; padding-left: 16px; padding-right: 8px; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
   thead th:last-child { border-top-right-radius: var(--radius-md); }
   tbody td { padding: 14px 16px; border-bottom: 4px solid var(--line-strong); vertical-align: top; }
   tbody tr:last-child td { border-bottom: 0; }
@@ -302,9 +304,10 @@
 
     <div class="card">
       <table>
-        <colgroup><col class="c-obs"><col class="c-model"><col class="c-gridded"></colgroup>
+        <colgroup><col class="c-num"><col class="c-obs"><col class="c-model"><col class="c-gridded"></colgroup>
         <thead>
           <tr>
+            <th scope="col" class="num">No.</th>
             <th scope="col">Environmental variable</th>
             <th scope="col">What is the simulation variable name?</th>
             <th scope="col"><span class="th-with-button">What gridded datasets do you want?<button type="button" class="btn btn--primary btn--th" id="clear-gridded">Deselect all</button></span></th>
@@ -371,9 +374,10 @@
 
     <div class="card">
       <table>
-        <colgroup><col class="c-obs"><col class="c-model"><col class="c-point-wide"><col class="c-chosen"></colgroup>
+        <colgroup><col class="c-num"><col class="c-obs"><col class="c-model"><col class="c-point-wide"><col class="c-chosen"></colgroup>
         <thead>
           <tr>
+            <th scope="col" class="num">No.</th>
             <th scope="col">Environmental variable</th>
             <th scope="col">What is the simulation variable name?</th>
             <th scope="col"><span class="th-with-button">What point datasets do you want?<button type="button" class="btn btn--primary btn--th" id="clear-point">Deselect all</button></span></th>
@@ -1483,11 +1487,17 @@
   }
 
   const tbodies = { gridded: $("rows-gridded"), point: $("rows-point") };
+  // each table numbers its own variables, down its left-hand side
+  const numbered = { gridded: 0, point: 0 };
   for (const shown of state.rows) {
     const row = rows.find((candidate) => candidate.variable === shown.variable);
     if (row) row.dom = { views: [], chips: row.datasets.map((dataset) => buildChip(row, dataset)) };
     for (const kind of KINDS) {
-      if (hasKind(shown, kind)) tbodies[kind].append(row ? buildRow(row, kind) : buildOwnRow(shown, kind));
+      if (!hasKind(shown, kind)) continue;
+      numbered[kind] += 1;
+      const tr = row ? buildRow(row, kind) : buildOwnRow(shown, kind);
+      tr.prepend(el("td", { class: "num", "data-label": "No.", text: String(numbered[kind]) }));
+      tbodies[kind].append(tr);
     }
     if (!row) continue;
     Object.assign(row, check(row.value));
@@ -1495,7 +1505,7 @@
   }
   for (const kind of KINDS) {
     if (!tbodies[kind].children.length) {
-      tbodies[kind].append(el("tr", {}, el("td", { colspan: kind === "point" ? "4" : "3", class: "none",
+      tbodies[kind].append(el("tr", {}, el("td", { colspan: kind === "point" ? "5" : "4", class: "none",
         text: `OceanVal has no ${kind} datasets for the variables in this simulation's output.` })));
     }
   }
