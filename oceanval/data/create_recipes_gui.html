@@ -588,7 +588,7 @@
         el("dt", {}, tag("TS")), el("dd", { text: "A gridded dataset covering multiple years." }),
         ...vertical, ...source("GLODAP")]
       // point datasets have no clim or TS tag
-      : [el("dt", {}, tag("NWES", "Northwest European shelf")), el("dd", { text: "The domain a dataset covers." }),
+      : [el("dt", {}, tag("Global"), " ", tag("NWES", "Northwest European shelf")), el("dd", { text: "The domain a dataset covers." }),
         ...vertical, ...source("ICES")];
     $(`explainer-${kind}`).append(el("h2", { class: "explainer__title", id: `explainer-${kind}-title`, text: "Explainer" }),
       el("dl", {}, ...entries));
@@ -1164,7 +1164,8 @@
   function optionErrors(dataset) {
     const errors = { ...dataset.serverErrors };
     const opts = dataset.opts;
-    const missing = dataset.decadal ? "Give both years, inside one WOA23 decade." : "Give both years.";
+    // a missing year is flagged by its box and the required row, with no message
+    const missing = dataset.decadal ? "Give both years, inside one WOA23 decade." : "";
     for (const name of ["start", "end"]) {
       const text = String(opts[name]).trim();
       // each dataset matched up needs its years
@@ -1210,8 +1211,9 @@
       opts.controls[name].setAttribute("aria-required", String(empty));
     }
     for (const [name, control] of Object.entries(opts.controls)) {
-      control.classList.toggle("is-invalid", Boolean(errors[name]));
-      control.setAttribute("aria-invalid", String(Boolean(errors[name])));
+      // a key with an empty message is a missing year: flagged, without text
+      control.classList.toggle("is-invalid", name in errors);
+      control.setAttribute("aria-invalid", String(name in errors));
     }
     // years partly outside the output are only warned about, in amber
     const outside = shown && !Object.keys(errors).length ? outsideOutput(dataset.opts.start, dataset.opts.end) : null;
