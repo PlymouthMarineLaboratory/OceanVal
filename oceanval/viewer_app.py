@@ -404,8 +404,13 @@ class ViewerSteps:
                 slot.form = dict(slot.form, missing=previous_text)
             else:
                 slot.missing_key = key
-                self._set_missing(slot, "", None)
-                self._apply_guess(slot)
+                typed = slot.form.get("missing", "")
+                if typed:
+                    # typed in the setup box for this simulation: kept, and the guess does not replace it
+                    self._set_missing(slot, typed, "user")
+                else:
+                    self._set_missing(slot, "", None)
+                    self._apply_guess(slot)
             # taken before _viewer_drop, which closes a reading nobody is carrying on with
             scanned = self._viewer_taken(slot, arguments)
             old = self._viewer_drop(slot)
