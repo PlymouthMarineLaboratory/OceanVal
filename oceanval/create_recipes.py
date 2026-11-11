@@ -528,11 +528,13 @@ _COVERAGE = {
     },
     "occci": {
         "years": "1997 to the present",
+        "range": (1997, None),
         "note": "Monthly observations, not a climatology.",
         "url": "https://www.oceancolour.org/",
     },
     "cobe2": {
         "years": "1850 to the present",
+        "range": (1850, None),
         "note": "Monthly observations, not a climatology.",
         "url": "https://psl.noaa.gov/data/gridded/data.cobe2.html",
     },
@@ -548,6 +550,7 @@ _COVERAGE = {
     },
     "socat": {
         "years": "1970–2025",
+        "range": (1970, 2025),
         "note": "Monthly observations, not a climatology: only the months and cells that were sampled.",
         "url": "https://www.socat.info/",
     },
@@ -663,6 +666,7 @@ _POINT_UNITS = {
 _POINT_COVERAGE = {
     "glodapv3": {
         "years": "1972–2023",
+        "range": (1972, 2023),
         "note": "Bottle samples from 1181 cruises, adjusted for differences between cruises.",
         "url": "https://glodap.info/index.php/merged-and-adjusted-data-product-v3/",
     },
@@ -702,7 +706,7 @@ POINT_RECIPE_CATALOGUE = tuple(
         "recipe": "hansell",
         "region": "Global",
         "units": _POINT_UNITS[variable, "hansell"],
-        "coverage": {**_POINT_COVERAGE["hansell"], "years": years},
+        "coverage": {**_POINT_COVERAGE["hansell"], "years": years, "range": tuple(int(x) for x in years.split("–"))},
         "example_variable": variable,
         "notes": (
             f"{title} - Hansell et al. DOM compilation (https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html)",

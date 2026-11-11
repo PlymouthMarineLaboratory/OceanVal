@@ -15,6 +15,7 @@ pages instead (see hosted_by).
 import base64
 import contextlib
 import copy
+import datetime
 import getpass
 import http.server
 import importlib.resources
@@ -439,7 +440,17 @@ def check_subregions(text, errors):
     return None
 
 
-def _check_years(form, years):
+def _year_range(coverage):
+    """[first, last] of the years a time series covers, from a catalogue
+    entry's coverage ("to the present" is this year), or None for a dataset
+    that is not one (a climatology, or one whose years are not given)."""
+    found = (coverage or {}).get("range")
+    if not found:
+        return None
+    return [found[0], found[1] if found[1] is not None else datetime.date.today().year]
+
+
+def _check_years(form, years, year_range=None, label="This dataset"):
     """The years typed for one dataset, as ({"start", "end"}, errors).
 
     years are the first and last years being matched up, which the dataset's
@@ -460,6 +471,10 @@ def _check_years(form, years):
         pass
     elif start is not None and end is not None and start > end:
         errors["end"] = "To must not be before From."
+    elif year_range and start is not None and not year_range[0] <= start <= year_range[1]:
+        errors["start"] = f"{label} covers {year_range[0]}–{year_range[1]}."
+    elif year_range and end is not None and not year_range[0] <= end <= year_range[1]:
+        errors["end"] = f"{label} covers {year_range[0]}–{year_range[1]}."
     elif years is not None and start is not None and start > years[1]:
         errors["start"] = f"These years miss the {years[0]}–{years[1]} being matched up."
     elif years is not None and end is not None and end < years[0]:
@@ -467,7 +482,7 @@ def _check_years(form, years):
     return options, errors
 
 
-def check_point_options(form, years):
+def check_point_options(form, years, year_range=None, label="This dataset"):
     """Turn one point dataset's options into add_point_comparison arguments.
 
     years are the first and last years being matched up, which the dataset's
@@ -475,7 +490,7 @@ def check_point_options(form, years):
     errors).
     """
     form = form if isinstance(form, dict) else {}
-    years_chosen, errors = _check_years(form, years)
+    years_chosen, errors = _check_years(form, years, year_range, label)
     options = dict(years_chosen, point_time_res=None, vertical=None)
     # unticked is surface-only, which is add_point_comparison's own default
     if form.get("vertical"):
@@ -497,6 +512,8 @@ def check_gridded_options(
     climatology=False,
     clim_years=None,
     woa_years=None,
+    year_range=None,
+    label="This dataset",
 ):
     """Turn one gridded dataset's options into add_gridded_comparison
     arguments.
@@ -511,7 +528,7 @@ def check_gridded_options(
     ones asked for in the window, or is refused. Returns (options, errors).
     """
     form = form if isinstance(form, dict) else {}
-    options, errors = _check_years(form, years)
+    options, errors = _check_years(form, years, year_range, label)
     # the page only offers Vertical where the recipe takes it
     options["vertical"] = True if vertical_option and form.get("vertical") else None
 
@@ -705,6 +722,8 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
             "climatology": _is_climatology(entry),
             # the years its observations cover, and its web page, for the i beside it
             "coverage": entry.get("coverage"),
+            # [first, last] of a time series: no year outside it can be chosen
+            "year_range": _year_range(entry.get("coverage")),
         }
 
     rows = [
@@ -1107,7 +1126,7 @@ class RecipePage:
                             continue
                         if kind == "point":
                             options, problems = check_point_options(
-                                forms[recipe], years
+                                forms[recipe], years, dataset.get("year_range"), dataset["label"]
                             )
                         else:
                             options, problems = check_gridded_options(
@@ -1118,6 +1137,8 @@ class RecipePage:
                                 dataset["climatology"],
                                 settings.get("clim_years"),
                                 settings.get("woa_years"),
+                                dataset.get("year_range"),
+                                dataset["label"],
                             )
                         if problems:
                             kind_errors.setdefault(variable, {})[recipe] = problems

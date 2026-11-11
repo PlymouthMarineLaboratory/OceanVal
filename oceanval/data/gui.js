@@ -1077,6 +1077,8 @@ const OceanValGUI = (() => {
     const typed = input.value.trim();
     const at = typed === "" ? -1 : input.yearChoices.indexOf(Number(typed));
     if (at >= 0) markChoice(at);
+    // the list always opens at its first choice (the first year available), whatever the box holds
+    choiceList.scrollTop = 0;
   }
 
   // the arrow is the right-hand end of the box: a click there opens the list, one anywhere else in the box only closes it

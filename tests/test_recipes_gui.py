@@ -810,6 +810,28 @@ class TestPointOptions:
         assert list(check_point_options(form, (2011, 2012))[1]) == [error]
 
 
+class TestTimeSeriesRange:
+    def test_years_outside_what_a_time_series_covers_are_refused(self):
+        socat = [1970, 2025]
+        assert check_gridded_options({"start": "1960", "end": "2000"}, None, year_range=socat, label="SOCAT")[1] == {
+            "start": "SOCAT covers 1970–2025."
+        }
+        assert list(check_point_options({"start": "2000", "end": "2030"}, None, socat)[1]) == ["end"]
+        assert check_gridded_options({"start": "2000", "end": "2010"}, None, year_range=socat)[1] == {}
+
+    def test_the_catalogue_sends_the_range_of_each_time_series(self):
+        from oceanval import create_recipes
+        from oceanval.recipes_gui import _year_range
+
+        ranges = {e["recipe"]: _year_range(e["coverage"]) for e in create_recipes.RECIPE_CATALOGUE}
+        assert ranges["socat"] == [1970, 2025]
+        assert ranges["occci"][0] == 1997 and ranges["occci"][1] >= 2025
+        assert ranges["woa23"] is None
+        points = {e["recipe"]: _year_range(e["coverage"]) for e in create_recipes.POINT_RECIPE_CATALOGUE}
+        assert points["glodapv3"] == [1972, 2023]
+        assert points["ices"] is None
+
+
 class TestGriddedOptions:
     def test_empty_boxes_leave_everything_to_the_global_settings(self):
         assert check_gridded_options({}, (2011, 2012), True) == (
