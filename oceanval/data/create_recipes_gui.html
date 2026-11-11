@@ -677,6 +677,13 @@
     if (control.tagName === "INPUT" && !BOOLEANS.has(name)) control.title = control.value;
   }
 
+  // one year of output: the first and last year boxes start with that year (a blank box only, so a kept value stays)
+  if (outputYears && outputYears[0] === outputYears[1]) {
+    for (const name of ["point_start", "point_end"]) {
+      if (!String(form[name] || "").trim()) form[name] = String(outputYears[0]);
+    }
+  }
+
   for (const name of FIELDS) {
     const control = field(name);
     setControl(name);

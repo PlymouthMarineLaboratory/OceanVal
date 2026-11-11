@@ -6943,8 +6943,14 @@
   });
 
   // a year box, empty until a year is typed: the year of the output it could be is only its hint
+  // the one year of a variable's output, if that is all it has: its start and end boxes begin with it
+  function soleYear(name) {
+    const years = placedRow(name).years;
+    return years && years[0] === years[1] ? String(years[0]) : "";
+  }
+
   function yearBox(value, hint, label, name) {
-    return withYears(el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric", value: value || "",
+    return withYears(el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric", value: value || soleYear(name),
       placeholder: hint ? String(hint) : "", "aria-label": label, spellcheck: "false", autocomplete: "oceanval-none" }), name);
   }
 
@@ -7497,7 +7503,7 @@
   // the years of one option of a transect: Start and End, which are only open once the option is chosen
   function optionYears(values, option, name, hint, variable) {
     const box = (part, label) => withYears(el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric",
-      value: values[`${option}_${part}`] || "", placeholder: hint[part === "start" ? 0 : 1] ? String(hint[part === "start" ? 0 : 1]) : "",
+      value: values[`${option}_${part}`] || soleYear(variable), placeholder: hint[part === "start" ? 0 : 1] ? String(hint[part === "start" ? 0 : 1]) : "",
       "aria-label": `${label} of the ${name}`, spellcheck: "false", autocomplete: "oceanval-none" }), variable);
     return { start: box("start", "Start"), end: box("end", "End") };
   }
