@@ -62,13 +62,14 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   `enterView` disposes them on leaving. The figure helpers `figures`/`aspects`/`release`/`fitFigure`/`fitAndSettle` after the block are the
   shared ones of the other windows' maps (Compare, the domain mask, the report's pattern maps), not the viewer's.
   **Layout** (`.vw-panels[data-count]`): one panel fills the window with the dashed `+` beside it; two fill its height side by side with the
-  `+` bar under them; three and four are 2 x 2 and the `+` goes at four. The first panel's box opens by itself in the middle and cannot be
-  closed until a simulation is given (`.is-first-empty`, `boxStays`); empty panels 2-4 have a large button that opens theirs; a loaded panel
+  `+` bar under them; three and four are 2 x 2 and the `+` goes at four. An empty panel's box opens by itself in its middle, for a new panel or an emptied one
+  (`.is-empty`, `wantsBox`, set in `ViewerPanel.update` and acted on in `renderViewers`, which `openSetup` serves). It has no close button:
+  it closes when a simulation is given, the panel is removed, or Back is used, and the **+** is hidden while any panel is empty. A loaded panel
   has no button to change its simulation (Back, or × and a new panel). **The variable column** is a container-query grid (`@container
   (min-width: 520px)`) with a draggable divider (`.vw-split`: pointer capture, arrow keys, Home/End, double-click resets; 40 px to 55 % of the
   panel, `SIDE_*` constants; the contents hide below `SIDE_USABLE`; the width is kept per panel number in `localStorage`
-  `oceanval-vw-side-<n>`). The depth is filled in from the folders' layout by `useProbe`, with no pop-out (removed 2026-11-10). A panel with its box open is `z-index: 20`, under the `.picker` dialogs (25) its box opens; the outside-click
-  handler ignores `.picker`, `.year-list` and `.combo__list` (the drop-downs' lists are on the body).
+  `oceanval-vw-side-<n>`). The depth is filled in from the folders' layout by `useProbe`, with no pop-out (removed 2026-11-10). A panel with its box is `z-index: 20`, and the `.picker` dialogs (25) open over it. The box has no outside-click or Escape
+  handler now; the drop-downs' lists are on the body.
 - **Grids a quadmesh cannot draw** (`oceanval/viewer_grid.py`, `viewer_plots.cells_image`/`needs_raster`): an unstructured grid (one horizontal
   dim with 1-D lon/lat on it, `about["cells"]`, which `mappable` accepts: ICON, FESOM) and a curvilinear one with a seam (|Δlon| > 180),
   cells in one place (a north fold) or cells without coordinates are drawn as an image on a regular lon-lat grid: each pixel takes the

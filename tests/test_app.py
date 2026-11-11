@@ -8099,13 +8099,13 @@ def test_choosing_a_simulation_from_the_bank_in_a_browser(browser, tmp_path):
         user_cache.record_sim_dir(str(tmp_path / "sim"))
         page.goto(url)
         assert page.is_hidden("#f-simdir-recent-toggle")
-        assert page.is_hidden("#f-simdir-hint")
+        assert "drop-down for simulations" not in page.inner_text("label[for=f-simdir]")
 
         user_cache.add_to_bank("Control", str(tmp_path / "sim"))
         # the window is still on the setup step, as the server keeps the view
         page.goto(url)
         assert page.is_visible("#f-simdir-recent-toggle")
-        assert "Use the drop-down for simulations in the bank" in page.inner_text("label[for=f-simdir]")
+        assert "drop-down for simulations" not in page.inner_text("label[for=f-simdir]")
         # one box: the list is inside the directory's own
         assert page.locator("#view-setup select").count() == 0
         assert page.is_hidden("#f-simdir-recent")

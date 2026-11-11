@@ -939,8 +939,8 @@ def _apply(tab, number, directory):
 def test_the_first_panels_box_opens_by_itself_and_stays_until_a_simulation_is_given(page, simulation):
     tab, app = page
     # in the middle of the panel, with no button for it and no way to close it
-    assert tab.is_hidden("[data-panel='1'] [data-vw=idle-btn]")
-    assert tab.is_hidden("#vw-setup-close")
+    assert tab.locator("[data-vw=idle-btn]").count() == 0
+    assert tab.locator("#vw-setup-close").count() == 0
     box = tab.locator("#vw-setup-pop").bounding_box()
     panel = tab.locator("[data-panel='1']").bounding_box()
     assert abs((box["x"] + box["width"] / 2) - (panel["x"] + panel["width"] / 2)) < 4
@@ -948,9 +948,8 @@ def test_the_first_panels_box_opens_by_itself_and_stays_until_a_simulation_is_gi
     tab.mouse.click(5, 600)
     assert tab.is_visible("#vw-setup-pop")
     _apply(tab, 1, simulation)
-    # applied: the box goes, and the panel has no "Provide simulation info" button
+    # applied: the box goes, and the panel has no box for it
     assert tab.is_hidden("#vw-setup-pop")
-    assert tab.locator("[data-vw=info-btn]").count() == 0
     assert tab.locator("[data-panel='1'] [data-vw=remove]").is_hidden()
 
 
@@ -960,19 +959,12 @@ def test_panels_are_added_and_removed(page, simulation, tmp_path):
     tab, app = page
     other = nemo_simulation(str(tmp_path / "other"), years=(2000,))
     _apply(tab, 1, simulation)
-    # one panel: the + is beside it, and an added panel has a large button, which opens its own box
+    # one panel: the + is beside it; an added panel is empty, so its box opens in it straight away and the + waits
     assert tab.get_attribute("#vw-panels", "data-count") == "1"
     tab.click("#vw-add")
-    tab.wait_for_selector("[data-panel='2'] [data-vw=idle-btn]")
+    tab.wait_for_selector("[data-panel='2'] #vw-setup-pop:not([hidden])")
     assert tab.get_attribute("#vw-panels", "data-count") == "2"
-    big = tab.locator("[data-panel='2'] [data-vw=idle-btn]").bounding_box()
-    assert big["width"] > 0 and big["height"] > 0
-    tab.click("[data-panel='2'] [data-vw=idle-btn]")
-    tab.wait_for_selector("#vw-setup-pop:not([hidden])")
-    # this box can be closed, and the button is back
-    tab.keyboard.press("Escape")
-    assert tab.is_hidden("#vw-setup-pop") and tab.is_visible("[data-panel='2'] [data-vw=idle-btn]")
-    tab.click("[data-panel='2'] [data-vw=idle-btn]")
+    assert tab.is_hidden("#vw-add") and tab.locator("[data-vw=idle-btn]").count() == 0
     _apply(tab, 2, other)
     # each panel keeps its own simulation, and plots on its own
     assert [app.viewers[n].catalogue is not None for n in (1, 2)] == [True, True]
@@ -982,10 +974,13 @@ def test_panels_are_added_and_removed(page, simulation, tmp_path):
     tab.keyboard.press("Enter")
     for number in (1, 2):
         tab.wait_for_selector(f"[data-panel='{number}'] [data-vw=plot-wrap] [class^=bk]", timeout=30000)
-    # up to four, and the + goes at four
+    # up to four: each new panel is given its simulation before the + comes back, and the + goes at four
+    third = nemo_simulation(str(tmp_path / "third"), years=(2000,))
+    fourth = nemo_simulation(str(tmp_path / "fourth"), years=(2000,))
     tab.click("#vw-add")
+    _apply(tab, 3, third)
     tab.click("#vw-add")
-    tab.wait_for_selector("[data-panel='4']")
+    _apply(tab, 4, fourth)
     assert tab.is_hidden("#vw-add")
     # the x closes a panel and lets go of its files
     gone = app.viewers[2].catalogue
@@ -999,7 +994,7 @@ def test_the_depth_list_does_not_close_a_box(page, simulation):
     tab, app = page
     _apply(tab, 1, simulation)
     tab.click("#vw-add")
-    tab.click("[data-panel='2'] [data-vw=idle-btn]")
+    tab.wait_for_selector("[data-panel='2'] #vw-setup-pop:not([hidden])")
     tab.fill("#f-simdir", simulation)
     tab.wait_for_function("() => document.querySelector('#f-ndown').value === '2'")
     box = tab.locator("#f-ndown").bounding_box()
@@ -1045,7 +1040,6 @@ def test_two_panels_fill_the_window_side_by_side(page, simulation, tmp_path):
     tab, app = page
     _apply(tab, 1, simulation)
     tab.click("#vw-add")
-    tab.click("[data-panel='2'] [data-vw=idle-btn]")
     _apply(tab, 2, nemo_simulation(str(tmp_path / "other"), years=(2000,)))
     one, two = (tab.locator(f"[data-panel='{n}']").bounding_box() for n in (1, 2))
     assert abs(one["y"] - two["y"]) < 2 and one["x"] + one["width"] <= two["x"] + 1
