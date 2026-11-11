@@ -798,22 +798,22 @@
 
   /* ---- the landing page and Tools & checks have four tiles, two by two ---- */
   #view-home .choices.is-four, #view-help .choices.is-four { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: center; width: 100%; max-width: 1032px; gap: 36px; }
-  /* the landing page's tiles are 20% bigger than before (every size, gap and the grid's width x 1.2) */
-  #view-home .choices.is-four { max-width: 1238.4px; gap: 43.2px; }
+  /* the landing page's tiles are 20% smaller than the last size (every tile size and gap x 0.8; the grid's width is unchanged); the gap between tiles is 33% less than that (43.2px x 0.67) */
+  #view-home .choices.is-four { max-width: 1238.4px; gap: 28.944px; }
   #view-help .choices.is-four { gap: 18px; }
   #view-help .choices.is-four .choice, #view-home .choices.is-four .choice { max-width: none; min-height: 330px; padding: 46px 46px; gap: 22px; }
-  #view-home .choices.is-four .choice { min-height: 396px; padding: 55.2px 55.2px; gap: 26.4px; }
+  #view-home .choices.is-four .choice { min-height: 316.8px; padding: 44.16px 44.16px; gap: 21.12px; }
   /* Tools & checks has only a symbol and a title in each tile: centred up and down, still left-aligned */
   #view-help .choices.is-four .choice { justify-content: center; }
   /* the space under a symbol is the gap (22px) plus this margin: 11.2px, 30% less than the 16px it was (the title and text keep the gap) */
   #view-help .choices.is-four .choice__icon { margin-bottom: -10.8px; }
-  #view-home .choices.is-four .choice__icon { margin-bottom: -12.96px; }
+  #view-home .choices.is-four .choice__icon { margin-bottom: -10.368px; }
   #view-help .choices.is-four .choice__icon svg { width: 40px; height: 40px; }
-  #view-home .choices.is-four .choice__icon svg { width: 48px; height: 48px; }
+  #view-home .choices.is-four .choice__icon svg { width: 38.4px; height: 38.4px; }
   #view-help .choices.is-four .choice__title { font-size: calc(36px - 1pt); }
-  #view-home .choices.is-four .choice__title { font-size: calc(40.2px - 1pt); }
+  #view-home .choices.is-four .choice__title { font-size: calc(32.16px - 1pt); }
   #view-help .choices.is-four .choice__text { font-size: calc(22px - 1pt); }
-  #view-home .choices.is-four .choice__text { font-size: calc(23.4px - 1pt); }
+  #view-home .choices.is-four .choice__text { font-size: calc(18.72px - 1pt); }
 
   /* Tools & info has five tiles: three across, then two centred under them (6 half-columns, each tile two wide) */
   #view-help .choices.is-four { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 1238.4px; }
