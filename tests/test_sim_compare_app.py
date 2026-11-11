@@ -2013,6 +2013,16 @@ def test_a_formula_is_flagged_on_the_units_step_in_a_browser(browser, tmp_path, 
         assert "FORMULA" in row.inner_text().upper() and "Expression based on P1_Chl, P2_Chl" in row.inner_text()
         assert "This is a formula, not a simple sum (P1_Chl+2*P2_Chl)" in page.locator("tr.units__check.is-formula").inner_text()
         assert page.locator("#scu-lede").inner_text().startswith("Fine run gives a variable as a formula")
+        # its units are only assumed, so its boxes are outlined in red until a number is typed in them
+        needed = "tr.is-formula[data-units-row] input.is-needed"
+        page.wait_for_function(f"document.querySelectorAll('{needed}').length === 2")
+        assert row.locator("input").first.evaluate("n => getComputedStyle(n).borderTopWidth") == "4px"
+        row.locator("input").first.fill("1")
+        page.wait_for_function(f"document.querySelectorAll('{needed}').length === 1")
+        row.locator("input").nth(1).fill("0")
+        page.wait_for_function(f"document.querySelectorAll('{needed}').length === 0")
+        row.locator("input").first.fill("")
+        page.wait_for_function(f"document.querySelectorAll('{needed}').length === 1")
         assert errors == []
     finally:
         app.close()

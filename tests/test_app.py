@@ -7331,6 +7331,87 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         app.close()
 
 
+def test_units_that_cannot_be_checked_are_outlined_in_red_in_a_browser(browser, tmp_path, monkeypatch):
+    """The Multiply by and Add boxes of a row OceanVal could not check (its units
+    unrecognised, or a formula's, which it only assumes) are outlined in red, as a
+    box that must be given is, until a number is typed in them. Rows it could check
+    are not. The outline is only a cue: the confirm tick still decides Continue."""
+    from oceanval import unit_conversion, units
+
+    write_simulation(tmp_path / "sim", tracers=True)
+    stand_in = tmp_path / "stand_in.py"
+    stand_in.write_text("print('running')\n")
+    check = units._check
+
+    def checked(variable, obs_units, *args, **kwargs):
+        # (only the gridded rows: the point datasets' rows stay as OceanVal checks them)
+        if variable == "temperature" and obs_units == "degC":
+            return unit_conversion.unknown("OceanVal does not recognise “d” in the units “mmol C/m^2/d”")
+        if variable == "nitrate" and obs_units == "micromoles_per_kilogram":
+            return unit_conversion.formula("N3_n*2", "N3_n", "mmol N m-3")
+        return check(variable, obs_units, *args, **kwargs)
+
+    monkeypatch.setattr(units, "_check", checked)
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    start_run = app.start_run
+    monkeypatch.setattr(app, "start_run", lambda args, label: start_run(["script", str(stand_in)], label))
+    url = app.start()
+    try:
+        page = browser.new_page(viewport={"width": 1500, "height": 1000})
+        page.goto(url)
+        page.click('button.choice[data-action="matchup"]')
+        page.fill("#f-simdir", "sim")
+        page.fill("#f-ndown", "2")
+        page.wait_for_function("document.querySelector('#f-end').value === '2012'")
+        page.click("#continue")
+        page.click("#own-no")
+        page.wait_for_url("**/recipes/**", timeout=90000)
+        fill_required_recipe_settings(page)
+        page.click("#write")
+        page.wait_for_selector("#units-body-gridded tr[data-units-row]")
+
+        def outlines(key):
+            """[is-needed, border width, border colour] of the row's two boxes."""
+            return page.locator(f'tr[data-units-row="{key}"] input[data-units-box]').evaluate_all(
+                "nodes => nodes.map(n => [n.classList.contains('is-needed'),"
+                " getComputedStyle(n).borderTopWidth, getComputedStyle(n).borderTopColor])"
+            )
+
+        red = [True, "4px", "rgb(192, 57, 43)"]
+        for key in ("recipe:temperature:cobe2", "recipe:nitrate:woa23"):
+            wait_for(lambda: outlines(key) == [red, red], timeout=10)
+            boxes = page.locator(f'tr[data-units-row="{key}"] input[data-units-box]')
+            # a number in one box takes its outline away, and not the other's
+            boxes.nth(0).fill("1")
+            wait_for(lambda: outlines(key)[0][0] is False and outlines(key)[1] == red, timeout=10)
+            assert outlines(key)[0][1] != "4px"
+            boxes.nth(1).fill("0")
+            wait_for(lambda: [box[0] for box in outlines(key)] == [False, False], timeout=10)
+            # and it returns if the box is emptied
+            boxes.nth(0).fill("")
+            wait_for(lambda: [box[0] for box in outlines(key)] == [True, False], timeout=10)
+            boxes.nth(0).fill("1")
+            wait_for(lambda: [box[0] for box in outlines(key)] == [False, False], timeout=10)
+
+        # a row OceanVal could check is not outlined, however empty its boxes
+        page.wait_for_timeout(700)
+        assert "Not checked" not in page.locator("#units-body-point").inner_text()
+        point = page.locator("#units-body-point input[data-units-box]")
+        assert point.count() == 2
+        assert point.evaluate_all("nodes => nodes.map(n => n.classList.contains('is-needed'))") == [False, False]
+
+        # a cue, not a gate: with outlined boxes empty, the tick alone lets the units go on
+        boxes = page.locator('tr[data-units-row="recipe:temperature:cobe2"] input[data-units-box]')
+        boxes.nth(0).fill("")
+        boxes.nth(1).fill("")
+        wait_for(lambda: outlines("recipe:temperature:cobe2") == [red, red], timeout=10)
+        page.check("#units-confirm")
+        assert page.is_enabled("#units-continue")
+    finally:
+        app.close()
+
+
 def look(locator):
     """A box's colour and weight, which are red and bold for what OceanVal filled in."""
     return locator.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]")
