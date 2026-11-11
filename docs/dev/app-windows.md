@@ -132,7 +132,10 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 - **The browser never offers what was typed before** (the user's rule, 2026-10-30): every typed box has `autocomplete="oceanval-none"` (Chrome ignores `off` on boxes that look like address or name fields: the viewer's "first" box offered saved addresses, 2026-11-11; `el()` in `gui.js` defaults it),
   in the markup and, for boxes the pages make later, by the guard at the end of `data/gui.js` (`forget`, a `MutationObserver`
   and `focusin`). Never `chrome-off`, which Chrome ignores. Only the simulation directories are remembered, by OceanVal
-  itself (`.oceanvalcache`). `tests/test_no_browser_memory.py` checks both windows.
+  itself (`.oceanvalcache`). Chrome's list of earlier entries is keyed on the box's `name` (a list of old years appeared under
+  "Last year", 2026-11-11), so every typed box is also given a name that is new on each page load (`unremembered()` in
+  `gui.js`, called from `el()` and `forget()`; it replaces the fixed `name=` of the markup, and radios/checkboxes keep theirs
+  as they group). Never read a typed box by its `name`. `tests/test_no_browser_memory.py` checks both windows.
 - **A box that must be given is outlined in red while it is empty** (the user's rule, 2026-10-31; the red outline replaced the visible Required
   tags, eeab79f): the tags (`.own-req`, `.year-required`) stay in the markup, hidden by `gui.css`, so `syncRequired` still finds the boxes they ask
   for. `OceanValGUI.syncRequired` (`gui.js`; on input/change/click, DOM mutations and a 300 ms interval, as a script's `.value =` fires no event)

@@ -15,6 +15,14 @@ const OceanValGUI = (() => {
 
   const $ = (id) => document.getElementById(id);
 
+  // Chrome remembers what was typed under a box's name, and offers it again next time. Every typed box
+  // is given a name that is new for each page load, so nothing remembered can match (see forget() below).
+  const LOAD_NAME = `ov-${Math.random().toString(36).slice(2)}-`;
+  let boxCount = 0;
+  const unremembered = (box) => {
+    if (!(box.getAttribute("name") || "").startsWith(LOAD_NAME)) box.setAttribute("name", `${LOAD_NAME}${boxCount++}`);
+  };
+
   function el(tag, props, ...children) {
     const node = document.createElement(tag);
     for (const [key, value] of Object.entries(props || {})) {
@@ -27,6 +35,7 @@ const OceanValGUI = (() => {
     }
     // typed boxes are never filled by the browser (see forget() below)
     if ((tag === "textarea" || tag === "input") && !node.hasAttribute("autocomplete")) node.setAttribute("autocomplete", "oceanval-none");
+    if (tag === "textarea" || (tag === "input" && !/^(hidden|checkbox|radio|range|button|submit|reset|file|image|color)$/.test(node.type))) unremembered(node);
     for (const child of children) {
       if (child !== null && child !== undefined && child !== false) node.append(child);
     }
@@ -1115,7 +1124,8 @@ const OceanValGUI = (() => {
   // Every box, in the markup or made later, has autocomplete="oceanval-none": Chrome
   // ignores "off" (and "chrome-off") on boxes it takes for address or name fields,
   // such as "first" and "last", but fills nothing for a token it does not know. The simulation directories
-  // are remembered by OceanVal itself (.oceanvalcache), not by the browser.
+  // are remembered by OceanVal itself (.oceanvalcache), not by the browser. Chrome's list of earlier entries is
+  // keyed on the box's name, so each typed box is also renamed at random on every page load (unremembered()).
   const NOT_TYPED = new Set(["hidden", "checkbox", "radio", "range", "button", "submit", "reset", "file", "image", "color"]);
   const typedIn = (node) => node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && !NOT_TYPED.has(node.type));
   function forget(node) {
@@ -1126,6 +1136,7 @@ const OceanValGUI = (() => {
       if ((box.tagName === "FORM" || typedIn(box)) && box.getAttribute("autocomplete") !== "oceanval-none") {
         box.setAttribute("autocomplete", "oceanval-none");
       }
+      if (typedIn(box)) unremembered(box);
     }
   }
   forget(document.documentElement);

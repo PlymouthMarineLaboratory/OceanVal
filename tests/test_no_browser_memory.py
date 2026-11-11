@@ -97,6 +97,51 @@ def test_the_recipes_window_remembers_nothing(browser):
         recipe_page.close()
 
 
+# the names of the typed boxes: Chrome's list of earlier entries is keyed on them
+NAMES = """() => {
+    const box = document.createElement("input");
+    box.id = "made-later-name";
+    document.body.append(box);
+    return new Promise((done) => setTimeout(() => done({
+        later: box.getAttribute("name"),
+        boxes: Object.fromEntries([...document.querySelectorAll("input, textarea")]
+            .filter((box) => !["hidden", "checkbox", "radio", "range", "button", "submit", "reset", "file", "image", "color"].includes(box.type))
+            .filter((box) => box.id)
+            .map((box) => [box.id, box.getAttribute("name")])),
+    }), 0));
+}"""
+
+
+def test_typed_boxes_are_renamed_at_random_on_every_page_load(browser):
+    """Chrome offers what was typed in a box before, matched on its name; a name that is new for each page
+    load (and never the fixed one of the markup) has nothing remembered under it."""
+    recipe_page = RecipePage(
+        recipe_rows({"temperature": "thetao"}, "nwes"),
+        {"thetao", "so"},
+        CONTEXT,
+        lambda *chosen: "/out/matchup.py",
+    )
+    url = recipe_page.start()
+    try:
+        loads = []
+        for _ in range(2):
+            page = browser.new_page()
+            page.goto(url)
+            page.wait_for_selector("#s-clim_start")
+            loads.append(page.evaluate(NAMES))
+            page.close()
+        first, second = loads
+        assert "climatology-start-year" not in first["boxes"].values()
+        assert first["boxes"]["s-clim_start"].startswith("ov-")
+        for loaded in loads:
+            assert all(name and name.startswith("ov-") for name in loaded["boxes"].values()), loaded["boxes"]
+            assert loaded["later"].startswith("ov-")
+            assert len(set(loaded["boxes"].values())) == len(loaded["boxes"])
+        assert first["boxes"]["s-clim_start"] != second["boxes"]["s-clim_start"]
+    finally:
+        recipe_page.close()
+
+
 def test_the_first_time_validate_is_opened_the_data_store_is_mentioned(browser, tmp_path, oceanvalcache):
     app = App(cwd=str(tmp_path))
     app.leftovers_asked = True
