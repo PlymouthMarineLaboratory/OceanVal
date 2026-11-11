@@ -184,7 +184,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   finds (xarray, the surface at the first time step of up to 10 files of the first placed variable,
   the value many cells share in every file; started in a thread when the options step opens by
   `AnalyzeSteps._probe_missing`, `state.analyze.missing_probed`, shown in amber `is-found`), else for a
-  NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) 0–0 in the `is-ersem` style.
+  NEMO-ERSEM simulation (`recipes_gui.is_likely_nemo_ersem`) 0–0 in the ordinary style (no colour, no note).
   `analysis_forms.prefill` (what OceanVal could fill the variables with) is unused for that reason;
   the "Environmental variable" box (was "Your name"; the model column is "Variable name in the simulation", with the hint "Enter variable names or search
   terms that will look up the variable and name and descriptions in files" under its heading) has no arrow (the user's rule, 2026-11-06: the drop-down was

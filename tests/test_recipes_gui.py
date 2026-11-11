@@ -194,7 +194,7 @@ class TestErsemDetection:
         assert recipes_gui.is_likely_nemo_ersem(variables[:21])
 
     @pytest.mark.parametrize("has_e3t", [True, False])
-    def test_hosted_page_suggests_the_ersem_thickness_in_amber(self, browser, has_e3t):
+    def test_hosted_page_suggests_the_ersem_thickness(self, browser, has_e3t):
         available = set(recipes_gui.ERSEM_VARIABLES)
         if has_e3t:
             available.add("e3t")
@@ -213,7 +213,7 @@ class TestErsemDetection:
 
             assert browser_page.input_value("#s-thickness") == ("e3t" if has_e3t else "")
             if has_e3t:
-                assert "is-ersem" in browser_page.locator("#s-thickness").get_attribute("class")
+                assert "is-ersem" not in browser_page.locator("#s-thickness").get_attribute("class")
             # the missing values are asked with the cores, once the matchups
             # are confirmed, where 0 to 0 is assumed (see test_app)
             assert browser_page.locator("#s-missing_from").is_hidden()

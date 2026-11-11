@@ -135,7 +135,7 @@ def test_a_missing_value_found_in_the_files_is_filled_in_to_be_checked(page, tmp
     tab.wait_for_function("() => document.querySelector('#missing-from-0').value === '-999'")
     assert tab.input_value("#missing-to-0") == "-999"
     assert "is-found" in tab.get_attribute("#missing-from-0", "class")
-    assert tab.is_visible("#missing-found") and tab.is_hidden("#missing-ersem")
+    assert tab.is_visible("#missing-found")
     assert tab.is_enabled("#vw-apply")
     # typing over it makes it the user's: the amber goes, and nothing is put there again
     tab.fill("#missing-from-0", "-9")
@@ -261,8 +261,8 @@ def test_an_ersem_simulation_has_zeros_assumed_to_be_missing(page, simulation, m
     tab.fill("#f-simdir", simulation)
     tab.wait_for_function("() => document.querySelector('#missing-from-0').value === '0'")
     assert tab.input_value("#missing-to-0") == "0"
-    assert "is-ersem" in tab.get_attribute("#missing-from-0", "class")
-    assert tab.is_visible("#missing-ersem") and tab.is_hidden("#missing-found")
+    assert "is-ersem" not in tab.get_attribute("#missing-from-0", "class")
+    assert tab.locator("#missing-ersem").count() == 0 and tab.is_hidden("#missing-found")
     # a row emptied is the user's doing, and stays empty
     assert tab.locator("[aria-label='Remove missing value 1']").count() == 0
     tab.fill("#missing-from-0", "")

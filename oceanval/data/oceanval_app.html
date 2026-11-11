@@ -1134,10 +1134,8 @@
   .analyze-options .choice { aspect-ratio: auto; min-height: 200px; padding-top: 30px; }
   .analyze-area { max-width: 980px; margin: 28px 0 0; }
   .analyze-area .s-select { width: auto; min-width: 280px; }
-  .analyze-area .group__line.is-ersem, .missing-field .group__line.is-ersem, .vw-missing .group__line.is-ersem { color: var(--ersem); font-weight: 600; }
   .analyze-area .group__line.is-found, .vw-missing .group__line.is-found { color: var(--amber); font-weight: 600; }
   .analyze-area .s-input.is-found, .vw-missing .s-input.is-found { border-color: var(--amber); background-color: var(--amber-bg); color: var(--amber); font-weight: 600; }
-  .analyze-area .s-input.is-ersem, .missing-field .s-input.is-ersem, .vw-missing .s-input.is-ersem { border-color: var(--ersem-line); background-color: var(--ersem-bg); color: var(--ersem); font-weight: 600; }
   /* the boxes matchup is given with its cores: as wide as the report options' subset */
   .missing-field .span-row, #row-f-subset .span-row { max-width: 560px; }
   .analyze-code { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; }
@@ -1748,7 +1746,6 @@
         <p class="group__msg" data-vw="mv-msg" role="status" aria-live="polite" hidden></p>
         <p class="group__line is-finding" data-vw="mv-looking" hidden><span class="identify__spinner" aria-hidden="true"></span>Attempting to identify missing value range</p>
         <p class="group__line is-found" data-vw="mv-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data.</p>
-        <p class="group__line is-ersem" data-vw="mv-ersem" hidden>This appears to be an ERSEM simulation and the value is assumed.</p>
         </div>
         </div>
         </div>
@@ -2307,7 +2304,6 @@
       </div>
       <p class="group__msg" id="ao-missing-msg"></p>
       <p class="group__line is-found" id="ao-missing-found" hidden>OceanVal found this value in the model data. Please check that it is the value for missing data before you continue.</p>
-      <p class="group__line is-ersem" id="ao-missing-ersem" hidden>This appears to be an ERSEM simulation and the above values are assumed.</p>
     </fieldset>
     <fieldset class="group analyze-area" id="ao-code-group">
       <legend>Figure code</legend>
@@ -3773,17 +3769,15 @@
       this.$("mv-msg").hidden = true;
     }
 
-    // where the value came from: amber if found in the files, ERSEM-coloured if assumed, plain if typed; and the
+    // where the value came from: amber if found in the files, plain if typed or assumed; and the
     // look for it while it is going on
     showMissingSource(slot) {
       const source = slot.missing_source;
       for (const name of ["mv-from", "mv-to"]) {
         this.$(name).classList.toggle("is-found", source === "found");
-        this.$(name).classList.toggle("is-ersem", source === "ersem");
       }
       this.$("mv-looking").hidden = !slot.missing_looking;
       this.$("mv-found").hidden = source !== "found";
-      this.$("mv-ersem").hidden = source !== "ersem";
     }
 
     // the boxes' missing value, sent to the panel, which then draws its map again with it
@@ -5538,20 +5532,15 @@
   const SUBSET_BOXES = ["lon_min", "lon_max", "lat_min", "lat_max"];
   const MISSING_BOXES = ["missing_from", "missing_to"];
   const SUBSET_HINT = "Optional: only simulation output and observations inside this box are matched up. Empty: the whole domain.";
-  // 0 to 0 is assumed for a NEMO-ERSEM simulation, in its own colour, until it is changed
+  // 0 to 0 is assumed for a NEMO-ERSEM simulation, until it is changed
   function assumeMissing(form) {
     if (state.nemo_ersem && MISSING_BOXES.every((name) => !String(form[name] || "").trim())) {
       for (const name of MISSING_BOXES) form[name] = "0";
     }
   }
-  const missingAssumed = (form) =>
-    Boolean(state.nemo_ersem) && MISSING_BOXES.every((name) => String(form[name] || "").trim() === "0");
-  // the lines under the missing values, and their boxes in the ERSEM colour if assumed
+  // the line under the missing values
   function missingLines(prefix, form) {
-    const assumed = missingAssumed(form);
-    for (const name of MISSING_BOXES) $(`${prefix}-${name}`).classList.toggle("is-ersem", assumed);
-    return [line("Treat as missing: one value, or everything in a range."),
-      ...(assumed ? [line("This appears to be an ERSEM simulation and the above values are assumed.", "ersem")] : [])];
+    return [line("Treat as missing: one value, or everything in a range.")];
   }
 
   // ---- where the matchups are saved: once the matchups are confirmed (see oceanval.app.check_output) ----
@@ -6887,33 +6876,25 @@
     if (state.action === "simcompare") {
       const auto = state.analyze.missing_auto || [];
       const rows = readMissingRows();
-      let found = false, assumed = false;
+      let found = false;
       missingList.rows.forEach((item, index) => {
         const row = rows[index];
         const match = auto.find((one) => one.apply === row.apply && one.from === row.from.trim() && one.to === row.to.trim());
         for (const box of [item.from, item.to]) {
           box.classList.toggle("is-found", Boolean(match) && match.source === "found");
-          box.classList.toggle("is-ersem", Boolean(match) && match.source === "ersem");
         }
         found = found || Boolean(match) && match.source === "found";
-        assumed = assumed || Boolean(match) && match.source === "ersem";
       });
       $("ao-missing-found").textContent = "OceanVal found the values in amber in the model data. Please check that they are the values for missing data before you continue.";
-      $("ao-missing-ersem").textContent = "The simulations whose values are coloured like this appear to be ERSEM simulations and these values are assumed.";
       $("ao-missing-found").hidden = !found;
-      $("ao-missing-ersem").hidden = !assumed;
       return;
     }
     const missing = state.analyze.missing || {};
     const from = $("ao-missing_from").value, to = $("ao-missing_to").value;
     // found in the model's data (oceanval.missing_probe): amber, to be checked
     const found = Boolean(state.analyze.missing_probed) && from === missing.from && to === missing.to;
-    const assumed = !found && Boolean(state.analyze.nemo_ersem) && from === "0" && to === "0";
-    $("ao-missing_from").classList.toggle("is-ersem", assumed);
-    $("ao-missing_to").classList.toggle("is-ersem", assumed);
     $("ao-missing_from").classList.toggle("is-found", found);
     $("ao-missing_to").classList.toggle("is-found", found);
-    $("ao-missing-ersem").hidden = !assumed;
     $("ao-missing-found").hidden = !found;
   }
 

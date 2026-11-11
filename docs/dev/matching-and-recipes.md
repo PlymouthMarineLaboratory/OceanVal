@@ -103,7 +103,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   matchup's, not validate's: `_checked_report` pops `lon_lim`/`lat_lim` from the report) are answered: the recipes
   window asks none of these in the app (`#settings-more` hidden). `app.check_matchup_boxes` checks the subset and
   missing values (`recipes_gui.check_limits`/`check_missing`); a NEMO-ERSEM simulation (`state.nemo_ersem`) starts at
-  0–0 in `is-ersem` (`assumeMissing`). `App._yes` sends `out_dir`, `overwrite`, `cores`, `lon_lim`/`lat_lim` and
+  0–0 (`assumeMissing`) in the ordinary style, with no colour or note. `App._yes` sends `out_dir`, `overwrite`, `cores`, `lon_lim`/`lat_lim` and
   `as_missing` (`_run_output`) with yes, which `matchup` applies (`_full_out_dir`, `_checked_overwrite`,
   `_checked_cores`, `_checked_limits`, `_checked_missing`; the thickness, read before the question, is worked out again
   by `_thickness_and_depths` from `thickness_selected` when `as_missing` changes). The script is written

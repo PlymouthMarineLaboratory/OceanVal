@@ -65,9 +65,6 @@
   --empty-row: #fffcfa;
   --empty-line: #e9b39c;
   --empty-bg: #fffaf6;
-  --ersem: #8a5a00;
-  --ersem-line: #d7a83e;
-  --ersem-bg: #fff8df;
 }
 
 * { box-sizing: border-box; }

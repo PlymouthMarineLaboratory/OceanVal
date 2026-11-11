@@ -2108,7 +2108,7 @@ def test_the_names_list_what_is_typed_and_the_missing_value_in_a_browser(browser
         # the missing value found in the data is amber, with a note
         page.wait_for_function("() => document.querySelector('#ao-missing_from').value === '1e+20'")
         assert "is-found" in page.get_attribute("#ao-missing_from", "class")
-        assert page.is_visible("#ao-missing-found") and page.is_hidden("#ao-missing-ersem")
+        assert page.is_visible("#ao-missing-found") and page.locator("#ao-missing-ersem").count() == 0
         page.fill("#ao-missing_from", "0")
         assert "is-found" not in page.get_attribute("#ao-missing_from", "class")
         assert page.is_hidden("#ao-missing-found")
