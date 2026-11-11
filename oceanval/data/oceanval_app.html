@@ -1418,7 +1418,7 @@
           <legend class="prefs__legend">Data store</legend>
           <p class="prefs__hint">A folder to keep the built-in observational data OceanVal downloads (WOA23, OC-CCI, NSBC, COBE2, GLODAP and ICES), so that later matchups need not download it again. Your own data is never kept in it. Everything is kept in an <code>oceanval_datastore</code> folder inside the one you give, which must already exist. Leave it empty to keep nothing.</p>
           <label class="g-label" for="settings-data-store">Folder</label>
-          <input type="text" class="s-input is-mono prefs__path" id="settings-data-store" placeholder="The folder's full path, e.g. /data/me" spellcheck="false" autocomplete="off" aria-describedby="settings-data-store-status">
+          <input type="text" class="s-input is-mono prefs__path" id="settings-data-store" placeholder="The folder's full path, e.g. /data/me" spellcheck="false" autocomplete="oceanval-none" aria-describedby="settings-data-store-status">
           <p class="prefs__status" id="settings-data-store-status" aria-live="polite"></p>
           <p class="prefs__size" id="settings-data-store-size" aria-live="polite" hidden></p>
           <div class="prefs__check-row">
@@ -1615,14 +1615,14 @@
 
   <section id="view-setup" hidden>
     <div class="banner" id="setup-error" role="alert" hidden></div>
-    <form class="setup-form" id="setup-form" novalidate autocomplete="off">
+    <form class="setup-form" id="setup-form" novalidate autocomplete="oceanval-none">
       <fieldset class="group card setup-box">
-        <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div></div>
-        <div class="g-row" id="row-f-name"><div class="path-field"><button type="button" class="btn btn--ghost btn--field btn--bank" id="f-bank" disabled>Add to bank</button><div class="combo" id="f-name-combo"><input class="s-input" id="f-name" placeholder="Give it a name, e.g. 'Atlantic ocean reanalysis from Project X'" aria-label="A name for this simulation, to keep it in the simulation bank" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="f-name-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="f-name-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div></div>
+        <div class="g-row"><label class="g-label is-required" for="f-simdir"><span id="simdir-question">Which directory stores your simulation data?</span> <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="f-simdir-combo"><input class="s-input is-mono" id="f-simdir" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="f-simdir-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-simdir-recent" tabindex="-1" hidden></button><ul class="combo__list" id="f-simdir-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="f-simdir">Browse…</button></div></div>
+        <div class="g-row" id="row-f-name"><div class="path-field"><button type="button" class="btn btn--ghost btn--field btn--bank" id="f-bank" disabled>Add to bank</button><div class="combo" id="f-name-combo"><input class="s-input" id="f-name" placeholder="Give it a name, e.g. 'Atlantic ocean reanalysis from Project X'" aria-label="A name for this simulation, to keep it in the simulation bank" spellcheck="false" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="f-name-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="f-name-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div></div>
         <div class="g-row" id="row-f-thredds" hidden><label class="g-check" for="f-thredds"><input type="checkbox" id="f-thredds"> <span>Is the path a THREDDS (OPeNDAP) web address for one netCDF file, ending in .nc?</span></label></div>
         <div class="ndown-row">
           <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
-          <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required autocomplete="off">
+          <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required autocomplete="oceanval-none">
           <span class="ndown-found" id="ndown-found" role="status" hidden></span>
           <button type="button" class="btn btn--ghost btn--field btn--sample" id="view-files" aria-haspopup="dialog">View the files in a random subdirectory</button>
         </div>
@@ -1630,13 +1630,13 @@
           <div class="g-row word-list" id="f-exclude-list">
             <span class="g-label" id="f-exclude-label">Skip file names containing</span>
             <input type="hidden" id="f-exclude">
-            <div class="word-list__add"><input class="s-input is-mono" id="f-exclude-add" placeholder="e.g. restart" aria-labelledby="f-exclude-label" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+            <div class="word-list__add"><input class="s-input is-mono" id="f-exclude-add" placeholder="e.g. restart" aria-labelledby="f-exclude-label" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></div>
             <ul class="word-list__items" id="f-exclude-items" aria-labelledby="f-exclude-label"></ul>
           </div>
           <div class="g-row word-list" id="f-require-list">
             <span class="g-label" id="f-require-label">Only include file names containing</span>
             <input type="hidden" id="f-require">
-            <div class="word-list__add"><input class="s-input is-mono" id="f-require-add" placeholder="e.g. grid_T" aria-labelledby="f-require-label" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+            <div class="word-list__add"><input class="s-input is-mono" id="f-require-add" placeholder="e.g. grid_T" aria-labelledby="f-require-label" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></div>
             <ul class="word-list__items" id="f-require-items" aria-labelledby="f-require-label"></ul>
           </div>
         </div>
@@ -1683,7 +1683,7 @@
           <div class="vw-side-body" data-vw="side-body">
         <div>
         <h2 class="vw-head vw-tip" tabindex="0" data-tip="Click a variable to map it. Use the + buttons to map the sum of several variables.">Variable selector</h2>
-        <input class="s-input" data-vw="search" type="search" placeholder="Search by name or description, e.g. P*_Chl" spellcheck="false" autocapitalize="off" autocomplete="off">
+        <input class="s-input" data-vw="search" type="search" placeholder="Search by name or description, e.g. P*_Chl" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none">
         <p class="vw-sum"><button type="button" class="link" data-vw="clear" hidden>Clear</button></p>
         <ul class="vw-list" data-vw="list" role="listbox" aria-label="Variables" aria-multiselectable="true"></ul>
         </div>
@@ -1713,8 +1713,8 @@
         <div class="vw-control vw-years" data-vw="c-years" hidden>
         <h2 class="vw-head">Select years</h2>
         <div class="vw-grid">
-        <label><input class="s-input is-num" data-vw="first" aria-label="First year" inputmode="numeric" placeholder="first" spellcheck="false" autocomplete="off" disabled></label>
-        <label><input class="s-input is-num" data-vw="last" aria-label="Last year" inputmode="numeric" placeholder="last" spellcheck="false" autocomplete="off" disabled></label>
+        <label><input class="s-input is-num" data-vw="first" aria-label="First year" inputmode="numeric" placeholder="first" spellcheck="false" autocomplete="oceanval-none" disabled></label>
+        <label><input class="s-input is-num" data-vw="last" aria-label="Last year" inputmode="numeric" placeholder="last" spellcheck="false" autocomplete="oceanval-none" disabled></label>
         </div>
         <div class="vw-times" data-vw="times" hidden><span class="identify__spinner" aria-hidden="true"></span><span data-vw="times-text" role="status" aria-live="polite"></span></div>
         <div class="vw-meter" data-vw="times-meter" aria-hidden="true" hidden><span data-vw="times-bar"></span></div>
@@ -1730,8 +1730,8 @@
         <label class="is-wide"><span class="g-label">Colour map</span><select class="s-select" data-vw="cmap"></select></label>
         <div class="is-wide vw-scale-row"><span class="g-label">Scale</span><div class="vw-seg" role="group" aria-label="Scale"><button type="button" data-vw="scale-fixed" aria-pressed="false">Fixed</button><button type="button" data-vw="scale-auto" aria-pressed="true">Automatic</button></div></div>
         <div class="is-wide vw-minmax" data-vw="minmax" hidden>
-        <label><input class="s-input is-num" data-vw="vmin" aria-label="Minimum" inputmode="decimal" placeholder="Minimum" autocomplete="off"></label>
-        <label><input class="s-input is-num" data-vw="vmax" aria-label="Maximum" inputmode="decimal" placeholder="Maximum" autocomplete="off"></label>
+        <label><input class="s-input is-num" data-vw="vmin" aria-label="Minimum" inputmode="decimal" placeholder="Minimum" autocomplete="oceanval-none"></label>
+        <label><input class="s-input is-num" data-vw="vmax" aria-label="Maximum" inputmode="decimal" placeholder="Maximum" autocomplete="oceanval-none"></label>
         </div>
         </div>
         <div class="vw-ticks">
@@ -1741,9 +1741,9 @@
         <div class="vw-missing">
         <span class="g-label">Set to missing value</span>
         <div class="span-row">
-        <input class="s-input is-num" data-vw="mv-from" placeholder="value" aria-label="Missing value, from" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off">
+        <input class="s-input is-num" data-vw="mv-from" placeholder="value" aria-label="Missing value, from" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
         <span class="dash">–</span>
-        <input class="s-input is-num" data-vw="mv-to" placeholder="to" aria-label="Missing value, to" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off">
+        <input class="s-input is-num" data-vw="mv-to" placeholder="to" aria-label="Missing value, to" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
         </div>
         <p class="group__msg" data-vw="mv-msg" role="status" aria-live="polite" hidden></p>
         <p class="group__line is-finding" data-vw="mv-looking" hidden><span class="identify__spinner" aria-hidden="true"></span>Attempting to identify missing value range</p>
@@ -1778,9 +1778,9 @@
       <p class="compat-summary" id="pc-summary" role="status" hidden></p>
       <div class="pc__list" id="pc-list"></div>
     </section>
-    <form class="setup-form" id="output-form" novalidate autocomplete="off">
+    <form class="setup-form" id="output-form" novalidate autocomplete="oceanval-none">
       <fieldset class="group card setup-box" id="setup-output">
-        <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="f-out_dir" id="f-out_dir-label">Where do you want matchups and validation output to be saved?</label><div class="path-field"><input class="s-input is-mono" id="f-out_dir" list="f-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="f-out_dir">Browse…</button></div><datalist id="f-out_dir-folders"></datalist></div>
         <p class="group__msg" id="m-out_dir"></p>
         <div class="existing" id="row-existing" hidden>
           <p class="g-label is-required existing__title" id="existing-title">What do you want to do with existing matchups? <span class="own-req" id="existing-required" data-required-for="f-existing_confirmed">Required</span></p>
@@ -1796,7 +1796,7 @@
           </table></div>
           <label class="tick-label existing__confirm" id="row-existing-confirm"><input type="checkbox" class="tick" id="f-existing_confirmed">Tick to confirm what is done with these matchups</label>
         </div>
-        <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+        <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></label>
         <p class="group__intro" id="f-out-intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
         <p class="group__msg" id="m-out"></p>
         <!-- matchup alone's, which has no report options to ask it with -->
@@ -1806,9 +1806,9 @@
         <div class="setup-box__script missing-field" id="row-f-missing" hidden>
           <div class="g-row"><span class="g-label">What should be treated as missing values?</span>
           <div class="span-row">
-            <input class="s-input is-num" id="f-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+            <input class="s-input is-num" id="f-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="f-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+            <input class="s-input is-num" id="f-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
           </div>
         </div>
           <p class="group__msg" id="m-missing"></p>
@@ -1817,15 +1817,15 @@
           <p class="g-label">Do you want a spatial subset?</p>
           <div class="g-row span-row">
             <span class="span-row__label">Longitude</span>
-            <input class="s-input is-num" id="f-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="f-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="oceanval-none">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="f-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="f-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="oceanval-none">
           </div>
           <div class="g-row span-row">
             <span class="span-row__label">Latitude</span>
-            <input class="s-input is-num" id="f-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="f-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="oceanval-none">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="f-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="f-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="oceanval-none">
           </div>
           <p class="group__msg" id="m-subset"></p>
         </div>
@@ -1842,7 +1842,7 @@
             <p class="dm-detail__about">You must supply a netCDF file with a single variable and a single time step. Values of 1 mark the cells you want; other cells should be 0 or missing. The simulation will be regridded to this file using nearest neighbour.</p>
             <div class="g-row">
               <label class="g-label" for="f-domain_mask_path">NetCDF file</label>
-              <input class="s-input is-mono" id="f-domain_mask_path" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="mask.nc">
+              <input class="s-input is-mono" id="f-domain_mask_path" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off" placeholder="mask.nc">
             </div>
             <p class="group__msg" id="m-domain_mask_path"></p>
             <div class="ag-map dm-map" id="dm-map-f"></div>
@@ -1950,13 +1950,13 @@
   </section>
 
   <section id="view-validate" hidden>
-    <form class="form card" id="validate-form" novalidate autocomplete="off">
+    <form class="form card" id="validate-form" novalidate autocomplete="oceanval-none">
       <fieldset class="group form__wide" id="v-group-data_dir">
-        <div class="g-row"><label class="g-label" for="v-data_dir">Where are the matchups located?</label><div class="path-field"><input class="s-input is-mono" id="v-data_dir" list="v-data_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-data_dir">Browse…</button></div><datalist id="v-data_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="v-data_dir">Where are the matchups located?</label><div class="path-field"><input class="s-input is-mono" id="v-data_dir" list="v-data_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="v-data_dir">Browse…</button></div><datalist id="v-data_dir-folders"></datalist></div>
         <p class="group__msg" id="vm-data_dir"></p>
       </fieldset>
       <fieldset class="group form__wide" id="v-group-out_dir">
-        <div class="g-row"><label class="g-label" for="v-out_dir">Which directory do you want to build the report in?</label><div class="path-field"><input class="s-input is-mono" id="v-out_dir" list="v-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="v-out_dir">Browse…</button></div><datalist id="v-out_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="v-out_dir">Which directory do you want to build the report in?</label><div class="path-field"><input class="s-input is-mono" id="v-out_dir" list="v-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="v-out_dir">Browse…</button></div><datalist id="v-out_dir-folders"></datalist></div>
         <p class="group__msg" id="vm-out_dir"></p>
       </fieldset>
       <!-- matchup's, before anything is matched up (see oceanval.app.check_cores) -->
@@ -1968,9 +1968,9 @@
       <fieldset class="group form__wide missing-field" id="v-group-missing" hidden>
         <div class="g-row"><span class="g-label">What should be treated as missing values?</span>
           <div class="span-row">
-            <input class="s-input is-num" id="v-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+            <input class="s-input is-num" id="v-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="v-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+            <input class="s-input is-num" id="v-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
           </div>
         </div>
         <p class="group__msg" id="vm-missing"></p>
@@ -2007,15 +2007,15 @@
           <legend id="v-subset-legend">Do you only want to validate a subregion?</legend>
           <div class="g-row span-row">
             <span class="span-row__label">Longitude</span>
-            <input class="s-input is-num" id="v-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="v-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="oceanval-none">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="v-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="v-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="oceanval-none">
           </div>
           <div class="g-row span-row">
             <span class="span-row__label">Latitude</span>
-            <input class="s-input is-num" id="v-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="v-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="oceanval-none">
             <span class="dash">–</span>
-            <input class="s-input is-num" id="v-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
+            <input class="s-input is-num" id="v-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="oceanval-none">
           </div>
           <p class="group__msg" id="vm-subset"></p>
         </fieldset>
@@ -2029,7 +2029,7 @@
               <option value="file">A .nc file of your own…</option>
             </select>
           </div>
-          <label class="g-row" id="row-subregions_file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="v-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+          <label class="g-row" id="row-subregions_file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="v-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></label>
           <p class="group__msg" id="vm-subregions"></p>
         </fieldset>
         <fieldset class="group" id="v-group-transect">
@@ -2044,13 +2044,13 @@
             </div>
             <div class="g-row span-row">
               <span class="span-row__label">Start</span>
-              <input class="s-input is-num" id="v-transect_start_lon" placeholder="e.g. -30" aria-label="Longitude of the start" spellcheck="false" autocomplete="off">
-              <input class="s-input is-num" id="v-transect_start_lat" placeholder="e.g. 0" aria-label="Latitude of the start" spellcheck="false" autocomplete="off">
+              <input class="s-input is-num" id="v-transect_start_lon" placeholder="e.g. -30" aria-label="Longitude of the start" spellcheck="false" autocomplete="oceanval-none">
+              <input class="s-input is-num" id="v-transect_start_lat" placeholder="e.g. 0" aria-label="Latitude of the start" spellcheck="false" autocomplete="oceanval-none">
             </div>
             <div class="g-row span-row">
               <span class="span-row__label">End</span>
-              <input class="s-input is-num" id="v-transect_end_lon" placeholder="e.g. -30" aria-label="Longitude of the end" spellcheck="false" autocomplete="off">
-              <input class="s-input is-num" id="v-transect_end_lat" placeholder="e.g. 65" aria-label="Latitude of the end" spellcheck="false" autocomplete="off">
+              <input class="s-input is-num" id="v-transect_end_lon" placeholder="e.g. -30" aria-label="Longitude of the end" spellcheck="false" autocomplete="oceanval-none">
+              <input class="s-input is-num" id="v-transect_end_lat" placeholder="e.g. 65" aria-label="Latitude of the end" spellcheck="false" autocomplete="oceanval-none">
             </div>
           </div>
           <p class="group__msg" id="vm-transect"></p>
@@ -2110,7 +2110,7 @@
           <p class="dm-detail__about">You must supply a netCDF file with a single variable and a single time step. Values of 1 mark the cells you want; other cells should be 0 or missing. The simulation will be regridded to this file using nearest neighbour.</p>
           <div class="g-row">
             <label class="g-label" for="v-domain_mask_path">NetCDF file</label>
-            <input class="s-input is-mono" id="v-domain_mask_path" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="mask.nc">
+            <input class="s-input is-mono" id="v-domain_mask_path" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off" placeholder="mask.nc">
           </div>
           <p class="group__msg" id="vm-domain_mask_path"></p>
           <div class="ag-map dm-map" id="dm-map-v"></div>
@@ -2124,7 +2124,7 @@
   </section>
 
   <section id="view-compare" hidden>
-    <form class="form card" id="compare-form" novalidate autocomplete="off">
+    <form class="form card" id="compare-form" novalidate autocomplete="oceanval-none">
       <fieldset class="group form__wide">
         <legend>Simulations</legend>
         <div class="compare-info">
@@ -2138,17 +2138,17 @@
         <table class="compare-rows">
           <thead><tr><th scope="col"><span class="compare-rows__hide">Row</span></th><th scope="col">Simulation name</th><th scope="col">Validation directory</th></tr></thead>
           <tbody>
-            <tr><td class="compare-rows__n">1</td><td><input class="s-input" id="c-name_1" aria-label="Name of simulation 1" spellcheck="false" placeholder="e.g. control" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_1" list="c-dir_1-folders" aria-label="Validation directory of simulation 1" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_1">Browse…</button></div><datalist id="c-dir_1-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">2</td><td><input class="s-input" id="c-name_2" aria-label="Name of simulation 2" spellcheck="false" placeholder="e.g. new_mixing" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_2" list="c-dir_2-folders" aria-label="Validation directory of simulation 2" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_2">Browse…</button></div><datalist id="c-dir_2-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">3</td><td><input class="s-input" id="c-name_3" aria-label="Name of simulation 3" spellcheck="false" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_3" list="c-dir_3-folders" aria-label="Validation directory of simulation 3" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_3">Browse…</button></div><datalist id="c-dir_3-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">4</td><td><input class="s-input" id="c-name_4" aria-label="Name of simulation 4" spellcheck="false" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_4" list="c-dir_4-folders" aria-label="Validation directory of simulation 4" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_4">Browse…</button></div><datalist id="c-dir_4-folders"></datalist></td></tr>
-            <tr><td class="compare-rows__n">5</td><td><input class="s-input" id="c-name_5" aria-label="Name of simulation 5" spellcheck="false" autocomplete="off"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_5" list="c-dir_5-folders" aria-label="Validation directory of simulation 5" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_5">Browse…</button></div><datalist id="c-dir_5-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">1</td><td><input class="s-input" id="c-name_1" aria-label="Name of simulation 1" spellcheck="false" placeholder="e.g. control" autocomplete="oceanval-none"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_1" list="c-dir_1-folders" aria-label="Validation directory of simulation 1" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_1">Browse…</button></div><datalist id="c-dir_1-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">2</td><td><input class="s-input" id="c-name_2" aria-label="Name of simulation 2" spellcheck="false" placeholder="e.g. new_mixing" autocomplete="oceanval-none"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_2" list="c-dir_2-folders" aria-label="Validation directory of simulation 2" spellcheck="false" autocapitalize="off" placeholder="/path/to/validation" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_2">Browse…</button></div><datalist id="c-dir_2-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">3</td><td><input class="s-input" id="c-name_3" aria-label="Name of simulation 3" spellcheck="false" autocomplete="oceanval-none"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_3" list="c-dir_3-folders" aria-label="Validation directory of simulation 3" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_3">Browse…</button></div><datalist id="c-dir_3-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">4</td><td><input class="s-input" id="c-name_4" aria-label="Name of simulation 4" spellcheck="false" autocomplete="oceanval-none"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_4" list="c-dir_4-folders" aria-label="Validation directory of simulation 4" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_4">Browse…</button></div><datalist id="c-dir_4-folders"></datalist></td></tr>
+            <tr><td class="compare-rows__n">5</td><td><input class="s-input" id="c-name_5" aria-label="Name of simulation 5" spellcheck="false" autocomplete="oceanval-none"></td><td><div class="path-field"><input class="s-input is-mono" id="c-dir_5" list="c-dir_5-folders" aria-label="Validation directory of simulation 5" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="c-dir_5">Browse…</button></div><datalist id="c-dir_5-folders"></datalist></td></tr>
           </tbody>
         </table>
         <p class="group__msg" id="cm-rows"></p>
       </fieldset>
       <fieldset class="group form__wide">
-        <div class="g-row"><label class="g-label" for="c-out_dir">Which directory do you want to build the comparison in?</label><div class="path-field"><input class="s-input is-mono" id="c-out_dir" list="c-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="c-out_dir">Browse…</button></div><datalist id="c-out_dir-folders"></datalist></div>
+        <div class="g-row"><label class="g-label" for="c-out_dir">Which directory do you want to build the comparison in?</label><div class="path-field"><input class="s-input is-mono" id="c-out_dir" list="c-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="c-out_dir">Browse…</button></div><datalist id="c-out_dir-folders"></datalist></div>
         <p class="group__msg" id="cm-out_dir"></p>
       </fieldset>
       <!-- whether to add the comparison to the user's history (see oceanval.history_forms) -->
@@ -2290,9 +2290,9 @@
       <div class="g-row">
         <span class="g-label">What should be treated as missing values?</span>
         <div class="span-row">
-          <input class="s-input is-num" id="ao-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+          <input class="s-input is-num" id="ao-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
           <span class="dash">–</span>
-          <input class="s-input is-num" id="ao-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+          <input class="s-input is-num" id="ao-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
         </div>
       </div>
       <div id="ao-missing-multi" hidden>
@@ -2326,10 +2326,10 @@
     <p class="lede" id="ao-save-lede">Choose where to save the analysis</p>
     <fieldset class="group analyze-area" id="ao-history-group"></fieldset>
     <fieldset class="group analyze-area" id="ao-out-group">
-      <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
+      <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
       <p class="group__msg" id="ao-m-out_dir"></p>
       <label class="tick-label existing__confirm" id="ao-row-replace" hidden><input type="checkbox" class="tick" id="ao-replace_analysis"><span id="ao-replace-text">Tick to replace the analysis files in this directory (oceanval_analysis)</span></label>
-      <label class="g-row setup-box__script"><span class="g-label" id="ao-out-label">What do you want the analysis script to be called</span><input class="s-input is-mono" id="ao-out" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+      <label class="g-row setup-box__script"><span class="g-label" id="ao-out-label">What do you want the analysis script to be called</span><input class="s-input is-mono" id="ao-out" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></label>
       <p class="group__intro" id="ao-out-intro"></p>
       <p class="group__msg" id="ao-m-out"></p>
     </fieldset>
@@ -2338,15 +2338,15 @@
 
   <section id="view-simcompare-sims" hidden>
     <div class="banner" id="sc-sims-error" role="alert" hidden></div>
-    <form class="setup-form" id="sc-sims-form" novalidate autocomplete="off">
+    <form class="setup-form" id="sc-sims-form" novalidate autocomplete="oceanval-none">
       <fieldset class="group card setup-box">
         <p class="group__intro">Give two to five simulations. For each, a name (which is how the report calls it), the directory its output is in, and how many subdirectories below that directory its files are.</p>
         <div class="sc-sim" id="sc-row-1">
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-1"></span>Simulation 1<button type="button" class="analyze-remove sc-remove" id="sc-remove-1" title="Remove this simulation" aria-label="Remove simulation 1" hidden>×</button></h3>
           <div class="form__row">
-            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_1" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_1">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_1-combo"><input class="s-input" id="sc-name_1" placeholder="e.g. Control" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_1-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_1-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div></div>
-            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_1" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_1" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_1">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_1-combo"><input class="s-input" id="sc-name_1" placeholder="e.g. Control" spellcheck="false" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-name_1-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_1-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_1">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_1-combo"><input class="s-input is-mono" id="sc-dir_1" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-dir_1-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_1-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_1">Browse…</button></div></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_1" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="oceanval-none"></label>
           </div>
           <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_1" data-only="sc-require_1"></div>
           <p class="group__msg" id="sc-m-1"></p>
@@ -2354,9 +2354,9 @@
         <div class="sc-sim" id="sc-row-2">
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-2"></span>Simulation 2<button type="button" class="analyze-remove sc-remove" id="sc-remove-2" title="Remove this simulation" aria-label="Remove simulation 2" hidden>×</button></h3>
           <div class="form__row">
-            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_2" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_2">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_2-combo"><input class="s-input" id="sc-name_2" placeholder="e.g. New mixing" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_2-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_2-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div></div>
-            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_2" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_2" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_2">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_2-combo"><input class="s-input" id="sc-name_2" placeholder="e.g. New mixing" spellcheck="false" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-name_2-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_2-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_2">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_2-combo"><input class="s-input is-mono" id="sc-dir_2" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-dir_2-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_2-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_2">Browse…</button></div></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_2" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="oceanval-none"></label>
           </div>
           <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_2" data-only="sc-require_2"></div>
           <p class="group__msg" id="sc-m-2"></p>
@@ -2364,9 +2364,9 @@
         <div class="sc-sim" id="sc-row-3" hidden>
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-3"></span>Simulation 3<button type="button" class="analyze-remove sc-remove" id="sc-remove-3" title="Remove this simulation" aria-label="Remove simulation 3">×</button></h3>
           <div class="form__row">
-            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_3" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_3">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_3-combo"><input class="s-input" id="sc-name_3" placeholder="" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_3-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_3-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div></div>
-            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_3" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_3" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_3">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_3-combo"><input class="s-input" id="sc-name_3" placeholder="" spellcheck="false" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-name_3-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_3-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_3">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_3-combo"><input class="s-input is-mono" id="sc-dir_3" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-dir_3-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_3-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_3">Browse…</button></div></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_3" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="oceanval-none"></label>
           </div>
           <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_3" data-only="sc-require_3"></div>
           <p class="group__msg" id="sc-m-3"></p>
@@ -2374,9 +2374,9 @@
         <div class="sc-sim" id="sc-row-4" hidden>
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-4"></span>Simulation 4<button type="button" class="analyze-remove sc-remove" id="sc-remove-4" title="Remove this simulation" aria-label="Remove simulation 4">×</button></h3>
           <div class="form__row">
-            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_4" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_4">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_4-combo"><input class="s-input" id="sc-name_4" placeholder="" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_4-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_4-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div></div>
-            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_4" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_4" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_4">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_4-combo"><input class="s-input" id="sc-name_4" placeholder="" spellcheck="false" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-name_4-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_4-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_4">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_4-combo"><input class="s-input is-mono" id="sc-dir_4" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-dir_4-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_4-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_4">Browse…</button></div></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_4" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="oceanval-none"></label>
           </div>
           <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_4" data-only="sc-require_4"></div>
           <p class="group__msg" id="sc-m-4"></p>
@@ -2384,9 +2384,9 @@
         <div class="sc-sim" id="sc-row-5" hidden>
           <h3 class="sc-sim__title"><span class="sc-swatch" id="sc-swatch-5"></span>Simulation 5<button type="button" class="analyze-remove sc-remove" id="sc-remove-5" title="Remove this simulation" aria-label="Remove simulation 5">×</button></h3>
           <div class="form__row">
-            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_5" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_5">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_5-combo"><input class="s-input" id="sc-name_5" placeholder="" spellcheck="false" autocomplete="off"><button type="button" class="combo__toggle" id="sc-name_5-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_5-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
-            <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div></div>
-            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_5" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="off"></label>
+            <button type="button" class="btn btn--ghost btn--field btn--bank" id="sc-bank_5" disabled>Add to bank</button><div class="g-row"><label class="g-label is-required" for="sc-name_5">Name <span class="own-req">Required</span></label><div class="combo" id="sc-name_5-combo"><input class="s-input" id="sc-name_5" placeholder="" spellcheck="false" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-name_5-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-name_5-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div>
+            <div class="g-row"><label class="g-label is-required" for="sc-dir_5">Directory <span class="own-req">Required</span></label><div class="path-field"><div class="combo" id="sc-dir_5-combo"><input class="s-input is-mono" id="sc-dir_5" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="sc-dir_5-recent-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="sc-dir_5-recent" role="listbox" aria-label="Simulations in the bank" hidden></ul></div><button type="button" class="btn btn--ghost btn--field" data-browse="sc-dir_5">Browse…</button></div></div>
+            <label class="g-row"><span class="g-label is-required">Directories down <span class="own-req">Required</span></span><input class="s-input is-num" id="sc-ndown_5" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocomplete="oceanval-none"></label>
           </div>
           <div class="word-filters" style="margin-top:10px" data-skip="sc-exclude_5" data-only="sc-require_5"></div>
           <p class="group__msg" id="sc-m-5"></p>
@@ -2488,15 +2488,15 @@
         <h3 class="sc-grid-card__title">A lon/lat box and resolution</h3>
         <p class="group__intro">Every simulation is put on a regular lon-lat grid of this box and resolution, with nctoolkit's <code>to_latlon</code>, by the method chosen below.<span id="scg-extents"></span></p>
         <div class="form__row is-pair">
-          <label class="g-row"><span class="g-label is-required">Longitude, from <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_min" placeholder="e.g. -20" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
-          <label class="g-row"><span class="g-label is-required">Longitude, to <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_max" placeholder="e.g. 10" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+          <label class="g-row"><span class="g-label is-required">Longitude, from <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_min" placeholder="e.g. -20" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none"></label>
+          <label class="g-row"><span class="g-label is-required">Longitude, to <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lon_max" placeholder="e.g. 10" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none"></label>
         </div>
         <div class="form__row is-pair">
-          <label class="g-row"><span class="g-label is-required">Latitude, from <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lat_min" placeholder="e.g. 40" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
-          <label class="g-row"><span class="g-label is-required">Latitude, to <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lat_max" placeholder="e.g. 65" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+          <label class="g-row"><span class="g-label is-required">Latitude, from <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lat_min" placeholder="e.g. 40" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none"></label>
+          <label class="g-row"><span class="g-label is-required">Latitude, to <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-lat_max" placeholder="e.g. 65" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none"></label>
         </div>
         <div class="form__row is-pair">
-          <label class="g-row"><span class="g-label is-required">Resolution, in degrees <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-res" placeholder="e.g. 0.1" inputmode="decimal" spellcheck="false" autocomplete="off"></label>
+          <label class="g-row"><span class="g-label is-required">Resolution, in degrees <span class="own-req">Required</span></span><input class="s-input is-num" id="scg-res" placeholder="e.g. 0.1" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none"></label>
         </div>
         <p class="group__msg" id="scg-box-msg"></p>
       </div>
@@ -2527,7 +2527,7 @@
         <p class="dm-detail__about">You must supply a netCDF file with a single variable and a single time step. Values of 1 mark the cells you want; other cells should be 0 or missing. The simulations will be regridded to this file using nearest neighbour.</p>
         <div class="g-row">
           <label class="g-label" for="scg-domain_mask_path">NetCDF file</label>
-          <input class="s-input is-mono" id="scg-domain_mask_path" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="mask.nc">
+          <input class="s-input is-mono" id="scg-domain_mask_path" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off" placeholder="mask.nc">
         </div>
         <p class="group__msg" id="scm-domain_mask_path"></p>
         <div class="ag-map dm-map" id="dm-map-scg"></div>
@@ -2676,8 +2676,8 @@
       <h2 id="bank-add-title">Add to the bank</h2>
     </div>
     <div class="bank-info__form">
-      <div class="g-row"><label class="g-label is-required" for="bank-add-name">Name <span class="own-req">Required</span></label><input class="s-input" id="bank-add-name" placeholder="Give it a name, e.g. 'Atlantic ocean reanalysis from Project X'" spellcheck="false" autocomplete="off"></div>
-      <div class="g-row"><label class="g-label is-required" for="bank-add-dir">Directory <span class="own-req">Required</span></label><div class="path-field"><input class="s-input is-mono" id="bank-add-dir" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="off"><button type="button" class="btn btn--ghost btn--field" data-browse="bank-add-dir">Browse…</button></div></div>
+      <div class="g-row"><label class="g-label is-required" for="bank-add-name">Name <span class="own-req">Required</span></label><input class="s-input" id="bank-add-name" placeholder="Give it a name, e.g. 'Atlantic ocean reanalysis from Project X'" spellcheck="false" autocomplete="oceanval-none"></div>
+      <div class="g-row"><label class="g-label is-required" for="bank-add-dir">Directory <span class="own-req">Required</span></label><div class="path-field"><input class="s-input is-mono" id="bank-add-dir" placeholder="/path/to/simulation/output" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="bank-add-dir">Browse…</button></div></div>
       <p class="bank-info__count" id="bank-add-note" role="status"></p>
     </div>
     <div class="picker__foot">
@@ -2693,7 +2693,7 @@
       <div class="picker__places" id="picker-places"></div>
     </div>
     <nav class="picker__crumbs" id="picker-crumbs" aria-label="The directory shown"></nav>
-    <input class="s-input picker__filter" id="picker-filter" placeholder="Filter these folders" aria-label="Filter these folders" spellcheck="false" autocomplete="off" autocapitalize="off">
+    <input class="s-input picker__filter" id="picker-filter" placeholder="Filter these folders" aria-label="Filter these folders" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
     <div class="picker__list" id="picker-list" tabindex="-1" aria-label="Folders"></div>
     <p class="picker__info" id="picker-info"></p>
     <div class="picker__foot">
@@ -2712,7 +2712,7 @@
       <p class="bank-info__where" id="bank-info-where"></p>
       <div class="ndown-row">
         <label class="g-label is-required" for="bank-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
-        <input class="s-input is-num" id="bank-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" autocomplete="off">
+        <input class="s-input is-num" id="bank-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none">
         <button type="button" class="btn btn--ghost btn--field btn--sample" id="bank-info-view" aria-haspopup="dialog" hidden>View the files in a random subdirectory</button>
       </div>
       <div class="word-filters" data-skip="bank-exclude" data-only="bank-require"></div>
@@ -2735,7 +2735,7 @@
       <p class="group__msg" id="sx-held" hidden></p>
       <div class="sx__block" id="sx-block-datasets">
         <p class="g-label is-required">Datasets <span class="own-req" id="sx-req-datasets">Required</span></p>
-        <input class="s-input" id="sx-search" placeholder="Search, e.g. nitrate or woa" aria-label="Search the datasets" spellcheck="false" autocapitalize="off" autocomplete="off">
+        <input class="s-input" id="sx-search" placeholder="Search, e.g. nitrate or woa" aria-label="Search the datasets" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none">
         <div class="sx__list" id="sx-list-wrap"><table class="sx__table"><tbody id="sx-list"></tbody></table></div>
         <p class="group__msg" id="sx-count"></p>
         <p class="group__msg is-error" id="sx-msg-datasets"></p>
@@ -2743,9 +2743,9 @@
       <div class="sx__block" id="sx-row-years" hidden>
         <p class="g-label">Years <span class="own-req" id="sx-req-years">Required</span></p>
         <div class="g-row span-row">
-          <input class="s-input is-year is-num" id="sx-start" placeholder="first" aria-label="First year" inputmode="numeric" spellcheck="false" autocomplete="off">
+          <input class="s-input is-year is-num" id="sx-start" placeholder="first" aria-label="First year" inputmode="numeric" spellcheck="false" autocomplete="oceanval-none">
           <span class="dash">–</span>
-          <input class="s-input is-year is-num" id="sx-end" placeholder="last" aria-label="Last year" inputmode="numeric" spellcheck="false" autocomplete="off">
+          <input class="s-input is-year is-num" id="sx-end" placeholder="last" aria-label="Last year" inputmode="numeric" spellcheck="false" autocomplete="oceanval-none">
         </div>
         <p class="group__msg" id="sx-years-note"></p>
         <p class="group__msg is-error" id="sx-msg-years"></p>
@@ -2754,15 +2754,15 @@
         <p class="g-label">lon-lat extent <span class="own-req" id="sx-req-area">Required</span></p>
         <div class="g-row span-row">
           <span class="span-row__label">Longitude</span>
-          <input class="s-input is-num" id="sx-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="sx-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="oceanval-none">
           <span class="dash">–</span>
-          <input class="s-input is-num" id="sx-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="sx-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="oceanval-none">
         </div>
         <div class="g-row span-row">
           <span class="span-row__label">Latitude</span>
-          <input class="s-input is-num" id="sx-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="sx-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="oceanval-none">
           <span class="dash">–</span>
-          <input class="s-input is-num" id="sx-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="sx-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="oceanval-none">
         </div>
         <p class="group__msg">The area is rounded out to whole degrees, and one that is nearly the whole globe is kept as the whole globe. What the store already has of a dataset is kept too: the new area is added to it.</p>
         <p class="group__msg is-error" id="sx-msg-area"></p>
@@ -2874,7 +2874,7 @@
         <tbody id="clim-body"></tbody>
       </table>
       <div class="analyze-thickness" id="clim-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
         <p class="analyze-msg" id="clim-thickness-msg"></p>
       </div>
       <p class="analyze-dialog__intro" id="clim-fvcom-thickness" hidden>For FVCOM output the cell thickness is worked out from its sigma levels (<code>siglev</code>), bathymetry (<code>h</code>) and surface elevation (<code>zeta</code>), at each time.</p>
@@ -2889,19 +2889,19 @@
             <option value="file">A .nc file of your own…</option>
           </select>
         </div>
-        <label class="g-row" id="area-row-file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="area-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+        <label class="g-row" id="area-row-file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="area-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></label>
         <p class="analyze-msg" id="area-msg-subregions"></p>
         <div class="g-row span-row">
           <span class="span-row__label">Longitude</span>
-          <input class="s-input is-num" id="area-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="area-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="oceanval-none">
           <span class="dash">–</span>
-          <input class="s-input is-num" id="area-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="area-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="oceanval-none">
         </div>
         <div class="g-row span-row">
           <span class="span-row__label">Latitude</span>
-          <input class="s-input is-num" id="area-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="area-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="oceanval-none">
           <span class="dash">–</span>
-          <input class="s-input is-num" id="area-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off">
+          <input class="s-input is-num" id="area-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="oceanval-none">
         </div>
         <p class="analyze-msg" id="area-msg-subset"></p>
       </div>
@@ -2931,7 +2931,7 @@
     </div>
     <div class="analyze-dialog__body">
       <p class="analyze-dialog__intro" id="multi-intro">Click the variables of the simulation's output files to add. Those already in the list are marked and cannot be picked again.</p>
-      <input type="search" class="s-input multi-search" id="multi-search" placeholder="Search by name or description, e.g. P*_Chl" aria-label="Search the variables" autocomplete="off">
+      <input type="search" class="s-input multi-search" id="multi-search" placeholder="Search by name or description, e.g. P*_Chl" aria-label="Search the variables" autocomplete="oceanval-none">
       <div class="multi-grid" id="multi-grid"></div>
       <p class="analyze-msg" id="multi-count" role="status" aria-live="polite"></p>
     </div>
@@ -2983,7 +2983,7 @@
       </table>
       <p class="analyze-dialog__intro" id="chg-fvcom-thickness" hidden>For FVCOM output the cell thickness is worked out from its sigma levels (<code>siglev</code>), bathymetry (<code>h</code>) and surface elevation (<code>zeta</code>), at each time.</p>
       <div class="analyze-thickness" id="chg-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
         <p class="analyze-msg" id="chg-thickness-msg"></p>
       </div>
     </div>
@@ -3005,7 +3005,7 @@
       <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
       <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years as a map of position along the line by year, of the annual means or of their change from the first year (or the first rolling mean), with an optional rolling mean.</p>
       <div class="analyze-thickness" id="trans-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
         <p class="analyze-msg" id="trans-thickness-msg"></p>
         <p class="analyze-dialog__intro">A vertical section needs to know where each cell is. With <code>z_level</code> the model's levels are the depths. With a thickness, each cell is placed at its depth, from the top of the water column, and the section is put on evenly spaced depths.</p>
       </div>
@@ -5378,7 +5378,7 @@
     const question = `${prefix}-history-question`;
     const radio = (value, text) => el("label", { class: "ptr-mode" },
       el("input", { type: "radio", name: `${prefix}-history`, value, id: `${prefix}-history-${value}` }), text);
-    const name = el("input", { class: "s-input", id: `${prefix}-work_name`, spellcheck: "false", autocomplete: "off", maxlength: "80", placeholder: "e.g. Baseline run" });
+    const name = el("input", { class: "s-input", id: `${prefix}-work_name`, spellcheck: "false", autocomplete: "oceanval-none", maxlength: "80", placeholder: "e.g. Baseline run" });
     const nameRow = el("div", { class: "g-row", id: `${prefix}-row-work_name`, hidden: true },
       el("label", { class: "g-label is-required", for: `${prefix}-work_name` }, "Name ", el("span", { class: "own-req" }, "Required")), name);
     const yes = radio("yes", "Yes");
@@ -6063,9 +6063,9 @@
       auto: false,
     };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Chlorophyll",
-      spellcheck: "false", autocomplete: "off", "aria-label": "Environmental variable" });
+      spellcheck: "false", autocomplete: "oceanval-none", "aria-label": "Environmental variable" });
     const model = el("input", { class: "s-input is-mono", type: "text", value: item.model_variable, placeholder: "e.g. P1_Chl+P2_Chl or P1_Chl+2*P2_Chl",
-      spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": "Variable name in the simulation" });
+      spellcheck: "false", autocomplete: "oceanval-none", autocapitalize: "off", "aria-label": "Variable name in the simulation" });
     // what OceanVal filled in is red and bold until it is changed
     if (item.filled) [name, model].forEach((box) => box.classList.add("is-oceanval"));
     const yours = () => {
@@ -6816,9 +6816,9 @@
       ...[ALL_SIMULATIONS, ...(state.analyze.missing_targets || [])].map((name) => el("option", { value: name, text: name })));
     choose.value = row.apply || "";
     const from = el("input", { class: "s-input is-num", type: "text", value: row.from || "", placeholder: "value",
-      "aria-label": "Treat as missing: the value, or the start of a range", spellcheck: "false", autocomplete: "off", autocapitalize: "off" });
+      "aria-label": "Treat as missing: the value, or the start of a range", spellcheck: "false", autocomplete: "oceanval-none", autocapitalize: "off" });
     const to = el("input", { class: "s-input is-num", type: "text", value: row.to || "", placeholder: "to",
-      "aria-label": "Treat as missing: the end of a range", spellcheck: "false", autocomplete: "off", autocapitalize: "off" });
+      "aria-label": "Treat as missing: the end of a range", spellcheck: "false", autocomplete: "oceanval-none", autocapitalize: "off" });
     item.nameBox = choose;
     item.choose = choose;
     item.from = from;
@@ -6946,7 +6946,7 @@
   // a year box, empty until a year is typed: the year of the output it could be is only its hint
   function yearBox(value, hint, label, name) {
     return withYears(el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric", value: value || "",
-      placeholder: hint ? String(hint) : "", "aria-label": label, spellcheck: "false", autocomplete: "off" }), name);
+      placeholder: hint ? String(hint) : "", "aria-label": label, spellcheck: "false", autocomplete: "oceanval-none" }), name);
   }
 
   // every year of a variable's output, offered by the arrow in a year box (the dates check has no year missing
@@ -7074,7 +7074,7 @@
       // the long-term series also have a rolling mean of the annual means, 1 (none) to start with, and a way to show them
       const series = kind === "long_term";
       const rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric", value: box.window || "1", placeholder: "1",
-        "aria-label": `Years of the rolling mean of the annual means of ${row.name} (1 is none)`, spellcheck: "false", autocomplete: "off" });
+        "aria-label": `Years of the rolling mean of the annual means of ${row.name} (1 is none)`, spellcheck: "false", autocomplete: "oceanval-none" });
       const show = el("select", { class: "s-select is-show", "aria-label": `How to show the long-term series of ${row.name}` },
         ...Object.entries(SERIES_SHOWS).map(([value, text]) => el("option", { value, text })));
       show.value = box.show in SERIES_SHOWS ? box.show : "absolute";
@@ -7287,7 +7287,7 @@
     };
     const yearOf = (key, label, placeholder) => {
       const input = el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric",
-        placeholder: placeholder ? String(placeholder) : "", "aria-label": `${label} of every variable`, spellcheck: "false", autocomplete: "off" });
+        placeholder: placeholder ? String(placeholder) : "", "aria-label": `${label} of every variable`, spellcheck: "false", autocomplete: "oceanval-none" });
       controls[key] = years ? withChoices(input, years) : input;
       return el("td", {}, controls[key]);
     };
@@ -7329,7 +7329,7 @@
     } else {
       const series = kind === "long_term" ? [
         el("td", {}, controls.rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric", placeholder: "1",
-          "aria-label": "Years of the rolling mean of the annual means of every variable (1 is none)", spellcheck: "false", autocomplete: "off" })),
+          "aria-label": "Years of the rolling mean of the annual means of every variable (1 is none)", spellcheck: "false", autocomplete: "oceanval-none" })),
         el("td", {}, selectOf("show", "How to show the long-term series", SERIES_SHOWS)),
       ] : [];
       trs.push(el("tr", { class: "is-all" }, name, yearOf("start", "Start", hint(0)), yearOf("end", "End", hint(1)), ...layers(), ...series));
@@ -7413,11 +7413,11 @@
   // ---- the stations of the time series ----
   function stationRow(values) {
     const name = el("input", { class: "s-input is-name", type: "text", value: values[0] || "", placeholder: "e.g. L4",
-      "aria-label": "Name of the station", spellcheck: "false", autocomplete: "off" });
+      "aria-label": "Name of the station", spellcheck: "false", autocomplete: "oceanval-none" });
     const lon = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[1] || "",
-      placeholder: "e.g. -4.217", "aria-label": "Longitude of the station", spellcheck: "false", autocomplete: "off" });
+      placeholder: "e.g. -4.217", "aria-label": "Longitude of the station", spellcheck: "false", autocomplete: "oceanval-none" });
     const lat = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[2] || "",
-      placeholder: "e.g. 50.25", "aria-label": "Latitude of the station", spellcheck: "false", autocomplete: "off" });
+      placeholder: "e.g. 50.25", "aria-label": "Latitude of the station", spellcheck: "false", autocomplete: "oceanval-none" });
     const msg = el("p", { class: "analyze-msg" });
     const remove = el("button", { type: "button", class: "btn btn--ghost", "aria-label": "Remove this station", text: "×" });
     const tr = el("tr", {}, el("td", {}, name, msg), el("td", {}, lon), el("td", {}, lat), el("td", {}, remove));
@@ -7499,7 +7499,7 @@
   function optionYears(values, option, name, hint, variable) {
     const box = (part, label) => withYears(el("input", { class: "s-input is-year is-num", type: "text", inputmode: "numeric",
       value: values[`${option}_${part}`] || "", placeholder: hint[part === "start" ? 0 : 1] ? String(hint[part === "start" ? 0 : 1]) : "",
-      "aria-label": `${label} of the ${name}`, spellcheck: "false", autocomplete: "off" }), variable);
+      "aria-label": `${label} of the ${name}`, spellcheck: "false", autocomplete: "oceanval-none" }), variable);
     return { start: box("start", "Start"), end: box("end", "End") };
   }
 
@@ -7510,7 +7510,7 @@
     const inputs = {};
     for (const [name, label, placeholder] of TRANSECT_END_BOXES) {
       inputs[name] = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[name] || "",
-        placeholder, "aria-label": label, spellcheck: "false", autocomplete: "off" });
+        placeholder, "aria-label": label, spellcheck: "false", autocomplete: "oceanval-none" });
     }
     const heading = el("strong", { text: "" });
     const remove = el("button", { type: "button", class: "btn btn--ghost", "aria-label": "Remove this transect", text: "×" });
@@ -7538,7 +7538,7 @@
       const rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric",
         value: values[`${part.changes}_window`] || "1", placeholder: "1",
         "aria-label": `Years of the rolling mean of the annual means of the ${lower} changes (1 is none)`,
-        spellcheck: "false", autocomplete: "off" });
+        spellcheck: "false", autocomplete: "oceanval-none" });
       const rollingRow = el("label", { class: "transect-window" }, el("span", { text: "Use a rolling mean (years)" }), rolling);
       ticks[part.climatology] = tick;
       selects[part.changes] = select;
@@ -7560,7 +7560,7 @@
     for (const [name, label, placeholder] of [["depth_increment", "Depth increment (m)", "e.g. 10"],
         ["max_depth", "Maximum depth (m, optional)", "deepest with values"]]) {
       depthBoxes[name] = el("input", { class: "s-input is-num", type: "text", inputmode: "decimal", value: values[name] || "",
-        placeholder, "aria-label": `${label} of the vertical sections`, spellcheck: "false", autocomplete: "off" });
+        placeholder, "aria-label": `${label} of the vertical sections`, spellcheck: "false", autocomplete: "oceanval-none" });
     }
     const depthRow = el("tr", { class: "transect-depths" },
       el("td", {}, el("label", {}, el("span", { text: "Depth increment (m) " }), depthBoxes.depth_increment)),
@@ -8023,7 +8023,7 @@
       const mono = field.name === "obs_path" || field.name === "model_variable" || field.name === "obs_variable";
       const number = field.kind !== "text";
       input = el("input", { type: "text", class: "s-input" + (mono ? " is-mono" : number ? " is-num" : ""), id,
-        placeholder: field.placeholder || "", spellcheck: "false", autocapitalize: "off", autocomplete: "off",
+        placeholder: field.placeholder || "", spellcheck: "false", autocapitalize: "off", autocomplete: "oceanval-none",
         list: field.name === "name" ? "own-variable-options" : field.name === "obs_path" ? `${id}-folders` : null,
         "aria-describedby": described });
       read = () => input.value;
@@ -8070,7 +8070,7 @@
     const optional = el("details", { class: "own-optional", id: `own-optional-${kind}` },
       el("summary", {}, "Optional settings", el("span", { class: "own-optional__chevron", "aria-hidden": "true" })),
       el("div", { class: "own-fields" }, ...fields.filter((f) => !f.required).map((f) => ownField(kind, f))));
-    const form = el("form", { class: "own-form card", id: `own-form-${kind}`, novalidate: true, autocomplete: "off" },
+    const form = el("form", { class: "own-form card", id: `own-form-${kind}`, novalidate: true, autocomplete: "oceanval-none" },
       el("h2", { text: `Add a ${OWN_TEXT[kind].noun}` }),
       el("p", { class: "own-legend" }, el("span", { class: "own-swatch", "aria-hidden": "true" }),
         el("span", {}, "Marked in ", el("b", { class: "is-required-word", text: "Required" }), " is what has to be given.")),
@@ -8273,7 +8273,7 @@
     const needed = el("span", { class: "own-req", text: "Required", hidden: true });
     const input = name === "source_info"
       ? el("textarea", { class: "s-input", id, rows: "2", spellcheck: "false", "aria-describedby": described })
-      : el("input", { type: "text", class: "s-input", id, spellcheck: "false", autocapitalize: "off", autocomplete: "off",
+      : el("input", { type: "text", class: "s-input", id, spellcheck: "false", autocapitalize: "off", autocomplete: "oceanval-none",
         placeholder: name === "units" ? "e.g. mg m-3" : null, "aria-describedby": described });
     const wrapper = el("div", { class: "own-field" + (name === "source_info" ? " is-wide" : "") },
       el("label", { class: "g-label", for: id }, FUTURE_LABELS[name], pill, needed), input, note, error);
@@ -8362,7 +8362,7 @@
         el("code", { text: ".oceanvalrc" }), " file, as ", el("strong", { text: "Add your own validation data for future use" }),
         " does. A recipe needs some things the form did not ask for, which are below. What OceanVal will assume unless you change it is in amber."),
       el("div", { class: "banner", id: "future-error", role: "alert", hidden: true }),
-      el("form", { class: "own-form reg-form future-form card", id: "future-form", novalidate: true, autocomplete: "off" },
+      el("form", { class: "own-form reg-form future-form card", id: "future-form", novalidate: true, autocomplete: "oceanval-none" },
         el("h2", { text: `Save ${entry.name} from ${entry.source} for future use` }),
         el("div", { class: "own-legends" },
           el("p", { class: "own-legend" }, el("span", { class: "own-swatch is-amber", "aria-hidden": "true" }),
@@ -8576,7 +8576,7 @@
   function regText(kind, name, { mono = false, placeholder = "", list = null } = {}) {
     const id = `r-${kind}-${name}`;
     return el("input", { type: "text", class: "s-input" + (mono ? " is-mono" : ""), id, placeholder,
-      spellcheck: "false", autocapitalize: "off", autocomplete: "off", list,
+      spellcheck: "false", autocapitalize: "off", autocomplete: "oceanval-none", list,
       "aria-describedby": `${id}-help ${id}-err` });
   }
 
@@ -8673,7 +8673,7 @@
       write: (value) => whereRadios.forEach((box) => { box.checked = box.value === value; }) });
     const whereMessage = el("p", { class: "group__msg", id: `r-${kind}-where-msg`, "aria-live": "polite" });
 
-    const form = el("form", { class: "own-form reg-form card", id: `register-form-${kind}`, novalidate: true, autocomplete: "off" },
+    const form = el("form", { class: "own-form reg-form card", id: `register-form-${kind}`, novalidate: true, autocomplete: "oceanval-none" },
       el("h2", { text: `Add a ${text.noun}` }),
       el("p", { class: "own-legend" }, el("span", { class: "own-swatch", "aria-hidden": "true" }),
         el("span", {}, "Marked in ", el("b", { class: "is-required-word", text: "Required" }), " is what has to be given.")),
@@ -9270,7 +9270,7 @@
         class: "s-input is-num",
         inputmode: "decimal",
         spellcheck: "false",
-        autocomplete: "off",
+        autocomplete: "oceanval-none",
         value: pair[part],
         placeholder: part === 0 ? "min" : i === rows.length - 1 ? "and deeper" : "max",
         "aria-label": `${part === 0 ? "From" : "To"} depth of bin ${i + 1}, in metres`,
@@ -10992,7 +10992,7 @@
         button(ANSWER_LABELS[choice.toLowerCase()] || choice, index === 0 ? "primary" : "ghost",
           () => send(question.id, choice))));
     } else {
-      const input = el("input", { class: "s-input", "aria-label": "Your answer", spellcheck: "false", autocomplete: "off" });
+      const input = el("input", { class: "s-input", "aria-label": "Your answer", spellcheck: "false", autocomplete: "oceanval-none" });
       const form = el("form", { class: "ask__answer" }, input, button("Send", "primary", null, { type: "submit" }));
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -12863,14 +12863,14 @@
     const sims = scState().sims;
     const item = { name: row.name || "", models: { ...(row.models || {}) }, filled: Boolean(row.filled), server: {}, hint: "", auto: {}, boxes: {}, msgs: {} };
     const name = el("input", { class: "s-input", type: "text", value: item.name, placeholder: "e.g. Temperature",
-      spellcheck: "false", autocomplete: "off", "aria-label": "Environmental variable" });
+      spellcheck: "false", autocomplete: "oceanval-none", "aria-label": "Environmental variable" });
     if (item.filled) name.classList.add("is-oceanval");
     item.nameBox = name;
     item.nameMsg = el("p", { class: "analyze-msg" });
     const yours = () => { item.server = {}; item.hint = ""; scVars.message = ""; };
     const cells = sims.map((sim) => {
       const box = el("input", { class: "s-input is-mono", type: "text", value: item.models[sim.name] || "", placeholder: "e.g. thetao",
-        spellcheck: "false", autocomplete: "off", autocapitalize: "off", "aria-label": `The model variable holding it in ${sim.name}` });
+        spellcheck: "false", autocomplete: "oceanval-none", autocapitalize: "off", "aria-label": `The model variable holding it in ${sim.name}` });
       if (item.filled && item.models[sim.name]) box.classList.add("is-oceanval");
       // the simulation's variables are listed as the box is typed in (a pick is an input event, taken below)
       const picked = scPicked(sim);

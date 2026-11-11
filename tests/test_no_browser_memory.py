@@ -1,5 +1,5 @@
 """The browser never offers what was typed in OceanVal's windows before: every
-box has autocomplete="off", in the markup and when the pages make it later.
+box has autocomplete="oceanval-none", in the markup and when the pages make it later.
 The simulation directories are remembered by OceanVal itself (.oceanvalcache)."""
 
 import json
@@ -25,11 +25,11 @@ CONTEXT = {
     "out": "/out/matchup.py",
 }
 
-# the typed boxes on the page whose autocomplete is not "off"
+# the typed boxes on the page whose autocomplete is not "oceanval-none"
 REMEMBERING = """() => [...document.querySelectorAll("input, textarea")]
     .filter((box) => box.tagName === "TEXTAREA"
         || !["hidden", "checkbox", "radio", "range", "button", "submit", "reset", "file", "image", "color"].includes(box.type))
-    .filter((box) => box.getAttribute("autocomplete") !== "off")
+    .filter((box) => box.getAttribute("autocomplete") !== "oceanval-none")
     .map((box) => box.id || box.outerHTML.slice(0, 80))"""
 
 # a box made by the page after it has loaded
@@ -42,14 +42,15 @@ MADE_LATER = """async () => {
 }"""
 
 
-def test_chrome_off_is_never_used():
-    """Chrome takes no notice of autocomplete="chrome-off"."""
+def test_off_is_never_used():
+    """Chrome takes no notice of autocomplete="off" or "chrome-off" on boxes it takes for address
+    fields (a "first" box offered the user's saved addresses); an unknown token fills nothing."""
     for path in DATA.iterdir():
         if path.suffix in {".html", ".js"}:
-            assert not re.search(r"""autocomplete\W+chrome-off""", path.read_text()), path.name
+            assert not re.search(r"""autocomplete\W+(chrome-)?off\b""", path.read_text()), path.name
 
 
-def test_every_box_in_the_markup_says_off():
+def test_every_box_in_the_markup_says_oceanval_none():
     for name in ["oceanval_app.html", "create_recipes_gui.html"]:
         text = (DATA / name).read_text()
         markup = text[: text.index('<script type="application/json" id="state">')]
@@ -57,7 +58,7 @@ def test_every_box_in_the_markup_says_off():
             kind = re.search(r'\btype="([^"]+)"', tag)
             if kind and kind.group(1) in {"hidden", "checkbox", "radio", "range"}:
                 continue
-            assert 'autocomplete="off"' in tag, (name, tag)
+            assert 'autocomplete="oceanval-none"' in tag, (name, tag)
 
 SHOT = os.environ.get("VALIDATE_INTRO_SHOT")
 
@@ -73,7 +74,7 @@ def test_the_app_window_remembers_nothing(browser, tmp_path):
         page.click('button.choice[data-action="matchup_validate"]')
         page.wait_for_selector("#view-setup:not([hidden])")
         assert page.evaluate(REMEMBERING) == []
-        assert page.evaluate(MADE_LATER) == "off"
+        assert page.evaluate(MADE_LATER) == "oceanval-none"
     finally:
         app.close()
 
@@ -91,7 +92,7 @@ def test_the_recipes_window_remembers_nothing(browser):
         page.goto(url)
         page.wait_for_selector("#s-clim_start")
         assert page.evaluate(REMEMBERING) == []
-        assert page.evaluate(MADE_LATER) == "off"
+        assert page.evaluate(MADE_LATER) == "oceanval-none"
     finally:
         recipe_page.close()
 

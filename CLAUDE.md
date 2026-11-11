@@ -100,7 +100,7 @@ Rules that apply across the code:
 4. **Never `.load()` or read the whole values of a model file.** Model output is processed by nctoolkit/CDO, which streams it. xarray is for coordinates and small files OceanVal writes itself.
 5. **Before `topvalue`, `bottomvalue` or `vertical_mean`, ask for `surface.finite_missing(ds)`** (`setmissval,1e20`). A NaN missing value breaks CDO 2.4.1 for those operators. A new one must do the same (see [docs/dev/files-and-cdo.md](docs/dev/files-and-cdo.md)).
 6. **Every window read of netCDF holds `oceanval.netcdf_lock.LOCK`.** CDO runs in its own process and needs no lock.
-7. **Every typed box has `autocomplete="off"`, and every colour is a token** (`:root` in `data/gui.css`), never hex.
+7. **Every typed box has `autocomplete="oceanval-none"` (never `off`: Chrome ignores it on boxes that look like address fields, e.g. "first"), and every colour is a token** (`:root` in `data/gui.css`), never hex.
 8. **Every user-visible change needs the three documentation surfaces**, listed below.
 
 ### Network dependency for gridded recipes

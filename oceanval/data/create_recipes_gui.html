@@ -271,8 +271,8 @@
             <p class="group__intro">Ideally, select a suitable long-term period covering 10 or more years to reduce the influence of short-term variability</p>
             <p class="group__intro">This will apply to all climatologies, but can be overridden individually.</p>
             <div class="g-row pair">
-              <label><span class="g-label">First year</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-              <label><span class="g-label">Last year</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">First year</span><input class="s-input is-num" id="s-clim_start" name="climatology-start-year" aria-label="First year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
+              <label><span class="g-label">Last year</span><input class="s-input is-num" id="s-clim_end" name="climatology-end-year" aria-label="Last year for climatologies" inputmode="numeric" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             </div>
             <p class="group__msg" id="g-output-years"></p>
             <p class="group__msg" id="g-climate"></p>
@@ -281,12 +281,12 @@
         <div class="settings__column">
           <fieldset class="group" id="group-fvcom" hidden>
             <legend>How do you want the FVCOM output regridded?</legend>
-            <label class="g-row"><span class="g-label">Lon-lat resolution for point data (degrees)</span><input class="s-input is-num" id="s-fvcom_res" name="fvcom-resolution" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <label class="g-row"><span class="g-label">Lon-lat resolution for point data (degrees)</span><input class="s-input is-num" id="s-fvcom_res" name="fvcom-resolution" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             <div class="g-row pair">
-              <label><span class="g-label">Minimum depth (m)</span><input class="s-input is-num" id="s-fvcom_min_depth" name="fvcom-minimum-depth" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-              <label><span class="g-label">Maximum depth (m)</span><input class="s-input is-num" id="s-fvcom_max_depth" name="fvcom-maximum-depth" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label">Minimum depth (m)</span><input class="s-input is-num" id="s-fvcom_min_depth" name="fvcom-minimum-depth" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
+              <label><span class="g-label">Maximum depth (m)</span><input class="s-input is-num" id="s-fvcom_max_depth" name="fvcom-maximum-depth" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             </div>
-            <label class="g-row"><span class="g-label">Vertical spacing (m)</span><input class="s-input is-num" id="s-fvcom_dz" name="fvcom-vertical-spacing" inputmode="decimal" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <label class="g-row"><span class="g-label">Vertical spacing (m)</span><input class="s-input is-num" id="s-fvcom_dz" name="fvcom-vertical-spacing" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             <p class="group__msg" id="g-fvcom"></p>
           </fieldset>
         </div>
@@ -295,7 +295,7 @@
           <fieldset class="group" id="group-thickness">
             <legend>Model data info</legend>
             <div id="row-thickness">
-            <label class="g-row"><span class="g-label">Is the simulation z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <label class="g-row"><span class="g-label">Is the simulation z-level or is thickness supplied?</span><input class="s-input is-mono" id="s-thickness" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             <p class="group__msg" id="g-thickness"></p>
             </div>
           </fieldset>
@@ -333,8 +333,8 @@
             <legend>Settings for all point matchups</legend>
             <span class="g-label" id="s-point_years-question">What simulation years do you want to compare with point observations?</span>
             <div class="g-row pair">
-              <label><span class="g-label" id="s-point_start-label">First <span class="year-required" id="s-point_start-required" hidden>Required</span></span><input class="s-input is-num" id="s-point_start" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
-              <label><span class="g-label" id="s-point_end-label">Last <span class="year-required" id="s-point_end-required" hidden>Required</span></span><input class="s-input is-num" id="s-point_end" inputmode="numeric" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+              <label><span class="g-label" id="s-point_start-label">First <span class="year-required" id="s-point_start-required" hidden>Required</span></span><input class="s-input is-num" id="s-point_start" inputmode="numeric" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
+              <label><span class="g-label" id="s-point_end-label">Last <span class="year-required" id="s-point_end-required" hidden>Required</span></span><input class="s-input is-num" id="s-point_end" inputmode="numeric" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             </div>
             <p class="group__msg" id="g-years"></p>
           </fieldset>
@@ -396,15 +396,15 @@
             <legend>Do you want a spatial subset?</legend>
             <div class="g-row span-row">
               <span class="span-row__label">Longitude</span>
-              <input class="s-input is-num" id="s-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="off" autocapitalize="off">
+              <input class="s-input is-num" id="s-lon_min" placeholder="min" aria-label="Minimum longitude" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
               <span class="dash">–</span>
-              <input class="s-input is-num" id="s-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="off" autocapitalize="off">
+              <input class="s-input is-num" id="s-lon_max" placeholder="max" aria-label="Maximum longitude" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
             </div>
             <div class="g-row span-row">
               <span class="span-row__label">Latitude</span>
-              <input class="s-input is-num" id="s-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="off" autocapitalize="off">
+              <input class="s-input is-num" id="s-lat_min" placeholder="min" aria-label="Minimum latitude" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
               <span class="dash">–</span>
-              <input class="s-input is-num" id="s-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="off" autocapitalize="off">
+              <input class="s-input is-num" id="s-lat_max" placeholder="max" aria-label="Maximum latitude" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
             </div>
             <p class="group__msg" id="g-subset"></p>
           </fieldset>
@@ -412,9 +412,9 @@
             <div class="g-row">
               <span class="g-label">What should be treated as missing values?</span>
               <div class="span-row">
-                <input class="s-input is-num" id="s-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+                <input class="s-input is-num" id="s-missing_from" placeholder="value" aria-label="Treat as missing: the value, or the start of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
                 <span class="dash">–</span>
-                <input class="s-input is-num" id="s-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="off" autocapitalize="off">
+                <input class="s-input is-num" id="s-missing_to" placeholder="to" aria-label="Treat as missing: the end of a range" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off">
               </div>
             </div>
             <p class="group__msg" id="g-missing"></p>
@@ -423,7 +423,7 @@
         <div class="settings__column">
           <fieldset class="group" id="group-output">
             <legend>Output</legend>
-            <label class="g-row"><span class="g-label">Directory</span><input class="s-input is-mono" id="s-out_dir" placeholder="Where you run the script" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <label class="g-row"><span class="g-label">Directory</span><input class="s-input is-mono" id="s-out_dir" placeholder="Where you run the script" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             <p class="group__msg" id="g-output"></p>
           </fieldset>
           <fieldset class="group" id="group-files">
@@ -465,7 +465,7 @@
                 <option value="file">A .nc file of your own…</option>
               </select>
             </label>
-            <label class="g-row" id="row-subregions_file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="s-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+            <label class="g-row" id="row-subregions_file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="s-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
             <p class="group__msg" id="g-regional"></p>
           </fieldset>
         </div>
@@ -1247,7 +1247,7 @@
       inputmode: "numeric",
       placeholder: key === "start" ? "from" : "to",
       spellcheck: "false",
-      autocomplete: "off",
+      autocomplete: "oceanval-none",
       "aria-label": `${key === "start" ? "First" : "Last"} year of ${name}`,
     }));
     if (outputYears) {
@@ -1416,7 +1416,7 @@
       value: row.value,
       placeholder: "Not identified",
       spellcheck: "false",
-      autocomplete: "off",
+      autocomplete: "oceanval-none",
       autocapitalize: "off",
       "aria-label": `Simulation variable for ${row.title}`,
       "aria-describedby": `message-${kind}-${row.variable}`,

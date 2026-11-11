@@ -25,6 +25,8 @@ const OceanValGUI = (() => {
       else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
       else node.setAttribute(key, value === true ? "" : String(value));
     }
+    // typed boxes are never filled by the browser (see forget() below)
+    if ((tag === "textarea" || tag === "input") && !node.hasAttribute("autocomplete")) node.setAttribute("autocomplete", "oceanval-none");
     for (const child of children) {
       if (child !== null && child !== undefined && child !== false) node.append(child);
     }
@@ -1110,8 +1112,9 @@ const OceanValGUI = (() => {
   window.addEventListener("resize", closeChoices);
 
   // ---- the browser never offers what was typed before ----
-  // Every box, in the markup or made later, has autocomplete="off" (Chrome
-  // ignores "chrome-off" and a form's own "off"). The simulation directories
+  // Every box, in the markup or made later, has autocomplete="oceanval-none": Chrome
+  // ignores "off" (and "chrome-off") on boxes it takes for address or name fields,
+  // such as "first" and "last", but fills nothing for a token it does not know. The simulation directories
   // are remembered by OceanVal itself (.oceanvalcache), not by the browser.
   const NOT_TYPED = new Set(["hidden", "checkbox", "radio", "range", "button", "submit", "reset", "file", "image", "color"]);
   const typedIn = (node) => node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && !NOT_TYPED.has(node.type));
@@ -1120,8 +1123,8 @@ const OceanValGUI = (() => {
     const boxes = [...node.querySelectorAll("input, textarea, form")];
     if (node.matches("input, textarea, form")) boxes.push(node);
     for (const box of boxes) {
-      if ((box.tagName === "FORM" || typedIn(box)) && box.getAttribute("autocomplete") !== "off") {
-        box.setAttribute("autocomplete", "off");
+      if ((box.tagName === "FORM" || typedIn(box)) && box.getAttribute("autocomplete") !== "oceanval-none") {
+        box.setAttribute("autocomplete", "oceanval-none");
       }
     }
   }
@@ -1307,7 +1310,7 @@ const OceanValGUI = (() => {
         el("input", { type: "hidden", id: store }),
         el("div", { class: "word-list__add" },
           el("input", { class: "s-input is-mono", id: `${store}-add`, placeholder, "aria-labelledby": `${store}-label`,
-            spellcheck: "false", autocapitalize: "off", autocomplete: "off" })),
+            spellcheck: "false", autocapitalize: "off", autocomplete: "oceanval-none" })),
         el("ul", { class: "word-list__items", id: `${store}-items`, "aria-labelledby": `${store}-label` }));
       host.append(block);
       wordList({ store, add: `${store}-add`, items: `${store}-items`, empty });
