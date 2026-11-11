@@ -616,7 +616,7 @@ def test_the_side_panel_layout(page, simulation):
     side = "[data-vw=side-body]"
     # the headings, in order (there is no About, Subset years or Colours; file type and depth come and go)
     heads = tab.locator(f"{side} .vw-head:visible").all_text_contents()
-    ours = ["Variable selector", "Selection and animation", "Select years", "Map options"]
+    ours = ["Variable selector", "Selection and animation", "Map options"]
     assert [head for head in heads if head in ours] == ours
     assert not {"About", "Subset years", "Colours", "Time", "Variable"} & set(heads)
     # the units come first of what is said about the variable, above the time and the years
@@ -632,7 +632,7 @@ def test_the_side_panel_layout(page, simulation):
     assert tab.evaluate("() => document.querySelector('.vw-play-row').firstElementChild.dataset.vw") == "play"
     assert tab.locator(".vw-time-row [data-vw=play]").count() == 0
     # the year boxes say what they are in themselves, with no labels over them
-    assert tab.locator("[data-vw=c-years] .g-label").count() == 0
+    assert tab.locator("[data-vw=c-years] .g-label").all_text_contents() == ["Select years"]
     assert tab.get_attribute("[data-vw=first]", "placeholder") == "first" and tab.get_attribute("[data-vw=last]", "placeholder") == "last"
     assert tab.get_attribute("[data-vw=first]", "aria-label") == "First year" and tab.get_attribute("[data-vw=last]", "aria-label") == "Last year"
     # what to do with the variables is said on hovering over their heading, at once (not the browser's slow title)
