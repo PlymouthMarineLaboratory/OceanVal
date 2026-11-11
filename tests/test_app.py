@@ -8697,7 +8697,7 @@ class TestInfo:
         ices = next(r for r in rows if r["recipe"] == "ices")
         assert ices["url"] == "https://www.ices.dk/data/data-portals/Pages/ocean.aspx"
         assert all(r["url"] for r in rows)
-        assert {r["region"] for r in rows if r["point"]} == {"Global", "Northeast Atlantic"}
+        assert {r["region"] for r in rows if r["point"]} == {"Global", "European"}
 
     def test_the_version_is_the_packages(self, app):
         import oceanval

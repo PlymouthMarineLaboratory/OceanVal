@@ -47,14 +47,14 @@ class TestCatalogue:
         # a row is (region, variable, recipe): GLODAPv3 and ICES both have an
         # alkalinity and a pH, in different units
         listed = {}
-        for row in re.findall(r"<tr>\s*(<td>(?:Global|Northeast).*?)</tr>", table, re.S):
+        for row in re.findall(r"<tr>\s*(<td>(?:Global|European).*?)</tr>", table, re.S):
             cells = [
                 html.unescape(re.sub(r"<.*?>", "", cell))
                 for cell in re.findall(r"<td>(.*?)</td>", row, re.S)
             ]
             listed[cells[0], cells[1], cells[2]] = cells[4]
 
-        regions = {"Global": "Global", "Northwest European Shelf": "Northeast Atlantic"}
+        regions = {"Global": "Global", "European": "European"}
         titles = {
             "alkalinity": "Total Alkalinity",
             "dic": "Dissolved Inorganic Carbon",

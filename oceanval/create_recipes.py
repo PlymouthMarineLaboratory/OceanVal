@@ -49,6 +49,13 @@ DOMAIN_REGIONS = {
     "nwes": "Northwest European Shelf",
 }
 
+# The same for the point recipes, whose "nwes" region is the European one
+# (ICES's datasets cover the European and neighbouring seas, not only the shelf).
+POINT_DOMAIN_REGIONS = {
+    "global": "Global",
+    "nwes": "European",
+}
+
 # Every recipe on https://PlymouthMarineLaboratory.github.io/OceanVal/recipe-examples.py,
 # in the order that page lists them. "arguments" are the source lines of the
 # add_gridded_comparison call that follow the recipe, and "example_variable"
@@ -669,7 +676,7 @@ _POINT_COVERAGE = {
 POINT_SECTIONS = {
     "glodapv3": "Global - GLODAPv3 bottle data",
     "hansell": "Global - Hansell et al. DOM compilation",
-    "ices": "Northwest European Shelf - ICES point observations",
+    "ices": "European - ICES point observations",
 }
 
 POINT_RECIPE_CATALOGUE = tuple(
@@ -710,7 +717,7 @@ POINT_RECIPE_CATALOGUE = tuple(
     {
         "variable": variable,
         "recipe": "ices",
-        "region": "Northwest European Shelf",
+        "region": "European",
         "units": _POINT_UNITS[variable, "ices"],
         "example_variable": variable,
         "notes": (
@@ -1960,7 +1967,7 @@ def default_selection(mapping, domain, cwd=None):
     selection.update(
         (entry["variable"], entry["recipe"])
         for entry in POINT_RECIPE_CATALOGUE
-        if entry["region"] == DOMAIN_REGIONS[domain]
+        if entry["region"] == POINT_DOMAIN_REGIONS[domain]
         and mapping.get(entry["variable"]) is not None
     )
     selection.update(
@@ -2070,7 +2077,7 @@ def build_recipe_script(
     for recipe, title in POINT_SECTIONS.items():
         entries = [entry for entry in POINT_RECIPE_CATALOGUE if entry["recipe"] == recipe]
         if not (
-            any(entry["region"] == DOMAIN_REGIONS[domain] for entry in entries)
+            any(entry["region"] == POINT_DOMAIN_REGIONS[domain] for entry in entries)
             or any(live(entry) for entry in entries)
         ):
             continue
@@ -2206,7 +2213,7 @@ def _create_recipes(
         regions (e.g. temperature), the recipe for this domain is left
         live and the other is commented out as an alternative; a variable
         with a recipe only outside this domain still gets that one.
-        "nwes" also adds the ICES in-situ point recipes (temperature,
+        "nwes" also adds the European ICES in-situ point recipes (temperature,
         salinity and eight other variables), which have no global
         equivalent and so are not included at all when domain="global".
         Defaults to None.
@@ -2412,6 +2419,8 @@ def _create_recipes(
             "ndown": ndown,
             "domain": domain,
             "region": DOMAIN_REGIONS[domain],
+            # the regions whose chips are marked as the domain's: the gridded one and the point one
+            "regions": [DOMAIN_REGIONS[domain], POINT_DOMAIN_REGIONS[domain]],
             "start": start,
             "end": end,
             "fvcom": fvcom,

@@ -67,12 +67,14 @@ DATASET_LABELS = {
 REGION_TAGS = {
     "Global": "Global",
     "Northwest European Shelf": "NWES",
+    # the ICES point datasets: European and neighbouring seas
+    "European": "EUR",
     # the recipes the user registered (see oceanval.user_recipes)
     USER_REGION: "Yours",
 }
 
 # the region of a point recipe whose catalogue entry carries none
-POINT_REGION = "Northwest European Shelf"
+POINT_REGION = "European"
 
 
 # what the "Match observations by" dropdowns offer, as (point_time_res, label,

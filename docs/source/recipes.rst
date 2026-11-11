@@ -132,6 +132,8 @@ Point recipes are used with :func:`oceanval.add_point_comparison` in place of
 observations when :func:`oceanval.matchup` runs, for the years being matched
 and the ``lon_lim``/``lat_lim`` area given to ``matchup``. If no ``lon_lim`` and
 ``lat_lim`` are given, the model's own longitude/latitude extent is used.
+The ICES recipes are the European datasets, covering European and neighbouring
+seas.
 
 .. code-block:: text
 
@@ -145,16 +147,16 @@ and the ``lon_lim``/``lat_lim`` area given to ``matchup``. If no ``lon_lim`` and
    :header: "Region", "Variable", "Recipe", "Dataset", "Units", "Water-column"
    :widths: 18, 14, 12, 28, 10, 12
 
-   "Northeast Atlantic", "Temperature", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "°C", "Yes"
-   "Northeast Atlantic", "Salinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "dimensionless", "Yes"
-   "Northeast Atlantic", "Total Alkalinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "mEq/l", "Yes"
-   "Northeast Atlantic", "Ammonium", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
-   "Northeast Atlantic", "Chlorophyll", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µg/l", "Yes"
-   "Northeast Atlantic", "Nitrate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
-   "Northeast Atlantic", "Oxygen", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "ml/l", "Yes"
-   "Northeast Atlantic", "pH", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "pH units", "Yes"
-   "Northeast Atlantic", "Phosphate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
-   "Northeast Atlantic", "Silicate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
+   "European", "Temperature", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "°C", "Yes"
+   "European", "Salinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "dimensionless", "Yes"
+   "European", "Total Alkalinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "mEq/l", "Yes"
+   "European", "Ammonium", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
+   "European", "Chlorophyll", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µg/l", "Yes"
+   "European", "Nitrate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
+   "European", "Oxygen", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "ml/l", "Yes"
+   "European", "pH", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "pH units", "Yes"
+   "European", "Phosphate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
+   "European", "Silicate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
 
 .. _ices-data:
 

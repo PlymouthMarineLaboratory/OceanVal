@@ -72,6 +72,11 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   (anything unreadable too; it never raises). As `domain_mask` does it, nctoolkit puts the shelf on the model's grid (`nn`, `domain_mask._no_extrapolation`
   so a global model is not stretched over) and multiplies; raw FVCOM is looked up node by node. An explicit `domain=` is still honoured. Tests'
   autouse `domain_global` fixture makes `detect` return `global` (mark a test `real_domain`, or patch `detect`, for another).
+- **The ICES point recipes are the "European" datasets** (the user's rule, 2026-11-11): their catalogue region is `European` (tag `EUR`, tooltip
+  "European and neighbouring seas"), not "Northwest European Shelf" (NSBC keeps that, tag `NWES`). The domain key stays `nwes`:
+  `create_recipes.POINT_DOMAIN_REGIONS` maps it to `European` for the point catalogue (`default_selection`, the script's point sections), and the
+  window's `context["regions"]` lists both so both kinds of chip are marked as the domain's. The `ices` recipe key, `source="ICES"` and the
+  acknowledgements are unchanged.
 - `oceanval/create_recipes.py` scans model output directories, maps model variables to
   observational variables via netCDF `long_name` matching, and writes out a matchup script with
   live/commented recipe blocks for built-in datasets (WOA23, NSBC, OCCCI, GLODAP, Hansell, ...).

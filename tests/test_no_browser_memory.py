@@ -18,6 +18,7 @@ CONTEXT = {
     "ndown": 2,
     "domain": "nwes",
     "region": "Northwest European Shelf",
+    "regions": ["Northwest European Shelf", "European"],
     "start": 2011,
     "end": 2012,
     "fvcom": False,

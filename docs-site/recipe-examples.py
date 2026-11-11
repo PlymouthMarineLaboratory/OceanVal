@@ -514,7 +514,7 @@ oceanval.add_point_comparison(
 
 
 # ==========================================================================
-# Northwest European Shelf - ICES point observations
+# European - ICES point observations
 # ==========================================================================
 
 # Temperature - ICES Oceanographic database (https://ocean.ices.dk)

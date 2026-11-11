@@ -1099,6 +1099,8 @@ class TestGui:
         # any variable in the output can be picked, not only the matched ones
         assert {"thetao", "tair", "R1_n"} <= set(shown["available"])
         assert shown["context"]["region"] == "Northwest European Shelf"
+        # the ICES point datasets are the European ones
+        assert shown["context"]["regions"] == ["Northwest European Shelf", "European"]
         assert (shown["context"]["start"], shown["context"]["end"]) == (2011, 2012)
         assert shown["context"]["out"] == str(tmp_path / "matchup.py")
         assert shown["context"]["own_data"] == {}

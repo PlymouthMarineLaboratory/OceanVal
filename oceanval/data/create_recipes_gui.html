@@ -588,7 +588,7 @@
         el("dt", {}, tag("TS")), el("dd", { text: "A gridded dataset covering multiple years." }),
         ...vertical, ...source("GLODAP")]
       // point datasets have no clim or TS tag
-      : [el("dt", {}, tag("Global"), " ", tag("NWES", "Northwest European shelf")), el("dd", { text: "The domain a dataset covers." }),
+      : [el("dt", {}, tag("Global"), " ", tag("EUR", "European and neighbouring seas")), el("dd", { text: "The domain a dataset covers." }),
         ...vertical, ...source("ICES")];
     $(`explainer-${kind}`).append(el("h2", { class: "explainer__title", id: `explainer-${kind}-title`, text: "Explainer" }),
       el("dl", {}, ...entries));
@@ -1327,7 +1327,7 @@
       box,
       el("span", { class: "chip__name", text: dataset.label }),
       el("span", {
-        class: "chip__region" + (dataset.user ? " is-yours" : dataset.region_name === context.region ? " is-domain" : ""),
+        class: "chip__region" + (dataset.user ? " is-yours" : (context.regions || [context.region]).includes(dataset.region_name) ? " is-domain" : ""),
         // gridded recipes say whether they are a climatology or a time series
         text: dataset.kind === "gridded" && !dataset.user ? `${dataset.region} ${dataset.climatology ? "clim" : "TS"}` : dataset.region,
       }));

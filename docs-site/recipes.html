@@ -589,7 +589,7 @@
     </div>
 
     <h2 id="point-recipes" style="margin-top:2.4rem;">Point data recipes</h2>
-    <p style="max-width:70ch;">Point recipes are used with <a href="api.html#add_point_comparison"><code>oceanval.add_point_comparison</code></a> in place of <code>obs_path</code>. Instead of reading csv files from disk, OceanVal downloads the observations when <a href="api.html#matchup"><code>oceanval.matchup</code></a> runs, for the years being matched and the <code>lon_lim</code>/<code>lat_lim</code> area given to <code>matchup</code>. If no <code>lon_lim</code> and <code>lat_lim</code> are given, the model's own longitude/latitude extent is used. See <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
+    <p style="max-width:70ch;">Point recipes are used with <a href="api.html#add_point_comparison"><code>oceanval.add_point_comparison</code></a> in place of <code>obs_path</code>. Instead of reading csv files from disk, OceanVal downloads the observations when <a href="api.html#matchup"><code>oceanval.matchup</code></a> runs, for the years being matched and the <code>lon_lim</code>/<code>lat_lim</code> area given to <code>matchup</code>. If no <code>lon_lim</code> and <code>lat_lim</code> are given, the model's own longitude/latitude extent is used. The ICES recipes are the European datasets, covering European and neighbouring seas. See <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
     <div class="code-block" style="max-width:760px;">
       <div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div>
       <pre>oceanval.<a href="api.html#add_point_comparison"><span class="tok-fn">add_point_comparison</span></a>(
@@ -645,34 +645,34 @@
             <td>Global</td><td>Particulate Organic Carbon</td><td><code>hansell</code></td><td><a href="https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html">Hansell et al. DOM compilation</a>, bottle samples from 1995 to 2018</td><td>&micro;mol/kg</td><td><span class="badge badge-no">No</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Temperature</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>&deg;C</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Temperature</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>&deg;C</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Salinity</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>dimensionless</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Salinity</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>dimensionless</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Total Alkalinity</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>mEq/l</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Total Alkalinity</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>mEq/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Ammonium</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Ammonium</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Chlorophyll</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;g/l</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Chlorophyll</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;g/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Nitrate</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Nitrate</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Oxygen</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>ml/l</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Oxygen</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>ml/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>pH</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>pH units</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>pH</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>pH units</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Phosphate</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Phosphate</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
           <tr>
-            <td>Northeast Atlantic</td><td>Silicate</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
+            <td>European</td><td>Silicate</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
         </tbody>
       </table>

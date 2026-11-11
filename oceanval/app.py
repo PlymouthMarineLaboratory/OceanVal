@@ -91,9 +91,10 @@ from oceanval.create_recipes import (
 
 
 # the regions of the built-in recipes, as https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html
-# names them (ICES's point data is said to be the Northeast Atlantic's)
+# names them (ICES's point data is the European datasets', and the gridded one's
+# the Northwest European Shelf's)
 _DATASET_REGIONS = {"Northwest European Shelf": "NW European Shelf"}
-_POINT_DATASET_REGIONS = {"Northwest European Shelf": "Northeast Atlantic"}
+_POINT_DATASET_REGIONS = {"European": "European"}
 # the web pages of the datasets whose catalogue entries give none, or a better one
 _DATASET_URLS = {
     "nsbc": "https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html",
@@ -6234,6 +6235,7 @@ class _Handler(recipes_gui._Handler):
             "/api/back": lambda: app.back(payload),
             "/api/viewer/add": app.viewer_add,
             "/api/viewer/remove": lambda: app.viewer_remove(payload.get("viewer")),
+            "/api/viewer/set_missing": lambda: app.viewer_set_missing(payload.get("viewer"), payload.get("missing")),
             "/api/restart_all": app.reset,
             "/api/stop": app.stop,
             "/api/refilter": lambda: app.refilter(

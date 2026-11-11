@@ -37,6 +37,7 @@ CONTEXT = {
     "ndown": 2,
     "domain": "nwes",
     "region": "Northwest European Shelf",
+    "regions": ["Northwest European Shelf", "European"],
     "start": 2011,
     "end": 2012,
     "fvcom": False,
@@ -1590,7 +1591,7 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.locator("#page-gridded thead th").all_text_contents() == [
         "Environmental variable", "What is the simulation variable name?", "What gridded datasets do you want?Deselect all",
     ]
-    assert gridded.locator('input[aria-label="ICES, Northwest European Shelf, for Temperature"]').count() == 0
+    assert gridded.locator('input[aria-label="ICES, European, for Temperature"]').count() == 0
 
     _continue(page)
     assert page.locator("#page-gridded").is_hidden()
@@ -1617,6 +1618,28 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     page.click("#clear-gridded")
     _continue(page)
     assert temperature.locator(".chosen").text_content() == "None"
+
+
+def test_the_ices_point_datasets_are_european_in_the_browser(browser, tmp_path, monkeypatch):
+    """The ICES point datasets are tagged EUR, explained as European and
+    neighbouring seas, while the gridded NSBC dataset keeps NWES."""
+    page, _, _ = _open_window(browser, tmp_path, monkeypatch)
+    gridded_tags = page.locator("#explainer-gridded .chip__region")
+    assert "NWES" in gridded_tags.all_text_contents()
+    assert "EUR" not in gridded_tags.all_text_contents()
+    nsbc = page.locator('#rows-gridded input[aria-label="NSBC, Northwest European Shelf, for Temperature"]')
+    assert nsbc.locator("xpath=..").locator(".chip__region").text_content().startswith("NWES")
+
+    _continue(page)
+    point_tags = page.locator("#explainer-point .chip__region")
+    assert point_tags.all_text_contents() == ["Global", "EUR"]
+    assert point_tags.nth(1).get_attribute("data-tip") == "European and neighbouring seas"
+    ices = page.locator('#rows-point input[aria-label="ICES, European, for Temperature"]')
+    assert ices.count() == 1
+    tag = ices.locator("xpath=..").locator(".chip__region")
+    assert tag.text_content() == "EUR"
+    # nwes is the domain, so the European datasets are marked as the domain's
+    assert "is-domain" in tag.get_attribute("class")
 
 
 def test_the_info_beside_a_gridded_source_in_the_browser(browser, tmp_path, monkeypatch):
