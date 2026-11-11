@@ -820,14 +820,14 @@ class TestTimeSeriesRange:
         assert check_gridded_options({"start": "2000", "end": "2010"}, None, year_range=socat)[1] == {}
 
     def test_the_catalogue_sends_the_range_of_each_time_series(self):
-        from oceanval import create_recipes
+        from oceanval.create_recipes import POINT_RECIPE_CATALOGUE, RECIPE_CATALOGUE
         from oceanval.recipes_gui import _year_range
 
-        ranges = {e["recipe"]: _year_range(e["coverage"]) for e in create_recipes.RECIPE_CATALOGUE}
+        ranges = {e["recipe"]: _year_range(e["coverage"]) for e in RECIPE_CATALOGUE}
         assert ranges["socat"] == [1970, 2025]
         assert ranges["occci"][0] == 1997 and ranges["occci"][1] >= 2025
         assert ranges["woa23"] is None
-        points = {e["recipe"]: _year_range(e["coverage"]) for e in create_recipes.POINT_RECIPE_CATALOGUE}
+        points = {e["recipe"]: _year_range(e.get("coverage")) for e in POINT_RECIPE_CATALOGUE}
         assert points["glodapv3"] == [1972, 2023]
         assert points["ices"] is None
 
