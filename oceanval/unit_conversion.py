@@ -14,9 +14,11 @@ else is left for the user to check. Some conversions need more than units, too:
 a seawater density between per kilogram and per volume, the micromoles in a
 millilitre of oxygen, for oxygen in ml/l, an equivalent taken as a mole, for
 alkalinity, and a molar mass, between a mass and moles, which the units have to
-name the substance for, as "mg N/m^3" does (oxygen is taken as O2). Salinity
-and pH are never converted: 1, 1e-3 and psu are the same scale of salinity, and
-pH has no units.
+name the substance for, as "mg N/m^3" does (oxygen is taken as O2, and an
+air-sea CO2 flux's mass as carbon, as CMIP6's fgco2 is). Fluxes can be per
+second, day or year; a year is taken as pint's 365.25 days, and the note says
+so. Salinity and pH are never converted: 1, 1e-3 and psu are the same scale of
+salinity, and pH has no units.
 
 Nor are Absolute Salinity and Conservative Temperature, which models using
 TEOS-10 give, and their long_name or standard_name says: observations are seldom
@@ -62,6 +64,15 @@ _SUBSTANCES = {
     "phosphate": {"P", "PO4"},
     "silicate": {"Si", "SiO4", "SiOH4", "Si(OH)4"},
     "oxygen": {"O2", "O_2"},
+    # a mole of CO2 holds a mole of carbon, so either names the flux's moles
+    "co2flux": {"C", "CO2"},
+}
+
+# a mass is turned into moles when the other side is one of these, and the
+# moles are of this kind
+_MASS_PARTNERS = {
+    "mass per volume": ({"amount per volume", "amount per mass"}, "mol / m ** 3"),
+    "mass per area per time": ({"amount per area per time"}, "mol / m ** 2 / s"),
 }
 
 # what a model's long_name or standard_name says when it gives a TEOS-10
@@ -107,6 +118,7 @@ _KINDS = {
     "per length": "1 / [length]",
     "pressure": "[pressure]",
     "amount per area per time": "[substance] / [length] ** 2 / [time]",
+    "mass per area per time": "[mass] / [length] ** 2 / [time]",
 }
 
 # prefixes, as written, and pint's names for them
@@ -152,7 +164,25 @@ _UNITS = {
     "percent": "percent",
     "yr": "year",
     "year": "year",
+    "s": "second",
+    "sec": "second",
+    "second": "second",
+    "seconds": "second",
+    "min": "minute",
+    "minute": "minute",
+    "minutes": "minute",
+    "h": "hour",
+    "hr": "hour",
+    "hour": "hour",
+    "hours": "hour",
+    "d": "day",
+    "day": "day",
+    "days": "day",
+    "month": "month",
+    "months": "month",
 }
+# time units that take no prefix: "md" is not a milli-day, and "d" is also the deci prefix
+_NO_PREFIX = {"minute", "hour", "day", "month"}
 
 # a unit, with its prefix and power: "mmol", "m-3", "m^3", "kg**-1"
 _UNIT = re.compile(
@@ -351,6 +381,8 @@ def _parse(text, variable):
             if match is None:
                 raise _Unread(token)
             prefix = _PREFIXES.get(match["prefix"] or "", "")
+            if prefix and _UNITS[match["unit"]] in _NO_PREFIX:
+                raise _Unread(token)
             items.append(
                 (_UNITS[match["unit"]], prefix, int(match["power"] or 1) * sign)
             )
@@ -366,6 +398,11 @@ def _parse(text, variable):
     quantity = registry.Quantity(factor)
     assumed = set()
     for unit, prefix, power in items:
+        # which times these units are in, for the year's length (see _suggest)
+        if unit in ("year", "month"):
+            assumed.add("time:long")
+        elif unit in ("second", "minute", "hour", "day"):
+            assumed.add("time:short")
         if unit == "equivalent":
             if variable != "alkalinity":
                 return None
@@ -432,6 +469,9 @@ def _molar_mass(variable, labels, units):
     if not labels:
         if variable == "oxygen":
             return _MOLAR_MASSES["O2"], "oxygen mass"
+        if variable == "co2flux":
+            # CMIP6's fgco2 is a mass flux "expressed as carbon"
+            return _MOLAR_MASSES["C"], "carbon mass"
         return None, (
             "OceanVal can only turn a mass into moles where the units say what "
             f"it is a mass of, as “mg N/m^3” does, and “{units}” does not"
@@ -456,6 +496,8 @@ def _assumption(name):
         "oxygen": f"a millilitre of oxygen as {OXYGEN_UMOL_PER_ML} µmol",
         "equivalents": "an equivalent of alkalinity as a mole",
         "oxygen mass": f"the oxygen as O₂, of {_MOLAR_MASSES['O2']} g/mol",
+        "carbon mass": f"the mass as carbon, of {_MOLAR_MASSES['C']} g/mol",
+        "year length": "a year of 365.25 days",
     }[name]
 
 
@@ -526,7 +568,56 @@ def suggest(variable, obs_units, model_units, model_description=None, obs_descri
     except (pint.PintError, ArithmeticError, ValueError, TypeError):
         # e.g. a unit with 0 in it: never a reason to stop the units step
         found = unknown("OceanVal could not read these units")
-    return _teos10(variable, found, model_description, obs_description)
+    found = _teos10(variable, found, model_description, obs_description)
+    return _flux_sign(variable, found, model_description, obs_description)
+
+
+# which way a flux of CO2 is positive, by what its long_name, standard_name or
+# positive attribute say (see _flux_direction)
+_DIRECTIONS = {
+    "down": re.compile(
+        r"downward|into the (?:ocean|sea)|into (?:the )?water|uptake|positive (?:down|into)"
+    ),
+    "up": re.compile(
+        r"upward|out of the (?:ocean|sea)|to the atmosphere|outgassing|positive (?:up|out)"
+    ),
+}
+_DIRECTION_WORDS = {"up": "out of the ocean", "down": "into the ocean"}
+
+
+def _flux_direction(description):
+    """"up" or "down" where description says a flux is positive out of or into
+    the ocean, None where it does not, or says both."""
+    words = _words(str(description or ""))
+    found = [name for name, pattern in _DIRECTIONS.items() if pattern.search(words)]
+    return found[0] if len(found) == 1 else None
+
+
+def _flux_sign(variable, found, model_description, obs_description):
+    """found, with a warning if the model's air-sea CO2 flux is positive the
+    other way from the observations': no multiplier of 1 turns one into the
+    other, and OceanVal does not flip it, as it is only told by words. The
+    observations are taken as positive into the ocean, as every flux dataset
+    OceanVal has is, unless they say otherwise. A model that does not say gives
+    no warning."""
+    if variable != "co2flux":
+        return found
+    model = _flux_direction(model_description)
+    obs = _flux_direction(obs_description) or "down"
+    if model is None or model == obs:
+        return found
+    warning = (
+        f"the simulation's flux is positive {_DIRECTION_WORDS[model]}, and the "
+        f"observations' is positive {_DIRECTION_WORDS[obs]}: if so, multiply "
+        "the observations by a negative number"
+    )
+    if found["status"] == "same":
+        return dict(
+            found,
+            status="warn",
+            note=f"OceanVal thinks the units are the same, but {warning}.",
+        )
+    return dict(found, note=f"{found['note']} Also, {warning}.")
 
 
 def _teos10(variable, found, model_description, obs_description):
@@ -591,21 +682,27 @@ def _suggest(variable, obs_units, model_units):
         sides.append(list(parsed))
 
     # a mass compared with moles: the mass is turned into moles of what it is of
+    # (a concentration or a flux, by the kinds in _MASS_PARTNERS)
     kinds = [_kind(quantity) for quantity, _, _ in sides]
-    if "mass per volume" in kinds and {"amount per volume", "amount per mass"} & set(kinds):
-        for side, kind, units in zip(sides, kinds, (obs_units, model_units)):
-            if kind != "mass per volume":
-                continue
-            molar_mass, assumption = _molar_mass(variable, side[2], units)
-            if molar_mass is None:
-                return unknown(assumption)
-            side[0] = (side[0] / _registry().Quantity(molar_mass, "g / mol")).to(
-                "mol / m ** 3"
-            )
-            side[1] = side[1] | {assumption}
+    for index, units in enumerate((obs_units, model_units)):
+        partners, target = _MASS_PARTNERS.get(kinds[index], (set(), None))
+        if kinds[1 - index] not in partners:
+            continue
+        side = sides[index]
+        molar_mass, assumption = _molar_mass(variable, side[2], units)
+        if molar_mass is None:
+            return unknown(assumption)
+        side[0] = (side[0] / _registry().Quantity(molar_mass, "g / mol")).to(target)
+        side[1] = side[1] | {assumption}
 
     (obs, obs_assumed, _), (model, model_assumed, _) = sides
-    assumed = obs_assumed | model_assumed
+    # a year is 365.25 days (pint's) against a shorter time: the note says so
+    year_against_days = ("time:long" in obs_assumed and "time:short" in model_assumed) or (
+        "time:short" in obs_assumed and "time:long" in model_assumed
+    )
+    assumed = {name for name in obs_assumed | model_assumed if not name.startswith("time:")}
+    if year_against_days:
+        assumed.add("year length")
     kinds = {_kind(obs), _kind(model)}
     contexts = ()
     if kinds == {"amount per volume", "amount per mass"}:

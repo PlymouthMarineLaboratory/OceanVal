@@ -1236,6 +1236,11 @@ const OceanValGUI = (() => {
         for (const owner of found) needed.add(owner);
       }
     }
+    // a box a page marks data-check-needed (e.g. the units step's boxes for units OceanVal cannot check) is
+    // outlined the same way until it holds something, with no Required tag
+    for (const box of root.querySelectorAll("[data-check-needed]")) {
+      if (!box.closest("[hidden]") && !isFilled(box)) needed.add(box);
+    }
     for (const old of root.querySelectorAll(".is-needed")) {
       if (!needed.has(old)) old.classList.remove("is-needed");
     }

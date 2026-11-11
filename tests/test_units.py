@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from oceanval import units
+from oceanval import unit_conversion, units
 from oceanval.create_recipes import POINT_RECIPE_CATALOGUE, RECIPE_CATALOGUE
 
 from simulations import write_fvcom, write_simulation
@@ -128,6 +128,19 @@ class TestModelUnits:
             },
             "nowhere": {"units": None, "description": ""},
         }
+
+    def test_which_way_a_flux_is_positive_is_part_of_the_description(self, tmp_path):
+        folder = tmp_path / "2011" / "01"
+        folder.mkdir(parents=True)
+        attributes = {"units": "mmol C m-2 d-1", "long_name": "air-sea flux of CO2", "positive": "up"}
+        xr.Dataset({"fair": (("y", "x"), np.ones((2, 2)), attributes)}).to_netcdf(folder / "a.nc")
+
+        found = units.model_attributes(str(tmp_path), 2, ["fair"])["fair"]
+        assert found["description"] == "air-sea flux of CO2 positive up"
+        # which unit_conversion reads as the flux going out of the ocean
+        assert unit_conversion.suggest(
+            "co2flux", "mol m-2 yr-1", found["units"], model_description=found["description"]
+        )["note"].count("positive out of the ocean") == 1
 
 
 class TestOwnObsUnits:

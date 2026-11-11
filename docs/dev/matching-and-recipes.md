@@ -24,7 +24,15 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   Analyze/Compare at the end of `analysis._model_data` (`row["formula"]`). The point cache keeps each matchup's normalised model
   variable (an entry of another, or of none, is not used). A formula's units are its first variable's: `units._check` and
   `sim_compare_forms.unit_rows` give status `formula` (`unit_conversion.formula`), and the units steps show the row in amber with a
-  Formula tag (`unitsFormula`, `tr.is-formula`); Compare always shows a formula's row, except for raw FVCOM on its mesh (`formulas=False`).
+  Formula tag (`unitsFormula`, `tr.is-formula`) and its boxes outlined in red until filled (as an `unknown` row's are; see app-windows.md,
+  `data-check-needed`); Compare always shows a formula's row, except for raw FVCOM on its mesh (`formulas=False`).
+  **Units parser** (`unit_conversion.suggest`, shared by validate and Compare): units are read word by word against `_UNITS`, with pint doing
+  the arithmetic. Time units are `s`/`min`/`h`/`d`/`month`/`yr` (no prefix on `min`/`h`/`d`/`month`: `_NO_PREFIX`); a year is pint's 365.25 days
+  and the note says so (`_parse` marks `time:long`/`time:short`, `_suggest` turns a year meeting a shorter time into the `year length`
+  assumption). A mass per area per time (`_KINDS`) is turned into moles by `_MASS_PARTNERS`, as a mass per volume is; for `co2flux` a label `C`
+  or `CO2` names the moles (`_SUBSTANCES`) and an unlabelled mass is taken as carbon (CMIP6's `fgco2`), said in the note. `_flux_sign` only
+  **warns** where the model's `co2flux` is positive out of the ocean (`_flux_direction` reads long_name, standard_name and `positive`, which
+  `units._description` includes); the built-in observations are positive into the ocean, and a negative multiplier is the user's to type.
   In a `multi` `variableBox` the search is the name under the caret (`nameAt`; `*`/`?` are the formula's, not wildcards; a sum keeps
   the part between `+`s), a click inserts where the formula waits for a value, a formula's names cannot be taken out by -/× (edit it),
   and `.vars__expr` under the box says "Sum of ..."/"Expression based on ..." (unknown names marked) or marks the wrong part once typing

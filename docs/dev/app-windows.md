@@ -133,13 +133,19 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   in the markup and, for boxes the pages make later, by the guard at the end of `data/gui.js` (`forget`, a `MutationObserver`
   and `focusin`). Never `chrome-off`, which Chrome ignores. Only the simulation directories are remembered, by OceanVal
   itself (`.oceanvalcache`). `tests/test_no_browser_memory.py` checks both windows.
-- **Required tags show only while empty** (the user's rule, 2026-10-31): a red tag (`.own-req`, `.year-required`) is there at the start and goes
-  once its box is filled, and returns if it is emptied. `OceanValGUI.syncRequired` (`gui.js`; on input/change/click, DOM mutations and a 300 ms
-  interval, as a script's `.value =` fires no event) only toggles `is-satisfied` on the tag (and its `.own-field`) and `is-filled` on
-  the boxes of the Analyze pop-outs and own-data fields, whose red borders it removes; the page's own `hidden`/`is-required` are untouched.
+- **A box that must be given is outlined in red while it is empty** (the user's rule, 2026-10-31; the red outline replaced the visible Required
+  tags, eeab79f): the tags (`.own-req`, `.year-required`) stay in the markup, hidden by `gui.css`, so `syncRequired` still finds the boxes they ask
+  for. `OceanValGUI.syncRequired` (`gui.js`; on input/change/click, DOM mutations and a 300 ms interval, as a script's `.value =` fires no event)
+  adds `is-needed` (a 4px `--red` border, `fieldset.is-needed` an outline) to each such box while it is empty and takes it off once it is filled; it
+  also toggles `is-satisfied` on the tag (and its `.own-field`) and `is-filled` on the boxes of the Analyze pop-outs and own-data fields; the page's
+  own `hidden`/`is-required` are untouched. Only `syncRequired` writes `is-needed`: a page that adds it itself loses it on the next sync. The outline
+  is only a cue and blocks nothing.
   The box is found from the tag (`data-required-for` ids, the label's `for`, the one box in its label/row/field, a legend's fieldset); a tag
   in a table head covers the columns it spans (`data-required-tick`: each ticked row has a layer; `data-required-any`: some row is ticked;
   otherwise every ticked row has the boxes filled). A new Required tag needs no code if it sits in the label/row/legend of its box.
+  A box with **`data-check-needed`** needs no tag: it is outlined the same way while empty. The units step sets it on the Multiply by and Add
+  boxes of a row OceanVal could not check (`check.status` `unknown`, or `formula`, whose units it only assumes; `unitsRow`), so the user has to look
+  at it and type a number (1 and 0 if the units are the same). The confirm tick still gates Continue; the outline does not.
 - **A choice among boxes must be unmistakable**: the chosen one is filled with the accent colour (or tinted, with a thick
   accent border), bold and a little bigger. Radio rows (`.ptr-mode`, `.prefs__use`, `.reg-where label`) are
   styled together at the end of `data/gui.css`; `.segmented` (the domain picker), `.choice.is-chosen` and the

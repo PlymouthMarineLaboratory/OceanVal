@@ -36,12 +36,16 @@ POINT_NOTE = "csv files have no units: make sure they match the simulation's"
 
 def _description(attributes):
     """A variable's long_name and standard_name, which can tell, e.g., Absolute
-    Salinity from Practical, as one string."""
-    return " ".join(
+    Salinity from Practical, as one string, and "positive up" or "positive
+    down" where it has a positive attribute, which tells which way a flux goes."""
+    words = [
         str(attributes[name])
         for name in ("long_name", "standard_name")
         if attributes.get(name) is not None
-    )
+    ]
+    if attributes.get("positive") is not None:
+        words.append(f"positive {attributes['positive']}")
+    return " ".join(words)
 
 
 def model_attributes(simdir, ndown, names, exclude=None, require=None):

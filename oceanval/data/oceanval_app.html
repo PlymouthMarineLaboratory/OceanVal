@@ -9876,6 +9876,12 @@
       placeholder: "0", value: left ? left.adder : number(startAdder, 0),
       "aria-label": `Add to ${spec.of(row)}` });
     multiplier.dataset.unitsKey = adder.dataset.unitsKey = row.key;
+    // units OceanVal cannot check (or a formula's, which it can only assume): both boxes are outlined in red, as a
+    // box that must be given is (gui.js syncRequired), until the user has typed a number in them (1 and 0 if the
+    // units are the same)
+    if (row.check.status === "unknown" || row.check.status === "formula") {
+      multiplier.dataset.checkNeeded = adder.dataset.checkNeeded = "";
+    }
     multiplier.dataset.unitsBox = "multiplier";
     adder.dataset.unitsBox = "adder";
     const error = el("span", { class: "units__error", role: "alert" });
