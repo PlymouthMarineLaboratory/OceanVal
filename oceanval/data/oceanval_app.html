@@ -27,7 +27,8 @@
     cursor: pointer;
     transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
   }
-  .choice:hover { border-color: var(--teal-200); box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+  /* hovering grows a tile by 5% (scale 1.05); the 2px lift stays */
+  .choice:hover { border-color: var(--teal-200); box-shadow: var(--shadow-lg); transform: translateY(-2px) scale(1.05); }
   .choice:focus-visible { outline: none; border-color: var(--teal-400); box-shadow: var(--focus), var(--shadow-md); }
   /* a bare symbol, no box: thin strokes, in the accent colour */
   /* the space under a symbol is the tile's gap plus this margin: half what it was (the title and text keep the gap) */
