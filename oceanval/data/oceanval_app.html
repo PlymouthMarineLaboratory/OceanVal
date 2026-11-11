@@ -1135,6 +1135,10 @@
   .analyze-foot__end { margin-left: auto; }
   /* Compare's variables: the button starts under the first simulation's boxes (the name column is 22% of the table, and a cell has 16px of padding) */
   .analyze-foot.is-under-first { padding-left: calc(22% + 16px); }
+  /* Compare's simulations: the + button sits centred, and a message takes a line of its own so the button stays centred */
+  #view-simcompare-sims .analyze-foot { justify-content: center; }
+  #view-simcompare-sims #sc-add { width: 40px; padding: 0; font-size: 22px; line-height: 1; }
+  #view-simcompare-sims #sc-sims-msg { flex-basis: 100%; text-align: center; }
   .analyze-files .review__head { padding-bottom: 4px; }
   .analyze-options.choices.is-two { max-width: 980px; gap: 28px; }
   .analyze-options .choice { aspect-ratio: auto; min-height: 200px; padding-top: 30px; }
@@ -2394,7 +2398,7 @@
           <p class="group__msg" id="sc-m-5"></p>
         </div>
         <div class="analyze-foot">
-          <button type="button" class="btn btn--ghost" id="sc-add">Add a simulation</button>
+          <button type="button" class="btn btn--ghost" id="sc-add" aria-label="Add a simulation" title="Add a simulation">+</button>
           <p class="group__msg is-error" id="sc-sims-msg" role="status" aria-live="polite"></p>
         </div>
       </fieldset>
@@ -3262,7 +3266,7 @@
       case "analyze_files": return state.analyze.time_shift && state.analyze.time_shift.status === "asked"
         && !state.analyze.time_shift.choice ? "Are the model's times at the end of each mean?" : "";
       case "analyze_options": return "";  // the pages say what they ask for
-      case "simcompare_sims": return "Which simulations do you want to compare?";
+      case "simcompare_sims": return "";  // the + button says what it does
       case "simcompare_variables": return "What variables do you want to compare?";
       case "simcompare_units": return "Do the units match up?";
       case "simcompare_files": return scState().shift && scState().shift.status === "asked"
@@ -12780,9 +12784,7 @@
       message(`sc-m-${n}`, lines, false);
     }
     const rowsWrong = Object.values(problems.rows).some((here) => Object.keys(here).length);
-    let note = scSims.errors.simulations || "";
-    if (!note && problems.complete < 2 && !rowsWrong) note = "Give at least two simulations to compare.";
-    $("sc-sims-msg").textContent = note;
+    $("sc-sims-msg").textContent = scSims.errors.simulations || "";
     $("sc-add").disabled = scSims.shown >= SC_MOST;
     const next = $("sc-continue");
     if (next) {
