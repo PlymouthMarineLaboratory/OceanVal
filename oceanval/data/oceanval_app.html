@@ -2416,6 +2416,7 @@
     </div>
     <div class="banner" id="scv-error" role="alert" hidden></div>
     <div id="scv-main" hidden>
+      <p class="lede" id="scv-lede">What variables do you want to compare?</p>
       <div class="card analyze-table"><table id="scv-table">
         <thead id="scv-head"></thead>
         <tbody id="scv-rows"></tbody>
@@ -3267,7 +3268,7 @@
         && !state.analyze.time_shift.choice ? "Are the model's times at the end of each mean?" : "";
       case "analyze_options": return "";  // the pages say what they ask for
       case "simcompare_sims": return "";  // the + button says what it does
-      case "simcompare_variables": return "What variables do you want to compare?";
+      case "simcompare_variables": return "";  // the lede above the table asks it
       case "simcompare_units": return "Do the units match up?";
       case "simcompare_files": return scState().shift && scState().shift.status === "asked"
         && !scState().shift.choice ? "Are the models' times at the end of each mean?"
