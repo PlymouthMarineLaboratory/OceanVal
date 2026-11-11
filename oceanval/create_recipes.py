@@ -994,6 +994,9 @@ def _candidate_long_names(variable, contents):
             if "dissolved organic carbon" in name.lower()
             or ("dissolved organic matter" in name.lower() and name.lower().endswith("carbon"))
         ]
+        # a model's total is the sum of its parts, so it stands alone
+        totals = [name for name in matches if "total" in name.lower()]
+        return totals if len(totals) == 1 else matches
 
     if variable == "pco2":
         # the partial pressure or fugacity of the sea water's CO2, not the atmosphere's, an anomaly or a flux
@@ -1025,9 +1028,6 @@ def _candidate_long_names(variable, contents):
             for name in plain(mineral, "flux", "rate", "production", "dissolution")
             if "saturation" in name.lower() or "omega" in name.lower()
         ]
-        # a model's total is the sum of its parts, so it stands alone
-        totals = [name for name in matches if "total" in name.lower()]
-        return totals if len(totals) == 1 else matches
 
     if variable == "poc":
         # ERSEM's is the carbon of its small, medium and large particulate organic
