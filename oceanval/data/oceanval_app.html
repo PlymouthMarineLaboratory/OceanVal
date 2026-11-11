@@ -219,6 +219,11 @@
   .ndown-row > .g-label { margin: 0; }
   .ndown-row > .g-label.is-required { font-weight: 500; }
   .ndown-row > .s-input { width: 84px; text-align: center; }
+  /* the explainer under the question: shows at once on hover, or when the row has the keyboard focus */
+  .ndown-row > .has-tip { position: relative; cursor: help; }
+  .ndown-row > .has-tip::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; width: max-content; max-width: 300px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 400; line-height: 1.4; box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: opacity 0.08s linear; transition-delay: 0s; }
+  .ndown-row > .has-tip:hover::after, .ndown-row:focus-within > .has-tip::after { opacity: 1; }
+  .ndown-tip-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   /* how many files were found, a quiet highlight beside the box that sets where to look */
   .ndown-found { margin-left: 8px; padding: 6px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--teal-50); color: var(--teal-700); font-weight: 600; }
   .group__pair { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
@@ -1619,8 +1624,9 @@
         <div class="g-row" id="row-f-name"><div class="path-field"><button type="button" class="btn btn--ghost btn--field btn--bank" id="f-bank" disabled>Add to bank</button><div class="combo" id="f-name-combo"><input class="s-input" id="f-name" placeholder="Give it a name, e.g. 'Atlantic ocean reanalysis from Project X'" aria-label="A name for this simulation, to keep it in the simulation bank" spellcheck="false" autocomplete="oceanval-none"><button type="button" class="combo__toggle" id="f-name-bank-toggle" aria-label="Simulations in the bank" aria-haspopup="listbox" aria-expanded="false" tabindex="-1" hidden></button><ul class="combo__list" id="f-name-bank" role="listbox" aria-label="Simulations in the bank" hidden></ul></div></div></div>
         <div class="g-row" id="row-f-thredds" hidden><label class="g-check" for="f-thredds"><input type="checkbox" id="f-thredds"> <span>Is the path a THREDDS (OPeNDAP) web address for one netCDF file, ending in .nc?</span></label></div>
         <div class="ndown-row">
-          <label class="g-label is-required" for="f-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
-          <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required autocomplete="oceanval-none">
+          <label class="g-label is-required has-tip" for="f-ndown" data-tip="For example, if the directory structure is YYYY/MM/*.nc you would set this to 2">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
+          <span class="ndown-tip-sr" id="f-ndown-tip">For example, if the directory structure is YYYY/MM/*.nc you would set this to 2</span>
+          <input class="s-input is-num" id="f-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" required aria-describedby="f-ndown-tip" autocomplete="oceanval-none">
           <span class="ndown-found" id="ndown-found" role="status" hidden></span>
           <button type="button" class="btn btn--ghost btn--field btn--sample" id="view-files" aria-haspopup="dialog">View the files in a random subdirectory</button>
         </div>
@@ -2706,8 +2712,9 @@
     <div class="bank-info__form">
       <p class="bank-info__where" id="bank-info-where"></p>
       <div class="ndown-row">
-        <label class="g-label is-required" for="bank-ndown">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
-        <input class="s-input is-num" id="bank-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none">
+        <label class="g-label is-required has-tip" for="bank-ndown" data-tip="For example, if the directory structure is YYYY/MM/*.nc you would set this to 2">How many subdirectories below this can you find your files? <span class="own-req">Required</span></label>
+        <span class="ndown-tip-sr" id="bank-ndown-tip">For example, if the directory structure is YYYY/MM/*.nc you would set this to 2</span>
+        <input class="s-input is-num" id="bank-ndown" inputmode="numeric" placeholder="e.g. 2" spellcheck="false" autocapitalize="off" aria-describedby="bank-ndown-tip" autocomplete="oceanval-none">
         <button type="button" class="btn btn--ghost btn--field btn--sample" id="bank-info-view" aria-haspopup="dialog" hidden>View the files in a random subdirectory</button>
       </div>
       <div class="word-filters" data-skip="bank-exclude" data-only="bank-require"></div>

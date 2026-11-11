@@ -36,7 +36,8 @@ output to a validation report:
    saved in a ``.oceanvalrc`` file (see :doc:`recipes`).
 2. **Simulation**: where the model output is, and which files to use,
    including how many directories down they are: type a number, or pick 0 to
-   5 from the list the arrow in the box opens. If you leave it empty, OceanVal
+   5 from the list the arrow in the box opens (hover over the question for an
+   example: if the directory structure is YYYY/MM/*.nc, set it to 2). If you leave it empty, OceanVal
    fills it in, in amber, when it recognises the folders: ``YYYY/MM/**.nc``
    (a year with the months 01 to 12) is 2, ``MM/*.nc`` (the months 01 to 12) is
    1, and files with no subdirectories is 0. A number you type is never changed.
