@@ -1039,6 +1039,8 @@
     if (dataset.kind === "point") value = String(form[`point_${name}`]).trim();
     else if (dataset.climatology) value = String(form[`clim_${name}`]).trim();
     if (!value && initialYears) value = initialYears[name === "start" ? 0 : 1];
+    // one year of output: that year, for the gridded and point datasets alike
+    if (!value && outputYears && outputYears[0] === outputYears[1]) value = String(outputYears[0]);
     return value;
   }
   function fill(dataset) {
