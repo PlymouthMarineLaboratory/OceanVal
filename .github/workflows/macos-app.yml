@@ -8,13 +8,36 @@ defaults:
     shell: bash -l {0}
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # A daily build at 8 PM UK time. GitHub's cron runs in UTC and has no time
+  # zone, so two entries cover British Summer Time (19:00 UTC) and GMT (20:00 UTC),
+  # and the "due" job below runs the build only when the UK clock reads 20:00.
+  schedule:
+    - cron: '0 19 * * *'
+    - cron: '0 20 * * *'
+  # Run by hand from the Actions tab (always runs, whatever the time)
+  workflow_dispatch:
 
 jobs:
+  # Decides whether a scheduled run is at 8 PM in London; the other entry does nothing
+  due:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [ "$(TZ=Europe/London date +%H)" = "20" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not 8 PM in the UK ($(TZ=Europe/London date)), skipping"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: due
+    if: needs.due.outputs.run == 'true'
 
     # Apple silicon (arm64)
     runs-on: "macos-latest"
