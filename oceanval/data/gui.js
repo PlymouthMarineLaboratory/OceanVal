@@ -1204,19 +1204,43 @@ const OceanValGUI = (() => {
     const boxes = [...owner.querySelectorAll(BOXES)];
     return boxes.length ? boxes.every(isFilled) : chosenIn(owner);
   }
+  // the empty boxes a table-head tag asks for: those in its columns, in the ticked rows
+  function emptyTableBoxes(tag, cell) {
+    if (tag.hasAttribute("data-required-any") || tag.hasAttribute("data-required-tick")) return [];
+    const [from, to] = columnsOf(cell);
+    const rows = [...cell.closest("table").querySelectorAll("tbody:not(.analyze-all) > tr")]
+      .filter((row) => row.children.length > 1 && row.classList.contains("is-on"));
+    return rows.flatMap((row) => [...row.children].slice(from, to).flatMap((td) => [...td.querySelectorAll(BOXES)])
+      .filter((box) => (box.type === "text" || box.tagName === "SELECT") && !isFilled(box)));
+  }
+  // a box that must be given is outlined in red while it is empty, and the Required tags are never shown
   function syncRequired(root = document) {
+    // the boxes to outline now; a class is only written where it changes, since every write re-runs this (the observer below)
+    const needed = new Set();
     for (const tag of root.querySelectorAll(TAGS)) {
       const cell = tag.closest("thead th");
+      const inTable = cell && !tag.hasAttribute("data-required-for");
       let satisfied;
-      if (cell && !tag.hasAttribute("data-required-for")) {
+      let owners = [];
+      if (inTable) {
         satisfied = tableSatisfied(tag, cell);
       } else {
-        const owners = ownersOf(tag);
+        owners = ownersOf(tag);
         satisfied = owners.length > 0 && owners.every(ownerFilled);
       }
       tag.classList.toggle("is-satisfied", satisfied);
       const field = tag.closest(".own-field");
       if (field) field.classList.toggle("is-satisfied", satisfied);
+      if (!satisfied && !tag.hidden && !tag.closest("[hidden]")) {
+        const found = inTable ? emptyTableBoxes(tag, cell) : owners.filter((owner) => !ownerFilled(owner));
+        for (const owner of found) needed.add(owner);
+      }
+    }
+    for (const old of root.querySelectorAll(".is-needed")) {
+      if (!needed.has(old)) old.classList.remove("is-needed");
+    }
+    for (const box of needed) {
+      if (!box.classList.contains("is-needed")) box.classList.add("is-needed");
     }
     // the boxes that are red because they must be given are plain once they are
     for (const box of root.querySelectorAll(".analyze-dialog .s-input, .analyze-dialog .s-select, .own-field .s-input, .own-field .s-select")) {

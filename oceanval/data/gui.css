@@ -677,8 +677,14 @@ tr.is-picked .vars__pm, li.is-chosen .vw-pm { border-color: var(--teal-600); bac
   .ptr-mode, .prefs__use, .reg-where label { transition: none; }
 }
 
-/* Required tags and the red round a box that must be given, only while it is empty (OceanValGUI.syncRequired) */
-.own-req.is-satisfied, .year-required.is-satisfied { display: none; }
+/* No Required tags are shown: a box that must be given is outlined in red while it is empty (OceanValGUI.syncRequired
+   sets is-needed on it). The tags stay in the page, so syncRequired still finds the boxes they ask for. */
+.own-req, .year-required { display: none; }
+html body input.s-input.is-needed, html body select.s-select.is-needed, html body textarea.s-input.is-needed,
+html body input.s-input.is-missing, html body select.s-select.is-missing {
+  border: 4px solid var(--red); box-shadow: none;
+}
+html body fieldset.is-needed { outline: 4px solid var(--red); outline-offset: 2px; border-radius: var(--radius-md); }
 .own-field.is-required.is-satisfied { border-left-color: transparent; }
 .own-field.is-required .s-input.is-filled, .own-field.is-required .s-select.is-filled,
 .analyze-dialog tr.is-on .s-input.is-year.is-filled, .analyze-dialog .s-select.is-required.is-filled,
