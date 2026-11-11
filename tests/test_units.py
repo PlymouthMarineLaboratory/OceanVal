@@ -72,6 +72,123 @@ class TestCatalogue:
         }
 
 
+def _cells(row):
+    return [
+        html.unescape(re.sub(r"<.*?>", "", cell)).strip()
+        for cell in re.findall(r"<td>(.*?)</td>", row, re.S)
+    ]
+
+
+class TestWebsiteDatasets:
+    """docs-site/datasets.html and recipes.html say what the app's catalogue says,
+    and list every dataset in it (CLAUDE.md: a new built-in dataset goes on the site)."""
+
+    # the dataset column's text, by recipe
+    DATASETS = {
+        "glodap": "GLODAPv2.2016b",
+        "occci": "Ocean Colour CCI",
+        "woa23": "World Ocean Atlas 2023",
+        "cobe2": "COBE-SST 2",
+        "mpisom": "MPI-SOM-FFN v2025",
+        "socat": "SOCATv2026",
+        "copepod": "NOAA COPEPOD",
+        "nsbc": "North Sea Biogeochemical Climatology",
+        "glodapv3": "GLODAPv3 bottle data",
+        "hansell": "Hansell et al. DOM compilation",
+        "ices": "ICES Oceanographic database",
+    }
+    REGIONS = {
+        "Global": "Global",
+        "Northwest European Shelf": "NW European Shelf",
+        "European": "European",
+    }
+
+    @staticmethod
+    def _page(name):
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs-site", name)
+        if not os.path.exists(path):
+            pytest.skip("the docs site is not part of the installed package")
+        return open(path).read()
+
+    def _recipe_of(self, text):
+        return next(r for r, name in self.DATASETS.items() if text.startswith(name))
+
+    def _expected(self, catalogue):
+        from oceanval import user_recipes
+
+        return {
+            (
+                self.REGIONS[entry["region"]],
+                user_recipes.display_name(entry["variable"], entry["variable"]),
+                entry["recipe"],
+            ): entry
+            for entry in catalogue
+        }
+
+    def _check(self, listed, catalogue):
+        from oceanval.create_recipes import _has_vertical_option
+
+        expected = self._expected(catalogue)
+        assert set(listed) == set(expected)
+        for key, (years, water, units) in listed.items():
+            entry = expected[key]
+            assert water == ("Yes" if _has_vertical_option(entry) else "No"), key
+            assert units == entry["units"], key
+            if years is not None and entry["recipe"] not in ("ices", "copepod") and not entry.get("decadal"):
+                assert years == entry["coverage"]["years"], key
+
+    def test_the_gridded_table_is_the_catalogue(self):
+        page = self._page("datasets.html")
+        listed = {}
+        for row in re.findall(r'<tr class="recipe-row".*?</tr>', page, re.S):
+            region, variable, dataset, years, water, units = _cells(row)
+            listed[region, variable, self._recipe_of(dataset)] = (years, water, units)
+        self._check(listed, RECIPE_CATALOGUE)
+
+    def test_the_point_table_is_the_catalogue(self):
+        page = self._page("datasets.html")
+        table = page[page.index('id="point"') :]
+        listed = {}
+        for row in re.findall(r"<tr>\s*(<td>(?:Global|European).*?)</tr>", table, re.S):
+            region, variable, dataset, years, water, units = _cells(row)
+            listed[region, variable, self._recipe_of(dataset)] = (years, water, units)
+        self._check(listed, POINT_RECIPE_CATALOGUE)
+
+    def test_recipes_page_water_column_is_the_catalogues(self):
+        from oceanval.create_recipes import _has_vertical_option
+
+        page = self._page("recipes.html")
+        gridded = {}
+        for row in re.findall(r'<tr class="recipe-row".*?</tr>', page, re.S):
+            cells = _cells(row)
+            gridded[cells[1].lower().replace(" ", ""), cells[2]] = cells[4]
+        assert gridded == {
+            (entry["variable"], entry["recipe"]): "Yes" if _has_vertical_option(entry) else "No"
+            for entry in RECIPE_CATALOGUE
+        }
+
+        table = page[page.index('id="point-recipes"') :]
+        point = {}
+        for row in re.findall(r"<tr>\s*(<td>(?:Global|European).*?)</tr>", table, re.S):
+            cells = _cells(row)
+            point[cells[0], cells[1], cells[2]] = cells[5]
+        titles = {
+            "alkalinity": "Total Alkalinity",
+            "dic": "Dissolved Inorganic Carbon",
+            "doc": "Dissolved Organic Carbon",
+            "poc": "Particulate Organic Carbon",
+            "ph": "pH",
+        }
+        assert point == {
+            (
+                entry["region"],
+                titles.get(entry["variable"], entry["variable"].title()),
+                entry["recipe"],
+            ): "Yes" if _has_vertical_option(entry) else "No"
+            for entry in POINT_RECIPE_CATALOGUE
+        }
+
+
 class TestModelUnits:
     def test_units_are_read_from_the_files(self, tmp_path):
         write_simulation(tmp_path, tracers=True)

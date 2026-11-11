@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Validating simulations — OceanVal</title>
-<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, Ocean Colour CCI, GLODAP, the North Sea Biogeochemical Climatology and the European point data of ICES.">
+<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, Ocean Colour CCI, GLODAP, MPI-SOM-FFN, SOCAT, COPEPOD, the North Sea Biogeochemical Climatology, GLODAPv3, the Hansell et al. DOM compilation and the European point data of ICES.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -84,6 +84,7 @@
       <li><a href="#gridded">What gridded datasets are available?</a></li>
       <li class="docs-toc-sub"><a href="#woa23">World Ocean Atlas 2023 periods</a></li>
       <li><a href="#point">What point datasets are available?</a></li>
+      <li class="docs-toc-sub"><a href="#bottle-data">How GLODAPv3 and Hansell et al. are treated</a></li>
       <li class="docs-toc-sub"><a href="#ices-data">How ICES data is treated</a></li>
       <li><a href="#units">Units</a></li>
       <li><a href="#own-data">Your own data</a></li>
@@ -117,13 +118,13 @@
     <p>The result is an HTML report you can share, optionally exported to PDF and Word. The full steps are in <a href="app.html">the OceanVal app</a>; to validate from a script instead, see <a href="how-to-use.html">How to use in Python</a>. Downloaded observations can be kept for later runs in a <a href="app.html#data-store">data store</a>.</p>
 
     <h2 id="builtin" style="margin-top:2.4rem;">Built-in observational datasets</h2>
-    <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen, nutrients, chlorophyll, the carbonate system and light attenuation, globally and on the Northwest European Shelf.</p>
+    <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen (with apparent oxygen utilization and saturation), nutrients, chlorophyll, the carbonate system, surface pCO<sub>2</sub> and the air-sea CO<sub>2</sub> flux, dissolved and particulate organic carbon, mesozooplankton and light attenuation, globally, on the Northwest European Shelf and in European seas. The tables below are the ones the app offers: the gridded datasets, then the point datasets.</p>
 
     <p>In the <a href="app.html">OceanVal app</a>, the datasets are offered in the step where you choose the observations to validate against. OceanVal reads your simulation, works out which of its variables holds each observed variable, and ticks every dataset for your simulation&rsquo;s domain that it finds a variable for. The domain is worked out for you: if more than 80% of the cells of your simulation lie inside the Northwest European Shelf (the &ldquo;Full Domain&rdquo; of OceanVal&rsquo;s <code>nwes</code> regions file) it is the shelf, otherwise it is global. Check what it found, and untick anything you do not want.</p>
-    <p>The observations are <strong>downloaded for you</strong> when the matchup runs, in most cases from THREDDS servers, so only what is needed is downloaded. The server for COBE-SST 2 limits how many requests it answers (HTTP 429), and when it turns them away OceanVal downloads the whole file instead. To keep what is downloaded for later matchups, set a <a href="app.html#data-store">data store</a> in the app&rsquo;s Preferences. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
+    <p>The observations are <strong>downloaded for you</strong> when the matchup runs. World Ocean Atlas 2023, the North Sea Biogeochemical Climatology, Ocean Colour CCI and COBE-SST 2 come from THREDDS servers, so only what is needed is downloaded; GLODAPv2.2016b is downloaded from NCEI as one file per variable; MPI-SOM-FFN, SOCAT and COPEPOD are downloaded whole and made into a netCDF file OceanVal can read; the GLODAPv3 and Hansell et al. compilations are one large file each, downloaded once and read for the variables you match up; ICES is downloaded for the years and area of the matchup. The server for COBE-SST 2 limits how many requests it answers (HTTP 429), and when it turns them away OceanVal downloads the whole file instead. To keep what is downloaded for later matchups, set a <a href="app.html#data-store">data store</a> in the app&rsquo;s Preferences. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
 
     <h2 id="gridded">What gridded datasets are available?</h2>
-    <p>Click a row for more about the dataset. <strong>Water column</strong> says whether it can be validated below the surface as well as at it.</p>
+    <p>Click a row for more about the dataset. <strong>Years</strong> are the years the observations cover (a climatology is an average over them), and <strong>Water column</strong> says whether the app can validate it below the surface as well as at it.</p>
 
     <div class="recipe-toolbar">
       <div class="recipe-search">
@@ -143,6 +144,7 @@
             <th>Region</th>
             <th>Variable</th>
             <th>Dataset</th>
+            <th>Years</th>
             <th>Water column</th>
             <th>Units</th>
           </tr>
@@ -150,136 +152,227 @@
         <tbody>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Alkalinity</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td><td><code><code>micro-mol kg-1</code></code></td>
+            <td>Global</td><td>Air-sea CO2 flux</td><td><a href="https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">MPI-SOM-FFN v2025</a></td><td>1985&ndash;2024</td><td><span class="badge badge-no">No</span></td><td><code>mol m-2 yr-1</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>An annual climatology covering 1972&ndash;2013, at the surface only, in micromoles per kilogram. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the air-sea flux worked out from the reconstructed pCO<sub>2</sub>, in moles of carbon per square metre per year. The product is negative where the ocean takes CO<sub>2</sub> up; OceanVal reverses it, so that, as in CMIP6&rsquo;s fgco2, positive is into the ocean.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Chlorophyll</td><td><a href="https://esa-oceancolour-cci.org/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ocean Colour CCI</a></td><td><span class="badge badge-no">No</span></td><td><code><code>milligram m-3</code></code></td>
+            <td>Global</td><td>Apparent oxygen utilization in sea water</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1965&ndash;2022</td><td><span class="badge badge-yes">Yes</span></td><td><code>micromoles_per_<wbr>kilogram</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>The oxygen a water has lost since it left the surface, a measure of how much organic matter has been respired. A single long-term climatology, through the water column to about 800&nbsp;m.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Aragonite saturation state of sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. Calculated at in situ temperature and pressure, so it has no units. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Calcite saturation state of sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. Calculated at in situ temperature and pressure, so it has no units. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Chlorophyll a concentration in sea water</td><td><a href="https://esa-oceancolour-cci.org/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ocean Colour CCI</a></td><td>1997 to the present</td><td><span class="badge badge-no">No</span></td><td><code>milligram m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>Satellite surface chlorophyll, in milligrams per cubic metre, compared year by year rather than as a climatology. Ocean Colour CCI also provides KD490.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>KD490</td><td><a href="https://esa-oceancolour-cci.org/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ocean Colour CCI</a></td><td><span class="badge badge-no">No</span></td><td><code><code>m-1</code></code></td>
+            <td>Global</td><td>Diffuse attenuation coefficient at 490 nm</td><td><a href="https://esa-oceancolour-cci.org/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ocean Colour CCI</a></td><td>1997 to the present</td><td><span class="badge badge-no">No</span></td><td><code>m-1</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>The diffuse attenuation coefficient at 490&nbsp;nm, from satellite, in inverse metres, compared year by year rather than as a climatology.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Nitrate</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+            <td>Global</td><td>Dissolved inorganic carbon concentration in sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>micro-mol kg-1</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Dissolved oxygen concentration in sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Dissolved oxygen concentration in sea water</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1965&ndash;2022</td><td><span class="badge badge-yes">Yes</span></td><td><code>micromoles_per_<wbr>kilogram</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Oxygen</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+            <td>Global</td><td>Mesozooplankton carbon biomass in sea water</td><td><a href="https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">NOAA COPEPOD</a></td><td>Not stated</td><td><span class="badge badge-no">No</span></td><td><code>mg C m-3</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of net-sampled zooplankton (330&nbsp;&micro;m mesh) as carbon, on a 0.25&deg; grid where there are samples, in milligrams of carbon per cubic metre. It is a mean over the top 200&nbsp;m: the simulation is averaged over 0&ndash;200&nbsp;m too (or to the sea floor, where that is shallower), which needs the cell thickness.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Nitrate concentration in sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Nitrate concentration in sea water</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1965&ndash;2022</td><td><span class="badge badge-yes">Yes</span></td><td><code>micromoles_per_<wbr>kilogram</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>pH</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td><span class="badge badge-no">No</span></td><td><code><code>total scale</code></code></td>
+            <td>Global</td><td>Oxygen saturation of sea water</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1965&ndash;2022</td><td><span class="badge badge-yes">Yes</span></td><td><code>percent</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>An annual climatology covering 1972&ndash;2013, at the surface only, on the total scale.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>Dissolved oxygen as a percentage of its saturation value at the water&rsquo;s temperature and salinity. A single long-term climatology, through the water column to about 800&nbsp;m.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Phosphate</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+            <td>Global</td><td>Phosphate concentration in sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>micro-mol kg-1</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Phosphate concentration in sea water</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1965&ndash;2022</td><td><span class="badge badge-yes">Yes</span></td><td><code>micromoles_per_<wbr>kilogram</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Salinity</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>1</code></code></td>
+            <td>Global</td><td>Sea water pH</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>total scale</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. On the total scale, at in situ temperature and pressure. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Sea water salinity</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1955&ndash;2022, by decade</td><td><span class="badge badge-yes">Yes</span></td><td><code>1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>A decadal climatology, through the water column to about 800&nbsp;m: the years you match up must fall within one of its periods (see <a href="#woa23">below</a>).</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Silicate</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>micromoles_per_<wbr>kilogram</code></code></td>
+            <td>Global</td><td>Sea water temperature</td><td><a href="https://psl.noaa.gov/data/gridded/data.cobe2.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">COBE-SST 2</a></td><td>1850 to the present</td><td><span class="badge badge-no">No</span></td><td><code>degC</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
-          </div></td></tr>
-
-          <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Temperature</td><td><a href="https://psl.noaa.gov/data/gridded/data.cobe2.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">COBE-SST 2</a></td><td><span class="badge badge-no">No</span></td><td><code><code>degC</code></code></td>
-          </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>Monthly sea surface temperature, for validating a full time series rather than a climatology.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
-            <td>Global</td><td>Temperature</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>degC</code></code></td>
+            <td>Global</td><td>Sea water temperature</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1955&ndash;2022, by decade</td><td><span class="badge badge-yes">Yes</span></td><td><code>degC</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>A decadal climatology, through the water column to about 800&nbsp;m: the years you match up must fall within one of its periods (see <a href="#woa23">below</a>).</p>
           </div></td></tr>
 
-          <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Ammonium</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Silicate concentration in sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>micro-mol kg-1</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Silicate concentration in sea water</td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td>1965&ndash;2022</td><td><span class="badge badge-yes">Yes</span></td><td><code>micromoles_per_<wbr>kilogram</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Surface ocean partial pressure of CO2</td><td><a href="https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">MPI-SOM-FFN v2025</a></td><td>1985&ndash;2024</td><td><span class="badge badge-no">No</span></td><td><code>uatm</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of a gap-free reconstruction (a neural network trained on SOCAT&rsquo;s fCO<sub>2</sub>), on a 1&deg; grid, at the surface only: not direct observations.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Surface ocean partial pressure of CO2</td><td><a href="https://www.socat.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">SOCATv2026</a></td><td>1970&ndash;2025</td><td><span class="badge badge-no">No</span></td><td><code>uatm</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>Monthly 1&deg; means of ship and mooring measurements (the cruise-weighted mean fCO<sub>2</sub>, flags A to D, WOCE 2), with nothing where nothing was measured: observations, not a climatology. It is fCO<sub>2</sub>, within about 0.5% of pCO<sub>2</sub>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Total alkalinity of sea water</td><td><a href="https://www.glodap.info/" target="_blank" rel="noopener" onclick="event.stopPropagation()">GLODAPv2.2016b</a></td><td>1972&ndash;2013</td><td><span class="badge badge-yes">Yes</span></td><td><code>micro-mol kg-1</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Chlorophyll</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mg/m^3</code></code></td>
+            <td>NW European Shelf</td><td>Ammonium concentration in sea water</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>mmol/m^3</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Nitrate</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+            <td>NW European Shelf</td><td>Chlorophyll a concentration in sea water</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>mg/m^3</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Oxygen</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+            <td>NW European Shelf</td><td>Dissolved oxygen concentration in sea water</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>mmol/m^3</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Phosphate</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+            <td>NW European Shelf</td><td>Nitrate concentration in sea water</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>mmol/m^3</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Salinity</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>1</code></code></td>
+            <td>NW European Shelf</td><td>Phosphate concentration in sea water</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>mmol/m^3</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Silicate</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>mmol/m^3</code></code></td>
+            <td>NW European Shelf</td><td>Sea water salinity</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>1</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">
-            <td>NW European Shelf</td><td>Temperature</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td><span class="badge badge-yes">Yes</span></td><td><code><code>degC</code></code></td>
+            <td>NW European Shelf</td><td>Sea water temperature</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>degC</code></td>
           </tr>
-          <tr class="recipe-detail"><td colspan="5"><div class="recipe-detail__inner">
-            <p>A monthly climatology of the North Sea and the shelf around it, which can be validated through the water column.</p>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="nwes">
+            <td>NW European Shelf</td><td>Silicate concentration in sea water</td><td><a href="https://www.cen.uni-hamburg.de/en/icdc/data/ocean/nsbc.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">North Sea Biogeochemical Climatology</a></td><td>1960&ndash;2014</td><td><span class="badge badge-yes">Yes</span></td><td><code>mmol/m^3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of the North Sea and the shelf around it, from 1960&ndash;2014, which can be validated through the water column.</p>
           </div></td></tr>
 
         </tbody>
@@ -292,11 +385,11 @@
       <ul class="pill-list">
         <li>1955–1964</li><li>1965–1974</li><li>1975–1984</li><li>1985–1994</li><li>1995–2004</li><li>2005–2014</li><li>2015–2022</li>
       </ul>
-      <p>The years you match up have to fall within one period: choose the period your simulation covers, and set the years in the app to it, such as 1995 to 2004. Years that straddle two periods, such as 2000 to 2008, are refused, as is anything longer than a decade, so validate one period at a time. The nutrients and oxygen use a single long-term climatology, and can be matched up with any years.</p>
+      <p>The years you match up have to fall within one period: choose the period your simulation covers, and set the years in the app to it, such as 1995 to 2004. Years that straddle two periods, such as 2000 to 2008, are refused, as is anything longer than a decade, so validate one period at a time. The nutrients, oxygen, apparent oxygen utilization and oxygen saturation use a single long-term climatology, and can be matched up with any years.</p>
     </div>
 
     <h2 id="point" style="margin-top:2.4rem;">What point datasets are available?</h2>
-    <p style="max-width:70ch;">These are the European datasets, covering European and neighbouring seas: measurements at sea, from the ICES Oceanographic database, are downloaded for the years you match up, in the area given by the longitude and latitude limits you set in the app or, if you set none, the area your simulation covers. See <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
+    <p style="max-width:70ch;">Point datasets are measurements at particular places, times and depths. The global ones are bottle samples from research cruises, GLODAPv3 and the Hansell et al. compilation of organic carbon. The European ones, covering European and neighbouring seas, are measurements at sea from the ICES Oceanographic database, downloaded for the years you match up, in the area given by the longitude and latitude limits you set in the app or, if you set none, the area your simulation covers. See <a href="#bottle-data">how GLODAPv3 and Hansell et al. are treated</a> and <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
     <div class="table-wrap" style="margin-top:1.6rem; overflow-x:auto;">
       <table>
         <thead>
@@ -304,44 +397,83 @@
             <th>Region</th>
             <th>Variable</th>
             <th>Dataset</th>
+            <th>Years</th>
             <th>Water column</th>
             <th>Units</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>European</td><td>Temperature</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td><span class="badge badge-yes">Yes</span></td><td>&deg;C</td>
+            <td>Global</td><td>Chlorophyll a concentration in sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;g/kg</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Salinity</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td><span class="badge badge-yes">Yes</span></td><td>dimensionless</td>
+            <td>Global</td><td>Dissolved inorganic carbon concentration in sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Total Alkalinity</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>mEq/l</td>
+            <td>Global</td><td>Dissolved organic carbon concentration in sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/l</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Ammonium</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+            <td>Global</td><td>Dissolved oxygen concentration in sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Chlorophyll</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;g/l</td>
+            <td>Global</td><td>Nitrate concentration in sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Nitrate</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+            <td>Global</td><td>Phosphate concentration in sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Oxygen</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>ml/l</td>
+            <td>Global</td><td>Sea water pH</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>total scale</code></td>
           </tr>
           <tr>
-            <td>European</td><td>pH</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>pH units</td>
+            <td>Global</td><td>Silicate concentration in sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Phosphate</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+            <td>Global</td><td>Total alkalinity of sea water</td><td><a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">GLODAPv3 bottle data</a></td><td>1972&ndash;2023</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
           </tr>
           <tr>
-            <td>European</td><td>Silicate</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td><span class="badge badge-yes">Yes</span></td><td>&micro;mol/l</td>
+            <td>Global</td><td>Dissolved organic carbon concentration in sea water</td><td><a href="https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html" target="_blank" rel="noopener">Hansell et al. DOM compilation</a></td><td>1994&ndash;2021</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Particulate organic carbon concentration in sea water</td><td><a href="https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html" target="_blank" rel="noopener">Hansell et al. DOM compilation</a></td><td>1995&ndash;2018</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Sea water temperature</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>&deg;C</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Sea water salinity</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>dimensionless</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Ammonium concentration in sea water</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/l</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Chlorophyll a concentration in sea water</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;g/l</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Dissolved oxygen concentration in sea water</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>ml/l</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Nitrate concentration in sea water</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/l</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Phosphate concentration in sea water</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/l</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Sea water pH</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>pH units</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Silicate concentration in sea water</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/l</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Total alkalinity of sea water</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>mEq/l</code></td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <h3 id="bottle-data" style="margin-top:2rem;">How GLODAPv3 and Hansell et al. are treated</h3>
+    <p style="max-width:70ch;"><strong>GLODAPv3</strong> (<a href="https://glodap.info/index.php/merged-and-adjusted-data-product-v3/" target="_blank" rel="noopener">Lange et al., 2026</a>) is every bottle sample from 1181 cruises, 1972 to 2023, with the systematic differences between cruises adjusted away. It is one file, so it is downloaded whole, once, and each variable you match up is read from it. Only samples with a good WOCE flag (2) are kept.</p>
+    <p style="max-width:70ch;"><strong>Hansell et al.</strong> (<a href="https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html" target="_blank" rel="noopener">Hansell et al., 2021</a>) compiles dissolved organic carbon (1994&ndash;2021) and particulate organic carbon (1995&ndash;2018) from bottle samples on 223 cruises. Only samples with a good WOCE flag (2) and a value above zero are kept, and the pressure is converted to depth with TEOS-10.</p>
+    <p style="max-width:70ch;">A <a href="app.html#data-store">data store</a> keeps the file once it is downloaded, so later matchups need not download it again.</p>
 
     <h3 id="ices-data" style="margin-top:2rem;">How ICES data is treated</h3>
     <p style="max-width:70ch;"><strong>What is downloaded.</strong> For each variable, OceanVal asks ICES for an export of every profile in the area you match up (or your simulation&rsquo;s own area) in the years you match up. Everything but temperature and salinity comes from the bottle and low resolution CTD data. Temperature and salinity take two exports, one of the high resolution CTD profiles and one of the bottle and low resolution CTD data, which are joined (see <em>Profiles in both datasets</em> below). An export holds every variable measured at its profiles, so large areas or long periods make for a large download.</p>

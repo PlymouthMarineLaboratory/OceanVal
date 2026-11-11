@@ -125,6 +125,14 @@ user-facing change to the package:
    originally redesigned from and roughly mirror 1:1 (e.g. `recipes.rst` ↔ `recipes.html`).
 3. **`README.md`** (repo root) — usage examples/feature list.
 
+**A new built-in dataset (a recipe in `RECIPE_CATALOGUE` or `POINT_RECIPE_CATALOGUE` in `oceanval/create_recipes.py`, and its
+label in `recipes_gui.DATASET_LABELS`) goes on the website in the same change, by default, without being asked:** a row in
+each table of `docs-site/datasets.html` (gridded or point; Region, Variable, Dataset, Years, Water column, Units, and the
+click-to-expand text for a gridded one) and in `docs-site/recipes.html`, plus a sentence on how it is downloaded and treated
+where it is not like the others. Take every cell from the catalogue (the app's `DISPLAY_NAMES`, `_COVERAGE`/`_POINT_COVERAGE`
+years, `_has_vertical_option` for Water column, `_GRIDDED_UNITS`/`_POINT_UNITS`), never from memory, so the page says what the
+app says. `tests/test_units.py` checks both pages against the catalogue and fails for a dataset left off.
+
 Don't hand-edit generated pieces: `docs-site/archive/`, the
 `<!-- OCEANVAL_VERSION_HISTORY_START/END -->` block in `version-history.html`, and each page's
 `#oceanval-docs-version` badge — all are maintained automatically (see `docs-site/README.md` and
