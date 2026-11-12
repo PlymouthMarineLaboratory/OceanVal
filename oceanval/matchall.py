@@ -65,6 +65,32 @@ from oceanval import user_cache
 POINT_SOURCES = {"ices": ices, "glodapv3": glodap, "hansell": hansell}
 
 
+def climatological(point_time_res):
+    """Whether point observations are matched without their year (Month, or
+    Month and day): then every year of the observations is used, whatever the
+    years of the simulation or of the dataset's start and end."""
+    return "year" not in point_time_res
+
+
+def recipe_years(recipe, variable, start, end):
+    """The years of a built-in point source to download: its whole record
+    (its coverage in the recipe catalogue; ICES from 1900 to this year), for
+    observations matched without their year. start and end if no record is
+    known."""
+    # not "from oceanval import create_recipes": that name is the function
+    from oceanval.create_recipes import POINT_RECIPE_CATALOGUE
+
+    kind = recipe.get("kind", "ices")
+    if kind == "ices":
+        return 1900, max(end, time.localtime().tm_year)
+    for entry in POINT_RECIPE_CATALOGUE:
+        if entry["recipe"] == kind and entry["variable"] == recipe.get("variable", variable):
+            first, last = entry.get("coverage", {}).get("range") or (None, None)
+            if first is not None:
+                return first, (last if last is not None else max(end, time.localtime().tm_year))
+    return start, end
+
+
 def read_point(ff, nrows = None):
     try:
         df = pd.read_csv(ff, nrows=nrows)   
@@ -1417,6 +1443,7 @@ def matchup(
     point_time_res : list or str
         Which of "year", "month" and "day" point observations are matched to the model by. Default is ['year', 'month', 'day'].
         Leave out "year" to compare the observations climatologically, and "day" for monthly model output.
+        Without "year", observations from every year are used (not only those in the simulation's years or the dataset's start and end); the model is still limited to its years.
         A point_time_res given to add_point_comparison is used for that dataset instead.
     overwrite : bool or list
         If True, existing matched data will be overwritten. Default is True. False keeps any matchup this run would make that is in out_dir already, and uses it as it is.
@@ -2396,6 +2423,16 @@ def matchup(
 
                         out = f"{session_info['out_dir']}/oceanval_matchups/point/{layer}/{variable}/{source}/{source}_{layer}_{variable}.csv"
 
+                        # a comparison can set its own point_time_res, in
+                        # place of the one given to matchup
+                        point_time_res = copy.deepcopy(
+                            comparison.get("point_time_res")
+                            or session_info["point_time_res"]
+                        )
+                        # observations matched without their year are all
+                        # used, whatever the years of the simulation
+                        all_years = climatological(point_time_res)
+
                         # the observations, for the oceanval window's grid
                         told.observing("point", variable, source, layer)
                         if comparison["recipe"] is not None:
@@ -2410,10 +2447,16 @@ def matchup(
                             # before there were two has no kind, and is ICES)
                             source_module = POINT_SOURCES[comparison["recipe"].get("kind", "ices")]
                             try:
+                                download_start = max(session_info["min_year"], comparison["start"])
+                                download_end = min(session_info["max_year"], comparison["end"])
+                                if all_years:
+                                    download_start, download_end = recipe_years(
+                                        comparison["recipe"], variable, download_start, download_end
+                                    )
                                 df = source_module.download_point_data(
                                     comparison["recipe"],
-                                    max(session_info["min_year"], comparison["start"]),
-                                    min(session_info["max_year"], comparison["end"]),
+                                    download_start,
+                                    download_end,
                                     recipe_lon,
                                     recipe_lat,
                                 )
@@ -2447,7 +2490,7 @@ def matchup(
                                     )
                                 min_year = session_info["min_year"]
                                 max_year = session_info["max_year"]
-                                if "year" in df.columns:
+                                if "year" in df.columns and not all_years:
                                     df = df.query(
                                         "year >= @min_year and year <= @max_year"
                                     ).reset_index(drop=True)
@@ -2463,7 +2506,7 @@ def matchup(
                         # ensure year is int
                         if "year" in df.columns:
                             df = df.assign(year=lambda x: x.year.astype(int))
-                        if "year" in df.columns:
+                        if "year" in df.columns and not all_years:
                             # find point_start
                             point_start = comparison["start"]
                             point_end = comparison["end"]
@@ -2488,12 +2531,6 @@ def matchup(
                                 df = df.drop(columns=["depth"])
                         told.observed("point", variable, source, layer)
 
-                        # a comparison can set its own point_time_res, in
-                        # place of the one given to matchup
-                        point_time_res = copy.deepcopy(
-                            comparison.get("point_time_res")
-                            or session_info["point_time_res"]
-                        )
                         for x in [
                             x
                             for x in ["year", "month", "day"]

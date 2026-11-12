@@ -345,16 +345,16 @@
                 <details class="opts__help" id="help-point_time_res">
                   <summary aria-label="Explain how point observations are matched" title="How point observations are matched">?</summary>
                   <div class="opts__help-popover" role="note">
-                    <p>Each observation has a date: a year, a month and a day. This chooses which of those are used to find the simulation output it is compared with. Anything a dataset does not have is simply not used, and only observations from each dataset's From to To years are used.</p>
+                    <p>Each observation has a date: a year, a month and a day. This chooses which of those are used to find the simulation output it is compared with. Anything a dataset does not have is simply not used. Only observations from each dataset's From to To years are used, unless the year is ignored (Month, day, or Month): then observations from every year are used.</p>
                     <dl>
                       <dt>Year, month, day</dt>
                       <dd>Exact dates. Each observation is compared with the simulation on the day it was made. Use this for daily, or finer, simulation output.</dd>
                       <dt>Year, month</dt>
                       <dd>Each observation is compared with the simulation's mean for that month of that year, and the day is ignored. Use this for monthly simulation output.</dd>
                       <dt>Month, day</dt>
-                      <dd>Climatological: the year is ignored. Observations from any year are compared with the simulation's average for the same day of the year. Consider this if you have a short-term simulation, and want to compare it with observations over a longer time period.</dd>
+                      <dd>Climatological: the year is ignored. Observations from every year of the dataset are compared with the simulation's average for the same day of the year. Consider this if you have a short-term simulation, and want to compare it with observations over a longer time period.</dd>
                       <dt>Month</dt>
-                      <dd>Climatological, by month. Observations from any year are compared with the simulation's average for that calendar month. Consider this if you have a short-term simulation, and want to compare it with observations over a longer time period.</dd>
+                      <dd>Climatological, by month. Observations from every year of the dataset are compared with the simulation's average for that calendar month. A built-in dataset is downloaded for its whole record, which can take a long time. Consider this if you have a short-term simulation, and want to compare it with observations over a longer time period.</dd>
                     </dl>
                     <p>This will apply to all point datasets, but can be overridden individually.</p>
                   </div>

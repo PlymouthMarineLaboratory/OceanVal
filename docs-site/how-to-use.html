@@ -311,7 +311,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
         <li><code class="param-name">exclude</code><p>Strings that should not appear in any simulation file paths. Nothing is left out unless you say so: restart files, for example, are used unless <code>exclude</code> has <code>"restart"</code> in it. (The <code>oceanval</code> command&rsquo;s <strong>Skip file names containing</strong> box starts empty.)</p></li>
         <li><code class="param-name">require</code><p>Strings that must appear in a simulation file path for it to be included — useful when multiple simulations share a directory.</p></li>
         <li><code class="param-name">out_dir</code><p>Directory to save matchup files in. Defaults to the execution directory.</p></li>
-        <li><code class="param-name">point_time_res</code><p>Time resolution for point matchups. Defaults to <code>["year", "month", "day"]</code>; set to <code>["month", "day"]</code> to compare climatological output with observations.</p></li>
+        <li><code class="param-name">point_time_res</code><p>Time resolution for point matchups. Defaults to <code>["year", "month", "day"]</code>; set to <code>["month", "day"]</code> to compare climatological output with observations. Without "year", observations from every year are used, not only those in the simulation's years; the model is still limited to its years.</p></li>
         <li><code class="param-name">n_check</code><p>Number of files checked when identifying the file naming convention.</p></li>
         <li><code class="param-name">as_missing</code><p>A float or <code>[min, max]</code> range of values to treat as missing in the model output.</p></li>
         <li><code class="param-name">strict_names</code><p>Whether to strictly enforce variable naming conventions. Defaults to <code>True</code>.</p></li>
@@ -338,7 +338,7 @@ oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_grid
         <li>Month (and optionally day), but no year → matched against the simulation's average for that month (or day) over the years from <code>start</code> to <code>end</code>.</li>
         <li>No time information → matched against the simulation's average over the years from <code>start</code> to <code>end</code>.</li>
       </ul>
-      <p>To ignore year information and compare observations with the simulation's average for their month and day, set <code>point_time_res=["month", "day"]</code> in <a href="api.html#matchup"><code>oceanval.matchup</code></a>. Only observations from the years between <code>start</code> and <code>end</code> are used.</p>
+      <p>To ignore year information and compare observations with the simulation's average for their month and day, set <code>point_time_res=["month", "day"]</code> in <a href="api.html#matchup"><code>oceanval.matchup</code></a>. Observations from every year are used, not only those between <code>start</code> and <code>end</code>; the model is still limited to those years.</p>
     </div>
     <div class="callout">
       <div class="callout-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Where does OceanVal save matchup files?</div>

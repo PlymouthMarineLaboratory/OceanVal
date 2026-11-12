@@ -184,7 +184,7 @@
             <li><code class="param-name">exclude</code><p>Strings that should not appear in any simulation file paths.</p></li>
             <li><code class="param-name">require</code><p>Strings that must appear in a simulation file path for it to be included — useful when multiple simulations share a directory.</p></li>
             <li><code class="param-name">out_dir</code><p>Directory to save matchup files in. Defaults to the execution directory.</p></li>
-            <li><code class="param-name">point_time_res</code><p>Time resolution for point matchups. Default <code>["year", "month", "day"]</code>; set to <code>["month", "day"]</code> to compare climatological output with observations.</p></li>
+            <li><code class="param-name">point_time_res</code><p>Time resolution for point matchups. Default <code>["year", "month", "day"]</code>; set to <code>["month", "day"]</code> to compare climatological output with observations. Without "year", observations from every year are used, not only those in the simulation's years; the model is still limited to its years.</p></li>
             <li><code class="param-name">n_check</code><p>Number of files checked when identifying the file naming convention.</p></li>
             <li><code class="param-name">as_missing</code><p>A float or <code>[min, max]</code> range of values to treat as missing in the model output.</p></li>
             <li><code class="param-name">strict_names</code><p>Whether to strictly enforce variable naming conventions. Default <code>True</code>.</p></li>

@@ -365,13 +365,9 @@ class TestPointTimeRes:
         sim_dir, paths = simulation
         surface = model.query("level == 0")
         daily = _average(surface, ["lon", "lat", "year", "month", "day"])
-        # observations outside the simulation years are not used
-        outside = daily.query("month == 1").assign(
-            year=1995, observation=lambda x: x.observation + 5
-        )
 
         oceanval.reset()
-        _add("foo", _write_obs(str(tmp_path / "obs"), pd.concat([daily, outside])))
+        _add("foo", _write_obs(str(tmp_path / "obs"), daily))
         oceanval.matchup(
             sim_dir=sim_dir,
             start=2000,
@@ -386,6 +382,69 @@ class TestPointTimeRes:
         df = _read(out_dir, "surface", "foo")
         _check(df, _average(surface, ["lon", "lat", "month"]), ["lon", "lat", "month"])
         assert _matchup_dict(out_dir, "surface", "foo")["point_time_res"] == ["month"]
+        oceanval.reset()
+
+    @pytest.mark.parametrize(
+        "point_time_res, keys, own_years",
+        [
+            (["month", "day"], ["month", "day"], None),
+            (["month"], ["month"], None),
+            # a dataset's start and end do not cut observations matched without their year
+            (["month"], ["month"], (2001, 2001)),
+        ],
+    )
+    def test_observations_from_another_year(
+        self, simulation, model, tmp_path, point_time_res, keys, own_years
+    ):
+        """The model's own values as observations, all dated 1900: matched
+        without their year, every one of them is used, whatever the years of
+        the simulation and of the dataset"""
+        sim_dir, paths = simulation
+        surface = model.query("level == 0")
+        daily = _average(surface, ["lon", "lat", "year", "month", "day"])
+        obs = daily.assign(year=1900)
+        # the model is still limited to the dataset's years
+        in_years = surface if own_years is None else surface.query("year == @own_years[0]")
+        kwargs = {} if own_years is None else dict(start=own_years[0], end=own_years[1])
+
+        oceanval.reset()
+        _add("foo", _write_obs(str(tmp_path / "obs"), obs), **kwargs)
+        oceanval.matchup(
+            sim_dir=sim_dir,
+            start=2000,
+            end=2001,
+            point_time_res=point_time_res,
+            ask=False,
+            cores=1,
+            out_dir=str(tmp_path / "out"),
+        )
+
+        out_dir = str(tmp_path / "out")
+        df = _read(out_dir, "surface", "foo")
+        _check(df, _average(in_years, ["lon", "lat"] + keys), ["lon", "lat"] + keys)
+        assert _matchup_dict(out_dir, "surface", "foo")["point_time_res"] == point_time_res
+        oceanval.reset()
+
+    def test_another_year_needs_matching_years(self, simulation, model, tmp_path):
+        """The same observations, dated 1900, matched with their year find nothing"""
+        sim_dir, paths = simulation
+        surface = model.query("level == 0")
+        obs = _average(surface, ["lon", "lat", "year", "month", "day"]).assign(year=1900)
+
+        oceanval.reset()
+        _add("foo", _write_obs(str(tmp_path / "obs"), obs))
+        oceanval.matchup(
+            sim_dir=sim_dir,
+            start=2000,
+            end=2001,
+            point_time_res=["year", "month", "day"],
+            ask=False,
+            cores=1,
+            out_dir=str(tmp_path / "out"),
+        )
+        assert not os.path.exists(
+            _matchup_dir(str(tmp_path / "out"), "surface", "foo") + "foo_surface_temperature.csv"
+        )
         oceanval.reset()
 
     def test_a_dataset_can_set_its_own(self, simulation, model, tmp_path):
@@ -517,3 +576,23 @@ class TestManagers:
             for pid in others + [server]:
                 if not _gone(pid):
                     os.kill(pid, signal.SIGKILL)
+
+
+class TestRecipeYears:
+    """The years a built-in point source is downloaded for, when observations are matched without their year"""
+
+    def test_whole_record(self):
+        from oceanval import matchall
+
+        assert matchall.recipe_years({"kind": "glodapv3", "variable": "dic"}, "dic", 2000, 2001) == (1972, 2023)
+        assert matchall.recipe_years({"kind": "hansell", "variable": "doc"}, "doc", 2000, 2001)[0] < 2000
+        first, last = matchall.recipe_years({"kind": "ices"}, "nitrate", 2000, 2001)
+        assert first < 2000 and last >= 2001
+        # no known record: the years asked for
+        assert matchall.recipe_years({"kind": "glodapv3", "variable": "nothing"}, "nothing", 2000, 2001) == (2000, 2001)
+
+    def test_climatological(self):
+        from oceanval import matchall
+
+        assert matchall.climatological(["month"]) and matchall.climatological(["month", "day"])
+        assert not matchall.climatological(["year", "month"])
