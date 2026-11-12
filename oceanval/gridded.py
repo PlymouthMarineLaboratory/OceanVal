@@ -954,6 +954,10 @@ def gridded_matchup(
                             if comparison["recipe"] and vv_source == "WOA23":
                                 # the first level, which is the surface at 0 m
                                 ds_obs.top()
+                            elif comparison.get("builtin") == "maredat":
+                                # the first level is 0 m too, and a cell's top
+                                # sample, in data this sparse, can be far below it
+                                ds_obs.top()
                             else:
                                 surface.finite_missing(ds_obs)
                                 ds_obs.cdo_command("topvalue")

@@ -411,6 +411,39 @@ RECIPE_CATALOGUE = (
         ),
         "arguments": ("climatology=True,",),
     },
+) + tuple(
+    {
+        "variable": variable,
+        "recipe": "maredat",
+        "region": "Global",
+        "example_variable": example,
+        "notes": (
+            f"{title} - MAREDAT ({doi})",
+            "recipe: 'maredat'",
+            f"Monthly climatology of {what} as carbon, on a 1 degree grid of 33",
+            "depths to 5500 m, with nothing where nothing was sampled, in milligrams",
+            "of carbon per cubic metre. The samples are sparse and span orders of",
+            "magnitude: read the comparison in log10.",
+        ),
+        "arguments": (
+            "climatology=True,",
+            "vertical=False,  # set True to validate the full water column",
+        ),
+    }
+    for variable, example, title, what, doi in (
+        ("diatoms", "P1_c", "Diatom carbon biomass", "diatom samples",
+         "https://doi.org/10.1594/PANGAEA.777384"),
+        ("picophytoplankton", "P3_c", "Picophytoplankton carbon biomass",
+         "Prochlorococcus, Synechococcus and picoeukaryote samples",
+         "https://doi.org/10.1594/PANGAEA.777385"),
+        ("bacteria", "B1_c", "Heterotrophic bacteria carbon biomass",
+         "heterotrophic bacteria and archaea samples", "https://doi.org/10.1594/PANGAEA.779142"),
+        ("microzooplankton", "Z5_c", "Microzooplankton carbon biomass",
+         "ciliate and heterotrophic dinoflagellate samples", "https://doi.org/10.1594/PANGAEA.779970"),
+        ("mesozooplankton", "Z4_c", "Mesozooplankton carbon biomass", "net-sampled mesozooplankton",
+         "https://doi.org/10.1594/PANGAEA.785501"),
+    )
+) + (
     {
         "variable": "temperature",
         "recipe": "cobe2",
@@ -496,6 +529,11 @@ _GRIDDED_UNITS = {
     ("co2flux", "mpisom"): "mol m-2 yr-1",
     ("pco2", "socat"): "uatm",
     ("mesozooplankton", "copepod"): "mg C m-3",
+    ("diatoms", "maredat"): "mg C m-3",
+    ("picophytoplankton", "maredat"): "mg C m-3",
+    ("bacteria", "maredat"): "mg C m-3",
+    ("microzooplankton", "maredat"): "mg C m-3",
+    ("mesozooplankton", "maredat"): "mg C m-3",
     ("o2sat", "woa23"): "percent",
     ("ph", "glodap"): "total scale",
     ("phosphate", "woa23"): "micromoles_per_kilogram",
@@ -558,6 +596,11 @@ _COVERAGE = {
         "years": "All the years in the COPEPOD database, which are not given",
         "note": "A climatology of net samples of all years, a mean over the top 200 m, 330 um mesh.",
         "url": "https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html",
+    },
+    "maredat": {
+        "years": "Given in each group's paper",
+        "note": "A monthly climatology of sparse samples: only the cells, depths and months that were sampled.",
+        "url": "https://doi.org/10.5194/essd-5-227-2013",
     },
     "nsbc": {
         "years": "1960–2014",
@@ -904,6 +947,16 @@ def _matching_variables(contents, long_names):
     return list(dict.fromkeys(matched.variable))
 
 
+# the word a plankton group's long_names have in them, by the variable
+_PLANKTON_TERMS = {
+    "mesozooplankton": "mesozooplankton",
+    "microzooplankton": "microzooplankton",
+    "diatoms": "diatom",
+    "picophytoplankton": "picophytoplankton",
+    "bacteria": "bacteria",
+}
+
+
 def _candidate_long_names(variable, contents):
     """The long_names in a file that describe one observational variable.
 
@@ -1026,8 +1079,20 @@ def _candidate_long_names(variable, contents):
             and re.search(r"air|atmosph|surface|exchange", name.lower())
         ]
 
-    if variable == "mesozooplankton":
-        matches = plain("mesozooplankton", "production", "grazing", "mortality", "respiration", "excretion", "integrated")
+    if variable in _PLANKTON_TERMS:
+        # a plankton group's carbon biomass ("diatoms carbon", ERSEM's P1_c), not
+        # its chlorophyll or the rates named after it ("bacteria uptake of DOC",
+        # "mesozooplankton predation of bacteria carbon", "total microzooplankton
+        # loss to POC"): a rate names something "of", "to" or "from" the group
+        process_words = (
+            "production", "release", "uptake", "loss", "loass", "respiration", "mortality", "grazing",
+            "predation", "scaveng", "excretion", "integrated", "flux", "chlorophyll", "specific",
+        )
+        matches = []
+        for name in plain(_PLANKTON_TERMS[variable], *process_words):
+            lowered = re.sub(r"\b(?:mass |mole )?(?:concentration|content|amount|biomass)s? of ", "", name.lower())
+            if not re.search(r"\b(?:of|to|from|by)\b", lowered):
+                matches.append(name)
         # a model giving its carbon, nitrogen and phosphorus: the carbon is the biomass
         carbon = [name for name in matches if "carbon" in name.lower()]
         return carbon or matches

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Validating simulations — OceanVal</title>
-<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, Ocean Colour CCI, GLODAP, MPI-SOM-FFN, SOCAT, COPEPOD, the North Sea Biogeochemical Climatology, GLODAPv3, the Hansell et al. DOM compilation and the European point data of ICES.">
+<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, Ocean Colour CCI, GLODAP, MPI-SOM-FFN, SOCAT, COPEPOD, MAREDAT, the North Sea Biogeochemical Climatology, GLODAPv3, the Hansell et al. DOM compilation and the European point data of ICES.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,10 +118,10 @@
     <p>The result is an HTML report you can share, optionally exported to PDF and Word. The full steps are in <a href="app.html">the OceanVal app</a>; to validate from a script instead, see <a href="how-to-use.html">How to use in Python</a>. Downloaded observations can be kept for later runs in a <a href="app.html#data-store">data store</a>.</p>
 
     <h2 id="builtin" style="margin-top:2.4rem;">Built-in observational datasets</h2>
-    <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen (with apparent oxygen utilization and saturation), nutrients, chlorophyll, the carbonate system, surface pCO<sub>2</sub> and the air-sea CO<sub>2</sub> flux, dissolved and particulate organic carbon, mesozooplankton and light attenuation, globally, on the Northwest European Shelf and in European seas. The tables below are the ones the app offers: the gridded datasets, then the point datasets.</p>
+    <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen (with apparent oxygen utilization and saturation), nutrients, chlorophyll, the carbonate system, surface pCO<sub>2</sub> and the air-sea CO<sub>2</sub> flux, dissolved and particulate organic carbon, the carbon biomass of plankton groups (diatoms, picophytoplankton, bacteria, micro- and mesozooplankton) and light attenuation, globally, on the Northwest European Shelf and in European seas. The tables below are the ones the app offers: the gridded datasets, then the point datasets.</p>
 
     <p>In the <a href="app.html">OceanVal app</a>, the datasets are offered in the step where you choose the observations to validate against. OceanVal reads your simulation, works out which of its variables holds each observed variable, and ticks every dataset for your simulation&rsquo;s domain that it finds a variable for. The domain is worked out for you: if more than 80% of the cells of your simulation lie inside the Northwest European Shelf (the &ldquo;Full Domain&rdquo; of OceanVal&rsquo;s <code>nwes</code> regions file) it is the shelf, otherwise it is global. Check what it found, and untick anything you do not want.</p>
-    <p>The observations are <strong>downloaded for you</strong> when the matchup runs. World Ocean Atlas 2023, the North Sea Biogeochemical Climatology, Ocean Colour CCI and COBE-SST 2 come from THREDDS servers, so only what is needed is downloaded; GLODAPv2.2016b is downloaded from NCEI as one file per variable; MPI-SOM-FFN, SOCAT and COPEPOD are downloaded whole and made into a netCDF file OceanVal can read; the GLODAPv3 and Hansell et al. compilations are one large file each, downloaded once and read for the variables you match up; ICES is downloaded for the years and area of the matchup. The server for COBE-SST 2 limits how many requests it answers (HTTP 429), and when it turns them away OceanVal downloads the whole file instead. To keep what is downloaded for later matchups, set a <a href="app.html#data-store">data store</a> in the app&rsquo;s Preferences. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
+    <p>The observations are <strong>downloaded for you</strong> when the matchup runs. World Ocean Atlas 2023, the North Sea Biogeochemical Climatology, Ocean Colour CCI and COBE-SST 2 come from THREDDS servers, so only what is needed is downloaded; GLODAPv2.2016b is downloaded from NCEI as one file per variable; MPI-SOM-FFN, SOCAT and COPEPOD are downloaded whole and made into a netCDF file OceanVal can read; MAREDAT is a zip on PANGAEA for each plankton group, whose netCDF file (up to 1.4&nbsp;GB, almost all of it empty, with a time axis CDO cannot read) is taken out and rewritten as a small CF file of its biomass, the months dated in 2000; the GLODAPv3 and Hansell et al. compilations are one large file each, downloaded once and read for the variables you match up; ICES is downloaded for the years and area of the matchup. The server for COBE-SST 2 limits how many requests it answers (HTTP 429), and when it turns them away OceanVal downloads the whole file instead. To keep what is downloaded for later matchups, set a <a href="app.html#data-store">data store</a> in the app&rsquo;s Preferences. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
 
     <h2 id="gridded">What gridded datasets are available?</h2>
     <p>Click a row for more about the dataset. <strong>Years</strong> are the years the observations cover (a climatology is an average over them), and <strong>Water column</strong> says whether the app can validate it below the surface as well as at it.</p>
@@ -187,6 +187,13 @@
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Diatom carbon biomass in sea water</td><td><a href="https://doi.org/10.1594/PANGAEA.777384" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td>Given in each group's paper</td><td><span class="badge badge-yes">Yes</span></td><td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of diatom samples (Leblanc et al. 2012) as carbon, on a 1&deg; grid of 33 depths to 5500&nbsp;m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. It compares with ERSEM&rsquo;s diatoms, <code>P1_c</code>. The samples are sparse and span orders of magnitude, so read the comparison in log10. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
             <td>Global</td><td>Diffuse attenuation coefficient at 490 nm</td><td><a href="https://esa-oceancolour-cci.org/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ocean Colour CCI</a></td><td>1997 to the present</td><td><span class="badge badge-no">No</span></td><td><code>m-1</code></td>
           </tr>
           <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
@@ -215,10 +222,31 @@
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Heterotrophic bacteria carbon biomass in sea water</td><td><a href="https://doi.org/10.1594/PANGAEA.779142" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td>Given in each group's paper</td><td><span class="badge badge-yes">Yes</span></td><td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of heterotrophic bacteria and archaea samples (Buitenhuis et al. 2012) as carbon, on a 1&deg; grid of 33 depths to 5500&nbsp;m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. It compares with ERSEM&rsquo;s bacteria, <code>B1_c</code>. The samples are sparse and span orders of magnitude, so read the comparison in log10. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
             <td>Global</td><td>Mesozooplankton carbon biomass in sea water</td><td><a href="https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">NOAA COPEPOD</a></td><td>Not stated</td><td><span class="badge badge-no">No</span></td><td><code>mg C m-3</code></td>
           </tr>
           <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>A monthly climatology of net-sampled zooplankton (330&nbsp;&micro;m mesh) as carbon, on a 0.25&deg; grid where there are samples, in milligrams of carbon per cubic metre. It is a mean over the top 200&nbsp;m: the simulation is averaged over 0&ndash;200&nbsp;m too (or to the sea floor, where that is shallower), which needs the cell thickness.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Mesozooplankton carbon biomass in sea water</td><td><a href="https://doi.org/10.1594/PANGAEA.785501" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td>Given in each group's paper</td><td><span class="badge badge-yes">Yes</span></td><td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of net-sampled mesozooplankton (Moriarty &amp; O&rsquo;Brien 2013) as carbon, on a 1&deg; grid of 33 depths to 5500&nbsp;m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. It compares with ERSEM&rsquo;s mesozooplankton, <code>Z4_c</code>. Unlike COPEPOD&rsquo;s, it is resolved in depth. The samples are sparse and span orders of magnitude, so read the comparison in log10. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Microzooplankton carbon biomass in sea water</td><td><a href="https://doi.org/10.1594/PANGAEA.779970" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td>Given in each group's paper</td><td><span class="badge badge-yes">Yes</span></td><td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of ciliate and heterotrophic dinoflagellate samples (Buitenhuis et al. 2010) as carbon, on a 1&deg; grid of 33 depths to 5500&nbsp;m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. It compares with ERSEM&rsquo;s microzooplankton, <code>Z5_c</code>; its heterotrophic nanoflagellates, <code>Z6_c</code>, are not in it. The samples are sparse and span orders of magnitude, so read the comparison in log10. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
@@ -254,6 +282,13 @@
           </tr>
           <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>A single long-term climatology, through the water column to about 800&nbsp;m.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Picophytoplankton carbon biomass in sea water</td><td><a href="https://doi.org/10.1594/PANGAEA.777385" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td>Given in each group's paper</td><td><span class="badge badge-yes">Yes</span></td><td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>A monthly climatology of <em>Prochlorococcus</em>, <em>Synechococcus</em> and picoeukaryote samples (Buitenhuis et al. 2012) as carbon, on a 1&deg; grid of 33 depths to 5500&nbsp;m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. It compares with ERSEM&rsquo;s picophytoplankton, <code>P3_c</code>. The samples are sparse and span orders of magnitude, so read the comparison in log10. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">

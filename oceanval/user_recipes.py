@@ -39,7 +39,8 @@ WHERE_LABELS = {
 
 # the keys of the recipes OceanVal comes with, which cannot be used for your own
 BUILTIN_SOURCES = (
-    "cobe2", "copepod", "glodap", "glodapv3", "hansell", "ices", "mpisom", "nsbc", "occci", "socat", "woa23",
+    "cobe2", "copepod", "glodap", "glodapv3", "hansell", "ices", "maredat", "mpisom", "nsbc", "occci", "socat",
+    "woa23",
 )
 
 # what a variable's recipes are called in the report, for the variables
@@ -66,6 +67,10 @@ VARIABLE_LABELS = {
     "aou": ("apparent oxygen utilization", "apparent oxygen utilization", "AOU"),
     "o2sat": ("oxygen saturation", "oxygen saturation", "Oxygen saturation"),
     "mesozooplankton": ("mesozooplankton biomass", "mesozooplankton carbon biomass", "Mesozooplankton"),
+    "diatoms": ("diatom biomass", "diatom carbon biomass", "Diatoms"),
+    "picophytoplankton": ("picophytoplankton biomass", "picophytoplankton carbon biomass", "Picophytoplankton"),
+    "bacteria": ("bacterial biomass", "heterotrophic bacteria carbon biomass", "Bacteria"),
+    "microzooplankton": ("microzooplankton biomass", "microzooplankton carbon biomass", "Microzooplankton"),
 }
 
 # what the variables are called in the window's tables of datasets (the
@@ -76,6 +81,10 @@ DISPLAY_NAMES = {
     "aou": "Apparent oxygen utilization in sea water",
     "co2flux": "Air-sea CO2 flux",
     "ammonium": "Ammonium concentration in sea water",
+    "bacteria": "Heterotrophic bacteria carbon biomass in sea water",
+    "diatoms": "Diatom carbon biomass in sea water",
+    "microzooplankton": "Microzooplankton carbon biomass in sea water",
+    "picophytoplankton": "Picophytoplankton carbon biomass in sea water",
     "chlorophyll": "Chlorophyll a concentration in sea water",
     "dic": "Dissolved inorganic carbon concentration in sea water",
     "doc": "Dissolved organic carbon concentration in sea water",

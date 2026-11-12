@@ -57,6 +57,7 @@ DATASET_LABELS = {
     "glodapv3": "GLODAPv3",
     "hansell": "Hansell",
     "ices": "ICES",
+    "maredat": "MAREDAT",
     "mpisom": "MPI-SOM-FFN",
     "nsbc": "NSBC",
     "occci": "OC-CCI",

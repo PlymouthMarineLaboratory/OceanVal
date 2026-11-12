@@ -278,6 +278,76 @@ oceanval.add_gridded_comparison(
     climatology=True,
 )
 
+# Diatom carbon biomass - MAREDAT (https://doi.org/10.1594/PANGAEA.777384)
+# recipe: 'maredat'
+# Monthly climatology of diatom samples as carbon, on a 1 degree grid of 33
+# depths to 5500 m, with nothing where nothing was sampled, in milligrams
+# of carbon per cubic metre. The samples are sparse and span orders of
+# magnitude: read the comparison in log10.
+oceanval.add_gridded_comparison(
+    name="diatoms",
+    model_variable="P1_c",
+    recipe={"diatoms": "maredat"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Picophytoplankton carbon biomass - MAREDAT (https://doi.org/10.1594/PANGAEA.777385)
+# recipe: 'maredat'
+# Monthly climatology of Prochlorococcus, Synechococcus and picoeukaryote samples as carbon, on a 1 degree grid of 33
+# depths to 5500 m, with nothing where nothing was sampled, in milligrams
+# of carbon per cubic metre. The samples are sparse and span orders of
+# magnitude: read the comparison in log10.
+oceanval.add_gridded_comparison(
+    name="picophytoplankton",
+    model_variable="P3_c",
+    recipe={"picophytoplankton": "maredat"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Heterotrophic bacteria carbon biomass - MAREDAT (https://doi.org/10.1594/PANGAEA.779142)
+# recipe: 'maredat'
+# Monthly climatology of heterotrophic bacteria and archaea samples as carbon, on a 1 degree grid of 33
+# depths to 5500 m, with nothing where nothing was sampled, in milligrams
+# of carbon per cubic metre. The samples are sparse and span orders of
+# magnitude: read the comparison in log10.
+oceanval.add_gridded_comparison(
+    name="bacteria",
+    model_variable="B1_c",
+    recipe={"bacteria": "maredat"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Microzooplankton carbon biomass - MAREDAT (https://doi.org/10.1594/PANGAEA.779970)
+# recipe: 'maredat'
+# Monthly climatology of ciliate and heterotrophic dinoflagellate samples as carbon, on a 1 degree grid of 33
+# depths to 5500 m, with nothing where nothing was sampled, in milligrams
+# of carbon per cubic metre. The samples are sparse and span orders of
+# magnitude: read the comparison in log10.
+oceanval.add_gridded_comparison(
+    name="microzooplankton",
+    model_variable="Z5_c",
+    recipe={"microzooplankton": "maredat"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
+# Mesozooplankton carbon biomass - MAREDAT (https://doi.org/10.1594/PANGAEA.785501)
+# recipe: 'maredat'
+# Monthly climatology of net-sampled mesozooplankton as carbon, on a 1 degree grid of 33
+# depths to 5500 m, with nothing where nothing was sampled, in milligrams
+# of carbon per cubic metre. The samples are sparse and span orders of
+# magnitude: read the comparison in log10.
+oceanval.add_gridded_comparison(
+    name="mesozooplankton",
+    model_variable="Z4_c",
+    recipe={"mesozooplankton": "maredat"},
+    climatology=True,
+    vertical=False,  # set True to validate the full water column
+)
+
 # Temperature - COBE-SST 2 (https://psl.noaa.gov/data/gridded/data.cobe2.html)
 # recipe: 'cobe2'
 # Monthly sea surface temperature, useful for validating against a full time

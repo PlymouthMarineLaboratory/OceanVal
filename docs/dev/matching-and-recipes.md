@@ -94,6 +94,16 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   `POC` that is the object of a process ("loss to POC", "uptake of POC"; "concentration of POC" is fine), so
   `R4_c+R6_c+R8_c` is found and `Z4_fZIRPc` ("mesozooplankton loss to POC") is not. Both sum several matches unless
   exactly one is a "total". Tested on the COMFORT `ptrc` files' long_names in `tests/test_create_recipes.py`.
+  **The plankton groups** (`mesozooplankton`, `microzooplankton`, `diatoms`, `picophytoplankton`, `bacteria`,
+  `create_recipes._PLANKTON_TERMS`) are the group's carbon: no chlorophyll, process word or "of/to/from" (ERSEM's
+  "mesozooplankton predation of bacteria carbon" is a rate), so `P1_c`, `P3_c`, `B1_c`, `Z5_c`, `Z4_c`.
+- **MAREDAT** (`maredat`, `obs_convert.maredat`): one zip on PANGAEA per group, so its `BUILT_RECIPES` entry gives
+  `obs_path` and `source_info` as dicts by variable (the built branch of `find_recipe` takes either form). The
+  zip is streamed to disk and only its netCDF file (up to 1.4 GB, BIOMASS on 12 months x 33 depths x 1 degree,
+  almost all empty, time in seconds since year 0) taken out and rewritten as a small CF file dated in 2000. The
+  data are so sparse that `gridded.py` takes their **first level (0 m) as the surface**, as for WOA23, never
+  `topvalue`, which would make a cell's deepest-only sample its surface value. Microzooplankton is ERSEM's `Z5_c`
+  only (MAREDAT has no heterotrophic nanoflagellates); coccolithophores are not offered (ERSEM has no such group).
 - `oceanval/pyplots.py` holds the plotting functions (maps, scatter, Taylor diagrams, seasonal
   grids, etc.) used inside the generated notebooks.
 - **Earlier matchups**: `matchup()` never removes matchups from `out_dir`. It records the ones each run made or kept

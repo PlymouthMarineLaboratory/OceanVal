@@ -121,7 +121,7 @@
       </span>
       <span class="script-card__body">
         <span class="script-card__title">Get every recipe as one Python script</span>
-        <span class="script-card__sub">recipe-examples.py — all 29 recipes, plus the matchup and validate calls to finish the job.</span>
+        <span class="script-card__sub">recipe-examples.py — all 58 recipes, plus the matchup and validate calls to finish the job.</span>
       </span>
       <span class="script-card__arrow">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -478,6 +478,76 @@
     climatology=<span class="tok-kw">True</span>,
 )</pre></div>
             <p>Monthly climatology of net-sampled zooplankton carbon biomass on a 0.25 degree grid, a mean over the top 200 m (or the sea floor, where that is shallower). Reported in milligrams of carbon per cubic metre.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Diatoms</td><td><code>maredat</code></td><td><a href="https://doi.org/10.1594/PANGAEA.777384" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td><span class="badge badge-yes">Yes</span></td>
+          <td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"diatoms"</span>,
+    model_variable=<span class="tok-str">"P1_c"</span>,
+    recipe={<span class="tok-str">"diatoms"</span>: <span class="tok-str">"maredat"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Monthly climatology of diatom samples as carbon, on a 1 degree grid of 33 depths to 5500 m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. The samples are sparse and span orders of magnitude: read the comparison in log10. The model variable shown is ERSEM&rsquo;s. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Picophytoplankton</td><td><code>maredat</code></td><td><a href="https://doi.org/10.1594/PANGAEA.777385" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td><span class="badge badge-yes">Yes</span></td>
+          <td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"picophytoplankton"</span>,
+    model_variable=<span class="tok-str">"P3_c"</span>,
+    recipe={<span class="tok-str">"picophytoplankton"</span>: <span class="tok-str">"maredat"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Monthly climatology of Prochlorococcus, Synechococcus and picoeukaryote samples as carbon, on a 1 degree grid of 33 depths to 5500 m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. The samples are sparse and span orders of magnitude: read the comparison in log10. The model variable shown is ERSEM&rsquo;s. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Bacteria</td><td><code>maredat</code></td><td><a href="https://doi.org/10.1594/PANGAEA.779142" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td><span class="badge badge-yes">Yes</span></td>
+          <td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"bacteria"</span>,
+    model_variable=<span class="tok-str">"B1_c"</span>,
+    recipe={<span class="tok-str">"bacteria"</span>: <span class="tok-str">"maredat"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Monthly climatology of heterotrophic bacteria and archaea samples as carbon, on a 1 degree grid of 33 depths to 5500 m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. The samples are sparse and span orders of magnitude: read the comparison in log10. The model variable shown is ERSEM&rsquo;s. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Microzooplankton</td><td><code>maredat</code></td><td><a href="https://doi.org/10.1594/PANGAEA.779970" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td><span class="badge badge-yes">Yes</span></td>
+          <td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"microzooplankton"</span>,
+    model_variable=<span class="tok-str">"Z5_c"</span>,
+    recipe={<span class="tok-str">"microzooplankton"</span>: <span class="tok-str">"maredat"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Monthly climatology of ciliate and heterotrophic dinoflagellate samples as carbon, on a 1 degree grid of 33 depths to 5500 m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. The samples are sparse and span orders of magnitude: read the comparison in log10. The model variable shown is ERSEM&rsquo;s. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Mesozooplankton</td><td><code>maredat</code></td><td><a href="https://doi.org/10.1594/PANGAEA.785501" target="_blank" rel="noopener" onclick="event.stopPropagation()">MAREDAT</a></td><td><span class="badge badge-yes">Yes</span></td>
+          <td><code>mg C m-3</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"mesozooplankton"</span>,
+    model_variable=<span class="tok-str">"Z4_c"</span>,
+    recipe={<span class="tok-str">"mesozooplankton"</span>: <span class="tok-str">"maredat"</span>},
+    climatology=<span class="tok-kw">True</span>,
+)</pre></div>
+            <p>Monthly climatology of net-sampled mesozooplankton as carbon, on a 1 degree grid of 33 depths to 5500 m, with nothing where nothing was sampled, in milligrams of carbon per cubic metre. The samples are sparse and span orders of magnitude: read the comparison in log10. The model variable shown is ERSEM&rsquo;s. See the <a href="https://doi.org/10.5194/essd-5-227-2013" target="_blank" rel="noopener">MAREDAT reference</a>.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="nwes">

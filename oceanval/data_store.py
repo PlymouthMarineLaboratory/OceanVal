@@ -94,7 +94,7 @@ INDEX = "oceanval_data_store.json"
 VERSION = 1
 GLOBAL = [-180, 180, -90, 90]
 # the gridded datasets the store keeps, by their recipe key
-GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "glodap", "mpisom", "socat", "copepod")
+GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "glodap", "mpisom", "socat", "copepod", "maredat")
 # the point datasets the store keeps, each in a folder of its own
 POINT_KINDS = ("ices", "glodapv3", "hansell")
 # a gridded dataset kept a year at a time, as its server has every year in one file
@@ -119,6 +119,7 @@ BUILTIN_HOSTS = (
     "icdc.cen.uni-hamburg.de",
     "glodap.info",
     "www.st.nmfs.noaa.gov",
+    "store.pangaea.de",
 )
 # the names OceanVal gives the pieces' files: no other file is ever used or
 # removed, whatever the index says

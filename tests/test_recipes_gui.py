@@ -270,8 +270,9 @@ class TestErsemDetection:
             if dataset["vertical_option"]
         }
 
-        # woa23, nsbc, ices are depth-resolved gridded/point; glodap, glodapv3 and hansell's bottle data too
-        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3", "hansell"}
+        # woa23, nsbc, ices are depth-resolved gridded/point; glodap, glodapv3 and hansell's bottle data too,
+        # and MAREDAT's plankton climatologies (33 depths)
+        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3", "hansell", "maredat"}
         # surface-only: satellite and sea surface temperature
         assert not offered & {
             ("chlorophyll", "occci"), ("kd490", "occci"),

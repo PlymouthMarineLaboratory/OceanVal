@@ -155,6 +155,41 @@ BUILT_RECIPES = {
         "climatology": True,
         "depth_mean": (0, 200),
     },
+    # a file for each group: obs_path and source_info are by variable
+    "maredat": {
+        "source": "MAREDAT",
+        "source_info": {
+            "diatoms": (
+                "Leblanc, K., et al.: A global diatom database – abundance, biovolume and biomass in the "
+                "world ocean, Earth Syst. Sci. Data, 4, 149–165, https://doi.org/10.5194/essd-4-149-2012, "
+                "2012. Data: https://doi.org/10.1594/PANGAEA.777384"
+            ),
+            "picophytoplankton": (
+                "Buitenhuis, E. T., et al.: Picophytoplankton biomass distribution in the global ocean, "
+                "Earth Syst. Sci. Data, 4, 37–46, https://doi.org/10.5194/essd-4-37-2012, 2012. Data: "
+                "https://doi.org/10.1594/PANGAEA.777385"
+            ),
+            "bacteria": (
+                "Buitenhuis, E. T., Li, W. K. W., Lomas, M. W., Karl, D. M., Landry, M. R., and Jacquet, S.: "
+                "Picoheterotroph (Bacteria and Archaea) biomass distribution in the global ocean, Earth Syst. "
+                "Sci. Data, 4, 101–106, https://doi.org/10.5194/essd-4-101-2012, 2012. Data: "
+                "https://doi.org/10.1594/PANGAEA.779142"
+            ),
+            "microzooplankton": (
+                "Buitenhuis, E. T., Rivkin, R. B., Sailley, S., and Le Quéré, C.: Biogeochemical fluxes "
+                "through microzooplankton, Global Biogeochem. Cycles, 24, GB4015, "
+                "https://doi.org/10.1029/2009GB003601, 2010. Data: https://doi.org/10.1594/PANGAEA.779970"
+            ),
+            "mesozooplankton": (
+                "Moriarty, R. and O'Brien, T. D.: Distribution of mesozooplankton biomass in the global "
+                "ocean, Earth Syst. Sci. Data, 5, 45–55, https://doi.org/10.5194/essd-5-45-2013, 2013. "
+                "Data: https://doi.org/10.1594/PANGAEA.785501"
+            ),
+        },
+        "obs_path": dict(obs_convert.MAREDAT_URLS),
+        "variables": {name: "biomass" for name in obs_convert.MAREDAT_URLS},
+        "climatology": True,
+    },
 }
 
 recipe_list = [
@@ -172,6 +207,11 @@ recipe_list = [
     {"co2flux": "mpisom"},
     {"pco2": "socat"},
     {"mesozooplankton": "copepod"},
+    {"diatoms": "maredat"},
+    {"picophytoplankton": "maredat"},
+    {"bacteria": "maredat"},
+    {"microzooplankton": "maredat"},
+    {"mesozooplankton": "maredat"},
     {"kd490": "occci"},
     {"ph": "glodap"},
     {"alkalinity": "glodap"},
@@ -266,10 +306,11 @@ def find_recipe(x, start=None, end=None, cwd=None):
     if value in BUILT_RECIPES and name.lower() in BUILT_RECIPES[value]["variables"]:
         # products that oceanval.obs_convert makes into a netCDF file
         built = BUILT_RECIPES[value]
+        by_variable = lambda x: x[name.lower()] if isinstance(x, dict) else x  # noqa: E731
         output["source"] = built["source"]
-        output["source_info"] = built["source_info"]
+        output["source_info"] = by_variable(built["source_info"])
         output["name"] = name.lower()
-        output["obs_path"] = built["obs_path"]
+        output["obs_path"] = by_variable(built["obs_path"])
         output["obs_variable"] = built["variables"][name.lower()]
         output["climatology"] = built["climatology"]
         output["thredds"] = False

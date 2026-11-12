@@ -35,6 +35,7 @@ SERVERS = {
     "glodap.info": "GLODAP (GEOMAR)",
     "data.pmel.noaa.gov": "NOAA",
     "www.st.nmfs.noaa.gov": "NOAA",
+    "store.pangaea.de": "PANGAEA",
 }
 
 # what is said for an answer whose page gives no reason

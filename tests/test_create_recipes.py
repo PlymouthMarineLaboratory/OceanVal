@@ -468,6 +468,46 @@ class TestVariableIdentification:
 
         assert generate_recipe_mapping(path)["poc"] is None
 
+    def test_plankton_groups_are_their_carbon_not_their_rates_or_chlorophyll(self, tmp_path):
+        path = str(tmp_path / "sim" / "plankton.nc")
+        # long_names as ERSEM writes them (the COMFORT baseline_archerfull ptrc files)
+        write_netcdf(
+            path,
+            {
+                "P1_c": "diatoms carbon",
+                "P1_Chl": "diatoms chlorophyll a",
+                "P1_fO3PIc": "diatoms gross primary production",
+                "P1_sdo": "diatoms specific mortality (lysis)",
+                "diatom_loss": "diatoms loss to POSi",
+                "uptake_DIS": "diatoms uptake of Si",
+                "P3_c": "picophytoplankton carbon",
+                "P3_Chl": "picophytoplankton chlorophyll a",
+                "P3_fPIO3c": "picophytoplankton respiration",
+                "B1_c": "bacteria carbon",
+                "B1_fB1O3c": "bacteria respiration",
+                "B1_fR1B1c": "bacteria uptake of labile DOC",
+                "B1_fB1R2c": "bacteria release of semi-labile DOC",
+                "H1_c": "SURF:benthic aerobic bacteria carbon",
+                "Z5_c": "microzooplankton carbon",
+                "Z5_fZIRPc": "microzooplankton loss to POC",
+                "Z5_sd": "microzooplankton specific mortality",
+                "Z5_fphytoc": "microzooplankton grazing of phytoplankton carbon result",
+                "micro_loss": "total microzooplankton loss to particulate organic carbon result",
+                "micro_mort": "Microzooplankton normalised total mortality depth integrated",
+                "Z4_c": "mesozooplankton carbon",
+                "Z4_fzooc": "mesozooplankton predation of phytoplankton carbon result",
+                "Z5_fbacc": "mesozooplankton predation of bacteria carbon",
+                "Z4_fdetrc": "mesozooplankton scavenging of particulate organic carbon",
+            },
+        )
+
+        mapping = generate_recipe_mapping(path)
+        assert mapping["diatoms"] == "P1_c"
+        assert mapping["picophytoplankton"] == "P3_c"
+        assert mapping["bacteria"] == "B1_c"
+        assert mapping["microzooplankton"] == "Z5_c"
+        assert mapping["mesozooplankton"] == "Z4_c"
+
     def test_a_particulate_organic_carbon_concentration_is_taken(self, tmp_path):
         path = str(tmp_path / "sim" / "poc_plain.nc")
         write_netcdf(path, {"poc": "Concentration of particulate organic carbon"})

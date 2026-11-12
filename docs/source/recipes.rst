@@ -67,6 +67,11 @@ Global datasets
    "Global", "Silicate", "``woa23``", "`World Ocean Atlas 2023 <https://www.ncei.noaa.gov/products/world-ocean-atlas>`_", "Yes", "``micromoles_per_kilogram``", ":doc:`Full details <recipe_examples/silicate_woa23>`"
    "Global", "Temperature", "``cobe2``", "`COBE-SST 2 <https://psl.noaa.gov/data/gridded/data.cobe2.html>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_cobe2>`"
    "Global", "Temperature", "``woa23``", "`World Ocean Atlas 2023 <https://www.ncei.noaa.gov/products/world-ocean-atlas>`_", "Yes", "``degC``", ":doc:`Full details <recipe_examples/temperature_woa23>`"
+   "Global", "Diatoms", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
+   "Global", "Picophytoplankton", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
+   "Global", "Bacteria", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
+   "Global", "Microzooplankton", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
+   "Global", "Mesozooplankton", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
 
 
 .. toctree::
@@ -91,6 +96,7 @@ Global datasets
    recipe_examples/salinity_nsbc
    recipe_examples/silicate_nsbc
    recipe_examples/temperature_nsbc
+   recipe_examples/maredat
 
 The recipe dictionary must contain one variable and source identifier. For
 example, ``{"temperature": "woa23"}`` selects temperature from WOA23.

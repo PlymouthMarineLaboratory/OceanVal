@@ -37,6 +37,10 @@ STANDARD_NAMES = {
     "poc": ("mole_concentration_of_particulate_organic_matter_expressed_as_carbon_in_sea_water",),
     "kd490": ("volume_attenuation_coefficient_of_downwelling_radiative_flux_in_sea_water",),
     "mesozooplankton": ("mole_concentration_of_mesozooplankton_expressed_as_carbon_in_sea_water",),
+    "microzooplankton": ("mole_concentration_of_microzooplankton_expressed_as_carbon_in_sea_water",),
+    "diatoms": ("mole_concentration_of_diatoms_expressed_as_carbon_in_sea_water",),
+    "picophytoplankton": ("mole_concentration_of_picophytoplankton_expressed_as_carbon_in_sea_water",),
+    "bacteria": ("mole_concentration_of_bacteria_expressed_as_carbon_in_sea_water",),
     "nitrate": ("mole_concentration_of_nitrate_in_sea_water",),
     "oxygen": ("mole_concentration_of_dissolved_molecular_oxygen_in_sea_water",),
     "ph": ("sea_water_ph_reported_on_total_scale",),
@@ -70,6 +74,10 @@ MODEL_NAMES = {
         "dic": ("O3_c",),
         "doc": ("R1_c+R2_c+R3_c",),
         "mesozooplankton": ("Z4_c",),
+        "microzooplankton": ("Z5_c",),
+        "diatoms": ("P1_c",),
+        "picophytoplankton": ("P3_c",),
+        "bacteria": ("B1_c",),
         "nitrate": ("N3_n",),
         "omegaaragonite": ("O3_Om_arg",),
         "omegacalcite": ("O3_Om_cal",),
@@ -102,6 +110,10 @@ MODEL_NAMES = {
         "dic": ("dissic",),
         "doc": ("dissoc",),
         "mesozooplankton": ("zmeso",),
+        "microzooplankton": ("zmicro",),
+        "diatoms": ("phydiat",),
+        "picophytoplankton": ("phypico",),
+        "bacteria": ("bacc",),
         "nitrate": ("no3",),
         "omegaaragonite": ("co3/co3satarag",),
         "omegacalcite": ("co3/co3satcalc",),
@@ -247,7 +259,10 @@ def fitting(variable, contents):
     """The rows of contents whose units suit variable, for the variables with
     a rule of their own (those whose long_names are easily taken for another
     quantity); every row for the rest, whose matches have always been as they are."""
-    if variable not in ("aou", "co2flux", "doc", "mesozooplankton", "o2sat", "pco2", "poc"):
+    if variable not in (
+        "aou", "bacteria", "co2flux", "diatoms", "doc", "mesozooplankton", "microzooplankton", "o2sat",
+        "pco2", "picophytoplankton", "poc",
+    ):
         return contents
     units = _units_of(contents)
     return contents.loc[[units_fit(variable, units.get(str(x))) for x in contents.variable]]
