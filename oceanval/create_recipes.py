@@ -411,20 +411,20 @@ RECIPE_CATALOGUE = (
         ),
         "arguments": ("climatology=True,",),
     },
-) + tuple(
+) + (
     {
-        "variable": variable,
-        "recipe": "maredat",
+        "variable": "temperature",
+        "recipe": "cobe2",
         "region": "Global",
-        "example_variable": example,
+        "example_variable": "thetao",
         "notes": (
-            f"{title} - MAREDAT ({doi})",
-            "recipe: 'maredat'",
-            f"Monthly climatology of {what} as carbon, on a 1 degree grid of 33",
-            "depths to 5500 m, with nothing where nothing was sampled, in milligrams",
-            "of carbon per cubic metre. The samples are sparse and span orders of",
-            "magnitude: read the comparison in log10.",
+            "Temperature - COBE-SST 2 (https://psl.noaa.gov/data/gridded/data.cobe2.html)",
+            "recipe: 'cobe2'",
+            "Monthly sea surface temperature, useful for validating against a full time",
+            "series rather than a climatology.",
         ),
+        "arguments": ("climatology=False,",),
+    },
     {
         "variable": "temperature",
         "recipe": "oisst",
@@ -449,38 +449,6 @@ RECIPE_CATALOGUE = (
             "Monthly satellite sea surface temperature, without gaps, on a 0.05 degree grid",
             "from 1985. Only the model's area is downloaded, at the full resolution, so it",
             "suits regional models: use 'oisst' or 'cobe2' for a global one.",
-        ),
-        "arguments": ("climatology=False,",),
-    },
-        "arguments": (
-            "climatology=True,",
-            "vertical=False,  # set True to validate the full water column",
-        ),
-    }
-    for variable, example, title, what, doi in (
-        ("diatoms", "P1_c", "Diatom carbon biomass", "diatom samples",
-         "https://doi.org/10.1594/PANGAEA.777384"),
-        ("picophytoplankton", "P3_c", "Picophytoplankton carbon biomass",
-         "Prochlorococcus, Synechococcus and picoeukaryote samples",
-         "https://doi.org/10.1594/PANGAEA.777385"),
-        ("bacteria", "B1_c", "Heterotrophic bacteria carbon biomass",
-         "heterotrophic bacteria and archaea samples", "https://doi.org/10.1594/PANGAEA.779142"),
-        ("microzooplankton", "Z5_c", "Microzooplankton carbon biomass",
-         "ciliate and heterotrophic dinoflagellate samples", "https://doi.org/10.1594/PANGAEA.779970"),
-        ("mesozooplankton", "Z4_c", "Mesozooplankton carbon biomass", "net-sampled mesozooplankton",
-         "https://doi.org/10.1594/PANGAEA.785501"),
-    )
-) + (
-    {
-        "variable": "temperature",
-        "recipe": "cobe2",
-        "region": "Global",
-        "example_variable": "thetao",
-        "notes": (
-            "Temperature - COBE-SST 2 (https://psl.noaa.gov/data/gridded/data.cobe2.html)",
-            "recipe: 'cobe2'",
-            "Monthly sea surface temperature, useful for validating against a full time",
-            "series rather than a climatology.",
         ),
         "arguments": ("climatology=False,",),
     },
@@ -530,8 +498,6 @@ RECIPE_CATALOGUE = RECIPE_CATALOGUE + tuple(
             "vertical=False,  # set True to validate the full water column",
         ),
     }
-    ("temperature", "oisst"): "degC",
-    ("temperature", "coraltemp"): "degC",
     for variable, title in _SHELF_RECIPES
 )
 
@@ -558,29 +524,14 @@ _GRIDDED_UNITS = {
     ("co2flux", "mpisom"): "mol m-2 yr-1",
     ("pco2", "socat"): "uatm",
     ("mesozooplankton", "copepod"): "mg C m-3",
-    ("diatoms", "maredat"): "mg C m-3",
-    ("picophytoplankton", "maredat"): "mg C m-3",
-    ("bacteria", "maredat"): "mg C m-3",
-    ("microzooplankton", "maredat"): "mg C m-3",
-    ("mesozooplankton", "maredat"): "mg C m-3",
     ("o2sat", "woa23"): "percent",
     ("ph", "glodap"): "total scale",
     ("phosphate", "woa23"): "micromoles_per_kilogram",
     ("salinity", "woa23"): "1",
     ("silicate", "woa23"): "micromoles_per_kilogram",
-    "oisst": {
-        "years": "1981 to the present",
-        "range": (1981, None),
-        "note": "Monthly observations, not a climatology, from September 1981.",
-        "url": "https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html",
-    },
-    "coraltemp": {
-        "years": "1985 to the present",
-        "range": (1985, None),
-        "note": "Monthly observations, not a climatology. Only the model's area is downloaded, at 0.05 degrees: for regional models.",
-        "url": "https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php",
-    },
     ("temperature", "cobe2"): "degC",
+    ("temperature", "oisst"): "degC",
+    ("temperature", "coraltemp"): "degC",
     ("temperature", "woa23"): "degC",
     ("ammonium", "nsbc"): "mmol/m^3",
     ("chlorophyll", "nsbc"): "mg/m^3",
@@ -617,6 +568,18 @@ _COVERAGE = {
         "note": "Monthly observations, not a climatology.",
         "url": "https://psl.noaa.gov/data/gridded/data.cobe2.html",
     },
+    "oisst": {
+        "years": "1981 to the present",
+        "range": (1981, None),
+        "note": "Monthly observations, not a climatology, from September 1981.",
+        "url": "https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html",
+    },
+    "coraltemp": {
+        "years": "1985 to the present",
+        "range": (1985, None),
+        "note": "Monthly observations, not a climatology. Only the model's area is downloaded, at 0.05 degrees: for regional models.",
+        "url": "https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php",
+    },
     "woa23": {
         "years": "1965–2022",
         "note": "A climatology of all the data from these years.",
@@ -637,11 +600,6 @@ _COVERAGE = {
         "years": "All the years in the COPEPOD database, which are not given",
         "note": "A climatology of net samples of all years, a mean over the top 200 m, 330 um mesh.",
         "url": "https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html",
-    },
-    "maredat": {
-        "years": "Given in each group's paper",
-        "note": "A monthly climatology of sparse samples: only the cells, depths and months that were sampled.",
-        "url": "https://doi.org/10.5194/essd-5-227-2013",
     },
     "nsbc": {
         "years": "1960–2014",

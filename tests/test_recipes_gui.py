@@ -270,9 +270,8 @@ class TestErsemDetection:
             if dataset["vertical_option"]
         }
 
-        # woa23, nsbc, ices are depth-resolved gridded/point; glodap, glodapv3 and hansell's bottle data too,
-        # and MAREDAT's plankton climatologies (33 depths)
-        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3", "hansell", "maredat"}
+        # woa23, nsbc, ices are depth-resolved gridded/point; glodap, glodapv3 and hansell's bottle data too
+        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3", "hansell"}
         # surface-only: satellite and sea surface temperature
         assert not offered & {
             ("chlorophyll", "occci"), ("kd490", "occci"),
@@ -1642,6 +1641,7 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     _continue(page)
     assert temperature.locator(".chosen").text_content() == "None"
 
+
 def test_a_variable_filled_in_on_the_point_page_ticks_no_gridded_dataset(browser, tmp_path, monkeypatch):
     """Salinity is not identified and is on both pages. Leaving the gridded
     page with nothing ticked and filling the variable in on the point page
@@ -1658,7 +1658,6 @@ def test_a_variable_filled_in_on_the_point_page_ticks_no_gridded_dataset(browser
     page.click("#cancel")
     assert not page.is_checked(nsbc)
     assert page.locator("#rows-gridded tr", has=page.locator(nsbc)).locator("input[type=checkbox]:checked").count() == 0
-
 
 
 def test_the_ices_point_datasets_are_european_in_the_browser(browser, tmp_path, monkeypatch):

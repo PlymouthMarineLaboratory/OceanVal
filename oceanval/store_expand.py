@@ -25,7 +25,7 @@ YEARLY = ("cobe2", "oisst", "coraltemp", "occci", "ices")
 LEVELLED = ("woa23",)
 # a plain file, which is downloaded and kept whole, whatever the area: the
 # GLODAPv3 and Hansell bottle data are one file of every variable, kept a variable at a time
-WHOLE = ("glodap", "glodapv3", "hansell", "mpisom", "socat", "copepod", "maredat")
+WHOLE = ("glodap", "glodapv3", "hansell", "mpisom", "socat", "copepod")
 
 _decadal = {(e["variable"], e["recipe"]) for e in RECIPE_CATALOGUE if e.get("decadal")}
 

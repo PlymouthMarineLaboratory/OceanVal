@@ -94,7 +94,6 @@ class TestWebsiteDatasets:
         "mpisom": "MPI-SOM-FFN v2025",
         "socat": "SOCATv2026",
         "copepod": "NOAA COPEPOD",
-        "maredat": "MAREDAT",
         "nsbc": "North Sea Biogeochemical Climatology",
         "glodapv3": "GLODAPv3 bottle data",
         "hansell": "Hansell et al. DOM compilation",

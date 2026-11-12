@@ -96,7 +96,7 @@ INDEX = "oceanval_data_store.json"
 VERSION = 1
 GLOBAL = [-180, 180, -90, 90]
 # the gridded datasets the store keeps, by their recipe key
-GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "oisst", "coraltemp", "glodap", "mpisom", "socat", "copepod", "maredat")
+GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "oisst", "coraltemp", "glodap", "mpisom", "socat", "copepod")
 # the point datasets the store keeps, each in a folder of its own
 POINT_KINDS = ("ices", "glodapv3", "hansell")
 # a gridded dataset kept a year at a time, as its server has every year in one

@@ -58,11 +58,10 @@ DATASET_LABELS = {
     "glodapv3": "GLODAPv3",
     "hansell": "Hansell",
     "ices": "ICES",
-    "maredat": "MAREDAT",
     "mpisom": "MPI-SOM-FFN",
     "nsbc": "NSBC",
-    "oisst": "OISST",
     "occci": "OC-CCI",
+    "oisst": "OISST",
     "socat": "SOCAT",
     "woa23": "WOA23",
 }

@@ -33,7 +33,7 @@ def test_recipe_returns_required_metadata(name, source):
     assert result["source"]
     assert isinstance(result["climatology"], bool)
     # CoralTemp is cut out by its ERDDAP server (oceanval.erddap), not read over thredds
-    assert result["thredds"] is (source.lower() not in {"glodap", "mpisom", "socat", "copepod", "maredat", "coraltemp"})
+    assert result["thredds"] is (source.lower() not in {"glodap", "mpisom", "socat", "copepod", "coraltemp"})
     # every recipe here is gridded
     assert result["point"] is False
 

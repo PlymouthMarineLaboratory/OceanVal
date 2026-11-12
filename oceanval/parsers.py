@@ -155,49 +155,14 @@ BUILT_RECIPES = {
         "climatology": True,
         "depth_mean": (0, 200),
     },
-    # a file for each group: obs_path and source_info are by variable
-    "maredat": {
-        "source": "MAREDAT",
-        "source_info": {
-            "diatoms": (
-                "Leblanc, K., et al.: A global diatom database – abundance, biovolume and biomass in the "
-    {"temperature": "oisst"},
-    {"temperature": "coraltemp"},
-                "world ocean, Earth Syst. Sci. Data, 4, 149–165, https://doi.org/10.5194/essd-4-149-2012, "
-                "2012. Data: https://doi.org/10.1594/PANGAEA.777384"
-            ),
-            "picophytoplankton": (
-                "Buitenhuis, E. T., et al.: Picophytoplankton biomass distribution in the global ocean, "
-                "Earth Syst. Sci. Data, 4, 37–46, https://doi.org/10.5194/essd-4-37-2012, 2012. Data: "
-                "https://doi.org/10.1594/PANGAEA.777385"
-            ),
-            "bacteria": (
-                "Buitenhuis, E. T., Li, W. K. W., Lomas, M. W., Karl, D. M., Landry, M. R., and Jacquet, S.: "
-                "Picoheterotroph (Bacteria and Archaea) biomass distribution in the global ocean, Earth Syst. "
-                "Sci. Data, 4, 101–106, https://doi.org/10.5194/essd-4-101-2012, 2012. Data: "
-                "https://doi.org/10.1594/PANGAEA.779142"
-            ),
-            "microzooplankton": (
-                "Buitenhuis, E. T., Rivkin, R. B., Sailley, S., and Le Quéré, C.: Biogeochemical fluxes "
-                "through microzooplankton, Global Biogeochem. Cycles, 24, GB4015, "
-                "https://doi.org/10.1029/2009GB003601, 2010. Data: https://doi.org/10.1594/PANGAEA.779970"
-            ),
-            "mesozooplankton": (
-                "Moriarty, R. and O'Brien, T. D.: Distribution of mesozooplankton biomass in the global "
-                "ocean, Earth Syst. Sci. Data, 5, 45–55, https://doi.org/10.5194/essd-5-45-2013, 2013. "
-                "Data: https://doi.org/10.1594/PANGAEA.785501"
-            ),
-        },
-        "obs_path": dict(obs_convert.MAREDAT_URLS),
-        "variables": {name: "biomass" for name in obs_convert.MAREDAT_URLS},
-        "climatology": True,
-    },
 }
 
 recipe_list = [
     {"chlorophyll": "occci"},
     {"oxygen": "woa23"},
     {"temperature": "cobe2"},
+    {"temperature": "oisst"},
+    {"temperature": "coraltemp"},
     {"salinity": "woa23"},
     {"nitrate": "woa23"},
     {"ammonium": "nsbc"},
@@ -209,11 +174,6 @@ recipe_list = [
     {"co2flux": "mpisom"},
     {"pco2": "socat"},
     {"mesozooplankton": "copepod"},
-    {"diatoms": "maredat"},
-    {"picophytoplankton": "maredat"},
-    {"bacteria": "maredat"},
-    {"microzooplankton": "maredat"},
-    {"mesozooplankton": "maredat"},
     {"kd490": "occci"},
     {"ph": "glodap"},
     {"alkalinity": "glodap"},
@@ -294,32 +254,6 @@ def find_recipe(x, start=None, end=None, cwd=None):
             output["name"] = name.lower()
             output["point"] = True
             output["glodap_variable"] = name.lower()
-    if value == "oisst":
-        if name.lower() == "temperature":
-            output["obs_path"] = "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.mon.mean.nc"
-            output["source"] = "OISST"
-            output["source_info"] = "NOAA OI SST V2.1 High Resolution data provided by the NOAA PSL, Boulder, Colorado, USA, from their website at https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html. Huang, B., C. Liu, V. Banzon, E. Freeman, G. Graham, B. Hankins, T. Smith, and H.-M. Zhang, 2021: Improvements of the Daily Optimum Interpolation Sea Surface Temperature (DOISST) Version 2.1, Journal of Climate, 34, 2923-2939, https://doi.org/10.1175/JCLI-D-20-0166.1."
-            output["name"] = name.lower()
-            output["thredds"] = True
-            output["climatology"] = False
-            output["vertical"] = False
-            output["obs_variable"] = "sst"
-            return output
-
-    if value == "coraltemp":
-        if name.lower() == "temperature":
-            # cut to the model's area by the ERDDAP server (see oceanval.erddap)
-            output["obs_path"] = erddap.DATASETS["coraltemp"]["url"]
-            output["source"] = "CoralTemp"
-            output["source_info"] = "NOAA Coral Reef Watch, 2026, NOAA Coral Reef Watch Version 3.1 Monthly Global 5km Satellite Sea Surface Temperature (CoralTemp v3.1), served by NOAA CoastWatch's ERDDAP at https://coastwatch.pfeg.noaa.gov/erddap/griddap/NOAA_DHW_monthly. Skirving, W., B. Marsh, J. De La Cour, G. Liu, A. Harris, E. Maturi, E. Geiger, and C.M. Eakin, 2020: CoralTemp and the Coral Reef Watch Coral Bleaching Heat Stress Product Suite Version 3.1, Remote Sensing, 12, 3856, https://doi.org/10.3390/rs12233856."
-            output["name"] = name.lower()
-            output["thredds"] = False
-            output["file_check"] = False
-            output["climatology"] = False
-            output["vertical"] = False
-            output["obs_variable"] = erddap.DATASETS["coraltemp"]["variable"]
-            return output
-
             return output
 
     if value == "hansell":
@@ -358,6 +292,32 @@ def find_recipe(x, start=None, end=None, cwd=None):
             output["climatology"] = False
             output["vertical"] = False
             output["obs_variable"] = "sst"
+            return output
+
+    if value == "oisst":
+        if name.lower() == "temperature":
+            output["obs_path"] = "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.mon.mean.nc"
+            output["source"] = "OISST"
+            output["source_info"] = "NOAA OI SST V2.1 High Resolution data provided by the NOAA PSL, Boulder, Colorado, USA, from their website at https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html. Huang, B., C. Liu, V. Banzon, E. Freeman, G. Graham, B. Hankins, T. Smith, and H.-M. Zhang, 2021: Improvements of the Daily Optimum Interpolation Sea Surface Temperature (DOISST) Version 2.1, Journal of Climate, 34, 2923-2939, https://doi.org/10.1175/JCLI-D-20-0166.1."
+            output["name"] = name.lower()
+            output["thredds"] = True
+            output["climatology"] = False
+            output["vertical"] = False
+            output["obs_variable"] = "sst"
+            return output
+
+    if value == "coraltemp":
+        if name.lower() == "temperature":
+            # cut to the model's area by the ERDDAP server (see oceanval.erddap)
+            output["obs_path"] = erddap.DATASETS["coraltemp"]["url"]
+            output["source"] = "CoralTemp"
+            output["source_info"] = "NOAA Coral Reef Watch, 2026, NOAA Coral Reef Watch Version 3.1 Monthly Global 5km Satellite Sea Surface Temperature (CoralTemp v3.1), served by NOAA CoastWatch's ERDDAP at https://coastwatch.pfeg.noaa.gov/erddap/griddap/NOAA_DHW_monthly. Skirving, W., B. Marsh, J. De La Cour, G. Liu, A. Harris, E. Maturi, E. Geiger, and C.M. Eakin, 2020: CoralTemp and the Coral Reef Watch Coral Bleaching Heat Stress Product Suite Version 3.1, Remote Sensing, 12, 3856, https://doi.org/10.3390/rs12233856."
+            output["name"] = name.lower()
+            output["thredds"] = False
+            output["file_check"] = False
+            output["climatology"] = False
+            output["vertical"] = False
+            output["obs_variable"] = erddap.DATASETS["coraltemp"]["variable"]
             return output
 
     if value == "woa23":

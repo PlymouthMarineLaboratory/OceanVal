@@ -16,12 +16,6 @@ Four of OceanVal's gridded datasets are like that:
 * **COPEPOD** (recipe ``mesozooplankton``, source "copepod"): the zooplankton
   carbon biomass fields of the 12 months are csv files of the 0.25 degree cells
   that have data, in a zip, and are made into a climatology netCDF file.
-* **MAREDAT** (recipes ``diatoms``, ``picophytoplankton``, ``bacteria``,
-  ``microzooplankton`` and ``mesozooplankton``, source "maredat"): each group's
-  monthly climatology is a zip on PANGAEA holding a netCDF-3 file of up to
-  1.4 GB (a 1 degree grid of 33 depths, almost all of it empty) whose time axis,
-  "seconds since 0-01-01", CDO cannot read. Its BIOMASS (ug/L, which is
-  mg C m-3) is made into a CF file with the months dated in CLIMATOLOGY_YEAR.
 
 Each is known by the address it comes from (BUILT), which is what OceanVal's
 recipes give as their obs_path, and the data store keeps the file made, whole.
@@ -45,19 +39,6 @@ MPISOM_URL = f"{_NCEI}/0160558/MPI_SOM-FFN_v2025/SOM-FFN_v2025_CLIM_NCEI_OCADS.n
 # what is read (the file name is the same)
 SOCAT_URL = f"{_NCEI}/0315110/SOCATv2026_Gridded_Data/SOCATv2026_tracks_gridded_monthly.nc"
 COPEPOD_URL = "https://www.st.nmfs.noaa.gov/copepod/biomass/copepod-2012__biomass-fields.zip"
-# MAREDAT (the ESSD 2012-2013 special issue), a zip of each group's
-# climatology, by OceanVal's variable
-_MAREDAT = "https://store.pangaea.de/Publications/ESSD_Special_Issue-MAREDAT"
-MAREDAT_URLS = {
-    "diatoms": f"{_MAREDAT}/PANGAEA.777384_(PDI-1347).zip",
-    "picophytoplankton": f"{_MAREDAT}/PANGAEA.777385_(PDI-1400).zip",
-    "bacteria": f"{_MAREDAT}/PANGAEA.779142_(PDI-1575).zip",
-    "microzooplankton": f"{_MAREDAT}/PANGAEA.779970_(PDI-1991).zip",
-    "mesozooplankton": f"{_MAREDAT}/PANGAEA.785501_(PDI-2653).zip",
-}
-# what a fill value is in the MAREDAT files (1e35)
-MAREDAT_FILL = 1e30
-
 TIMEOUT = 600
 # the year a climatology's twelve months are dated in, as WOA23's are all in one
 CLIMATOLOGY_YEAR = 2000
@@ -67,8 +48,6 @@ MPISOM_FILL = 1e19
 
 def _builders():
     found = {MPISOM_URL: mpisom, SOCAT_URL: socat, COPEPOD_URL: copepod}
-    for variable, url in MAREDAT_URLS.items():
-        found[url] = lambda folder, url=url, variable=variable: maredat(url, variable, folder)
     return found
 
 
@@ -249,62 +228,6 @@ def _fetch(url, path):
     request = urllib.request.Request(url, headers={"User-Agent": "oceanval"})
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response, open(path, "wb") as out:
         shutil.copyfileobj(response, out, 1 << 20)
-
-
-def maredat_array(path, variable, url=""):
-    """A DataSet of the biomass (time, depth, lat, lon) in the MAREDAT netCDF
-    file at path, in mg C m-3, an empty cell missing, the months dated in
-    CLIMATOLOGY_YEAR. variable is OceanVal's name for the group."""
-    import netCDF4
-    import xarray as xr
-
-    from oceanval.netcdf_lock import LOCK
-
-    with LOCK, netCDF4.Dataset(path) as source:
-        source.set_auto_mask(False)
-        values = np.asarray(source["BIOMASS"][:], dtype="float32")
-        lon = np.asarray(source["LONGITUDE"][:], dtype="float64")
-        lat = np.asarray(source["LATITUDE"][:], dtype="float64")
-        depth = np.asarray(source["DEPTH"][:], dtype="float64")
-    if values.shape != (12, len(depth), len(lat), len(lon)):
-        raise ValueError(f"{url or path} does not hold a monthly BIOMASS of (time, depth, lat, lon)")
-    values[~np.isfinite(values) | (np.abs(values) >= MAREDAT_FILL)] = np.nan
-    # the last latitude is 89.62 in the files, where the grid's centre is 89.5
-    lat = np.round(lat - 0.5) + 0.5
-    out = xr.Dataset(
-        {"biomass": (("time", "depth", "lat", "lon"), values)},
-        coords={"time": _months_of(CLIMATOLOGY_YEAR), "depth": depth, "lat": lat, "lon": lon},
-    )
-    out["lat"].attrs.update(units="degrees_north", standard_name="latitude", axis="Y")
-    out["lon"].attrs.update(units="degrees_east", standard_name="longitude", axis="X")
-    out["depth"].attrs.update(units="m", standard_name="depth", positive="down", axis="Z")
-    out["biomass"].attrs.update(
-        units="mg C m-3",
-        long_name=f"{variable} carbon biomass, monthly climatology (MAREDAT)",
-        comment="The mean of the samples in each cell and month; ug/L in the source, which is mg C m-3.",
-    )
-    out.attrs.update(source=url, climatology="monthly climatology; the months are dated in "
-                     f"{CLIMATOLOGY_YEAR}")
-    return out
-
-
-def maredat(url, variable, folder):
-    """A MAREDAT group's climatology made a netCDF file of biomass
-    (mg C m-3): path of the file. The zip is downloaded to folder and only its
-    netCDF file taken out, as it is up to 1.4 GB."""
-    zipped = os.path.join(folder, "maredat.zip")
-    _fetch(url, zipped)
-    raw = os.path.join(folder, "maredat_raw.nc")
-    with zipfile.ZipFile(zipped) as archive:
-        names = [x for x in archive.namelist() if x.endswith(".nc")]
-        if len(names) != 1:
-            raise ValueError(f"{url} does not hold one netCDF file")
-        with archive.open(names[0]) as source, open(raw, "wb") as out:
-            shutil.copyfileobj(source, out, 1 << 20)
-    os.remove(zipped)
-    ds = maredat_array(raw, variable, url)
-    os.remove(raw)
-    return _write(ds, os.path.join(folder, f"MAREDAT_{variable}.nc"))
 
 
 def build(url, folder):

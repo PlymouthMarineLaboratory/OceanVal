@@ -38,7 +38,7 @@ Why OceanVal?
 
 * **Fast to first result**: install from conda-forge and validate a
   simulation the same day, not after weeks of scripting.
-* **Built-in observation recipes**: WOA23, COBE2, OISST, CoralTemp, OCC-CI, GLODAP, Hansell, MAREDAT and NSBC
+* **Built-in observation recipes**: WOA23, COBE2, OISST, CoralTemp, OCC-CI, GLODAP, Hansell and NSBC
    datasets are ready to use, with data downloaded and processed for you.
   See :doc:`recipes`.
 * **Rigorous statistics**: bias, RMSD, correlation, seasonality, spatial
