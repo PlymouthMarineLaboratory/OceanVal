@@ -17,6 +17,7 @@ from oceanval.quiet_nc import nc
 import xarray as xr
 
 from oceanval import data_store
+from oceanval import erddap
 from oceanval import extent
 from oceanval import glodap
 from oceanval import live
@@ -303,6 +304,11 @@ def _obs_resolution(comparison, downloaded=None):
     obs_path = comparison["obs_path"]
     if isinstance(obs_path, (list, tuple)):
         obs_path = obs_path[0]
+    from_erddap = erddap.dataset_of(obs_path)
+    if from_erddap is not None:
+        # asked of its server for an area (see oceanval.erddap), at its own grid
+        res = erddap.DATASETS[from_erddap]["res"]
+        return [res, res]
     if not comparison["thredds"] and not _is_url(obs_path) and (
         not _is_nc(obs_path) or glob.has_magic(obs_path)
     ):
@@ -888,7 +894,10 @@ def gridded_matchup(
                     if on_observing is not None:
                         on_observing("gridded", vv, vv_source)
                     thredds = comparison["thredds"]
-                    if thredds == False:
+                    from_erddap = erddap.dataset_of(dir_var)
+                    if from_erddap is not None:
+                        vv_file = dir_var  # its griddap address
+                    elif thredds == False:
                         if _is_nc(dir_var) and not glob.has_magic(dir_var):
                             vv_file = dir_var
                         else:
@@ -933,7 +942,15 @@ def gridded_matchup(
                                 )
                                 thredds = False
                                 vv_file = download
-                            ds_obs = _open_obs(vv_file, thredds)
+                            if from_erddap is not None:
+                                # the server cuts out the model's area, rounded
+                                # out to whole degrees, for the years wanted
+                                bounds = _lonlat_bounds(ds_model)
+                                box = data_store.snap(bounds[:2], bounds[2:]) or list(data_store.GLOBAL)
+                                ds_obs = erddap.fetch(from_erddap, sim_years, box)
+                                vv_file = ds_obs[0]
+                            else:
+                                ds_obs = _open_obs(vv_file, thredds)
                     if comparison.get("builtin") == "glodap" and len(ds_obs) == 1:
                         # its levels are numbered, not depths, in the file
                         glodap.fix_depths(ds_obs)

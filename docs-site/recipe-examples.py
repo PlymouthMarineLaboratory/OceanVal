@@ -359,6 +359,29 @@ oceanval.add_gridded_comparison(
     climatology=False,
 )
 
+# Temperature - NOAA OISST v2.1 (https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html)
+# recipe: 'oisst'
+# Monthly sea surface temperature from satellites and in situ data, without gaps,
+# on a 0.25 degree grid from September 1981.
+oceanval.add_gridded_comparison(
+    name="temperature",
+    model_variable="thetao",
+    recipe={"temperature": "oisst"},
+    climatology=False,
+)
+
+# Temperature - NOAA Coral Reef Watch CoralTemp v3.1 (https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php)
+# recipe: 'coraltemp'
+# Monthly satellite sea surface temperature, without gaps, on a 0.05 degree grid
+# from 1985. Only the model's area is downloaded, at the full resolution, so it
+# suits regional models: use 'oisst' or 'cobe2' for a global one.
+oceanval.add_gridded_comparison(
+    name="temperature",
+    model_variable="thetao",
+    recipe={"temperature": "coraltemp"},
+    climatology=False,
+)
+
 # Temperature - World Ocean Atlas 2023 (https://www.ncei.noaa.gov/products/world-ocean-atlas)
 # recipe: 'woa23'
 # Uses a decadal climatology, vertically resolved to ~800 m. start/end must

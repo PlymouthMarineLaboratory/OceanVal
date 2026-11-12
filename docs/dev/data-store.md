@@ -19,15 +19,17 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   the chosen folder is never created. Replaced pieces are "retired" in the index and removed by
   `_tidy` a day later (another run may be reading them). `tests/test_data_store.py`'s
   `TestNothingOfYoursIsRemoved` records every remove/move to check this.
-- Pieces in `oceanval_data_store.json`: gridded = one server file (COBE2: one year) × variable ×
+- Pieces in `oceanval_data_store.json`: gridded = one server file (COBE2, OISST, CoralTemp: one year) × variable ×
   box (model extent snapped out to whole degrees, whole globe at ≥90% area, union on widening) ×
   levels (`top` only for WOA23 surface); ICES = dataset code × year × box, raw export rows.
   Hooked in at `gridded.py` before `_open_obs` and in `ices.download_point_data`.
   Preferences' **Run a check on the data store** button (`data_store.check`, endpoints
   `/api/data_store_check` and `/data_store_check`) only reports, via `check_reply`: it never
   writes, removes, makes or locks anything (a test fails if it does).
-  COBE2's THREDDS server rate limits (HTTP 429): `data_store.download_instead` swaps in the
+  COBE2's and OISST's THREDDS server (PSL) rate limits (HTTP 429): `data_store.download_instead` swaps in the
   plain file download (`DOWNLOADS`) when it turns requests away or fails, with or without a store.
+  CoralTemp (`BY_YEAR`) is not read over THREDDS: `_gridded_by_year` asks `erddap.years` for its years and
+  `erddap.fetch` for the box (cut on the server, a request a year); it has no `DOWNLOADS` fallback.
 
 ### The data store page and Expand (`oceanval/store_view.py`, `store_expand.py`)
 

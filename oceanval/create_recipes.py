@@ -425,6 +425,33 @@ RECIPE_CATALOGUE = (
             "of carbon per cubic metre. The samples are sparse and span orders of",
             "magnitude: read the comparison in log10.",
         ),
+    {
+        "variable": "temperature",
+        "recipe": "oisst",
+        "region": "Global",
+        "example_variable": "thetao",
+        "notes": (
+            "Temperature - NOAA OISST v2.1 (https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html)",
+            "recipe: 'oisst'",
+            "Monthly sea surface temperature from satellites and in situ data, without gaps,",
+            "on a 0.25 degree grid from September 1981.",
+        ),
+        "arguments": ("climatology=False,",),
+    },
+    {
+        "variable": "temperature",
+        "recipe": "coraltemp",
+        "region": "Global",
+        "example_variable": "thetao",
+        "notes": (
+            "Temperature - NOAA Coral Reef Watch CoralTemp v3.1 (https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php)",
+            "recipe: 'coraltemp'",
+            "Monthly satellite sea surface temperature, without gaps, on a 0.05 degree grid",
+            "from 1985. Only the model's area is downloaded, at the full resolution, so it",
+            "suits regional models: use 'oisst' or 'cobe2' for a global one.",
+        ),
+        "arguments": ("climatology=False,",),
+    },
         "arguments": (
             "climatology=True,",
             "vertical=False,  # set True to validate the full water column",
@@ -503,6 +530,8 @@ RECIPE_CATALOGUE = RECIPE_CATALOGUE + tuple(
             "vertical=False,  # set True to validate the full water column",
         ),
     }
+    ("temperature", "oisst"): "degC",
+    ("temperature", "coraltemp"): "degC",
     for variable, title in _SHELF_RECIPES
 )
 
@@ -539,6 +568,18 @@ _GRIDDED_UNITS = {
     ("phosphate", "woa23"): "micromoles_per_kilogram",
     ("salinity", "woa23"): "1",
     ("silicate", "woa23"): "micromoles_per_kilogram",
+    "oisst": {
+        "years": "1981 to the present",
+        "range": (1981, None),
+        "note": "Monthly observations, not a climatology, from September 1981.",
+        "url": "https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html",
+    },
+    "coraltemp": {
+        "years": "1985 to the present",
+        "range": (1985, None),
+        "note": "Monthly observations, not a climatology. Only the model's area is downloaded, at 0.05 degrees: for regional models.",
+        "url": "https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php",
+    },
     ("temperature", "cobe2"): "degC",
     ("temperature", "woa23"): "degC",
     ("ammonium", "nsbc"): "mmol/m^3",

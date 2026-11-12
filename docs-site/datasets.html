@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Validating simulations — OceanVal</title>
-<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, Ocean Colour CCI, GLODAP, MPI-SOM-FFN, SOCAT, COPEPOD, MAREDAT, the North Sea Biogeochemical Climatology, GLODAPv3, the Hansell et al. DOM compilation and the European point data of ICES.">
+<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, NOAA OISST v2.1, NOAA CoralTemp v3.1, Ocean Colour CCI, GLODAP, MPI-SOM-FFN, SOCAT, COPEPOD, MAREDAT, the North Sea Biogeochemical Climatology, GLODAPv3, the Hansell et al. DOM compilation and the European point data of ICES.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -121,7 +121,7 @@
     <p>OceanVal has built-in access to widely used observational datasets, gridded and point, covering temperature, salinity, oxygen (with apparent oxygen utilization and saturation), nutrients, chlorophyll, the carbonate system, surface pCO<sub>2</sub> and the air-sea CO<sub>2</sub> flux, dissolved and particulate organic carbon, the carbon biomass of plankton groups (diatoms, picophytoplankton, bacteria, micro- and mesozooplankton) and light attenuation, globally, on the Northwest European Shelf and in European seas. The tables below are the ones the app offers: the gridded datasets, then the point datasets.</p>
 
     <p>In the <a href="app.html">OceanVal app</a>, the datasets are offered in the step where you choose the observations to validate against. OceanVal reads your simulation, works out which of its variables holds each observed variable, and ticks every dataset for your simulation&rsquo;s domain that it finds a variable for. The domain is worked out for you: if more than 80% of the cells of your simulation lie inside the Northwest European Shelf (the &ldquo;Full Domain&rdquo; of OceanVal&rsquo;s <code>nwes</code> regions file) it is the shelf, otherwise it is global. Check what it found, and untick anything you do not want.</p>
-    <p>The observations are <strong>downloaded for you</strong> when the matchup runs. World Ocean Atlas 2023, the North Sea Biogeochemical Climatology, Ocean Colour CCI and COBE-SST 2 come from THREDDS servers, so only what is needed is downloaded; GLODAPv2.2016b is downloaded from NCEI as one file per variable; MPI-SOM-FFN, SOCAT and COPEPOD are downloaded whole and made into a netCDF file OceanVal can read; MAREDAT is a zip on PANGAEA for each plankton group, whose netCDF file (up to 1.4&nbsp;GB, almost all of it empty, with a time axis CDO cannot read) is taken out and rewritten as a small CF file of its biomass, the months dated in 2000; the GLODAPv3 and Hansell et al. compilations are one large file each, downloaded once and read for the variables you match up; ICES is downloaded for the years and area of the matchup. The server for COBE-SST 2 limits how many requests it answers (HTTP 429), and when it turns them away OceanVal downloads the whole file instead. To keep what is downloaded for later matchups, set a <a href="app.html#data-store">data store</a> in the app&rsquo;s Preferences. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
+    <p>The observations are <strong>downloaded for you</strong> when the matchup runs. World Ocean Atlas 2023, the North Sea Biogeochemical Climatology, Ocean Colour CCI, COBE-SST 2 and NOAA OISST v2.1 come from THREDDS servers, so only what is needed is downloaded; NOAA CoralTemp v3.1 comes from NOAA CoastWatch&rsquo;s ERDDAP server, which cuts out your simulation&rsquo;s area and years before sending them, a year at a time; GLODAPv2.2016b is downloaded from NCEI as one file per variable; MPI-SOM-FFN, SOCAT and COPEPOD are downloaded whole and made into a netCDF file OceanVal can read; MAREDAT is a zip on PANGAEA for each plankton group, whose netCDF file (up to 1.4&nbsp;GB, almost all of it empty, with a time axis CDO cannot read) is taken out and rewritten as a small CF file of its biomass, the months dated in 2000; the GLODAPv3 and Hansell et al. compilations are one large file each, downloaded once and read for the variables you match up; ICES is downloaded for the years and area of the matchup. The server for COBE-SST 2 and NOAA OISST v2.1 limits how many requests it answers (HTTP 429), and when it turns them away OceanVal downloads the whole file instead. To keep what is downloaded for later matchups, set a <a href="app.html#data-store">data store</a> in the app&rsquo;s Preferences. The model output and the observations are then put on a common grid and averaged by month and year, where that is appropriate.</p>
 
     <h2 id="gridded">What gridded datasets are available?</h2>
     <p>Click a row for more about the dataset. <strong>Years</strong> are the years the observations cover (a climatology is an average over them), and <strong>Water column</strong> says whether the app can validate it below the surface as well as at it.</p>
@@ -275,6 +275,20 @@
           </tr>
           <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
             <p>An annual climatology of the data from 1972&ndash;2013, normalised to 2002, resolved in depth to 5500&nbsp;m. See the <a href="https://doi.org/10.5194/essd-8-325-2016" target="_blank" rel="noopener">GLODAPv2 reference</a>.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Sea water temperature</td><td><a href="https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">NOAA OISST v2.1</a></td><td>1981 to the present</td><td><span class="badge badge-no">No</span></td><td><code>degC</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>Monthly sea surface temperature on a 0.25&deg; grid from September 1981, an optimum interpolation of satellite (AVHRR) and in situ measurements without gaps: a full time series at four times COBE-SST 2&rsquo;s resolution.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Sea water temperature</td><td><a href="https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php" target="_blank" rel="noopener" onclick="event.stopPropagation()">NOAA CoralTemp v3.1</a></td><td>1985 to the present</td><td><span class="badge badge-no">No</span></td><td><code>degC</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <p>Monthly satellite sea surface temperature on a 0.05&deg; (about 5&nbsp;km) grid from 1985, without gaps, from NOAA Coral Reef Watch. Only your simulation&rsquo;s area is downloaded, at the full resolution, so it suits regional simulations; for a global one, use NOAA OISST v2.1 or COBE-SST 2, as a year of the whole globe is over a gigabyte.</p>
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">

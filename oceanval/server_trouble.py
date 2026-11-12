@@ -36,6 +36,7 @@ SERVERS = {
     "data.pmel.noaa.gov": "NOAA",
     "www.st.nmfs.noaa.gov": "NOAA",
     "store.pangaea.de": "PANGAEA",
+    "coastwatch.pfeg.noaa.gov": "NOAA CoastWatch",
 }
 
 # what is said for an answer whose page gives no reason

@@ -6,7 +6,7 @@ import glob
 import warnings
 from oceanval.session import session_info
 from oceanval.utils import loud_warning
-from oceanval import model_expr, obs_convert, user_recipes
+from oceanval import erddap, model_expr, obs_convert, user_recipes
 
 
 def _checked_model_variable(model_variable, name):
@@ -161,6 +161,8 @@ BUILT_RECIPES = {
         "source_info": {
             "diatoms": (
                 "Leblanc, K., et al.: A global diatom database – abundance, biovolume and biomass in the "
+    {"temperature": "oisst"},
+    {"temperature": "coraltemp"},
                 "world ocean, Earth Syst. Sci. Data, 4, 149–165, https://doi.org/10.5194/essd-4-149-2012, "
                 "2012. Data: https://doi.org/10.1594/PANGAEA.777384"
             ),
@@ -292,6 +294,32 @@ def find_recipe(x, start=None, end=None, cwd=None):
             output["name"] = name.lower()
             output["point"] = True
             output["glodap_variable"] = name.lower()
+    if value == "oisst":
+        if name.lower() == "temperature":
+            output["obs_path"] = "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.mon.mean.nc"
+            output["source"] = "OISST"
+            output["source_info"] = "NOAA OI SST V2.1 High Resolution data provided by the NOAA PSL, Boulder, Colorado, USA, from their website at https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html. Huang, B., C. Liu, V. Banzon, E. Freeman, G. Graham, B. Hankins, T. Smith, and H.-M. Zhang, 2021: Improvements of the Daily Optimum Interpolation Sea Surface Temperature (DOISST) Version 2.1, Journal of Climate, 34, 2923-2939, https://doi.org/10.1175/JCLI-D-20-0166.1."
+            output["name"] = name.lower()
+            output["thredds"] = True
+            output["climatology"] = False
+            output["vertical"] = False
+            output["obs_variable"] = "sst"
+            return output
+
+    if value == "coraltemp":
+        if name.lower() == "temperature":
+            # cut to the model's area by the ERDDAP server (see oceanval.erddap)
+            output["obs_path"] = erddap.DATASETS["coraltemp"]["url"]
+            output["source"] = "CoralTemp"
+            output["source_info"] = "NOAA Coral Reef Watch, 2026, NOAA Coral Reef Watch Version 3.1 Monthly Global 5km Satellite Sea Surface Temperature (CoralTemp v3.1), served by NOAA CoastWatch's ERDDAP at https://coastwatch.pfeg.noaa.gov/erddap/griddap/NOAA_DHW_monthly. Skirving, W., B. Marsh, J. De La Cour, G. Liu, A. Harris, E. Maturi, E. Geiger, and C.M. Eakin, 2020: CoralTemp and the Coral Reef Watch Coral Bleaching Heat Stress Product Suite Version 3.1, Remote Sensing, 12, 3856, https://doi.org/10.3390/rs12233856."
+            output["name"] = name.lower()
+            output["thredds"] = False
+            output["file_check"] = False
+            output["climatology"] = False
+            output["vertical"] = False
+            output["obs_variable"] = erddap.DATASETS["coraltemp"]["variable"]
+            return output
+
             return output
 
     if value == "hansell":

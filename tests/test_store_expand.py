@@ -13,6 +13,7 @@ import os
 
 import pytest
 from test_data_store import (  # noqa: F401 - the fixtures
+    FakeErddap,
     FakeIcesApi,
     cobe_file,
     entries,
@@ -29,6 +30,7 @@ BUILTIN = app_module.BUILTIN_DATASETS
 NITRATE = {"name": "nitrate", "recipe": "woa23"}
 TEMPERATURE_WOA = {"name": "temperature", "recipe": "woa23"}
 COBE2 = {"name": "temperature", "recipe": "cobe2"}
+CORALTEMP = {"name": "temperature", "recipe": "coraltemp"}
 OCCCI = {"name": "chlorophyll", "recipe": "occci"}
 NSBC = {"name": "nitrate", "recipe": "nsbc"}
 GLODAP = {"name": "ph", "recipe": "glodap"}
@@ -227,6 +229,18 @@ class TestRun:
         # a year the file does not have all of is not kept, as a matchup does not keep it
         done, news = run(request_of(COBE2, years=(2002, 2002)))
         assert sorted(x["year"] for x in entries(root)) == [2000, 2001]
+
+    def test_coraltemp_is_asked_of_erddap_a_year_at_a_time(self, folder, monkeypatch, tmp_path):
+        fake = FakeErddap(str(tmp_path))
+        monkeypatch.setattr(data_store.erddap, "fetch", fake.fetch)
+        monkeypatch.setattr(data_store.erddap, "years", fake.years)
+        root = root_of(folder)
+        assert store_expand.needs_years("temperature", "coraltemp")
+        done, news = run(request_of(CORALTEMP, years=(2000, 2001)))
+        assert done
+        assert fake.asked == [("coraltemp", [2000, 2001], [3, 4, 54, 55])]
+        assert sorted(x["year"] for x in entries(root)) == [2000, 2001]
+        assert finals(news)["temperature/coraltemp"]["total"] == 2
 
     def test_a_server_that_does_not_answer_is_reported_and_what_is_held_stays(self, folder, server):
         root = root_of(folder)

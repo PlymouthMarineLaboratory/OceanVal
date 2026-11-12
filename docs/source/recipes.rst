@@ -66,6 +66,8 @@ Global datasets
    "Global", "Salinity", "``woa23``", "`World Ocean Atlas 2023 <https://www.ncei.noaa.gov/products/world-ocean-atlas>`_", "Yes", "``1``", ":doc:`Full details <recipe_examples/salinity_woa23>`"
    "Global", "Silicate", "``woa23``", "`World Ocean Atlas 2023 <https://www.ncei.noaa.gov/products/world-ocean-atlas>`_", "Yes", "``micromoles_per_kilogram``", ":doc:`Full details <recipe_examples/silicate_woa23>`"
    "Global", "Temperature", "``cobe2``", "`COBE-SST 2 <https://psl.noaa.gov/data/gridded/data.cobe2.html>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_cobe2>`"
+   "Global", "Temperature", "``oisst``", "`NOAA OISST v2.1 <https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_oisst>`"
+   "Global", "Temperature", "``coraltemp``", "`NOAA CoralTemp v3.1 <https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_coraltemp>`"
    "Global", "Temperature", "``woa23``", "`World Ocean Atlas 2023 <https://www.ncei.noaa.gov/products/world-ocean-atlas>`_", "Yes", "``degC``", ":doc:`Full details <recipe_examples/temperature_woa23>`"
    "Global", "Diatoms", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
    "Global", "Picophytoplankton", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
@@ -73,6 +75,8 @@ Global datasets
    "Global", "Microzooplankton", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
    "Global", "Mesozooplankton", "``maredat``", "`MAREDAT <https://doi.org/10.5194/essd-5-227-2013>`_", "Yes", "``mg C m-3``", ":doc:`Full details <recipe_examples/maredat>`"
 
+   recipe_examples/temperature_oisst
+   recipe_examples/temperature_coraltemp
 
 .. toctree::
    :hidden:

@@ -1509,7 +1509,7 @@ def matchup(
         says so, and leaves them as they are). 0 leaves the times as they are, without checking.
     data_store : None or False
         Whether to use your data store, the folder set in the oceanval window's Preferences
-        where the built-in observational data downloaded (WOA23, OCCCI, NSBC, COBE2, GLODAP and
+        where the built-in observational data downloaded (WOA23, OCCCI, NSBC, COBE2, OISST, CoralTemp, GLODAP and
         ICES) is kept for later matchups, used as the Preferences say. Your own data is never
         kept in it. Default is None, to use it if one is set; False does not use it for this run.
     domain_mask : str

@@ -89,6 +89,8 @@ class TestWebsiteDatasets:
         "occci": "Ocean Colour CCI",
         "woa23": "World Ocean Atlas 2023",
         "cobe2": "COBE-SST 2",
+        "oisst": "NOAA OISST v2.1",
+        "coraltemp": "NOAA CoralTemp v3.1",
         "mpisom": "MPI-SOM-FFN v2025",
         "socat": "SOCATv2026",
         "copepod": "NOAA COPEPOD",

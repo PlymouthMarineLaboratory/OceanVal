@@ -20,7 +20,7 @@ from oceanval.parsers import find_recipe
 from oceanval.recipes_gui import _check_pair, check_limits
 
 # the datasets kept a year at a time, or by the files of a year
-YEARLY = ("cobe2", "occci", "ices")
+YEARLY = ("cobe2", "oisst", "coraltemp", "occci", "ices")
 # whose files have levels, so that only the top may be kept (as a matchup does)
 LEVELLED = ("woa23",)
 # a plain file, which is downloaded and kept whole, whatever the area: the

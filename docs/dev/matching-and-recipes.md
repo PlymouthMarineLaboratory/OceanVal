@@ -44,6 +44,13 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   `add_point_comparison`/`add_gridded_comparison`) — a dynamic attribute-tracking object recipes
   register themselves onto — and `find_recipe`, which builds obs-source URLs without touching the
   network (useful for validating recipe arguments offline).
+- **Built-in gridded observations come four ways**: over THREDDS (`thredds=True`: WOA23, NSBC, OCCCI, COBE2, OISST; CDO
+  reads whole global fields over OPeNDAP and `gridded.py` crops them afterwards), as a plain file (GLODAP), built into a
+  file (`obs_convert`), or **cut on an ERDDAP server** (`oceanval/erddap.py`, CoralTemp, 0.05°): a fine global product is
+  too large to crop afterwards (~100 MB a global month), so `erddap.fetch` asks griddap for the model's box (rounded out by
+  `data_store.snap`) a year at a time as `.nc` (the current year ends at `(last)`, as a time past the axis is a 404; 503 is
+  retried). Such a recipe is `thredds=False` and is known by its griddap address (`erddap.dataset_of(obs_path)`), with no
+  flag of its own in the comparison. It is never thinned (the user's choice, 2026-11-12): global models use OISST/COBE2.
 - **User point data** (`obs_path`) is one csv file or a directory of csv files, whichever `parsers.point_files` finds: a file is used as
   it is (whatever its name, and not filtered by `exclude`), a directory gives its `*.csv`, not those below it. Registration (`add_point_comparison`),
   `matchall.point_match`, `recipe_checks.inspect_point`, `own_data.check_entry` and the window's wording all use it, so a new place that

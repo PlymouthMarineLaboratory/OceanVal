@@ -32,7 +32,8 @@ def test_recipe_returns_required_metadata(name, source):
     assert result["obs_path"]
     assert result["source"]
     assert isinstance(result["climatology"], bool)
-    assert result["thredds"] is (source.lower() not in {"glodap", "mpisom", "socat", "copepod", "maredat"})
+    # CoralTemp is cut out by its ERDDAP server (oceanval.erddap), not read over thredds
+    assert result["thredds"] is (source.lower() not in {"glodap", "mpisom", "socat", "copepod", "maredat", "coraltemp"})
     # every recipe here is gridded
     assert result["point"] is False
 
@@ -41,6 +42,8 @@ def test_recipe_returns_required_metadata(name, source):
     "recipe, expected_source",
     [
         ({"temperature": "cobe2"}, "COBE2"),
+        ({"temperature": "oisst"}, "OISST"),
+        ({"temperature": "coraltemp"}, "CoralTemp"),
         ({"nitrate": "woa23"}, "WOA23"),
         ({"chlorophyll": "occci"}, "OCCCI"),
         ({"ph": "glodap"}, "GLODAPv2.2016b"),
@@ -87,6 +90,14 @@ def test_nsbc_recipe_uses_canonical_thredds_url(name, filename_variable):
         (
             {"temperature": "cobe2"},
             "https://psl.noaa.gov/thredds/dodsC/Datasets/COBE2/sst.mon.mean.nc",
+        ),
+        (
+            {"temperature": "oisst"},
+            "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.mon.mean.nc",
+        ),
+        (
+            {"temperature": "coraltemp"},
+            "https://coastwatch.pfeg.noaa.gov/erddap/griddap/NOAA_DHW_monthly",
         ),
         (
             {"ph": "glodap"},

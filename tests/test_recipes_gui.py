@@ -223,12 +223,12 @@ class TestErsemDetection:
 
     def test_the_other_regions_datasets_start_unticked(self):
         rows = recipe_rows({"temperature": "thetao"}, "nwes")
-        assert ticks(rows, "temperature") == {"cobe2": False, "woa23": False, "nsbc": True}
+        assert ticks(rows, "temperature") == {"cobe2": False, "oisst": False, "coraltemp": False, "woa23": False, "nsbc": True}
         assert ticks(rows, "temperature", "point") == {"ices": True}
 
         rows = recipe_rows({"temperature": "thetao"}, "global")
         # and within a region only the recipe the script leaves live is ticked
-        assert ticks(rows, "temperature") == {"cobe2": True, "woa23": False, "nsbc": False}
+        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False, "nsbc": False}
         assert ticks(rows, "temperature", "point") == {"ices": False}
 
     def test_a_dataset_outside_the_domain_is_ticked_if_it_is_the_only_one(self):

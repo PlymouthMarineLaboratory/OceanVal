@@ -561,6 +561,119 @@ class TestDownloadingInsteadOfThredds:
         assert data_store.download_instead("woa23", COBE2_URL) is None
         assert data_store.download_instead("cobe2", COBE2_URL) == COBE2_DOWNLOAD
 
+    def test_oisst_is_read_over_thredds_and_downloaded_in_its_place(self):
+        recipe = find_recipe({"temperature": "oisst"})
+        assert recipe["thredds"] is True
+        assert recipe["obs_path"] == data_store.DOWNLOADS["oisst"]["thredds"]
+        assert "oisst" in data_store.BY_YEAR and "oisst" in data_store.GRIDDED
+        assert data_store._download_of("oisst", recipe["obs_path"]) == data_store.DOWNLOADS["oisst"]["file"]
+        assert data_store._download_of("oisst", COBE2_URL) is None
+
+
+CORALTEMP_URL = find_recipe({"temperature": "coraltemp"})["obs_path"]
+
+
+class FakeErddap:
+    """erddap.fetch and erddap.years: a CoralTemp-like file of the years and
+    box asked for, 0.05 degree, to October 2002, and what was asked."""
+
+    def __init__(self, folder):
+        self.folder = folder
+        self.asked = []
+        self.down = False
+
+    def years(self, dataset):
+        if self.down:
+            raise ConnectionError("Connection timed out")
+        return [2000, 2001, 2002]
+
+    def fetch(self, dataset, wanted, box):
+        self.asked.append((dataset, list(wanted), list(box)))
+        if self.down:
+            raise ConnectionError("Connection timed out")
+        lon = np.arange(box[0] + 0.025, box[1], 0.05)
+        lat = np.arange(box[3] - 0.025, box[2], -0.05)
+        times = [
+            t + np.timedelta64(15, "D")
+            for year in wanted
+            for t in pd.date_range(f"{year}-01-01", periods=10 if year == 2002 else 12, freq="MS").values
+        ]
+        data = np.stack([np.full((len(lat), len(lon)), float(pd.Timestamp(t).year % 100)) for t in times])
+        path = os.path.join(self.folder, f"answer_{len(self.asked)}.nc")
+        _write(path, data, lon, lat, times, name="sea_surface_temperature")
+        return nc.open_data(path, checks=False)
+
+
+class TestCoralTemp:
+    """CoralTemp is asked of its ERDDAP server for the model's box, a year at a
+    time (oceanval.erddap), and kept a year at a time like COBE2."""
+
+    @staticmethod
+    def comparison():
+        return {"builtin": "coraltemp", "obs_variable": "sea_surface_temperature", "recipe": True}
+
+    @pytest.fixture
+    def erddap_server(self, monkeypatch, tmp_path):
+        fake = FakeErddap(str(tmp_path))
+        monkeypatch.setattr(data_store.erddap, "fetch", fake.fetch)
+        monkeypatch.setattr(data_store.erddap, "years", fake.years)
+        # nothing of it is read over thredds or downloaded
+        monkeypatch.setattr(nc, "open_thredds", boom)
+        monkeypatch.setattr(nc, "open_url", boom)
+        return fake
+
+    def years(self, years):
+        return data_store.gridded(self.comparison(), CORALTEMP_URL, False, MODEL_BOX, "all", years=list(years))
+
+    def test_the_years_are_asked_for_in_the_box_and_kept(self, store, erddap_server):
+        root = store()
+        got = values(self.years([2000, 2001, 2002]))
+        assert erddap_server.asked == [("coraltemp", [2000, 2001, 2002], [3, 4, 54, 55])]
+        assert len(got.time) == 34
+        kept = entries(root)
+        # 2002 has only ten months, so it is not kept
+        assert sorted(x["year"] for x in kept) == [2000, 2001]
+        assert {tuple(x["box"]) for x in kept} == {(3, 4, 54, 55)}
+        assert {x["url"] for x in kept} == {CORALTEMP_URL}
+
+    def test_what_is_kept_is_found_without_the_server(self, store, erddap_server):
+        store()
+        first = values(self.years([2000, 2001]))
+        erddap_server.asked.clear()
+        erddap_server.down = True
+        store()
+        again = values(self.years([2000, 2001]))
+        assert erddap_server.asked == []
+        np.testing.assert_array_equal(again.sea_surface_temperature.values, first.sea_surface_temperature.values)
+
+    def test_only_the_years_missing_are_asked_for(self, store, erddap_server):
+        store()
+        self.years([2000])
+        erddap_server.asked.clear()
+        got = values(self.years([2000, 2001]))
+        assert [x[1] for x in erddap_server.asked] == [[2001]]
+        assert len(got.time) == 24
+
+    def test_a_wider_area_is_asked_for_again_covering_both(self, store, erddap_server):
+        root = store()
+        self.years([2000])
+        erddap_server.asked.clear()
+        data_store.gridded(self.comparison(), CORALTEMP_URL, False, (0.5, 3.5, 52.2, 54.4), "all", years=[2000])
+        assert [x[2] for x in erddap_server.asked] == [[0, 4, 52, 55]]
+        assert [tuple(x["box"]) for x in entries(root)] == [(0, 4, 52, 55)]
+
+    def test_a_server_that_is_down_and_nothing_kept_fails(self, store, erddap_server):
+        store()
+        erddap_server.down = True
+        with pytest.raises(ConnectionError):
+            self.years([2000])
+
+    def test_it_is_a_built_in_dataset_the_store_keeps(self):
+        assert data_store.keeps(self.comparison())
+        assert "coraltemp" in data_store.BY_YEAR
+        assert "coraltemp" not in data_store.DOWNLOADS
+        assert "coastwatch.pfeg.noaa.gov" in data_store.BUILTIN_HOSTS
+
 
 class TestServerLimits:
     @pytest.fixture

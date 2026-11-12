@@ -120,7 +120,7 @@ as everything you entered in the window is then discarded (a run in progress is 
 from a clean slate. Your Preferences, your own recipes in ``.oceanvalrc`` and the simulations OceanVal remembers are kept.
 
 The **data store** is a folder for keeping the built-in observational data that is downloaded
-(WOA23, OC-CCI, NSBC, COBE2, GLODAP, Hansell and ICES), so later matchups need not download it again.
+(WOA23, OC-CCI, NSBC, COBE2, OISST, CoralTemp, GLODAP, Hansell and ICES), so later matchups need not download it again.
 Your own data is never kept in it. The folder must already exist: OceanVal keeps everything in an
 ``oceanval_datastore`` folder it makes inside it, and never writes or removes anything outside
 that. Choose a disk with a reasonable amount of free space, as the store can come to several GB.

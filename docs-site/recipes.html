@@ -284,6 +284,34 @@
           </div></td></tr>
 
           <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Temperature</td><td><code>oisst</code></td><td><a href="https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">NOAA OISST v2.1</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>degC</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"temperature"</span>,
+    model_variable=<span class="tok-str">"thetao"</span>,
+    recipe={<span class="tok-str">"temperature"</span>: <span class="tok-str">"oisst"</span>},
+    climatology=<span class="tok-kw">False</span>,
+)</pre></div>
+            <p>Monthly sea surface temperature from satellites and in situ data, without gaps, on a 0.25&deg; grid from September 1981.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
+            <td>Global</td><td>Temperature</td><td><code>coraltemp</code></td><td><a href="https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php" target="_blank" rel="noopener" onclick="event.stopPropagation()">NOAA CoralTemp v3.1</a></td><td><span class="badge badge-no">No</span></td>
+          <td><code>degC</code></td>
+          </tr>
+          <tr class="recipe-detail"><td colspan="6"><div class="recipe-detail__inner">
+            <div class="code-block"><div class="code-card__bar"><div class="code-card__dots"><span></span><span></span><span></span></div><span class="code-card__label">python</span></div><pre>oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
+    name=<span class="tok-str">"temperature"</span>,
+    model_variable=<span class="tok-str">"thetao"</span>,
+    recipe={<span class="tok-str">"temperature"</span>: <span class="tok-str">"coraltemp"</span>},
+    climatology=<span class="tok-kw">False</span>,
+)</pre></div>
+            <p>Monthly satellite sea surface temperature, without gaps, on a 0.05&deg; grid from 1985. Only the model&rsquo;s area is downloaded (NOAA CoastWatch&rsquo;s ERDDAP server cuts it out), at the full resolution, so it suits regional models: use <code>oisst</code> or <code>cobe2</code> for a global one.</p>
+          </div></td></tr>
+
+          <tr class="recipe-row" data-region="global">
             <td>Global</td><td>Temperature</td><td><code>woa23</code></td><td><a href="https://www.ncei.noaa.gov/products/world-ocean-atlas" target="_blank" rel="noopener" onclick="event.stopPropagation()">World Ocean Atlas 2023</a></td><td><span class="badge badge-yes">Yes</span></td>
           <td><code>degC</code></td>
           </tr>

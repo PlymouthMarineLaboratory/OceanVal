@@ -16,7 +16,7 @@ mistake here could cost you files of your own, it keeps to four rules:
 
 What is replaced is not removed for a day, as another run may be reading it.
 
-Only OceanVal's own datasets are kept (WOA23, NSBC, OCCCI, COBE2, GLODAP, the
+Only OceanVal's own datasets are kept (WOA23, NSBC, OCCCI, COBE2, OISST, CoralTemp, GLODAP, the
 GLODAPv3 and Hansell bottle data and ICES), never data of yours. The store is used in one of two ways:
 
 - ``"always"``: what is in the store is used, and only what is missing is
@@ -31,11 +31,12 @@ once a run, not once a nutrient.
 
 What the store holds is in pieces, listed in ``oceanval_data_store.json``:
 
-- gridded data: one of a server's files (a year of it, for COBE2) for one
-  variable, cut to a lon/lat box. The servers send whole global fields
-  whatever is asked for, and matchup crops them to the model's area, so the
-  piece kept is that area rounded out to whole degrees, or the whole globe if
-  that area has 90% of it. A wider area later on is downloaded again and
+- gridded data: one of a server's files (a year of it, for COBE2, OISST and
+  CoralTemp) for one variable, cut to a lon/lat box. The thredds servers send
+  whole global fields whatever is asked for, and matchup crops them to the
+  model's area (CoralTemp's ERDDAP server cuts them itself), so the piece kept
+  is that area rounded out to whole degrees, or the whole globe if that area
+  has 90% of it. A wider area later on is downloaded again and
   replaces the piece with one covering both. GLODAP is downloaded as a whole
   file, which is kept whole.
 - ICES data: one ICES dataset for one year in a box, with every parameter in
@@ -75,6 +76,7 @@ import uuid
 from oceanval.quiet_nc import nc
 import pandas as pd
 
+from oceanval import erddap
 from oceanval import obs_convert
 from oceanval import user_settings
 from oceanval.session import session_info
@@ -94,11 +96,12 @@ INDEX = "oceanval_data_store.json"
 VERSION = 1
 GLOBAL = [-180, 180, -90, 90]
 # the gridded datasets the store keeps, by their recipe key
-GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "glodap", "mpisom", "socat", "copepod", "maredat")
+GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "oisst", "coraltemp", "glodap", "mpisom", "socat", "copepod", "maredat")
 # the point datasets the store keeps, each in a folder of its own
 POINT_KINDS = ("ices", "glodapv3", "hansell")
-# a gridded dataset kept a year at a time, as its server has every year in one file
-BY_YEAR = ("cobe2",)
+# a gridded dataset kept a year at a time, as its server has every year in one
+# file (CoralTemp's ERDDAP server is asked for a year at a time)
+BY_YEAR = ("cobe2", "oisst", "coraltemp")
 # a dataset's server address, over thredds, and where the same file can be
 # downloaded whole, for when the thredds server will not answer: PSL's limits
 # the requests an address can make (HTTP 429), and reading COBE2 over thredds
@@ -107,6 +110,10 @@ DOWNLOADS = {
     "cobe2": {
         "thredds": "https://psl.noaa.gov/thredds/dodsC/Datasets/COBE2/sst.mon.mean.nc",
         "file": "https://downloads.psl.noaa.gov/Datasets/COBE2/sst.mon.mean.nc",
+    },
+    "oisst": {
+        "thredds": "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.mon.mean.nc",
+        "file": "https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/sst.mon.mean.nc",
     },
 }
 # where OceanVal's own datasets are downloaded from: an entry for any other
@@ -120,6 +127,7 @@ BUILTIN_HOSTS = (
     "glodap.info",
     "www.st.nmfs.noaa.gov",
     "store.pangaea.de",
+    "coastwatch.pfeg.noaa.gov",
 )
 # the names OceanVal gives the pieces' files: no other file is ever used or
 # removed, whatever the index says
@@ -893,11 +901,13 @@ def told_to_download(label, why):
 
 def _gridded_by_year(store, dataset, url, variable, box, years, label, thredds=True,
                      store_only=False, on_piece=None):
-    """COBE2's years, by way of the store. Its file has every year in it, so it
-    is kept a year at a time, cut to box. A year without all 12 months (the
-    one still being added to) is used, but not kept. thredds is whether the
-    file is read over a thredds server, rather than downloaded. If its server
-    will not answer, it is downloaded instead (see DOWNLOADS)."""
+    """COBE2's or OISST's years, by way of the store. Its file has every year
+    in it, so it is kept a year at a time, cut to box. A year without all 12
+    months (the one still being added to) is used, but not kept. thredds is
+    whether the file is read over a thredds server, rather than downloaded. If
+    its server will not answer, it is downloaded instead (see DOWNLOADS).
+    CoralTemp's years are asked of its ERDDAP server, cut to box there (see
+    oceanval.erddap), and kept the same way."""
     root_dir = store["root"]
     entries = _entries(root_dir)
     years = sorted({int(x) for x in years})
@@ -917,8 +927,11 @@ def _gridded_by_year(store, dataset, url, variable, box, years, label, thredds=T
         try:
             # whole is the file, if downloaded (once, for the years and the cut)
             whole = None
-            download = download_instead(dataset, url) if thredds else None
-            if download is not None:
+            from_erddap = dataset in erddap.DATASETS
+            download = download_instead(dataset, url) if thredds and not from_erddap else None
+            if from_erddap:
+                available = erddap.years(dataset)
+            elif download is not None:
                 told_to_download(label, "the thredds server is turning requests away (HTTP 429)")
                 thredds, whole = False, nc.open_url(download)
                 available = whole.years
@@ -947,7 +960,10 @@ def _gridded_by_year(store, dataset, url, variable, box, years, label, thredds=T
                 ]
                 fetch_box = _widen(union(box, *[x["box"] for x in replaced]))
                 try:
-                    ds = _fetch_gridded(url, thredds, variable, fetch_box, "all", wanted, whole)
+                    if from_erddap:
+                        ds = erddap.fetch(dataset, wanted, fetch_box)
+                    else:
+                        ds = _fetch_gridded(url, thredds, variable, fetch_box, "all", wanted, whole)
                 except Exception as error:
                     download = _download_of(dataset, url)
                     if not thredds or download is None:
