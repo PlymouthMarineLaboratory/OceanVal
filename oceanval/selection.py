@@ -223,3 +223,63 @@ def check_against(variables, matchups, name="variables"):
                 f"{', '.join(there)}"
             )
     return [m for m in matchups if wanted(variables, m["variable"], m["source"], m["layer"])]
+
+
+class UnsafeRemoval(Exception):
+    """remove_matchups refused to delete anything."""
+
+
+_REMOVABLE = (".nc", ".csv", ".pkl")
+
+
+def remove_matchups(data_dir, keys):
+    """Delete the files of the matchups in data_dir's oceanval_matchups whose
+    key (see key) is one of keys, so that a matchup() run with overwrite=False
+    makes them again: a point matchup's csv, definitions and matchup_dict.pkl,
+    or the gridded files of a variable and source. Keys are compared in lower
+    case. Returns the number of files removed.
+
+    Deliberately paranoid: only single files are ever removed (never a
+    directory), and nothing at all is removed, with UnsafeRemoval raised,
+    unless the folder is a real (not linked) one with "oceanval" in its name
+    and every file is a regular file of a known kind that really lies inside
+    it. All files are checked before the first is removed."""
+    keys = [k for k in keys if isinstance(k, str) and k.strip()]
+    if not keys:
+        return 0
+    wanted = {k.lower() for k in keys}
+    matchup_dir = os.path.join(data_dir, "oceanval_matchups")
+    if not os.path.isdir(matchup_dir) or os.path.islink(matchup_dir):
+        raise UnsafeRemoval(f"{matchup_dir} is not a plain folder of matchups")
+    root = os.path.realpath(matchup_dir)
+    if "oceanval" not in os.path.basename(root).lower():
+        raise UnsafeRemoval(f"{root} does not have oceanval in its name")
+    candidates = []
+    for matchup in on_disk(data_dir):
+        if matchup["key"].lower() not in wanted:
+            continue
+        variable, source, layer = matchup["variable"], matchup["source"], matchup["layer"]
+        gridded = os.path.join(glob.escape(matchup_dir), "gridded", "*")
+        if matchup["kind"] == "gridded":
+            paths = glob.glob(os.path.join(gridded, glob.escape(f"{source}_{variable}") + "_*"))
+            paths += glob.glob(os.path.join(gridded, glob.escape(f"{source}_matchup_dict.pkl")))
+        else:
+            folder = os.path.join(glob.escape(matchup_dir), "point", layer, variable, source)
+            paths = glob.glob(os.path.join(folder, glob.escape(f"{source}_{layer}_{variable}") + "*"))
+            paths += glob.glob(os.path.join(folder, "matchup_dict.pkl"))
+        for path in paths:
+            if os.path.isdir(path) and not os.path.islink(path):
+                continue
+            real = os.path.realpath(path)
+            if (
+                os.path.islink(path)
+                or not os.path.isfile(path)
+                or not path.endswith(_REMOVABLE)
+                or os.path.commonpath([root, real]) != root
+                or real == root
+            ):
+                raise UnsafeRemoval(f"{path} is not a matchup file inside {root}")
+            candidates.append(path)
+    for path in candidates:
+        os.remove(path)
+    return len(candidates)

@@ -1234,7 +1234,11 @@ def gridded_matchup(
 
                     _crop_to_model_data(ds_model_surface)
 
-                    ds_model_surface.to_nc(out_file, zip=True, overwrite=True)
+                    # written under another name and renamed, so a run that dies
+                    # here leaves no half-written file for a re-run to take as made
+                    part_file = out_file.replace(".nc", ".part.nc")
+                    ds_model_surface.to_nc(part_file, zip=True, overwrite=True)
+                    os.replace(part_file, out_file)
                     out_file = out_file.replace(".nc", "_definitions.pkl")
                     # save definitions
                     # change start to min year

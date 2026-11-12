@@ -34,6 +34,18 @@
   --font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Roboto, "Noto Sans", "Liberation Sans", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
   --focus: 0 0 0 3px rgba(15, 143, 150, 0.28);
+  /* the command shown as a terminal: macOS Terminal and a Linux terminal */
+  --term-bg: #1e1e1e;
+  --term-fg: #ececec;
+  --term-prompt: #8fd18f;
+  --term-bar-mac: #e3e3e3;
+  --term-bar-mac-ink: #4d4d4d;
+  --term-bar-linux: #3c3b37;
+  --term-bar-linux-ink: #ececec;
+  --term-body-linux: #300a24;
+  --term-dot-red: #ff5f57;
+  --term-dot-amber: #febc2e;
+  --term-dot-green: #28c840;
   /* the colours that only some parts use */
   --masthead-bg: linear-gradient(160deg, #08222a 0%, #0a3f49 45%, #0e6b74 100%);
   --brand-accent: #7fd6db;

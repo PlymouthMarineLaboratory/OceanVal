@@ -1389,7 +1389,7 @@ def matchup(
     thickness=None,
     n_dirs_down=2,
     point_time_res=["year", "month", "day"],
-    overwrite=True,
+    overwrite=False,
     ask=True,
     out_dir="",
     exclude=[],
@@ -1446,7 +1446,7 @@ def matchup(
         Without "year", observations from every year are used (not only those in the simulation's years or the dataset's start and end); the model is still limited to its years.
         A point_time_res given to add_point_comparison is used for that dataset instead.
     overwrite : bool or list
-        If True, existing matched data will be overwritten. Default is True. False keeps any matchup this run would make that is in out_dir already, and uses it as it is.
+        If True, existing matched data will be overwritten. Default is False, which keeps any matchup this run would make that is in out_dir already, and uses it as it is, so running a script again after a failure carries on where it stopped.
         A list overwrites only the existing matchups it picks, each entry a variable, for all its sources, or "variable/source", for one, as validate's variables takes them, e.g. ["temperature/COBE2"]: the others are kept.
         Matchups of variables or sources this run does not match up are left in out_dir either way (see validate's previous).
     ask : bool

@@ -581,7 +581,7 @@ def check_output(form, cwd, report=True, made=None):
     Only one used is kept as it is, and validated if a report follows
     (report). The user must tick to confirm it, as they may not notice what
     each starts on.
-    Without matchups to ask about, overwrite and previous are True.
+    Without matchups to ask about, overwrite is False (nothing to replace) and previous is True.
 
     Returns (arguments, errors), as check_setup does.
     """
@@ -599,9 +599,13 @@ def check_output(form, cwd, report=True, made=None):
         again = [row["key"] for row in rows if row["made"]]
         unused = set(form["unused"] if form["existing_chosen"] else again)
         if not keys:
-            arguments["overwrite"] = arguments["previous"] = True
+            arguments["overwrite"] = False
+            arguments["previous"] = True
         else:
             arguments["overwrite"] = _ticked_of(unused, again)
+            # the matchups to delete when Continue is pressed, so the script itself
+            # only ever uses overwrite=False and a re-run picks up where it stopped
+            arguments["replace"] = [key for key in again if key in unused]
             # with a report, only those used are in it as they are
             arguments["previous"] = (
                 _ticked_of([key for key in keys if key not in unused], keys) if report else True
@@ -1956,6 +1960,11 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                         if self.matchup_script_saved and self.script_path
                         else None
                     ),
+                    # shown at the top of a run, running, failed or stopped, to run it again
+                    "rerun_command": self._rerun_command(),
+                    # the terminal the command is shown as: macOS's or Linux's, and the conda environment
+                    "terminal": "macos" if sys.platform == "darwin" else "linux",
+                    "rerun_env": os.environ.get("CONDA_DEFAULT_ENV") or None,
                 },
                 "console": (
                     self.console.since(after, epoch)
@@ -4356,6 +4365,18 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             made=set(self.output_made or ()),
         )
 
+    def _rerun_command(self):
+        """The command that runs the script of this run again from any
+        directory, once the output step has named it (its draft, removed at
+        exit, is not offered), or None. Called with the lock held."""
+        path = self.script_path
+        if not path or not os.path.isfile(path):
+            return None
+        draft = self._draft_dir
+        if draft and os.path.abspath(path).startswith(os.path.abspath(draft) + os.sep):
+            return None
+        return f"python {shlex.quote(os.path.abspath(path))}"
+
     def _keep_in_script(self, out=None, **settings):
         """Put settings into what the script is written from, and write it
         to out from now on, if given. Called with the lock held."""
@@ -4408,15 +4429,21 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 self._notify()
                 return 400, {"ok": False, "errors": errors}
             self.out_dir = arguments["out_dir"]
-            self.overwrite = arguments["overwrite"]
+            # replaced matchups are deleted now, not when the run reaches them
+            try:
+                selection.remove_matchups(self.out_dir, arguments.get("replace", ()))
+            except selection.UnsafeRemoval as error:
+                self._notify()
+                return 400, {"ok": False, "errors": {"out_dir": f"Nothing was deleted: {error}"}}
+            self.overwrite = False
             self.previous = arguments["previous"]
             # the matchups, and the report, go where it says
             self.results_dir = self.out_dir
             self._run_output = {"out_dir": self.out_dir, "overwrite": self.overwrite}
             self._keep_in_script(
                 out=arguments["out"],
-                # the directory worked in is matchup's default
-                out_dir="" if self.out_dir == self.cwd else self.out_dir,
+                # always the full path, so the script runs the same from any directory
+                out_dir=self.out_dir,
                 overwrite=self.overwrite,
             )
             report = self.action == "matchup_validate"

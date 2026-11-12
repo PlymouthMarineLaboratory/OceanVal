@@ -1931,6 +1931,11 @@ def _footer(
             '# thickness - either "z_level" or the name of a cell thickness variable.',
         ]
     matchup_changed, validate_changed = _changed_settings(settings)
+    # the full path of where the matchups go, so the script does the same from
+    # any directory and the report is built from the matchups it made
+    full_out_dir = os.path.abspath(dict(matchup_changed).get("out_dir") or ".")
+    matchup_changed = [item for item in matchup_changed if item[0] != "out_dir"]
+    matchup_changed.insert(0, ("out_dir", full_out_dir))
     interim = None
     if report is not None:
         # the report options chosen in the oceanval window, after the recipes
@@ -1952,13 +1957,11 @@ def _footer(
     validate_arguments = [
         f"{name}={_literal(value)}," for name, value in validate_changed
     ]
-    out_dir = dict(matchup_changed).get("out_dir")
-    if out_dir:
-        # the report is built from the matchups, wherever they were written
-        validate_arguments[:0] = [
-            f"data_dir={_literal(out_dir)},",
-            f"out_dir={_literal(out_dir)},",
-        ]
+    # the report is built from the matchups, wherever they were written
+    validate_arguments[:0] = [
+        f"data_dir={_literal(full_out_dir)},",
+        f"out_dir={_literal(full_out_dir)},",
+    ]
     if validate_arguments:
         validate_call = [
             "oceanval.validate(",

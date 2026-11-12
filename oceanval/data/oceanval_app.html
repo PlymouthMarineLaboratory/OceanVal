@@ -649,6 +649,26 @@
   .review__filters-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
   .review__filters-foot .group__msg { margin: 0; }
   .summary__question { margin-left: auto; color: var(--ink); font: 600 18px/1.3 var(--font-head); }
+  .rerun { display: flex; flex-direction: column; gap: 6px; margin: 0 0 16px; padding: 12px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg-alt); color: var(--ink); font-size: 13.5px; }
+  .rerun__label { color: var(--muted); }
+  .term { border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-sm); font-family: var(--font-mono); }
+  .term__bar { position: relative; display: flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 12px; background: var(--term-bar-mac); color: var(--term-bar-mac-ink); font-size: 12px; font-weight: 600; }
+  .term__dots { position: absolute; left: 12px; top: 50%; display: flex; gap: 8px; transform: translateY(-50%); }
+  .term__dots i { width: 12px; height: 12px; border-radius: 50%; }
+  .term__dots i:nth-child(1) { background: var(--term-dot-red); }
+  .term__dots i:nth-child(2) { background: var(--term-dot-amber); }
+  .term__dots i:nth-child(3) { background: var(--term-dot-green); }
+  .term__copy { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  .term__copy:focus-visible { outline: none; box-shadow: var(--focus); }
+  .term__body { display: flex; align-items: flex-start; gap: 8px; padding: 14px 16px; background: var(--term-bg); color: var(--term-fg); font-size: 13px; line-height: 1.55; }
+  .term__prompt { flex: none; color: var(--term-prompt); font-weight: 600; white-space: pre; }
+  .term__command { font: inherit; overflow-wrap: anywhere; user-select: all; }
+  /* Linux: a flat bar with the window controls on the right */
+  .term[data-terminal="linux"] .term__bar { justify-content: flex-start; padding-left: 14px; background: var(--term-bar-linux); color: var(--term-bar-linux-ink); font-family: var(--font-body); }
+  .term[data-terminal="linux"] .term__title { font-weight: 500; }
+  .term[data-terminal="linux"] .term__dots { display: none; }
+  .term[data-terminal="linux"] .term__copy { right: 12px; color: var(--term-bar-linux-ink); }
+  .term[data-terminal="linux"] .term__body { background: var(--term-body-linux); }
   .script-saved.card { max-width: 760px; padding: 28px 30px; }
   .script-saved h2 { margin: 0 0 8px; font: 600 22px/1.3 var(--font-head); }
   .script-saved p { margin: 0 0 14px; color: var(--muted); }
@@ -2543,6 +2563,20 @@
   </section>
 
   <section id="view-run" hidden>
+    <!-- the command to run the script again, whether this run finishes, fails or is stopped -->
+    <div class="rerun" id="rerun" role="note" hidden>
+      <span class="rerun__label">If this run fails or you stop it, run it again from a terminal. Matchups already made are kept. Run this from the terminal from your conda environment:</span>
+      <div class="term" id="rerun-term">
+        <div class="term__bar">
+          <span class="term__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="term__title">Terminal</span>
+          <button type="button" class="term__copy" id="rerun-copy" aria-label="Copy the command">Copy</button>
+        </div>
+        <div class="term__body">
+          <span class="term__prompt" id="rerun-prompt"></span><code class="term__command" id="rerun-command"></code>
+        </div>
+      </div>
+    </div>
     <div class="prepare" id="prepare" role="status" aria-live="polite" hidden>
       <div class="prepare__card card">
         <span class="prepare__spinner" aria-hidden="true"></span>
@@ -10451,6 +10485,18 @@
     stopped: ["Stopped", "is-stopped"],
   };
 
+  // copies the command shown in the terminal box (the button is icon-free, so no hover lift)
+  $("rerun-copy").addEventListener("click", async () => {
+    const text = $("rerun-command").textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      $("rerun-copy").textContent = "Copied";
+      setTimeout(() => { $("rerun-copy").textContent = "Copy"; }, 1500);
+    } catch (error) {
+      // no clipboard here: the text is selectable, so nothing is lost
+    }
+  });
+
   function renderRun() {
     const run = state.run;
     const kind = state.question ? "waiting" : state.view === "preparing" ? "preparing" : run.status || "starting";
@@ -10465,6 +10511,14 @@
       consoleBox.scrollTop = consoleBox.scrollHeight;
     }
     $("run").hidden = !showOutput;
+    const rerun = state.run.rerun_command || "";
+    $("rerun").hidden = !rerun;
+    $("rerun-command").textContent = rerun;
+    // macOS Terminal (zsh, %) or a Linux terminal (bash, $), with the conda environment if known
+    const term = state.run.terminal === "macos" ? "macos" : "linux";
+    $("rerun-term").dataset.terminal = term;
+    const env = state.run.rerun_env ? `(${state.run.rerun_env}) ` : "";
+    $("rerun-prompt").textContent = term === "macos" ? `${env}%` : `${env}$`;
     renderProgress();
     renderQuestion();
     renderReviewDates();

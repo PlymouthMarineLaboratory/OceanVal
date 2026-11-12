@@ -242,7 +242,7 @@ def check_settings(form, available, fvcom=False):
     settings["out_dir"] = text("out_dir")
     if settings["out_dir"] and os.path.isfile(os.path.expanduser(settings["out_dir"])):
         errors["out_dir"] = "This is a file, not a directory."
-    overwrite = form.get("overwrite", True)
+    overwrite = form.get("overwrite", False)
     # a list of the matchups to overwrite; the oceanval window hides the tick
     # and chooses them in its output step (see oceanval.app.check_output)
     settings["overwrite"] = (
@@ -257,7 +257,12 @@ def check_settings(form, available, fvcom=False):
         if re.fullmatch(r"z[ _-]level", thickness):
             settings["thickness"] = "z_level"
         elif thickness in available or os.path.exists(os.path.expanduser(thickness)):
-            settings["thickness"] = thickness
+            # a file is given in full, so the script runs from any directory
+            settings["thickness"] = (
+                os.path.abspath(os.path.expanduser(thickness))
+                if thickness not in available
+                else thickness
+            )
         else:
             errors["thickness"] = (
                 "Not a variable in the simulation output, or a file that exists."
