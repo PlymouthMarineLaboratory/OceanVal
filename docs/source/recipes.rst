@@ -94,7 +94,6 @@ Global datasets
    recipe_examples/phosphate_nsbc
    recipe_examples/salinity_nsbc
    recipe_examples/silicate_nsbc
-   recipe_examples/temperature_nsbc
 
 The recipe dictionary must contain one variable and source identifier. For
 example, ``{"temperature": "woa23"}`` selects temperature from WOA23.
@@ -118,7 +117,6 @@ chlorophyll, nitrate, phosphate, silicate, oxygen, temperature, and salinity.
    "Northwest European Shelf", "Phosphate", "``nsbc``", "North Sea Biogeochemical Climatology", "Yes", "``mmol/m^3``", ":doc:`Full details <recipe_examples/phosphate_nsbc>`"
    "Northwest European Shelf", "Salinity", "``nsbc``", "North Sea Biogeochemical Climatology", "Yes", "``1``", ":doc:`Full details <recipe_examples/salinity_nsbc>`"
    "Northwest European Shelf", "Silicate", "``nsbc``", "North Sea Biogeochemical Climatology", "Yes", "``mmol/m^3``", ":doc:`Full details <recipe_examples/silicate_nsbc>`"
-   "Northwest European Shelf", "Temperature", "``nsbc``", "North Sea Biogeochemical Climatology", "Yes", "``degC``", ":doc:`Full details <recipe_examples/temperature_nsbc>`"
 
 Each Example link opens a separate page containing the corresponding call.
 

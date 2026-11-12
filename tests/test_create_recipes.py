@@ -925,12 +925,6 @@ def _from_a_terminal(monkeypatch, answers):
 
 
 class TestFvcom:
-    QUESTION = (
-        "The output in {simdir} looks like raw FVCOM output "
-        "(an unstructured mesh with node, nele and nv).\n"
-        "Is this FVCOM output? (y/n) "
-    )
-
     def _create(self, simdir, tmp_path, **kwargs):
         out = str(tmp_path / "matchup.py")
         oceanval.create_recipes(
@@ -977,33 +971,18 @@ class TestFvcom:
         self._create(simulation, tmp_path, ask=False)
         assert len(walks) == 1
 
-    def test_confirmed_fvcom(self, fvcom_simulation, tmp_path, monkeypatch):
-        asked = _from_a_terminal(monkeypatch, iter(["y"]))
+    def test_fvcom_is_not_asked_about(self, fvcom_simulation, tmp_path, monkeypatch):
+        asked = _from_a_terminal(monkeypatch, iter([]))
         script = self._create(fvcom_simulation, tmp_path)
-        assert asked[0] == self.QUESTION.format(simdir=fvcom_simulation)
+        assert asked == []
         assert "    fvcom=True,\n" in script
 
-    def test_declined_fvcom(self, fvcom_simulation, tmp_path, monkeypatch):
-        asked = _from_a_terminal(monkeypatch, iter(["n"]))
-        script = self._create(fvcom_simulation, tmp_path)
-        assert asked[0] == self.QUESTION.format(simdir=fvcom_simulation)
-        assert "fvcom=True" not in script
-
-    def test_anything_but_yes_or_no_is_asked_again(
-        self, fvcom_simulation, tmp_path, monkeypatch, capsys
-    ):
-        asked = _from_a_terminal(monkeypatch, iter(["maybe", "y"]))
-        script = self._create(fvcom_simulation, tmp_path)
-        assert asked[:2] == [self.QUESTION.format(simdir=fvcom_simulation)] * 2
-        assert "Provide y or n" in capsys.readouterr().out
-        assert "    fvcom=True,\n" in script
-
-    def test_the_fvcom_argument_skips_the_question(
+    def test_the_fvcom_argument_is_still_honoured(
         self, fvcom_simulation, tmp_path, monkeypatch
     ):
         asked = _from_a_terminal(monkeypatch, iter([]))
         script = self._create(fvcom_simulation, tmp_path, fvcom=False)
-        assert not any('FVCOM output?' in question for question in asked)
+        assert asked == []
         assert "fvcom=True" not in script
 
     def test_fvcom_true_is_not_second_guessed(self, simulation, tmp_path):

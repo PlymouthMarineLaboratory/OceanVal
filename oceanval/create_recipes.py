@@ -480,7 +480,6 @@ _SHELF_RECIPES = (
     ("phosphate", "Phosphate"),
     ("salinity", "Salinity"),
     ("silicate", "Silicate"),
-    ("temperature", "Temperature"),
 )
 
 RECIPE_CATALOGUE = RECIPE_CATALOGUE + tuple(
@@ -502,7 +501,7 @@ RECIPE_CATALOGUE = RECIPE_CATALOGUE + tuple(
 )
 
 # The units each gridded recipe's observations are in, as the observation files
-# state them (those for temperature in the WOA23 and NSBC recipes, and for KD490,
+# state them (those for temperature in the WOA23 recipe, and for KD490,
 # are the documented ones, as their files are not held locally). They are shown
 # in the units step of the oceanval window and in the Units column of
 # https://PlymouthMarineLaboratory.github.io/OceanVal/recipes.html, which a test keeps the same.
@@ -540,7 +539,6 @@ _GRIDDED_UNITS = {
     ("phosphate", "nsbc"): "mmol/m^3",
     ("salinity", "nsbc"): "1",
     ("silicate", "nsbc"): "mmol/m^3",
-    ("temperature", "nsbc"): "degC",
 }
 
 # The years each gridded recipe's observations cover, and the web page about
@@ -552,56 +550,76 @@ _WOA23_PAGE = "https://www.ncei.noaa.gov/products/world-ocean-atlas"
 _GLODAP_PAGE = "https://www.glodap.info/index.php/mapped-data-product/"
 _COVERAGE = {
     "glodap": {
+        "spatial": "1° × 1°, 33 depth levels",
+        "temporal": "Annual (one climatology, not monthly)",
         "years": "1972–2013",
         "note": "A climatology of the data from these years, normalised to 2002.",
         "url": _GLODAP_PAGE,
     },
     "occci": {
+        "spatial": "4 km",
+        "temporal": "Monthly",
         "years": "1997 to the present",
         "range": (1997, None),
         "note": "Monthly observations, not a climatology.",
         "url": "https://www.oceancolour.org/",
     },
     "cobe2": {
+        "spatial": "1° × 1°",
+        "temporal": "Monthly",
         "years": "1850 to the present",
         "range": (1850, None),
         "note": "Monthly observations, not a climatology.",
         "url": "https://psl.noaa.gov/data/gridded/data.cobe2.html",
     },
     "oisst": {
+        "spatial": "0.25° × 0.25°",
+        "temporal": "Monthly (means of daily fields)",
         "years": "1981 to the present",
         "range": (1981, None),
         "note": "Monthly observations, not a climatology, from September 1981.",
         "url": "https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html",
     },
     "coraltemp": {
+        "spatial": "0.05° × 0.05° (about 5 km)",
+        "temporal": "Monthly",
         "years": "1985 to the present",
         "range": (1985, None),
         "note": "Monthly observations, not a climatology. Only the model's area is downloaded, at 0.05 degrees: for regional models.",
         "url": "https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php",
     },
     "woa23": {
+        "spatial": "1° × 1°, standard depth levels",
+        "temporal": "Monthly climatology",
         "years": "1965–2022",
         "note": "A climatology of all the data from these years.",
         "url": _WOA23_PAGE,
     },
     "mpisom": {
+        "spatial": "1° × 1°, surface only",
+        "temporal": "Monthly climatology",
         "years": "1985–2024",
         "note": "A climatology of the monthly fields of a reconstruction from SOCAT (v2024) observations, not direct observations.",
         "url": "https://www.ncei.noaa.gov/access/ocean-carbon-acidification-data-system/oceans/SPCO2_1982_present_ETH_SOM_FFN.html",
     },
     "socat": {
+        "spatial": "1° × 1°, surface only",
+        "temporal": "Monthly",
         "years": "1970–2025",
         "range": (1970, 2025),
         "note": "Monthly observations, not a climatology: only the months and cells that were sampled.",
         "url": "https://www.socat.info/",
     },
     "copepod": {
+        "spatial": "0.25° × 0.25°, mean over the top 200 m",
+        "temporal": "Monthly climatology",
         "years": "All the years in the COPEPOD database, which are not given",
         "note": "A climatology of net samples of all years, a mean over the top 200 m, 330 um mesh.",
         "url": "https://www.st.nmfs.noaa.gov/copepod/biomass/biomass-fields.html",
     },
     "nsbc": {
+        "spatial": "0.25° × 0.25°, standard depth levels",
+        "temporal": "Monthly climatology",
         "years": "1960–2014",
         "note": "A climatology of the data from these years.",
         "url": "https://www.geo.uni-hamburg.de/en/service/icdc/data/ocean/nsbc.html",
@@ -623,6 +641,8 @@ _WOA23_PERIODS = (
 _DECADAL_COVERAGE = {
     "years": "1955–2022, as a climatology of each decade: "
     + ", ".join(f"{first}–{last}" for first, last in _WOA23_PERIODS),
+    "spatial": "1° × 1°, standard depth levels",
+    "temporal": "Monthly climatology of each decade",
     "note": "The decade used is the one the years given for it sit inside.",
     "url": _WOA23_PAGE,
 }
@@ -709,10 +729,20 @@ _POINT_COVERAGE = {
     "glodapv3": {
         "years": "1972–2023",
         "range": (1972, 2023),
+        "spatial": "Point observations at cruise stations, at the depths sampled",
+        "temporal": "Individual samples, by date",
         "note": "Bottle samples from 1181 cruises, adjusted for differences between cruises.",
         "url": "https://glodap.info/index.php/merged-and-adjusted-data-product-v3/",
     },
+    "ices": {
+        "spatial": "Point observations at stations, at the depths sampled",
+        "temporal": "Individual samples, by date",
+        "note": "Observations from the ICES Oceanographic database, downloaded for the model's area and years.",
+        "url": "https://ocean.ices.dk",
+    },
     "hansell": {
+        "spatial": "Point observations at cruise stations, at the depths sampled",
+        "temporal": "Individual samples, by date",
         "note": "Bottle samples from 223 cruises, with good (WOCE flag 2) values kept.",
         "url": "https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html",
     },
@@ -773,6 +803,7 @@ POINT_RECIPE_CATALOGUE = tuple(
             "Only observations with good (quality flag 0) flags are kept.",
         ),
         "arguments": ("vertical=False,  # set True to validate the full water column",),
+        "coverage": _POINT_COVERAGE["ices"],
     }
     for variable, title, dataset, units in _ICES_RECIPES
 )
@@ -1553,26 +1584,6 @@ def _looks_like_fvcom(path):
             return {"node", "nele"} <= set(ds.dims) and "nv" in ds.variables
     except Exception:
         return False
-
-
-def _ask_if_fvcom(simdir):
-    """Ask the user to confirm that output which looks like FVCOM is."""
-    # in the question itself, as a window shows the question and not what was printed
-    question = (
-        f"The output in {simdir} looks like raw FVCOM output "
-        "(an unstructured mesh with node, nele and nv).\n"
-        "Is this FVCOM output? (y/n) "
-    )
-    while True:
-        try:
-            answer = prompts.ask(question, ("y", "n")).strip().lower()
-        except EOFError:
-            return True
-        if answer in ("y", "yes"):
-            return True
-        if answer in ("n", "no"):
-            return False
-        print("Provide y or n")
 
 
 def _years_in(text):
@@ -2406,9 +2417,7 @@ def _create_recipes(
             _looks_like_fvcom(path)
             for path in simulation_files(simdir, ndown, paths=found_files, **filters)
         )
-        if fvcom and interactive:
-            fvcom = _ask_if_fvcom(simdir)
-        elif fvcom:
+        if fvcom:
             print(
                 f"The output in {simdir} looks like raw FVCOM output, so the "
                 "script calls matchup with fvcom=True. Pass fvcom=False if it "

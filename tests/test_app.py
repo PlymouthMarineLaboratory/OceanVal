@@ -2610,25 +2610,16 @@ class TestServer:
 
         assert "Check the ndown argument" in app.setup_error
 
-    def test_the_fvcom_question_is_asked_in_the_window(self, app, tmp_path, runs):
+    def test_fvcom_output_is_not_asked_about_in_the_window(self, app, tmp_path, runs):
         write_fvcom(tmp_path / "fvcom")
         app.choose("matchup")
         post(
             app, "/api/setup", {"form": dict(SETUP_FORM, simdir="fvcom", start="2012")}
         )
         post(app, "/api/own_data", {"answer": False})
-        wait_for(lambda: app.question is not None)
-        _, state = get_json(app, "/api/state")
-        question = state["question"]
-
-        assert question["choices"] == ["y", "n"]
-        assert "looks like raw FVCOM output" in question["text"]
-        assert question["text"].endswith("Is this FVCOM output? (y/n) ")
-        assert post(app, "/api/answer", {"id": question["id"], "answer": "y"})[0] == 200
         wait_for(lambda: app.view == "recipes")
+        assert app.question is None
         assert app.recipes_page.context["fvcom"] is True
-        # it can only be answered once
-        assert post(app, "/api/answer", {"id": question["id"], "answer": "n"})[0] == 409
 
     def test_validating(self, app, tmp_path, runs):
         app.choose("validate")
@@ -4955,25 +4946,6 @@ class TestBack:
 
         assert post(app, "/api/own_remove", {"kind": "point", "index": 0})[0] == 200
         assert list(app.units_boxes) == ["recipe:nitrate:woa23"]
-
-    def test_the_fvcom_question_is_not_asked_again_for_the_same_files(
-        self, app, tmp_path, runs
-    ):
-        write_fvcom(tmp_path / "fvcom")
-        app.choose("matchup")
-        post(app, "/api/setup", {"form": dict(SETUP_FORM, simdir="fvcom", start="2012")})
-        post(app, "/api/own_data", {"answer": False})
-        wait_for(lambda: app.question is not None)
-        post(app, "/api/answer", {"id": app.question.id, "answer": "y"})
-        wait_for(lambda: app.view == "recipes")
-        page = app.recipes_page
-
-        post(app, "/recipes/cancel")
-        wait_for(lambda: app.view == "own_data")
-        post(app, "/api/own_data", {"answer": False})
-        wait_for(lambda: app.question is not None or (app.view == "recipes" and app.recipes_page is not page))
-        assert app.question is None
-        assert app.recipes_page.context["fvcom"] is True
 
 
 def test_the_command_runs():

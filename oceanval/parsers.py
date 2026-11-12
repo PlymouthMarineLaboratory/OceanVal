@@ -186,7 +186,6 @@ recipe_list = [
     {"omegaaragonite": "glodap"},
     {"chlorophyll": "nsbc"},
     {"oxygen": "nsbc"},
-    {"temperature": "nsbc"},
     {"salinity": "nsbc"},
     {"nitrate": "nsbc"},
     {"ammonium": "nsbc"},
@@ -406,8 +405,6 @@ def find_recipe(x, start=None, end=None, cwd=None):
             output["obs_variable"] = "chlorophyll_a_mean"
         elif name.lower() == "oxygen":
             output["obs_variable"] = "oxygen_mean"
-        elif name.lower() == "temperature":
-            output["obs_variable"] = "temperature_mean"
         elif name.lower() == "salinity":
             output["obs_variable"] = "salinity_mean"
         elif name.lower() == "nitrate":

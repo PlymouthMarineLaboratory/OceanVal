@@ -69,6 +69,10 @@
   .is-invalid .field__msg { color: var(--ink); }
 
   /* datasets */
+  /* "Show hidden datasets": the datasets of another region are hidden until it is ticked */
+  .show-hidden { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px; font-weight: 600; cursor: pointer; }
+  .show-hidden[hidden] { display: none; }
+  .dataset[hidden], .none[hidden] { display: none; }
   .chips { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
   .chip {
     display: inline-flex;
@@ -300,6 +304,7 @@
       </div>
     </section>
 
+    <label class="show-hidden" id="show-hidden-gridded" hidden><input type="checkbox" id="show-hidden-box-gridded"> Show hidden datasets</label>
     <div class="card">
       <table>
         <colgroup><col class="c-num"><col class="c-obs"><col class="c-model"><col class="c-gridded"></colgroup>
@@ -363,6 +368,7 @@
               <select class="s-select" id="s-point_time_res"></select>
             </div>
             <p class="group__msg" id="g-point"></p>
+            <p class="group__msg" id="g-short-sim" hidden>This appears to be a short-term simulation. Consider ignoring year in the matchups to increase spatial coverage.</p>
           </fieldset>
         </div>
         <div class="settings__column" id="thickness-point"></div>
@@ -370,6 +376,7 @@
       <p class="settings__note">These settings will apply to all point datasets, but can be overridden individually.</p>
     </section>
 
+    <label class="show-hidden" id="show-hidden-point" hidden><input type="checkbox" id="show-hidden-box-point"> Show hidden datasets</label>
     <div class="card">
       <table>
         <colgroup><col class="c-num"><col class="c-obs"><col class="c-model"><col class="c-point-wide"><col class="c-chosen"></colgroup>
@@ -1325,7 +1332,7 @@
     return { block, controls, years, yearsRow, msg };
   }
 
-  // the i beside a gridded source: the years its observations cover, and its page
+  // the i beside a source: the years its observations cover, their spatial and temporal resolution, and its page
   function coverageInfo(dataset) {
     const coverage = dataset.coverage;
     if (!coverage || !coverage.url) return null;
@@ -1333,6 +1340,8 @@
       el("summary", { "aria-label": `About ${dataset.label}: the years it covers, and its web page`, title: `About ${dataset.label}` }, "i"),
       el("div", { class: "opts__help-popover", role: "note" },
         coverage.years ? el("p", {}, el("strong", { text: "Years covered: " }), coverage.years) : null,
+        coverage.spatial ? el("p", {}, el("strong", { text: "Spatial resolution: " }), coverage.spatial) : null,
+        coverage.temporal ? el("p", {}, el("strong", { text: "Temporal resolution: " }), coverage.temporal) : null,
         coverage.note ? el("p", { text: coverage.note }) : null,
         el("p", {}, el("a", { href: coverage.url, target: "_blank", rel: "noopener noreferrer", text: coverage.url }))));
   }
@@ -1346,6 +1355,7 @@
       dataset.checked = box.checked;
       update(row);
       summarise();
+      syncHidden();
     });
     const label = el("label", {
       class: "chip",
@@ -1402,12 +1412,36 @@
     return chip;
   }
 
+  // the datasets of another region than the model's, which are hidden unless ticked or
+  // "Show hidden datasets" is: a gridded dataset of the northwest European Shelf, for a
+  // model that is not on it
+  const outOfDomain = (dataset) =>
+    dataset.kind === "gridded" && !dataset.user && !dataset.own && Boolean(context.domain) && context.domain !== "nwes" &&
+    dataset.region_name === "Northwest European Shelf";
+  const hideable = [];
   function datasetsCell(label, chips, emptyTitle) {
+    const none = el("span", { class: "none", title: emptyTitle, "aria-label": emptyTitle, text: "—" });
+    const nodes = chips.map((chip) => {
+      const node = el("div", { class: "dataset" }, el("div", { class: "dataset__head" }, chip.label, chip.info), chip.opts.block);
+      if (outOfDomain(chip.dataset)) hideable.push({ chip, node, none });
+      return node;
+    });
+    none.hidden = nodes.length > 0;
     return el("td", { "data-label": label },
-      chips.length
-        ? el("div", { class: "chips" }, ...chips.map((chip) =>
-          el("div", { class: "dataset" }, el("div", { class: "dataset__head" }, chip.label, chip.info), chip.opts.block)))
-        : el("span", { class: "none", title: emptyTitle, "aria-label": emptyTitle, text: "—" }));
+      nodes.length ? el("div", { class: "chips" }, ...nodes, none) : none);
+  }
+
+  // hides each out-of-domain dataset that is not ticked, unless the box is ticked
+  function syncHidden() {
+    for (const kind of KINDS) {
+      const box = $(`show-hidden-box-${kind}`);
+      const mine = hideable.filter((one) => one.chip.dataset.kind === kind);
+      $(`show-hidden-${kind}`).hidden = mine.length === 0;
+      for (const one of mine) one.node.hidden = !box.checked && !one.chip.dataset.checked;
+    }
+    for (const none of new Set(hideable.map((one) => one.none))) {
+      none.hidden = none.parentNode.querySelector(".dataset:not([hidden])") !== null;
+    }
   }
 
   // the user's own data of a kind in a row, as chips
@@ -1534,6 +1568,12 @@
         text: `OceanVal has no ${kind} datasets for the variables in this simulation's output.` })));
     }
   }
+
+  for (const kind of KINDS) $(`show-hidden-box-${kind}`).addEventListener("change", syncHidden);
+  syncHidden();
+
+  // a short-term simulation (under 5 years): point observations of every year may be matched
+  if (outputYears && outputYears[1] - outputYears[0] + 1 < 5) $("g-short-sim").hidden = false;
 
   // ---- pop-outs close when you click outside them, or press Escape ----
   const POPOVERS = "details.opts__help[open]";

@@ -2007,3 +2007,74 @@ def test_the_years_for_climatologies_are_used_when_they_fit_a_decade(browser, tm
     # COBE2 is not ticked, so its block has no years
     block = script.split('recipe={"temperature": "cobe2"},\n')[1].split(")\n")[0]
     assert "start=" not in block
+
+
+class TestHiddenDatasetsAndShortSimulations:
+    """A model not on the northwest European Shelf does not see that shelf's gridded datasets
+    unless it asks; a simulation of under five years is told to ignore the year."""
+
+    GLOBAL = dict(CONTEXT, domain="global", region="Global", regions=["Global", "Global"])
+    NSBC = '#rows-gridded input[aria-label^="NSBC"]'
+
+    def _open(self, browser, context, errors):
+        recipe_page = RecipePage(
+            recipe_rows({"nitrate": "N3_n", "salinity": "so"}, context["domain"]),
+            {"N3_n", "so"},
+            dict(context, app={"action": "matchup", "own_vertical": False}),
+            lambda *chosen: "/out/matchup.py",
+        )
+        url = recipe_page.start()
+        browser_page = browser.new_page()
+        browser_page.on("pageerror", lambda error: errors.append(str(error)))
+        browser_page.goto(url)
+        return recipe_page, browser_page
+
+    def _visible(self, page):
+        boxes = page.locator(self.NSBC)
+        return [boxes.nth(index).is_visible() for index in range(boxes.count())]
+
+    def test_the_shelfs_datasets_are_hidden_for_a_global_model_until_asked_for(self, browser):
+        errors = []
+        recipe_page, page = self._open(browser, self.GLOBAL, errors)
+        try:
+            assert errors == []
+            assert page.locator("#show-hidden-gridded").is_visible()
+            assert not any(self._visible(page))
+            # nothing is left showing a dash beside a dataset that is shown
+            assert page.locator("#rows-gridded .chips .none:visible").count() == 0
+
+            page.check("#show-hidden-box-gridded")
+            assert all(self._visible(page))
+            # a dataset that is ticked stays when the others are hidden again
+            page.check(self.NSBC + '[aria-label$="Nitrate"]')
+            page.uncheck("#show-hidden-box-gridded")
+            assert sum(self._visible(page)) == 1
+        finally:
+            page.close()
+            recipe_page.close()
+
+    def test_nothing_is_hidden_for_a_model_on_the_shelf(self, browser):
+        errors = []
+        recipe_page, page = self._open(browser, CONTEXT, errors)
+        try:
+            assert errors == []
+            assert page.locator("#show-hidden-gridded").is_hidden()
+            assert all(self._visible(page))
+        finally:
+            page.close()
+            recipe_page.close()
+
+    @pytest.mark.parametrize("years, shown", [([2000, 2003], True), ([2000, 2004], False)])
+    def test_a_simulation_of_under_five_years_is_told_to_ignore_the_year(self, browser, years, shown):
+        recipe_page, page = self._open(browser, dict(CONTEXT, output_years=years), [])
+        try:
+            note = page.locator("#g-short-sim")
+            assert note.is_visible() is shown
+            if shown:
+                assert note.text_content().strip() == (
+                    "This appears to be a short-term simulation. "
+                    "Consider ignoring year in the matchups to increase spatial coverage."
+                )
+        finally:
+            page.close()
+            recipe_page.close()

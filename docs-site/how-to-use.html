@@ -277,7 +277,7 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>()<
 oceanval.<a href="api.html#add_gridded_comparison"><span class="tok-fn">add_gridded_comparison</span></a>(
     name=<span class="tok-str">"temperature"</span>,
     model_variable=<span class="tok-str">"votemper"</span>,
-    recipe={<span class="tok-str">"temperature"</span>: <span class="tok-str">"nsbc"</span>},
+    recipe={<span class="tok-str">"temperature"</span>: <span class="tok-str">"woa23"</span>},
 )</pre>
     </div>
     <p>Every call for a variable must use the same <code>model_variable</code> and labels. Registering a source that is already registered for that variable replaces it, so re-running a script or notebook cell is safe. Where a variable has more than one source, the summary page labels it with the source, e.g. "Temperature (COBE2)".</p>
