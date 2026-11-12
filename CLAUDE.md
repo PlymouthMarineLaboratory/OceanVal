@@ -30,6 +30,19 @@ button (`.btn`, all variants) grows 5% and lifts 2px on hover** (`transform: tra
 off. A new tile or button class that is not built on `.btn`/`.choice` must follow the same rule. Icon-only controls (info, gear,
 pills, row remove ×) are not covered.
 
+## Required fields: bold red box
+
+In the OceanVal app's windows (`oceanval_app.html`, `create_recipes_gui.html`, `gui.css`, `gui.js`), **a required question or box is
+marked with a bold red box around it while it is still empty** (the user's convention, 2026-11-12). Two mechanisms exist:
+
+- A box or fieldset that must be given: `OceanValGUI.syncRequired` (`gui.js`) outlines it in 4px `--red` (`is-needed`), and the
+  "Required" tag is hidden (`.own-req`). Mark a new required box with a `.g-label.is-required` + `.own-req` tag, or `data-check-needed`.
+- A required question whose answer is a Yes/No (e.g. "Do you want to add this … to your OceanVal history?"): its row gets
+  `needs-answer` until it is answered, boxed in 3px `--red` with a bold red label (`.history-question.needs-answer` in `gui.css`).
+
+Do not confuse this with the red-and-bold convention for values OceanVal fills in (see the memory on OceanVal changes): a required
+box is an empty box that the user must act on; filled-in values are shown red and bold once OceanVal has set them. Colours are tokens.
+
 ## Environment setup
 
 Conda is the supported environment (`oceanval.yml`) — R packages (rpy2, r-tidyverse, r-ggtext,

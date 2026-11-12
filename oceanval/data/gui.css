@@ -687,6 +687,9 @@ html body input.s-input.is-missing, html body select.s-select.is-missing {
   border: 4px solid var(--red); box-shadow: none;
 }
 html body fieldset.is-needed { outline: 4px solid var(--red); outline-offset: 2px; border-radius: var(--radius-md); }
+/* a required question (OceanValGUI's historyQuestion) is boxed in bold red until it is answered */
+html body .history-question.needs-answer { border: 3px solid var(--red); border-radius: var(--radius-md); padding: 10px 12px; }
+html body .history-question.needs-answer .g-label { color: var(--red); font-weight: 700; }
 .own-field.is-required.is-satisfied { border-left-color: transparent; }
 .own-field.is-required .s-input.is-filled, .own-field.is-required .s-select.is-filled,
 .analyze-dialog tr.is-on .s-input.is-year.is-filled, .analyze-dialog .s-select.is-required.is-filled,

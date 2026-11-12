@@ -5397,9 +5397,11 @@
     const no = radio("no", "No");
     const help = el("p", { class: "group__intro analyze-code__help" },
       "With Yes, it is listed under Tools & info > View previous work, with a link to open its report. Removing it from there never deletes any files.");
+    // the question is required: until Yes or No is chosen, its row is boxed in red (see .history-question.needs-answer)
+    const questionRow = el("div", { class: "g-row history-question" }, el("span", { class: "g-label", id: question }, ""),
+        el("div", { class: "analyze-code", role: "radiogroup", "aria-labelledby": question }, yes, no));
     group.append(el("legend", {}, "History"),
-      el("div", { class: "g-row" }, el("span", { class: "g-label", id: question }, ""),
-        el("div", { class: "analyze-code", role: "radiogroup", "aria-labelledby": question }, yes, no)),
+      questionRow,
       help, nameRow, el("p", { class: "group__msg", id: `${prefix}-m-work_name` }));
     const answer = () => (yes.querySelector("input").checked ? "yes" : no.querySelector("input").checked ? "no" : "");
     const api = {
@@ -5424,7 +5426,10 @@
         name.value = (form || {}).work_name || "";
         api.sync();
       },
-      sync() { nameRow.hidden = answer() !== "yes"; },
+      sync() {
+        nameRow.hidden = answer() !== "yes";
+        questionRow.classList.toggle("needs-answer", !answer());
+      },
       setWords(words) {
         api.words = words;
         $(question).textContent = `Do you want to add this ${words} to your OceanVal history?`;
@@ -5435,6 +5440,7 @@
     no.querySelector("input").addEventListener("change", changed);
     name.addEventListener("input", changed);
     api.setWords("analysis");
+    api.sync();
     return api;
   }
 
