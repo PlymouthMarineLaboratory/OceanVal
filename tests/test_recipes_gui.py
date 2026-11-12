@@ -1642,6 +1642,24 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     _continue(page)
     assert temperature.locator(".chosen").text_content() == "None"
 
+def test_a_variable_filled_in_on_the_point_page_ticks_no_gridded_dataset(browser, tmp_path, monkeypatch):
+    """Salinity is not identified and is on both pages. Leaving the gridded
+    page with nothing ticked and filling the variable in on the point page
+    ticks the point defaults only; the gridded page keeps nothing ticked."""
+    page, _, _ = _open_window(browser, tmp_path, monkeypatch)
+    nsbc = 'input[aria-label="NSBC, Northwest European Shelf, for Salinity"]'
+    assert not page.is_checked(nsbc)
+    _continue(page)
+    box = page.locator('#rows-point input[aria-label="Simulation variable for Salinity"]')
+    box.fill("kd_misc")
+    row = page.locator("#rows-point tr", has=box)
+    assert row.locator("input[type=checkbox]:checked").count() >= 1
+    assert row.locator(".chosen").text_content() == "None"
+    page.click("#cancel")
+    assert not page.is_checked(nsbc)
+    assert page.locator("#rows-gridded tr", has=page.locator(nsbc)).locator("input[type=checkbox]:checked").count() == 0
+
+
 
 def test_the_ices_point_datasets_are_european_in_the_browser(browser, tmp_path, monkeypatch):
     """The ICES point datasets are tagged EUR, explained as European and

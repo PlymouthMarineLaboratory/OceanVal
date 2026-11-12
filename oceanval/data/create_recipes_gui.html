@@ -1014,7 +1014,7 @@
     status: "ok",
     message: "",
     // an unidentified row takes its default ticks once it is filled in
-    needsDefaults: !row.model_variable,
+    needsDefaults: { gridded: !row.model_variable, point: !row.model_variable },
     datasets: [
       ...row.gridded.map((dataset) => ({ ...dataset, kind: "gridded" })),
       ...row.point.map((dataset) => ({ ...dataset, kind: "point" })),
@@ -1070,15 +1070,23 @@
     return { status: "ok", message: "" };
   }
 
+  // a row filled in takes the default ticks of the page shown only: what was
+  // chosen (or left unticked) on the other page stays as it is, and that
+  // page's defaults wait until the row is on it (see showPage)
+  function applyDefaults(row) {
+    if (row.status !== "ok" || !row.value || !row.value.trim() || !row.needsDefaults[page]) return;
+    row.datasets.forEach((dataset) => { if (dataset.kind === page) dataset.checked = dataset.default; });
+    row.needsDefaults[page] = false;
+  }
+
   function setValue(row, value) {
     row.value = value;
     Object.assign(row, check(value));
     if (row.status === "empty") {
       row.datasets.forEach((dataset) => { dataset.checked = false; });
-      row.needsDefaults = true;
-    } else if (row.status === "ok" && row.needsDefaults) {
-      row.datasets.forEach((dataset) => { dataset.checked = dataset.default; });
-      row.needsDefaults = false;
+      row.needsDefaults = { gridded: true, point: true };
+    } else {
+      applyDefaults(row);
     }
     update(row);
     summarise();
@@ -1476,9 +1484,9 @@
     row.value = kept.model_variable;
     if (!row.value.trim()) {
       row.datasets.forEach((dataset) => { dataset.checked = false; });
-      row.needsDefaults = true;
+      row.needsDefaults = { gridded: true, point: true };
     } else if (kept.selected) {
-      row.needsDefaults = false;
+      row.needsDefaults = { gridded: false, point: false };
       for (const dataset of row.datasets) {
         dataset.checked = kept.selected.includes(dataset.recipe);
         const sent = (kept[dataset.kind] || {})[dataset.recipe] || {};
@@ -1490,10 +1498,9 @@
         // only what was typed stays as it was: the rest is filled in afresh
         dataset.typed = Object.fromEntries((sent.typed || []).map((name) => [name, true]));
       }
-    } else if (row.needsDefaults) {
-      // ticked afresh, as for a variable filled in
-      row.datasets.forEach((dataset) => { dataset.checked = dataset.default; });
-      row.needsDefaults = false;
+    } else {
+      // ticked afresh, as for a variable filled in (the page shown only)
+      applyDefaults(row);
     }
   }
 
@@ -1645,6 +1652,8 @@
 
   function showPage(kind, focus = null) {
     page = kind;
+    // a row filled in on the other page takes this page's default ticks now
+    rows.forEach((row) => { applyDefaults(row); if (row.dom) update(row); });
     $("page-gridded").hidden = kind !== "gridded";
     $("page-point").hidden = kind !== "point";
     $("page-title").textContent = PAGE_TITLES[kind];
@@ -1872,6 +1881,8 @@
     $(`clear-${kind}`).addEventListener("click", () => {
       for (const row of rows) {
         row.datasets.forEach((dataset) => { if (dataset.kind === kind) dataset.checked = false; });
+        // cleared on purpose: a variable filled in later does not tick them again
+        row.needsDefaults[kind] = false;
         update(row);
       }
       summarise();
@@ -1894,7 +1905,7 @@
         dataset.typed = {};
         dataset.serverErrors = {};
       });
-      row.needsDefaults = !row.original;
+      row.needsDefaults = { gridded: !row.original, point: !row.original };
       setValue(row, row.original);
     }
     summarise();
