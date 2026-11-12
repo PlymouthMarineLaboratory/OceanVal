@@ -421,7 +421,19 @@ class TestPointTimeRes:
 
         out_dir = str(tmp_path / "out")
         df = _read(out_dir, "surface", "foo")
-        _check(df, _average(in_years, ["lon", "lat"] + keys), ["lon", "lat"] + keys)
+        cols = ["lon", "lat"] + keys
+        if own_years is None:
+            _check(df, _average(in_years, cols), cols)
+        else:
+            # the dataset's years do not cut the observations: all of them are
+            # used, though the model is only that of the dataset's years
+            _check(df.assign(observation=df.model), _average(in_years, cols), cols)
+            expected = _average(surface, cols).rename(columns={"observation": "all_years"})
+            merged = df.round({"lon": 6, "lat": 6}).merge(
+                expected.round({"lon": 6, "lat": 6}), on=cols
+            )
+            assert len(merged) == len(df)
+            assert np.abs(merged.observation - merged.all_years).max() < TOL
         assert _matchup_dict(out_dir, "surface", "foo")["point_time_res"] == point_time_res
         oceanval.reset()
 

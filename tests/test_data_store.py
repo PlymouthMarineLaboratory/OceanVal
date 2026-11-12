@@ -721,7 +721,9 @@ def _matchup(vertical=False, **kwargs):
     )
     if vertical:
         kwargs["thickness"] = "data/example/e3t.nc"
-    oceanval.matchup(sim_dir="data/example", start=2000, end=2000, ask=False, cores=1, **kwargs)
+    # overwrite, as every call is to be made afresh: by default one already made is kept
+    oceanval.matchup(sim_dir="data/example", start=2000, end=2000, ask=False, cores=1,
+                     overwrite=True, **kwargs)
     layer = "vertical" if vertical else "surface"
     with xr.open_dataset(f"oceanval_matchups/gridded/nitrate/WOA23_nitrate_{layer}.nc") as ds:
         found = ds.load()
@@ -792,7 +794,7 @@ class TestMatchup:
             if data_store_arg is None:
                 user_settings.save({"data_store": str(tmp_path)})
             oceanval.matchup(sim_dir="data/example", start=2000, end=2001, ask=False, cores=1,
-                             data_store=data_store_arg)
+                             overwrite=True, data_store=data_store_arg)
             with xr.open_dataset("oceanval_matchups/gridded/temperature/COBE2_temperature_surface.nc") as ds:
                 found = ds.load()
             assert int(found.observation.notnull().sum()) > 0
