@@ -399,16 +399,6 @@ oceanval.add_gridded_comparison(
     vertical=False,  # set True to validate the full water column
 )
 
-# Temperature - North Sea Biogeochemical Climatology
-# recipe: 'nsbc'
-oceanval.add_gridded_comparison(
-    name="temperature",
-    model_variable="temperature",
-    recipe={"temperature": "nsbc"},
-    climatology=True,
-    vertical=False,  # set True to validate the full water column
-)
-
 
 # ==========================================================================
 # Global - GLODAPv3 bottle data
