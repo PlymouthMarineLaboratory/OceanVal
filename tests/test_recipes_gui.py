@@ -223,12 +223,13 @@ class TestErsemDetection:
 
     def test_the_other_regions_datasets_start_unticked(self):
         rows = recipe_rows({"temperature": "thetao"}, "nwes")
-        assert ticks(rows, "temperature") == {"cobe2": False, "oisst": False, "coraltemp": False, "woa23": False, "nsbc": True}
+        # no temperature dataset is for the shelf now, so the global COBE2 is the one left live
+        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False}
         assert ticks(rows, "temperature", "point") == {"ices": True}
 
         rows = recipe_rows({"temperature": "thetao"}, "global")
         # and within a region only the recipe the script leaves live is ticked
-        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False, "nsbc": False}
+        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False}
         assert ticks(rows, "temperature", "point") == {"ices": False}
 
     def test_a_dataset_outside_the_domain_is_ticked_if_it_is_the_only_one(self):
@@ -386,7 +387,7 @@ class TestServer:
         status, reply = _post(
             page.url,
             "/write",
-            {"rows": [{"variable": "temperature", "model_variable": "thetaoo", "selected": ["nsbc"]}]},
+            {"rows": [{"variable": "temperature", "model_variable": "thetaoo", "selected": ["woa23"]}]},
         )
 
         assert status == 400
@@ -396,7 +397,7 @@ class TestServer:
 
     def test_the_script_is_written_with_what_was_chosen(self, page):
         rows = [
-            {"variable": "temperature", "model_variable": "thetao", "selected": ["cobe2", "nsbc", "ices"]},
+            {"variable": "temperature", "model_variable": "thetao", "selected": ["cobe2", "woa23", "ices"]},
             {"variable": "chlorophyll", "model_variable": " P1_Chl + P2_Chl ", "selected": ["nsbc"]},
             {"variable": "salinity", "model_variable": "", "selected": []},
         ]
@@ -406,7 +407,7 @@ class TestServer:
             {"temperature": "thetao", "chlorophyll": "P1_Chl+P2_Chl"},
             {
                 ("temperature", "cobe2"),
-                ("temperature", "nsbc"),
+                ("temperature", "woa23"),
                 ("temperature", "ices"),
                 ("chlorophyll", "nsbc"),
             },
@@ -478,7 +479,7 @@ class TestServer:
         rows = [{
             "variable": "temperature",
             "model_variable": "thetao",
-            "selected": ["nsbc", "ices"],
+            "selected": ["woa23", "ices"],
             "point": {"ices": {"point_time_res": "month", "start": "2011", "end": ""}},
         }]
         status, _ = _post(page.url, "/write", {"rows": rows, "settings": form})
@@ -498,10 +499,10 @@ class TestServer:
         rows = [{
             "variable": "temperature",
             "model_variable": "thetao",
-            "selected": ["cobe2", "nsbc"],
+            "selected": ["cobe2", "woa23"],
             "gridded": {
                 "cobe2": {"start": "2012", "end": "", "vertical": False},
-                "nsbc": {"start": "", "end": "", "vertical": True},
+                "woa23": {"start": "", "end": "", "vertical": True},
             },
         }]
         status, _ = _post(page.url, "/write", {"rows": rows})
@@ -509,7 +510,7 @@ class TestServer:
         assert status == 200
         assert page.written[0][4] == {
             ("temperature", "cobe2"): {"start": 2012, "end": None, "vertical": None},
-            ("temperature", "nsbc"): {"start": None, "end": None, "vertical": True},
+            ("temperature", "woa23"): {"start": None, "end": None, "vertical": True},
         }
 
     def test_gridded_options_that_cannot_be_used_are_sent_back(self, page):
@@ -533,16 +534,17 @@ class TestServer:
         rows = [{
             "variable": "temperature",
             "model_variable": "thetao",
-            "selected": ["cobe2", "nsbc"],
-            "gridded": {"cobe2": {}, "nsbc": {}},
+            "selected": ["cobe2", "woa23"],
+            "gridded": {"cobe2": {}, "woa23": {}},
         }]
-        form = dict(default_form(1990, 2020), clim_start="2000", clim_end="2010")
+        # WOA23's years must sit inside one decade, so the climatology is 2005 to 2014
+        form = dict(default_form(1990, 2020), clim_start="2005", clim_end="2014")
         status, _ = _post(page.url, "/write", {"rows": rows, "settings": form})
 
         assert status == 200
         # not COBE2, which is a time series
         assert page.written[0][4] == {
-            ("temperature", "nsbc"): {"start": 2000, "end": 2010, "vertical": None},
+            ("temperature", "woa23"): {"start": 2005, "end": 2014, "vertical": None},
         }
 
     def test_woa23_temperature_is_given_years_when_none_sit_inside_a_decade(self, page):
@@ -594,7 +596,7 @@ class TestServer:
         rows = [{
             "variable": "temperature",
             "model_variable": "thetao",
-            "selected": ["nsbc"],
+            "selected": ["woa23"],
             "point": {"ices": {"start": "nonsense"}},
         }]
         status, _ = _post(page.url, "/write", {"rows": rows})
@@ -606,7 +608,7 @@ class TestServer:
         rows = [{
             "variable": "temperature",
             "model_variable": "thetao",
-            "selected": ["nsbc"],
+            "selected": ["woa23"],
             "gridded": {"cobe2": {"start": "nonsense"}},
         }]
         status, _ = _post(page.url, "/write", {"rows": rows})
@@ -992,8 +994,8 @@ class TestHosting:
     VERTICAL = [{
         "variable": "temperature",
         "model_variable": "thetao",
-        "selected": ["nsbc"],
-        "gridded": {"nsbc": {"start": "", "end": "", "vertical": True}},
+        "selected": ["woa23"],
+        "gridded": {"woa23": {"start": "", "end": "", "vertical": True}},
     }]
 
     def app_page(self, own_vertical=False, fvcom=False):

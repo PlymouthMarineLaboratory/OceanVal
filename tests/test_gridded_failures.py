@@ -156,7 +156,9 @@ class TestFailedRemoteMatchup:
         oceanval.add_gridded_comparison(
             name="temperature",
             model_variable="votemper",
-            recipe={"temperature": "nsbc"},
+            recipe={"temperature": "woa23"},
+            start=1995,
+            end=2004,
             file_check=False,
         )
         monkeypatch.setattr(nc, "open_thredds", boom)
@@ -169,7 +171,7 @@ class TestFailedRemoteMatchup:
             "oceanval_matchups/gridded/temperature/foo_temperature_surface.nc"
         )
         failed = [(x["variable"], x["source"]) for x in session_info["failed_gridded"]]
-        assert failed == [("temperature", "NSBC")]
+        assert failed == [("temperature", "WOA23")]
 
     def test_the_failure_is_logged_with_its_traceback(self, monkeypatch):
         oceanval.add_gridded_comparison(

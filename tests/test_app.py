@@ -116,8 +116,10 @@ def units_match(app):
 def chosen_output(app, tmp_path):
     """Write the script where the output step would, by default: matchup.py
     in the directory worked in, with the matchups beside it."""
+    # as the output step writes it: the full path, and overwrite off (the matchups
+    # to replace are deleted when Continue is pressed, not by the script)
     with app._lock:
-        app._keep_in_script(out=str(tmp_path / "matchup.py"), out_dir="", overwrite=True)
+        app._keep_in_script(out=str(tmp_path / "matchup.py"), out_dir=str(tmp_path), overwrite=False)
         app.out_dir = app.results_dir = str(tmp_path)
         writer = app._script_writer
     app._write_script(writer)
@@ -774,7 +776,8 @@ class TestOutputChecks:
         assert errors == {}
         assert arguments == {
             "out_dir": str(tmp_path),
-            "overwrite": True,
+            # nothing to replace, so matchup keeps what is there (none)
+            "overwrite": False,
             "previous": True,
             "out": str(tmp_path / "run" / "m.py"),
         }
@@ -908,13 +911,13 @@ class TestOutputChecks:
         assert not errors and (arguments["overwrite"], arguments["previous"]) == (["nitrate/ICES/surface"], True)
         arguments = check(report=False, existing_confirmed=True)[0]
         assert (arguments["overwrite"], arguments["previous"]) == (False, True)
-        # and none, if the run makes none of them
+        # and none, if the run makes none of them: nothing is replaced
         arguments, errors = check_output(dict(OUTPUT_FORM, out_dir="old"), str(tmp_path), report=False, made=set())
-        assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, True)
+        assert not errors and (arguments["overwrite"], arguments["previous"]) == (False, True)
         # nothing is asked without matchups there
         for out_dir in ("empty", "new"):
             arguments, errors = check_output(dict(OUTPUT_FORM, out_dir=out_dir), str(tmp_path))
-            assert not errors and (arguments["overwrite"], arguments["previous"]) == (True, True)
+            assert not errors and (arguments["overwrite"], arguments["previous"]) == (False, True)
 
     @pytest.mark.parametrize("changes", [{"out": ""}, {"out": "sim"}])
     def test_a_script_that_cannot_be_written(self, tmp_path, changes):
@@ -2006,7 +2009,8 @@ class TestServer:
 
         # so it can be run again from a terminal, as the window ran it
         assert (
-            "\noceanval.validate(\n    lon_lim=[-20, 10],\n    lat_lim=[40, 65],\n"
+            f'\noceanval.validate(\n    data_dir="{tmp_path}",\n    out_dir="{tmp_path}",\n'
+            "    lon_lim=[-20, 10],\n    lat_lim=[40, 65],\n"
             "    pdf=True,\n    concise=False,\n)\n"
         ) in text
         # the subset is the report's, not matchup's, which the interim report
@@ -2099,8 +2103,12 @@ class TestServer:
         assert post(app, "/api/report", {"form": DEPTH_FORM})[0] == 200
         text = open(tmp_path / "matchup.py").read()
 
-        # so it can be run again from a terminal, as the window ran it
-        assert "\noceanval.validate(\n    depth_bins=[[0, 20], [20, 200], [200, None]],\n)\n" in text
+        # so it can be run again from a terminal, as the window ran it: the report
+        # is built from the matchups, in full paths
+        assert (
+            f'\noceanval.validate(\n    data_dir="{tmp_path}",\n    out_dir="{tmp_path}",\n'
+            "    depth_bins=[[0, 20], [20, 200], [200, None]],\n)\n"
+        ) in text
         # and the interim report matchup builds as it goes has them too
         call = text[text.index("oceanval.matchup(") : text.index("\noceanval.validate(")]
         assert '    live_validation={"depth_bins": [[0, 20], [20, 200], [200, None]]},\n)' in call
@@ -2149,8 +2157,8 @@ class TestServer:
             {
                 "variable": "temperature",
                 "model_variable": "thetao",
-                "selected": ["nsbc"],
-                "gridded": {"nsbc": {"start": "", "end": "", "vertical": True}},
+                "selected": ["woa23"],
+                "gridded": {"woa23": {"start": "", "end": "", "vertical": True}},
             }
         ]
         settings = recipe_settings(app, ask=False)
@@ -3337,7 +3345,7 @@ class TestServer:
         assert '"live_validation": {"concise": false}' in text
         # with where the matchups go, what is done with those there already, the
         # cores and the subset
-        assert f'"cores": 1, ' in text and f'"out_dir": "{tmp_path}", "overwrite": true' in text
+        assert f'"cores": 1, ' in text and f'"out_dir": "{tmp_path}", "overwrite": false' in text
         assert '"lat_lim": [40.0, 65.0], "live_validation"' in text and '"lon_lim": [-20.0, 10.0]' in text
         # the full report still has them all
         assert json.loads(validated[0][0][1])["pdf"] is True
@@ -4707,9 +4715,12 @@ class TestBack:
         wait_for(lambda: validated)
         console = app.console.since(0, None)["text"]
         settings = json.loads(re.search(r"^settings: (\{.*\})$", console, re.M).group(1))
-        # the matchup there already that this run makes is replaced
+        # the matchup there already that this run makes was deleted when Continue was
+        # pressed, so the script is told not to overwrite anything
+        assert not (tmp_path / "results" / "oceanval_matchups" / "gridded" / "temperature"
+                    / "cobe2_temperature_surface.nc").exists()
         assert {name: settings[name] for name in ("out_dir", "overwrite", "cores")} == {
-            "out_dir": results, "overwrite": True, "cores": 2,
+            "out_dir": results, "overwrite": False, "cores": 2,
         }
         text = open(tmp_path / "run.py").read()
         assert "    cores=2," in text

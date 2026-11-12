@@ -224,10 +224,13 @@ def _recipe_rows(
     """The rows for the selected recipes of one kind, point or gridded, that
     have a model variable."""
     catalogue = point_catalogue(cwd) if point else gridded_catalogue(cwd)
-    order = {entry["variable"]: index for index, entry in enumerate(catalogue)}
+    # each (variable, recipe) pair's place in the catalogue, the first one if it is there twice
+    order = {}
+    for index, entry in enumerate(catalogue):
+        order.setdefault((entry["variable"], entry["recipe"]), index)
     rows = []
     for variable, recipe in sorted(
-        selection, key=lambda pair: (order.get(pair[0], 99), pair)
+        selection, key=lambda pair: (order.get(pair, 99), pair)
     ):
         entry = _recipe_entry(variable, recipe, point, cwd)
         if entry is None or variable not in mapping:

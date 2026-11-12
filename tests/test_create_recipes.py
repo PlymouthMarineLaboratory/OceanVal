@@ -268,7 +268,7 @@ class TestArguments:
             ask=False, gui=False,
         )
 
-        assert 'recipe={"temperature": "nsbc"}' in open(out).read()
+        assert 'recipe={"temperature": "ices"}' in open(out).read()
 
     def test_start_must_be_an_integer(self, tmp_path):
         with pytest.raises(TypeError, match="start must be an integer"):
@@ -502,10 +502,9 @@ class TestVariableIdentification:
         )
 
         mapping = generate_recipe_mapping(path)
-        assert mapping["diatoms"] == "P1_c"
-        assert mapping["picophytoplankton"] == "P3_c"
-        assert mapping["bacteria"] == "B1_c"
-        assert mapping["microzooplankton"] == "Z5_c"
+        # MAREDAT had the diatom, picophytoplankton, bacteria and microzooplankton
+        # carbon, and is removed, so those names are no recipe variables any more
+        assert "diatoms" not in mapping
         assert mapping["mesozooplankton"] == "Z4_c"
 
     def test_a_particulate_organic_carbon_concentration_is_taken(self, tmp_path):
@@ -698,12 +697,12 @@ class TestGeneratedScript:
     def test_domain_prefers_the_matching_regions_recipe(self, scripts):
         script = scripts["nwes"]
 
-        # temperature has a recipe in both regions; nwes must win, and the
-        # global ones (cobe2 and woa23) become the commented alternatives
-        assert 'recipe={"temperature": "nsbc"},' in script
-        assert '\noceanval.add_gridded_comparison(\n    name="temperature",' in script
+        # salinity has a recipe in both regions; nwes must win, and the
+        # global one (woa23) becomes the commented alternative
+        assert 'recipe={"salinity": "nsbc"},' in script
+        assert '\noceanval.add_gridded_comparison(\n    name="salinity",' in script
         assert (
-            "The Northwest European Shelf recipe for temperature is registered "
+            "The Northwest European Shelf recipe for salinity is registered "
             "instead." in script
         )
         # only one live *gridded* block for the variable, same as with
@@ -744,7 +743,7 @@ class TestGeneratedScript:
         assert "n_dirs_down=2," in script
         assert "start=2009," in script
         assert "end=2013," in script
-        assert "oceanval.validate()" in script
+        assert "oceanval.validate(\n" in script
 
     def test_woa23_recipes_get_the_decadal_period_covering_the_given_years(self, scripts):
         script = scripts["global"]
@@ -974,7 +973,8 @@ class TestFvcom:
     def test_fvcom_is_not_asked_about(self, fvcom_simulation, tmp_path, monkeypatch):
         asked = _from_a_terminal(monkeypatch, iter([]))
         script = self._create(fvcom_simulation, tmp_path)
-        assert asked == []
+        # the model variables are asked about as usual, but never the FVCOM question
+        assert not any("FVCOM" in question for question in asked)
         assert "    fvcom=True,\n" in script
 
     def test_the_fvcom_argument_is_still_honoured(
@@ -982,7 +982,7 @@ class TestFvcom:
     ):
         asked = _from_a_terminal(monkeypatch, iter([]))
         script = self._create(fvcom_simulation, tmp_path, fvcom=False)
-        assert asked == []
+        assert not any("FVCOM" in question for question in asked)
         assert "fvcom=True" not in script
 
     def test_fvcom_true_is_not_second_guessed(self, simulation, tmp_path):
@@ -1017,7 +1017,7 @@ class TestSelection:
         }
         # nwes gets the NSBC/ICES point recipes (GLODAPv3 is Global only)
         assert default_selection(self.MAPPING, "nwes") == {
-            ("temperature", "nsbc"),
+            ("temperature", "cobe2"),
             ("salinity", "nsbc"),
             ("chlorophyll", "nsbc"),
             ("temperature", "ices"),
@@ -1039,7 +1039,7 @@ class TestSelection:
             ) in script
         # the one left out names what is registered instead
         assert "# The Global recipes for temperature are registered instead." in script
-        assert '#     recipe={"temperature": "nsbc"},' in script
+        assert '#     recipe={"temperature": "oisst"},' in script
 
     def test_an_alternative_can_be_added_as_well(self):
         script = build_recipe_script("/sim", 2, self.MAPPING, (2011, 2012), "nwes")
@@ -1055,8 +1055,8 @@ class TestSelection:
         )
 
         assert "\noceanval.add_gridded_comparison(" not in script
-        # cobe2, oisst, coraltemp, woa23 and nsbc
-        assert script.count("# Not selected when this script was generated.") == 5
+        # cobe2, oisst, coraltemp and woa23
+        assert script.count("# Not selected when this script was generated.") == 4
 
     def test_an_ices_recipe_can_be_selected_for_the_global_domain(self):
         mapping = {"temperature": "thetao", "salinity": "so"}
@@ -1230,7 +1230,7 @@ class TestSettings:
     def test_unchanged_settings_write_nothing_more(self):
         # so writing straight away from the window gives the gui=False script
         assert self.build(settings=settings()) == self.build()
-        assert "oceanval.validate()\n" in self.build(settings=settings())
+        assert f'oceanval.validate(\n    data_dir="{os.path.abspath(".")}",\n    out_dir="{os.path.abspath(".")}",\n)\n' in self.build(settings=settings())
 
     def test_changed_settings_are_written_in_matchups_order(self):
         script = self.build(
@@ -1243,6 +1243,7 @@ class TestSettings:
 
         assert (
             '    n_dirs_down=2,\n'
+            f'    out_dir="{os.path.abspath(".")}",\n'
             '    lon_lim=[-20, 10.5],\n'
             '    lat_lim=[40, 65],\n'
             '    cores=12,\n'
@@ -1292,7 +1293,7 @@ class TestSettings:
         script = self.build(settings=settings(pdf=True, word=True, subregions="nwes"))
 
         assert (
-            'oceanval.validate(\n    subregions="nwes",\n    pdf=True,\n    word=True,\n)'
+            f'oceanval.validate(\n    data_dir="{os.path.abspath(".")}",\n    out_dir="{os.path.abspath(".")}",\n    subregions="nwes",\n    pdf=True,\n    word=True,\n)'
         ) in script
 
     def test_report_options_chosen_later_replace_the_settings(self):
@@ -1317,7 +1318,7 @@ class TestSettings:
         ) in script
         assert "pdf=True" not in script.split("oceanval.validate(")[-1]
         # the report's defaults
-        assert "oceanval.validate()\n" in self.build(settings=settings(pdf=True), report={})
+        assert f'oceanval.validate(\n    data_dir="{os.path.abspath(".")}",\n    out_dir="{os.path.abspath(".")}",\n)\n' in self.build(settings=settings(pdf=True), report={})
 
     def test_the_interim_report_has_the_report_options_chosen_later(self, monkeypatch):
         # matchup builds it as the matchups are made (see oceanval.live), and
@@ -1352,13 +1353,17 @@ class TestSettings:
         assert '    overwrite=["temperature/COBE2"],\n' in matchup_call(script)
         assert (
             'oceanval.validate(\n'
+            f'    data_dir="{os.path.abspath(".")}",\n'
+            f'    out_dir="{os.path.abspath(".")}",\n'
             '    previous=["nitrate/ICES"],\n'
             '    concise=False,\n'
             ')'
         ) in script
         # the interim report only ever has the run's own matchups
         assert '    live_validation={"concise": False},\n' in matchup_call(script)
-        assert "    overwrite=False,\n" in matchup_call(self.build(settings=settings(overwrite=False)))
+        # matchup's default is overwrite=False, so that is not written, and True is
+        assert "overwrite=" not in matchup_call(self.build(settings=settings(overwrite=False)))
+        assert "    overwrite=True,\n" in matchup_call(self.build(settings=settings(overwrite=True)))
 
     def test_a_transect_is_written_into_validate_and_the_interim_report(self, monkeypatch):
         # chosen in the oceanval window, with the report options
@@ -1394,7 +1399,7 @@ class TestSettings:
 
         script = self.build(settings=settings(concise=False))
 
-        assert "oceanval.validate(\n    concise=False,\n)" in script
+        assert f'oceanval.validate(\n    data_dir="{os.path.abspath(".")}",\n    out_dir="{os.path.abspath(".")}",\n    concise=False,\n)' in script
 
     @pytest.mark.parametrize(
         "value, written", [(0.0, "as_missing=0,"), ([0.0, 1e20], "as_missing=[0, 1e+20],")]
@@ -1455,7 +1460,7 @@ class TestSettings:
         ) in script
         # the others stay surface-only
         assert (
-            '    recipe={"temperature": "nsbc"},\n    climatology=True,\n    vertical=False,'
+            '    recipe={"temperature": "cobe2"},\n    climatology=False,\n)'
         ) in script
 
     def test_fvcom_needs_no_thickness_for_vertical(self):
@@ -1544,7 +1549,7 @@ class TestSettings:
         ast.parse(script)
 
         assert "\noceanval.matchup(\n" in script
-        assert "\n# oceanval.validate()\n" in script
+        assert "\n# oceanval.validate(\n#     data_dir=" in script
         assert "\noceanval.validate(" not in script
 
     @pytest.mark.parametrize(
