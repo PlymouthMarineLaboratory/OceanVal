@@ -400,10 +400,17 @@ def _remove_fvcom_dir(fvcom_dir):
 def _exit_with(parent):
     """Run in a Manager's server process: exit once parent, the process that
     started it, is gone. A crash or SIGKILL of the parent runs no atexit, so
-    nothing else would stop the server, which would run for ever."""
+    nothing else would stop the server, which would run for ever.
+
+    The server's own parent is not always parent: with the forkserver start
+    method (the default from Python 3.14) it is the forkserver process, which
+    itself exits when parent does. So watch the parent this process has now,
+    not parent's pid (taking that one made the server exit at once, and
+    matchup() fail with an EOFError)."""
+    watched = os.getppid()
 
     def watch():
-        while os.getppid() == parent:
+        while os.getppid() == watched:
             time.sleep(1)
         os._exit(0)
 
