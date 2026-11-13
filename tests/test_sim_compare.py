@@ -707,9 +707,13 @@ class TestEachSimulationOnItsOwn:
         assert told[0] == {
             "kind": "analyses",
             "simulations": 2,
+            "stages": ["files"],
             "items": [{"key": "temperature", "title": "Temperature", "kinds": ["climatology"]}],
         }
+        # the grid is told first, and the files are found (once for each simulation) before the analyses
         said = [(news["kind"], news.get("analysis"), news["state"]) for news in told[1:]]
+        assert said[:3] == [("analysis_stage", None, "working"), ("analysis_stage", None, "done"), ("analysis_stage", None, "done")]
+        said = said[3:]
         # the variable is started once, and each analysis is worked out in each simulation
         assert said == [
             ("analysis_variable", None, "working"),

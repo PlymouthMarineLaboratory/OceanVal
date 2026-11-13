@@ -1200,17 +1200,31 @@ def _tell(kind, **news):
     prompts.tell({"kind": kind, **news})
 
 
-def tell_analyses(rows, simulations=1):
+STAGES = ("files", "grid")
+
+
+def tell_analyses(rows, simulations=1, stages=()):
     """The "analyses" news: the variables of rows, in the order they are
-    worked out, each with the analyses it is to have."""
+    worked out, each with the analyses it is to have, and the stages (of
+    STAGES) before them that the run goes through, which the grid shows too."""
     _tell(
         "analyses",
         simulations=simulations,
+        stages=[stage for stage in STAGES if stage in stages],
         items=[
             {"key": row["key"], "title": row["name"], "kinds": [kind for kind in KINDS if row[kind]]}
             for row in rows
         ],
     )
+
+
+def tell_stage(stage, state, row=None):
+    """The "analysis_stage" news: a stage of the run, "files" (finding and
+    reading the files) or "grid" (the variables onto one grid, FVCOM output
+    regridded first), is "working" or "done" for a variable's row, or
+    for every variable if row is None. Told once for each simulation in the
+    stages that go through each."""
+    _tell("analysis_stage", stage=stage, key=None if row is None else row["key"], state=state)
 
 
 def tell_variable(row, state):
@@ -1813,8 +1827,11 @@ def analyze(
         if not isinstance(times_index, (str, os.PathLike)):
             raise ValueError("times_index must be the path of a file, or left out.")
         times_index = os.path.abspath(os.fspath(times_index))
+    tell_analyses(rows, stages=("files",))
+    tell_stage("files", "working")
     locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_index)
     require_thickness([row for row in rows if not row.get("fvcom")], thickness)
+    tell_stage("files", "done")
 
     # any analysis there before is replaced, as validate() replaces its report
     folder = os.path.join(out_dir, FOLDER)
@@ -1852,7 +1869,6 @@ def analyze(
     # next is (see oceanval.analysis_report)
     book = analysis_report.InterimBook(folder, len(rows), Templates())
     book.start()
-    tell_analyses(rows)
     thickness_for = {}
     masks_for = {}
     try:

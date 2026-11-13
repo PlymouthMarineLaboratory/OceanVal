@@ -40,6 +40,10 @@ marked with a bold red box around it while it is still empty** (the user's conve
 - A required question whose answer is a Yes/No (e.g. "Do you want to add this … to your OceanVal history?"): its row gets
   `needs-answer` until it is answered, boxed in 3px `--red` with a bold red label (`.history-question.needs-answer` in `gui.css`).
 
+- A tick that must be given (e.g. "confirm what is done with these matchups", "replace the analysis files"): put `data-check-needed`
+  on the checkbox; while it is unticked and visible `syncRequired` marks it `is-needed`, and `.tick-label:has(input.tick.is-needed)`
+  in `gui.css` boxes the whole row in 3px `--red` with bold red text. Word the label "Required: tick to …, or you cannot continue".
+
 Do not confuse this with the red-and-bold convention for values OceanVal fills in (see the memory on OceanVal changes): a required
 box is an empty box that the user must act on; filled-in values are shown red and bold once OceanVal has set them. Colours are tokens.
 

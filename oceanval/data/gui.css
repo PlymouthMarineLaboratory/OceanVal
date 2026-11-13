@@ -705,6 +705,11 @@ html body fieldset.is-needed { outline: 4px solid var(--red); outline-offset: 2p
 /* a required question (OceanValGUI's historyQuestion) is boxed in bold red until it is answered */
 html body .history-question.needs-answer { border: 3px solid var(--red); border-radius: var(--radius-md); padding: 10px 12px; }
 html body .history-question.needs-answer .g-label { color: var(--red); font-weight: 700; }
+/* a tick that must be given (data-check-needed on it) is boxed in bold red until it is ticked */
+html body .tick-label:has(input.tick.is-needed) {
+  border: 3px solid var(--red); border-radius: var(--radius-md); padding: 10px 12px; color: var(--red); font-weight: 700;
+}
+html body input.tick.is-needed { border-color: var(--red); }
 .own-field.is-required.is-satisfied { border-left-color: transparent; }
 .own-field.is-required .s-input.is-filled, .own-field.is-required .s-select.is-filled,
 .analyze-dialog tr.is-on .s-input.is-year.is-filled, .analyze-dialog .s-select.is-required.is-filled,

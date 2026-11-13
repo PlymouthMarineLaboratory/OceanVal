@@ -45,6 +45,11 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   every simulation has done it, `partial` with the count between, `failed` if working when the run ended. Marks: hollow ring
   (`todo`, `.matchup-grid__todo`) to do, turning circle, tick, dash for an analysis the variable does not have. The Report column is
   `InterimBook`'s status (`added`/`building_key`/`failed`, by variable key, through `_interim_state`).
+  **Everything the run does is a cell, none is a line of text under the title** (2026-11-13): the grid is told (`tell_analyses(rows,
+  stages=)`) as soon as the rows are checked, before the files are found, and the stages before the analyses are columns
+  (`analysis.STAGES`: Files, once per simulation, and Common grid, per variable, for Compare simulations with a unified grid, FVCOM
+  regridding included) told by `analysis_stage` news (`tell_stage`, no row is every variable). `runStage` shows no `OceanVal:` line once
+  the grid is shown; the console is only for a failed run.
 - **Every Analyze figure is drawn by running its own code**, the script the report's
   "Copy code to reproduce figure" button copies (`analyze(figure_code=True)`, the window's
   required Yes/No): each `analysis_plots` function builds a standalone script (nctoolkit/

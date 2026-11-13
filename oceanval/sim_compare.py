@@ -54,6 +54,7 @@ from oceanval.analysis import (
     second_step_of,
     save_info,
     tell_analyses,
+    tell_stage,
     tell_variable,
     thickness_data,
     variable_key,
@@ -321,6 +322,7 @@ def make_common_grid(unify, folder, sims, rows_by_sim, thickness_for):
     cells = {}
     for number, row in enumerate(rows_by_sim[sims[0]["name"]]):
         cells[row["key"]] = {}
+        tell_stage("grid", "working", row)
         for layer in layers_of(row):
             _say(f"Putting {row['name']} ({layer}) on one grid")
             fields = {}
@@ -332,6 +334,7 @@ def make_common_grid(unify, folder, sims, rows_by_sim, thickness_for):
                     own["files"], own, layer, own["levels"], ds_thickness, at=second_step_of(own)
                 )
             cells[row["key"]][layer] = list(sim_unify.prepare(folder, unify, row["key"], layer, fields))
+        tell_stage("grid", "done", row)
     return cells
 
 
@@ -609,6 +612,13 @@ def compare_simulations(
     area = check_area(rows_by_sim[names[0]], subregions, lon_lim, lat_lim, stations)
 
     problems = []
+    # the grid of the variables is shown from here, and each stage fills it
+    tell_analyses(
+        rows_by_sim[names[0]],
+        simulations=len(sims),
+        stages=("files", "grid") if unify is not None else ("files",),
+    )
+    tell_stage("files", "working")
     for sim in sims:
         try:
             locate_rows(
@@ -623,6 +633,8 @@ def compare_simulations(
             require_thickness([row for row in rows_by_sim[sim["name"]] if not row.get("fvcom")], sim["thickness"])
         except ValueError as error:
             problems.extend(f"{sim['name']}: {line}" for line in str(error).splitlines())
+        else:
+            tell_stage("files", "done")
     if not problems:
         problems.extend(fvcom_problems(rows_by_sim, names, unify, domain_mask, conversions))
     fvcom_sims = sim_fvcom.names_on_mesh(rows_by_sim, names)
@@ -672,6 +684,8 @@ def compare_simulations(
     thickness_for = {name: {} for name in names}
     cells = None
     if regridded:
+        # regridding the FVCOM output is the first of putting each variable on one grid
+        tell_stage("grid", "working")
         sim_fvcom.regrid_rows(
             rows_by_sim, sims, unify, os.path.join(results_dir, FVCOM_REGRIDDED), layers_of, int(cores)
         )
@@ -758,7 +772,6 @@ def compare_simulations(
     book = analysis_report.InterimBook(folder, len(rows), sim_report.templates(), what="comparison")
     book.start()
     # each analysis is told once for each simulation
-    tell_analyses(rows, simulations=len(sims))
     for sim in sims:
         os.makedirs(os.path.join(results_dir, sim["key"]))
     masks_for = {}

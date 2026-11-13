@@ -1458,7 +1458,7 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         page.fill("#ao-out_dir", "old")
         page.wait_for_selector("#ao-row-replace:not([hidden])")
         assert page.text_content("#ao-row-replace") == (
-            "Tick to replace the comparison files in this directory (oceanval_simulation_comparison)")
+            "Required: tick to replace the comparison files in this directory (oceanval_simulation_comparison), or you cannot continue")
         assert page.text_content("#ao-m-out_dir .group__line.is-warn") == (
             "There is a comparison here already, from an earlier run. It will be replaced: "
             "choose another directory to keep it, or tick below to replace it.")

@@ -700,13 +700,16 @@ def test_the_window_is_told_of_each_variable_and_analysis(daily, tmp_path, no_re
     assert told[0] == {
         "kind": "analyses",
         "simulations": 1,
+        "stages": ["files"],
         "items": [
             {"key": "chlorophyll", "title": "Chlorophyll", "kinds": ["climatology", "phenology"]},
             {"key": "temperature", "title": "Temperature", "kinds": ["seasonal"]},
         ],
     }
+    # the files are found before the variables are worked out
+    assert [(news["kind"], news["state"]) for news in told[1:3]] == [("analysis_stage", "working"), ("analysis_stage", "done")]
     said = [
-        (news["key"], news.get("analysis"), news["state"]) for news in told[1:]
+        (news["key"], news.get("analysis"), news["state"]) for news in told[3:]
     ]
     assert said == [
         ("chlorophyll", None, "working"),
@@ -720,7 +723,7 @@ def test_the_window_is_told_of_each_variable_and_analysis(daily, tmp_path, no_re
         ("temperature", "seasonal", "done"),
         ("temperature", None, "done"),
     ]
-    assert {news["kind"] for news in told[1:]} == {"analysis_variable", "analysis"}
+    assert {news["kind"] for news in told[3:]} == {"analysis_variable", "analysis"}
 
     def test_the_gaps_in_the_output_are_kept(self, monthly, tmp_path, no_report):
         oceanval.analyze(

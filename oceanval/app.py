@@ -163,7 +163,7 @@ COMPARISON_LANDING = ("notebooks", "comparison_seasonal.html")
 
 # what an Analyze or Compare simulations run tells of its variables (see
 # oceanval.analysis._tell), for the page's grid of them
-ANALYSIS_NEWS = ("analyses", "analysis_variable", "analysis")
+ANALYSIS_NEWS = ("analyses", "analysis_variable", "analysis", "analysis_stage")
 
 # how long the recipes window waits for the years of the output to be read
 # from its files' times (a few seconds, usually done before it opens), before
@@ -2289,6 +2289,11 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     ],
                     # each variable's "working" or "done"
                     "states": {},
+                    # the stages before the analyses the grid shows, and the
+                    # (key, stage) being worked on and how often each is done
+                    "stages": [stage for stage in analysis.STAGES if stage in (news.get("stages") or [])],
+                    "stage_working": set(),
+                    "stage_done": {},
                     # the (key, analysis) being worked out now, and how many
                     # simulations each has been worked out in
                     "working": set(),
@@ -2311,6 +2316,16 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                     progress["started"][key] = now
                 elif key in progress["started"]:
                     progress["took"][key] = now - progress["started"].pop(key)
+            elif kind == "analysis_stage" and news.get("state") in ("working", "done") and news.get("stage") in progress["stages"]:
+                # no key is every variable
+                keys = [news["key"]] if isinstance(news.get("key"), str) else [item["key"] for item in progress["items"]]
+                for key in keys:
+                    cell = (key, news["stage"])
+                    if news["state"] == "working":
+                        progress["stage_working"].add(cell)
+                    else:
+                        progress["stage_working"].discard(cell)
+                        progress["stage_done"][cell] = progress["stage_done"].get(cell, 0) + 1
             elif kind == "analysis" and news.get("state") in ("working", "done"):
                 cell = (str(news.get("key")), str(news.get("analysis")))
                 if news["state"] == "working":
@@ -2360,6 +2375,18 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 else:
                     state = "partial" if done else "waiting"
                 cells[kind] = {"state": state, "done": done}
+            stages = {}
+            for stage in progress["stages"]:
+                done = progress["stage_done"].get((key, stage), 0)
+                # the files are read once for each simulation, a grid once
+                needed = simulations if stage == "files" else 1
+                if (key, stage) in progress["stage_working"]:
+                    state = "working" if running else "failed"
+                elif done >= needed:
+                    state = "done"
+                else:
+                    state = "partial" if done else "waiting"
+                stages[stage] = {"state": state, "done": done, "of": needed}
             state = progress["states"].get(key, "waiting")
             seconds = progress["took"].get(key)
             if seconds is None and key in progress["started"]:
@@ -2372,12 +2399,14 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "state": state,
                 "seconds": seconds,
                 "cells": cells,
+                "stages": stages,
             })
         used = {kind for item in progress["items"] for kind in item["kinds"]}
         since = progress["since"]
         return {
             "simulations": simulations,
             "kinds": [kind for kind in analysis.KINDS if kind in used],
+            "stages": progress["stages"],
             "items": rows,
             "elapsed": progress["banked"] + (0.0 if since is None else now - since),
             "running": running,

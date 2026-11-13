@@ -1824,7 +1824,7 @@
             </tr></thead>
             <tbody id="existing-body"></tbody>
           </table></div>
-          <label class="tick-label existing__confirm" id="row-existing-confirm"><input type="checkbox" class="tick" id="f-existing_confirmed">Tick to confirm what is done with these matchups</label>
+          <label class="tick-label existing__confirm" id="row-existing-confirm"><input type="checkbox" class="tick" id="f-existing_confirmed" data-check-needed>Required: tick to confirm what is done with these matchups, or you cannot continue</label>
         </div>
         <label class="g-row setup-box__script"><span class="g-label" id="f-out-label">What do you want the matchup script to be called</span><input class="s-input is-mono" id="f-out" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></label>
         <p class="group__intro" id="f-out-intro">This is created to produce a fully reproducible version of this validation that can be run from the command line. You will not need to run this, and the file is saved for completeness.</p>
@@ -2357,7 +2357,7 @@
     <fieldset class="group analyze-area" id="ao-out-group">
       <div class="g-row"><label class="g-label" for="ao-out_dir">Directory</label><div class="path-field"><input class="s-input is-mono" id="ao-out_dir" list="ao-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="ao-out_dir">Browse…</button></div><datalist id="ao-out_dir-folders"></datalist></div>
       <p class="group__msg" id="ao-m-out_dir"></p>
-      <label class="tick-label existing__confirm" id="ao-row-replace" hidden><input type="checkbox" class="tick" id="ao-replace_analysis"><span id="ao-replace-text">Tick to replace the analysis files in this directory (oceanval_analysis)</span></label>
+      <label class="tick-label existing__confirm" id="ao-row-replace" hidden><input type="checkbox" class="tick" id="ao-replace_analysis" data-check-needed><span id="ao-replace-text">Required: tick to replace the analysis files in this directory (oceanval_analysis), or you cannot continue</span></label>
       <label class="g-row setup-box__script"><span class="g-label" id="ao-out-label">What do you want the analysis script to be called</span><input class="s-input is-mono" id="ao-out" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></label>
       <p class="group__intro" id="ao-out-intro"></p>
       <p class="group__msg" id="ao-m-out"></p>
@@ -6685,8 +6685,8 @@
       $("ao-out-label").textContent = comparing ? "What do you want the comparison script to be called"
         : "What do you want the analysis script to be called";
       $("ao-replace-text").textContent = comparing
-        ? "Tick to replace the comparison files in this directory (oceanval_simulation_comparison)"
-        : "Tick to replace the analysis files in this directory (oceanval_analysis)";
+        ? "Required: tick to replace the comparison files in this directory (oceanval_simulation_comparison), or you cannot continue"
+        : "Required: tick to replace the analysis files in this directory (oceanval_analysis), or you cannot continue";
       $("ao-out-intro").textContent = `This is created to produce a fully reproducible version of this ${comparing ? "comparison" : "analysis"} that can be run from the command line. You will not need to run this, and the file is saved for completeness.`;
       analyzeOutput.errors = {};
       analyzeOutput.probe = null;
@@ -10554,7 +10554,8 @@
       return { title: `Matching up: ${made} of ${plural(items.length, "matchup")} made`, done: made, of: items.length };
     }
     if (state.action === "simcompare" || state.action === "analyze") {
-      const said = lastSaid();
+      // the grid says what is being done, so the text above it does not
+      const said = analysisGridShown() ? "" : lastSaid();
       const comparing = state.action === "simcompare";
       const stage = comparing
         ? { title: "Comparing the simulations",
@@ -10565,6 +10566,7 @@
       if (analysisGridShown()) {
         const items = run.analysis.items;
         const done = items.filter((item) => item.state === "done").length;
+        delete stage.text;
         stage.title = done === items.length ? "Finishing the report"
           : `${comparing ? "Comparing" : "Analysing"}: ${done} of ${plural(items.length, "variable")} worked out`;
         stage.done = done;
@@ -10818,6 +10820,28 @@
     seasonal: "Seasonal cycles", map_changes: "Map changes", transects: "Transects",
   };
 
+  const STAGE_COLUMNS = { files: "Files", grid: "Common grid" };
+
+  // a stage before the analyses (finding the files, putting the variable on one grid), marked as an analysis is
+  function stageMark(cell, item, stage) {
+    const shown = item.stages[stage];
+    if (!shown) {
+      gridMark(cell, "none", null, "Not needed");
+    } else if (shown.state === "partial") {
+      const said = `Done in ${shown.done} of ${shown.of} simulations`;
+      const key = `partial|${shown.done}|${shown.of}`;
+      if (cell.dataset.key === key) return;
+      cell.dataset.key = key;
+      cell.dataset.state = "counting";
+      cell.replaceChildren(el("span", {
+        class: "matchup-grid__count", role: "img", "aria-label": said, title: said, text: `${shown.done}/${shown.of}`,
+      }));
+    } else if (shown.state === "working") gridMark(cell, "working", null, "Being done");
+    else if (shown.state === "done") gridMark(cell, "done", null, "Done");
+    else if (shown.state === "failed") gridMark(cell, "failed", null, "Not done: the run stopped");
+    else gridMark(cell, "todo");
+  }
+
   function analysisGridShown() {
     const progress = state.run.analysis;
     return Boolean(progress && progress.items.length && ["analyze", "simcompare"].includes(state.action));
@@ -10856,21 +10880,23 @@
     const progress = state.run.analysis;
     const kinds = progress.kinds;
     const items = progress.items;
-    const rows = JSON.stringify(["analyses", kinds, items.map((item) => [item.key, item.title])]);
+    const stages = progress.stages || [];
+    const rows = JSON.stringify(["analyses", stages, kinds, items.map((item) => [item.key, item.title])]);
     if (box.dataset.rows !== rows) {
       box.dataset.rows = rows;
       box.classList.add("is-analyses");
-      const head = ["Variable", ...kinds.map((kind) => ANALYSIS_COLUMNS[kind] || kind), "Time", "Report"];
-      const headClass = (text, index) => index === 0 ? null : index === kinds.length + 1 ? "is-time" : "is-state";
+      const head = ["Variable", ...stages.map((stage) => STAGE_COLUMNS[stage] || stage), ...kinds.map((kind) => ANALYSIS_COLUMNS[kind] || kind), "Time", "Report"];
+      const headClass = (text, index) => index === 0 ? null : index === stages.length + kinds.length + 1 ? "is-time" : "is-state";
       box.replaceChildren(el("table", {},
         el("thead", {}, el("tr", {}, ...head.map((text, index) => el("th", { scope: "col", class: headClass(text, index), text })))),
         el("tbody", {}, ...items.map((item) => el("tr", { "data-key": item.key },
           el("td", { class: "matchup-grid__title", text: item.title }),
+          ...stages.map((stage) => el("td", { class: "is-state", "data-column": `stage-${stage}` })),
           ...kinds.map((kind) => el("td", { class: "is-state", "data-column": kind })),
           el("td", { class: "is-time", "data-column": "time" }),
           el("td", { class: "is-state", "data-column": "report" })))),
         el("tfoot", {}, el("tr", {},
-          el("th", { scope: "row", colspan: String(kinds.length + 1), text: "Time elapsed" }),
+          el("th", { scope: "row", colspan: String(stages.length + kinds.length + 1), text: "Time elapsed" }),
           el("td", { class: "is-time", "data-column": "total" }),
           el("td", { class: "is-state" })))));
     }
@@ -10881,6 +10907,7 @@
     items.forEach((item, index) => {
       const row = box.querySelectorAll("tbody tr")[index];
       row.classList.toggle("is-active", item.state === "working" && progress.running);
+      for (const stage of stages) stageMark(row.querySelector(`[data-column="stage-${stage}"]`), item, stage);
       for (const kind of kinds) analysisMark(row.querySelector(`[data-column="${kind}"]`), item, kind, progress.simulations);
       setClock(row.querySelector('[data-column="time"]'), item.seconds, item.state === "working" && progress.running);
       const report = row.querySelector('[data-column="report"]');

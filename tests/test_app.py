@@ -6780,10 +6780,17 @@ def test_the_analyses_grid_in_a_browser(browser, tmp_path):
             def tell(kind, **news):
                 prompts.tell({{"kind": kind, **news}})
 
-            tell("analyses", simulations=2, items=[
+            tell("analyses", simulations=2, stages=["files", "grid"], items=[
                 {{"key": "chl", "title": "Chlorophyll", "kinds": ["climatology", "long_term"]}},
                 {{"key": "temp", "title": "Temperature", "kinds": ["transects"]}},
             ])
+            tell("analysis_stage", stage="files", state="working")
+            tell("analysis_stage", stage="files", state="done")
+            wait("go0")
+            tell("analysis_stage", stage="files", state="done")
+            tell("analysis_stage", stage="grid", key="chl", state="working")
+            tell("analysis_stage", stage="grid", key="chl", state="done")
+            tell("analysis_stage", stage="grid", key="temp", state="working")
             wait("go1")
             tell("analysis_variable", key="chl", state="working")
             tell("analysis", key="chl", analysis="climatology", state="working")
@@ -6825,8 +6832,17 @@ def test_the_analyses_grid_in_a_browser(browser, tmp_path):
         page.wait_for_selector("#progress-grid:not([hidden])", timeout=60000)
         # a column for each analysis some variable has, and none for the others
         assert page.locator("#progress-grid th").all_text_contents() == [
-            "Variable", "Climatology", "Long-term series", "Transects", "Time", "Report", "Time elapsed",
+            "Variable", "Files", "Common grid", "Climatology", "Long-term series", "Transects", "Time", "Report",
+            "Time elapsed",
         ]
+        # the stages before the analyses are in the grid from the start: files done in one of two simulations
+        assert cell(1, "stage-files").text_content() == "1/2"
+        assert said(1, "stage-files") == "Done in 1 of 2 simulations"
+        assert cell(1, "stage-grid").get_attribute("data-state") == "todo"
+        (tmp_path / "go0").write_text("")
+        page.wait_for_selector('#progress-grid tbody tr:nth-child(2) [data-column="stage-grid"] .identify__spinner')
+        assert cell(1, "stage-files").get_attribute("data-state") == "done"
+        assert cell(1, "stage-grid").get_attribute("data-state") == "done"
         assert page.locator("#progress-grid tbody .matchup-grid__title").all_text_contents() == [
             "Chlorophyll", "Temperature",
         ]
@@ -6849,10 +6865,8 @@ def test_the_analyses_grid_in_a_browser(browser, tmp_path):
         assert cell(1, "long_term").get_attribute("data-state") == "todo"
         assert re.fullmatch(r"\d+:\d\d", cell(1, "time").text_content())
         assert cell(2, "time").text_content() == ""
-        # what is being worked out is said under the title
-        page.wait_for_function(
-            "document.getElementById('progress-text').textContent.includes('climatology of Chlorophyll')"
-        )
+        # what is being worked out is in the grid, so no line of text says it under the title
+        assert page.locator("#progress-text").is_hidden()
 
         (tmp_path / "go2").write_text("")
         # done in one of the two simulations: the count

@@ -180,3 +180,8 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   `recipes_gui.render_page`. The browser tests (`browser` fixture in `tests/conftest.py`) skip
   where playwright/Chromium is missing, as in CI (`pip install playwright && python -m playwright install chromium` runs them).
 
+
+## Required ticks
+
+A tick the user must give (`f-existing_confirmed`, `ao-replace_analysis`) carries `data-check-needed`, so `OceanValGUI.syncRequired`
+marks it `is-needed` until it is ticked; `gui.css` boxes the row in bold red, and its label begins "Required: tick to …, or you cannot continue".
