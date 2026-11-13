@@ -3074,9 +3074,12 @@ class TestServer:
         assert state["run"]["analysis"] == {
             "simulations": 1,
             "kinds": ["phenology"],
+            # no stages were told, so the grid has no Files or Common grid columns
+            "stages": [],
             "items": [{
                 "key": "chl", "title": "Chlorophyll", "kinds": ["phenology"], "state": "working",
                 "seconds": 2.0, "cells": {"phenology": {"state": "working", "done": 0}},
+                "stages": {},
             }],
             "elapsed": 2.0,
             "running": True,
