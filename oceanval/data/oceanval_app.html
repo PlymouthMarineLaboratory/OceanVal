@@ -3439,9 +3439,9 @@
         button("Continue", "primary", submitScVariables, { id: "scv-continue", disabled: true }));
     } else if (view === "simcompare_units") {
       // a page for each simulation converted: Back and Continue go between them, then the steps either side
-      const confirm = el("input", { type: "checkbox", class: "tick", id: "scu-confirm" });
+      const confirm = el("input", { type: "checkbox", class: "tick", id: "scu-confirm", "data-check-needed": "" });
       confirm.addEventListener("change", scUnitsButton);
-      asked = el("label", { class: "summary__question tick-label summary__confirm" }, "Tick if you are happy with the units", confirm);
+      asked = el("label", { class: "summary__question tick-label summary__confirm" }, "Required: tick if you are happy with the units", confirm);
       const last = scUnits.page >= scUnits.sims.length - 1;
       actions.push(backTo(() => (scUnits.page > 0 ? scUnitsTo(scUnits.page - 1)
         : post("api/back", { conversions: unitsBoxes(".scu-body input") }))),
@@ -3498,9 +3498,9 @@
       // to the recipes window, as it was left, with the boxes, which are shown again as they are
       // there is nothing to confirm until the units are read
       if (state.units.rows) {
-        const confirm = el("input", { type: "checkbox", class: "tick", id: "units-confirm" });
+        const confirm = el("input", { type: "checkbox", class: "tick", id: "units-confirm", "data-check-needed": "" });
         confirm.addEventListener("change", unitsButton);
-        asked = el("label", { class: "summary__question tick-label summary__confirm" }, "Tick if you are happy with the units", confirm);
+        asked = el("label", { class: "summary__question tick-label summary__confirm" }, "Required: tick if you are happy with the units", confirm);
       }
       actions.push(backTo(() => post("api/back", { conversions: unitsBoxes() })),
         button("Continue", "primary", submitUnits, { id: "units-continue", disabled: true }));

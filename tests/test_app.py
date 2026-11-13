@@ -7330,9 +7330,11 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
 
         page.wait_for_selector("#units-body-gridded tr[data-units-row]")
         # the units start unconfirmed, and nothing carries on until they are
-        assert "Tick if you are happy with the units" in page.text_content("#summary")
+        assert "Required: tick if you are happy with the units" in page.text_content("#summary")
         assert page.is_visible("#units-confirm")
         assert not page.is_checked("#units-confirm")
+        # a tick that must be given is boxed in bold red until it is
+        page.wait_for_selector("#units-confirm.is-needed")
         assert page.is_disabled("#units-continue")
         assert page.is_hidden("#units-reading")
         # two sections, and with no point datasets the second says so
@@ -7394,6 +7396,7 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         assert not page.is_checked("#units-confirm")
         assert page.is_disabled("#units-continue")
         page.check("#units-confirm")
+        page.wait_for_selector("#units-confirm:not(.is-needed)")
         page.click("#units-continue")
         page.wait_for_selector(".units-body .is-invalid")
         error = page.locator('[data-units-error="recipe:temperature:cobe2"]')
