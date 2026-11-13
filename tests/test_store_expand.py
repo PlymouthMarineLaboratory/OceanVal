@@ -409,6 +409,116 @@ class TestTheStoreKeywords:
 
 
 # --------------------------------------------------------------------------
+# what the store holds all of: Complete, not Expand, and All years
+
+
+def row_of(dataset):
+    return next(x for x in BUILTIN if (x["name"], x["recipe"]) == (dataset["name"], dataset["recipe"]))
+
+
+def pieces_of(dataset, box=None, levels="all", years=None, urls=None):
+    """The index's pieces of a dataset as the store keeps them: a piece for each of
+    its files (urls, every one by default), or each of years for one kept a year at a time."""
+    recipe = dataset["recipe"]
+    box = list(data_store.GLOBAL) if box is None else box
+    if recipe in ("glodapv3", "hansell"):
+        return [dict(kind=recipe, dataset=recipe, variable=dataset["name"], year=None, box=box, rows=5, url="u", path=None)]
+    if recipe == "ices":
+        return [dict(kind="ices", dataset=code, variable=None, year=year, box=box, rows=5, url=None, path=None)
+                for code in store_view._recipe(dataset["name"], "ices")[1] for year in years]
+    variable = store_view._recipe(dataset["name"], recipe)[0]
+    if years is not None:
+        units = [("u", year) for year in years]
+    else:
+        units = [(url, None) for url in (store_view._urls(dataset["name"], recipe)[0] if urls is None else urls)]
+    return [dict(kind="gridded", dataset=recipe, variable=variable, url=url, year=year, levels=levels, box=box, path=None)
+            for url, year in units]
+
+
+def state(dataset, pieces):
+    """What the page is told of a dataset: (years_complete, complete)."""
+    return store_view._stored(row_of(dataset), pieces, extent=False)[3:]
+
+
+class TestComplete:
+    def test_woa23_held_for_the_globe_and_the_water_column_is_complete(self):
+        assert state(NITRATE, pieces_of(NITRATE)) == ("All months", True)
+        # the surface alone, or a part of the globe, is not
+        assert state(NITRATE, pieces_of(NITRATE, levels="top")) == ("All months", False)
+        assert state(NITRATE, pieces_of(NITRATE, box=[-10, 5, 45, 60])) == ("All months", False)
+        # nor is it without one of its months
+        assert state(NITRATE, pieces_of(NITRATE)[:-1]) == (None, False)
+        # a box of most of the globe is kept as the whole of it
+        assert data_store.snap((-179.5, 179.5), (-89.5, 89.5)) == data_store.GLOBAL
+
+    def test_woa23_temperature_needs_every_decade(self):
+        everything = pieces_of(TEMPERATURE_WOA)
+        assert len(everything) == 12 * 7
+        assert state(TEMPERATURE_WOA, everything) == ("All decades", True)
+        assert state(TEMPERATURE_WOA, everything[12:]) == (None, False)
+
+    def test_a_dataset_kept_by_year_needs_every_year_to_last_year(self, monkeypatch):
+        assert store_view._last_full_year() == THIS_YEAR - 1
+        monkeypatch.setattr(store_view, "_last_full_year", lambda: 1855)
+        assert state(COBE2, pieces_of(COBE2, years=range(1850, 1856))) == ("All years", True)
+        # last year is wanted: a dataset that runs to the present is not complete once a year is added to it
+        assert state(COBE2, pieces_of(COBE2, years=range(1850, 1855))) == (None, False)
+        assert state(COBE2, pieces_of(COBE2, years=[1850, 1851, 1853, 1854, 1855])) == (None, False)
+        # every year, of a model's area only: the years are all there, the area is not
+        assert state(COBE2, pieces_of(COBE2, years=range(1850, 1856), box=[-10, 5, 45, 60])) == ("All years", False)
+        # a year a piece of the whole globe, another of an area, is not complete either
+        mixed = pieces_of(COBE2, years=range(1850, 1855)) + pieces_of(COBE2, years=[1855], box=[0, 1, 0, 1])
+        assert state(COBE2, mixed) == ("All years", False)
+
+    def test_oisst_is_complete_from_1982(self, monkeypatch):
+        # 1981 has only September to December, and a year without 12 months is never kept
+        oisst = {"name": "temperature", "recipe": "oisst"}
+        monkeypatch.setattr(store_view, "_last_full_year", lambda: 1984)
+        assert state(oisst, pieces_of(oisst, years=range(1982, 1985))) == ("All years", True)
+
+    def test_occci_needs_every_file(self):
+        everything = pieces_of(OCCCI)
+        assert state(OCCCI, everything) == ("All years", True)
+        assert state(OCCCI, everything[:-12]) == (None, False)
+
+    def test_nsbc_is_complete_for_its_own_area(self):
+        assert state(NSBC, pieces_of(NSBC, box=list(data_store.DOMAINS["nsbc"]))) == ("All years", True)
+        assert state(NSBC, pieces_of(NSBC, box=[-16, 16, 47, 66])) == ("All years", True)
+        assert state(NSBC, pieces_of(NSBC, box=[-15, 15, 48, 60])) == ("All years", False)
+
+    def test_a_dataset_kept_whole_is_complete_once_held(self):
+        socat = {"name": "pco2", "recipe": "socat"}
+        assert state(socat, pieces_of(socat)) == ("All years", True)
+        assert state(GLODAP, pieces_of(GLODAP)) == ("All years", True)
+        for dataset in ({"name": "alkalinity", "recipe": "glodapv3"}, {"name": "doc", "recipe": "hansell"}):
+            assert state(dataset, pieces_of(dataset)) == ("All years", True)
+
+    def test_ices_is_never_complete(self):
+        # its years keep gaining observations
+        assert "ices" in store_view.LIVE
+        everything = pieces_of(ICES_TEMPERATURE, years=range(1900, THIS_YEAR + 1))
+        assert state(ICES_TEMPERATURE, everything) == (None, False)
+
+    def test_what_is_not_held_is_not_complete(self):
+        for row in BUILTIN:
+            assert store_view._stored(row, [], extent=False)[3:] == (None, False)
+
+    def test_the_view_and_complete_say_it_of_a_store(self, folder):
+        root = data_store.prepare(str(folder))
+        for piece in pieces_of(NITRATE) + pieces_of(COBE2, years=[2000]):
+            entry = {key: piece[key] for key in ("kind", "dataset", "variable", "url", "year", "levels", "box")}
+            # the file is not read for this (the extent of one that cannot be read is said so)
+            assert data_store._save(root, entry, lambda path: open(path, "wb").close(), ".nc", lambda old: False)
+        settings = {"data_store": str(folder)}
+        assert store_view.complete(BUILTIN, settings) == {("nitrate", "woa23")}
+        rows = {(x["name"], x["recipe"]): x for x in store_view.view(BUILTIN, settings)["rows"]}
+        assert rows["nitrate", "woa23"]["complete"] and rows["nitrate", "woa23"]["years_complete"] == "All months"
+        cobe = rows["temperature", "cobe2"]
+        assert cobe["downloaded"] and not cobe["complete"] and cobe["years_complete"] is None
+        assert store_view.complete(BUILTIN, {}) == set()
+
+
+# --------------------------------------------------------------------------
 # the window: jobs in the background, one at a time
 
 from test_app import _tools_page, post, wait_for  # noqa: E402
@@ -460,6 +570,16 @@ class TestJobs:
         status, reply = post(window, "/api/store_expand", {"form": "nonsense"})
         assert not reply["ok"] and "datasets" in reply["errors"]
         assert started[0] == [] and statuses(window) == []
+
+    def test_a_dataset_the_store_holds_all_of_is_not_asked_for(self, window, started):
+        made, _ = started
+        TestStored.fill_complete(window)
+        status, reply = asked(window, NSBC)
+        assert status == 200 and not reply["ok"] and "holds all of this" in reply["errors"]["general"]
+        assert made == [] and statuses(window) == []
+        # with another that is not complete, it is
+        status, reply = asked(window, NSBC, GLODAP)
+        assert reply["ok"] and len(made) == 1
 
     def test_without_a_store_nothing_is_started(self, tmp_path, oceanvalrc, started):
         oceanvalrc.write_text("{}")
@@ -767,6 +887,36 @@ class TestPage:
         # the page behind is usable again
         assert page.evaluate("document.getElementById('store-expand-open').closest('[inert]') === null")
 
+    def test_a_dataset_the_store_holds_all_of_shows_complete(self, browser, window, started):
+        TestStored.fill_complete(window)
+        page = _open_page(browser, window)
+        page.wait_for_selector("#store-table-in tbody tr")
+        row = page.locator("#store-table-in tbody tr", has_text="North Sea Biogeochemical")
+        # Complete in place of Expand: a tag, not a button
+        assert row.locator(".store__act .btn").count() == 0
+        assert row.locator(".store__complete").text_content() == "✓ Complete"
+        assert row.locator(".store__complete").evaluate("node => node.tagName") == "SPAN"
+        # and its years are all held, in place of what the dataset covers
+        assert row.locator(".store__years-done").text_content() == "✓ All years"
+        assert row.locator(".store__covered").count() == 0
+        # it cannot be picked to be expanded
+        page.click("#store-expand-open")
+        page.wait_for_selector("#store-expand:not([hidden])")
+        page.fill("#sx-search", "North Sea nitrate")
+        listed = page.locator("#sx-list tr", has_text="North Sea Biogeochemical")
+        assert listed.locator(".sx__tag.is-complete").text_content() == "complete"
+        assert listed.locator("button").is_disabled()
+        listed.click()
+        assert page.locator("#sx-list tr.is-picked").count() == 0 and page.is_disabled("#sx-start-job")
+
+    def test_a_dataset_held_in_part_still_has_expand(self, browser, window, started):
+        TestStored.fill(window)
+        page = _open_page(browser, window)
+        page.wait_for_selector("#store-table-in tbody tr")
+        row = page.locator("#store-table-in tbody tr", has_text="North Sea Biogeochemical")
+        assert row.locator(".store__act .btn").text_content() == "Expand"
+        assert row.locator(".store__complete").count() == 0 and row.locator(".store__years-done").count() == 0
+
     def test_without_a_store_nothing_can_be_expanded(self, browser, tmp_path, oceanvalrc, started):
         oceanvalrc.write_text("{}")
         app = App(cwd=str(tmp_path))
@@ -779,6 +929,27 @@ class TestPage:
 
 
 class TestStored:
+    @staticmethod
+    def fill_complete(app):
+        """All of NSBC nitrate in the store the app was given: its one file, of all its area (a real, small file)."""
+        import numpy as np
+        import xarray as xr
+
+        root = data_store.prepare(app.settings["data_store"])
+        lon, lat = np.arange(-15.0, 15.25, 0.25), np.arange(48.0, 65.25, 0.25)
+        variable = store_view._recipe("nitrate", "nsbc")[0]
+
+        def write(path):
+            xr.Dataset({variable: (("lat", "lon"), np.zeros((len(lat), len(lon))))},
+                       coords={"lon": lon, "lat": lat}).to_netcdf(path)
+
+        url = store_view._urls("nitrate", "nsbc")[0][0]
+        assert data_store._save(
+            root, dict(kind="gridded", dataset="nsbc", url=url, variable=variable, year=None, levels="all",
+                       box=list(data_store.DOMAINS["nsbc"])),
+            write, ".nc", lambda old: False)
+        return root
+
     @staticmethod
     def fill(app):
         """NSBC nitrate in the store the app was given (a real, small file), as the job would leave it."""

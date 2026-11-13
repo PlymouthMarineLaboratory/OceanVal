@@ -2786,6 +2786,12 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         request, errors = expanding.check(form if isinstance(form, dict) else {}, BUILTIN_DATASETS)
         if errors:
             return 200, {"ok": False, "errors": errors}
+        from oceanval import store_view
+
+        whole = store_view.complete(BUILTIN_DATASETS, settings)
+        if all((x["name"], x["recipe"]) in whole for x in request["datasets"]):
+            return 200, {"ok": False, "errors": {
+                "general": "The data store holds all of this already, so there is nothing to add."}}
         with self._lock:
             if self.closed.is_set():
                 return 200, {"ok": False, "errors": {"general": "The window is closing."}}

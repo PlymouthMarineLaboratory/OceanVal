@@ -519,6 +519,9 @@ input.tick { cursor: pointer; }
 .store__table td.store__act .btn { min-width: 0; margin: -3px 0; }
 .store__none { margin: 0; padding: 14px; color: var(--muted); font-size: 14px; }
 .store__covered { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; }
+/* what the store holds all of: a dataset's years, and the whole of it (in place of Expand) */
+.store__years-done { display: block; margin-top: 2px; color: var(--teal-700); font-size: 12.5px; font-weight: 600; }
+.store__complete { display: inline-block; padding: 5px 12px; border: 1px solid var(--teal-500); border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 13.5px; font-weight: 600; white-space: nowrap; }
 .info__subtitle { margin: 18px 0 8px; font: 600 15px/1.3 var(--font-head); }
 .info__credit { display: grid; gap: 14px; margin-top: 22px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-alt); color: var(--muted); font-size: 14px; }
 .info__credit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }

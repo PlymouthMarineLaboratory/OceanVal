@@ -8687,7 +8687,8 @@ class TestSettings:
         assert len(reply["rows"]) == len(app_module.BUILTIN_DATASETS)
         assert {x["year"] for x in reply["rows"]} == {"Not downloaded"}
         assert {x["extent"] for x in reply["rows"]} == {"—"}
-        assert not any(x["downloaded"] or x["water_column_stored"] for x in reply["rows"])
+        assert not any(x["downloaded"] or x["water_column_stored"] or x["complete"] or x["years_complete"]
+                       for x in reply["rows"])
         sources = {x["source"] for x in reply["rows"]}
         assert {"World Ocean Atlas 2023", "COBE-SST 2", "ICES Oceanographic database"} <= sources
         # what the years covered are, as the window's i buttons say
@@ -8708,10 +8709,15 @@ class TestSettings:
         woa = by["Nitrate concentration in sea water", "World Ocean Atlas 2023"]
         assert (woa["year"], woa["water_column"], woa["extent"]) == ("1 file", "Surface only", "lon -179.5 to 175.5, lat -89.5 to 85.5")
         assert woa["water_column_stored"]
+        # neither is held whole (two of COBE2's years, of an area; one month of WOA23's surface), so both can be expanded
+        for row in (cobe, woa):
+            assert not row["complete"] and row["years_complete"] is None
         # one export of ICES CTD serves every variable from it; the year with no data is not listed
         temperature = by["Sea water temperature", "ICES Oceanographic database"]
         assert (temperature["year"], temperature["water_column"], temperature["extent"]) == (
             "1999", "All depths", "lon -4 to 2, lat 50 to 56")
+        # ICES's years keep gaining observations: it is never complete
+        assert not temperature["complete"] and temperature["years_complete"] is None
         # nitrate is from ICE alone, which holds nothing
         assert by["Nitrate concentration in sea water", "ICES Oceanographic database"]["year"] == "Not downloaded"
         # and what is not held is shown as the catalogue has it

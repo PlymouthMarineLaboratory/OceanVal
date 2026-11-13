@@ -143,7 +143,11 @@ purpose: give the years (for the datasets kept by year, and the decades of World
 temperature and salinity), the extent, and whether to keep the water column (World Ocean Atlas 2023
 only). It fetches as a matchup does (a wider area widens what is kept, what is kept is not
 downloaded again), in the background, one request at a time; a circle turns beside the button
-while any is going, and you can ask for another straight away.
+while any is going, and you can ask for another straight away. A dataset the store holds all of
+(every year or file it has, its whole area and, for World Ocean Atlas 2023, the water column)
+shows **Complete** in place of Expand, and one whose years are all held says **All years** under
+them. A dataset that runs to the present needs every year up to last year. ICES is never complete,
+as its past years keep gaining observations.
 
 The script it runs is written first, to ``matchup.py`` (``matchup1.py``, ``matchup2.py`` and so on if that file exists already), so you can read it
 and run it again later. Every step is described on the website, in

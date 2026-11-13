@@ -95,6 +95,10 @@ MARKER = ".oceanval_datastore"
 INDEX = "oceanval_data_store.json"
 VERSION = 1
 GLOBAL = [-180, 180, -90, 90]
+# the area a gridded dataset has data for, where it is not the whole globe, as the
+# centres of its grid's outer cells: a piece whose box has this in it holds all of
+# its area (NSBC's 0.25 degree grid, from its thredds server)
+DOMAINS = {"nsbc": [-15, 15, 48, 65]}
 # the gridded datasets the store keeps, by their recipe key
 GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "oisst", "coraltemp", "glodap", "mpisom", "socat", "copepod")
 # the point datasets the store keeps, each in a folder of its own
@@ -497,7 +501,8 @@ def pieces(root_dir):
     (the usable pieces of the index, why it could not be read or None). Each
     piece is a dict of kind, dataset, variable, year, levels, box (the area
     asked for when it was downloaded), rows, bytes (None where the index has
-    none) and path (of its file, None for a year without data). It only looks: nothing is written,
+    none), url (the server's file it is of) and path (of its file, None for a
+    year without data). It only looks: nothing is written,
     made, removed or locked, and nothing is said at the terminal, so the page
     can ask as often as it likes."""
     if not os.path.isdir(root_dir) or not _is_ours(root_dir):
@@ -505,7 +510,7 @@ def pieces(root_dir):
     data, problem = _load(root_dir)
     if problem:
         return [], problem
-    keys = ("kind", "dataset", "variable", "year", "levels", "box", "rows", "bytes")
+    keys = ("kind", "dataset", "variable", "year", "levels", "box", "rows", "bytes", "url")
     return [
         dict({key: entry.get(key) for key in keys}, path=_file(entry, root_dir))
         for entry in data["entries"]

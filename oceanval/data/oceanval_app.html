@@ -1065,6 +1065,8 @@
   .sx__table tr.is-picked td:first-child { box-shadow: inset 3px 0 0 var(--teal-600); }
   .sx__tag { display: inline-block; margin-left: 6px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
   .sx__tag.is-held { border-color: var(--teal-200); color: var(--teal-700); }
+  .sx__tag.is-complete { border-color: var(--teal-500); background: var(--teal-50); color: var(--teal-700); font-weight: 600; }
+  .sx__table tr.is-complete td { cursor: default; color: var(--muted); }
   .bank-info__form { display: grid; gap: 14px; padding: 4px 22px 8px; }
   .bank-info__form .g-row { margin: 0; }
   .bank-info__where { margin: 0; font: 400 13px/18px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
@@ -11892,8 +11894,15 @@
       ? el("a", { href: row.url, target: "_blank", rel: "noopener", title: row.url, text: storeHost(row.url) })
       : "—");
   }
-  // the Expand of one dataset: the same form, with that dataset and nothing else
+  // the Expand of one dataset: the same form, with that dataset and nothing else; Complete, not a button,
+  // when the store holds all of it (every year, the whole area and water column)
   function storeAct(row) {
+    if (row.complete) {
+      return el("td", { class: "store__act" }, el("span", {
+        class: "store__complete", text: "✓ Complete",
+        title: "The data store holds all of this dataset: every year, the whole area and the water column",
+      }));
+    }
     return el("td", { class: "store__act" }, el("button", {
       type: "button", class: "btn btn--primary btn--field", text: "Expand", disabled: !storeExpand.enabled,
       title: storeExpand.enabled ? null : "Set a data store folder in Tools & checks, Preferences, first",
@@ -11913,7 +11922,10 @@
         el("td", { text: row.source }),
         storeLink(row),
         el("td", {}, row.year,
-          row.year_covered ? el("span", { class: "store__covered", text: `Covers ${row.year_covered}` }) : null),
+          row.years_complete
+            ? el("span", { class: "store__years-done", text: `✓ ${row.years_complete}`,
+              title: "The data store holds every year this dataset has" })
+            : row.year_covered ? el("span", { class: "store__covered", text: `Covers ${row.year_covered}` }) : null),
         el("td", { text: row.water_column }),
         el("td", { text: row.extent }),
         storeAct(row)))));
@@ -11953,6 +11965,9 @@
     // what the Expand form offers, and which of it the store has something of already
     storeExpand.datasets = reply.datasets || [];
     storeExpand.held = new Set(storeExpand.datasets.filter((d, i) => reply.rows[i] && reply.rows[i].downloaded).map(sxKey));
+    storeExpand.complete = new Set(storeExpand.datasets.filter((d, i) => reply.rows[i] && reply.rows[i].complete).map(sxKey));
+    // a dataset that is complete now cannot stay picked: there is nothing to add to it
+    for (const key of storeExpand.complete) storeExpand.picked.delete(key);
     storeExpand.rows = Object.fromEntries(reply.rows.map((row) => [`${row.name}/${row.recipe}`, row]));
     storeExpand.enabled = reply.has_store;
     $("store-expand-open").disabled = !reply.has_store;
@@ -11981,7 +11996,7 @@
   // ---- Expand: adding to the data store on purpose (see oceanval.store_expand) ----
   // The jobs go on in the background, one at a time (state.store_expand.jobs), so the form only asks
   // for one: a click on Add to the data store closes it, and another can be asked for at once.
-  const storeExpand = { datasets: [], held: new Set(), picked: new Set(), opener: null, busy: false,
+  const storeExpand = { datasets: [], held: new Set(), complete: new Set(), picked: new Set(), opener: null, busy: false,
     enabled: false, fixed: null, stash: null, target: "", rows: {} };
   const sxKey = (d) => `${d.name}/${d.recipe}`;
   const SX_BOXES = ["start", "end", "lon_min", "lon_max", "lat_min", "lat_max"];
@@ -11992,6 +12007,14 @@
     const rows = storeExpand.datasets.filter((d) => !wanted.active || wanted.test([d.variable, d.source, d.recipe, d.name]));
     $("sx-list").replaceChildren(...rows.map((d) => {
       const on = storeExpand.picked.has(sxKey(d));
+      if (storeExpand.complete.has(sxKey(d))) {
+        // all of it is held: nothing to pick
+        return el("tr", { class: "is-complete", title: "The data store holds all of this dataset" },
+          el("td", {}, el("button", { type: "button", class: "vars__pm", disabled: true, tabindex: "-1",
+            "aria-label": `${d.variable}, ${d.source}: complete in the data store`, text: "✓" })),
+          el("td", {}, d.variable),
+          el("td", {}, d.source, el("span", { class: "sx__tag is-complete", text: "complete" })));
+      }
       const button = el("button", { type: "button", class: "vars__pm", "aria-pressed": on ? "true" : "false",
         "aria-label": `${on ? "Remove" : "Add"} ${d.variable}, ${d.source}`, text: on ? "−" : "+", tabindex: "-1" });
       return el("tr", { class: on ? "is-picked" : null, onclick: () => {

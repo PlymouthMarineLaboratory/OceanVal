@@ -47,4 +47,13 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   news by `prompts.tell` `{"kind": "expand", ...}`), **in the background and one job at a time** (`App._store_jobs`, `state()["store_expand"]["jobs"]`, routes
   `/api/store_expand`, `_cancel`, `_clear`): a circle turns beside the button while any is queued/working, the form closes on submit so another can be asked for, a working job
   counts in `_busy()` (closing the browser does not kill it), Restart and quit stop every job (`_drop_store_expand`), and what was downloaded stays. Tests: `tests/test_store_expand.py`.
+- **Complete** (the user's design, 2026-11-13): a row the store holds all of shows a teal **✓ Complete** tag (`.store__complete`, a span, not a `.btn`) in place of
+  Expand, and one whose years are all held shows **✓ All years** (`All decades` for WOA23 temperature/salinity, `All months` for WOA23's monthly climatologies) in place of the
+  grey "Covers ...". `store_view._stored` works it out from the index alone (no file read; `store_view.complete` is the same for the server): each unit (a server file,
+  `url` from `data_store.pieces`; or a year, for `BY_YEAR`) must be held, by a piece whose `box` contains the dataset's domain (`data_store.GLOBAL`, or
+  `data_store.DOMAINS` for NSBC, its grid's outer cell centres) and, for WOA23, with `levels == "all"`. A 1° global fetch is `box == GLOBAL` (`_widen`). Units:
+  `find_recipe`'s files (every decade's for WOA23 T/S; OCCCI's 1998-2024 list), or for `BY_YEAR` every year of the catalogue `range`, an open end being
+  **last year** (`_last_full_year`; the year now is never kept), from 1982 for OISST (`_FIRST_KEPT`: 1981 has 4 months). Kept-whole datasets (GLODAPv3, Hansell,
+  and the plain files SOCAT, MPI-SOM, COPEPOD, GLODAP) are complete once held. **ICES is never complete** (`LIVE`: past years keep gaining data). Complete rows are
+  "complete" and cannot be picked in Expand multiple variables, and `App.store_expand` refuses a request of complete datasets alone.
 
