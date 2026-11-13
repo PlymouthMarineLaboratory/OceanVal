@@ -1334,6 +1334,31 @@ class TestFVCOMWithOtherOutput:
         regridded = glob.glob(os.path.join(folder, "**", "*.nc"), recursive=True)
         assert [path for path in regridded if not path.endswith("_grid.nc")]
 
+    def test_each_variable_has_regridded_files_of_its_own(self, mixed_simulations, tmp_path):
+        # each regridded file holds only its variable's parts (nctoolkit's open_fvcom), so the second variable's
+        # regridding must not replace the first's
+        arguments = self.given_mixed(
+            mixed_simulations,
+            out_dir=str(tmp_path),
+            variables={
+                "Temperature": {"Mesh": "temp", "Grid": "thetao"},
+                "Warmth": {"Mesh": "temp", "Grid": "thetao"},
+            },
+            climatology={
+                name: {"start": 2012, "end": 2013, "surface": True, "bottom": False, "water_column": None}
+                for name in ("Temperature", "Warmth")
+            },
+            long_term=None,
+            unit_conversions={name: {"Grid": {"multiplier": 1, "adder": 0}} for name in ("Temperature", "Warmth")},
+        )
+        compare_quietly(arguments)
+        folder = os.path.join(results(tmp_path), sim_compare.FVCOM_REGRIDDED, "mesh")
+        assert sorted(os.listdir(folder)) == ["temperature", "warmth"]
+        for name in ("temperature", "warmth"):
+            assert glob.glob(os.path.join(folder, name, "*.nc"))
+        with xr.open_dataset(os.path.join(results(tmp_path), "mesh", "warmth_surface_annual.nc")) as ds:
+            assert np.isfinite(ds["warmth"].values).any()
+
     @pytest.mark.parametrize(
         "extra, message",
         [

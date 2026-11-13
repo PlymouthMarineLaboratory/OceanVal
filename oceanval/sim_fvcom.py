@@ -233,7 +233,9 @@ def regrid_rows(rows_by_sim, sims, unify, folder, layers_of, cores):
             mapping = _regridded(
                 row,
                 files,
-                os.path.join(folder, next(sim["key"] for sim in sims if sim["name"] == name)),
+                # a folder for each variable: each file holds only the variable's own parts (open_fvcom),
+                # so one variable's files must not replace another's
+                os.path.join(folder, next(sim["key"] for sim in sims if sim["name"] == name), row["key"]),
                 depths if vertical else None,
                 grid,
                 (lon_lim, lat_lim, res),
