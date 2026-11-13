@@ -260,10 +260,10 @@ def test_each_figure_is_drawn_by_the_code_it_copies(analyses, case, tmp_path):
         ast.parse(figure.code)
         # a transect's map needs only where it runs
         assert (os.path.abspath(results) in figure.code) is (name != "transect_map") and "../" not in figure.code
-        # only the curvilinear grid's maps need regridding
-        maps = name in ("annual_map", "monthly_maps", "peak_day_map", "peak_value_map", "change_maps")
-        assert figure.regridded is (maps and case.startswith("curvilinear"))
-        assert ("to_latlon" in figure.code) is figure.regridded
+        # nctoolkit 1.4 draws a curvilinear grid's maps itself (static_plot's curvilinear
+        # mesh), so none is regridded; the regridding is only the fallback for an older one
+        assert figure.regridded is False
+        assert "to_latlon" not in figure.code
         # more regions than fit on one axes have a panel each
         assert ("panels = dict(zip(regions, grid.flat))" in figure.code) is (case == "many")
         # the time series figures give the full domain a panel of its own, first

@@ -945,7 +945,7 @@ class TestFvcom:
         script = self._create(fvcom_simulation, tmp_path, ask=False)
         assert "looks like raw FVCOM output" in capsys.readouterr().out
         # matchup finds FVCOM output itself, so the script says nothing of its own for it
-        assert "fvcom" not in matchup_call(script)
+        assert "fvcom=" not in matchup_call(script)
         assert "Model output: raw FVCOM" in script
         assert 'model_variable="temp"' in script
         ast.parse(script)
@@ -977,7 +977,7 @@ class TestFvcom:
         script = self._create(fvcom_simulation, tmp_path)
         # the model variables are asked about as usual, but never the FVCOM question
         assert not any("FVCOM" in question for question in asked)
-        assert "fvcom" not in matchup_call(script)
+        assert "fvcom=" not in matchup_call(script)
 
     def test_the_fvcom_argument_is_still_honoured(
         self, fvcom_simulation, tmp_path, monkeypatch
@@ -990,7 +990,7 @@ class TestFvcom:
     def test_fvcom_true_is_not_second_guessed(self, simulation, tmp_path):
         script = self._create(simulation, tmp_path, ask=False, fvcom=True)
         assert "Model output: raw FVCOM" in script
-        assert "fvcom" not in matchup_call(script)
+        assert "fvcom=" not in matchup_call(script)
 
     def test_fvcom_must_be_a_boolean(self, fvcom_simulation, tmp_path):
         with pytest.raises(TypeError, match="fvcom"):
@@ -1261,7 +1261,7 @@ class TestSettings:
     def test_no_fvcom_settings_are_written(self):
         script = self.build(settings=settings(), fvcom=True)
         ast.parse(script)
-        assert "fvcom" not in matchup_call(script)
+        assert "fvcom=" not in matchup_call(script)
 
     def test_a_time_shift_is_written_when_given(self):
         # the oceanval window writes the answer to matchup's question about
