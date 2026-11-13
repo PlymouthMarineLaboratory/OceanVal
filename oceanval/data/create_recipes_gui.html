@@ -33,8 +33,12 @@
   thead th:last-child { border-top-right-radius: var(--radius-md); }
   tbody td { padding: 14px 16px; border-bottom: 4px solid var(--line-strong); vertical-align: top; }
   tbody tr:last-child td { border-bottom: 0; }
-  tbody tr { transition: background-color 0.15s; }
+  tbody tr { transition: background-color 0.15s, transform 0.15s; }
   tbody tr:hover { background: var(--row-hover); }
+  /* hovering a variable's row grows it by 1% and lifts it 2px (the user's rule, 2026-11-13; a tile grows 5%)
+     (the user's rule, 2026-11-13); the row saying there are no datasets stays put */
+  #rows-gridded tr:hover:not(:has(> td.none)), #rows-point tr:hover:not(:has(> td.none)) { position: relative; transform: translateY(-2px) scale(1.01); }
+  @media (prefers-reduced-motion: reduce) { tbody tr { transition: none; } }
   tbody tr.is-empty { background: var(--empty-row); }
   /* a row with a dataset ticked on this page: tinted, with a teal edge, so it is plain at a glance */
   tbody tr.is-selected { background: var(--teal-50); }
@@ -279,17 +283,8 @@
             <p class="group__msg" id="g-climate"></p>
           </fieldset>
         </div>
+        <!-- empty: it held the FVCOM regridding boxes, and keeps the page's columns as they were -->
         <div class="settings__column">
-          <fieldset class="group" id="group-fvcom" hidden>
-            <legend>How do you want the FVCOM output regridded?</legend>
-            <label class="g-row"><span class="g-label">Lon-lat resolution for point data (degrees)</span><input class="s-input is-num" id="s-fvcom_res" name="fvcom-resolution" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
-            <div class="g-row pair">
-              <label><span class="g-label">Minimum depth (m)</span><input class="s-input is-num" id="s-fvcom_min_depth" name="fvcom-minimum-depth" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
-              <label><span class="g-label">Maximum depth (m)</span><input class="s-input is-num" id="s-fvcom_max_depth" name="fvcom-maximum-depth" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
-            </div>
-            <label class="g-row"><span class="g-label">Vertical spacing (m)</span><input class="s-input is-num" id="s-fvcom_dz" name="fvcom-vertical-spacing" inputmode="decimal" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
-            <p class="group__msg" id="g-fvcom"></p>
-          </fieldset>
         </div>
         <!-- moved to the page whose datasets need it (see placeThickness) -->
         <div class="settings__column" id="thickness-gridded">
@@ -622,7 +617,6 @@
   const GROUPS = {
     years: ["point_start", "point_end"],
     climate: ["clim_start", "clim_end"],
-    fvcom: ["fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz"],
     subset: ["lon_min", "lon_max", "lat_min", "lat_max"],
     output: ["out_dir", "overwrite"],
     thickness: ["thickness"],
@@ -636,7 +630,7 @@
   };
   // the page each group is on: the thickness is on the page that needs it
   // (see placeThickness), and the rest on the point page, the last
-  const GROUP_PAGES = { climate: "gridded", fvcom: "gridded" };
+  const GROUP_PAGES = { climate: "gridded" };
   const FIELDS = Object.values(GROUPS).flat();
   // after what OceanVal filled in is taken, so Reset still puts it back
   if (restore) {
@@ -647,7 +641,7 @@
   // each setting as the boxes it is made of, so changes and problems are
   // counted per setting rather than per box
   const SETTINGS = [
-    ["point_start"], ["point_end"], ["clim_start"], ["clim_end"], ...GROUPS.fvcom.map((name) => [name]), GROUPS.subset,
+    ["point_start"], ["point_end"], ["clim_start"], ["clim_end"], GROUPS.subset,
     ["out_dir"], ["overwrite"], ["thickness"], ["missing_from", "missing_to"], ["point_time_res"], ["cores"], ["ask"],
     ["exclude"], ["require"], ["pdf"], ["word"], ["concise"], ["subregions", "subregions_file"],
   ];
@@ -662,12 +656,9 @@
   if (String(form.cores).trim() && !coreChoices.includes(String(form.cores))) coreChoices.push(String(form.cores));
   field("cores").append(...coreChoices.map((number) => el("option", { value: number, text: number })));
   if (context.fvcom) {
-    // matchup regrids FVCOM output onto z-levels, over the mesh's extent
+    // matchup works out the depths of FVCOM's sigma layers from its files
     field("thickness").disabled = true;
-    field("thickness").placeholder = "z_level";
-    for (const name of GROUPS.subset) {
-      field(name).placeholder = name.endsWith("min") ? "mesh min" : "mesh max";
-    }
+    field("thickness").placeholder = "from the FVCOM files";
   } else {
     // z_level and the model's variables are listed as the thickness is typed in, one only (a pick is an input event)
     OceanValGUI.variableBox(field("thickness"), {
@@ -832,23 +823,6 @@
     const climOutside = clim.length === 2 && !errors.clim_start && !errors.clim_end ? outsideOutput(form.clim_start, form.clim_end) : null;
     if (climOutside && climOutside.level === "error") errors.clim_end = climOutside.text;
 
-    if (context.fvcom) {
-      const numbers = {};
-      for (const [name, label, positive] of [
-        ["fvcom_res", "The resolution", true], ["fvcom_min_depth", "The minimum depth", false],
-        ["fvcom_max_depth", "The maximum depth", true], ["fvcom_dz", "The spacing", true],
-      ]) {
-        const value = toNumber(form[name]);
-        if (value === null) errors[name] = `${label} is needed.`;
-        else if (Number.isNaN(value)) errors[name] = `${label} must be a number.`;
-        else if (positive ? value <= 0 : value < 0) errors[name] = `${label} must be ${positive ? "more than" : ""} 0${positive ? "" : " or more"}.`;
-        else numbers[name] = value;
-      }
-      if (!errors.fvcom_min_depth && !errors.fvcom_max_depth && numbers.fvcom_max_depth <= numbers.fvcom_min_depth) {
-        errors.fvcom_max_depth = "The maximum depth must be more than the minimum.";
-      }
-    }
-
     const given = GROUPS.subset.filter((name) => String(form[name]).trim());
     for (const name of given) {
       if (Number.isNaN(toNumber(form[name]))) errors[name] = "Limits must be numbers.";
@@ -929,13 +903,9 @@
         }
         return hints;
       }
-      case "fvcom":
-        return [{ text: "Point data is regridded to this resolution, and gridded data to twice the resolution of its observations. "
-          + "Datasets set to Vertical are interpolated to the depths from the minimum to the maximum every spacing, "
-          + "and observations deeper than the maximum are not matched." }];
       case "subset":
         return [{ text: "Optional: only simulation output and observations inside this box are matched up. "
-          + (context.fvcom ? "Empty: the extent of the FVCOM mesh." : "Empty: the whole domain.") }];
+          + "Empty: the whole domain." }];
       case "output":
         return [{ text: "Empty: the directory you run the script from. The report is built there too." }];
       case "thickness": {
@@ -964,8 +934,6 @@
     const errors = { ...settingErrors(), ...serverErrors };
     // a box that is not needed is not shown, so nothing in it can be wrong
     const thicknessPage = placeThickness();
-    $("group-fvcom").hidden = !context.fvcom;
-    if (!context.fvcom) for (const name of GROUPS.fvcom) delete errors[name];
     if (!needsThickness()) delete errors.thickness;
     $("row-subregions_file").hidden = form.subregions !== "file";
     const required = needsPointYears();

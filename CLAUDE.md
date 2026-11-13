@@ -27,7 +27,7 @@ website (`docs-site/`, `docs/source/`) and the generated HTML report (its ≤720
 In the OceanVal app's windows (`oceanval_app.html`, `create_recipes_gui.html`, `gui.css`), **every tile (`.choice`) and every
 button (`.btn`, all variants) grows 5% and lifts 2px on hover** (`transform: translateY(-2px) scale(1.05)`, the user's rule,
 2026-11-11). A disabled button does not grow (`.btn:hover:not(:disabled)`), and the reduced-motion block turns the transition
-off. A new tile or button class that is not built on `.btn`/`.choice` must follow the same rule. Icon-only controls (info, gear,
+off. A new tile or button class that is not built on `.btn`/`.choice` must follow the same rule. The variable rows of the gridded and point data selection tables (`#rows-gridded tr`, `#rows-point tr`) grow only 1% (lift 2px) (2026-11-13); their dataset chips do not grow, so nothing is scaled twice. Icon-only controls (info, gear,
 pills, row remove ×) are not covered.
 
 ## Required fields: bold red box

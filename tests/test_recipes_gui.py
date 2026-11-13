@@ -718,44 +718,11 @@ class TestSettingsChecks:
         settings, errors = self.check(fvcom=True, thickness="anything")
         assert (settings["thickness"], errors) == (None, {})
 
-    def test_fvcom_settings_start_at_matchups_defaults(self):
+    def test_fvcom_is_asked_nothing_of_its_own(self):
+        # matchup finds FVCOM output and opens it on its own mesh, so there is no regridding to ask about
         form = default_form(2011, 2012)
-        assert [form[x] for x in ("fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz")] == [
-            "0.05", "0", "150", "5",
-        ]
+        assert not [x for x in form if x.startswith("fvcom")]
         settings, errors = self.check(fvcom=True)
-        assert errors == {}
-        assert settings == dict(default_settings(2011, 2012), exclude=["restart", "spinup"])
-
-    def test_fvcom_settings_are_numbers_kept_whole_when_they_are(self):
-        settings, errors = self.check(
-            fvcom=True, fvcom_res="0.1", fvcom_min_depth="10", fvcom_max_depth="200.0", fvcom_dz="2.5"
-        )
-        assert errors == {}
-        assert [settings[x] for x in ("fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz")] == [
-            0.1, 10, 200, 2.5,
-        ]
-        assert isinstance(settings["fvcom_max_depth"], int)
-
-    @pytest.mark.parametrize(
-        "changes, box",
-        [
-            (dict(fvcom_res=""), "fvcom_res"),
-            (dict(fvcom_res="0"), "fvcom_res"),
-            (dict(fvcom_res="fine"), "fvcom_res"),
-            (dict(fvcom_min_depth="-1"), "fvcom_min_depth"),
-            (dict(fvcom_max_depth="0"), "fvcom_max_depth"),
-            (dict(fvcom_min_depth="150"), "fvcom_max_depth"),
-            (dict(fvcom_dz="-5"), "fvcom_dz"),
-            (dict(fvcom_dz="nan"), "fvcom_dz"),
-        ],
-    )
-    def test_fvcom_settings_that_cannot_be_used(self, changes, box):
-        settings, errors = self.check(fvcom=True, **changes)
-        assert set(errors) == {box}
-
-    def test_other_output_is_not_asked_about_fvcom(self):
-        settings, errors = self.check(fvcom_res="nonsense", fvcom_dz="0")
         assert errors == {}
         assert settings == dict(default_settings(2011, 2012), exclude=["restart", "spinup"])
 
@@ -1399,25 +1366,16 @@ class TestThicknessBox:
         finally:
             recipe_page.close()
 
-    def test_the_fvcom_regridding_is_only_asked_of_fvcom_output(self, browser):
-        for fvcom in (False, True):
-            recipe_page = self.page(fvcom=fvcom)
-            url = recipe_page.start()
-            try:
-                page = browser.new_page()
-                page.goto(url)
-                assert page.locator("#group-fvcom").is_visible() == fvcom
-                if fvcom:
-                    values = [page.locator(f"#s-{x}").input_value() for x in
-                              ("fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz")]
-                    assert values == ["0.05", "0", "150", "5"]
-                    page.locator("#s-fvcom_dz").fill("0")
-                    assert "more than 0" in page.locator("#g-fvcom").inner_text()
-                    page.locator("#s-fvcom_dz").fill("10")
-                    page.locator("#s-fvcom_max_depth").fill("300")
-                    assert "more than 0" not in page.locator("#g-fvcom").inner_text()
-            finally:
-                recipe_page.close()
+    def test_no_fvcom_regridding_is_asked(self, browser):
+        recipe_page = self.page(fvcom=True)
+        url = recipe_page.start()
+        try:
+            page = browser.new_page()
+            page.goto(url)
+            assert page.locator("#group-fvcom").count() == 0
+            assert page.locator("#s-thickness").is_disabled()
+        finally:
+            recipe_page.close()
 
     def test_it_is_not_offered_for_fvcom(self, browser):
         recipe_page = self.page(fvcom=True)
@@ -1642,6 +1600,27 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     page.click("#clear-gridded")
     _continue(page)
     assert temperature.locator(".chosen").text_content() == "None"
+
+
+def test_a_variable_row_grows_and_lifts_on_hover_in_the_browser(browser, tmp_path, monkeypatch):
+    """A variable's row on the gridded and point pages grows 1% and lifts 2px
+    under the pointer."""
+    page, _, _ = _open_window(browser, tmp_path, monkeypatch)
+    transform = "r => getComputedStyle(r).transform"
+    for kind in ("gridded", "point"):
+        if kind == "point":
+            _continue(page)
+        row = page.locator(f"#rows-{kind} tr").first
+        row.wait_for()
+        page.mouse.move(0, 0)
+        page.wait_for_timeout(400)
+        assert row.evaluate(transform) == "none"
+        row.hover(position={"x": 5, "y": 5})
+        page.wait_for_timeout(400)
+        assert row.evaluate(transform) == "matrix(1.01, 0, 0, 1.01, 0, -2)"
+        page.mouse.move(0, 0)
+        page.wait_for_timeout(400)
+        assert row.evaluate(transform) == "none"
 
 
 def test_a_variable_filled_in_on_the_point_page_ticks_no_gridded_dataset(browser, tmp_path, monkeypatch):
