@@ -932,6 +932,10 @@ class AnalyzeSteps:
             # raw FVCOM output, worked out on its own mesh, which needs no cell thickness
             "fvcom": self._analyze_fvcom(),
             "fvcom_note": FVCOM_NOTE,
+            # a comparison: the simulations the one cell thickness is for (those not FVCOM output), and the
+            # FVCOM ones, whose thickness is not asked for (see oceanval.sim_compare)
+            "thickness_sims": self._sc_thickness_sims() if self.action == SIMCOMPARE else None,
+            "fvcom_sims": self._sc_fvcom_sims() if self.action == SIMCOMPARE else [],
             "daily": time_resolution.DAILY,
             "z_level": analysis.Z_LEVEL,
             # what the info buttons of the pop-outs say (see oceanval.analysis_examples)

@@ -2918,9 +2918,10 @@
         <tbody id="clim-body"></tbody>
       </table>
       <div class="analyze-thickness" id="clim-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
+        <label class="g-row"><span class="g-label is-required"><span data-thickness-q>Is the simulation z-level or is thickness supplied?</span> <span class="own-req">Required</span></span><input class="s-input is-mono" id="clim-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
         <p class="analyze-msg" id="clim-thickness-msg"></p>
       </div>
+      <p class="analyze-dialog__intro" id="clim-sc-thickness" hidden></p>
       <p class="analyze-dialog__intro" id="clim-fvcom-thickness" hidden>For FVCOM output the cell thickness is worked out from its sigma levels (<code>siglev</code>), bathymetry (<code>h</code>) and surface elevation (<code>zeta</code>), at each time.</p>
       <div class="analyze-stations" id="clim-area" hidden>
         <h3>Regional subdomains and area <span class="own-opt">Optional</span></h3>
@@ -3025,9 +3026,10 @@
         <tbody class="analyze-all" id="chg-all"></tbody>
         <tbody id="chg-body"></tbody>
       </table>
+      <p class="analyze-dialog__intro" id="chg-sc-thickness" hidden></p>
       <p class="analyze-dialog__intro" id="chg-fvcom-thickness" hidden>For FVCOM output the cell thickness is worked out from its sigma levels (<code>siglev</code>), bathymetry (<code>h</code>) and surface elevation (<code>zeta</code>), at each time.</p>
       <div class="analyze-thickness" id="chg-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
+        <label class="g-row"><span class="g-label is-required"><span data-thickness-q>Is the simulation z-level or is thickness supplied?</span> <span class="own-req">Required</span></span><input class="s-input is-mono" id="chg-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
         <p class="analyze-msg" id="chg-thickness-msg"></p>
       </div>
     </div>
@@ -3049,10 +3051,11 @@
       <p class="analyze-msg is-rows" id="trans-msg" role="status" aria-live="polite"></p>
       <p class="analyze-dialog__intro transect-rule">Each transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends. The <strong>Surface</strong> and the <strong>Vertical</strong> (a section through the water column) each have a <strong>Climatology</strong>, the mean of each month of the year along the line (at the surface) or the annual mean (in the section), and <strong>Changes</strong>, how it changed over the years as a map of position along the line by year, of the annual means or of their change from the first year (or the first rolling mean), with an optional rolling mean.</p>
       <div class="analyze-thickness" id="trans-thickness-row" hidden>
-        <label class="g-row"><span class="g-label is-required">Is the simulation z-level or is thickness supplied? <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
+        <label class="g-row"><span class="g-label is-required"><span data-thickness-q>Is the simulation z-level or is thickness supplied?</span> <span class="own-req">Required</span></span><input class="s-input is-mono" id="trans-thickness" placeholder="e.g. e3t, or z_level" spellcheck="false" autocomplete="oceanval-none" autocapitalize="off"></label>
         <p class="analyze-msg" id="trans-thickness-msg"></p>
         <p class="analyze-dialog__intro">A vertical section needs to know where each cell is. With <code>z_level</code> the model's levels are the depths. With a thickness, each cell is placed at its depth, from the top of the water column, and the section is put on evenly spaced depths.</p>
       </div>
+      <p class="analyze-dialog__intro" id="trans-sc-thickness" hidden></p>
       <p class="analyze-dialog__intro" id="trans-fvcom-thickness" hidden>For FVCOM output each sigma layer of a vertical section is placed at its depth from its share of the sigma levels (<code>siglev</code>) of the mean depth of the water (<code>h</code> + <code>zeta</code>), so no thickness is needed.</p>
       <div class="transect-vars" id="trans-body"></div>
     </div>
@@ -7412,21 +7415,47 @@
     $(`${prefix}-msg`).textContent = "";
   }
 
+  // names as a list: "A", "A and B", "A, B and C"
+  const joinNames = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
+
+  // in a comparison the question names the simulations it is for (those that are not FVCOM output)
+  function thicknessQuestion(sims) {
+    if (!sims) return "Is the simulation z-level or is thickness supplied?";
+    if (sims.length === 1) return `Is ${sims[0]} z-level, or is its thickness supplied?`;
+    return `Are ${joinNames(sims)} z-level, or is their thickness supplied?`;
+  }
+
+  // the thickness question of a pop-out (prefix clim, chg or trans), when it is active and a simulation needs one
+  function showThickness(prefix, active) {
+    // null outside a comparison; in one, the simulations that need a thickness and the FVCOM ones (see oceanval.analysis_app)
+    const sims = state.analyze.thickness_sims;
+    const fvcomSims = state.analyze.fvcom_sims || [];
+    // raw FVCOM output's cell thickness is worked out by nctoolkit's open_fvcom (see oceanval.fvcom)
+    const fvcom = Boolean(state.analyze.fvcom);
+    const needed = sims ? sims.length > 0 : !fvcom;
+    const row = $(`${prefix}-thickness-row`);
+    row.hidden = !active || !needed;
+    row.querySelector("[data-thickness-q]").textContent = thicknessQuestion(sims);
+    const note = $(`${prefix}-fvcom-thickness`);
+    if (note) note.hidden = !active || !fvcom;
+    // a comparison with FVCOM output beside output on a grid: that output is regridded, so it says why it is not asked about
+    const scNote = $(`${prefix}-sc-thickness`);
+    scNote.hidden = !active || !sims || fvcom || !fvcomSims.length;
+    const plural = fvcomSims.length > 1;
+    scNote.textContent = plural
+      ? `${joinNames(fvcomSims)} are FVCOM output, regridded onto a grid, so their levels are used and no thickness is asked for them.`
+      : `${joinNames(fvcomSims)} is FVCOM output, regridded onto a grid, so its levels are used and no thickness is asked for it.`;
+  }
+
   function refreshThickness() {
     if (analyzeDialog.kind === "transects") {
       // a vertical section, of a variable that is ticked: raw FVCOM output's layers are placed from its mesh
       const vertical = Object.values(analyzeDialog.rows).some((section) => section.use.checked && section.cards.some((card) => card.vertical.checked || card.vertical_trends.value));
-      const fvcom = Boolean(state.analyze.fvcom);
-      $("trans-thickness-row").hidden = !vertical || fvcom;
-      $("trans-fvcom-thickness").hidden = !vertical || !fvcom;
+      showThickness("trans", vertical);
       return;
     }
     const any = Object.values(analyzeDialog.rows).some((row) => row.use.checked && ((row.mean && row.mean.checked) || (row.integral && row.integral.checked)));
-    // raw FVCOM output's cell thickness is worked out by nctoolkit's open_fvcom (see oceanval.fvcom)
-    const fvcom = Boolean(state.analyze.fvcom);
-    $(`${dialogPrefix(analyzeDialog.kind)}-thickness-row`).hidden = !any || fvcom;
-    const note = $(`${dialogPrefix(analyzeDialog.kind)}-fvcom-thickness`);
-    if (note) note.hidden = !any || !fvcom;
+    showThickness(dialogPrefix(analyzeDialog.kind), any);
   }
 
   // the cell thickness of another of the pop-outs that has been confirmed: there is one for all of them

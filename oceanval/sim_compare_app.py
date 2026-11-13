@@ -594,6 +594,22 @@ class SimCompareSteps:
         """Whether the simulations' variables are raw FVCOM output. Called with the lock held."""
         return bool(self.sc_placed) and all(row.get("fvcom") for rows in self.sc_placed.values() for row in rows)
 
+    def _sc_fvcom_sims(self):
+        """The simulations whose variables are all raw FVCOM output: their cell thickness is not asked
+        for (it is worked out from the mesh, or, regridded to another's grid, is the levels). Called
+        with the lock held."""
+        return [
+            sim["name"]
+            for sim in self.sc_sims or []
+            if any(row.get("fvcom") for row in (self.sc_placed or {}).get(sim["name"], []))
+        ]
+
+    def _sc_thickness_sims(self):
+        """The simulations the cell thickness of the options is for: those that are not FVCOM output.
+        Called with the lock held."""
+        fvcom = self._sc_fvcom_sims()
+        return [sim["name"] for sim in self.sc_sims or [] if sim["name"] not in fvcom]
+
     def _sc_mesh_sims(self):
         """The simulations that are raw FVCOM output, if some of the others are not (see
         oceanval.sim_fvcom); none if all or none are. Called with the lock held."""
