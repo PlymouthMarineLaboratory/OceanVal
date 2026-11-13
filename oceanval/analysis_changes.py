@@ -175,26 +175,19 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
             )
             what = f"{LAYER_TITLES[layer].lower()}, mean of {period['start']}-{period['end']}"
             path = os.path.join(results_dir, f"{row['key']}_{layer}_{period['name']}.nc")
+            ds = climatology_of(
+                period["files"], row, layer, (period["start"], period["end"]), time_shift, row["levels"], ds_thickness
+            )
+            with warnings.catch_warnings(record=True):
+                ds.tmean()
+                ds.run()
+            _labelled(ds, row, units, what)
+            _save(ds, path)
             if row.get("fvcom"):
-                # raw FVCOM output, on its own mesh (see oceanval.fvcom_climatology)
-                from oceanval import fvcom_climatology
-                from oceanval.analysis import file_years
+                # raw FVCOM output, opened by nctoolkit's open_fvcom: kept on its mesh, which the maps are drawn on
+                from oceanval import fvcom
 
-                mesh, _ = fvcom_climatology.work_out(
-                    period["files"], fvcom_climatology.parts_of(row), [period["start"], period["end"]], row["key"], None,
-                    path, units,
-                    f"{row['name']}, {what}", time_shift=time_shift, as_missing=row.get("as_missing"),
-                    cores=row.get("cores", 1), layer=layer, file_years=file_years(row),
-                )
-            else:
-                ds = climatology_of(
-                    period["files"], row, layer, (period["start"], period["end"]), time_shift, row["levels"], ds_thickness
-                )
-                with warnings.catch_warnings(record=True):
-                    ds.tmean()
-                    ds.run()
-                _labelled(ds, row, units, what)
-                _save(ds, path)
+                mesh = fvcom.on_mesh(path, row["files"][0])
             saved[period["name"]] = path
         changes = []
         for number, period in enumerate(asked["periods"][1:], start=1):

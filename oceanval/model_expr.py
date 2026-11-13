@@ -30,8 +30,7 @@ missing value in any variable is missing in the result, as CDO takes it.
 
 A text with no operator, bracket, comma or space in it is one variable,
 whatever its name, as before formulas could be given. This module imports
-nothing of OceanVal: oceanval.fvcom_climatology, which runs as a script by
-its path, loads it by its path too.
+nothing of OceanVal.
 """
 
 import difflib

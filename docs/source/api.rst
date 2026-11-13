@@ -35,14 +35,3 @@ Reports and maintenance
    compare
    rebuild
    deep_clean
-
-Model support
--------------
-
-.. autosummary::
-   :toctree: generated/
-
-   fvcom_preprocess
-
-
-

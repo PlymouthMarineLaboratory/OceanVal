@@ -37,12 +37,8 @@ from oceanval import cdo_check, file_workers
 from oceanval import domain_mask as domain_mask_mod
 from oceanval.parsers import generate_mapping
 from oceanval.gridded import gridded_matchup, retry_failed_gridded, _lonlat_bounds
-from oceanval.fvcom import fvcom_matchup_files, fvcom_extent, fvcom_times
-from oceanval.fvcom import check_matchup_settings as check_fvcom_settings
-from oceanval.fvcom import default_res as fvcom_default_res
-from oceanval.fvcom import default_min_depth as fvcom_default_min_depth
-from oceanval.fvcom import default_max_depth as fvcom_default_max_depth
-from oceanval.fvcom import default_dz as fvcom_default_dz
+from oceanval.fvcom import fvcom_times, is_fvcom
+from oceanval import fvcom as fvcom_mod
 from oceanval import data_store as obs_store
 from oceanval import cdo_watch
 from oceanval import extent
@@ -281,6 +277,16 @@ def _thickness_file(paths, thickness):
     raise ValueError(message)
 
 
+def _fvcom_layered_file(all_df, comparisons):
+    """An FVCOM file and a variable in it, of the first of comparisons
+    ((variable, source)), whose model variable's first name is it."""
+    for vv, source in comparisons:
+        rows = all_df.loc[all_df.variable == vv].dropna(subset=["model_variable", "example_file"])
+        if len(rows) > 0:
+            return rows.example_file.iloc[0], model_expr.names(rows.model_variable.iloc[0])[0]
+    raise ValueError("Unable to find a file of the FVCOM output to work out the depths of its sigma layers from")
+
+
 def _check_water_column_variables(comparisons, all_df):
     """
     Stop if a comparison through the water column has a model variable with
@@ -361,6 +367,9 @@ def _model_box(path, model_variable):
     the cells of the land processors it leaves out at lon -1, lat -1, so the
     whole grid can be far larger than its domain. The whole grid if they can
     not be told."""
+    if session_info.get("fvcom", False):
+        # raw FVCOM output, which CDO cannot read: the extent of the nodes of its mesh
+        return fvcom_mod.fvcom_extent(path)
     found_names = model_expr.names(str(model_variable))
     name = found_names[0] if found_names else None
     found = extent.of_file(path, name, session_info.get("as_missing"))
@@ -398,29 +407,23 @@ def _saved_titles(out_dir):
     return dict()
 
 
-def _remove_fvcom_dir(fvcom_dir):
-    """
-    Remove the regridded FVCOM files
+# matchup arguments for raw FVCOM output that are no longer needed: it is found
+# from its files, and nctoolkit's open_fvcom matches it up on its own mesh
+REMOVED_FVCOM = ("fvcom", "fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz")
 
-    nctoolkit's contents leaves netCDF files open until garbage collection, and on NFS
-    a directory cannot be removed while a file in it is open ("Device or resource busy").
-    """
-    if "fvcom_tmp" not in fvcom_dir:
-        raise ValueError("Refusing to remove fvcom_dir because it does not contain 'fvcom_tmp'")
-    error = None
-    for attempt in range(3):
-        if not os.path.exists(fvcom_dir):
-            return
-        gc.collect()
-        try:
-            shutil.rmtree(fvcom_dir)
-            return
-        except OSError as e:
-            error = e
-            time.sleep(1)
-    warnings.warn(
-        f"Unable to remove the temporary FVCOM files in {fvcom_dir} ({error}). They can be deleted manually."
-    )
+
+def _check_removed(removed):
+    """Stop for keyword arguments matchup does not take, saying what to do
+    for those it took for FVCOM output (REMOVED_FVCOM)."""
+    gone = [x for x in removed if x in REMOVED_FVCOM]
+    if gone:
+        raise TypeError(
+            f"matchup no longer takes {', '.join(gone)}: raw FVCOM output is found from its files and "
+            "matched up on its own mesh, so nothing needs to be said about it. Remove "
+            f"{'it' if len(gone) == 1 else 'them'} from the matchup call."
+        )
+    if removed:
+        raise TypeError(f"matchup() got an unexpected keyword argument '{next(iter(removed))}'")
 
 
 def _exit_with(parent):
@@ -597,8 +600,11 @@ def _top_cell_depths(locs, ds_depths, path, model_variable):
     # topvalue cannot be used: on an axis without levels it knows, such as
     # GETM's, it takes the last level, which is the bottom once inverted
     ds.vertical_min()
+    # the depths of raw FVCOM output are on its mesh, which CDO only regrids by nearest
+    # neighbour: as nctoolkit's match_points takes FVCOM's depths at the points
+    method = "nn" if session_info.get("fvcom", False) else "bil"
     try:
-        top = ds.match_points(locs.loc[:, ["lon", "lat"]].drop_duplicates(), quiet=True)
+        top = ds.match_points(locs.loc[:, ["lon", "lat"]].drop_duplicates(), quiet=True, regrid=method)
     except ValueError:
         # no location is in the sea
         return None
@@ -701,8 +707,10 @@ def mm_match(
         nc.session.append_safe(ds_depths[0])
     try:
         with warnings.catch_warnings(record=True) as w:
-            ds = nc.open_data(ff, checks=False)
             var_match = model_expr.names(model_variable)
+            # raw FVCOM output is opened by nctoolkit's open_fvcom (see oceanval.fvcom)
+            fvcom = bool(session_info.get("fvcom", False))
+            ds = fvcom_mod.open_model(ff, var_match, fvcom=fvcom)
 
             valid_locs = ["lon", "lat", "year", "month", "day", "depth"]
             valid_locs = [x for x in valid_locs if x in df.columns]
@@ -739,7 +747,8 @@ def mm_match(
 
             # one select of the variables and the time steps wanted (and, for the surface, its
             # first level), so that CDO reads only those: selname and seltimestep read every
-            # time step of every level and drop what is not wanted (see oceanval.surface)
+            # time step of every level and drop what is not wanted (see oceanval.surface).
+            # FVCOM's layer thickness is not opened: the depths are ds_depths
             surface.choose(ds, var_match, fast, ff_indices)
 
             if more_than_one_level:
@@ -1398,15 +1407,11 @@ def matchup(
     n_check=None,
     as_missing=None,
     strict_names = True,
-    fvcom = False,
     live_validation = None,
     time_shift = None,
     data_store = None,
-    fvcom_res = fvcom_default_res,
-    fvcom_min_depth = fvcom_default_min_depth,
-    fvcom_max_depth = fvcom_default_max_depth,
-    fvcom_dz = fvcom_default_dz,
     domain_mask = None,
+    **removed,
 ):
     """
     Match up model with observational data
@@ -1438,6 +1443,8 @@ def matchup(
         and its vertical coordinate needs a positive attribute ("down" for NEMO), to tell whether its first level is the surface.
         With "z_level", the model's levels must be depths (positive down); output on heights (positive up) needs the cell thickness instead.
         If the cell_thickness variable is in the raw data, it will be used, and thickness does not need to be supplied.
+        Raw FVCOM output needs none: it is found from its files, and the thickness of its sigma layers is worked out
+        from them by nctoolkit's open_fvcom, so thickness is ignored for it.
     n_dirs_down : int
         Number of levels down to look for netCDF files. Default is 2, ie. the files are of the format ``*/*/*.nc``.
     point_time_res : list or str
@@ -1467,29 +1474,6 @@ def matchup(
         Value(s) to treat as missing in the model data. Default is None.
     strict_names : bool
         If True, variable names must match exactly those in the definitions. Default is True.
-    fvcom : bool
-        Set to True if sim_dir contains raw FVCOM output. Default is False.
-        Each model file is then regridded with ``fvcom_preprocess`` before matching:
-        surface values for comparisons with vertical=False, and the depths given by
-        fvcom_min_depth, fvcom_max_depth and fvcom_dz (0-150 m every 5 m by default)
-        for comparisons with vertical=True. Point comparisons use a grid of fvcom_res
-        degrees (0.05 by default), and gridded comparisons use a grid at twice the
-        resolution of the observations.
-        thickness is not needed, and lon_lim and lat_lim default to the extent of the mesh.
-        The regridded files are deleted once the matchups are done.
-    fvcom_res : float
-        The lon-lat resolution, in degrees, of the grid FVCOM output is regridded to for point
-        comparisons. Default is 0.05. Only used if fvcom is True.
-    fvcom_min_depth : float
-        The shallowest depth (m, positive down) FVCOM output is interpolated to for comparisons
-        with vertical=True. Default is 0. Only used if fvcom is True.
-    fvcom_max_depth : float
-        The deepest depth (m) FVCOM output is interpolated to for comparisons with
-        vertical=True. Default is 150. Observations deeper than this are not matched.
-        Only used if fvcom is True.
-    fvcom_dz : float
-        The vertical spacing (m) of the depths between fvcom_min_depth and fvcom_max_depth.
-        Default is 5. Only used if fvcom is True.
     live_validation : bool or dict
         Build an interim validation report, HTML only, as the matchups are made: each matchup's
         page is added as soon as the matchup is made, and the summary is run again, so the
@@ -1559,18 +1543,9 @@ def matchup(
     domain_mask = domain_mask_mod.check(domain_mask)
     session_info["domain_mask"] = None
 
-    if not isinstance(fvcom, bool):
-        raise TypeError("fvcom must be a boolean")
-    session_info["fvcom"] = fvcom
-    session_info["fvcom_files"] = dict()
-    session_info["fvcom_res"], session_info["fvcom_levels"] = check_fvcom_settings(
-        fvcom_res, fvcom_min_depth, fvcom_max_depth, fvcom_dz
-    )
-    if fvcom:
-        # regridded FVCOM output is on z-levels, so no thickness is needed
-        if thickness is not None and thickness not in ["z_level", "z-level", "z level"]:
-            warnings.warn("thickness is ignored when fvcom=True")
-        thickness = "z_level"
+    _check_removed(removed)
+    # raw FVCOM output is found from its files (see oceanval.fvcom.is_fvcom), once they are listed
+    session_info["fvcom"] = False
 
     if thickness is not None:
         if isinstance(thickness, str):
@@ -1616,11 +1591,6 @@ def matchup(
     # the interim report, built as the matchups are made (see oceanval.live)
     live_options = live.check_options(live_validation, out_dir)
 
-    # regridded FVCOM files only live for the duration of the matchup
-    session_info["fvcom_dir"] = session_info["out_dir"] + "oceanval_matchups/fvcom_tmp"
-    if fvcom:
-        # left behind by a matchup that did not finish
-        _remove_fvcom_dir(session_info["fvcom_dir"])
 
     # check if exclude is a list or str
     if not isinstance(exclude, list):
@@ -1760,11 +1730,14 @@ def matchup(
         error = f"The model variables specified do not appear to be in the simulation output for the following: {missing}. Please check the model_variable names and try again."
         raise ValueError(error)
 
-    if fvcom and lon_lim is None:
-        # FVCOM output has to be regridded onto a lon/lat box
-        lon_lim, lat_lim = fvcom_extent(all_df.example_file.iloc[0])
-        session_info["lon_lim"] = lon_lim
-        session_info["lat_lim"] = lat_lim
+    # raw FVCOM output, which generate_mapping found from the files' mesh (see
+    # oceanval.fvcom.is_fvcom): nctoolkit's open_fvcom opens it, on its own mesh
+    fvcom = bool(session_info.get("fvcom", False))
+    if fvcom and thickness is not None:
+        warnings.warn("thickness is ignored for raw FVCOM output: the thickness of its sigma layers is worked out from its files")
+    if fvcom:
+        thickness = None
+        session_info["z_level"] = False
 
     # add in anything that is missing
 
@@ -1888,7 +1861,18 @@ def matchup(
         with warnings.catch_warnings(record=True) as w:
             # extract the thickness dataset
             cell_thickness_found = False
-            if thickness is not None and os.path.exists(thickness):
+            if fvcom:
+                # the thickness of the sigma layers, which nctoolkit's open_fvcom works out,
+                # is the cell thickness, at the first time of a file of a variable through
+                # the water column
+                ff, name = _fvcom_layered_file(
+                    all_df, gridded_vertical + gridded_depth_mean + point["all"]
+                )
+                ds_thickness = fvcom_mod.thickness_dataset(ff, name)
+                thickness = fvcom_mod.THICKNESS
+                thickness_label = f"the thickness of the sigma layers of {name} in {ff}"
+                cell_thickness_found = True
+            elif thickness is not None and os.path.exists(thickness):
                 ds_thickness = nc.open_data(thickness, checks=False)
                 thickness_variable = _thickness_from_file(thickness)
                 invert_thickness = is_z_up(ds_thickness[0], thickness_variable)
@@ -2168,9 +2152,6 @@ def matchup(
     if "out_dir" in given:
         out_dir = _full_out_dir(given["out_dir"])
         session_info["out_dir"] = out_dir + "/"
-        session_info["fvcom_dir"] = session_info["out_dir"] + "oceanval_matchups/fvcom_tmp"
-        if fvcom:
-            _remove_fvcom_dir(session_info["fvcom_dir"])
         session_info["short_title"] = _saved_titles(session_info["out_dir"]) | session_info["short_title"]
     if "overwrite" in given:
         overwrite = session_info["overwrite"] = _checked_overwrite(given["overwrite"])
@@ -2572,26 +2553,6 @@ def matchup(
 
                         df_times_new = copy.deepcopy(df_times)
 
-                        if fvcom:
-                            # match against regridded copies of the FVCOM files.
-                            # They keep the same times, so time_index still applies
-                            fvcom_paths = fvcom_matchup_files(
-                                paths,
-                                model_expr.names(model_variable),
-                                session_info["fvcom_dir"],
-                                vertical=(layer == "all"),
-                                res=session_info["fvcom_res"],
-                                lon_lim=lon_lim,
-                                lat_lim=lat_lim,
-                                cores=cores,
-                                levels=session_info["fvcom_levels"],
-                            )
-                            paths = [fvcom_paths[x] for x in paths]
-                            df_times_new["path"] = [
-                                fvcom_paths.get(x, x) for x in df_times_new.path
-                            ]
-
-
                         valid_cols = [
                             "lon",
                             "lat",
@@ -2812,10 +2773,14 @@ def matchup(
                             )
                             import dill
                             # get the model unit
-                            ds = nc.open_data(paths[0], checks=False)
                             the_variable = model_expr.names(model_variable)[0]
+                            if fvcom:
+                                # raw FVCOM output, which CDO cannot read: from its header
+                                contents = fvcom_mod.fvcom_contents(paths[0])
+                            else:
+                                contents = nc.open_data(paths[0], checks=False).contents
                             model_unit = list(
-                                ds.contents.query(
+                                contents.query(
                                     "variable == @the_variable"
                                 ).unit
                             )[0]
@@ -2986,8 +2951,6 @@ def matchup(
     selection.save_last_run(session_info["out_dir"] + "oceanval_matchups", told.made_keys)
 
     if fvcom:
-        _remove_fvcom_dir(session_info["fvcom_dir"])
-        session_info["fvcom_files"] = dict()
         session_info["fvcom"] = False
 
     if builder is not None:

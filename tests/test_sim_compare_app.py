@@ -1661,7 +1661,7 @@ def test_the_domain_mask_is_asked_in_a_browser(browser, tmp_path):
 
 
 class TestFVCOM:
-    """Raw FVCOM output (oceanval.fvcom_climatology): compared on its mesh, or regridded to the grid
+    """Raw FVCOM output (oceanval.fvcom): compared on its mesh, or regridded to the grid
     the grids step chooses (oceanval.sim_fvcom). On its mesh no thickness is asked for."""
 
     @pytest.fixture

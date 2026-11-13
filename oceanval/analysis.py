@@ -42,6 +42,7 @@ import xarray as xr
 from oceanval import cdo_check, domain_mask, model_expr, netcdf_lock, prompts, sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
+from oceanval import fvcom as fvcom_mod
 from oceanval.matchall import _restores_nctoolkit_options
 
 # the folder analyze() puts everything in, in its out_dir, and what is in it
@@ -401,8 +402,8 @@ _FILE_READ_LOCK = netcdf_lock.LOCK
 
 
 def looks_like_fvcom(path):
-    """create_recipes._looks_like_fvcom, which opens the file with xarray, so
-    like _variables_of it is read one thread at a time."""
+    """create_recipes._looks_like_fvcom (oceanval.fvcom.is_fvcom), which reads
+    the file's header, so like _variables_of it is read one thread at a time."""
     with _FILE_READ_LOCK:
         try:
             return _looks_like_fvcom(path)
@@ -417,16 +418,16 @@ def _variables_of(path):
     as CDO reads them (so not coordinates or bounds), or as xarray reads its
     data variables if CDO cannot read it, None if neither can, and whether
     it is raw FVCOM output (see looks_like_fvcom), whose variables are those
-    on its mesh (see fvcom_climatology.variables), as (variables, fvcom)."""
+    on its mesh (see oceanval.fvcom.variables), as (variables, fvcom)."""
     with _FILE_READ_LOCK:
         fvcom = _looks_like_fvcom(path)
         if not fvcom:
             return _read_variables_of(path), False
         # CDO cannot read FVCOM's mesh, so nctoolkit's contents would leave its variables out
-        from oceanval import fvcom_climatology
+        from oceanval import fvcom as fvcom_mod
 
         try:
-            return fvcom_climatology.variables(path), True
+            return fvcom_mod.variables(path), True
         except Exception:
             return None, True
         finally:
@@ -669,17 +670,29 @@ def _model_data(files, row, years, time_shift, layer=None, levels=1, at=None):
     "surface_fast" (see _first_level_is_surface), the surface is chosen with
     the variables, by CDO's select, which does not read the other levels."""
     fast = layer == SURFACE and levels > 1 and bool(row.get("surface_fast"))
+    # raw FVCOM output is opened by nctoolkit's open_fvcom (see oceanval.fvcom), with only
+    # row's parts and, for the water column, the thickness of the layers, which nctoolkit's
+    # vertical_mean and vertical_integration weight it by
+    fvcom = bool(row.get("fvcom"))
+    # every level, for a transect's section, which is placed at its depths by the thickness too
+    keep_thickness = fvcom and (layer in WATER_COLUMN or layer == "levels")
+
+    def opened(paths):
+        if fvcom:
+            return fvcom_mod.open_model(paths, row["parts"], fvcom=True, thickness=keep_thickness)
+        return nc.open_data(paths, checks=False)
+
     if years is None:
         path, step = at if at is not None else (files if isinstance(files, str) else files[0], 0)
-        ds = nc.open_data(path, checks=False)
-        _choose(ds, row, fast, step=step)
+        ds = opened(path)
+        _choose(ds, row, fast, step=step, thickness=keep_thickness)
     elif time_shift:
-        ds = nc.open_data(files, checks=False)
-        _choose(ds, row, fast)
+        ds = opened(files)
+        _choose(ds, row, fast, thickness=keep_thickness)
     else:
-        ds = nc.open_data(files, checks=False)
+        ds = opened(files)
         ds.subset(years=list(range(years[0], years[1] + 1)))
-        _choose(ds, row, fast)
+        _choose(ds, row, fast, thickness=keep_thickness)
     if layer == SURFACE and not fast:
         # as matchup takes it, before the missing value is set
         _pick_level(ds, layer, levels)
@@ -695,7 +708,11 @@ def _model_data(files, row, years, time_shift, layer=None, levels=1, at=None):
         # years on disk are not the years they are shifted into
         ds.shift(days=time_shift)
         ds.cdo_command("-selyear," + ",".join(str(year) for year in range(years[0], years[1] + 1)))
-    if row.get("formula") or len(row["parts"]) > 1:
+    if (row.get("formula") or len(row["parts"]) > 1) and keep_thickness:
+        # the sum, or the formula, of the parts, beside the thickness of FVCOM's layers
+        ds.cdo_command(model_expr.cdo_operator(row["key"], row.get("formula") or "+".join(row["parts"]), append=True))
+        ds.cdo_command(f"-selname,{row['key']},{fvcom_mod.THICKNESS}")
+    elif row.get("formula") or len(row["parts"]) > 1:
         # the sum, or the formula, of the parts (see oceanval.model_expr)
         ds.cdo_command(model_expr.cdo_operator(row["key"], row.get("formula") or "+".join(row["parts"])))
     else:
@@ -704,10 +721,15 @@ def _model_data(files, row, years, time_shift, layer=None, levels=1, at=None):
     # sim_compare.check_unit_conversions): converted as it is read, so that every
     # analysis is of the converted values. Missing values stay missing
     multiplier, adder = row.get("convert") or (1, 0)
-    if multiplier != 1:
-        ds.cdo_command(f"-mulc,{multiplier!r}")
-    if adder != 0:
-        ds.cdo_command(f"-addc,{adder!r}")
+    if keep_thickness and (multiplier != 1 or adder != 0):
+        # the values only, not the thickness of FVCOM's layers
+        name = row["key"]
+        ds.cdo_command(f"-aexpr,'{name}={name}*{multiplier!r}+{adder!r};'")
+    else:
+        if multiplier != 1:
+            ds.cdo_command(f"-mulc,{multiplier!r}")
+        if adder != 0:
+            ds.cdo_command(f"-addc,{adder!r}")
     return ds
 
 
@@ -752,10 +774,12 @@ def thickness_data(thickness, files, as_missing=None):
 CHUNK_CACHE = surface.CHUNK_CACHE
 
 
-def _choose(ds, row, fast, step=None):
+def _choose(ds, row, fast, step=None, thickness=False):
     """Choose the variables of row in ds, and with step (from 0) that time step
-    only; if fast, only the surface of them too (see oceanval.surface)."""
-    surface.choose(ds, row["parts"], fast, None if step is None else [step])
+    only; if fast, only the surface of them too (see oceanval.surface). With
+    thickness, FVCOM's layer thickness too (see _model_data)."""
+    names = list(row["parts"]) + ([fvcom_mod.THICKNESS] if thickness else [])
+    surface.choose(ds, names, fast, None if step is None else [step])
 
 
 def _chunk_cache(row, layer):
@@ -937,10 +961,10 @@ def peak(path, variable, out):
         coords = {
             name: coord for name, coord in values.coords.items() if time_dim not in coord.dims
         }
-        # raw FVCOM output's mesh, which its maps are drawn on (see oceanval.fvcom_climatology)
+        # raw FVCOM output's mesh, which its maps are drawn on (see oceanval.fvcom.on_mesh)
         mesh = {}
         if ds.attrs.get("mesh"):
-            from oceanval.fvcom_climatology import MESH
+            from oceanval.fvcom import MESH
 
             mesh = {name: ds[name].variable.copy() for name in MESH if name in ds.variables}
         starts = month_starts(month_days)
@@ -1234,11 +1258,10 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
         layers = {}
         for layer in row["climatology"]["layers"]:
             _say(f"Working out the climatology of {row['name']}: {LAYER_TITLES[layer].lower()}")
-            if row.get("fvcom"):
-                layers[layer] = _fvcom_climatology(row, results_dir, layer, years, time_shift)
-                continue
             ds_thickness = None
-            if layer in WATER_COLUMN:
+            # raw FVCOM output's water column is weighted by the thickness of its layers, which
+            # nctoolkit's open_fvcom works out (see _model_data)
+            if layer in WATER_COLUMN and not row.get("fvcom"):
                 if row["pattern"] not in thickness_for:
                     thickness_for[row["pattern"]] = thickness_data(thickness, row["files"], row.get("as_missing"))
                 ds_thickness = thickness_for[row["pattern"]]
@@ -1260,6 +1283,9 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
                 "annual": os.path.basename(annual),
                 "months": len(nc.open_data(monthly, checks=False).times),
             }
+            if row.get("fvcom"):
+                # kept on the mesh, which the maps are drawn on
+                layers[layer]["mesh"] = _on_mesh(row, monthly, annual)
         entry["climatology"] = {
             "start": years[0],
             "end": years[1],
@@ -1274,18 +1300,11 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
         years = (row["phenology"]["start"], row["phenology"]["end"])
         _say(f"Working out the phenology of {row['name']}")
         daily = os.path.join(results_dir, f"{row['key']}_surface_daily.nc")
+        ds = daily_climatology_of(row["phenology"]["files"], row, years, time_shift, row["levels"])
+        _labelled(ds, row, row["units"], "daily climatology at the surface")
+        _save(ds, daily)
         if row.get("fvcom"):
-            from oceanval import fvcom_climatology
-
-            where = fvcom_climatology.daily_work_out(
-                row["phenology"]["files"], fvcom_climatology.parts_of(row), list(years), row["key"], daily, row["units"],
-                f"{row['name']}, daily climatology at the surface", time_shift=time_shift,
-                as_missing=row.get("as_missing"), cores=row.get("cores", 1), file_years=file_years(row),
-            )
-        else:
-            ds = daily_climatology_of(row["phenology"]["files"], row, years, time_shift, row["levels"])
-            _labelled(ds, row, row["units"], "daily climatology at the surface")
-            _save(ds, daily)
+            where = _on_mesh(row, daily)
         phenology_file = os.path.join(results_dir, f"{row['key']}_phenology.nc")
         peak(daily, row["key"], phenology_file)
         with xr.open_dataset(phenology_file) as ds_peak:
@@ -1330,67 +1349,15 @@ def _work_out(row, results_dir, thickness, thickness_for, time_shift, area=None,
     return entry
 
 
-def check_mesh_area(rows, area):
-    """Raise ValueError if the time series of a variable of raw FVCOM output
-    whose mesh is in metres, with no longitudes and latitudes, are asked to be
-    of regions, a lon/lat box or stations, none of which can then be found on
-    it (see check_area): its Full Domain series can still be worked out."""
-    from oceanval import fvcom_climatology
+def _on_mesh(row, *paths):
+    """Keep the results files at paths, of row's raw FVCOM output, on its mesh
+    (see oceanval.fvcom.on_mesh), as its maps are drawn on it. Returns the part
+    of the mesh they are on, "node" or "nele"."""
+    from oceanval import fvcom
 
-    if area["region_file"] is None and area["lon_lim"] is None and not area["stations"]:
-        return
-    problems = [
-        f"{row['name']} ({row['model_variable']})"
-        for row in rows
-        if row.get("fvcom") and (row["long_term"] or row["seasonal"]) and not fvcom_climatology.has_lon_lat(row["files"][0])
-    ]
-    if problems:
-        raise ValueError(
-            f"The FVCOM mesh of {', '.join(problems)} is in metres, with no longitudes and latitudes, so its series "
-            "cannot be of regions, a lon/lat box or stations: leave out subregions, lon_lim, lat_lim and stations."
-        )
-
-
-def file_years(row):
-    """The years of the (shifted) times of each of row's files, as
-    oceanval.fvcom_climatology reads raw FVCOM output a year at a time:
-    {path: {year, ...}}."""
-    return {path: {int(year) for year in df.year} for path, df in row["times"].items()}
-
-
-def _fvcom_climatology(row, results_dir, layer, years, time_shift):
-    """The climatology of row's variable, raw FVCOM output, in layer (see
-    LAYER_TITLES), on its own mesh (see oceanval.fvcom_climatology), saved in
-    results_dir: what INFO_FILE says of the layer, with "mesh", the part of
-    the mesh it is on, "node" or "nele"."""
-    from oceanval import fvcom_climatology
-
-    monthly = os.path.join(results_dir, f"{row['key']}_{layer}_monthly.nc")
-    annual = os.path.join(results_dir, f"{row['key']}_{layer}_annual.nc")
-    units = integral_units(row["units"]) if layer == "integral" else row["units"]
-    where, months = fvcom_climatology.work_out(
-        row["climatology"]["files"],
-        fvcom_climatology.parts_of(row),
-        list(years),
-        row["key"],
-        monthly,
-        annual,
-        units,
-        f"{row['name']}, {LAYER_TITLES[layer].lower()}",
-        time_shift=time_shift,
-        as_missing=row.get("as_missing"),
-        cores=row.get("cores", 1),
-        layer=layer,
-        file_years=file_years(row),
-    )
-    return {
-        "title": LAYER_TITLES[layer],
-        "units": units,
-        "monthly": os.path.basename(monthly),
-        "annual": os.path.basename(annual),
-        "months": months,
-        "mesh": where,
-    }
+    for path in paths:
+        where = fvcom.on_mesh(path, row["files"][0])
+    return where
 
 
 def _first_level_is_surface(row, stream):
@@ -1410,8 +1377,9 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
     time resolution and the files and dates of each analysis. Checks that the
     output has what the rows ask of it. times_index is the path of the times of
     the files already read (see model_check.save_times_index), which are not
-    read again if their files are unchanged. Raw FVCOM output is worked out on
-    its own mesh. Raises ValueError saying everything that is wrong."""
+    read again if their files are unchanged. Raw FVCOM output is opened by
+    nctoolkit's open_fvcom (see oceanval.fvcom), on its own mesh. Raises
+    ValueError saying everything that is wrong."""
     from oceanval import time_stamps
     from oceanval.matchall import index_times
     from oceanval.model_check import files_in_years, load_times_index
@@ -1451,17 +1419,23 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
         row.update(describe_variable(row["model_variable"], stream))
         row["fvcom"] = bool(stream.get("fvcom"))
         if row["fvcom"]:
-            from oceanval import fvcom_climatology
+            from oceanval import fvcom
 
             try:
-                # the parts of a sum must all be on the nodes, or all on the elements
-                fvcom_climatology.location(stream["files"][0], row["parts"])
+                # the parts of a sum must all be on the nodes, or all on the elements: nctoolkit's
+                # open_fvcom opens the variables of one of them at a time
+                fvcom.location(stream["files"][0], row["parts"])
             except ValueError as error:
                 problems.append(f"{row['name']} ({row['model_variable']}): {error}")
+            if not fvcom.has_lon_lat(stream["files"][0]):
+                problems.append(
+                    f"{row['name']} ({row['model_variable']}): the FVCOM mesh is in metres, with no longitudes and "
+                    "latitudes, which nctoolkit's open_fvcom needs to open it."
+                )
             column = any(
                 layer in WATER_COLUMN for kind in LAYERED + ("map_changes",) if row[kind] for layer in row[kind]["layers"]
             )
-            bad = fvcom_climatology.not_layered(stream["files"][0], row["parts"]) if column else []
+            bad = fvcom.not_layered(stream["files"][0], row["parts"]) if column else []
             if bad and row["levels"] > 1:
                 # a variable with one level is told below; one on the tops and bottoms of the layers
                 # (siglev), not in them, has no thickness to weight it by
@@ -1474,7 +1448,7 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
             vertical_transect = row["transects"] and any(
                 line["vertical"] or line["vertical_trends"] for line in row["transects"]["lines"]
             )
-            bad = fvcom_climatology.not_layered(stream["files"][0], row["parts"]) if vertical_transect else []
+            bad = fvcom.not_layered(stream["files"][0], row["parts"]) if vertical_transect else []
             if bad and row["levels"] > 1:
                 problems.append(
                     f"{row['name']} ({row['model_variable']}): a section through the water column needs every part of it "
@@ -1482,13 +1456,7 @@ def locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_
                     "not (on the sigma levels, siglev, the tops and bottoms of the layers, or with no vertical levels): "
                     "leave out the vertical climatology and vertical changes of its transects."
                 )
-            if row["transects"] and not fvcom_climatology.has_lon_lat(stream["files"][0]):
-                # the transects' ends are longitudes and latitudes (see oceanval.fvcom_transects)
-                problems.append(
-                    f"{row['name']} ({row['model_variable']}): the FVCOM mesh is in metres, with no longitudes and "
-                    "latitudes, so it has no transects: leave out its transects."
-                )
-            # read with netCDF4, a layer of each part at a time (see oceanval.fvcom_climatology)
+            # opened by nctoolkit's open_fvcom (see oceanval.fvcom), whose first level is the surface
             row["surface_fast"] = row["surface_small_cache"] = False
         elif row["levels"] > 1:
             row["surface_fast"], why, row["surface_small_cache"] = _first_level_is_surface(row, stream)
@@ -1827,15 +1795,13 @@ def analyze(
     if not isinstance(figure_code, (bool, np.bool_)):
         raise ValueError("figure_code must be True or False.")
     as_missing = check_as_missing(as_missing)
-    # the thickness is checked once the output is found: raw FVCOM output's is worked out from its mesh
+    # the thickness is checked once the output is found: raw FVCOM output's is worked out by nctoolkit's open_fvcom
     rows = check_arguments(
         variables, climatology, phenology, thickness, time_shift, long_term, seasonal, transects, map_changes,
         defer_thickness=True,
     )
     for row in rows:
         row["as_missing"] = as_missing
-        # raw FVCOM output is read in this many processes (see oceanval.fvcom_climatology)
-        row["cores"] = int(cores)
     area = check_area(rows, subregions, lon_lim, lat_lim, stations)
     sim_dir = os.path.abspath(sim_dir)
     out_dir = os.path.abspath(out_dir or ".")
@@ -1849,7 +1815,6 @@ def analyze(
         times_index = os.path.abspath(os.fspath(times_index))
     locate_rows(rows, sim_dir, n_dirs_down, exclude, require, time_shift, times_index)
     require_thickness([row for row in rows if not row.get("fvcom")], thickness)
-    check_mesh_area(rows, area)
 
     # any analysis there before is replaced, as validate() replaces its report
     folder = os.path.join(out_dir, FOLDER)

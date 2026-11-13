@@ -1,7 +1,7 @@
 """Raw FVCOM output compared with output on other grids, in compare_simulations().
 
-Raw FVCOM output is on a mesh of triangles, which CDO cannot read, so it is only
-ever compared on its own mesh with other FVCOM output (see oceanval.fvcom_climatology)
+Raw FVCOM output is on a mesh of triangles, which nctoolkit's open_fvcom opens
+(see oceanval.fvcom), so it is compared on its own mesh with other FVCOM output
 unless the simulations are put on one grid with unify. Then, and whenever some
 simulations are FVCOM and some are not, the FVCOM output is regridded (nearest
 neighbour, as matchup regrids it) and is then ordinary output on a grid:
@@ -13,7 +13,7 @@ neighbour, as matchup regrids it) and is then ordinary output on a grid:
 
 A variable that needs more than the surface is interpolated from the sigma
 layers to the depths of the baseline's levels (for a box, those of the first
-simulation that is not FVCOM, else matchup's: 0-150 m every 5 m), so that every
+simulation that is not FVCOM, else DEPTHS: 0-150 m every 5 m), so that every
 simulation has the same levels, and its water column is worked out as
 thickness="z_level" is.
 """
@@ -22,9 +22,12 @@ import os
 
 import numpy as np
 
-from oceanval import fvcom, fvcom_climatology, sim_unify
+from oceanval import fvcom, sim_unify, surface
 from oceanval.analysis import KINDS, SURFACE, Z_LEVEL, _say, first_step_of, second_step_of
 from oceanval.quiet_nc import nc
+
+# the depths FVCOM output alone is interpolated to on a lon-lat box, as no simulation has levels to go to
+DEPTHS = [float(depth) for depth in range(0, 155, 5)]
 
 _LAYERS = (
     "with the top layer's value above the top layer, the bottom layer's between it and the seabed and nothing "
@@ -99,7 +102,7 @@ def problems_of(rows_by_sim, names, unify, domain_mask):
                 f"{name} has some variables that are raw FVCOM output and some that are not: compare them in "
                 "separate comparisons."
             )
-        elif not fvcom_climatology.has_lon_lat(rows_by_sim[name][0]["files"][0]):
+        elif not fvcom.has_lon_lat(rows_by_sim[name][0]["files"][0]):
             problems.append(
                 f"{name}: the FVCOM mesh is in metres, with no longitudes and latitudes, so it can not be "
                 "regridded to the grid of another simulation."
@@ -157,6 +160,34 @@ def _swap_files(row, mapping):
     row["times"] = {mapping[path]: times for path, times in row["times"].items() if path in mapping}
 
 
+def _regridded(row, files, folder, depths, grid, box):
+    """Regrid each of row's FVCOM files, opened by nctoolkit's open_fvcom with only
+    row's parts, into folder (nearest neighbour, so only the cells inside the mesh
+    have values): onto the grid of the netCDF file grid, or, if it is None, onto
+    the lon-lat box (lon, lat, res). Below the surface, with depths, the sigma
+    layers are interpolated to them first (by the thickness of the layers, as
+    nctoolkit does); otherwise only the surface is kept. Returns {file: its
+    regridded file}."""
+    os.makedirs(folder, exist_ok=True)
+    mapping = {}
+    for number, path in enumerate(files):
+        ds = fvcom.open_model(path, row["parts"], fvcom=True, thickness=depths is not None)
+        if depths is not None:
+            ds.vertical_interp(depths)
+        elif row["levels"] > 1:
+            surface.finite_missing(ds)
+            ds.cdo_command("topvalue")
+        if grid is not None:
+            ds.regrid(grid, method="nn")
+        else:
+            lon, lat, res = box
+            ds.to_latlon(lon=lon, lat=lat, res=res, method="nn")
+        out = os.path.join(folder, f"{number:05d}_{os.path.basename(path)}")
+        ds.to_nc(out, zip=True, overwrite=True)
+        mapping[path] = out
+    return mapping
+
+
 def regrid_rows(rows_by_sim, sims, unify, folder, layers_of, cores):
     """Regrid the raw FVCOM output of rows_by_sim onto the grid of unify (a baseline
     simulation's, or a lon-lat box), in folder, and make those rows ordinary output
@@ -168,8 +199,7 @@ def regrid_rows(rows_by_sim, sims, unify, folder, layers_of, cores):
     is_box = unify["method"] == "box"
     box = unify.get("crop")
     for number, first_row in enumerate(rows_by_sim[names[0]]):
-        grid = lon_lim = lat_lim = None
-        res = fvcom.default_res
+        grid = lon_lim = lat_lim = res = None
         if is_box:
             lon_lim, lat_lim, res = unify["lon"], unify["lat"], unify["res"]
             on_grids = [name for name in names if name not in meshes]
@@ -181,7 +211,7 @@ def regrid_rows(rows_by_sim, sims, unify, folder, layers_of, cores):
             elif on_grids:
                 depths = _depths_of(reference)
             else:
-                depths = [float(depth) for depth in fvcom.matchup_depths()]
+                depths = DEPTHS
         else:
             base_row = rows_by_sim[unify["baseline"]][number]
             vertical = base_row["levels"] > 1 and any(layer != SURFACE for layer in layers_of(base_row))
@@ -200,17 +230,13 @@ def regrid_rows(rows_by_sim, sims, unify, folder, layers_of, cores):
             target = "the lon-lat grid" if is_box else f"the grid of {unify['baseline']}"
             _say(f"Regridding {row['name']} in the simulation {name} onto {target}")
             files = _needed(row)
-            mapping = fvcom.fvcom_matchup_files(
+            mapping = _regridded(
+                row,
                 files,
-                list(row["parts"]),
                 os.path.join(folder, next(sim["key"] for sim in sims if sim["name"] == name)),
-                vertical=vertical,
-                res=res,
-                lon_lim=lon_lim,
-                lat_lim=lat_lim,
-                cores=cores,
-                levels=depths,
-                grid=grid,
+                depths if vertical else None,
+                grid,
+                (lon_lim, lat_lim, res),
             )
             row["files"] = files
             _swap_files(row, mapping)
@@ -232,7 +258,7 @@ def describe(names, unify, on_grids):
         depths = (
             "the depths of the levels of the first simulation that is not FVCOM output"
             if on_grids
-            else f"{fvcom.default_min_depth:g} to {fvcom.default_max_depth:g} m every {fvcom.default_dz:g} m"
+            else f"{DEPTHS[0]:g} to {DEPTHS[-1]:g} m every {DEPTHS[1] - DEPTHS[0]:g} m"
         )
         return BOX_TEXT.format(names=", ".join(names), depths=depths)
     return TEXT.format(names=", ".join(names), baseline=unify["baseline"])

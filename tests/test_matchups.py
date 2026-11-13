@@ -324,10 +324,10 @@ class TestCores:
         oceanval.reset()
         nc.options(cores=1)
 
-        # fvcom is checked once the cores are set
-        with pytest.raises(TypeError, match="fvcom must be a boolean"):
+        # the arguments FVCOM no longer needs are checked once the cores are set
+        with pytest.raises(TypeError, match="no longer takes fvcom"):
             oceanval.matchup(
-                sim_dir="data/example", start=2000, end=2000, cores=2, fvcom="yes"
+                sim_dir="data/example", start=2000, end=2000, cores=2, fvcom=True
             )
 
         assert nc.session_info["cores"] == 1

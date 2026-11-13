@@ -7422,7 +7422,7 @@
       return;
     }
     const any = Object.values(analyzeDialog.rows).some((row) => row.use.checked && ((row.mean && row.mean.checked) || (row.integral && row.integral.checked)));
-    // raw FVCOM output's cell thickness is worked out from its mesh (see oceanval.fvcom_climatology)
+    // raw FVCOM output's cell thickness is worked out by nctoolkit's open_fvcom (see oceanval.fvcom)
     const fvcom = Boolean(state.analyze.fvcom);
     $(`${dialogPrefix(analyzeDialog.kind)}-thickness-row`).hidden = !any || fvcom;
     const note = $(`${dialogPrefix(analyzeDialog.kind)}-fvcom-thickness`);

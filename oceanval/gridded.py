@@ -29,7 +29,7 @@ from oceanval import surface
 from oceanval import time_res
 from oceanval import domain_mask
 from oceanval.fixers import tidy_warnings
-from oceanval.fvcom import fvcom_matchup_files
+from oceanval import fvcom as fvcom_mod
 from oceanval.utils import extension_of_directory, loud_warning
 from oceanval.selection import picks
 from oceanval.session import session_info
@@ -294,44 +294,6 @@ def _lonlat_bounds(ds):
     return float(np.nanmin(lons)), float(np.nanmax(lons)), float(np.nanmin(lats)), float(np.nanmax(lats))
 
 
-def _obs_resolution(comparison, downloaded=None):
-    """[lon, lat] grid spacing of a gridded observational source, in degrees.
-
-    Only the coordinates of the first file are read. downloaded is the
-    DataSet of an observational file already fetched over http, which is read
-    in place of downloading it again.
-    """
-    obs_path = comparison["obs_path"]
-    if isinstance(obs_path, (list, tuple)):
-        obs_path = obs_path[0]
-    from_erddap = erddap.dataset_of(obs_path)
-    if from_erddap is not None:
-        # asked of its server for an area (see oceanval.erddap), at its own grid
-        res = erddap.DATASETS[from_erddap]["res"]
-        return [res, res]
-    if not comparison["thredds"] and not _is_url(obs_path) and (
-        not _is_nc(obs_path) or glob.has_magic(obs_path)
-    ):
-        obs_path = _obs_files(obs_path)[0]
-    if not comparison["thredds"] and _is_url(obs_path):
-        # xarray cannot read a plain file over http, so it has to be
-        # downloaded. nctoolkit deletes a download once no DataSet holds it,
-        # so the DataSet must outlive the read below
-        if downloaded is None:
-            downloaded = _open_obs(obs_path, False)
-        obs_path = downloaded[0]
-    with xr.open_dataset(obs_path, decode_times=False) as ds:
-        names = list(ds.coords) + [x for x in ds.variables if x not in ds.coords]
-        lon_name = [x for x in names if "lon" in x][0]
-        lat_name = [x for x in names if "lat" in x][0]
-        lons = ds[lon_name].values
-        lats = ds[lat_name].values
-    # works for 1D coordinates and 2D (lat, lon) ones
-    lon_res = float(np.nanmedian(np.abs(np.diff(lons, axis=-1))))
-    lat_res = float(np.nanmedian(np.abs(np.diff(lats, axis=0))))
-    return [lon_res, lat_res]
-
-
 def _regrid_onto_common_grid(ds_model, ds_obs):
     """Put the model onto the observations' grid, ready for comparison.
 
@@ -433,8 +395,17 @@ def model_dataset(
     The chain is the cutting down first, as the files can be many GB: the
     years, the variables and the surface, and only then the shift (which the
     files of the years need) and the missing value."""
-    ds_model = nc.open_data(paths, checks=False)
-    levels = _levels_of(paths[0], selection) if surface_only else None
+    # raw FVCOM output's layer thickness (see oceanval.fvcom), which nctoolkit's
+    # vertical_interp and vertical_mean use, is kept if there are depths to go to
+    keep_thickness = fvcom and not surface_only
+    if fvcom:
+        # raw FVCOM output, opened by nctoolkit's open_fvcom on its own mesh: its levels
+        # are the sigma layers, surface first
+        ds_model = fvcom_mod.open_model(paths, selection, fvcom=True, thickness=keep_thickness)
+        levels = _levels_of(ds_model[0], selection) if surface_only else None
+    else:
+        ds_model = nc.open_data(paths, checks=False)
+        levels = _levels_of(paths[0], selection) if surface_only else None
     if surface_only and levels is None:
         # as it was worked out before: from the variables of the first file, selected
         ds_zz = nc.open_data(paths[0], checks=False)
@@ -452,7 +423,7 @@ def model_dataset(
     # are selected, so the year's last mean is in its year
     if not month_per_file and not time_shift:
         ds_model.subset(years=sim_years)
-    surface.choose(ds_model, selection, fast)
+    surface.choose(ds_model, selection + ([fvcom_mod.THICKNESS] if keep_thickness else []), fast)
     if more_than_one_level and not fast:
         surface.finite_missing(ds_model)
         ds_model.cdo_command("topvalue")
@@ -466,7 +437,11 @@ def model_dataset(
     if as_missing is not None:
         ds_model.as_missing(as_missing)
     if formula is not None and model_expr.kind(formula) == model_expr.FORMULA:
-        ds_model.cdo_command(model_expr.cdo_operator(target, formula))
+        if keep_thickness:
+            ds_model.cdo_command(model_expr.cdo_operator(target, formula, append=True))
+            ds_model.cdo_command(f"-selname,{target},{fvcom_mod.THICKNESS}")
+        else:
+            ds_model.cdo_command(model_expr.cdo_operator(target, formula))
     if month_per_file:
         # the month's mean, dated at its first time as the mean of each month is
         ds_model.tmean(align="left")
@@ -648,12 +623,9 @@ def gridded_matchup(
             try:
                 comparison = definitions[vv].gridded_comparisons[vv_source]
                 vertical_gridded = comparison["vertical"]
+                # raw FVCOM output, opened by nctoolkit's open_fvcom (see oceanval.fvcom)
+                fvcom = bool(session_info.get("fvcom", False))
                 climatology = comparison["climatology"]
-                if comparison.get("depth_mean") and session_info.get("fvcom", False):
-                    raise ValueError(
-                        f"{vv} ({vv_source}) is a mean over {comparison['depth_mean'][0]:g}-{comparison['depth_mean'][1]:g} m, "
-                        "which OceanVal cannot take of raw FVCOM output"
-                    )
                     # if global is not selected, stop
                 # a dictionary for summarizing things
                 var_dict = {}
@@ -777,40 +749,10 @@ def gridded_matchup(
                 paths = list(set(new_paths))
                 paths.sort()
 
-                # the times are those of the files on disk (shifted, if they are),
-                # which FVCOM's regridded files below keep, one for each
+                # the times are those of the files on disk (shifted, if they are)
                 month_per_file = time_res.one_month_per_file({ff: times_dict[ff] for ff in paths})
                 if month_per_file:
                     print(f"{model_expr.normalise(mapping[vv])}: each file is one month, so its monthly means are taken as the files are read")
-
-                obs_download = None
-                if session_info.get("fvcom", False):
-                    # regrid FVCOM output at twice the resolution of the observations
-                    if _is_url(dir_var) and _is_nc(dir_var) and not comparison["thredds"]:
-                        # downloaded once, for the resolution and the matchup
-                        if data_store.active() is not None and data_store.keeps(comparison):
-                            # a whole file, which the store keeps whole
-                            obs_download = data_store.gridded(
-                                comparison, dir_var, False, data_store.GLOBAL, "all",
-                                label=f"{vv_source} {vv}",
-                            )
-                        if obs_download is None:
-                            obs_download = _open_obs(dir_var, False)
-                    fvcom_res = [
-                        x / 2 for x in _obs_resolution(comparison, obs_download)
-                    ]
-                    fvcom_paths = fvcom_matchup_files(
-                        paths,
-                        selection,
-                        session_info["fvcom_dir"],
-                        vertical=vertical_gridded,
-                        res=fvcom_res,
-                        lon_lim=lon_lim,
-                        lat_lim=lat_lim,
-                        cores=session_info["cores"],
-                        levels=session_info.get("fvcom_levels"),
-                    )
-                    paths = [fvcom_paths[x] for x in paths]
 
                 # handle 
 
@@ -829,7 +771,7 @@ def gridded_matchup(
                         session_info.get("time_shift"),
                         session_info["as_missing"],
                         surface_only=vertical_gridded is False and not comparison.get("depth_mean"),
-                        fvcom=bool(session_info.get("fvcom", False)),
+                        fvcom=fvcom,
                         month_per_file=month_per_file,
                         formula=mapping[vv],
                         target=vv,
@@ -911,46 +853,43 @@ def gridded_matchup(
                         if len(vv_file) == 0:
                             raise ValueError("There do not appear to be any years in common between model and observation!  ")
 
-                    if obs_download is not None:
-                        ds_obs = obs_download.copy()
+                    ds_obs = None
+                    if data_store.active() is not None and data_store.keeps(comparison):
+                        # OceanVal's own data comes by way of the data store, as
+                        # local files cut to (at least) the model's area
+                        ds_obs = data_store.gridded(
+                            comparison,
+                            vv_file,
+                            thredds,
+                            _lonlat_bounds(ds_model),
+                            # only the first level is used of WOA23's at the surface (below)
+                            "top" if (vertical_gridded is False and comparison["recipe"] and vv_source == "WOA23") else "all",
+                            years=sim_years,
+                            label=f"{vv_source} {vv}",
+                        )
+                    if ds_obs is not None:
+                        thredds = False
+                        vv_file = ds_obs[0]
                     else:
-                        ds_obs = None
-                        if data_store.active() is not None and data_store.keeps(comparison):
-                            # OceanVal's own data comes by way of the data store, as
-                            # local files cut to (at least) the model's area
-                            ds_obs = data_store.gridded(
-                                comparison,
-                                vv_file,
-                                thredds,
-                                _lonlat_bounds(ds_model),
-                                # only the first level is used of WOA23's at the surface (below)
-                                "top" if (vertical_gridded is False and comparison["recipe"] and vv_source == "WOA23") else "all",
-                                years=sim_years,
-                                label=f"{vv_source} {vv}",
+                        download = None
+                        if thredds and comparison.get("builtin") and isinstance(vv_file, str):
+                            # a server turning requests away is not asked for more
+                            download = data_store.download_instead(comparison["builtin"], vv_file)
+                        if download is not None:
+                            data_store.told_to_download(
+                                f"{vv_source} {vv}", "the thredds server is turning requests away (HTTP 429)"
                             )
-                        if ds_obs is not None:
                             thredds = False
+                            vv_file = download
+                        if from_erddap is not None:
+                            # the server cuts out the model's area, rounded
+                            # out to whole degrees, for the years wanted
+                            bounds = _lonlat_bounds(ds_model)
+                            box = data_store.snap(bounds[:2], bounds[2:]) or list(data_store.GLOBAL)
+                            ds_obs = erddap.fetch(from_erddap, sim_years, box)
                             vv_file = ds_obs[0]
                         else:
-                            download = None
-                            if thredds and comparison.get("builtin") and isinstance(vv_file, str):
-                                # a server turning requests away is not asked for more
-                                download = data_store.download_instead(comparison["builtin"], vv_file)
-                            if download is not None:
-                                data_store.told_to_download(
-                                    f"{vv_source} {vv}", "the thredds server is turning requests away (HTTP 429)"
-                                )
-                                thredds = False
-                                vv_file = download
-                            if from_erddap is not None:
-                                # the server cuts out the model's area, rounded
-                                # out to whole degrees, for the years wanted
-                                bounds = _lonlat_bounds(ds_model)
-                                box = data_store.snap(bounds[:2], bounds[2:]) or list(data_store.GLOBAL)
-                                ds_obs = erddap.fetch(from_erddap, sim_years, box)
-                                vv_file = ds_obs[0]
-                            else:
-                                ds_obs = _open_obs(vv_file, thredds)
+                            ds_obs = _open_obs(vv_file, thredds)
                     if comparison.get("builtin") == "glodap" and len(ds_obs) == 1:
                         # its levels are numbered, not depths, in the file
                         glodap.fix_depths(ds_obs)
@@ -1058,7 +997,8 @@ def gridded_matchup(
                     # # figure out the lon/lat extent in the model
 
                     ds_obs.rename({ds_obs.variables[0]: "observation"})
-                    ds_model.rename({ds_model.variables[0]: "model"})
+                    # not FVCOM's layer thickness, which is kept for the depths (see model_dataset)
+                    ds_model.rename({[x for x in ds_model.variables if x != fvcom_mod.THICKNESS][0]: "model"})
                     ds_model.run()
                     ds_obs.run()
 
@@ -1143,13 +1083,18 @@ def gridded_matchup(
                     nlevels = contents.nlevels[0]
                     if nlevels > 1:
                         surface.finite_missing(ds_model_surface)
-                        if comparison.get("depth_mean"):
+                        if comparison.get("depth_mean") and fvcom:
+                            # the mean weighted by FVCOM's layer thickness, at each time
+                            ds_model_surface.vertical_mean(depth_range=comparison["depth_mean"])
+                        elif comparison.get("depth_mean"):
                             # observations that are a mean over some depths (COPEPOD's, of the top 200 m)
                             ds_model_surface = mean_over_depths(
                                 ds_model_surface, comparison["depth_mean"], session_info.get("ds_thickness")
                             )
                         else:
                             ds_model_surface.cdo_command("topvalue")
+                    if fvcom and fvcom_mod.THICKNESS in ds_model_surface.variables:
+                        ds_model_surface.drop(variables=fvcom_mod.THICKNESS)
                     ds_obs_surface = ds_obs.copy()
                     contents = ds_obs_surface.contents
                     nlevels = contents.nlevels[0]
@@ -1252,7 +1197,10 @@ def gridded_matchup(
 
                         if vertical_gridded is True:
                             levels = ds_obs.levels
-                            if session_info["ds_depths"] != "z_level":
+                            if fvcom:
+                                # nctoolkit interpolates from FVCOM's sigma layers by their thickness
+                                ds_model.vertical_interp(levels)
+                            elif session_info["ds_depths"] != "z_level":
                                 # the thickness was turned surface first if its
                                 # surface is at the bottom, so the model has to be too
                                 if session_info.get("invert"):

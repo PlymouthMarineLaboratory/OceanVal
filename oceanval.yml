@@ -18,7 +18,8 @@ dependencies:
   - nco
   - notebook
   - ipykernel
-  - nctoolkit>=1.3.6
+  # its dependencies; nctoolkit itself comes from pip, below
+  - nctoolkit
   - psutil
   - matplotlib<=3.10.9
   - nodejs=22.23.2
@@ -33,3 +34,7 @@ dependencies:
   - r-plotrix
   - r-tidyverse
   - r-ggtext
+  - pip
+  - pip:
+    # open_fvcom (raw FVCOM output) is in nctoolkit 1.4.0, which conda-forge does not have yet
+    - nctoolkit>=1.4.0

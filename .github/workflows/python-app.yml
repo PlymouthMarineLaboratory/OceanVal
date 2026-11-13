@@ -49,6 +49,8 @@ jobs:
           ##sudo apt-get install texlive
           mamba install pandoc r-ggthemes r-ggridges r-maps r-plotrix r-arrow r-cowplot -y
           python -m pip install .
+          # open_fvcom is in nctoolkit 1.4.0, which conda-forge does not have yet
+          pip install --no-deps "nctoolkit>=1.4.0"
           pip install pyarrow
           pip install rioxarray
           pip install pytest pytest-timeout

@@ -23,14 +23,12 @@ The monthly means are taken first, as for the climatology and the time series,
 then extracted along the line with nctoolkit's to_transect, and what is worked
 out from them is saved as a small CSV for the report's figures to draw (see
 oceanval.analysis_plots). The lines are checked as validate's transect is (see
-oceanval.transects). Raw FVCOM output, which CDO cannot read, has its monthly
-means worked out on its mesh and put on a strip of a lon-lat grid along each
-line, which to_transect extracts the line from (see oceanval.fvcom_transects).
+oceanval.transects). Raw FVCOM output is opened by nctoolkit's open_fvcom (see
+oceanval.fvcom), so to_transect interpolates it on its own mesh, and a section's
+layers are placed at their depths by the thickness of the layers along the line.
 """
 
 import os
-import shutil
-import tempfile
 import warnings
 
 import numpy as np
@@ -627,17 +625,16 @@ def _units(units, option, how=None):
     return units
 
 
-def _strip_depths(path, line, steps, ends):
+def _fvcom_depths(path, line):
     """The depth of each cell along a transect of raw FVCOM output, by depth
-    then position, from the thickness of its layers on the line's strip (see
-    oceanval.fvcom_transects)."""
-    from oceanval.fvcom_transects import THICKNESS
+    then position, from the thickness of its layers that to_transect extracted
+    with the values, in the file path, over the months (see oceanval.fvcom)."""
+    from oceanval.fvcom import THICKNESS
 
-    ds = nc.open_data(path, checks=False)
-    ds.to_transect(start=ends[0], end=ends[1], nsteps=steps)
-    ds.run()
-    _, _, values = _along(ds.current[0], THICKNESS, line, True)
-    return cell_depths(values[0])
+    _, _, values = _along(path, THICKNESS, line, True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        return cell_depths(np.nanmean(values, axis=0))
 
 
 def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
@@ -650,19 +647,8 @@ def work_out(row, results_dir, time_shift, thickness=None, thickness_for=None):
     (Z_LEVEL), whose levels are the depths of the cells, or where to read the
     cell thickness from, which places each cell at its depth; thickness_for
     keeps what it was read as, for each file pattern. Raw FVCOM output (row's
-    "fvcom") needs no thickness: each line is extracted from a strip of a
-    lon-lat grid along it (see oceanval.fvcom_transects)."""
-    if not row.get("fvcom"):
-        return _work_out(row, results_dir, time_shift, thickness, thickness_for)
-    folder = tempfile.mkdtemp(prefix="oceanval_fvcom_transects_")
-    try:
-        return _work_out(row, results_dir, time_shift, None, thickness_for, folder)
-    finally:
-        shutil.rmtree(folder, ignore_errors=True)
-
-
-def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_folder=None):
-    """work_out, with strip_folder where raw FVCOM output's strips are kept."""
+    "fvcom") needs no thickness: nctoolkit's open_fvcom works out the
+    thickness of its layers (see oceanval.fvcom)."""
     asked = row["transects"]
     thickness_for = {} if thickness_for is None else thickness_for
     present = {
@@ -683,57 +669,39 @@ def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_fold
         ]
         if used:
             layer_years[vertical] = (min(x["start"] for x in used), max(x["end"] for x in used))
-    fvcom = strip_folder is not None
+    # raw FVCOM output, opened by nctoolkit's open_fvcom (see oceanval.fvcom)
+    fvcom = bool(row.get("fvcom"))
     monthly = {}
-    if fvcom:
-        # raw FVCOM output: the monthly means on the mesh, put on a strip along each line
-        from oceanval import fvcom_climatology, fvcom_transects
-        from oceanval.analysis import file_years
-
-        _say(f"Working out the transects of {row['name']} on the FVCOM mesh")
-        needs = [
-            (number, line, {vertical: any(line[option] for option in (VERTICAL_OPTIONS if vertical else SURFACE_OPTIONS))
-                            for vertical in (False, True)})
-            for number, line in enumerate(asked["lines"], start=1)
-        ]
-        fvcom_steps, strips = fvcom_transects.banded(
-            row, asked["files"], needs, layer_years, time_shift, strip_folder, file_years(row)
+    # the monthly means of each layer, once
+    for vertical, years in layer_years.items():
+        _say(
+            f"Working out the transects of {row['name']}: "
+            + ("through the water column" if vertical else "at the surface")
         )
-    else:
-        # the monthly means of each layer, once
-        for vertical, years in layer_years.items():
-            _say(
-                f"Working out the transects of {row['name']}: "
-                + ("through the water column" if vertical else "at the surface")
-            )
-            ds = monthly_means_of(asked["files"], row, LEVELS if vertical else SURFACE, years, time_shift, row["levels"])
-            ds.run()
-            monthly[vertical] = (ds, [(time.year, time.month) for time in ds.times])
+        ds = monthly_means_of(asked["files"], row, LEVELS if vertical else SURFACE, years, time_shift, row["levels"])
+        ds.run()
+        monthly[vertical] = (ds, [(time.year, time.month) for time in ds.times])
     extracted_for = {}
     saved = []
     for number, line in enumerate(asked["lines"], start=1):
-        if fvcom:
-            steps = fvcom_steps[number]
-        else:
-            steps = unified_steps(row, line) if row.get("unify") or row.get("domain_mask") else None
-            if steps is None:
-                steps = steps_for(row["files"][0], row["parts"][0], line)
+        steps = unified_steps(row, line) if row.get("unify") or row.get("domain_mask") else None
+        if steps is None and fvcom:
+            # the cells of the mesh, which the means are on (open_fvcom's grid), not the raw file's
+            steps = steps_for(next(iter(monthly.values()))[0][0], row["key"], line)
+        elif steps is None:
+            steps = steps_for(row["files"][0], row["parts"][0], line)
         ends = transects.line_ends(line)
         along = {}
         for vertical in layer_years:
             if not any(line[option] for option in (VERTICAL_OPTIONS if vertical else SURFACE_OPTIONS)):
                 continue
-            if fvcom:
-                path, times, thickness_path = strips[(number, vertical)]
-                ds = nc.open_data(path, checks=False)
-            else:
-                ds, times = monthly[vertical]
+            ds, times = monthly[vertical]
             extracted = ds.copy()
             extracted.to_transect(start=ends[0], end=ends[1], nsteps=steps)
             extracted.run()
             positions, depths, values = _along(extracted.current[0], row["key"], line, vertical)
             if vertical and fvcom:
-                depths = _strip_depths(thickness_path, line, steps, ends)
+                depths = _fvcom_depths(extracted.current[0], line)
             elif vertical and thickness != Z_LEVEL:
                 depths = _depths_along(row, line, steps, ends, thickness, thickness_for)
             along[vertical] = (positions, depths, values, times)
@@ -817,5 +785,7 @@ def _work_out(row, results_dir, time_shift, thickness, thickness_for, strip_fold
     }
     if fvcom:
         # the part of the FVCOM mesh the values were interpolated from
-        out["mesh"] = fvcom_climatology.location(asked["files"][0], row["parts"])
+        from oceanval.fvcom import location
+
+        out["mesh"] = location(asked["files"][0], row["parts"])
     return out

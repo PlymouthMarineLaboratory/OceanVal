@@ -755,8 +755,8 @@ def domain_mean(path, variable):
     with xr.open_dataset(path, decode_times=False) as ds_xr:
         on_mesh = bool(ds_xr.attrs.get("mesh"))
     if on_mesh:
-        # raw FVCOM output, on its own mesh, which CDO cannot read: weighted by the areas of its cells
-        from oceanval.mesh_means import domain_mean as mesh_domain_mean
+        # raw FVCOM output, kept on its mesh (see oceanval.fvcom.on_mesh): weighted by the areas of its cells
+        from oceanval.fvcom import domain_mean as mesh_domain_mean
 
         return mesh_domain_mean(path, variable)
     ds = nc.open_data(path, checks=False)
@@ -1564,8 +1564,8 @@ def _depth_words(line):
 def _depth_source(saved):
     """What the depths of the cells of a section are worked out from."""
     if saved["depths"] == "sigma":
-        # raw FVCOM output (see oceanval.fvcom_transects)
-        return "the mean depth of the water (h + zeta) and each sigma layer's share of it (from siglev)"
+        # raw FVCOM output (see oceanval.fvcom)
+        return "the thickness of each sigma layer over the months, its share (from siglev) of the depth of the water (h + zeta)"
     return "the cell thickness"
 
 

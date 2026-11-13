@@ -12,7 +12,7 @@ is the water, with the coast over it.
 
 mesh_plot and mesh_panel_plot take the arguments of pub_plot and panel_plot
 that the Analyze figures use, so a figure's script calls them as it would
-those. They read a file analyze() saved (see oceanval.fvcom_climatology), or
+those. They read a file analyze() saved (see oceanval.fvcom.on_mesh), or
 raw FVCOM output: the mesh is read by oceanval.viewer_mesh.Mesh, which takes
 longitudes above 180 as below, and a mesh with no longitudes (x and y in
 metres) is drawn on plain axes.

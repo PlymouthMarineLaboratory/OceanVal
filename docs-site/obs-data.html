@@ -92,7 +92,7 @@
     <div class="two-col">
       <div class="info-card">
         <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>Unstructured grids</h3>
-        <p>Not compatible out-of-the-box. If unstructured output can be regridded to a regular grid and saved as CF-compliant NetCDF, OceanVal can use it. FVCOM output is supported via <a href="api.html#fvcom_preprocess"><code>oceanval.fvcom_preprocess</code></a>, or directly with <a href="api.html#matchup"><code>matchup(fvcom=True)</code></a>, which regrids the files for you.</p>
+        <p>Not compatible out-of-the-box. If unstructured output can be regridded to a regular grid and saved as CF-compliant NetCDF, OceanVal can use it. Raw FVCOM output needs nothing of this: OceanVal finds it from its files and opens it with nctoolkit&rsquo;s <code>open_fvcom</code> (nctoolkit 1.4.0 or later), which CDO can then read as an unstructured grid.</p>
       </div>
       <div class="info-card">
         <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Vertical grids</h3>
@@ -118,7 +118,7 @@
       <li><strong>Can my data be plotted interactively?</strong> The map View simulation output draws, which you can zoom and pan.</li>
       <li><strong>Can my data be plotted as a climatology?</strong> The map Analyze simulations draws: the sea surface's climatology, a mean over the file's first 12 time steps.</li>
     </ul>
-    <p>FVCOM output is recognised first. It should be compatible, as OceanVal regrids it itself, so the CDO, regridding and spatial-average checks are skipped, and the time check, the interactive plot and the climatology map are made, the map drawn on the mesh as Analyze simulations draws FVCOM output.</p>
+    <p>FVCOM output is recognised first. It should be compatible, as OceanVal opens it with nctoolkit&rsquo;s <code>open_fvcom</code>, so the CDO, regridding and spatial-average checks are skipped, and the time check, the interactive plot and the climatology map are made, the map drawn on the mesh as Analyze simulations draws FVCOM output.</p>
 
     <h2 id="gridded">Gridded observational data</h2>
     <p>Gridded observations (e.g. satellite data) should also be in NetCDF format — in a single file or multiple files, which OceanVal will merge. Files must be CF-compliant, which gridded observational products almost always are.</p>

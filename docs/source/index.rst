@@ -46,7 +46,7 @@ Why OceanVal?
 * **Publication-quality reports**: an HTML report you can send to
   collaborators, with figures, tables, and methods documented automatically.
 * **Works with your model**: NEMO, CMEMS, CMIP-style output, and any
-  CF-compliant NetCDF files. FVCOM output is supported with ``matchup(fvcom=True)``.
+  CF-compliant NetCDF files. Raw FVCOM output is found and opened automatically, with nctoolkit's ``open_fvcom``.
 * **Reproducible and hackable**: every report is generated from Jupyter
   notebooks you can inspect, edit, and rebuild with :func:`oceanval.rebuild`.
 * **Compare simulations**: build side-by-side comparison reports for multiple

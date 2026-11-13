@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>API Reference — OceanVal</title>
-<meta name="description" content="Function reference for oceanval: add_point_comparison, add_gridded_comparison, matchup, create_recipes, analyze, validate, reset, compare, rebuild, deep_clean and fvcom_preprocess.">
+<meta name="description" content="Function reference for oceanval: add_point_comparison, add_gridded_comparison, matchup, create_recipes, analyze, validate, reset, compare, rebuild and deep_clean.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -91,7 +91,6 @@
       <li><a href="#compare">compare</a></li>
       <li><a href="#rebuild">rebuild</a></li>
       <li><a href="#deep_clean">deep_clean</a></li>
-      <li><a href="#fvcom_preprocess">fvcom_preprocess</a></li>
     </ul>
   </aside>
 
@@ -163,7 +162,7 @@
     </div>
 
     <div class="api-card" id="matchup">
-      <div class="api-card__head"><div class="sig">oceanval.matchup(sim_dir=None, start=None, end=None, thickness=None, cores=6, lon_lim=None, lat_lim=None, n_dirs_down=2, overwrite=True, ask=True, cache=False, exclude=[], require=None, out_dir="", point_time_res=["year", "month", "day"], n_check=None, as_missing=None, strict_names=True, fvcom=False, live_validation=None, time_shift=None, data_store=None, fvcom_res=0.05, fvcom_min_depth=0, fvcom_max_depth=150, fvcom_dz=5, domain_mask=None)</div></div>
+      <div class="api-card__head"><div class="sig">oceanval.matchup(sim_dir=None, start=None, end=None, thickness=None, cores=6, lon_lim=None, lat_lim=None, n_dirs_down=2, overwrite=True, ask=True, cache=False, exclude=[], require=None, out_dir="", point_time_res=["year", "month", "day"], n_check=None, as_missing=None, strict_names=True, live_validation=None, time_shift=None, data_store=None, domain_mask=None)</div></div>
       <div class="api-card__body">
         <p>Pair registered observations with model output.</p>
         <details class="param-details">
@@ -188,11 +187,7 @@
             <li><code class="param-name">n_check</code><p>Number of files checked when identifying the file naming convention.</p></li>
             <li><code class="param-name">as_missing</code><p>A float or <code>[min, max]</code> range of values to treat as missing in the model output.</p></li>
             <li><code class="param-name">strict_names</code><p>Whether to strictly enforce variable naming conventions. Default <code>True</code>.</p></li>
-            <li><code class="param-name">fvcom</code><p>Set to <code>True</code> if <code>sim_dir</code> contains raw FVCOM output. Each file is regridded with <code>fvcom_preprocess</code> before matching: surface values for comparisons with <code>vertical=False</code>, and the depths given by <code>fvcom_min_depth</code>, <code>fvcom_max_depth</code> and <code>fvcom_dz</code> (0&ndash;150&nbsp;m every 5&nbsp;m by default) for <code>vertical=True</code>. Point comparisons use a grid of <code>fvcom_res</code> degrees (0.05&deg; by default); gridded comparisons use twice the resolution of the observations. <code>thickness</code> is not needed, <code>lon_lim</code> / <code>lat_lim</code> default to the mesh extent, and the regridded files are deleted afterwards. Default <code>False</code>.</p></li>
-            <li><code class="param-name">fvcom_res</code><p>The lon-lat resolution, in degrees, of the grid FVCOM output is regridded to for point comparisons. Default <code>0.05</code>. Only used if <code>fvcom</code> is <code>True</code>.</p></li>
-            <li><code class="param-name">fvcom_min_depth</code><p>The shallowest depth (m, positive down) FVCOM output is interpolated to for comparisons with <code>vertical=True</code>. Default <code>0</code>.</p></li>
-            <li><code class="param-name">fvcom_max_depth</code><p>The deepest depth (m) FVCOM output is interpolated to for comparisons with <code>vertical=True</code>. Observations deeper than this are not matched. Default <code>150</code>.</p></li>
-            <li><code class="param-name">fvcom_dz</code><p>The vertical spacing (m) of the depths between <code>fvcom_min_depth</code> and <code>fvcom_max_depth</code>. Default <code>5</code>.</p></li>
+            <li><code class="param-name">Raw FVCOM output</code><p>Needs nothing of its own: it is found from its files (its mesh, <code>node</code>, <code>nele</code> and <code>nv</code>), opened by nctoolkit&rsquo;s <code>open_fvcom</code> (nctoolkit 1.4.0 or later) with only the variables needed, and matched up on its own mesh: point observations straight from the mesh, interpolated within each triangle, gridded ones regridded onto the observations&rsquo; grid, and through the water column by the thickness of the sigma layers, which is worked out from the files, so <code>thickness</code> is ignored for it. The <code>fvcom</code>, <code>fvcom_res</code>, <code>fvcom_min_depth</code>, <code>fvcom_max_depth</code> and <code>fvcom_dz</code> arguments are gone: passing one stops with an error saying so.</p></li>
             <li><code class="param-name">live_validation</code><p>Build an interim validation report, HTML only, as the matchups are made: each matchup&rsquo;s page is added as soon as the matchup is made, and the summary is run again, so the results can be read long before the last matchup is made. <code>True</code> builds it with <a href="#validate"><code>validate</code></a>&rsquo;s defaults; a dict gives <code>validate</code>&rsquo;s report options &mdash; <code>out_dir</code>, <code>lon_lim</code>, <code>lat_lim</code>, <code>subregions</code>, <code>fixed_scale</code>, <code>concise</code>, <code>transect</code>, <code>depth_bins</code> and <code>variables</code> (<code>pdf</code>, <code>word</code> and <code>zip</code> are for the full report). Matchups <code>variables</code> leaves out are still made, but have no page in it. It is built in <code>oceanval_interim_report</code> in <code>out_dir</code>, starting at <code>oceanval_report/_build/html/notebooks/summary.html</code>, and <code>matchup</code> waits for it to be finished before returning. Build the full report with <code>validate</code> afterwards, as usual. Default <code>None</code>.</p></li>
             <li><code class="param-name">time_shift</code><p>Number of days to shift every model time by before matching up, e.g. <code>-1</code> for output that dates each time mean at the end of the period it covers (00:00 on 1 February for a January mean): shifted back a day, each mean falls in the period it covers. By default (<code>None</code>) <code>matchup</code> checks whether the times of time means look like the ends of their periods and, if so, asks whether to shift them back a day; with <code>ask=False</code> it only says so, and leaves them as they are. <code>0</code> leaves the times as they are, without checking.</p></li>
             <li><code class="param-name">data_store</code><p>Whether to use your data store: the folder set in the <a href="app.html#data-store">oceanval window&rsquo;s Preferences</a> where the built-in observational data downloaded (WOA23, OC-CCI, NSBC, COBE2, OISST, CoralTemp, GLODAP and ICES) is kept for later matchups, used as the Preferences say. Your own data is never kept in it. By default (<code>None</code>) it is used if one is set; <code>False</code> leaves it out for this run.</p></li>
@@ -215,8 +210,8 @@
             <li><code class="param-name">out</code><p>Path of the Python file to write. Required.</p></li>
             <li><code class="param-name">domain</code><p>Either <code>"global"</code> or <code>"nwes"</code>. Where a variable has a recipe in both regions (e.g. temperature), the one for this domain is left live and the other is commented out as an alternative; a variable with a recipe only outside this domain still gets that one. If None, it is worked out from the model: <code>"nwes"</code> when more than 80% of its cells lie inside the &ldquo;Full Domain&rdquo; of the Northwest European Shelf regions file, otherwise <code>"global"</code>. Defaults to None.</p></li>
             <li><code class="param-name">start</code> / <code class="param-name">end</code><p>First / last year of the simulation to validate. Passed straight through to the generated script's <code>matchup()</code> call, and used to pick the WOA23 decadal period for the temperature and salinity recipes. Required.</p></li>
-            <li><code class="param-name">ask</code><p>Whether to ask you to confirm output that looks like FVCOM, and for the model variable of anything that could not be identified (press Enter to skip). Only asks when run from an interactive terminal. With <code>gui=True</code>, the model variables are filled in in the window instead. Default <code>True</code>.</p></li>
-            <li><code class="param-name">fvcom</code><p>Whether <code>simdir</code> holds raw FVCOM output. If <code>True</code>, the variables are read with xarray, as CDO cannot read FVCOM's, and the script calls <a href="#matchup"><code>matchup</code></a> with <code>fvcom=True</code>. Default <code>None</code>: the files are checked for FVCOM's unstructured mesh and, if they have one, you are asked to confirm &mdash; or, when OceanVal cannot ask, they are assumed to be FVCOM output and it says so.</p></li>
+            <li><code class="param-name">ask</code><p>Whether to ask you for the model variable of anything that could not be identified (press Enter to skip). Only asks when run from an interactive terminal. With <code>gui=True</code>, the model variables are filled in in the window instead. Default <code>True</code>.</p></li>
+            <li><code class="param-name">fvcom</code><p>Whether <code>simdir</code> holds raw FVCOM output. If <code>True</code>, the variables are read from the files&rsquo; header, as CDO cannot read FVCOM&rsquo;s. Default <code>None</code>: the files are checked for FVCOM&rsquo;s unstructured mesh. <a href="#matchup"><code>matchup</code></a> finds FVCOM output itself, so the script is the same either way.</p></li>
             <li><code class="param-name">gui</code><p>Whether to choose the recipes in a page in your web browser before the script is written. Each observational variable gets a row with the model variable identified for it, which you can change (a pop-out under the box lists every variable in the model output with its <code>long_name</code>; search it, with <code>*</code> and <code>?</code> as wildcards (<code>P*_Chl</code> finds <code>P1_Chl</code> and <code>P2_Chl</code>), and add several with their <strong>+</strong> buttons to sum them as <code>var1+var2+var3</code>), and tick-boxes for the gridded and point datasets available for it, ticked where the script would otherwise use them. Every ticked dataset is written out live, so a variable can be validated against several. A ticked dataset can be given years of its own and, if its observations are resolved in depth (WOA23, NSBC and ICES), be set to Vertical to validate the full water column. Cancelling, in the page or with Ctrl+C, writes nothing and returns <code>None</code>. <code>create_recipes</code> waits for the page, so pass <code>gui=False</code> where no one can answer it, e.g. in a batch job. Default <code>True</code>.</p></li>
             <li><code class="param-name">validate</code><p>Whether the script builds the validation report, with <a href="#validate"><code>validate</code></a>, once <code>matchup</code> has run. With <code>validate=False</code> the call is still written, commented out, to run once the matchups are made. Default <code>True</code>.</p></li>
             <li><code class="param-name">exclude</code> / <code class="param-name">require</code><p>A string or list of strings: leave out output files whose names contain any of <code>exclude</code>, and use only those whose names contain each of <code>require</code>, as <a href="#matchup"><code>matchup</code></a> does. Only file names are checked, not directories. Both are passed straight through to the script's <code>matchup()</code> call. Default <code>None</code>.</p></li>
@@ -232,7 +227,7 @@
       <div class="api-card__head"><div class="sig">oceanval.analyze(sim_dir=None, variables=None, climatology=None, phenology=None, n_dirs_down=2, exclude=None, require=None, thickness=None, time_shift=None, out_dir=".", cores=None, view=True, long_term=None, seasonal=None, stations=None, subregions=None, lon_lim=None, lat_lim=None, as_missing=None, figure_code=False, transects=None, map_changes=None)</div></div>
       <div class="api-card__body">
         <p>Analyze a simulation on its own, with no observations: work out climatologies, phenology and time series of its variables, and build an HTML report of them the way <code>validate</code> builds the validation report. Everything is saved in <code>oceanval_analysis/</code> in <code>out_dir</code>, replacing any analysis there: the fields as netCDF in <code>results/</code>, with <code>analysis.json</code> saying what is in them, the report in <code>report/</code>, and <code>report.html</code>, a link to its first page. Each variable&rsquo;s page is built as soon as the variable is worked out, so the report can be read before the analysis ends.</p>
-        <p>Raw FVCOM output is read as it is, on its own mesh: the climatology, phenology, series, map changes and transects, at the surface (the top sigma layer), the bottom (the deepest sigma layer with a value) or through the water column, mapped on the mesh, with spatial means weighted by the areas of its cells. Its water column needs no <code>thickness</code>: the thickness of each layer is worked out from the sigma levels (<code>siglev</code>), <code>h</code> and <code>zeta</code>, at each time. Its transects are interpolated from the mesh onto a strip along each line and extracted with nctoolkit&rsquo;s <code>to_transect</code>; a section through the water column needs no <code>thickness</code> either.</p>
+        <p>Raw FVCOM output is worked out on its own mesh: the climatology, phenology, series, map changes and transects, at the surface (the top sigma layer), the bottom (the deepest sigma layer with a value) or through the water column, mapped on the mesh, with spatial means weighted by the areas of its cells. It is opened by nctoolkit&rsquo;s <code>open_fvcom</code> with only the variables needed, and worked out as any other output. Its water column needs no <code>thickness</code>: the thickness of each layer is worked out from the sigma levels (<code>siglev</code>), <code>h</code> and <code>zeta</code>, and the column is of each month&rsquo;s means. Its transects are interpolated on the mesh by nctoolkit&rsquo;s <code>to_transect</code>; a section through the water column needs no <code>thickness</code> either. A mesh in metres, with no longitudes and latitudes, cannot be opened.</p>
         <details class="param-details">
           <summary>Parameters</summary>
           <ul class="param-list">
@@ -354,34 +349,6 @@
       <div class="api-card__head"><div class="sig">oceanval.deep_clean()</div></div>
       <div class="api-card__body">
         <p>Remove all temporary files ever created by OceanVal, across the current and previous sessions — useful if a crash left files behind.</p>
-      </div>
-    </div>
-
-    <hr class="divider">
-    <span class="kicker">Model support</span>
-
-    <div class="api-card" id="fvcom_preprocess">
-      <div class="api-card__head"><div class="sig">oceanval.fvcom_preprocess(variables=None, paths=None, lon_lim=None, lat_lim=None, res=0.05, out_dir=None, model_res=None, missing=None, z_level=False, levels=None)</div></div>
-      <div class="api-card__body">
-        <p>Preprocess unstructured FVCOM output onto a regular grid so it can be used with the rest of OceanVal. By default only the surface sigma layer is kept; set <code>z_level=True</code> to interpolate onto fixed depth levels instead, then run <code>matchup</code> with <code>thickness="z_level"</code>.</p>
-        <details class="param-details">
-          <summary>Parameters</summary>
-          <p>Required:</p>
-          <ul class="param-list">
-            <li><code class="param-name">out_dir</code> <span class="param-tag">required</span><p>Output directory for the processed data — an error is raised if not supplied.</p></li>
-          </ul>
-          <p>Optional:</p>
-          <ul class="param-list">
-            <li><code class="param-name">variables</code><p>List of NetCDF variable names to process.</p></li>
-            <li><code class="param-name">paths</code><p>List of file paths to the FVCOM data files.</p></li>
-            <li><code class="param-name">lon_lim</code> / <code class="param-name">lat_lim</code><p>Minimum and maximum longitude / latitude for regridding.</p></li>
-            <li><code class="param-name">res</code><p>Regridding resolution in degrees. Default <code>0.05</code>, suitable for point matchups.</p></li>
-            <li><code class="param-name">model_res</code><p>Approximate native resolution of the FVCOM mesh in degrees, used to build the land/sea mask by binning node positions. If <code>None</code> (default), the mask is built from the mesh triangles instead: a grid cell is sea if its centre lies inside the mesh.</p></li>
-            <li><code class="param-name">missing</code><p>Value used to represent missing data in the FVCOM output.</p></li>
-            <li><code class="param-name">z_level</code><p>If <code>True</code>, variables on sigma layers are interpolated onto fixed depth levels below the free surface before regridding. Depths above the top layer centre take the top layer value, depths between the bottom layer centre and the seabed take the bottom layer value, and depths below the seabed are missing. Default <code>False</code> (surface only).</p></li>
-            <li><code class="param-name">levels</code><p>Depth levels in metres (positive down) to interpolate to. Supplying levels implies <code>z_level=True</code>. Defaults to the WOA23 standard depths, down to the maximum model depth.</p></li>
-          </ul>
-        </details>
       </div>
     </div>
 

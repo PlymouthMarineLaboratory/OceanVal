@@ -1118,7 +1118,7 @@ class TestDomainMask:
 
 
 class TestFVCOM:
-    """Raw FVCOM output (oceanval.fvcom_climatology), compared on its own mesh: two
+    """Raw FVCOM output (oceanval.fvcom), compared on its own mesh: two
     simulations on one mesh, whose results must be what analyze() gives each alone
     (Base run's are checked; Warm run's are worked out by the same code)."""
 
@@ -1159,13 +1159,20 @@ class TestFVCOM:
         assert info["variables"][0]["sims"]["Base run"]["climatology"]["layers"]["integral"]["mesh"]
 
     def test_the_simulations_must_share_a_mesh(self, tmp_path):
+        import netCDF4
+
         degrees = fvcom_months(str(tmp_path / "degrees"), months=((2012, 1),))
-        metres = fvcom_simulation(str(tmp_path / "metres"), cartesian=True)
+        moved = fvcom_months(str(tmp_path / "moved"), months=((2012, 1),))
+        # the same triangles, a little to the east
+        for root, _, names in os.walk(moved):
+            for name in names:
+                with netCDF4.Dataset(os.path.join(root, name), "a") as ds:
+                    ds.variables["lon"][:] = ds.variables["lon"][:] + 0.01
         with pytest.raises(ValueError, match="is not that of Base run"):
             oceanval.compare_simulations(
                 simulations=[
                     {"name": "Base run", "sim_dir": degrees, "n_dirs_down": 1},
-                    {"name": "Warm run", "sim_dir": metres, "n_dirs_down": 0},
+                    {"name": "Warm run", "sim_dir": moved, "n_dirs_down": 1},
                 ],
                 variables={"Temperature": "temp"},
                 climatology={"Temperature": {"start": 2012, "end": 2012, "surface": True}},
@@ -1323,7 +1330,9 @@ class TestFVCOMWithOtherOutput:
     def test_the_regridded_files_are_kept_in_the_results(self, compared):
         out, _ = compared
         folder = os.path.join(results(out), sim_compare.FVCOM_REGRIDDED)
-        assert glob.glob(os.path.join(folder, "**", "fvcom_values.nc"), recursive=True)
+        # each FVCOM file regridded, beside the grid it was regridded onto
+        regridded = glob.glob(os.path.join(folder, "**", "*.nc"), recursive=True)
+        assert [path for path in regridded if not path.endswith("_grid.nc")]
 
     @pytest.mark.parametrize(
         "extra, message",

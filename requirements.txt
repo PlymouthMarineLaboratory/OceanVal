@@ -6,7 +6,7 @@ pandas
 dill
 matplotlib
 jupytext
-nctoolkit>=1.3.6
+nctoolkit>=1.4.0
 geopandas
 fiona
 shapely

@@ -48,7 +48,6 @@ from oceanval.analysis import (
     check_arguments,
     check_area,
     check_as_missing,
-    check_mesh_area,
     first_step_of,
     locate_rows,
     require_thickness,
@@ -389,7 +388,7 @@ def fvcom_problems(rows_by_sim, names, unify, domain_mask, conversions):
     lon-lat box, it is regridded to it. FVCOM output with output that is not is
     regridded onto the grid of one of the others (or a box), and what stops that
     is told by sim_fvcom.problems_of."""
-    from oceanval import fvcom_climatology
+    from oceanval import fvcom as fvcom_mod
 
     is_fvcom = {name: any(row.get("fvcom") for row in rows_by_sim[name]) for name in names}
     if not any(is_fvcom.values()):
@@ -411,7 +410,7 @@ def fvcom_problems(rows_by_sim, names, unify, domain_mask, conversions):
     meshes = {}
     for number, row in enumerate(rows_by_sim[names[0]]):
         own = {name: rows_by_sim[name][number] for name in names}
-        parts = {name: fvcom_climatology.location(r["files"][0], r["parts"]) for name, r in own.items()}
+        parts = {name: fvcom_mod.location(r["files"][0], r["parts"]) for name, r in own.items()}
         if len(set(parts.values())) > 1:
             shown = ", ".join(f"{name}: {where}" for name, where in parts.items())
             problems.append(
@@ -423,9 +422,9 @@ def fvcom_problems(rows_by_sim, names, unify, domain_mask, conversions):
             path = r["files"][0]
             if path not in meshes:
                 with netcdf_lock.LOCK:
-                    meshes[path] = fvcom_climatology.mesh_arrays(path)
+                    meshes[path] = fvcom_mod.mesh_arrays(path)
         first = meshes[own[names[0]]["files"][0]]
-        different = [name for name in names[1:] if not fvcom_climatology.same_mesh(first, meshes[own[name]["files"][0]])]
+        different = [name for name in names[1:] if not fvcom_mod.same_mesh(first, meshes[own[name]["files"][0]])]
         if different:
             problems.append(
                 f"{row['name']}: the FVCOM mesh of {', '.join(different)} is not that of {names[0]}. FVCOM "
@@ -606,8 +605,6 @@ def compare_simulations(
             raise
         for row in rows:
             row["as_missing"] = sim["as_missing"]
-            # raw FVCOM output is read in this many processes (see oceanval.fvcom_climatology)
-            row["cores"] = int(cores)
         rows_by_sim[sim["name"]] = rows
     area = check_area(rows_by_sim[names[0]], subregions, lon_lim, lat_lim, stations)
 
@@ -624,7 +621,6 @@ def compare_simulations(
                 sim["times_index"],
             )
             require_thickness([row for row in rows_by_sim[sim["name"]] if not row.get("fvcom")], sim["thickness"])
-            check_mesh_area(rows_by_sim[sim["name"]], area)
         except ValueError as error:
             problems.extend(f"{sim['name']}: {line}" for line in str(error).splitlines())
     if not problems:

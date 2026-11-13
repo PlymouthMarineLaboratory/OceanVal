@@ -78,9 +78,9 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   for six days of one variable, 0.35 s with the surface read from the first level.
   `tests/test_analysis.py::TestOrderOfTheChain` checks the chain's order (`ds.history`) without running it.
   **A NaN missing value breaks CDO 2.4.1's `topvalue`, `bottomvalue` and `vertmean`** (all-missing, all-missing, wrong values; `vertmin`/`vertmax`/`vertsum`
-  and CDO 2.6 are fine): files xarray wrote, and the FVCOM output OceanVal regrids, have one. Ask for `surface.finite_missing(ds)` (`setmissval,1e20`)
+  and CDO 2.6 are fine): files xarray wrote have one. Ask for `surface.finite_missing(ds)` (`setmissval,1e20`)
   just before each of those operators (`analysis._pick_level`/`_reduce_column`, `matchall`, `gridded`, `surface`'s probe) - a new `topvalue`/`bottom`/
-  `vertical_mean` must do so too - and `fvcom.fvcom_preprocess` writes its files with a finite fill. `TestTheBottomOfANaNFilledFile` checks it.
+  `vertical_mean` must do so too (nctoolkit's `open_fvcom` writes a finite fill, 1e20). `TestTheBottomOfANaNFilledFile` checks it.
   **A file a month**: when each file holds the times of one month of one year and no month is in two files
   (`time_res.one_month_per_file`, on the shifted times; `row["month_per_file"]` set in `locate_rows`, `month_per_file` in
   `gridded_matchup` from its final `paths`), `monthly_means_of`/`gridded.model_dataset` end the chain with `tmean(align="left")`,
@@ -92,53 +92,35 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   has CDO write one level of one time step of one variable first and opens only that, `analysis.peak` reads a band of rows at a time,
   `analysis_series.station_values` a year of times at a time; `tests/test_sim_compare.py::TestSameGridIsLookedAtLightly`
   fails if a data variable is read).
-- **Raw FVCOM output in Analyze** (everything, at the surface, the bottom and through the water column; the user's
-  steps, 2026-10-29): CDO cannot read FVCOM's mesh, so `analysis.streams` marks such a stream `"fvcom"` (`_variables_of` →
-  `fvcom_climatology.variables`: the variables on `node`/`nele`, not `viewer_mesh.MESH_VARIABLES`), `locate_rows` sets `row["fvcom"]` and
-  reads its times with `index_times(fvcom=True)`, and refuses the water column (of any layered kind) and a vertical transect of a variable with a
-  part not on `siglay` (`fvcom_climatology.not_layered`: on `siglev`, as `km`, or 2-D, as `zeta` in `temp+zeta`). `_work_out` gets each layer
-  from `_fvcom_climatology` → **`oceanval/fvcom_climatology.py`**: netCDF4 reads a block of times at a time (`BLOCK_VALUES`; the one
-  exception to "only nctoolkit/CDO reads model output", and never a whole file) and takes each time step to its layer as nctoolkit would:
-  the surface is `siglay` 0, the bottom the deepest layer with a value of each part (`_deepest`, CDO's `bottomvalue`; the layers above are
-  read only while some cells are missing), the water column `vertical_integration`'s `sum(x·dz)` and `vertical_mean`'s that over `sum(dz)`
-  of the layers with a value (`_column`). **A year is read at a time** (`monthly_means`, from the files `analysis.file_years(row)` says hold
-  it), so no more than a year of monthly fields is held, and `_Climate` adds up each year's means. **The thickness is never asked for** (`analyze()` checks `require_thickness` after `locate_rows`,
-  without the FVCOM rows; `check_climatology(fvcom=)` in the window): `dz` = the layer's share of `siglev` (`siglev_center` on the elements
-  if there) × (`h` + `zeta`) **at each time step** (`_shares` × `_depth_of_water`, not the first time's, as tides move `zeta`; no `zeta` is 0; on the
-  elements the mean of the three nodes' depth, through `nv`; not above 0 is a dry cell, missing). Then sums per (year, month) and cell, each
-  year's monthly mean then the mean of each month, as `climatology_of`; `cores` processes run the file **as a script by path** (`python -I`,
-  importing no OceanVal at module level, as a spawned worker of the package would re-run the user's script; a job carries its `layer`).
-  Its results keep the usual names (`<key>_<layer>_monthly/annual.nc`, the integral's units by `integral_units`) on `(time, node|nele)` with
-  the mesh (`lon`, `lat`, `nv`, ...) and `month`, and the layer has `"mesh"`; `info["fvcom"]`. **`oceanval/mesh_maps.py`** (`mesh_plot`,
-  `mesh_panel_plot`, pyfvcom2's tripcolor of `Triangulation(lon, lat, nv.T - 1)`: gouraud on nodes, flat on elements, a triangle with a value
-  missing masked, land beneath, true proportions, plain axes for a mesh in metres) draws them: `analysis_plots.annual_map`/`monthly_maps`
-  write scripts that import it (a third OceanVal import allowed in copied scripts), and so do the peak maps and `change_maps`
-  (`mesh_plot(legend_position=None)` into the same gridspec, the shared bars made as before). **The phenology** is
-  `fvcom_climatology.daily_climatology` (sums by day, `file_sums(by=DAY)`, each year's daily mean then the mean of each (month, day), dated in
-  the last year that has it, as CDO; a band of cells at a time beyond `DAILY_VALUES`), then `analysis.peak`, which keeps the mesh when the
-  file has `attrs["mesh"]`. **Map changes**: each period is `fvcom_climatology.work_out(monthly=None)`, then the usual xarray `derive`.
-  **The series and every spatial mean** are **`oceanval/mesh_means.py`** (numpy/netCDF4; pyfvcom2 has no area code): `MeshCells` (an
-  element's area its spherical triangle's, Van Oosterom–Strackee, in the plane for a mesh in metres; a node's a third of each triangle's
-  it is a corner of, FVCOM's `art1` control volume), `weighted_mean` (area alone, as `spatial_mean`), and `Series`, fed a month at a
-  time by `analysis_series.mesh_series` (domain, the `lon_lim`/`lat_lim` box, regions by the 1-D lon/lat grid cell each cell's position is
-  in, never regridding; stations the nearest of `STATION_CANDIDATES` cells with values, refused beyond `STATION_CELLS` of its sides), giving
-  the same rows as `region_values`/`station_values`, so the CSVs and their figures are unchanged. `analysis_plots.domain_mean` (the daily
-  cycle's) sends a file with `attrs["mesh"]` to `mesh_means.domain_mean`. A mesh in metres has only Full Domain series
-  (`analysis.check_mesh_area`) and no transects (`locate_rows`). **Transects** are **`oceanval/fvcom_transects.py`** (`banded`, called by
-  `analysis_transects.work_out` when `row["fvcom"]`): `to_transect` is a bilinear `regrid` onto the line's points, which CDO cannot do from
-  a mesh, so the monthly means of only the cells the lines need (`monthly_means(pick=)`; `fvcom_climatology.LEVELS`, every sigma layer, for
-  a section) are interpolated as the maps shade them (`weights`: barycentric on the nodes, the triangle's value on the elements, NaN outside
-  the mesh or by a missing corner) onto a **strip** of a lon-lat grid per line (`strip`: two rows a hair either side of each point and two
-  columns either side of the line, so bilinear remapping gives each point's value back exactly and spreads no missing value; one row per
-  point did), saved with an explicit `_FillValue` in a temporary folder, then extracted by `to_transect` as any output is; the rest of
-  `analysis_transects` is unchanged. Steps: the median side of the triangles the line crosses (`steps`, `analysis_transects.steps_of`). A
-  section's depths: the layers' thickness (`_shares` × the mean of `fvcom_climatology.DEPTH`, h + zeta, over the months) on the strip, through
-  `to_transect` and `cell_depths` (`_strip_depths`; `saved["depths"] == "sigma"`); no thickness is asked for (`check_transects(fvcom=)`).
-  The window: `state.analyze.fvcom`/`fvcom_note`, the thickness rows hidden and `#clim-fvcom-thickness`/`#chg-fvcom-thickness`/
-  `#trans-fvcom-thickness` saying how it is worked out (`refreshThickness`; `check_climatology`/`check_map_changes(fvcom=)`), the dates check with `fvcom: True`; `missing_probe` reads
-  FVCOM's first sigma layer. `compare_simulations` works with it too (below). Tests: `tests/test_fvcom_analysis.py`
-  (`viewer_simulations.fvcom_months`; values worked out by hand, uneven `siglev` and a changing `zeta`, the areas, regions, stations and a
-  peak day per node and transects of a field linear on the mesh included), the `fvcom` case of `test_analysis_plots.py` (every FVCOM figure).
+- **Raw FVCOM output in Analyze** (the user's design, 2026-11-13: nctoolkit 1.4.0's `open_fvcom`): `analysis.streams` marks a stream
+  `"fvcom"` (`fvcom.is_fvcom`; `_variables_of` → `fvcom.variables`, from the header: the variables on `node`/`nele`, not
+  `viewer_mesh.MESH_VARIABLES`), `locate_rows` sets `row["fvcom"]`, reads its times with `index_times(fvcom=True)`, and refuses parts on the
+  nodes and the elements together (`fvcom.location`; open_fvcom opens one at a time), a mesh in metres (`fvcom.has_lon_lat`: open_fvcom needs
+  longitudes and latitudes), and the water column or a vertical transect of a part not on `siglay` (`fvcom.not_layered`). Everything else is
+  **the ordinary chain**: `_model_data` opens the files with `fvcom.open_model(row["parts"], thickness=)` - only the parts, and the layer
+  thickness (`fvcom.THICKNESS`) only for the water column and a transect's section (`layer == "levels"`; then a sum or formula is `aexpr` +
+  `selname`, and a unit conversion an `aexpr` of the key alone) - and `_reduce_column` with no thickness uses nctoolkit's FVCOM-aware
+  `vertical_mean`/`vertical_integration`, so the water column is of **the monthly means** of the values and of the thickness (as for any
+  output; the old code took each time step's column). **The thickness is never asked for** (`require_thickness` without the FVCOM rows;
+  `check_climatology(fvcom=)` in the window). Results computed on open_fvcom's grid (each node or element a cell with bounds; the file's
+  `nctoolkit_fvcom` and `fvcom_source` attributes, which CDO keeps) are rewritten **on the mesh** by `fvcom.on_mesh` (`analysis._on_mesh`,
+  after `_save` of the climatology, the phenology's daily climatology and each map-change period): the variable on `(time, node|nele)`,
+  `month`, the mesh of the source file (`fvcom.MESH`: `lon`, `lat`, `nv`, ...), `fvcom.AREA` (each cell's area, from CDO's `gridarea` of the
+  bounds) and `attrs["mesh"]`; the layer has `"mesh"` and `info["fvcom"]`. **`oceanval/mesh_maps.py`** draws them (pyfvcom2's tripcolor:
+  gouraud on nodes, flat on elements, land beneath, true proportions), from `analysis_plots.annual_map`/`monthly_maps`, the peak maps and
+  `change_maps`; `analysis.peak` keeps the mesh; `analysis_plots.domain_mean` of a mesh file is `fvcom.domain_mean` (weighted by `AREA`).
+  **The series** are `analysis_series.region_values`/`station_values` as for any output: `spatial_mean` weighted by CDO's cell areas (the
+  median-dual control volume of a node, FVCOM's `art1`; an element's triangle), regions by regridding (bilinear, on the mesh) onto the
+  region file, and stations the nearest cell with values (`_grid` keeps an unstructured grid's 1-D cells as one row, and `_spacing` is the
+  median nearest-neighbour distance of a sample, `SPACING_SAMPLE`). **Transects**: `to_transect` interpolates on the mesh (nctoolkit's
+  bilinear weights; on the elements, the area-weighted means at the nodes, so an element's value no longer fills its triangle), the steps
+  from the monthly means' file (`steps_for` on open_fvcom's grid), and a section's depths from the thickness extracted with the values
+  (`_fvcom_depths`: `cell_depths` of its mean over the months; `saved["depths"] == "sigma"`). The window: `state.analyze.fvcom`/`fvcom_note`,
+  the thickness rows hidden and `#clim-fvcom-thickness`/`#chg-fvcom-thickness`/`#trans-fvcom-thickness` saying how it is worked out
+  (`refreshThickness`), the dates check with `fvcom: True`; `missing_probe` reads FVCOM's first sigma layer. `compare_simulations` works
+  with it too (see compare-simulations.md). Tests: `tests/test_fvcom_analysis.py` (`viewer_simulations.fvcom_months`; values worked out by
+  hand, uneven `siglev` and a changing `zeta`, the areas, regions, stations, a peak day per node and transects included; `month_fields` runs
+  `monthly_means_of` on one file), the `fvcom` case of `test_analysis_plots.py` (every FVCOM figure).
 - **A model's extent is that of its cells with values, never of its whole coordinate arrays** (`oceanval/extent.py`: `valid_lonlat`
   of a field's first time and top level, `first_slice`/`of_file` for a model file, read through CDO first). NEMO puts the cells of
   the land processors it leaves out at lon -1, lat -1 (36 k of AMM7's 111 k cells), so a whole grid's min/max can be lat -1 to 65.

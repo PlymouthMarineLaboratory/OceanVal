@@ -15,8 +15,8 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   first: `?:` (nested needs brackets, none unbracketed in a function's arguments, one needs a variable), `&& ||`, all comparisons at one
   level, `+ -`, `* /`, unary `- !`, `^` right-assoc); `FUNCTIONS` are element-wise only, `REFUSED` (statistics over grid/levels, level
   selection, grid/time functions) say why. `evaluate(tree, values)` is it in numpy as CDO works it out (missing in, missing out, but
-  `0*missing` is 0; domain errors are missing), for raw FVCOM, which `fvcom_climatology` (run by path) loads **by its path**
-  (`_load_model_expr`; `parts` there is a list of names or a formula string, `parts_of(row)` gives `row["formula"]` or the names).
+  `0*missing` is 0; domain errors are missing); since raw FVCOM output is opened by nctoolkit's `open_fvcom`, CDO works
+  formulas out for it too, and nothing in the package calls `evaluate`.
   `tests/test_model_expr.py` checks random formulas against CDO itself and **`OceanValGUI.expression` in `gui.js`, a port of the
   parser** (its tables are `model_expr.tables()`, put in by `render_page` for `/*__OCEANVAL_EXPR_TABLES__*/`), so change both
   together. Where it is applied: point matchups `-expr,'total=...'` (was `sum_all`), gridded sums after the monthly means as before but
@@ -38,8 +38,8 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   and `.vars__expr` under the box says "Sum of ..."/"Expression based on ..." (unknown names marked) or marks the wrong part once typing
   pauses (`EXPR_PAUSE`; the message only with `explain`, the own data box: elsewhere the page's row check says it).
 - `oceanval/matchall.py` (`matchup`) and `oceanval/gridded.py` (`gridded_matchup`) do the actual
-  model↔observation matching for point and gridded data respectively; `oceanval/fvcom.py` handles
-  FVCOM-specific regridding/preprocessing (deliberately excluded from coverage/docs).
+  model↔observation matching for point and gridded data respectively; `oceanval/fvcom.py` tells raw FVCOM
+  output apart and opens it (below).
 - `oceanval/parsers.py` defines `Validator` (the `definitions` singleton, exposed as
   `add_point_comparison`/`add_gridded_comparison`) — a dynamic attribute-tracking object recipes
   register themselves onto — and `find_recipe`, which builds obs-source URLs without touching the
@@ -67,11 +67,21 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 - **User gridded data** (`obs_path`): a directory is searched recursively for `.nc` files by `parsers.gridded_files` (nctoolkit's `glob` on
   `dir/**/*.nc`; a path with a wildcard is expanded by `glob.glob`, never `nc.glob`, and the matchup gets that list); `recipe_checks._disk`, `own_data.check_entry`, `add_gridded_comparison` and `gridded.py` (`_obs_files`) all use it. The own data
   step's gridded model variable box uses `variableBox(keepSearch)` like Analyze's rows.
-- **FVCOM output** is regridded by `fvcom_matchup_files`, to `matchup(fvcom_res=0.05)` degrees for point matchups (gridded ones keep
-  half the observations' resolution) and, for vertical ones, the depths `fvcom.matchup_depths(fvcom_min_depth=0, fvcom_max_depth=150, fvcom_dz=5)`
-  (`session_info["fvcom_res"]`/`["fvcom_levels"]`, also read by `gridded.py`); the levels are in the cache key of the regridded files. The
-  recipes window asks all four when the output is FVCOM (`group-fvcom`, `recipes_gui._check_fvcom`, started at those defaults), and as they
-  are in `MATCHUP_SETTINGS` they are written into the script only when changed.
+- **Raw FVCOM output** (the user's design, 2026-11-13: nctoolkit 1.4.0's `open_fvcom`) is found from its files, never said:
+  `fvcom.is_fvcom` (the mesh: `node`, `nele` and `nv`, from the header) in `parsers.generate_mapping`, which sets `session_info["fvcom"]`
+  (reset to False at the start of each `matchup`). It is then opened by `fvcom.open_model(paths, names, thickness=)` - nctoolkit's
+  `open_fvcom` with **only the variables needed** (open_fvcom converts every value it opens; the layer thickness, `fvcom.THICKNESS`, only when
+  depths or a water column need it) - and is ordinary nctoolkit output on its own mesh: point matchups `match_points` straight onto the
+  observations (nctoolkit regrids FVCOM to the points with weights on the mesh, bilinear in each triangle), gridded ones `regrid` onto the
+  observations' grid, and through the water column `vertical_interp`/`vertical_mean(depth_range=)` with the thickness of the layers
+  (`gridded.model_dataset(fvcom=)` keeps it: `selection` + `THICKNESS`, a formula by `aexpr` then `selname`; the variable renamed `model` is found by
+  name). The **cell thickness for point depths** is that of the layers at the first time of the first file (`fvcom.thickness_dataset`,
+  `matchall._fvcom_layered_file`), through `_thickness_and_depths` as NEMO's `e3t` is, so `ds_depths` and `_top_cell_depths` work as for any
+  model (the latter by nearest neighbour for FVCOM, as nctoolkit takes FVCOM's depths at the points); `thickness=` is ignored, with a warning.
+  The model's units and box (point recipes) come from the header (`fvcom_contents`, `fvcom_extent`). `matchup(fvcom=, fvcom_res=,
+  fvcom_min_depth=, fvcom_max_depth=, fvcom_dz=)` are gone: `matchall._check_removed` (`**removed`) says so; `create_recipes` writes no
+  `fvcom=True`, and the recipes window has no FVCOM boxes (an empty column keeps its layout). Forked `mm_match` workers call `open_fvcom`
+  safely with `nc.options(parallel=True)` (set before forking; without it their temp files' names collide). Tests: `tests/test_fvcom.py`.
 - **The maps of the point pages** (R, `chunk_point.pytemplate`'s three, `point_template.ipynb`, `summary.ipynb`) draw the land first and the
   points above it. A lon or lat range of more than 50 degrees (or no R `mapdata`) keeps `map_data("world")`; a smaller one uses
   `map_data("worldHires")` from `r-mapdata`, limited to the data's extent, without the "Great Lakes" region (the lakes are water; open

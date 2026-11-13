@@ -138,8 +138,8 @@ def check_options(live_validation, out_dir):
 
 def _clear(folder):
     """Remove the interim report an earlier matchup left. On NFS, a folder
-    holding a file that is still open cannot be removed until it is closed
-    (see matchall._remove_fvcom_dir), so this tries a few times."""
+    holding a file that is still open cannot be removed until it is closed,
+    so this tries a few times."""
     error = None
     for _ in range(3):
         if not os.path.exists(folder):

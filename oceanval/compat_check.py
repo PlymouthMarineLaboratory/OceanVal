@@ -14,7 +14,7 @@ questions about that variable, a row each, in this order:
 The variables are those View simulation output finds in the file
 (`viewer_catalogue`), and the level used is its surface (`surface_level`).
 
-Raw FVCOM output is told first (`create_recipes._looks_like_fvcom`): it should be
+Raw FVCOM output is told first (`oceanval.fvcom.is_fvcom`): it should be
 compatible, CDO cannot read it (OceanVal regrids it itself), so the cdo, regrid and
 mean rows are skipped. The time check, the interactive plot and the climatology map
 are made, the last drawn on the mesh as Analyze simulations draws FVCOM output
@@ -537,11 +537,12 @@ def run(path, emit, variable=None, choose=None):
             emit({
                 "event": "fvcom",
                 "notice": "This is FVCOM output. It should be compatible with OceanVal. CDO cannot read raw FVCOM "
-                "files, so OceanVal regrids them itself and the CDO, regridding and spatial-average checks do not "
-                "apply. The time check, the interactive plot and the climatology map are made.",
+                "files, so OceanVal opens them with nctoolkit's open_fvcom and the CDO, regridding and "
+                "spatial-average checks do not apply. The time check, the interactive plot and the climatology "
+                "map are made.",
             })
             for key in ("cdo", "regrid", "mean"):
-                _row(emit, key, SKIPPED, "Not needed for FVCOM output: OceanVal reads and regrids it itself.")
+                _row(emit, key, SKIPPED, "Not needed for FVCOM output: OceanVal opens it with nctoolkit's open_fvcom.")
             _fvcom_time(path, emit)
             if catalogue is None:
                 _row(emit, "interactive", FAILED, "The map could not be drawn: " + (trouble or "the file could not be read."))

@@ -6,9 +6,9 @@ writes out the script in ``docs-site/recipe-examples.py`` with those names
 filled in. Recipes it could not find a model variable for are still written
 out, but commented, so nothing is silently dropped. When run interactively,
 it first asks you for the model variable of each one it could not identify.
-Output that looks like raw FVCOM is read with xarray, as CDO skips FVCOM's
-mesh variables, and the script's matchup call is given fvcom=True - once you
-have confirmed it is FVCOM. By default (gui=True), what was identified is
+Output that looks like raw FVCOM is read from its header, as CDO skips FVCOM's
+mesh variables; matchup finds it the same way and opens it with nctoolkit's
+open_fvcom, so the script needs nothing of its own for it. By default (gui=True), what was identified is
 shown in a page in your web browser instead (see oceanval.recipes_gui), where
 the model variables, the datasets to validate against, and each dataset's
 years and whether to validate it through the water column can be changed
@@ -37,7 +37,7 @@ from oceanval import prompts
 from oceanval import user_recipes
 from oceanval import variable_identify
 from oceanval import live as interim_report
-from oceanval.fvcom import fvcom_contents
+from oceanval.fvcom import fvcom_contents, is_fvcom
 from oceanval.own_data import FIELDS as OWN_DATA_FIELDS
 
 
@@ -901,10 +901,6 @@ MATCHUP_SETTINGS = (
     "exclude",
     "require",
     "as_missing",
-    "fvcom_res",
-    "fvcom_min_depth",
-    "fvcom_max_depth",
-    "fvcom_dz",
     "domain_mask",
 )
 VALIDATE_SETTINGS = ("subregions", "pdf", "word", "concise")
@@ -1567,23 +1563,10 @@ def _ask_for_missing_variables(mapping, missing, available):
 
 
 def _looks_like_fvcom(path):
-    """Whether one file looks like raw FVCOM output.
-
-    Goes by the unstructured mesh, which matchup(fvcom=True) regrids from,
-    rather than the "source" attribute, which FVCOM output that has already
-    been regridded still carries.
-    """
-    try:
-        # siglay and siglev are 2D but named after their dimension
-        with xr.open_dataset(
-            path,
-            drop_variables=["siglay", "siglev"],
-            decode_times=False,
-            decode_cf=False,
-        ) as ds:
-            return {"node", "nele"} <= set(ds.dims) and "nv" in ds.variables
-    except Exception:
-        return False
+    """Whether one file looks like raw FVCOM output: oceanval.fvcom.is_fvcom,
+    which goes by the unstructured mesh rather than the "source" attribute,
+    which FVCOM output that has already been regridded still carries."""
+    return is_fvcom(path)
 
 
 def _years_in(text):
@@ -1700,7 +1683,7 @@ def _entry_arguments(entry, vertical, fvcom=False):
         return list(entry["arguments"])
     note = "the full water column"
     if not fvcom:
-        # FVCOM output is regridded onto z-levels, so needs none
+        # the depths of FVCOM's sigma layers are worked out from its files
         note += ", so matchup also needs thickness"
     return [
         f"vertical=True,  # {note}" if argument.startswith("vertical=") else argument
@@ -1857,7 +1840,7 @@ def _header(simdir, ndown, mapping, years, domain, fvcom=False, user=False):
         f"Domain: {domain}.",
     ]
     if fvcom:
-        lines.append("Model output: raw FVCOM, regridded by matchup(fvcom=True).")
+        lines.append("Model output: raw FVCOM, which matchup opens on its own mesh.")
     if user:
         lines += [
             "",
@@ -1921,9 +1904,9 @@ def _footer(
     suffix = "" if years is not None else "  # set to your simulation's years"
     if fvcom:
         note = [
-            "# fvcom=True regrids the raw FVCOM output before matching it, so no",
-            "# thickness is needed, and lon_lim and lat_lim default to the extent",
-            "# of the mesh.",
+            "# The output is raw FVCOM, which matchup finds and matches up on its own",
+            "# mesh, so no thickness is needed: the depths of its sigma layers are",
+            "# worked out from its files.",
         ]
     else:
         note = [
@@ -1983,7 +1966,6 @@ def _footer(
         f"    end={end},{suffix}",
         f"    n_dirs_down={ndown},",
         *[f"    {name}={_literal(value)}," for name, value in matchup_changed],
-        *(["    fvcom=True,"] if fvcom else []),
         *(
             [f"    live_validation={_literal(interim or True)},"]
             if interim is not None
@@ -2275,9 +2257,8 @@ def _create_recipes(
     and for each variable that could not be identified you are told so and
     asked for the model variable to use (press Enter to skip). Recipes still
     without a model variable are written out commented, so you can see what
-    was missed and fill the variable in by hand. If the output looks like
-    raw FVCOM output you are asked to confirm it is, and the script then
-    calls matchup with fvcom=True.
+    was missed and fill the variable in by hand. Raw FVCOM output is found
+    from its files, and its variables are read from their header.
 
     Parameters
     -------------
@@ -2313,11 +2294,9 @@ def _create_recipes(
         variables are filled in in the window instead. Defaults to True.
     fvcom : bool or None
         Whether simdir holds raw FVCOM output. If True, the variables are
-        read with xarray, as CDO cannot read FVCOM's, and the script calls
-        matchup with fvcom=True. Defaults to None, which checks the files
-        for FVCOM's unstructured mesh and, if they have one, asks you to
-        confirm - or, when it cannot ask, assumes they are FVCOM output and
-        says so.
+        read from the files' header, as CDO cannot read FVCOM's. Defaults to
+        None, which checks the files for FVCOM's unstructured mesh. matchup
+        finds FVCOM output itself, so the script is the same either way.
     gui : bool
         Whether to choose the recipes in a page in your web browser before
         the script is written. It lists every observational variable with
@@ -2422,9 +2401,8 @@ def _create_recipes(
         )
         if fvcom:
             print(
-                f"The output in {simdir} looks like raw FVCOM output, so the "
-                "script calls matchup with fvcom=True. Pass fvcom=False if it "
-                "is not."
+                f"The output in {simdir} looks like raw FVCOM output, so its variables "
+                "are read from its files' header. Pass fvcom=False if it is not."
             )
 
     mapping = extract_recipe_variable_mapping(

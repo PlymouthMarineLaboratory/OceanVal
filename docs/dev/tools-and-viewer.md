@@ -16,7 +16,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 - **Everything runs in a child process** (`Compat`, run as `compat_check.main`; killed by `cancel` and by `STEP_TIMEOUT`
   without news): CDO can crash and nctoolkit's pools can hang. Its events are `MARKER` lines on stdout. **The variable is asked first when the file has more than one**
   unless `variable=` is given (status `choose`; the child waits on stdin, and nobody is timed while they choose).
-- **FVCOM is told first** (`create_recipes._looks_like_fvcom`): it should be compatible, CDO cannot read it, so `cdo`, `regrid` and `mean` are
+- **FVCOM is told first** (`fvcom.is_fvcom`): it should be compatible, CDO cannot read it (OceanVal opens it with nctoolkit's `open_fvcom`), so `cdo`, `regrid` and `mean` are
   skipped; `time`, `interactive` and `climatology` are made, the climatology drawn on the mesh (`compat_check._fvcom_climatology`, `mesh_maps`) from the surface layer.
 
 ### View simulation output (`oceanval/viewer_*.py`)

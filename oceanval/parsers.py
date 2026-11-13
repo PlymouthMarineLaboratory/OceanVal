@@ -1185,9 +1185,12 @@ def generate_mapping(ds):
     model_dict = {}
     try:
         candidate_variables = definitions.keys
-        if session_info.get("fvcom", False):
-            from oceanval.fvcom import fvcom_contents
+        from oceanval.fvcom import fvcom_contents, is_fvcom
 
+        if session_info.get("fvcom", False) or is_fvcom(ds[0]):
+            # raw FVCOM output, which CDO cannot read: its variables are read from its
+            # header, and matchup opens it with nctoolkit's open_fvcom
+            session_info["fvcom"] = True
             ds_contents = fvcom_contents(ds[0])
         else:
             ds1 = nc.open_data(ds[0], checks=False)

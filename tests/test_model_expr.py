@@ -162,8 +162,7 @@ class TestWhatIsParsed:
 
 
 class TestWorkingItOut:
-    """evaluate works a formula out as CDO's expr does, for raw FVCOM output,
-    which CDO cannot read (see oceanval.fvcom_climatology)."""
+    """evaluate works a formula out on values as CDO's expr does."""
 
     def values(self):
         return {"a": np.array([np.nan, 0.0, 2.0, 3.0]), "b": np.array([1.0, np.nan, 0.0, 2.0])}
@@ -363,26 +362,3 @@ class TestTheWindowReadsItTheSame:
             assert js["ok"], (text, js)
             assert (js["kind"], js["names"], js["text"]) == (found.kind, found.names, found.text), text
             assert js["description"] == me.describe(text), text
-
-
-def test_fvcom_climatology_reads_formulas_when_run_by_its_path():
-    """fvcom_climatology runs as a script by its path (python -I), importing no
-    OceanVal: it loads model_expr by its path, and works a formula out with it."""
-    from oceanval import fvcom_climatology
-
-    path = fvcom_climatology.__file__
-    code = (
-        "import importlib.util, sys, numpy as np\n"
-        f"spec = importlib.util.spec_from_file_location('fc', {path!r})\n"
-        "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)\n"
-        "assert 'oceanval' not in sys.modules, sorted(m for m in sys.modules if m.startswith('oceanval'))\n"
-        "values = {'a': np.array([1.0, np.nan]), 'b': np.array([2.0, 3.0])}\n"
-        "print(module._combined('a+2*b', values).tolist(), module._combined(['a', 'b'], values).tolist())\n"
-    )
-    done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, check=True)
-    assert done.stdout.split("] [") == ["[5.0, nan", "3.0, nan]\n"]
-    # imported as part of the package, it is the package's model_expr
-    assert fvcom_climatology.model_expr is me
-    assert fvcom_climatology.names_of("a+2*b") == ["a", "b"] and fvcom_climatology.names_of(["a"]) == ["a"]
-    assert fvcom_climatology.parts_of({"parts": ["a", "b"], "formula": None}) == ["a", "b"]
-    assert fvcom_climatology.parts_of({"parts": ["a", "b"], "formula": "a+2*b"}) == "a+2*b"

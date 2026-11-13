@@ -2,7 +2,7 @@
 (node) or on its elements (nele), the triangles' nodes in nv (three, nele,
 1-based), and sigma layers (siglay, siglev) as the vertical.
 
-Which output is FVCOM's is told as create_recipes._looks_like_fvcom tells
+Which output is FVCOM's is told as oceanval.fvcom.has_mesh tells
 it: the mesh's dimensions and nv.
 
 The plotting uses pyfvcom2's approach
@@ -13,7 +13,7 @@ a field is coloured over them as its tripcolor colours it: a value on the
 nodes shaded linearly across each triangle, a value on the elements filling
 its triangle. As Bokeh cannot draw a mesh of many triangles quickly, that is
 done here onto a regular grid (Raster) and drawn as an image, pixels outside
-the mesh missing (as oceanval.fvcom._mesh_mask). Which triangle each pixel
+the mesh missing. Which triangle each pixel
 is in, and its weights, are worked out once for a mesh, so each map after
 the first costs one weighted sum. Only numpy is needed.
 """
@@ -37,8 +37,10 @@ def looks_like_fvcom(ds):
     """Whether an open dataset (xarray, netCDF4 or anything with .dims and
     .variables) is raw FVCOM output: the unstructured mesh, which output
     that has been regridded no longer has (create_recipes' rule)."""
+    from oceanval.fvcom import has_mesh
+
     dims = ds.dimensions if hasattr(ds, "dimensions") else ds.dims
-    return {"node", "nele"} <= set(dims) and "nv" in ds.variables
+    return has_mesh(dims, ds.variables)
 
 
 def mesh_location(dims):

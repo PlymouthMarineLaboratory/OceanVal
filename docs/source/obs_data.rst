@@ -13,7 +13,7 @@ OceanVal is designed to validate ocean model output that is in NetCDF format.
 Files should be CF-compliant as far as possible. Most ocean model output files are CF-compliant, so there should be no compatibility issues.
 
 
-**Unstructured grids**: OceanVal will not be compatible out-of-the-box with unstructured grid model output. However, if the unstructured grid data can be regridded onto a regular grid and saved as a CF-compliant NetCDF file, then OceanVal will be able to use it. FVCOM output is supported via ``oceanval.fvcom_preprocess``, or directly with ``matchup(fvcom=True)``, which regrids the files for you.
+**Unstructured grids**: OceanVal will not be compatible out-of-the-box with unstructured grid model output. However, if the unstructured grid data can be regridded onto a regular grid and saved as a CF-compliant NetCDF file, then OceanVal will be able to use it. Raw FVCOM output needs nothing of this: OceanVal finds it from its files and opens it with nctoolkit's ``open_fvcom`` (nctoolkit 1.4.0 or later), which CDO can then read as an unstructured grid.
 
 **Vertical grids**: OceanVal can handle both z-level files and files where the vertical grid varies, provided that the cell thickness is stored in the simulation output.
 
@@ -41,7 +41,7 @@ The OceanVal app checks your model output files for you. Run ``oceanval`` and, w
 * **Can my data be plotted interactively?** The map View simulation output draws, which you can zoom and pan.
 * **Can my data be plotted as a climatology?** The map Analyze simulations draws: the sea surface's climatology, a mean over the file's first 12 time steps.
 
-FVCOM output is recognised first. It should be compatible, as OceanVal regrids it itself, so the CDO, regridding and spatial-average checks are skipped, and the time check, the interactive plot and the climatology map are made, the map drawn on the mesh as Analyze simulations draws FVCOM output.
+FVCOM output is recognised first. It should be compatible, as OceanVal opens it with nctoolkit's ``open_fvcom``, so the CDO, regridding and spatial-average checks are skipped, and the time check, the interactive plot and the climatology map are made, the map drawn on the mesh as Analyze simulations draws FVCOM output.
 
 
 Gridded observational data

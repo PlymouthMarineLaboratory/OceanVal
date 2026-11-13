@@ -1,10 +1,11 @@
-"""Analyze with raw FVCOM output (see oceanval.fvcom_climatology,
-oceanval.mesh_means and oceanval.mesh_maps): the climatology (at the surface,
-the bottom and through the water column), the phenology, the long-term and
-seasonal series and the map changes are worked out on the mesh itself, the
-spatial means weighted by the areas of its cells, and the transects are
-interpolated from the mesh onto a strip along each line, which nctoolkit's
-to_transect extracts them from (see oceanval.fvcom_transects)."""
+"""Analyze with raw FVCOM output, opened by nctoolkit's open_fvcom (see
+oceanval.fvcom) and worked out as any other output: the climatology (at the
+surface, the bottom and through the water column, weighted by the thickness of
+the sigma layers at each time), the phenology, the long-term and seasonal
+series (their spatial means weighted by the areas of the mesh's cells), the
+map changes, and the transects, interpolated on the mesh by to_transect. The
+results are kept on the mesh (oceanval.fvcom.on_mesh), whose maps are drawn on
+its triangles (oceanval.mesh_maps)."""
 
 import ast
 import datetime
@@ -20,7 +21,7 @@ import xarray as xr  # noqa: E402
 
 import oceanval  # noqa: E402
 from oceanval import (  # noqa: E402
-    analysis, analysis_forms, fvcom_climatology, fvcom_transects, mesh_maps, mesh_means, missing_probe,
+    analysis, analysis_forms, analysis_series, fvcom, mesh_maps, missing_probe,
 )
 from oceanval.app import App  # noqa: E402
 from test_app import get_json, leftover_dir, post, wait_for  # noqa: E402, F401 (leftover_dir is autouse)
@@ -138,18 +139,13 @@ class TestClimatology:
 
     def test_the_times_are_shifted(self, tmp_path):
         path = fvcom_file(str(tmp_path / "one.nc"), first_day=31, n_times=3)
-        unshifted = fvcom_climatology.file_sums(path, ["temp"], [2012, 2012])
-        shifted = fvcom_climatology.file_sums(path, ["temp"], [2012, 2012], time_shift=-1)
+        unshifted = month_fields(path, "surface")
+        shifted = month_fields(path, "surface", time_shift=-1)
         assert set(unshifted) == {(2012, 2)} and set(shifted) == {(2012, 1), (2012, 2)}
-        assert list(shifted[(2012, 1)][1][:1]) == [1] and list(shifted[(2012, 2)][1][:1]) == [2]
-
-    def test_more_cores_give_the_same(self, fvcom_sim):
-        files = sorted(os.path.join(root, name) for root, _, names in os.walk(fvcom_sim) for name in names)
-        one = fvcom_climatology.monthly_sums(files, ["temp"], [2012, 2013], cores=1)
-        two = fvcom_climatology.monthly_sums(files, ["temp"], [2012, 2013], cores=2)
-        assert sorted(one) == sorted(two) == sorted(MONTHS)
-        for month in one:
-            assert np.allclose(one[month][0], two[month][0]) and np.array_equal(one[month][1], two[month][1])
+        lon, _, _ = fvcom_mesh()
+        # the times of days 31, 32 and 33 moved back a day: the first into January, the others in February
+        assert np.allclose(shifted[(2012, 1)], 10 + stored(lon) + 31, atol=1e-4)
+        assert np.allclose(shifted[(2012, 2)], 10 + stored(lon) + 32.5, atol=1e-4)
 
     def test_parts_on_the_nodes_and_the_elements_cannot_be_summed(self, fvcom_sim, tmp_path, no_report):
         with pytest.raises(ValueError, match="not all on the same part of the FVCOM mesh"):
@@ -177,10 +173,16 @@ def depth_of_water():
     return depth, depth[nv - 1].mean(axis=0)
 
 
-def mean_of(found, month):
-    sums, counts = found[month]
-    with np.errstate(invalid="ignore"):
-        return np.where(counts > 0, sums / np.maximum(counts, 1), np.nan)
+def month_fields(path, layer, time_shift=None, years=(2012, 2012)):
+    """The monthly means of temp in layer of the FVCOM file at path, as analyze()
+    works them out (opened by nctoolkit's open_fvcom): {(year, month): field}."""
+    row = {"parts": ["temp"], "key": "temp", "fvcom": True}
+    ds = analysis.monthly_means_of([path], row, layer, years, time_shift, 5)
+    ds.run()
+    with xr.open_dataset(ds[0]) as found:
+        values = found["temp"].values.reshape(len(found.time), -1).astype("float64")
+        months = [(int(t.dt.year), int(t.dt.month)) for t in found.time]
+    return dict(zip(months, values))
 
 
 class TestBottomAndWaterColumn:
@@ -237,13 +239,11 @@ class TestBottomAndWaterColumn:
             temp = ds.variables["temp"][:].astype("float64")
         shares = -np.diff(levels)
         thickness = shares[None, :, None] * (h[None, None, :] + zeta[:, None, None])
-        found = {
-            layer: mean_of(fvcom_climatology.file_sums(path, ["temp"], [2012, 2012], layer=layer), (2012, 1))
-            for layer in ("mean", "integral")
-        }
-        # the mean of each time's column: the thickness changes with zeta, but not the shares
+        found = {layer: month_fields(path, layer)[(2012, 1)] for layer in ("mean", "integral")}
+        # as for any output, the column of the month's means: the mean weighted by the shares, which
+        # the free surface does not change, and the integral by the month's mean thickness of each layer
         assert np.allclose(found["mean"], (temp * shares[None, :, None]).sum(axis=1).mean(axis=0), rtol=1e-6)
-        assert np.allclose(found["integral"], (temp * thickness).sum(axis=1).mean(axis=0), rtol=1e-6)
+        assert np.allclose(found["integral"], (temp.mean(axis=0) * thickness.mean(axis=0)).sum(axis=0), rtol=1e-5)
         # not the even split
         assert not np.allclose(found["mean"], temp.mean(axis=(0, 1)))
 
@@ -262,7 +262,7 @@ class TestBottomAndWaterColumn:
         lon, _, _ = fvcom_mesh()
 
         def layer(name):
-            return mean_of(fvcom_climatology.file_sums(path, ["temp"], [2012, 2012], layer=name), (2012, 1))
+            return month_fields(path, name)[(2012, 1)]
 
         top = 10 + lon + 0.5  # the mean of days 0 and 1
         mean, integral, bottom = layer("mean"), layer("integral"), layer("bottom")
@@ -272,15 +272,6 @@ class TestBottomAndWaterColumn:
         # node 2: the deepest layer with a value
         assert np.isclose(bottom[2], top[2] + 3) and np.isclose(bottom[3], top[3] + 4)
         assert np.isclose(mean[3], top[3] + 2) and np.isfinite(full).all()
-
-    def test_more_cores_give_the_same(self, fvcom_sim):
-        files = simulation_files(fvcom_sim)
-        for layer in ("bottom", "integral"):
-            one = fvcom_climatology.monthly_sums(files, ["temp"], [2012, 2013], cores=1, layer=layer)
-            two = fvcom_climatology.monthly_sums(files, ["temp"], [2012, 2013], cores=2, layer=layer)
-            assert sorted(one) == sorted(two) == sorted(MONTHS)
-            for month in one:
-                assert np.allclose(one[month][0], two[month][0]) and np.array_equal(one[month][1], two[month][1])
 
     def test_a_sum_with_a_surface_variable(self, fvcom_sim, tmp_path, no_report):
         years = {"start": 2012, "end": 2013}
@@ -368,91 +359,42 @@ def write_regions(path):
 
 
 class TestAreas:
-    def test_a_triangle_in_the_plane_and_on_the_sphere(self):
-        assert np.isclose(mesh_means.triangle_areas([0, 3, 0], [0, 0, 4], np.array([[0, 1, 2]]), cartesian=True)[0], 6)
-        # an eighth of the globe
-        octant = mesh_means.triangle_areas([0, 90, 0], [0, 0, 90], np.array([[0, 1, 2]]))[0]
-        assert np.isclose(octant, 4 * np.pi * EARTH_M**2 / 8)
+    """Results kept on the mesh have the areas of its cells, as CDO works them
+    out from the cells open_fvcom gives each node (its median-dual control
+    volume, FVCOM's art1) and element (its triangle)."""
 
-    def test_the_mesh_s_areas(self):
+    def saved(self, tmp_path, layer="surface", parts=("temp",)):
+        path = fvcom_file(str(tmp_path / "one.nc"), n_times=1)
+        row = {"parts": list(parts), "key": "value", "fvcom": True}
+        ds = analysis.monthly_means_of([path], row, layer, (2012, 2012), None, 5)
+        out = str(tmp_path / f"{parts[0]}_saved.nc")
+        ds.to_nc(out)
+        fvcom.on_mesh(out, path)
+        return out
+
+    def test_the_cells_areas(self, tmp_path):
         lon, lat, nv = fvcom_mesh()
-        areas = mesh_means.triangle_areas(lon, lat, nv.T - 1)
-        assert np.allclose(areas, plane_areas(lon, lat, nv), rtol=1e-3)
-        nodes = mesh_means.node_areas(areas, nv.T - 1, len(lon))
-        # the control volumes of the nodes cover the mesh, as FVCOM's art1 does
-        assert np.isclose(nodes.sum(), areas.sum()) and np.allclose(nodes, hand_node_areas(lon, lat, nv), rtol=1e-3)
+        with xr.open_dataset(self.saved(tmp_path)) as ds:
+            assert ds.attrs["mesh"] == "node"
+            nodes = ds[fvcom.AREA].values
+            assert {"lon", "lat", "nv"} <= set(ds.variables)
+        with xr.open_dataset(self.saved(tmp_path, parts=("u",))) as ds:
+            assert ds.attrs["mesh"] == "nele"
+            elements = ds[fvcom.AREA].values
+        assert np.allclose(elements, plane_areas(lon, lat, nv), rtol=5e-3)
+        # the control volumes of the nodes cover the mesh
+        assert np.isclose(nodes.sum(), elements.sum(), rtol=1e-3)
+        assert np.allclose(nodes, hand_node_areas(lon, lat, nv), rtol=5e-3)
         # a node on the edge of the mesh has less of it than one inside
         assert nodes.min() < 0.5 * nodes.max()
 
-    def test_the_cells_of_a_file(self, tmp_path):
-        path = fvcom_file(str(tmp_path / "one.nc"), n_times=1)
-        lon, lat, nv = fvcom_mesh()
-        nodes, elements = mesh_means.MeshCells(path, "node"), mesh_means.MeshCells(path, "nele")
-        assert np.isclose(nodes.areas.sum(), elements.areas.sum())
-        assert np.allclose(elements.lon, stored(lon)[nv - 1].mean(axis=0), atol=1e-5)
-        # the sides of the triangles, about 7 and 11 km, and their diagonals
-        assert 5 < np.nanmin(nodes.size) and np.nanmax(nodes.size) < 15
-        flat = mesh_means.MeshCells(fvcom_file(str(tmp_path / "flat.nc"), n_times=1, cartesian=True), "node")
-        assert flat.cartesian and np.isclose(flat.areas.sum(), 0.1 * 70000 * 0.1 * 111000 * (100 - 25), rtol=1e-4)
-
-    def test_a_weighted_mean(self):
-        fields = np.array([[1.0, 2.0, np.nan], [np.nan, np.nan, np.nan]])
-        assert np.allclose(mesh_means.weighted_mean(fields, np.array([1.0, 3.0, 5.0]))[0], 1.75)
-        assert np.isnan(mesh_means.weighted_mean(fields, np.array([1.0, 3.0, 5.0]))[1])
-
-
-class TestSpatialMeans:
-    @pytest.fixture
-    def cells(self, tmp_path):
-        return mesh_means.MeshCells(fvcom_file(str(tmp_path / "one.nc"), n_times=1), "node")
-
-    def test_the_domain_and_a_box(self, cells):
+    def test_a_mean_over_the_mesh_is_weighted_by_them(self, tmp_path):
         lon, lat, nv = fvcom_mesh()
         weights = hand_node_areas(lon, lat, nv)
-        series = mesh_means.Series(cells, lon_lim=[-5.0, -4.65], lat_lim=[50.0, 51.0])
-        series.add((2012, 1), cells.lon)
-        (row,), notes = series.region_rows()
-        west = lon < -4.65
-        assert row[:4] == ("domain", "Full Domain", 2012, 1) and notes == []
-        assert np.isclose(row[4], (weights * lon)[west].sum() / weights[west].sum(), atol=1e-5)
-        whole = mesh_means.Series(cells)
-        whole.add((2012, 1), cells.lon)
-        value = whole.region_rows()[0][0][4]
-        assert np.isclose(value, (weights * lon).sum() / weights.sum(), atol=1e-5)
+        _, values, note = fvcom.domain_mean(self.saved(tmp_path), "value")
+        assert note == "" and np.isclose(values[0], 10 + (weights * stored(lon)).sum() / weights.sum(), atol=1e-4)
         # weighted by area, not the plain mean
-        assert not np.isclose(value, lon.mean(), atol=1e-4)
-
-    def test_regions(self, cells, tmp_path):
-        lon, lat, nv = fvcom_mesh()
-        weights = hand_node_areas(lon, lat, nv)
-        series = mesh_means.Series(cells, region_file=write_regions(str(tmp_path / "regions.nc")))
-        series.add((2012, 1), cells.lon)
-        rows, notes = series.region_rows()
-        west = lon < -4.6
-        assert [row[:2] for row in rows] == [("domain", "Full Domain"), ("region", "West")]
-        assert np.isclose(rows[1][4], (weights * lon)[west].sum() / weights[west].sum(), atol=1e-5)
-        assert notes == ["Nowhere has no cells in the model's domain, so it is left out."]
-
-    def test_stations(self, cells):
-        series = mesh_means.Series(cells, stations={"Near": [-4.52, 50.31]})
-        series.add((2012, 1), cells.lon)
-        rows, found = series.station_rows()
-        assert found["Near"]["lon"] == pytest.approx(-4.5, abs=1e-5) and found["Near"]["lat"] == pytest.approx(50.3, abs=1e-5)
-        assert rows == [("station", "Near", 2012, 1, pytest.approx(-4.5, abs=1e-5))]
-        # where the mesh is cut out, and far from it
-        for where in ([-4.1, 50.9], [0.0, 40.0]):
-            far = mesh_means.Series(cells, stations={"Far": where})
-            far.add((2012, 1), cells.lon)
-            with pytest.raises(ValueError, match="Far is .* km from the nearest cell of the FVCOM mesh with values"):
-                far.station_rows()
-
-    def test_a_station_is_in_the_nearest_cell_with_values(self, cells):
-        series = mesh_means.Series(cells, stations={"Near": [-4.52, 50.31]})
-        field = cells.lon.copy()
-        field[np.isclose(cells.lon, -4.5) & np.isclose(cells.lat, 50.3)] = np.nan
-        series.add((2012, 1), field)
-        _, found = series.station_rows()
-        assert found["Near"]["distance"] > 2
+        assert not np.isclose(values[0], 10 + stored(lon).mean(), atol=1e-4)
 
 
 class TestSeries:
@@ -500,7 +442,7 @@ class TestSeries:
         assert set(annual.kind) == {"domain", "region", "station"}
         # u is each element's number: the station's is that of the element nearest it
         lon, lat, nv = fvcom_mesh()
-        centres = mesh_means._distance_km(-4.52, 50.31, lon[nv - 1].mean(axis=0), lat[nv - 1].mean(axis=0))
+        centres = analysis_series._distance(-4.52, 50.31, lon[nv - 1].mean(axis=0), lat[nv - 1].mean(axis=0))
         assert annual[annual.kind == "station"].value.iloc[0] == pytest.approx(float(np.argmin(centres)))
 
     def test_more_cores_give_the_same(self, fvcom_sim, tmp_path, no_report):
@@ -513,18 +455,13 @@ class TestSeries:
             found.append(series_of(out, "temperature", "bottom", "seasonal"))
         assert found[0].equals(found[1])
 
-    def test_a_mesh_in_metres(self, tmp_path, no_report):
+    def test_a_mesh_in_metres_is_refused(self, tmp_path, no_report):
+        # nctoolkit's open_fvcom needs the longitudes and latitudes of the mesh
         sim = fvcom_simulation(str(tmp_path / "flat_sim"), cartesian=True)
-        arguments = dict(sim_dir=sim, n_dirs_down=0, cores=1, view=False, variables={"Temperature": "temp"},
-                         long_term={"Temperature": {"start": 2012, "end": 2012, "surface": True}})
-        with pytest.raises(ValueError, match="is in metres, with no longitudes and latitudes"):
-            oceanval.analyze(out_dir=str(tmp_path / "out"), stations={"Near": [-4.5, 50.3]}, **arguments)
-        oceanval.analyze(out_dir=str(tmp_path / "out"), **arguments)
-        lon, _, nv = fvcom_mesh()
-        # every triangle has the same area in the plane, so a node's weight is how many it is a corner of
-        corners = np.bincount((nv - 1).ravel(), minlength=len(lon))
-        value = series_of(tmp_path / "out", "temperature", "surface", "long_term").value.iloc[0]
-        assert np.isclose(value, 10 + (corners * stored(lon)).sum() / corners.sum() + 5.5, atol=1e-3)
+        with pytest.raises(ValueError, match="is in metres, with no longitudes and latitudes, which nctoolkit's open_fvcom needs"):
+            oceanval.analyze(sim_dir=sim, n_dirs_down=0, cores=1, view=False, out_dir=str(tmp_path / "out"),
+                             variables={"Temperature": "temp"},
+                             long_term={"Temperature": {"start": 2012, "end": 2012, "surface": True}})
 
 
 def write_peaks(sim):
@@ -637,44 +574,6 @@ def water_depth(lon):
     return 20 + 200 * (lon + 5) + 0.5
 
 
-class TestWeights:
-    def mesh(self):
-        from oceanval.viewer_mesh import Mesh
-
-        lon, lat, nv = fvcom_mesh()
-        return Mesh(lon, lat, nv.T - 1)
-
-    def test_a_value_on_the_nodes_is_linear_within_its_triangle(self):
-        mesh = self.mesh()
-        lons, lats = np.array([-5.0, -4.93, -4.5, -3.5]), np.array([50.0, 50.07, 50.55, 50.5])
-        cells, weights = fvcom_transects.weights(mesh, "node", lons, lats)
-        # a linear field is interpolated exactly
-        field = 3 * mesh.x - 2 * mesh.y
-        values = fvcom_transects.interpolate(field, cells, weights)
-        assert np.allclose(values[:3], 3 * lons[:3] - 2 * lats[:3]) and np.isnan(values[3])
-        # at a node, all of the weight is on it
-        assert np.isclose(np.nanmax(weights[0]), 1)
-        # a missing value at one corner leaves out the triangles it is a corner of
-        field[cells[1, 0]] = np.nan
-        assert np.isnan(fvcom_transects.interpolate(field, cells, weights)[1])
-
-    def test_a_value_on_the_elements_fills_its_triangle(self):
-        mesh = self.mesh()
-        lons, lats = np.array([-4.93, -4.47, -3.5]), np.array([50.02, 50.31, 50.5])
-        cells, weights = fvcom_transects.weights(mesh, "nele", lons, lats)
-        values = fvcom_transects.interpolate(np.arange(mesh.elements, dtype=float), cells, weights)
-        _, found = inside_mesh(lons, lats)
-        assert values[:2].tolist() == found[:2].tolist() and np.isnan(values[2])
-
-    def test_the_strip_holds_each_point_in_a_cell_of_its_own(self):
-        line = {"start": [-4.5, 50.9], "end": [-4.5, 50.1]}
-        lons, lats, (point_lons, point_lats) = fvcom_transects.strip(line, 9)
-        assert len(lons) == 2 and np.allclose(lons.mean(), -4.5)
-        # two rows round each point, in order from the south
-        assert np.allclose(point_lats, np.linspace(50.1, 50.9, 9)) and np.allclose(point_lons, -4.5)
-        assert np.allclose(lats.reshape(-1, 2).mean(axis=1), point_lats) and np.all(np.diff(lats) > 0)
-
-
 class TestTransects:
     def test_the_surface_climatology_along_a_line(self, fvcom_sim, tmp_path, no_report):
         # an east-west line that runs off the mesh at both ends
@@ -722,9 +621,14 @@ class TestTransects:
         lats = np.linspace(50.0, 51.0, line["steps"])
         inside, _ = inside_mesh(np.full(lats.size, -4.47), lats)
         values = january.value.to_numpy()
-        # u is the number of the element, which fills its triangle (a point on a side is in either)
+        # u is the number of the element, interpolated on the mesh by nctoolkit's to_transect (each node
+        # the area-weighted mean of the elements round it): between the numbers of the elements nearby
+        lon, lat_nodes, nv = fvcom_mesh()
+        centres_lon, centres_lat = lon[nv - 1].mean(axis=0), lat_nodes[nv - 1].mean(axis=0)
         for lat, value in zip(lats[inside], values[inside]):
-            assert value in elements_at(-4.47, lat)
+            near = np.where(np.hypot(centres_lon + 4.47, centres_lat - lat) < 0.25)[0]
+            assert near.min() - 1e-3 <= value <= near.max() + 1e-3
+        assert np.isfinite(values[inside]).all()
         assert np.isnan(values[~inside]).all() and (~inside).any()
 
     def test_the_changes_over_the_years(self, tmp_path, no_report):
@@ -769,7 +673,7 @@ class TestTransects:
 
     def test_a_mesh_in_metres_has_no_transects(self, tmp_path, no_report):
         sim = fvcom_simulation(str(tmp_path / "sim"), cartesian=True)
-        with pytest.raises(ValueError, match="the FVCOM mesh is in metres, with no longitudes and latitudes, so it has no transects"):
+        with pytest.raises(ValueError, match="the FVCOM mesh is in metres, with no longitudes and latitudes, which nctoolkit's open_fvcom needs"):
             oceanval.analyze(sim_dir=sim, n_dirs_down=0, cores=1, view=False, out_dir=str(tmp_path / "out"),
                              variables={"Temperature": "temp"}, transects={"Temperature": [
                                  {"start": [-5.0, 50.25], "end": [-4.0, 50.25], "climatology": {"start": 2012, "end": 2012}}]})

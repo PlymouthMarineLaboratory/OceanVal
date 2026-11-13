@@ -69,8 +69,8 @@ def fvcom_field(mesh, data):
     """The nctoolkit dataset of an FVCOM field: data is the DataArray
     viewer_catalogue.Catalogue.field gives (a value for each node, or each
     element), and mesh its viewer_mesh.Mesh. It is on a grid of points (the
-    nodes, or the centres of the elements), as fvcom.fvcom_regrid has it, which
-    CDO can regrid by nearest neighbour. Raises ValueError, in words for the
+    nodes, or the centres of the elements), which CDO can regrid by nearest
+    neighbour. Raises ValueError, in words for the
     user, if the mesh has no longitudes and latitudes."""
     if mesh.cartesian:
         raise ValueError("The FVCOM mesh has no longitudes and latitudes, so it cannot be put on a longitude-latitude grid.")
