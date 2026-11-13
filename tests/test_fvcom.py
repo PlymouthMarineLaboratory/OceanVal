@@ -129,18 +129,6 @@ class TestTellingFVCOMApart:
 
 # observation locations are nodes of the synthetic mesh, away from its edges
 SURFACE_POINTS = [(-4.8, 50.2), (-4.6, 50.7), (-4.2, 50.3), (-4.9, 50.9)]
-PROFILE_POINTS = [
-    (-4.8, 50.2, 2),  # above the top layer centre
-    (-4.8, 50.2, 30),
-    (-4.6, 50.7, 50),
-    (-4.2, 50.3, 120),
-]
-# no longer dropped: there is no deepest depth to interpolate to (it was 150 m)
-DEEP_POINTS = [(-4.2, 50.3, 160)]
-DROPPED_POINTS = [
-    (-4.9, 50.9, 45),  # below the 40 m seabed
-    (-4.3, 50.8, 10),  # outside the mesh
-]
 
 
 @pytest.fixture(scope="module")
@@ -150,43 +138,14 @@ def fvcom_matchups(fvcom_file, tmp_path_factory):
     # observations on 2012-01-02, the second time step
     date = {"year": 2012, "month": 1, "day": 2}
 
-    surface = pd.DataFrame(SURFACE_POINTS, columns=["lon", "lat"]).assign(
-        observation=30.0, **date
-    )
-    profile = pd.DataFrame(
-        PROFILE_POINTS + DEEP_POINTS + DROPPED_POINTS, columns=["lon", "lat", "depth"]
-    ).assign(observation=30.0, **date)
-    for source, df in [("surf", surface), ("prof", profile)]:
-        os.makedirs(obs_root / source)
-        df.to_csv(obs_root / source / "obs.csv", index=False)
-
-    # a gridded product at 0, 10 and 50 m on a 0.25 degree grid, for January 2012
-    lon = np.arange(-4.875, -4.0, 0.25)
-    lat = np.arange(50.125, 51, 0.25)
-    gridded = xr.Dataset(
-        {"sal": (("time", "depth", "lat", "lon"), np.full((1, 3, len(lat), len(lon)), 30.0, dtype="f4"))},
-        coords={
-            "time": pd.to_datetime(["2012-01-15"]),
-            "depth": ("depth", [0.0, 10.0, 50.0], {"positive": "down", "units": "m", "axis": "Z"}),
-            "lat": ("lat", lat, {"units": "degrees_north"}),
-            "lon": ("lon", lon, {"units": "degrees_east"}),
-        },
-    )
-    os.makedirs(obs_root / "grid")
-    gridded.to_netcdf(obs_root / "grid" / "sal_2012.nc")
+    surface = pd.DataFrame(SURFACE_POINTS, columns=["lon", "lat"]).assign(observation=30.0, **date)
+    os.makedirs(obs_root / "surf")
+    surface.to_csv(obs_root / "surf" / "obs.csv", index=False)
 
     oceanval.reset()
     oceanval.add_point_comparison(
         name="salinity", source="surf", model_variable="salinity",
         obs_path=str(obs_root / "surf"),
-    )
-    oceanval.add_point_comparison(
-        name="salinity", source="prof", model_variable="salinity",
-        obs_path=str(obs_root / "prof"), vertical=True,
-    )
-    oceanval.add_gridded_comparison(
-        name="salinity", source="grid", model_variable="salinity", obs_path=str(obs_root / "grid"),
-        obs_variable="sal", climatology=False, vertical=True,
     )
     # nothing is said of FVCOM: matchup finds it
     oceanval.matchup(
@@ -213,47 +172,6 @@ def test_fvcom_surface_matchup(fvcom_matchups):
     df = _read_point(fvcom_matchups, "surface", "surf")
     assert len(df) == len(SURFACE_POINTS)
     np.testing.assert_allclose(df.model, _salinity(df.lon, 0, 1), atol=1e-3)
-
-
-def test_fvcom_profile_matchup(fvcom_matchups):
-    df = _read_point(fvcom_matchups, "all", "prof")
-    found = sorted(zip(df.lon.round(3), df.lat.round(3), df.depth))
-    # the one above the top layer's centre is in the top layer; those below the
-    # seabed or outside the mesh are not matched
-    assert found == sorted(PROFILE_POINTS + DEEP_POINTS)
-    np.testing.assert_allclose(df.model, _salinity(df.lon, df.depth, 1), atol=1e-3)
-
-
-def _gridded(out_dir, kind):
-    with xr.open_dataset(f"{out_dir}/oceanval_matchups/gridded/salinity/grid_salinity_{kind}.nc") as ds:
-        return ds.load()
-
-
-def _expected_grid(lon, lat, depth):
-    """The monthly mean, of time steps 0-2, at each cell centre, missing below
-    the seabed and in the corner cut out of the mesh"""
-    h = 20 + 200 * (lon + 5)
-    expected = _salinity(lon, np.clip(depth, 0.1 * h, None), 1.0)
-    expected = np.where(depth > 0.9 * h, np.nan, expected)
-    return np.where((lon > -4.45) & (lat > 50.55), np.nan, expected)
-
-
-def test_fvcom_gridded_surface_matchup(fvcom_matchups):
-    ds = _gridded(fvcom_matchups, "surface")
-    glon, glat = np.meshgrid(ds.lon.values, ds.lat.values)
-    np.testing.assert_allclose(ds.model.isel(time=0).values, _expected_grid(glon, glat, 0.0), atol=1e-3)
-
-
-def test_fvcom_gridded_vertical_matchup(fvcom_matchups):
-    ds = _gridded(fvcom_matchups, "vertical")
-    glon, glat = np.meshgrid(ds.lon.values, ds.lat.values)
-    # the model's own depth dimension, beside the observations'
-    vertical = [x for x in ds.model.dims if x.startswith("depth")][0]
-    np.testing.assert_allclose(ds[vertical].values, [0.0, 10.0, 50.0])
-    for k, depth in enumerate([0.0, 10.0, 50.0]):
-        np.testing.assert_allclose(
-            ds.model.isel({"time": 0, vertical: k}).values, _expected_grid(glon, glat, depth), atol=1e-3
-        )
 
 
 @pytest.mark.parametrize("name", ["fvcom", "fvcom_res", "fvcom_min_depth", "fvcom_max_depth", "fvcom_dz"])

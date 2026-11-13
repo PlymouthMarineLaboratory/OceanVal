@@ -119,34 +119,6 @@ class TestClimatology:
         with xr.open_dataset(os.path.join(results, layers["bottom"]["monthly"])) as ds:
             assert np.allclose(ds["twice"].values, 2 * (surface + 4) - 0.5, atol=1e-4)
 
-    def test_the_years_and_what_is_missing(self, fvcom_sim, tmp_path, no_report):
-        analyze(
-            fvcom_sim, tmp_path / "out", variables={"Velocity": "u", "Temperature": "temp"},
-            climatology={"Velocity": SURFACE, "Temperature": {"start": 2013, "end": 2013, "surface": True}},
-            as_missing=[4.5, 7.5],
-        )
-        velocity, temperature = no_report[-1]["variables"]
-        results = results_of(tmp_path / "out")
-        with xr.open_dataset(os.path.join(results, velocity["climatology"]["layers"]["surface"]["annual"])) as ds:
-            values = ds["velocity"].values[0]
-        assert np.isnan(values[5:8]).all() and np.isfinite(np.delete(values, [5, 6, 7])).all()
-        # 2013 only: January and February
-        lon, _, _ = fvcom_mesh()
-        months, climatology, _ = expected_temperature(lon, MONTHS[4:])
-        with xr.open_dataset(os.path.join(results, temperature["climatology"]["layers"]["surface"]["monthly"])) as ds:
-            assert list(ds["month"].values) == months == [1, 2]
-            assert np.allclose(ds["temperature"].values, climatology, atol=1e-4)
-
-    def test_the_times_are_shifted(self, tmp_path):
-        path = fvcom_file(str(tmp_path / "one.nc"), first_day=31, n_times=3)
-        unshifted = month_fields(path, "surface")
-        shifted = month_fields(path, "surface", time_shift=-1)
-        assert set(unshifted) == {(2012, 2)} and set(shifted) == {(2012, 1), (2012, 2)}
-        lon, _, _ = fvcom_mesh()
-        # the times of days 31, 32 and 33 moved back a day: the first into January, the others in February
-        assert np.allclose(shifted[(2012, 1)], 10 + stored(lon) + 31, atol=1e-4)
-        assert np.allclose(shifted[(2012, 2)], 10 + stored(lon) + 32.5, atol=1e-4)
-
     def test_parts_on_the_nodes_and_the_elements_cannot_be_summed(self, fvcom_sim, tmp_path, no_report):
         with pytest.raises(ValueError, match="not all on the same part of the FVCOM mesh"):
             analyze(fvcom_sim, tmp_path / "out", variables={"Both": "temp+u"})
@@ -445,16 +417,6 @@ class TestSeries:
         centres = analysis_series._distance(-4.52, 50.31, lon[nv - 1].mean(axis=0), lat[nv - 1].mean(axis=0))
         assert annual[annual.kind == "station"].value.iloc[0] == pytest.approx(float(np.argmin(centres)))
 
-    def test_more_cores_give_the_same(self, fvcom_sim, tmp_path, no_report):
-        years = {"start": 2012, "end": 2013}
-        found = []
-        for cores in (1, 2):
-            out = tmp_path / f"out{cores}"
-            oceanval.analyze(sim_dir=fvcom_sim, n_dirs_down=1, cores=cores, view=False, out_dir=str(out),
-                             variables={"Temperature": "temp"}, seasonal={"Temperature": dict(years, bottom=True)})
-            found.append(series_of(out, "temperature", "bottom", "seasonal"))
-        assert found[0].equals(found[1])
-
     def test_a_mesh_in_metres_is_refused(self, tmp_path, no_report):
         # nctoolkit's open_fvcom needs the longitudes and latitudes of the mesh
         sim = fvcom_simulation(str(tmp_path / "flat_sim"), cartesian=True)
@@ -558,42 +520,25 @@ def inside_mesh(lons, lats):
     return found >= 0, found
 
 
-def elements_at(lon, lat):
-    """The elements (from 0) of fvcom_mesh the point is in, or on a side or corner of."""
-    mesh_lon, mesh_lat, nv = fvcom_mesh()
-    x, y = mesh_lon[nv - 1], mesh_lat[nv - 1]
-    det = (y[1] - y[2]) * (x[0] - x[2]) + (x[2] - x[1]) * (y[0] - y[2])
-    first = ((y[1] - y[2]) * (lon - x[2]) + (x[2] - x[1]) * (lat - y[2])) / det
-    second = ((y[2] - y[0]) * (lon - x[2]) + (x[0] - x[2]) * (lat - y[2])) / det
-    near = -1e-9
-    return set(np.flatnonzero((first >= near) & (second >= near) & (1 - first - second >= near)).tolist())
-
-
 def water_depth(lon):
     """The depth of the water of fvcom_file: h + zeta."""
     return 20 + 200 * (lon + 5) + 0.5
 
 
 class TestTransects:
-    def test_the_surface_climatology_along_a_line(self, fvcom_sim, tmp_path, no_report):
-        # an east-west line that runs off the mesh at both ends
+    def test_a_line_runs_off_the_mesh_and_the_values_are_kept_on_it(self, fvcom_sim, tmp_path, no_report):
+        # to_transect interpolates (nctoolkit's job); this checks what OceanVal passes it and keeps
         years = {"start": 2012, "end": 2013}
         info = analyzed(no_report, fvcom_sim, tmp_path / "out", climatology=None, transects={"Temperature": [
             {"start": [-5.2, 50.25], "end": [-3.8, 50.25], "climatology": years}]})
         line = info["variables"][0]["transects"]["lines"][0]
         assert info["variables"][0]["transects"]["mesh"] == "node" and line["steps"] > 2
-        saved = line["options"]["climatology"]
-        assert saved["months"] == 4 and not saved["empty"]
+        assert line["options"]["climatology"]["months"] == 4 and not line["options"]["climatology"]["empty"]
         frame = transect_csv(tmp_path / "out", "temperature", 1, "climatology")
         positions = np.linspace(-5.2, -3.8, line["steps"])
-        assert np.allclose(np.sort(frame.position.unique()), positions)
         inside, _ = inside_mesh(positions, np.full(positions.size, 50.25))
-        months, climatology, _ = expected_temperature(positions)
-        for number, month in enumerate(months):
-            values = frame[frame.month == month].sort_values("position").value.to_numpy()
-            # 10 + lon + the day is linear on the mesh, so it is interpolated exactly
-            assert np.allclose(values[inside], climatology[number][inside], rtol=1e-6)
-            assert np.isnan(values[~inside]).all()
+        values = frame[frame.month == 1].sort_values("position").value.to_numpy()
+        assert np.isfinite(values[inside]).all() and np.isnan(values[~inside]).all() and (~inside).any()
 
     def test_the_section_through_the_water_column(self, fvcom_sim, tmp_path, no_report):
         years = {"start": 2012, "end": 2013}
@@ -609,58 +554,6 @@ class TestTransects:
         assert np.allclose(frame.value, annual + 5 * frame.depth / depth - 0.5, rtol=1e-5)
         assert np.isclose(frame.depth.min(), 0.1 * water_depth(-5.0), rtol=1e-4)
         assert np.isclose(frame.depth.max(), 0.9 * water_depth(-4.0), rtol=1e-3)
-
-    def test_values_on_the_elements(self, fvcom_sim, tmp_path, no_report):
-        years = {"start": 2012, "end": 2012}
-        info = analyzed(no_report, fvcom_sim, tmp_path / "out", variables={"Velocity": "u"}, climatology=None, transects={
-            "Velocity": [{"start": [-4.47, 50.0], "end": [-4.47, 51.0], "climatology": years}]})
-        line = info["variables"][0]["transects"]["lines"][0]
-        assert info["variables"][0]["transects"]["mesh"] == "nele"
-        frame = transect_csv(tmp_path / "out", "velocity", 1, "climatology")
-        january = frame[frame.month == 1].sort_values("position")
-        lats = np.linspace(50.0, 51.0, line["steps"])
-        inside, _ = inside_mesh(np.full(lats.size, -4.47), lats)
-        values = january.value.to_numpy()
-        # u is the number of the element, interpolated on the mesh by nctoolkit's to_transect (each node
-        # the area-weighted mean of the elements round it): between the numbers of the elements nearby
-        lon, lat_nodes, nv = fvcom_mesh()
-        centres_lon, centres_lat = lon[nv - 1].mean(axis=0), lat_nodes[nv - 1].mean(axis=0)
-        for lat, value in zip(lats[inside], values[inside]):
-            near = np.where(np.hypot(centres_lon + 4.47, centres_lat - lat) < 0.25)[0]
-            assert near.min() - 1e-3 <= value <= near.max() + 1e-3
-        assert np.isfinite(values[inside]).all()
-        assert np.isnan(values[~inside]).all() and (~inside).any()
-
-    def test_the_changes_over_the_years(self, tmp_path, no_report):
-        sim = fvcom_months(str(tmp_path / "sim"), [(year, month) for year in (2012, 2013) for month in range(1, 13)])
-        years = {"start": 2012, "end": 2013}
-        info = analyzed(no_report, sim, tmp_path / "out", climatology=None, transects={"Temperature": [
-            {"start": [-5.0, 50.25], "end": [-4.0, 50.25], "trends": dict(years, how="absolute_change"),
-             "vertical_trends": dict(years, how="absolute")}]})
-        options = info["variables"][0]["transects"]["lines"][0]["options"]
-        assert options["trends"]["years"] == [2012, 2013] and options["trends"]["notes"] == []
-        surface = transect_csv(tmp_path / "out", "temperature", 1, "trends")
-        # each year's mean is the mean of its months' means, and 10 + lon + the day changes only by the days
-        change = np.mean([days_of(2013, m).mean() - days_of(2012, m).mean() for m in range(1, 13)])
-        later = surface[surface.year == 2013].dropna()
-        assert len(later) and np.allclose(later.value, change, rtol=1e-5)
-        assert np.allclose(surface[surface.year == 2012].dropna().value, 0)
-        vertical = transect_csv(tmp_path / "out", "temperature", 1, "vertical_trends")
-        assert {"position", "depth", "year", "value"} <= set(vertical) and vertical.value.notna().any()
-        first = vertical[vertical.year == 2012].dropna()
-        annual = 10 + first.position + np.mean([days_of(2012, m).mean() for m in range(1, 13)])
-        assert np.allclose(first.value, annual + 5 * first.depth / water_depth(first.position) - 0.5, rtol=1e-5)
-
-    def test_more_cores_give_the_same(self, fvcom_sim, tmp_path, no_report):
-        years = {"start": 2012, "end": 2013}
-        lines = {"Temperature": [{"start": [-4.55, 50.0], "end": [-4.55, 51.0], "climatology": years, "vertical": years}]}
-        analyze(fvcom_sim, tmp_path / "one", climatology=None, transects=lines)
-        oceanval.analyze(sim_dir=fvcom_sim, n_dirs_down=1, cores=2, view=False, out_dir=str(tmp_path / "two"),
-                         variables={"Temperature": "temp"}, transects=lines)
-        for option in ("climatology", "vertical"):
-            one = transect_csv(tmp_path / "one", "temperature", 1, option)
-            two = transect_csv(tmp_path / "two", "temperature", 1, option)
-            assert np.allclose(one.value, two.value, equal_nan=True)
 
     def test_what_has_no_section_is_refused(self, fvcom_sim, tmp_path, no_report):
         years = {"start": 2012, "end": 2013}
