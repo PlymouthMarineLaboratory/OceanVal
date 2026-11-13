@@ -33,6 +33,7 @@ from oceanval.quiet_nc import nc
 import xarray as xr
 
 from oceanval import model_expr
+from oceanval import netcdf_lock
 from oceanval import prompts
 from oceanval import user_recipes
 from oceanval import variable_identify
@@ -1219,12 +1220,15 @@ def generate_recipe_mapping(path, fvcom=False, cwd=None):
 def _recipe_mapping(path, fvcom=False, cwd=None):
     """generate_recipe_mapping's mapping, and the names of the file's
     variables with more than one vertical level."""
-    if fvcom:
-        # CDO skips the variables on FVCOM's mesh, temperature and salinity
-        # among them
-        contents = fvcom_contents(path)
-    else:
-        contents = nc.open_data(path, checks=False).contents
+    # the window's threads read files too (see oceanval.netcdf_lock). standard_names_of
+    # takes the lock itself, so it is called outside this block
+    with netcdf_lock.LOCK:
+        if fvcom:
+            # CDO skips the variables on FVCOM's mesh, temperature and salinity
+            # among them
+            contents = fvcom_contents(path)
+        else:
+            contents = nc.open_data(path, checks=False).contents
     return contents_mapping(contents, cwd, variable_identify.standard_names_of(path))
 
 
@@ -1475,27 +1479,37 @@ def _variable_long_names(simdir, ndown, exclude=None, require=None, paths=None):
     """
     names = {}
     for path in simulation_files(simdir, ndown, exclude, require, paths):
-        # xarray rather than nctoolkit: CDO skips variables on grids it does
-        # not support (e.g. raw FVCOM salinity), which would then be refused
-        try:
-            with xr.open_dataset(path, decode_times=False, decode_cf=False) as ds:
-                found = {
-                    str(name): str(variable.attrs.get("long_name", ""))
-                    for name, variable in ds.variables.items()
-                }
-        except Exception:
-            try:
-                contents = nc.open_data(path, checks=False).contents
-                found = {
-                    str(name): "" if str(long_name) == "nan" else str(long_name)
-                    for name, long_name in zip(contents.variable, contents.long_name)
-                }
-            except Exception:
-                continue
+        with netcdf_lock.LOCK:
+            found = _long_names_in(path)
+        if found is None:
+            continue
         for name, long_name in found.items():
             if long_name or name not in names:
                 names[name] = long_name
     return names
+
+
+def _long_names_in(path):
+    """{variable: long_name} of one file, or None if neither xarray nor nctoolkit
+    can read it. The caller holds oceanval.netcdf_lock.LOCK."""
+    # xarray rather than nctoolkit: CDO skips variables on grids it does
+    # not support (e.g. raw FVCOM salinity), which would then be refused
+    try:
+        with xr.open_dataset(path, decode_times=False, decode_cf=False) as ds:
+            return {
+                str(name): str(variable.attrs.get("long_name", ""))
+                for name, variable in ds.variables.items()
+            }
+    except Exception:
+        pass
+    try:
+        contents = nc.open_data(path, checks=False).contents
+        return {
+            str(name): "" if str(long_name) == "nan" else str(long_name)
+            for name, long_name in zip(contents.variable, contents.long_name)
+        }
+    except Exception:
+        return None
 
 
 def _available_variables(simdir, ndown, exclude=None, require=None):
@@ -2395,10 +2409,11 @@ def _create_recipes(
     if fvcom is None:
         # listed once and used for the mapping below too, rather than walked twice
         found_files = simulation_paths(simdir, ndown, **filters)
-        fvcom = any(
-            _looks_like_fvcom(path)
-            for path in simulation_files(simdir, ndown, paths=found_files, **filters)
-        )
+        with netcdf_lock.LOCK:
+            fvcom = any(
+                _looks_like_fvcom(path)
+                for path in simulation_files(simdir, ndown, paths=found_files, **filters)
+            )
         if fvcom:
             print(
                 f"The output in {simdir} looks like raw FVCOM output, so its variables "

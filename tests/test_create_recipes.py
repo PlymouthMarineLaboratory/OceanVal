@@ -1652,3 +1652,28 @@ def test_a_matchup_looks_only_at_its_own_simulations_files(tmp_path, monkeypatch
             matchall.extract_variable_mapping(str(tmp_path / name), n_check=1)
     assert matchall.raw_options
     assert all(path.startswith(str(tmp_path / "second")) for path in matchall.raw_options + matchall.random_files)
+
+
+def test_the_recipe_reads_hold_the_window_lock(simulation, monkeypatch):
+    """The window's threads read files too, and netCDF is not thread-safe, so
+    every read on the recipe path holds oceanval.netcdf_lock.LOCK. Preparing the
+    recipes while another thread read a simulation's variables segfaulted."""
+    # the package exports a create_recipes function, so the module is imported by its path
+    from oceanval import netcdf_lock, quiet_nc
+    from oceanval.create_recipes import _variable_long_names
+
+    held = []
+
+    def record(read):
+        def wrapped(*args, **kwargs):
+            held.append(netcdf_lock.LOCK.locked())
+            return read(*args, **kwargs)
+
+        return wrapped
+
+    monkeypatch.setattr(xr, "open_dataset", record(xr.open_dataset))
+    monkeypatch.setattr(quiet_nc.nc, "open_data", record(quiet_nc.nc.open_data))
+
+    assert _variable_long_names(simulation, 2)
+    assert extract_recipe_variable_mapping(simulation, 2)["temperature"] == "thetao"
+    assert held and all(held)

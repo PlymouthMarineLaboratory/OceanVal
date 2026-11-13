@@ -3338,8 +3338,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             exclude, require = list(key[2]) or None, list(key[3]) or None
             # the files the live check found, not the directories walked again
             paths = self._simulation_files(key[0], key[1], exclude, require, kept=None)
-            with netcdf_lock.LOCK:
-                names = _variable_long_names(key[0], key[1], exclude, require, paths)
+            # the reads inside hold netcdf_lock.LOCK, file by file
+            names = _variable_long_names(key[0], key[1], exclude, require, paths)
         except Exception:
             names = {}
         with self._lock:
