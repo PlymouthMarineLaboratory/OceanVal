@@ -10,7 +10,11 @@ With a data store (see oceanval.data_store), the exports are kept in it a
 year at a time, as ICES gave them, and what it has is taken from it.
 """
 
+import atexit
 import io
+import os
+import shutil
+import tempfile
 import time
 import zipfile
 
@@ -22,6 +26,16 @@ from oceanval import data_store
 API_BASE = "https://ocean.ices.dk/api"
 POLL_INTERVAL = 5
 TIMEOUT = 1800
+
+# ICES prepares an export in time that grows with the years in it (about 5 s a year of
+# ICE and 16 s a year of CTD), and works through exports asked for at once largely one
+# after another (eight 1-year CTD exports at once took 171 s, one 8-year export 72 s). So
+# the years are asked for in chunks not to be quicker but so that each is kept as soon as
+# it is done: progress shows, and a failure keeps what was done. CTD is the big one, so
+# its chunks are the smaller.
+CHUNK_YEARS = {"CTD": 4}
+DEFAULT_CHUNK_YEARS = 10
+PARALLEL_JOBS = 2
 
 DEPTH_CODE = "ADEPZZ01"
 TIME_COLUMN = "yyyy-mm-ddThh:mm:ss.sss"
@@ -92,6 +106,29 @@ def _rows_by_year(zip_bytes, first_year, last_year):
         raise ValueError(f"The ICES export has no {TIME_COLUMN} column")
     year = rows[TIME_COLUMN].str.strip().str[:4]
     return {x: rows.loc[year == str(x)] for x in range(int(first_year), int(last_year) + 1)}
+
+
+def chunk_years(dataset):
+    """How many years of a dataset to ask ICES for in one export."""
+    return CHUNK_YEARS.get(dataset, DEFAULT_CHUNK_YEARS)
+
+
+def chunked(wanted):
+    """[(dataset, first_year, last_year, box)] with each cut into exports of
+    chunk_years(dataset) years or fewer."""
+    chunks = []
+    for dataset, first, last, box in wanted:
+        step = chunk_years(dataset)
+        for start in range(int(first), int(last) + 1, step):
+            chunks.append((dataset, start, min(start + step - 1, int(last)), box))
+    return chunks
+
+
+def waves(wanted):
+    """wanted cut by chunked into groups of PARALLEL_JOBS exports, which are asked
+    for together."""
+    chunks = chunked(wanted)
+    return [chunks[i:i + PARALLEL_JOBS] for i in range(0, len(chunks), PARALLEL_JOBS)]
 
 
 def _download_exports(wanted):
@@ -318,7 +355,9 @@ def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
 
     # by way of the data store, if there is one: what it has of these years
     # and this area is taken from it, and what is downloaded is kept in it
-    stored = data_store.ices(datasets, start_year, end_year, lon_lim, lat_lim, _download_exports)
+    stored = data_store.ices(
+        datasets, start_year, end_year, lon_lim, lat_lim, _download_exports, waves=waves
+    )
     if stored is not None:
         frames = []
         for dataset in datasets:
@@ -330,29 +369,68 @@ def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
         print(f"{len(df)} ICES observations passed quality control")
         return df
 
-    print(
-        f"Downloading ICES {' and '.join(datasets)} data ({recipe['parameter']}) for "
-        f"{int(start_year)}-{int(end_year)}, lon {lon_lim}, lat {lat_lim}"
-    )
+    # no store: the years are kept for the rest of the run, so that each variable from
+    # the same datasets does not download them again
+    box = tuple(float(x) for x in (*lon_lim, *lat_lim))
+    years = range(int(start_year), int(end_year) + 1)
+    wanted = [
+        (dataset, first, last, box)
+        for dataset in datasets
+        for first, last in data_store._runs([x for x in years if (dataset, x, box) not in _kept])
+    ]
+    if wanted:
+        print(
+            f"Downloading ICES {' and '.join(datasets)} data ({recipe['parameter']}) for "
+            f"{int(start_year)}-{int(end_year)}, lon {lon_lim}, lat {lat_lim}"
+        )
+    for group in waves(wanted):
+        for (dataset, first, last, _), result in zip(group, _download_exports(group)):
+            if isinstance(result, BaseException):
+                raise result
+            for year in range(first, last + 1):
+                _keep(dataset, year, box, result.get(year))
+
     frames = []
-    with requests.Session() as session:
-        # every export is asked for before waiting on any, so ICES
-        # prepares them side by side
-        jobs = [
-            (dataset, _start_job(session, _criteria(dataset, start_year, end_year, lon_lim, lat_lim)))
-            for dataset in datasets
-        ]
-        for dataset, job_id in jobs:
-            if not _wait_for_job(session, job_id):
-                print(f"ICES has no {dataset} data for these years and this area")
-                continue
-            resp = session.get(f"{API_BASE}/Download/GetStationDataFile/{job_id}", timeout=600)
-            resp.raise_for_status()
-            df = to_oceanval_format(_read_export(resp.content), recipe["parameter"])
-            if len(datasets) > 1:
-                print(f"{len(df)} ICES {dataset} observations passed quality control")
-            frames.append((dataset, df))
+    for dataset in datasets:
+        pieces = [_kept_rows(dataset, x, box) for x in years]
+        df = to_oceanval_format(_in_box([x for x in pieces if x is not None], lon_lim, lat_lim), recipe["parameter"])
+        if len(datasets) > 1:
+            print(f"{len(df)} ICES {dataset} observations passed quality control")
+        frames.append((dataset, df))
 
     df = without_repeated_stations(frames)
     print(f"Downloaded {len(df)} ICES observations that passed quality control")
     return df
+
+
+# ICES years downloaded in this run without a data store, as {(dataset, year, box): file of
+# its rows, or None for a year with no data}: the files are in a folder removed at exit
+_kept = {}
+_kept_folder = []
+
+
+def clear_kept():
+    """Forget the years kept (a new run, or a test)."""
+    _kept.clear()
+    for folder in _kept_folder:
+        shutil.rmtree(folder, ignore_errors=True)
+    del _kept_folder[:]
+
+
+atexit.register(clear_kept)
+
+
+def _keep(dataset, year, box, rows):
+    if rows is None or len(rows) == 0:
+        _kept[(dataset, year, box)] = None
+        return
+    if not _kept_folder:
+        _kept_folder.append(tempfile.mkdtemp(prefix="oceanval_ices_"))
+    path = os.path.join(_kept_folder[0], f"{dataset}_{year}_{len(_kept)}.csv.gz")
+    rows.to_csv(path, index=False, compression="gzip")
+    _kept[(dataset, year, box)] = path
+
+
+def _kept_rows(dataset, year, box):
+    path = _kept.get((dataset, year, box))
+    return None if path is None else pd.read_csv(path, low_memory=False)

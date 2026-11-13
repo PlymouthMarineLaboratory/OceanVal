@@ -356,6 +356,13 @@ class _FakeIces:
         return Session()
 
 
+@pytest.fixture(autouse=True)
+def _no_kept_ices_years():
+    ices.clear_kept()
+    yield
+    ices.clear_kept()
+
+
 @pytest.fixture
 def fake_ices(monkeypatch):
     def install(exports):
@@ -393,7 +400,7 @@ def test_a_dataset_without_data_is_skipped(fake_ices, capsys):
     )
 
     assert df.observation.tolist() == [8.0]
-    assert "ICES has no CTD data for these years and this area" in capsys.readouterr().out
+    assert "ICES has no CTD data for 2008-2008 in this area" in capsys.readouterr().out
 
 
 def test_a_single_dataset_is_downloaded_as_before(fake_ices):

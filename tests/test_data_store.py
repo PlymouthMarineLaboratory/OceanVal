@@ -922,6 +922,13 @@ class FakeIcesApi:
         return Session()
 
 
+@pytest.fixture(autouse=True)
+def _no_kept_ices_years():
+    ices.clear_kept()
+    yield
+    ices.clear_kept()
+
+
 @pytest.fixture
 def ices_api(monkeypatch):
     fake = FakeIcesApi(ICES_ROWS)
@@ -985,6 +992,46 @@ class TestIces:
         df = ices.download_point_data(NITRATE, 1999, 2003, *BOX)
         assert [x[:3] for x in ices_api.asked] == [("ICE", "1999", "1999"), ("ICE", "2002", "2003")]
         assert sorted(df.observation) == [0.4, 1.0, 4.0, 5.5, 8.8, 9.0]
+
+    def test_years_are_asked_for_in_chunks_that_are_smaller_for_ctd(self, ices_api, store):
+        data_store.start(None)
+        ices.download_point_data({"parameter": "TEMPPR01", "dataset": ["CTD", "ICE"]}, 1999, 2003, *BOX)
+        asked = sorted((x[0], x[1], x[2]) for x in ices_api.asked)
+        assert asked == [("CTD", "1999", "2002"), ("CTD", "2003", "2003"), ("ICE", "1999", "2003")]
+
+    def test_without_a_store_variables_share_the_years_downloaded(self, ices_api):
+        data_store.start(None)
+        temperature = {"parameter": "TEMPPR01", "dataset": "ICE"}
+        first = ices.download_point_data(temperature, 2000, 2001, *BOX)
+        ices_api.asked.clear()
+        nitrate = ices.download_point_data(NITRATE, 2000, 2001, *BOX)
+        assert ices_api.asked == []
+        assert sorted(first.observation) == [6.2, 7.7, 8.5, 15.1]
+        assert sorted(nitrate.observation) == [1.0, 5.5, 8.8, 9.0]
+        # only the years not held are asked for
+        ices.download_point_data(NITRATE, 2000, 2003, *BOX)
+        assert [x[:3] for x in ices_api.asked] == [("ICE", "2002", "2003")]
+        # a new run forgets them
+        data_store.start(None)
+        ices_api.asked.clear()
+        ices.download_point_data(NITRATE, 2000, 2001, *BOX)
+        assert len(ices_api.asked) == 1
+
+    def test_chunks_done_before_a_failure_are_kept(self, ices_api, store, monkeypatch):
+        root = store()
+        monkeypatch.setattr(ices, "PARALLEL_JOBS", 1)
+        monkeypatch.setitem(ices.CHUNK_YEARS, "ICE", 1)
+        start = ices_api.start_job
+
+        def failing(session, criteria):
+            if criteria["dateFrom"][:4] == "2002":
+                raise ConnectionError("ocean.ices.dk could not be reached")
+            return start(session, criteria)
+
+        monkeypatch.setattr(ices, "_start_job", failing)
+        with pytest.raises(ConnectionError):
+            ices.download_point_data(NITRATE, 2000, 2003, *BOX)
+        assert sorted(x["year"] for x in entries(root)) == [2000, 2001]
 
     def test_a_year_without_data_is_kept_as_one(self, ices_api, store):
         root = store()

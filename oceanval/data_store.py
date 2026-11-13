@@ -312,6 +312,9 @@ def start(store):
     """Use store (from config) for the run starting, if it can be."""
     _fresh.clear()
     del _held[:]
+    from oceanval import ices as _ices_module
+
+    _ices_module.clear_kept()
     if store is not None:
         try:
             prepare(store["folder"])
@@ -1054,7 +1057,8 @@ def _read_rows(path):
     return pd.read_csv(path, low_memory=False)
 
 
-def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=False, on_piece=None):
+def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=False, on_piece=None,
+         waves=None):
     """ICES exports by way of the data store, or None when the store is not
     used (there is none, or the box is not one it can keep).
 
@@ -1071,6 +1075,11 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=
     returned (years downloaded and kept, in the store already, and kept as
     having no data). on_piece((dataset, year), status) is told of each year as
     it is done: "held", "saved", "empty" or "unsaved".
+
+    waves, if given, is handed the requests and returns them cut into groups
+    (see ices.waves): each group is downloaded and kept before the next is
+    asked for, so that a long download shows its progress, and one that fails
+    part way keeps what was done.
     """
     store = active()
     if store is None:
@@ -1096,7 +1105,7 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=
         for dataset in datasets
         for first, last in _runs([x for x in years if wanted(dataset, x)])
     ]
-    results = download(requests) if requests else []
+    groups = (waves(requests) if waves is not None else [requests]) if requests else []
 
     found = {dataset: {} for dataset in datasets}
     counts = {dataset: {"saved": 0, "held": 0, "empty": 0} for dataset in datasets}
@@ -1105,14 +1114,15 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=
             if stored[(dataset, year)] is not None and not wanted(dataset, year):
                 counts[dataset]["held"] += 1
                 _told(on_piece, (dataset, year), "held")
-    for (dataset, first, last, _), result in zip(requests, results):
+
+    def keep(dataset, first, last, result):
         run = range(first, last + 1)
         if isinstance(result, BaseException):
             if any(stored[(dataset, x)] is None for x in run):
                 raise result
             years_said = f"{first}" if first == last else f"{first}-{last}"
             _fallen_back(f"ICES {dataset} data for {years_said}", result, [stored[(dataset, x)] for x in run])
-            continue
+            return
         for year in run:
             rows = result.get(year)
             if rows is not None and len(rows) == 0:
@@ -1141,6 +1151,10 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=
                 found[dataset][year] = _read_rows(_file(kept, root_dir))
             else:
                 found[dataset][year] = pd.read_csv(io.StringIO(rows.to_csv(index=False)), low_memory=False)
+
+    for group in groups:
+        for (dataset, first, last, _), result in zip(group, download(group)):
+            keep(dataset, first, last, result)
 
     if store_only:
         return counts

@@ -236,8 +236,7 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
                       "hansell": hansell_names, "total": len(HANSELL_VARIABLES), "jobs": []})
     tell({"kind": "expand", "items": [{"key": i["key"], "label": i["label"], "total": i["total"]} for i in items]})
 
-    everything = True
-    for item in items:
+    def reporter(item):
         state = {"done": 0, "saved": 0, "held": 0}
 
         def news(status, **more):
@@ -251,6 +250,16 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
             elif status == "held":
                 state["held"] += 1
             news("working")
+
+        return state, news, on_piece
+
+    everything = True
+    ices_done = False
+    ices_reports = {x["code"]: reporter(x) for x in items if "code" in x}
+    for item in items:
+        if "code" in item and ices_done:
+            continue
+        state, news, on_piece = reporter(item)
 
         if item.get("error"):
             news("failed", error=item["error"])
@@ -274,12 +283,26 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
                     raise ValueError("The data store could not be used for it.")
                 failed += counts["failed"]
             elif "code" in item:
-                counts = data_store.ices(
-                    [item["code"]], years[0], years[1], box[:2], box[2:], _ices_download(),
-                    store_only=True, on_piece=on_piece,
+                # every ICES dataset together: their years are asked for in groups that mix
+                # them, so the slow CTD export does not hold up the others
+                ices_done = True
+                for _, news_of, _ in ices_reports.values():
+                    news_of("working")
+
+                def told(what, status):
+                    ices_reports[what[0]][2](what, status)
+
+                data_store_counts = data_store.ices(
+                    list(ices_reports), years[0], years[1], box[:2], box[2:], _ices_download(),
+                    store_only=True, on_piece=told, waves=_ices_waves(),
                 )
-                if counts is None:
+                if data_store_counts is None:
                     raise ValueError("The data store could not keep that area.")
+                for x in items:
+                    if "code" in x:
+                        ices_reports[x["code"]][0]["done"] = x["total"]
+                        ices_reports[x["code"]][1]("done")
+                continue
             else:
                 for job in item["jobs"]:
                     counts = data_store.gridded(
@@ -298,7 +321,12 @@ def run(datasets, years, lon_lim, lat_lim, levels, builtin=None, progress=None):
                 news("done")
         except Exception as error:
             files = item["jobs"][0]["files"] if item["jobs"] else None
-            news("failed", error=_problem(error, files))
+            if "code" in item:
+                # they were downloaded together, so they failed together
+                for _, news_of, _ in ices_reports.values():
+                    news_of("failed", error=_problem(error, files))
+            else:
+                news("failed", error=_problem(error, files))
             everything = False
     return everything
 
@@ -313,6 +341,12 @@ def _hansell_download():
     from oceanval import hansell
 
     return hansell.download_all
+
+
+def _ices_waves():
+    from oceanval import ices
+
+    return ices.waves
 
 
 def _ices_download():

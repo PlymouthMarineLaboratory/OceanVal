@@ -30,6 +30,14 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   plain file download (`DOWNLOADS`) when it turns requests away or fails, with or without a store.
   CoralTemp (`BY_YEAR`) is not read over THREDDS: `_gridded_by_year` asks `erddap.years` for its years and
   `erddap.fetch` for the box (cut on the server, a request a year); it has no `DOWNLOADS` fallback.
+- **ICES downloads** (`ices.py`): ICES takes about 5 s a year of ICE and 16 s a year of CTD to prepare an export, and works through
+  exports asked for at once largely one after another (measured 2026-11-13: eight 1-year CTD exports at once 171 s, one 8-year
+  export 72 s). So years are cut into chunks (`CHUNK_YEARS`: CTD 4, others 10) and asked for in waves of `PARALLEL_JOBS` (2) **for
+  progress and recovery, not speed**: `data_store.ices(waves=...)` keeps each wave as it arrives (`on_piece` shows progress, a
+  failure keeps what was done), and Expand downloads all ICES datasets in one call. Without a store, years downloaded are kept
+  in a temp folder for the run (`ices._kept`, cleared by `data_store.start`), so variables from the same dataset share them.
+  ICES's `parameterGroups` criterion (group = `codeP02` of `/api/Parameters`) cuts the download about 6x but is not used: store
+  pieces hold every parameter and the server time did not fall.
 
 ### The data store page and Expand (`oceanval/store_view.py`, `store_expand.py`)
 
