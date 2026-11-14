@@ -39,7 +39,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from oceanval import cdo_check, domain_mask, model_expr, netcdf_lock, prompts, sim_unify, surface
+from oceanval import cdo_check, domain_mask, model_expr, netcdf_lock, prompts, regions, sim_unify, surface
 from oceanval import time_res as time_resolution
 from oceanval.create_recipes import _file_pattern, _looks_like_fvcom, simulation_paths
 from oceanval import fvcom as fvcom_mod
@@ -370,14 +370,14 @@ def check_area(rows, subregions=None, lon_lim=None, lat_lim=None, stations=None)
     stations = analysis_series.check_stations(stations)
     region_file = None
     if subregions is not None:
-        if subregions in ("nwes", "global"):
-            region_file = str(_data(f"{subregions}_subdomains.nc"))
+        if regions.is_built_in(subregions):
+            region_file = regions.path(subregions)
         elif isinstance(subregions, str) and subregions.endswith(".nc"):
             subregions = os.path.abspath(os.path.expanduser(subregions))
             oceanval._check_region_file(subregions)
             region_file = subregions
         else:
-            raise ValueError("subregions must be None, 'nwes', 'global' or a path to a .nc file.")
+            raise ValueError(f"subregions must be None, {regions.choices_text()}.")
     series = any(row[kind] for row in rows for kind in ("long_term", "seasonal"))
     if not series and (subregions is not None or lon_lim is not None or stations):
         raise ValueError(
@@ -1721,8 +1721,8 @@ def analyze(
         grid cells.
     subregions : str or None
         The regions to work out the long_term and seasonal series of, as the
-        subregions of validate: "nwes" (northwest European Shelf), "global", or
-        the path of a regions netCDF (.nc) file, with a 2D variable for each
+        subregions of validate: "nwes" (northwest European Shelf), "global",
+        "latbands", "cmems", "biomes" (see validate), or the path of a regions netCDF (.nc) file, with a 2D variable for each
         region, 1 in it and missing elsewhere. The model's domain as a whole
         is always done. Default is None.
     lon_lim, lat_lim : list or None

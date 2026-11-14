@@ -2093,6 +2093,9 @@
               <option value="">None</option>
               <option value="nwes">Northwest European Shelf subregions</option>
               <option value="global">Global subregions</option>
+              <option value="latbands">Global latitude bands</option>
+              <option value="cmems">CMEMS global sub-regions</option>
+              <option value="biomes">Global ocean biomes (Fay and McKinley 2014)</option>
               <option value="file">A .nc file of your own…</option>
             </select>
           </div>
@@ -3000,6 +3003,9 @@
             <option value="">None</option>
             <option value="nwes">Northwest European Shelf subregions</option>
             <option value="global">Global subregions</option>
+            <option value="latbands">Global latitude bands</option>
+            <option value="cmems">CMEMS global sub-regions</option>
+            <option value="biomes">Global ocean biomes (Fay and McKinley 2014)</option>
             <option value="file">A .nc file of your own…</option>
           </select>
         </div>
@@ -9886,6 +9892,7 @@
       if (condition === "transect") return Boolean(validateForm.transect);
       if (condition === "vertical") return gridded.some((matchup) => matchup.vertical);
       if (condition === "all_layer") return point.some((matchup) => matchup.layer === "all");
+      if (condition === "depths") return point.some((matchup) => matchup.layer === "all") || gridded.some((matchup) => matchup.vertical);
       if (condition === "gridded") return gridded.length > 0;
       // seasonal: only known once the matchups are made, which the box says
       return true;

@@ -1,0 +1,52 @@
+# statistics at each depth level of the matchup through the water column (the
+# annual mean of the monthly climatology, weighted by cell area). The depth bins
+# are written for the summary whatever this page shows
+vertical_stats = os.path.exists(ff_vertical)
+if vertical_stats:
+    from oceanval import skill
+    ds_levels = nc.open_data(ff_vertical, checks = False)
+    ds_levels.subset(lon = lon_lim, lat = lat_lim)
+    ds_levels.tmean("month")
+    ds_levels.tmean()
+    ds_levels.run()
+    # worked out by nctoolkit: the area sums of each level (oceanval.skill), pooled by depth bin
+    level_depths, level_rows, level_frame = skill.level_stats(ds_levels)
+    bin_rows = skill.bin_stats(level_depths, level_frame, depth_bins)
+    try:
+        level_unit = units
+    except:
+        level_unit = ""
+    if len(bin_rows) > 0:
+        if not os.path.exists("../../oceanval_results"):
+            os.makedirs("../../oceanval_results")
+        (
+            pd.DataFrame({
+                "Depth": [x["depth"] for x in bin_rows],
+                "Bias": [x["bias"] for x in bin_rows],
+                "Correlation": [x["r"] for x in bin_rows],
+                "RMSD": [x["rmsd"] for x in bin_rows],
+                "Number of observations": [x["n"] for x in bin_rows],
+                "unit": level_unit,
+                "Model mean": [x["model_mean"] for x in bin_rows],
+                "Observation mean": [x["obs_mean"] for x in bin_rows],
+            })
+            .to_csv(f"../../oceanval_results/{variable}_{source}_gridded_depth_summary.csv", index = False)
+        )
+
+if vertical_stats and wanted("depth_level_table"):
+    md(f"The table below gives the statistics of the model at each depth level of the observations, from the annual mean of the monthly climatology.{annual_note} Each statistic is weighted by the area of the grid cells, and only cells with both model and observational data count.")
+    df_levels = pd.DataFrame({
+        "Depth (m)": [x["depth"] for x in level_rows],
+        "Model mean": [x["model_mean"] for x in level_rows],
+        "Observed mean": [x["obs_mean"] for x in level_rows],
+        "Bias": [x["bias"] for x in level_rows],
+        "RMSD": [x["rmsd"] for x in level_rows],
+        "Correlation": [x["r"] for x in level_rows],
+        "Normalised standard deviation (σm/σo)": [x["nsd"] for x in level_rows],
+        "Number of grid cells": [x["n"] for x in level_rows],
+    })
+    df_levels = df_levels.query("`Number of grid cells` > 0").reset_index(drop = True)
+    df_levels.iloc[:, 1:-1] = df_levels.iloc[:, 1:-1].astype(float).round(3)
+    df_display(df_levels)
+    md(f"**Table {i_table}**: Statistics of modelled against observed {vv_longname} at each depth level ({level_unit}). The bias is the modelled mean minus the observed mean, and the normalised standard deviation is the spatial standard deviation of the model divided by that of the observations.")
+    i_table += 1

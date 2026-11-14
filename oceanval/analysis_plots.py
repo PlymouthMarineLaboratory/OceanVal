@@ -443,9 +443,10 @@ def _region_file(info):
     subregions = info.get("subregions")
     if not subregions:
         return None
-    if subregions in ("nwes", "global"):
-        import importlib.resources
-        return str(importlib.resources.files("oceanval").joinpath(f"data/{subregions}_subdomains.nc"))
+    from oceanval import regions
+
+    if regions.is_built_in(subregions):
+        return regions.path(subregions)
     return subregions
 
 

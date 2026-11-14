@@ -19,7 +19,7 @@ TEMPLATES = ["gridded_template.ipynb", "point_template.ipynb", "summary.ipynb"] 
     if os.path.basename(path)
     in (
         "chunk_clim.pytemplate", "chunk_bias.pytemplate", "chunk_seasonal.pytemplate",
-        "chunk_point.pytemplate", "chunk_transect.pytemplate",
+        "chunk_point.pytemplate", "chunk_transect.pytemplate", "chunk_verticalstats.pytemplate",
     )
 ]
 

@@ -17,7 +17,7 @@ import re
 
 import pandas as pd
 
-from oceanval import analysis, history_forms, model_expr
+from oceanval import analysis, history_forms, model_expr, regions
 from oceanval import time_res as time_resolution
 
 # the most rows the variables step takes
@@ -871,7 +871,7 @@ def check_area(form, cwd):
     if limits is not None:
         area["lon_lim"], area["lat_lim"] = limits
     subregions = recipes_gui.check_subregions(text, errors)
-    if subregions not in (None, "nwes", "global"):
+    if subregions is not None and not regions.is_built_in(subregions):
         import oceanval
 
         try:

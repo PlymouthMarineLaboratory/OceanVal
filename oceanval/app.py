@@ -64,7 +64,7 @@ import traceback
 import urllib.parse
 
 import oceanval
-from oceanval import domain_mask, history_forms, model_expr, leftovers, live, netcdf_lock, prompts, recipes_gui
+from oceanval import domain_mask, history_forms, model_expr, leftovers, live, netcdf_lock, prompts, recipes_gui, regions
 from oceanval.app_child import ANSWER_MARKER, PROGRESS_MARKER, QUESTION_MARKER
 from oceanval.analysis_app import SIMCOMPARE, AnalyzeSteps
 from oceanval.sim_compare_app import SimCompareSteps
@@ -741,7 +741,7 @@ def check_report(form, cwd, out_dir=None):
     if limits is not None:
         arguments["lon_lim"], arguments["lat_lim"] = limits
     subregions = recipes_gui.check_subregions(text, errors)
-    if subregions not in (None, "nwes", "global"):
+    if subregions is not None and not regions.is_built_in(subregions):
         try:
             oceanval._check_region_file(subregions)
         except ValueError as error:
