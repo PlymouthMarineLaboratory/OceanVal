@@ -84,3 +84,30 @@ def test_the_caption_lists_the_bins():
     )
     assert depth_ranges_text(["0-20m", ">20m"]) == "The depth ranges are 0-20m and >20m."
     assert depth_ranges_text([">0m"]) == "The depth range is >0m."
+
+
+class TestMapDepths:
+    """validate's map_depths: the depths gridded matchups through the water column are mapped at."""
+
+    def test_none_is_the_defaults_and_false_is_none(self):
+        assert depths.check_map_depths(None) is None
+        assert depths.check_map_depths(False) is False
+        assert depths.map_depths_for("oxygen", None) == [200, 500]
+        assert depths.map_depths_for("nitrate", None) == [500]
+        assert depths.map_depths_for("oxygen", False) == []
+
+    def test_a_list_is_sorted_once_each_and_used_for_every_variable(self):
+        assert depths.check_map_depths([1000, 200, 200.0]) == [200, 1000]
+        assert depths.map_depths_for("oxygen", [50]) == [50]
+
+    @pytest.mark.parametrize("value", ["200", {"a": 1}, [], [-5], ["deep"], 7])
+    def test_what_cannot_be_used_is_refused(self, value):
+        with pytest.raises(ValueError):
+            depths.check_map_depths(value)
+
+    def test_the_nearest_level_must_be_near(self):
+        levels = [3.0, 9.4, 23.3, 102.8, 454.1]
+        assert depths.nearest_level(levels, 20) == 2
+        assert depths.nearest_level(levels, 500) == 4  # 46 m off, within a fifth of 500 m
+        assert depths.nearest_level(levels, 2000) is None
+        assert depths.nearest_level([], 20) is None

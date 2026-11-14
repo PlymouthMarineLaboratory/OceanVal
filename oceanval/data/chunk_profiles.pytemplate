@@ -1,0 +1,44 @@
+# %% tags=["remove-input"]
+# the area-weighted mean profile of the model and the observations, for the domain and each
+# region (the gap report's option 8), worked out by nctoolkit from the levels of the annual mean
+# (chunk_verticalstats's ds_levels and level_rows)
+from oceanval import gridded_plots, skill, transects
+import matplotlib.pyplot as plt
+profiles_shown = False
+if vertical_stats and wanted("mean_profiles"):
+    profile_lines = {"Full domain": ([x["obs_mean"] for x in level_rows], [x["model_mean"] for x in level_rows])}
+    profile_depths = list(level_depths)
+    if regional:
+        ds_profile_regions = ds_regions.copy()
+        ds_profile_regions.regrid(ds_levels, method = "nn")
+        for region_variable in ds_profile_regions.variables:
+            region_name = list(regions_contents.query("variable == @region_variable").long_name)[0]
+            if region_name == "Full Domain":
+                continue
+            ds_mask = ds_profile_regions.copy()
+            ds_mask.subset(variables = region_variable)
+            ds_mask.run()
+            ds_profile = ds_levels.copy()
+            ds_profile * ds_mask
+            region_depths, region_rows, _ = skill.level_stats(ds_profile)
+            if any(x["n"] > 0 for x in region_rows):
+                by_depth = {x["depth"]: x for x in region_rows}
+                profile_lines[region_name] = (
+                    [by_depth.get(float(d), {}).get("obs_mean", np.nan) for d in profile_depths],
+                    [by_depth.get(float(d), {}).get("model_mean", np.nan) for d in profile_depths],
+                )
+            del ds_profile, ds_mask
+    try:
+        profile_unit = transects.unit_text(ff_vertical, variable)
+    except:
+        profile_unit = ""
+    gridded_plots.profiles(profile_depths, profile_lines, f"{vv_name} ({profile_unit})" if profile_unit else vv_name)
+    plt.show()
+    profiles_shown = True
+
+# %% tags=["remove-input"]
+if profiles_shown:
+    md(f"**Figure {i_figure}**: Mean profiles of {vv_longname} in the model and the observations, for the domain" + (" and each region" if regional else "") + f", from the annual mean of the monthly climatology.{annual_note} Each level's mean is weighted by the area of the grid cells, and only cells with both model and observational data count.")
+    i_figure += 1
+if vertical_stats:
+    del ds_levels

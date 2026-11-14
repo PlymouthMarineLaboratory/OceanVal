@@ -1361,13 +1361,14 @@ def _gridded_notebook_text(
 
 def _rewrite_notebook_source(
     path, lon_lim, lat_lim, fixed_scale, concise, test, transect=None, depth_bins=None,
-    removed=None,
+    removed=None, map_depths=None,
 ):
     """Fill in the report options in a notebook's paired .py:percent file,
     and silence R's warnings in each R cell. depth_bins are as
     depths.check_depth_bins gives them, or None for the default ones.
     removed is the ids of the figures and analyses the page leaves out (see
-    oceanval.report_items), or None for none."""
+    oceanval.report_items), or None for none. map_depths are as
+    depths.check_map_depths gives them (None for the defaults, False for none)."""
     if depth_bins is None:
         depth_bins = depths.DEFAULT_DEPTH_BINS
     depth_bins = repr([list(pair) for pair in depth_bins])
@@ -1398,6 +1399,7 @@ def _rewrite_notebook_source(
         new_lines[i] = new_lines[i].replace("the_lat_lim", str(lat_lim))
         new_lines[i] = new_lines[i].replace("the_transect", repr(transect))
         new_lines[i] = new_lines[i].replace("the_depth_bins", depth_bins)
+        new_lines[i] = new_lines[i].replace("the_map_depths", repr(map_depths))
         new_lines[i] = new_lines[i].replace("fixed_scale_value", str(fixed_scale))
         new_lines[i] = new_lines[i].replace("the_removed_items", repr(sorted(removed or [])))
         # replace concice_value with concice
@@ -1476,6 +1478,7 @@ def validate(
     region=None,
     transect=None,
     depth_bins=None,
+    map_depths=None,
     variables=None,
     previous=True,
     name=None,
@@ -1511,6 +1514,8 @@ def validate(
         A transect to validate the gridded matchups along, as a dict of its start and end, each [lon, lat], e.g. {"start": [-30, 0], "end": [-30, 65]}. It must run north-south (the same longitude at both ends) or east-west (the same latitude at both ends). Each gridded matchup's page then maps it, shows the monthly climatology of the surface values along it, and, for matchups made through the water column (vertical=True), a section of the annual mean along it, interpolated onto 30 evenly spaced depths. Requires nctoolkit 1.3.6 or later. Default is None.
     depth_bins : list or None
         The depth ranges, in metres, that point matchups made through the water column (vertical=True) are summarised in, as a list of [min, max] pairs, e.g. [[0, 20], [20, 200], [200, None]]. A depth is in a bin if it is deeper than min and no deeper than max (the shallowest bin also takes its min). The deepest bin can have a max of None, for everything below its min. Bins can leave gaps, and observations in a gap are left out, but cannot overlap. The same bins are used for every point dataset, and in the summary. Default is None, which uses 0-10, 10-30, 30-60, 60-100, 100-150, 150-300, 300-600, 600-1000 and >1000 m.
+    map_depths : list, bool or None
+        The depths, in metres, that gridded matchups made through the water column (vertical=True) are mapped at, e.g. [200, 1000]: the model, the observations and the bias of the annual mean, at the observations' depth level nearest each (a depth with no level within 20 m, or a fifth of the depth, is left out). The same depths are used for every variable. Default is None, which maps oxygen (and AOU and oxygen saturation) at 200 m, near the oxygen minimum zones, and 500 m, and every other variable at 500 m. False maps none (as omit=["depth_maps"] does).
     variables : list or None
         The matchups to validate, if not all of them. Each entry is a variable, which validates it against all its sources, or "variable/source", for one, e.g. ["temperature", "nitrate/WOA23"]. Both are as named in the matchups (oceanval_matchups), and are not case sensitive. Each entry must match at least one matchup. The summary covers only the matchups validated. Default is None, which validates every matchup.
     previous : bool or list
@@ -1518,7 +1523,7 @@ def validate(
     name : str or None
         A name for this validation, to add it to your OceanVal history, where the window's Tools & info > View previous work lists it with a link to its report. It must not be the name of another validation there. Default is None, which does not add the validation to the history.
     omit : list, dict or None
-        Figures and analyses to leave out of the report, by id, on top of what concise leaves out. A list leaves them out of every page they are on, e.g. ["monthly_maps", "regression_table", "taylor"]. A dict leaves them out of some pages: each key is a matchup, as for variables ("temperature" for all its sources, or "variable/source"), or "summary" for the summary page, e.g. {"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}. The ids are, on a gridded matchup's page, clim_map, bias_map, seasonal_cor_map, monthly_maps, spatial_cor_table, regional_map, regional_cycle, regional_table, zonal_sections, depth_level_table, transect_map, transect_surface and transect_section; on a point matchup's page, locations_map, mean_map, point_bias_map, scatter, stats_table, regression_table, depth_locations_map and depth_table; and on the summary page, taylor, bias_table, spatial_table, temporal_maps, temporal_table and depth_performance (see oceanval.report_items). What other pages read is still calculated, so the summary is unchanged by what a matchup's page leaves out. Default is None, which leaves nothing else out.
+        Figures and analyses to leave out of the report, by id, on top of what concise leaves out. A list leaves them out of every page they are on, e.g. ["monthly_maps", "regression_table", "taylor"]. A dict leaves them out of some pages: each key is a matchup, as for variables ("temperature" for all its sources, or "variable/source"), or "summary" for the summary page, e.g. {"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}. The ids are, on a gridded matchup's page, clim_map, bias_map, density_scatter, seasonal_cor_map, monthly_maps, peak_month, spatial_cor_table, zonal_lines, hovmoller_clim, hovmoller_years, regional_map, regional_cycle, regional_table, zonal_sections, depth_level_table, mean_profiles, depth_maps, transect_map, transect_surface and transect_section; on a point matchup's page, locations_map, mean_map, point_bias_map, scatter, stats_table, regression_table, depth_locations_map, depth_table and point_profiles; and on the summary page, taylor, bias_table, spatial_table, temporal_maps, temporal_table and depth_performance (see oceanval.report_items). What other pages read is still calculated, so the summary is unchanged by what a matchup's page leaves out. Default is None, which leaves nothing else out.
 
     Returns
     -------
@@ -1530,6 +1535,7 @@ def validate(
     )
     transect = transects.check_transect(transect)
     depth_bins = depths.check_depth_bins(depth_bins)
+    map_depths = depths.check_map_depths(map_depths)
     omit = report_items.check_omit(omit)
     # convert data_dir to absolute path
     data_dir = os.path.expanduser(data_dir)
@@ -1832,6 +1838,7 @@ def validate(
             _rewrite_notebook_source(
                 ff, lon_lim, lat_lim, fixed_scale, concise, test, transect=transect,
                 depth_bins=depth_bins, removed=_page_removed(ff, page_removed, omit),
+                map_depths=map_depths,
             )
 
         # sync the notebooks

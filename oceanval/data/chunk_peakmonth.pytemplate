@@ -1,0 +1,95 @@
+# %% tags=["remove-cell"]
+# the month of the climatological maximum in the observations and the model, and the lag between
+# them (the gap report's option 10, from the monthly climatology), all worked out by nctoolkit.
+# It is left out where a month is missing or the observed seasonal cycle is too weak to time:
+# its range less than a quarter of its mean
+from oceanval import skill
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+peak_shown = False
+if len(clim_months) == 12 and wanted("peak_month"):
+    ds_peak = ds_ts.copy()
+    skill.paired(ds_peak)
+    ds_peak.run()
+    # the month of each one's maximum: the largest month number where a value equals its maximum
+    ds_peak_max = ds_peak.copy()
+    ds_peak_max.tmax()
+    ds_peak_max.run()
+    ds_peak_month = ds_peak.copy()
+    ds_peak_month.subtract(ds_peak_max)
+    ds_peak_month.cdo_command("expr,'pm_model=(model==0)?cmonth():0;pm_obs=(observation==0)?cmonth():0;'")
+    ds_peak_month.tmax()
+    ds_peak_month.run()
+    # the observed seasonal cycle's range over its mean, and the months with both
+    ds_peak_amp = ds_peak.copy()
+    ds_peak_amp.subset(variables = "observation")
+    ds_peak_amp.trange()
+    ds_peak_mean = ds_peak.copy()
+    ds_peak_mean.subset(variables = "observation")
+    ds_peak_mean.tmean()
+    ds_peak_mean.abs()
+    ds_peak_amp.divide(ds_peak_mean)
+    ds_peak_amp.rename({"observation": "amplitude"})
+    ds_peak_amp.run()
+    ds_peak_n = ds_peak.copy()
+    ds_peak_n.cdo_command("expr,'n=(1-isMissval(model))*(1-isMissval(observation));'")
+    ds_peak_n.tsum()
+    ds_peak_n.run()
+    ds_peaks = nc.merge(ds_peak_month, ds_peak_amp, ds_peak_n, match = ["year"])
+    # the lag, model minus observations, on a circle of 12 months (-5 to 6, positive: the model is late)
+    ds_peaks.cdo_command(
+        "expr,'_ok=(n>=12)&&(amplitude>=0.25);_lag=pm_model-pm_obs;"
+        "_lag=(_lag>6)?_lag-12:((_lag<=-6)?_lag+12:_lag);"
+        "peak_model=_ok?pm_model:missval(pm_model);peak_obs=_ok?pm_obs:missval(pm_obs);"
+        "lag=_ok?_lag:missval(pm_obs);abs_lag=_ok?abs(_lag):missval(pm_obs);"
+        "within=_ok?((abs(_lag)<=1)?1:0):missval(pm_obs);'"
+    )
+    ds_peaks.run()
+    # the maps, for compare() and for checking, whatever this page shows
+    os.makedirs("../../oceanval_results/peak_month", exist_ok = True)
+    ds_peak_out = ds_peaks.copy()
+    ds_peak_out.subset(variables = ["peak_obs", "peak_model", "lag", "amplitude", "n"])
+    ds_peak_out.to_nc(f"../../oceanval_results/peak_month/peakmonth_{variable}_{source}.nc", zip = True, overwrite = True)
+    # the mean |lag| and the share of cells within a month, weighted by cell area
+    ds_peak_summary = ds_peaks.copy()
+    ds_peak_summary.subset(variables = ["abs_lag", "within"])
+    ds_peak_summary.spatial_mean()
+    peak_summary = ds_peak_summary.to_dataframe().reset_index()
+    peak_mean_lag = float(peak_summary.abs_lag.values[0])
+    peak_within = float(peak_summary.within.values[0])
+    peak_shown = np.isfinite(peak_mean_lag)
+
+# %% tags=["remove-input"]
+if peak_shown:
+    md(f"## When does {layer_long} {vv_name} peak?")
+    md(f"The maps below show the month in which {layer_long} {vv_name} peaks in the monthly climatology of the observations and of the model, and how many months the model's peak is from the observed one (positive: the model peaks later). The mean difference, ignoring its sign, is **{peak_mean_lag:.1f} months**, and the model peaks within a month of the observations in **{100 * peak_within:.0f}%** of the area, weighted by cell area.")
+    month_colours = plt.get_cmap("twilight", 12)
+    nc.panel_plot(
+        {"Observation": ds_peaks, "Model": ds_peaks},
+        var = ["peak_obs", "peak_model"],
+        colours = month_colours,
+        limits = [0.5, 12.5],
+        legend = "Month of the peak (1 is January)",
+        land = "lightgrey",
+        grid_labels = False,
+    )
+    land_below()
+    plt.show()
+
+# %% tags=["remove-input"]
+if peak_shown:
+    md(f"**Figure {i_figure}**: Month of the maximum of the monthly climatology of {layer_long} {vv_name} in the observations and the model. Grid cells where a month is missing, or the observed seasonal cycle's range is less than a quarter of its mean, are left out, as their peak cannot be timed.")
+    i_figure += 1
+
+# %% tags=["remove-input"]
+if peak_shown:
+    ds_peaks.pub_plot("lag", limits = [-6, 6], colours = "RdBu_r", land = "lightgrey", legend = "Model peak minus observed peak (months)")
+    land_below()
+    plt.show()
+
+# %% tags=["remove-input"]
+if peak_shown:
+    md(f"**Figure {i_figure}**: The model's month of peak {vv_name} minus the observed one, on a circle of 12 months (positive: the model peaks later).")
+    i_figure += 1
+if len(clim_months) == 12 and wanted("peak_month"):
+    del ds_peak, ds_peak_max, ds_peak_month, ds_peak_amp, ds_peak_mean, ds_peak_n, ds_peaks, ds_peak_summary, ds_peak_out

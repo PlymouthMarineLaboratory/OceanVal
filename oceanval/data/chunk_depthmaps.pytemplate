@@ -1,0 +1,83 @@
+# %% tags=["remove-cell"]
+# maps of the matchup through the water column at fixed depths (the gap report's option 1):
+# validate()'s map_depths, by default 200 m and 500 m for oxygen and 500 m for the rest. Each is
+# the observations' level nearest the depth, of the annual mean of the monthly climatology, worked
+# out and drawn by nctoolkit
+from oceanval import depths as depth_helpers, skill
+import matplotlib.pyplot as plt
+try:
+    map_depths = the_map_depths
+except:
+    map_depths = None
+depthmap_targets = depth_helpers.map_depths_for(variable, map_depths)
+depthmap_levels = []
+if os.path.exists(ff_vertical) and wanted("depth_maps") and len(depthmap_targets) > 0:
+    ds_depthmaps = nc.open_data(ff_vertical, checks = False)
+    ds_depthmaps.subset(lon = lon_lim, lat = lat_lim)
+    ds_depthmaps.tmean("month")
+    ds_depthmaps.tmean()
+    ds_depthmaps.run()
+    # the observations' levels, as the coordinate of their depth axis
+    depthmap_coords = ds_depthmaps.to_xarray()
+    depthmap_axis = [x for x in depthmap_coords["observation"].dims if x not in depthmap_coords["observation"].dims[-2:] and "time" not in x.lower()][0]
+    depthmap_all = [float(x) for x in depthmap_coords[depthmap_axis].values]
+    for target in depthmap_targets:
+        k = depth_helpers.nearest_level(depthmap_all, target)
+        if k is not None and k not in [x[1] for x in depthmap_levels]:
+            depthmap_levels.append((target, k))
+
+# %% tags=["remove-input"]
+def depth_level(k):
+    """The level k of the annual mean, paired, with the bias, and its colour scale
+    (from the 2nd to the 98th percentile of the model and the observations, by
+    nctoolkit); None if no cell has both there (below the sea floor of each)."""
+    ds_level = ds_depthmaps.copy()
+    # CDO's level index counts from 1; the model and the observations share the observations' levels
+    ds_level.cdo_command(f"sellevidx,{k + 1}")
+    skill.paired(ds_level)
+    ds_level.cdo_command("aexpr,'bias=model-observation;'")
+    ds_level.run()
+    limits = []
+    for pctl in (2, 98):
+        ds_p = ds_level.copy()
+        ds_p.subset(variables = ["model", "observation"])
+        ds_p.spatial_percentile(p = pctl)
+        values = ds_p.to_dataframe().reset_index()
+        limits.append(min(values.model.min(), values.observation.min()) if pctl == 2 else max(values.model.max(), values.observation.max()))
+    if not all(np.isfinite(x) for x in limits):
+        return None
+    if limits[1] <= limits[0]:
+        limits = [limits[0] - 0.5 * (abs(limits[0]) or 1), limits[0] + 0.5 * (abs(limits[0]) or 1)]
+    return ds_level, limits
+
+
+depthmap_intro = False
+for target, k in depthmap_levels:
+    found = depth_level(k)
+    if found is None:
+        continue
+    ds_level, limits = found
+    level = depthmap_all[k]
+    if not depthmap_intro:
+        md(f"The maps below show {vv_longname} at fixed depths in the model and the observations, and the model minus the observations, from the annual mean of the monthly climatology.{annual_note} Each is the depth level of the observations nearest the depth asked for.")
+        depthmap_intro = True
+    nc.panel_plot(
+        {"Model": ds_level, "Observation": ds_level},
+        var = ["model", "observation"],
+        limits = limits,
+        norm = "log10" if skill.is_log(variable) else None,
+        land = "lightgrey",
+        grid_labels = False,
+    )
+    land_below()
+    plt.show()
+    md(f"**Figure {i_figure}**: Annual mean {vv_longname} at {level:g} m (the observations' level nearest {target:g} m) in the model and the observations. The colour scale runs from the 2nd to the 98th percentile of the two.")
+    i_figure += 1
+    ds_level.pub_plot("bias", robust = True, land = "lightgrey")
+    land_below()
+    plt.show()
+    md(f"**Figure {i_figure}**: Bias of annual mean {vv_longname} at {level:g} m, the model minus the observations.")
+    i_figure += 1
+    del ds_level
+if os.path.exists(ff_vertical) and wanted("depth_maps") and len(depthmap_targets) > 0:
+    del ds_depthmaps

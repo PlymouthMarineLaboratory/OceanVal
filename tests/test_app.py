@@ -1425,6 +1425,13 @@ class TestChoosingMatchups:
         arguments = check_validate(dict(DEPTH_FORM, unticked=["nitrate/glodap/all"]), str(tmp_path))[0]
         assert "depth_bins" not in arguments
 
+    def test_the_map_depths_box_is_validates_map_depths(self, tmp_path):
+        assert check_report({"map_depths": "1000, 200"}, str(tmp_path))[0]["map_depths"] == [200, 1000]
+        # empty is validate's own defaults, so it is not passed
+        assert "map_depths" not in check_report({"map_depths": " "}, str(tmp_path))[0]
+        assert check_report({"map_depths": "deep"}, str(tmp_path))[1] == {"map_depths": app_module.MAP_DEPTHS_NUMBERS}
+        assert check_report({"map_depths": "-5"}, str(tmp_path))[1] == {"map_depths": app_module.MAP_DEPTHS_NUMBERS}
+
     def test_the_matchups_are_found_as_their_directory_is_typed_in(self, app, tmp_path):
         assert get_json(app, "/api/matchups", data_dir="nowhere")[1] == {
             "status": "missing", "error": "There is no directory at this path.", "matchups": [],

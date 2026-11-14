@@ -50,7 +50,7 @@ FOLDER = "oceanval_interim_report"
 # validate()'s arguments that live_validation takes
 OPTIONS = (
     "out_dir", "lon_lim", "lat_lim", "subregions", "fixed_scale", "concise", "transect",
-    "depth_bins", "variables", "test", "omit",
+    "depth_bins", "map_depths", "variables", "test", "omit",
 )
 
 # validate()'s arguments for the other forms of the full report
@@ -122,6 +122,7 @@ def check_options(live_validation, out_dir):
         raise ValueError("test must be a boolean")
     options["transect"] = transects.check_transect(live_validation.get("transect"))
     options["depth_bins"] = depths.check_depth_bins(live_validation.get("depth_bins"))
+    options["map_depths"] = depths.check_map_depths(live_validation.get("map_depths"))
     # checked against the matchups as they are made: those it does not pick are left out
     options["variables"] = selection.check_variables(live_validation.get("variables"))
     # what the pages leave out: a key that picks no matchup made leaves nothing out
@@ -446,6 +447,7 @@ class InterimReport:
             transect=options.get("transect"),
             depth_bins=options.get("depth_bins"),
             removed=removed,
+            map_depths=options.get("map_depths"),
         )
         oceanval._run_jupytext(["--sync"], glob.escape(path))
         oceanval._fill_notebook_paths(path, self.data_dir, self.folder)
