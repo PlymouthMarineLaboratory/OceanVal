@@ -39,6 +39,18 @@ try:
 except:
     concise = False
 
+# the figures and analyses the user removed from this page (validate's omit,
+# see oceanval.report_items)
+try:
+    removed = set(the_removed_items)
+except:
+    removed = set()
+
+
+def wanted(item):
+    """Whether the figure or analysis item is in this page of the report."""
+    return item not in removed
+
 # the depth ranges point matchups through the water column are summarised in
 from oceanval.depths import DEFAULT_DEPTH_BINS, bin_depth, depth_labels, depth_ranges_text
 try:

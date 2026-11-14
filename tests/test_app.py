@@ -29,7 +29,7 @@ import pytest
 import xarray as xr
 
 import oceanval
-from oceanval import pattern_checks
+from oceanval import pattern_checks, selection
 from oceanval import app as app_module
 from oceanval import analysis_report, app_child, cdo_watch, domain_detect, leftovers, live, model_check, prompts, sim_compare
 from oceanval.app import (
@@ -99,6 +99,16 @@ def write_matchups(directory):
     for name in ("short_titles.pkl", "variables_matched.pkl"):
         with open(os.path.join(matchups, name), "wb") as saved:
             pickle.dump({}, saved)
+
+
+
+def check_other_options(form, cwd, out_dir=None):
+    """app's check_report for the tests of its other boxes: without the
+    "concise": False that answering No to customizing the output (what the
+    forms here leave it as) gives, which the tests of that answer look at."""
+    arguments, errors = app_module.check_report(form, cwd, out_dir)
+    arguments.pop("concise", None)
+    return arguments, errors
 
 
 def units_read(app):
@@ -243,6 +253,14 @@ def pick_cores(page):
     """Choose a core on the report options, which matchup is given with them."""
     if page.is_visible("#v-cores"):
         page.select_option("#v-cores", "1")
+
+
+def build_report(page):
+    """Build the report, or match up and validate, from the report options: Continue, No to
+    customizing the validation output (a detailed report), then the build button."""
+    page.click("#v-next")
+    page.click("#v-customize-no")
+    page.click("#build")
 
 
 def recipe_settings(app, **changes):
@@ -1087,12 +1105,73 @@ class TestValidateChecks:
             "concise": False,
         }
 
-    def test_the_report_is_concise_unless_detailed_is_chosen(self, tmp_path):
+    @pytest.mark.customize_question
+    def test_whether_to_customize_the_report_must_be_answered(self, tmp_path):
         write_matchups(tmp_path)
 
-        assert "concise" not in check_validate({}, str(tmp_path))[0]
-        assert check_validate({"concise": True}, str(tmp_path))[0].get("concise") is None
-        assert check_validate({"concise": False}, str(tmp_path))[0]["concise"] is False
+        arguments, errors = check_validate({}, str(tmp_path))
+        assert errors == {"customize": app_module.CUSTOMIZE_ASK}
+        # yes needs to say whether it is variable by variable
+        errors = check_validate({"customize": "yes"}, str(tmp_path))[1]
+        assert errors == {"per_matchup": app_module.PER_MATCHUP_ASK}
+
+    def test_no_to_customizing_is_the_detailed_report(self, tmp_path):
+        write_matchups(tmp_path)
+
+        arguments, errors = check_validate({"customize": "no"}, str(tmp_path))
+        assert errors == {}
+        assert arguments["concise"] is False
+        assert "omit" not in arguments
+        # what was chosen before a No is not used
+        arguments = check_validate({"customize": "no", "omit_all": ["taylor"]}, str(tmp_path))[0]
+        assert "omit" not in arguments
+
+    def test_the_figures_left_out_for_every_matchup_together(self, tmp_path):
+        write_matchups(tmp_path)
+        form = {"customize": "yes", "per_matchup": "no", "omit_all": ["monthly_maps", "taylor", "nonsense"]}
+
+        # an id that is not a figure is refused, as validate would
+        arguments, errors = check_validate(form, str(tmp_path))
+        assert "nonsense" in errors["omit"]
+
+        form["omit_all"] = ["taylor", "monthly_maps"]
+        arguments, errors = check_validate(form, str(tmp_path))
+        assert errors == {}
+        assert arguments["concise"] is False
+        # as the catalogue orders them
+        assert arguments["omit"] == ["monthly_maps", "taylor"]
+        # none left out is the detailed report
+        form["omit_all"] = []
+        assert "omit" not in check_validate(form, str(tmp_path))[0]
+
+    def test_the_figures_left_out_of_each_matchup(self, tmp_path):
+        write_matchups(tmp_path)
+        key = "temperature/cobe2"
+        form = {
+            "customize": "yes",
+            "per_matchup": "yes",
+            "omit_each": {key: ["bias_map"], "summary": ["taylor"], "nitrate/NOWHERE": ["bias_map"]},
+            # for every matchup together, which this does not use
+            "omit_all": ["clim_map"],
+        }
+        arguments, errors = check_validate(form, str(tmp_path))
+
+        assert errors == {}
+        # the matchups there are: what is for others is not used
+        assert arguments["omit"] == {key: ["bias_map"], "summary": ["taylor"]}
+
+    def test_a_figure_left_out_of_a_matchup_that_is_not_ticked_is_not_used(self, tmp_path):
+        write_matchups(tmp_path)
+        gridded = tmp_path / "oceanval_matchups" / "gridded" / "nitrate"
+        gridded.mkdir()
+        (gridded / "woa23_nitrate_surface.nc").touch()
+        first, second = "temperature/cobe2", "nitrate/woa23"
+        assert {m["key"] for m in selection.on_disk(str(tmp_path))} == {first, second}
+        form = {
+            "customize": "yes", "per_matchup": "yes", "unticked": [second],
+            "omit_each": {first: ["bias_map"], second: ["bias_map"]},
+        }
+        assert check_validate(form, str(tmp_path))[0]["omit"] == {first: ["bias_map"]}
 
     def test_a_regions_file_is_found_in_the_directory_worked_in(self, tmp_path):
         write_matchups(tmp_path)
@@ -1109,11 +1188,13 @@ class TestValidateChecks:
         arguments, errors = check_report(form, str(tmp_path))
 
         assert errors == {}
+        # no to customizing the output is the detailed report
         assert arguments == {
             "lon_lim": [-20, 10],
             "lat_lim": [40, 65],
             "fixed_scale": True,
             "word": True,
+            "concise": False,
         }
         assert check_report({"lon_min": "x"}, str(tmp_path))[1]["lon_min"] == "Limits must be numbers."
 
@@ -1136,7 +1217,7 @@ class TestTransectChecks:
 
     @needs_to_transect
     def test_a_north_south_transect(self, tmp_path):
-        arguments, errors = check_report(TRANSECT_FORM, str(tmp_path))
+        arguments, errors = check_other_options(TRANSECT_FORM, str(tmp_path))
 
         assert errors == {}
         assert arguments == {"transect": {"start": [-30, 0], "end": [-30, 65]}}
@@ -1148,7 +1229,7 @@ class TestTransectChecks:
             transect_end_lon="8", transect_end_lat="55",
         )
 
-        assert check_report(form, str(tmp_path)) == (
+        assert check_other_options(form, str(tmp_path)) == (
             {"transect": {"start": [-10, 55], "end": [8, 55]}}, {},
         )
 
@@ -1156,17 +1237,17 @@ class TestTransectChecks:
         # even though its boxes are filled in, and even if they would not do
         form = dict(TRANSECT_FORM, transect=False, transect_end_lon="x")
 
-        assert check_report(form, str(tmp_path)) == ({}, {})
-        assert check_report({}, str(tmp_path)) == ({}, {})
+        assert check_other_options(form, str(tmp_path)) == ({}, {})
+        assert check_other_options({}, str(tmp_path)) == ({}, {})
 
     def test_the_boxes_must_all_be_filled_in(self, tmp_path):
         form = dict(TRANSECT_FORM, transect_end_lat="")
-        arguments, errors = check_report(form, str(tmp_path))
+        arguments, errors = check_other_options(form, str(tmp_path))
 
         assert arguments == {}
         assert errors == {"transect_end_lat": "Fill in the longitude and latitude of both ends."}
         # all empty: every box is marked
-        errors = check_report({"transect": True}, str(tmp_path))[1]
+        errors = check_other_options({"transect": True}, str(tmp_path))[1]
         assert sorted(errors) == sorted(
             ["transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat"]
         )
@@ -1174,10 +1255,10 @@ class TestTransectChecks:
     def test_the_boxes_must_be_numbers(self, tmp_path):
         form = dict(TRANSECT_FORM, transect_start_lat="north")
 
-        assert check_report(form, str(tmp_path))[1] == {
+        assert check_other_options(form, str(tmp_path))[1] == {
             "transect_start_lat": "Coordinates must be numbers."
         }
-        assert check_report(dict(TRANSECT_FORM, transect_start_lat="nan"), str(tmp_path))[1] == {
+        assert check_other_options(dict(TRANSECT_FORM, transect_start_lat="nan"), str(tmp_path))[1] == {
             "transect_start_lat": "Coordinates must be numbers."
         }
 
@@ -1198,14 +1279,14 @@ class TestTransectChecks:
         else:
             form["transect_start_lat"] = form["transect_end_lat"] = value
 
-        arguments, errors = check_report(form, str(tmp_path))
+        arguments, errors = check_other_options(form, str(tmp_path))
         assert arguments == {}
         assert set(errors.values()) == {message}
 
     def test_the_two_ends_cannot_be_the_same_point(self, tmp_path):
         form = dict(TRANSECT_FORM, transect_end_lat="0")
 
-        assert check_report(form, str(tmp_path))[1] == {
+        assert check_other_options(form, str(tmp_path))[1] == {
             "transect_end_lon": "The two ends are the same point.",
             "transect_end_lat": "The two ends are the same point.",
         }
@@ -1216,7 +1297,7 @@ class TestTransectChecks:
     def test_a_diagonal_transect_is_refused(self, tmp_path, end):
         form = dict(TRANSECT_FORM, transect_end_lon=end[0], transect_end_lat=end[1])
 
-        arguments, errors = check_report(form, str(tmp_path))
+        arguments, errors = check_other_options(form, str(tmp_path))
         assert arguments == {}
         # every box is marked, and the reason is the rule
         assert sorted(errors) == sorted(
@@ -1230,7 +1311,7 @@ class TestTransectChecks:
     def test_an_nctoolkit_that_cannot_extract_it_is_reported(self, tmp_path, monkeypatch):
         monkeypatch.setattr(oceanval.transects, "available", lambda: False)
 
-        arguments, errors = check_report(TRANSECT_FORM, str(tmp_path))
+        arguments, errors = check_other_options(TRANSECT_FORM, str(tmp_path))
         assert arguments == {}
         assert "nctoolkit 1.3.6 or later" in errors["transect"]
 
@@ -1420,13 +1501,14 @@ class TestChoosingMatchups:
         assert app.report_arguments == {
             "data_dir": str(tmp_path),
             "out_dir": str(tmp_path),
+            "concise": False,
             "depth_bins": [[0, 20], [20, 200], [200, None]],
             "variables": ["temperature/ICES/all"],
         }
         wait_for(lambda: validated)
         text = app.console.since(0, None)["text"]
         assert (
-            '"live_validation": {"depth_bins": [[0, 20], [20, 200], [200, null]], '
+            '"live_validation": {"concise": false, "depth_bins": [[0, 20], [20, 200], [200, null]], '
             '"variables": ["temperature/ICES/all"]}'
         ) in text
         assert json.loads(validated[0][1])["variables"] == ["temperature/ICES/all"]
@@ -1480,7 +1562,7 @@ class TestChoosingMatchups:
         output_continue(app, existing_confirmed=True, unused=unused)
         assert app.previous == previous
         assert post(app, "/api/report", {"form": {"unticked": ["temperature/COBE2"], "cores": "1"}})[0] == 200
-        expected = {"data_dir": str(tmp_path), "out_dir": str(tmp_path), "variables": variables}
+        expected = {"data_dir": str(tmp_path), "out_dir": str(tmp_path), "concise": False, "variables": variables}
         if previous is not True:
             expected["previous"] = previous
         assert app.report_arguments == expected
@@ -1489,7 +1571,7 @@ class TestChoosingMatchups:
         # the interim report only ever has this run's matchups
         text = app.console.since(0, None)["text"]
         settings = json.loads(re.search(r"settings: (.*)", text).group(1))
-        assert settings["live_validation"] == {"variables": variables}
+        assert settings["live_validation"] == {"concise": False, "variables": variables}
 
 
 # the depth bins as the page sends them, other than OceanVal's own
@@ -1505,18 +1587,18 @@ class TestDepthBinChecks:
             ["0", "10"], ["10", "30"], ["30", "60"], ["60", "100"], ["100", "150"],
             ["150", "300"], ["300", "600"], ["600", "1000"], ["1000", ""],
         ]
-        assert check_report({}, str(tmp_path)) == ({}, {})
-        assert check_report(default_validate_form(), str(tmp_path)) == ({}, {})
+        assert check_other_options({}, str(tmp_path)) == ({}, {})
+        assert check_other_options(default_validate_form(), str(tmp_path)) == ({}, {})
 
     def test_bins_of_the_users_own(self, tmp_path):
-        assert check_report(DEPTH_FORM, str(tmp_path)) == (
+        assert check_other_options(DEPTH_FORM, str(tmp_path)) == (
             {"depth_bins": [[0, 20], [20, 200], [200, None]]}, {},
         )
 
     def test_they_are_sorted_and_empty_rows_are_ignored(self, tmp_path):
         form = {"depth_bins": [["50", "100.5"], ["", ""], [" 0 ", "50"]]}
 
-        assert check_report(form, str(tmp_path)) == (
+        assert check_other_options(form, str(tmp_path)) == (
             {"depth_bins": [[0, 50], [50, 100.5]]}, {},
         )
 
@@ -1534,7 +1616,7 @@ class TestDepthBinChecks:
         ],
     )
     def test_bins_that_cannot_be_used_are_refused(self, tmp_path, rows, problem):
-        assert check_report({"depth_bins": rows}, str(tmp_path)) == (
+        assert check_other_options({"depth_bins": rows}, str(tmp_path)) == (
             {}, {"depth_bins": problem},
         )
 
@@ -1544,7 +1626,7 @@ class TestDepthBinChecks:
         assert app_module._form(form, default_validate_form())["depth_bins"] == [
             ["0", "20"], ["20", ""],
         ]
-        assert check_report({"depth_bins": "0-10"}, str(tmp_path))[1] == {
+        assert check_other_options({"depth_bins": "0-10"}, str(tmp_path))[1] == {
             "depth_bins": "Add at least one bin."
         }
 
@@ -2107,11 +2189,11 @@ class TestServer:
         # is built from the matchups, in full paths
         assert (
             f'\noceanval.validate(\n    data_dir="{tmp_path}",\n    out_dir="{tmp_path}",\n'
-            "    depth_bins=[[0, 20], [20, 200], [200, None]],\n)\n"
+            "    concise=False,\n    depth_bins=[[0, 20], [20, 200], [200, None]],\n)\n"
         ) in text
         # and the interim report matchup builds as it goes has them too
         call = text[text.index("oceanval.matchup(") : text.index("\noceanval.validate(")]
-        assert '    live_validation={"depth_bins": [[0, 20], [20, 200], [200, None]]},\n)' in call
+        assert '    live_validation={"concise": False, "depth_bins": [[0, 20], [20, 200], [200, None]]},\n)' in call
         assert json.loads(runs[-1][0][1])["depth_bins"] == [[0, 20], [20, 200], [200, None]]
 
     def test_the_default_depth_bins_are_not_written(self, app, tmp_path, runs):
@@ -2646,8 +2728,9 @@ class TestServer:
             "data_dir": str(tmp_path),
             "out_dir": str(tmp_path / "report"),
             "word": True,
+            "concise": False,
         }
-        assert label == 'oceanval.validate(data_dir=".", out_dir="report", word=True)'
+        assert label == 'oceanval.validate(data_dir=".", out_dir="report", word=True, concise=False)'
         assert app.results_dir == str(tmp_path / "report")
 
     def test_validating_matchups_just_made(self, app, tmp_path):
@@ -3296,8 +3379,8 @@ class TestServer:
         assert post(app, "/api/report", {"form": {}})[0] == 200
         assert validated == [
             (
-                ["validate", json.dumps({"data_dir": str(tmp_path), "out_dir": str(tmp_path)})],
-                'oceanval.validate(data_dir=".", out_dir=".")',
+                ["validate", json.dumps({"data_dir": str(tmp_path), "out_dir": str(tmp_path), "concise": False})],
+                'oceanval.validate(data_dir=".", out_dir=".", concise=False)',
             )
         ]
 
@@ -5614,6 +5697,9 @@ def test_the_report_options_step_stores_the_script_in_a_browser(browser, tmp_pat
         page.wait_for_selector("#view-validate:not([hidden])")
         pick_cores(page)
 
+        # on the last page, after the options and whether to customize the output
+        page.click("#v-next")
+        page.click("#v-customize-no")
         assert page.text_content("#save-script") == "Stop and store Python script for later"
         page.click("#save-script")
         page.wait_for_selector("#view-script-saved:not([hidden])")
@@ -5670,12 +5756,17 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
             f"The final validation report will be viewable here: {tmp_path}/oceanval_report.html"
         )
         assert page.evaluate("document.activeElement.id") == "v-lon_min"
-        assert page.text_content("#build") == "Match up and validate"
         # matchup's cores, which have no default, are asked for here
         assert page.is_visible("#v-cores") and page.input_value("#v-cores") == ""
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
         pick_cores(page)
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
+        # the report is built, as matchup carries on, from the last page
+        page.click("#v-next")
+        page.click("#v-customize-no")
+        assert page.text_content("#build") == "Match up and validate"
+        # Back returns to the options
+        page.click("#back-open")
         assert "matching up" not in page.text_content("#console-text")
 
         # Back shows where the matchups go, and then the matchups again, to be answered afresh
@@ -5690,8 +5781,7 @@ def test_the_report_options_in_a_browser(browser, tmp_path, monkeypatch):
         pick_cores(page)
 
         page.check("#v-pdf")
-        page.select_option("#v-concise", "false")
-        page.click("#build")
+        build_report(page)
         page.wait_for_function(
             "document.querySelector('#console-text').textContent.includes('matching up')"
         )
@@ -5896,7 +5986,7 @@ def test_the_dates_of_the_files_in_a_browser(browser, tmp_path, monkeypatch):
         page.wait_for_selector("#view-validate:not([hidden])")
         pick_cores(page)
         index = app.model_check.index
-        page.click("#build")
+        build_report(page)
         wait_for(lambda: validated)
         # what the check read of the dates is given to matchup
         assert f'"times_index": "{index}"' in app.console.since(0, None)["text"]
@@ -5976,12 +6066,12 @@ def test_the_matchups_to_validate_in_a_browser(browser, tmp_path, monkeypatch):
         page.wait_for_function("document.querySelector('#vm-data_dir').textContent.includes('No matchups found')")
         # nothing to choose until there are matchups
         assert page.is_hidden("#v-options")
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
 
         page.fill("#v-data_dir", str(tmp_path / "gridded"))
         page.wait_for_selector("#v-options:not([hidden])")
         assert page.text_content("#vm-data_dir") == "Found 1 gridded matchup."
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
         # gridded only: no depth bins, and no point list
         assert page.is_hidden("#v-group-depth_bins")
         for shown in ("#v-group-subregions", "#v-group-transect", "#row-fixed_scale"):
@@ -6013,17 +6103,202 @@ def test_the_matchups_to_validate_in_a_browser(browser, tmp_path, monkeypatch):
         page.click("#v-untick-all")
         assert page.text_content("#v-datasets-count") == "0 of 4"
         assert page.text_content("#vm-variables") == "Tick at least one dataset to validate."
-        assert page.is_disabled("#build")
-        assert page.get_attribute("#build", "title") == "Tick at least one dataset to validate."
+        assert page.is_disabled("#v-next")
+        assert page.get_attribute("#v-next", "title") == "Tick at least one dataset to validate."
         page.click("#v-tick-all")
         assert page.text_content("#v-datasets-count") == "All 4"
         assert page.is_visible("#v-group-transect")
 
         page.uncheck("#v-datasets input[data-key='nitrate/ICES/surface']")
-        page.click("#build")
+        build_report(page)
         wait_for(lambda: validated)
         arguments = json.loads(validated[0][1])
         assert arguments["data_dir"] == str(tmp_path / "mixed")
+        assert arguments["variables"] == ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap/all"]
+    finally:
+        app.close()
+
+
+def open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch):
+    """The page of a report to be built from write_mixed_matchups', at the report options,
+    with the validate runs the app starts recorded: (app, page, validated)."""
+    write_mixed_matchups(tmp_path / "mixed")
+    app = App(cwd=str(tmp_path))
+    app.choose("validate_menu")
+    validated = []
+    monkeypatch.setattr(app, "start_run", lambda args, label: validated.append(args))
+    app.choose("validate", data_dir=str(tmp_path / "mixed"))
+    url = app.start()
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_selector("#view-validate:not([hidden])")
+    page.wait_for_function("document.querySelector('#vm-data_dir').textContent.includes('Found')")
+    return app, page, validated
+
+
+@pytest.mark.customize_question
+def test_customizing_the_output_for_every_matchup_together_in_a_browser(browser, tmp_path, monkeypatch):
+    """The two questions go on as they are answered, with no Continue: No to customizing is the
+    detailed report (the last page), and Yes, then No to variable by variable, is one page of
+    boxes for every matchup. The x on a box leaves its figure out, greying it out, and Add back
+    keeps it again."""
+    app, page, validated = open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch)
+    try:
+        # the options are the first page, which has no detailed or concise choice any more
+        assert page.is_visible("#validate-form") and page.is_hidden("#v-page-customize")
+        assert page.locator("#v-concise").count() == 0
+        assert page.text_content("#v-next") == "Continue" and page.locator("#build").count() == 0
+        page.select_option("#v-subregions", "global")
+        page.click("#v-next")
+
+        # the first question: boxed in red until answered, and no button
+        page.wait_for_selector("#v-page-customize:not([hidden])")
+        assert page.is_hidden("#validate-form")
+        assert page.text_content("#v-customize-title") == "Do you need to customize the validation output?"
+        assert "needs-answer" in page.get_attribute("#v-customize-question", "class")
+        assert page.locator("#v-next").count() == 0
+        assert "A detailed report with every figure and analysis will be produced." in page.text_content("#v-customize-no")
+        # Yes goes straight on to the question of variable by variable
+        page.click("#v-customize-yes")
+        page.wait_for_selector("#v-page-each:not([hidden])")
+        assert page.is_hidden("#v-page-customize")
+        assert page.text_content("#v-each-title") == "Do you want to customize the output variable by variable?"
+        assert page.locator("#v-next").count() == 0
+        # Back to the first question, where No is the detailed report: the last page, so it builds
+        page.click("#back-open")
+        page.wait_for_selector("#v-page-customize:not([hidden])")
+        assert "is-chosen" in page.get_attribute("#v-customize-yes", "class")
+        page.click("#v-customize-no")
+        assert page.is_visible("#v-page-customize")
+        assert page.locator("#v-next").count() == 0 and page.is_enabled("#build")
+        assert page.text_content("#build") == "Build the report"
+        # back to customizing, and on to the boxes for every matchup together
+        page.click("#v-customize-yes")
+        page.click("#v-each-no")
+
+        # one page, with a box for each figure and analysis of each kind of page
+        page.wait_for_selector("#v-page-items:not([hidden])")
+        assert page.text_content("#v-items-count") == ""
+        headings = page.locator(".report-items__kind").all_text_contents()
+        assert headings == ["Pages of the gridded datasets", "Pages of the point datasets", "The summary page"]
+        card = lambda item: page.locator(f'#v-items-groups [data-item="{item}"]')
+        # the regional boxes are there as regional summaries were chosen on the options, the vertical
+        # and transect ones are not as no gridded matchup is through the water column, and no transect was
+        assert card("regional_map").count() == 1
+        assert card("zonal_sections").count() == 0 and card("transect_map").count() == 0
+        # and the depth ones as a point matchup is through the water column
+        assert card("depth_table").count() == 1
+
+        # x leaves it out, greying it out
+        assert "is-removed" not in card("monthly_maps").get_attribute("class")
+        assert page.get_attribute('[data-item="monthly_maps"] .report-item__remove', "aria-label") == (
+            "Remove Monthly maps from the report"
+        )
+        card("monthly_maps").locator(".report-item__remove").click()
+        assert "is-removed" in card("monthly_maps").get_attribute("class")
+        assert card("monthly_maps").locator(".report-item__left").text_content() == "Left out of the report"
+        assert card("monthly_maps").locator(".report-item__remove").text_content() == "Add back"
+        # which keeps the others
+        assert "is-removed" not in card("clim_map").get_attribute("class")
+        # Add back keeps it again, and x again leaves it out
+        card("monthly_maps").locator(".report-item__remove").click()
+        assert "is-removed" not in card("monthly_maps").get_attribute("class")
+        card("monthly_maps").locator(".report-item__remove").click()
+        card("point_bias_map").locator(".report-item__remove").click()
+        card("taylor").locator(".report-item__remove").click()
+        card("regional_map").locator(".report-item__remove").click()
+
+        # Back and forward, with the choices kept
+        page.click("#back-open")
+        page.wait_for_selector("#v-page-each:not([hidden])")
+        assert "is-chosen" in page.get_attribute("#v-each-no", "class")
+        page.click("#back-open")
+        page.wait_for_selector("#v-page-customize:not([hidden])")
+        page.click("#back-open")
+        page.wait_for_selector("#validate-form:not([hidden])")
+        assert page.input_value("#v-subregions") == "global"
+        page.click("#v-next")
+        page.click("#v-customize-yes")
+        page.click("#v-each-no")
+        assert "is-removed" in card("monthly_maps").get_attribute("class")
+
+        # the last page builds the report, which is the detailed one, without what was left out
+        assert page.is_enabled("#build") and page.locator("#v-next").count() == 0
+        page.click("#build")
+        wait_for(lambda: validated)
+        arguments = json.loads(validated[0][1])
+        assert arguments["concise"] is False
+        # in the order of the catalogue
+        assert arguments["omit"] == ["monthly_maps", "regional_map", "point_bias_map", "taylor"]
+        assert arguments["subregions"] == "global"
+    finally:
+        app.close()
+
+
+@pytest.mark.customize_question
+def test_customizing_the_output_variable_by_variable_in_a_browser(browser, tmp_path, monkeypatch):
+    """A page of boxes for each matchup ticked, then the summary's, each with its figures: what
+    is left out of one is not left out of the others."""
+    app, page, validated = open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch)
+    try:
+        # one matchup is not ticked, so has no page
+        page.click("#v-datasets summary")
+        page.uncheck("#v-datasets input[data-key='nitrate/ICES/surface']")
+        page.click("#v-next")
+        page.click("#v-customize-yes")
+        page.click("#v-each-yes")
+
+        page.wait_for_selector("#v-page-items:not([hidden])")
+        card = lambda item: page.locator(f'#v-items-groups [data-item="{item}"]')
+        title = lambda: page.text_content("#v-items-title")
+        count = lambda: page.text_content("#v-items-count")
+        # a page for each matchup ticked, and one for the summary
+        assert (title(), count()) == ("Temperature (COBE2)", "Page 1 of 4")
+        assert page.locator(".report-items__kind").count() == 0
+        # gridded boxes only, and not the ones for options not chosen
+        assert card("clim_map").count() == 1 and card("point_bias_map").count() == 0
+        assert card("regional_map").count() == 0
+        # the seasonal ones say what they need
+        assert "Only if the observations have more than one month." in card("monthly_maps").text_content()
+        assert page.locator("#build").count() == 0
+        card("bias_map").locator(".report-item__remove").click()
+        page.click("#v-next")
+
+        assert (title(), count()) == ("Temperature (WOA23)", "Page 2 of 4")
+        # what was left out of the first is not left out of this one
+        assert "is-removed" not in card("bias_map").get_attribute("class")
+        page.click("#v-next")
+
+        assert (title(), count()) == ("Nitrate (glodap, through the water column)", "Page 3 of 4")
+        assert card("point_bias_map").count() == 1 and card("clim_map").count() == 0
+        assert card("depth_table").count() == 1
+        card("scatter").locator(".report-item__remove").click()
+        # Back keeps what was chosen
+        page.click("#back-open")
+        assert title() == "Temperature (WOA23)"
+        page.click("#back-open")
+        assert title() == "Temperature (COBE2)"
+        assert "is-removed" in card("bias_map").get_attribute("class")
+        page.click("#v-next")
+        page.click("#v-next")
+        assert "is-removed" in card("scatter").get_attribute("class")
+        page.click("#v-next")
+
+        # the summary, whose last page builds the report
+        assert (title(), count()) == ("The summary page", "Page 4 of 4")
+        assert card("taylor").count() == 1 and card("depth_performance").count() == 1
+        assert page.locator("#v-next").count() == 0 and page.is_enabled("#build")
+        card("taylor").locator(".report-item__remove").click()
+        page.click("#build")
+        wait_for(lambda: validated)
+        arguments = json.loads(validated[0][1])
+        assert arguments["concise"] is False
+        assert arguments["omit"] == {
+            "temperature/COBE2": ["bias_map"],
+            "nitrate/glodap/all": ["scatter"],
+            "summary": ["taylor"],
+        }
+        # the matchup not ticked is not in the report
         assert arguments["variables"] == ["temperature/COBE2", "temperature/WOA23", "nitrate/glodap/all"]
     finally:
         app.close()
@@ -6056,7 +6331,7 @@ def test_the_layers_of_a_point_matchup_are_ticked_separately_in_a_browser(browse
         vertical.uncheck()
         assert surface.is_checked() and not vertical.is_checked()
         assert page.text_content("#v-datasets-count") == "4 of 5"
-        page.click("#build")
+        build_report(page)
         wait_for(lambda: validated)
         arguments = json.loads(validated[0][1])
         assert "nitrate/ICES/surface" in arguments["variables"]
@@ -6100,8 +6375,12 @@ def test_the_matchups_to_be_made_in_a_browser(browser, tmp_path, monkeypatch):
         page.uncheck("#v-datasets input[data-key='temperature/ICES/all']")
         assert page.is_hidden("#v-group-depth_bins")
         assert page.is_visible("#v-group-transect")
+        page.click("#v-next")
+        page.click("#v-customize-no")
         assert page.text_content("#build") == "Match up and validate"
-        assert page.is_enabled("#build")
+        # Back returns to the options
+        page.click("#back-open")
+        assert page.is_enabled("#v-next")
     finally:
         app.close()
 
@@ -6130,7 +6409,7 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
         )
         assert not page.is_checked("#v-transect")
         assert page.is_hidden("#row-transect")
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
 
         # ticked, it says what a transect has to be, and asks for both ends
         page.check("#v-transect")
@@ -6144,8 +6423,8 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
         # and says which box is which, as the boxes' hints go once they are filled in
         assert page.locator(".transect-head").all_text_contents() == ["Longitude (°E)", "Latitude (°N)"]
         # empty, so the report cannot be asked for yet
-        assert page.is_disabled("#build")
-        assert page.get_attribute("#build", "title") == "Fill in both ends of the transect, or untick it"
+        assert page.is_disabled("#v-next")
+        assert page.get_attribute("#v-next", "title") == "Fill in both ends of the transect, or untick it"
 
         # a diagonal line is refused, in bold, and every box is marked
         for name, value in [("start_lon", "-30"), ("start_lat", "0"), ("end_lon", "-20"), ("end_lat", "65")]:
@@ -6158,8 +6437,8 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
         assert problem.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]") == red_bold
         for name in ("start_lon", "start_lat", "end_lon", "end_lat"):
             assert "is-invalid" in page.get_attribute(f"#v-transect_{name}", "class")
-        assert page.is_disabled("#build")
-        assert page.get_attribute("#build", "title") == "Fix what is marked in red first"
+        assert page.is_disabled("#v-next")
+        assert page.get_attribute("#v-next", "title") == "Fix what is marked in red first"
         # Enter in a box does not get past the disabled button
         page.press("#v-transect_end_lat", "Enter")
         page.wait_for_timeout(300)
@@ -6171,40 +6450,40 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.text_content("#vm-transect") == "North–south along 30°W, from 0° to 65°N."
         assert "is-ok" in page.get_attribute("#vm-transect .group__line", "class")
         assert page.locator("#v-transect_end_lon").evaluate("node => node.classList.contains('is-invalid')") is False
-        assert page.is_enabled("#build")
-        assert page.get_attribute("#build", "title") in ("", None)
+        assert page.is_enabled("#v-next")
+        assert page.get_attribute("#v-next", "title") in ("", None)
 
         # east-west: the same latitude at both ends
         for name, value in [("start_lon", "-10"), ("start_lat", "55"), ("end_lon", "8"), ("end_lat", "55")]:
             page.fill(f"#v-transect_{name}", value)
         assert page.text_content("#vm-transect") == "East–west along 55°N, from 10°W to 8°E."
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
 
         # the other things that cannot be used
         page.fill("#v-transect_end_lat", "95")
         assert "Latitude must be between -90 and 90." in page.text_content("#vm-transect")
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
         page.fill("#v-transect_end_lat", "north")
         assert "Coordinates must be numbers." in page.text_content("#vm-transect")
         page.fill("#v-transect_end_lat", "55")
         page.fill("#v-transect_end_lon", "-10")
         assert "The two ends are the same point." in page.text_content("#vm-transect")
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
         page.fill("#v-transect_end_lon", "")
         assert "Fill in the longitude and latitude of both ends." in page.text_content("#vm-transect")
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
 
         # unticked, whatever is in its boxes no longer matters
         page.uncheck("#v-transect")
         assert page.is_hidden("#row-transect")
         assert page.text_content("#vm-transect") == ""
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
 
         # a transect that can be used is sent with the rest of the options
         page.check("#v-transect")
         page.fill("#v-transect_end_lon", "8")
-        assert page.is_enabled("#build")
-        page.click("#build")
+        assert page.is_enabled("#v-next")
+        build_report(page)
         wait_for(lambda: validated)
         assert json.loads(validated[0][1]) == {
             "data_dir": str(tmp_path),
@@ -6237,9 +6516,9 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
 
         # no gridded matchups, so no transect
         assert page.is_hidden("#v-group-transect")
-        # below how detailed the report is, with OceanVal's bins
+        # below the report formats, with OceanVal's bins
         assert group.is_visible()
-        assert group.bounding_box()["y"] > page.locator("#v-concise").bounding_box()["y"]
+        assert group.bounding_box()["y"] > page.locator("#v-pdf").bounding_box()["y"]
         assert page.text_content("#v-group-depth_bins legend") == (
             "Which depth bins do you want for vertical validation?"
         )
@@ -6254,7 +6533,7 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
         assert box("To", 9).get_attribute("placeholder") == "and deeper"
         assert page.text_content("#vm-depth_bins") == ""
         assert page.is_disabled("#depth-reset")
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
 
         # x removes a bin, leaving a gap, which is said, and moves on to the next
         page.click("[aria-label='Remove bin 8']")
@@ -6262,7 +6541,7 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
         assert values()[-2:] == [("300", "600"), ("1000", "")]
         assert page.text_content("#vm-depth_bins") == "Observations between 600 and 1000 m are left out."
         assert focused() == "Remove bin 8"
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
 
         # back to OceanVal's own
         page.click("#depth-reset")
@@ -6283,26 +6562,26 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
         page.click("#depth-add")
         assert box("From", 11).input_value() == ""
         assert focused() == "From depth of bin 11, in metres"
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
         page.keyboard.type("3000")
         problem = page.locator("#vm-depth_bins .group__line")
         assert problem.text_content() == "Only the deepest bin can leave To empty, for everything below it."
         assert problem.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]") == red_bold
         assert "is-invalid" in box("To", 10).get_attribute("class")
-        assert page.is_disabled("#build")
-        assert page.get_attribute("#build", "title") == "Fix what is marked in red first"
+        assert page.is_disabled("#v-next")
+        assert page.get_attribute("#v-next", "title") == "Fix what is marked in red first"
         page.click("[aria-label='Remove bin 11']")
         page.wait_for_function("document.querySelectorAll('#depth-bins-rows .depth-bin').length === 10")
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
 
         # bins that overlap
         box("From", 2).fill("5")
         assert page.text_content("#vm-depth_bins") == "The bins 0-10m and 5-30m overlap."
         assert "is-invalid" in box("To", 1).get_attribute("class")
         assert "is-invalid" in box("From", 2).get_attribute("class")
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
         box("From", 2).fill("10")
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
 
         # Back keeps them
         page.click("#back-open")
@@ -6316,7 +6595,7 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
         assert values()[-3:] == [("600", "1000"), ("1000", "2000"), ("2000", "")]
 
         # sent with the rest of the options
-        page.click("#build")
+        build_report(page)
         wait_for(lambda: validated)
         assert json.loads(validated[0][1])["depth_bins"] == [
             [0, 10], [10, 30], [30, 60], [60, 100], [100, 150], [150, 300],
@@ -7621,9 +7900,9 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         # the cores are asked for here, with no default
         assert page.is_visible("#v-cores")
         assert page.input_value("#v-cores") == ""
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
         page.select_option("#v-cores", "1")
-        assert page.is_enabled("#build")
+        assert page.is_enabled("#v-next")
         # then the missing values, matchup's too, and its spatial subset
         assert page.is_visible("#v-missing_from")
         assert page.locator("#v-cores").bounding_box()["y"] < page.locator("#v-missing_from").bounding_box()["y"]
@@ -7933,14 +8212,13 @@ def test_choosing_directories_in_a_browser(browser, tmp_path):
         assert page.eval_on_selector_all(
             "#v-data_dir-folders option", "options => options.map(o => o.value)"
         ) == ["sim/", "sim_old/"]
-        # concise or detailed is the last option, and concise to start with, with
-        # only the depth bins after it, as the matchups may be through the water column
+        # how detailed the report is is not asked with the options: the pages after them
+        # ask whether to customize it. The depth bins are the last option, as the
+        # matchups may be through the water column
+        assert page.locator("#v-concise").count() == 0
         assert page.evaluate(
-            "[...document.querySelectorAll('#v-options > fieldset')].slice(-2)"
-            ".map(group => group.id || group.querySelector('select').id)"
-        ) == ["v-concise", "v-group-depth_bins"]
-        assert page.input_value("#v-concise") == "true"
-        assert page.locator("#v-concise option").all_text_contents() == ["Concise", "Detailed"]
+            "[...document.querySelectorAll('#v-options > fieldset')].pop().id"
+        ) == "v-group-depth_bins"
         page.click('[data-browse="v-data_dir"]')
         page.click('#picker-list .picker__row[title="run"]')
         page.wait_for_function(

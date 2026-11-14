@@ -101,6 +101,12 @@ if bin_res is not None:
 
 available = len(df_raw) > 10
 
+# the figures and tables the user kept (validate's omit), for the R cells
+show_locations_map = wanted("locations_map") and not concise
+show_mean_map = wanted("mean_map")
+show_bias_map = wanted("point_bias_map")
+show_scatter = wanted("scatter")
+
 
 # %% tags=["remove-input", "remove-cell"]
 # A function for generating the data source
@@ -165,7 +171,10 @@ if available:
     
     md_basic(" ".join(intro).strip().replace("  ", " "))
     
-    md(f"In total there were {len(df_raw)} values extracted from the observational database. The map below shows the locations of the matched up data for {vv_name}.", number = True)
+    if show_locations_map:
+        md(f"In total there were {len(df_raw)} values extracted from the observational database. The map below shows the locations of the matched up data for {vv_name}.", number = True)
+    else:
+        md(f"In total there were {len(df_raw)} values extracted from the observational database.", number = True)
     if variable_formula is not None:
         md_markdown(f"The following model output was used to compare with observational values: **{variable_formula}**.")
     else:
@@ -185,8 +194,8 @@ if available:
 
 # %% tags=["remove-input"]
 # %%capture --no-display
-# %%R -i df_locs -i variable -i available -i unit -i concise -w 600 -h 500
-if(available & concise == FALSE){
+# %%R -i df_locs -i variable -i available -i unit -i concise -i show_locations_map -w 600 -h 500
+if(available & show_locations_map){
 library(dplyr, warn.conflicts = FALSE, quietly = TRUE)
 library(ggplot2, warn.conflicts = FALSE, quietly = TRUE)
 library(stringr, warn.conflicts = FALSE, quietly = TRUE)
@@ -248,7 +257,7 @@ gg
 }
 
 # %% tags=["remove-input"]
-if available and not concise:
+if available and show_locations_map:
     if n_levels > 1 and layer_select != "all": 
         md(f"**Figure {i_figure}:** Locations of matchups between simulated and observed {vv_name} in the top 5m of the water column.") 
     else:
@@ -258,13 +267,13 @@ if available and not concise:
 
 # %% tags=["remove-input"]
 # %%capture --no-display
-# %%R -i df -i variable -i unit -i layer_long -i vv_name -i available -w 1000 -h 700
+# %%R -i df -i variable -i unit -i layer_long -i vv_name -i available -i show_mean_map -w 1000 -h 700
 options(warn=-1)
 options(warn=-1)
 library(tidyverse, warn.conflicts = FALSE, quietly = TRUE)
 library(stringr, warn.conflicts = FALSE, quietly = TRUE)
 library(ggtext, warn.conflicts = FALSE, quietly = TRUE)
-if(available){
+if(available & show_mean_map){
 
 bin_value <- function(x, bin_res) {
 	floor((x + bin_res / 2) / bin_res + 0.5) * bin_res - bin_res / 2
@@ -354,7 +363,7 @@ gg
 }
 
 # %% tags=["remove-input"]
-if available:
+if available and show_mean_map:
     if "month" not in df.columns:
         md(f"**Figure {i_figure}:** Map of average {layer_long} {vv_name} in the model and observational datasets.")
         i_figure += 1
@@ -379,9 +388,6 @@ if available:
 
         fig_summary = [f"The number of observations in each month ranged from {n_min} in {month_min} to {n_max} in {months_max}."]
 
-        if not concise:
-            fig_summary.append(f"Figure {i_figure} below shows the distribution of observations in each month.")
-
         md(" ".join(fig_summary).strip().replace("  ", " "), number = True)
 
     if "month" in df_raw.columns:
@@ -396,7 +402,7 @@ if available:
 
 
 # %% tags=["remove-input"]
-if available:
+if available and show_bias_map:
     bias_text = []
 
     bias_text.append(f"Figure {i_figure} below shows the bias between the model and observational data for {vv_name}.")
@@ -406,7 +412,7 @@ if available:
 
 # %% tags=["remove-input"]
 # %%capture --no-display
-# %%R -i df -i variable -i unit -i layer_long -w 1000 -h 1200 -i vv_name -i available -i layer_select -i point_source
+# %%R -i df -i variable -i unit -i layer_long -w 1000 -h 1200 -i vv_name -i available -i layer_select -i point_source -i show_bias_map
 if(available){
 options(warn=-1)
 # #%%R -i df -i variable -i unit -w 1600 -h 1000
@@ -555,11 +561,14 @@ gg <- gg +
 
     # move legen
 
+# the bias csv and the title are made even when the map is not shown
+if(show_bias_map){
 gg
+}
 }
 
 # %% tags=["remove-input"]
-if available:
+if available and show_bias_map:
     if n_levels > 1 and layer_select != "all":
         md(f"**Figure {i_figure}**: Bias in {layer_long} {vv_name}. The bias is calculated as model - observation. The colour scale is from blue (negative bias) to red (positive bias). The colour scale is capped at the 98th percentile of the absolute bias. This is to avoid a few extreme outliers from dominating the colour scale. **Note:** values have been binned and averaged to the resolution of the model.") 
     else:
@@ -567,6 +576,7 @@ if available:
     i_figure += 1
 
 # create directory if non-existent, recursive
+if available:
     if os.path.isdir("adhoc/tmp") == False:
         os.makedirs("adhoc/tmp")
     df_raw.to_csv("adhoc/tmp/df_raw.csv")
@@ -574,7 +584,7 @@ if available:
 
 
 # %% tags=["remove-input"]
-if available:
+if available and show_scatter:
     scatter_text = []
     scatter_text.append(f"Figure {i_figure} shows the distribution of {layer_long} {vv_name} observations in the model and observational datasets.") 
 
@@ -583,8 +593,8 @@ if available:
 
 # %% tags=["remove-input"]
 # %%capture --no-display
-# %%R -i df -i concise -i vv_name -i unit -w 1000 -h 1200 -i available
-if(concise == FALSE & available){
+# %%R -i df -i concise -i vv_name -i unit -w 1000 -h 1200 -i available -i show_scatter
+if(concise == FALSE & available & show_scatter){
 
 bin_value <- function(x, bin_res) {
 	floor((x + bin_res / 2) / bin_res + 0.5) * bin_res - bin_res / 2
@@ -664,20 +674,22 @@ gg
 }
 
 # %% tags=["remove-input"]
-if available:
+if available and show_scatter:
     if concise is False:
         if n_levels > 1: 
             md(f"**Figure {i_figure}**: Simulated versus observed {vv_name} in the top 5m of the water column. The blue curve is a linear regression fit to the data, and the black line represents 1-1 relationship between the simulation and observations. The data has been averaged per model grid cell.") 
         else:
             if "year" not in df.columns:
                 md(f"**Figure {i_figure}**: Simulated versus observed {vv_name}. The blue curve is a linear regression fit to the data, and the black line represents 1-1 relationship between the simulation and observations. The data has been averaged per model grid cell and month.")
+            else:
+                md(f"**Figure {i_figure}**: Simulated versus observed {vv_name}. The blue curve is a linear regression fit to the data, and the black line represents 1-1 relationship between the simulation and observations.")
         i_figure = i_figure + 1
 
 # %% tags=["remove-input"]
 # %%capture --no-display
-# %%R -i vv_name -i unit -i concise -w 600 -h 500 -i available
+# %%R -i vv_name -i unit -i concise -w 600 -h 500 -i available -i show_scatter
 
-if(concise & available){
+if(concise & available & show_scatter){
 library(dplyr, warn.conflicts = FALSE, quietly = TRUE)
 library(ggplot2, warn.conflicts = FALSE, quietly = TRUE)
 library(stringr, warn.conflicts = FALSE, quietly = TRUE)
@@ -720,16 +732,18 @@ gg
 
 # %% tags=["remove-input"]
 if available:
-    if concise:
+    if concise and show_scatter:
         md(f"**Figure {i_figure}**: Model vs observed {vv_name} for {layer_long} values. The blue line is a linear regression model fit to the data.")
         i_figure += 1
-    if n_levels > 1: 
+    if not (wanted("stats_table") or wanted("regression_table")):
+        pass
+    elif n_levels > 1: 
         md(f"## Summary statistics for sea surface {vv_name}")
     else:
         md(f"## Summary statistics for {vv_name}") 
 
 # %% tags=["remove-input"]
-if available and not concise:
+if available and not concise and wanted("stats_table"):
     md(f"The overall ability of the model to predict the observed {vv_name} was assessed by calculating the average bias, the root mean square deviation (RMSD) and the correlation coefficient (R). The bias was calculated as the model value minus the observed value. The RMSD was calculated as the square root of the mean squared deviation. The correlation coefficient was calculated as the Pearson correlation coefficient between the model and observed values.") 
     md(f"This was calculated for each month and for the entire dataset. The results are shown in the tables below.")
 
@@ -873,8 +887,9 @@ if available:
         if is_month == False:
             df_agg_numbers = df_agg_numbers.query("`Time period` != '1'")
 
-        df_display(df_agg_numbers)
-    else:
+        if wanted("stats_table"):
+            df_display(df_agg_numbers)
+    elif wanted("stats_table"):
         df_display(df_table)
 
 
@@ -885,12 +900,13 @@ if bin_res is not None:
 else:
     final_text = ""
 
-md(f"**Table {i_table}:** Average bias ({unit}) and root-mean square deviation ({unit}) for the model's {layer_long} {vv_name} for each month. The bias is calculated as model - observation. The average bias is calculated as the mean of the monthly biases. {final_text}")
-i_table += 1
+if available and wanted("stats_table"):
+    md(f"**Table {i_table}:** Average bias ({unit}) and root-mean square deviation ({unit}) for the model's {layer_long} {vv_name} for each month. The bias is calculated as model - observation. The average bias is calculated as the mean of the monthly biases. {final_text}")
+    i_table += 1
 
 
 # %% tags=["remove-input"]
-if available:
+if available and wanted("regression_table"):
     md(f"A linear regression analysis of modelled and observed {vv_name} was performed. The modelled {vv_name} was used as the independent variable and the observed {vv_name} was used as the dependent variable. The results are shown in the table below.")
 
     md("The regression was carried out using the Python package statsmodels.")
@@ -944,9 +960,10 @@ if available:
     # put Period first
     df_stats = df_stats[["Period", "Slope", "Intercept", "R2", "p-value"]]
     # 
-    df_display(df_stats)
+    if wanted("regression_table"):
+        df_display(df_stats)
 
 # %% tags=["remove-input"]
-if available:
+if available and wanted("regression_table"):
     md(f"**Table {i_table}:** Linear regression analysis of modelled and observed {vv_name}. The modelled {vv_name} was used as the independent variable and the observed {vv_name} was used as the dependent variable. The slope and intercept of the regression line are shown, along with the R<sup>2</sup> value and the p-value of the slope. Note: only months with sufficient values for a regression are shown.")
     i_table += 1 

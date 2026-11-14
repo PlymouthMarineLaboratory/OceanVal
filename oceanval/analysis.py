@@ -1128,6 +1128,7 @@ def _finish_notebooks(paths):
             ("the_lon_lim", "None"),
             ("the_lat_lim", "None"),
             ("concise_value", "False"),
+            ("the_removed_items", "[]"),
             ("fast_plot_value", "False"),
         ):
             text = text.replace(placeholder, value)

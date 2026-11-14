@@ -18,7 +18,7 @@ from oceanval import domain_mask, sim_unify
 from oceanval.app import App
 from oceanval.session import session_info
 
-from test_app import get_json, leftover_dir, output_continue, post, stub_pattern_checks, through_output, wait_for  # noqa: F401 (leftover_dir and stub_pattern_checks are autouse)
+from test_app import build_report, get_json, leftover_dir, output_continue, post, stub_pattern_checks, through_output, wait_for  # noqa: F401 (leftover_dir and stub_pattern_checks are autouse)
 
 
 def lonlat(lon, lat):
@@ -418,19 +418,19 @@ def test_the_question_in_a_browser(browser, tmp_path, user_mask, monkeypatch):
         page.fill("#v-missing_from", "-1e20")
         assert page.is_visible("#v-group-domain-mask")
         assert page.is_checked("#v-dm-no") and page.is_hidden("#v-dm-detail")
-        page.wait_for_function("() => !document.getElementById('build').disabled")
+        page.wait_for_function("() => !document.getElementById('v-next').disabled")
         page.check("#v-dm-yes")
         assert page.is_visible("#v-domain_mask_path")
         assert "nearest neighbour" in page.text_content("#v-dm-detail")
-        assert page.is_disabled("#build")
+        assert page.is_disabled("#v-next")
         page.fill("#v-domain_mask_path", str(tmp_path / "nothing.nc"))
         page.wait_for_selector("#vm-domain_mask_path.is-error")
         assert "There is no file there." in page.text_content("#vm-domain_mask_path")
         page.fill("#v-domain_mask_path", user_mask)
         page.wait_for_selector("#dm-map-v.is-drawn", timeout=60000)
         assert "cells will be matched up" in page.text_content("#vm-domain_mask_path")
-        page.wait_for_function("() => !document.getElementById('build').disabled")
-        page.click("#build")
+        page.wait_for_function("() => !document.getElementById('v-next').disabled")
+        build_report(page)
         assert sent_settings(app)["domain_mask"] == user_mask
     finally:
         app.close()

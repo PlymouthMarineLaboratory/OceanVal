@@ -307,6 +307,19 @@ def history_question_answered(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def customize_question_answered(request, monkeypatch):
+    """The question the report options end with, whether to customize the validation output
+    (see oceanval.app.check_customize), starts as "no", a detailed report, in the tests that are
+    not about it, so a form they send without it is still complete. A test marked
+    customize_question meets it with nothing chosen."""
+    if request.node.get_closest_marker("customize_question"):
+        return
+    from oceanval import app
+
+    monkeypatch.setattr(app, "DEFAULT_CUSTOMIZE", "no")
+
+
+@pytest.fixture(autouse=True)
 def oceanvaltimes(tmp_path_factory, monkeypatch):
     """Keep the user's own ~/.oceanvaltimes (the times of the files the viewer
     has read, see oceanval.viewer_times) out of the tests: each test has a
@@ -437,6 +450,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "customize_question: the test meets the question of whether to customize the validation output with nothing chosen"
+    )
     config.addinivalue_line(
         "markers", "history_question: the test meets the question of whether to add work to the history with nothing chosen"
     )

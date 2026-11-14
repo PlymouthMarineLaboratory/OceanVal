@@ -27,7 +27,9 @@ with open(out_def, "wb") as f:
 # %% tags=["remove-input"]
 
 df_cor = ds_cor.to_dataframe().reset_index()
-if fix_grid:
+if not wanted("seasonal_cor_map"):
+    pass
+elif fix_grid:
     ds_cor_plot = ds_cor.copy()
     ds_cor_plot.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
     ds_cor_plot.pub_plot("cor", land = "lightgrey")
@@ -39,8 +41,9 @@ else:
 
 
 # %% tags=["remove-input"]
-md(f"**Figure {i_figure}**: Seasonal temporal correlation between model and observations for {layer} {vv_name}. This is the Pearson correlation coefficient between climatological monthly mean values in the model and observations.{cor_note}")
-i_figure += 1
+if wanted("seasonal_cor_map"):
+    md(f"**Figure {i_figure}**: Seasonal temporal correlation between model and observations for {layer} {vv_name}. This is the Pearson correlation coefficient between climatological monthly mean values in the model and observations.{cor_note}")
+    i_figure += 1
 
 # %% tags=["remove-cell"]
 lon_range = lon_max - lon_min
@@ -137,7 +140,7 @@ if time_name is not None:
 
     # %% tags=["remove-input"]
 
-    if not concise:
+    if not concise and wanted("monthly_maps"):
         md(f"The seasonal cycles of simulated and observed {vv_name} are compared in Figure {i_figure} below. This figure shows the model and observation average in each month of the year, and the differences between the two each month") 
 
 
@@ -337,7 +340,7 @@ else:
     half = (len(available) + 1) // 2
     seasonal_periods = [available] if len(available) <= 5 else [available[:half], available[half:]]
 
-if not concise:
+if not concise and wanted("monthly_maps"):
     # a line separates each group of months from the next, but none follows the last group
     seasonal_periods = [x for x in seasonal_periods if set(x) & set(df_model.month)]
     for i, months in enumerate(seasonal_periods):
@@ -345,7 +348,7 @@ if not concise:
 
 
 # %% tags=["remove-input"]
-if not concise:
+if not concise and wanted("monthly_maps"):
     fixed_scale = "fixed_scale_value"
     arrows = " Arrows on the colorbars indicate values beyond the colorbar limits."
     if fixed_scale == "False":

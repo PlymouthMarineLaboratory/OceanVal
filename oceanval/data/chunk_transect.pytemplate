@@ -26,18 +26,25 @@ if transect_problem is None and os.path.exists(ff_vertical):
         section_problem = str(error)
 
 # %% tags=["remove-input"]
-md(f"## How well does the model reproduce {vv_longname} along the transect?")
-md(f"The model and observations were compared along a transect that runs {transects.describe(transect)}, mapped in Figure {i_figure}.")
-if transect_steps is not None:
-    md(f"Model and observed values were bilinearly interpolated from the matchup's grid onto {transect_steps} evenly spaced points along the transect, using nctoolkit's to_transect.")
+# the section goes if the user removed all of its figures (validate's omit)
+transect_wanted = any(wanted(x) for x in ["transect_map", "transect_surface", "transect_section"])
+if transect_wanted:
+    md(f"## How well does the model reproduce {vv_longname} along the transect?")
+    if wanted("transect_map"):
+        md(f"The model and observations were compared along a transect that runs {transects.describe(transect)}, mapped in Figure {i_figure}.")
+    else:
+        md(f"The model and observations were compared along a transect that runs {transects.describe(transect)}.")
+    if transect_steps is not None and (wanted("transect_surface") or wanted("transect_section")):
+        md(f"Model and observed values were bilinearly interpolated from the matchup's grid onto {transect_steps} evenly spaced points along the transect, using nctoolkit's to_transect.")
 
 # %% tags=["remove-input"]
 transect_map = False
-try:
-    transect_figure = transects.plot_map(transect)
-    transect_map = True
-except Exception:
-    plt.close("all")
+if wanted("transect_map"):
+    try:
+        transect_figure = transects.plot_map(transect)
+        transect_map = True
+    except Exception:
+        plt.close("all")
 
 # %% tags=["remove-input"]
 if transect_map:
@@ -46,7 +53,9 @@ if transect_map:
 
 # %% tags=["remove-input"]
 transect_surface = None
-if transect_problem is not None:
+if not wanted("transect_surface"):
+    pass
+elif transect_problem is not None:
     md(f"The values along the transect could not be extracted: {transect_problem}")
 elif len(df_transect) == 0:
     md(f"No part of the transect has both model and observed {layer_long} {vv_name}, so there is nothing to compare along it.")
@@ -74,7 +83,9 @@ if transect_surface == "line":
 
 # %% tags=["remove-input"]
 transect_vertical = False
-if section_problem is not None:
+if not wanted("transect_section"):
+    pass
+elif section_problem is not None:
     md(f"The values through the water column along the transect could not be extracted: {section_problem}")
 elif transect_problem is None and os.path.exists(ff_vertical):
     if df_section is None:
