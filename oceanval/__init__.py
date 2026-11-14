@@ -20,6 +20,7 @@ import dill
 
 from oceanval import depths
 from oceanval import prompts
+from oceanval import report_items
 from oceanval import selection
 from oceanval import transects
 from oceanval import user_cache
@@ -1352,11 +1353,14 @@ def _gridded_notebook_text(
 
 
 def _rewrite_notebook_source(
-    path, lon_lim, lat_lim, fixed_scale, concise, test, transect=None, depth_bins=None
+    path, lon_lim, lat_lim, fixed_scale, concise, test, transect=None, depth_bins=None,
+    removed=None,
 ):
     """Fill in the report options in a notebook's paired .py:percent file,
     and silence R's warnings in each R cell. depth_bins are as
-    depths.check_depth_bins gives them, or None for the default ones."""
+    depths.check_depth_bins gives them, or None for the default ones.
+    removed is the ids of the figures and analyses the page leaves out (see
+    oceanval.report_items), or None for none."""
     if depth_bins is None:
         depth_bins = depths.DEFAULT_DEPTH_BINS
     depth_bins = repr([list(pair) for pair in depth_bins])
@@ -1388,6 +1392,7 @@ def _rewrite_notebook_source(
         new_lines[i] = new_lines[i].replace("the_transect", repr(transect))
         new_lines[i] = new_lines[i].replace("the_depth_bins", depth_bins)
         new_lines[i] = new_lines[i].replace("fixed_scale_value", str(fixed_scale))
+        new_lines[i] = new_lines[i].replace("the_removed_items", repr(sorted(removed or [])))
         # replace concice_value with concice
         if "concise_value" in new_lines[i]:
             if concise:
@@ -1399,6 +1404,17 @@ def _rewrite_notebook_source(
     with open(path, "w") as file:
         for line in new_lines:
             file.write(line + "\n")
+
+
+def _page_removed(path, page_removed, omit):
+    """What the report page whose notebook (or its .py) is path leaves out:
+    the summary's from omit, a matchup's from page_removed, by the name of its
+    notebook before it was numbered (001_...)."""
+    name = re.sub(r"^\d+_", "", os.path.basename(path))
+    name = os.path.splitext(name)[0] + ".ipynb"
+    if name == "summary.ipynb":
+        return report_items.removed_for(omit, report_items.SUMMARY)
+    return page_removed.get(name, set())
 
 
 def _fill_notebook_paths(path, data_dir, out_dir, fast_plot=False):
@@ -1456,6 +1472,7 @@ def validate(
     variables=None,
     previous=True,
     name=None,
+    omit=None,
 ):
     # docstring
     """
@@ -1467,6 +1484,8 @@ def validate(
         The longitude limits for the validation. Default is None
     lat_lim : list or None
         The latitude limits for the validation. Default is None
+    concise : bool
+        Whether to build the concise report, which leaves out the gridded matchups' monthly maps and the point matchups' map of locations, and shows one scatter plot of model against observations rather than one for each month. Default is True. False builds the detailed report, with every figure and analysis.
     fixed_scale : bool
         Whether to use a fixed scale for the seasonal plots. Default is False. If True, the minimum and maximum values are capped to cover the 2nd and 98th percentiles of both model and observations.
     subregions : str or None
@@ -1491,6 +1510,8 @@ def validate(
         Whether to validate the matchups in data_dir that the last matchup() run there did not make: those of earlier runs into the same directory, which matchup() leaves there when it matches up other variables or datasets. Default is True. False validates only the matchups the last run made or kept, as it recorded them. A list validates those and the earlier matchups it picks, each entry a variable or "variable/source", as for variables, e.g. ["chlorophyll/OCCCI"]. variables then picks among the matchups validated.
     name : str or None
         A name for this validation, to add it to your OceanVal history, where the window's Tools & info > View previous work lists it with a link to its report. It must not be the name of another validation there. Default is None, which does not add the validation to the history.
+    omit : list, dict or None
+        Figures and analyses to leave out of the report, by id, on top of what concise leaves out. A list leaves them out of every page they are on, e.g. ["monthly_maps", "regression_table", "taylor"]. A dict leaves them out of some pages: each key is a matchup, as for variables ("temperature" for all its sources, or "variable/source"), or "summary" for the summary page, e.g. {"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}. The ids are, on a gridded matchup's page, clim_map, bias_map, seasonal_cor_map, monthly_maps, spatial_cor_table, regional_map, regional_cycle, regional_table, zonal_sections, transect_map, transect_surface and transect_section; on a point matchup's page, locations_map, mean_map, point_bias_map, scatter, stats_table, regression_table, depth_locations_map and depth_table; and on the summary page, taylor, bias_table, spatial_table, temporal_maps, temporal_table and depth_performance (see oceanval.report_items). What other pages read is still calculated, so the summary is unchanged by what a matchup's page leaves out. Default is None, which leaves nothing else out.
 
     Returns
     -------
@@ -1502,6 +1523,7 @@ def validate(
     )
     transect = transects.check_transect(transect)
     depth_bins = depths.check_depth_bins(depth_bins)
+    omit = report_items.check_omit(omit)
     # convert data_dir to absolute path
     data_dir = os.path.expanduser(data_dir)
     data_dir = os.path.abspath(data_dir)
@@ -1524,6 +1546,7 @@ def validate(
             )
         chosen = {selection.identity(m) for m in matchups}
     selection.check_against(variables, matchups)
+    report_items.check_against(omit, matchups)
     # ensure proper handling of ~
     out_dir = os.path.expanduser(out_dir)
     out_dir = os.path.abspath(out_dir)
@@ -1593,6 +1616,9 @@ def validate(
         copyfile(data_path, out)
 
         path_df = []
+        # what each matchup's page leaves out (omit), by its notebook's name
+        # before it is numbered
+        page_removed = {}
 
         # loop through the point matchups and generate notebooks
 
@@ -1635,6 +1661,9 @@ def validate(
                     == 0
                 ):
                     out = f"{book_dir}/notebooks/{source}_{layer}_{variable}.ipynb"
+                    page_removed[os.path.basename(out)] = report_items.removed_for(
+                        omit, report_items.POINT, variable, source, layer
+                    )
                     filedata = _point_notebook_text(
                         source,
                         layer,
@@ -1714,6 +1743,9 @@ def validate(
                                 f"{book_dir}/notebooks/{source}_{variable}.ipynb", "w"
                             ) as file:
                                 file.write(filedata)
+                            page_removed[f"{source}_{variable}.ipynb"] = report_items.removed_for(
+                                omit, report_items.GRIDDED, variable, source
+                            )
 
                             variable = vv
                             path_df.append(
@@ -1792,7 +1824,7 @@ def validate(
         for ff in glob.glob(f"{book_dir}/notebooks/*.py"):
             _rewrite_notebook_source(
                 ff, lon_lim, lat_lim, fixed_scale, concise, test, transect=transect,
-                depth_bins=depth_bins,
+                depth_bins=depth_bins, removed=_page_removed(ff, page_removed, omit),
             )
 
         # sync the notebooks
@@ -1980,6 +2012,7 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
         filedata = filedata.replace("the_lon_lim", "None")
         filedata = filedata.replace("the_lat_lim", "None")
         filedata = filedata.replace("concise_value", "False")
+        filedata = filedata.replace("the_removed_items", "[]")
         filedata = filedata.replace("fast_plot_value", "False")
         with open(book, "w") as file:
             file.write(filedata)

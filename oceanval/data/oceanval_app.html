@@ -61,6 +61,41 @@
   .choice__remove::before { content: "×"; font: 600 22px/1 var(--font-body); }
   .choice__remove:hover { background: var(--line); color: var(--ink); }
   .choice__remove:focus-visible { outline: none; box-shadow: var(--focus); }
+
+  /* ---- what the report has in it: the pages after the report options ---- */
+  /* a question to answer Yes or No to, with two big tiles, as for your own observations (boxed in red until answered, gui.css) */
+  .report-page:not([hidden]) { display: flex; flex-direction: column; align-items: center; }
+  .report-question { width: 100%; max-width: 1000px; padding: 18px 20px 24px; border: 3px solid transparent; border-radius: var(--radius-md); }
+  .report-question__title { margin: 0 0 28px; font: 600 30px/1.25 var(--font-head); letter-spacing: -0.4px; text-align: center; }
+  .report-question .choices.is-two { width: 100%; max-width: 960px; gap: 28px; margin: 0 auto; }
+  .report-question .choice { aspect-ratio: auto; min-height: 200px; padding: 32px 30px; gap: 12px; }
+  .report-question .choice__icon svg { width: 21px; height: 21px; }
+  .report-question .choice__title { font-size: 22px; }
+  /* the boxes, a figure or analysis each: the x at the top right leaves it out, which greys it out */
+  #v-page-items:not([hidden]) { display: block; }
+  .report-items__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+  .report-items__title { margin: 0; font: 600 24px/1.3 var(--font-head); letter-spacing: -0.2px; }
+  .report-items__count { flex: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+  .report-items__group { margin: 0 0 26px; }
+  .report-items__kind { margin: 0 0 12px; color: var(--muted); font: 700 13px/1.3 var(--font-head); letter-spacing: 0.05em; text-transform: uppercase; }
+  .report-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 860px) { .report-items { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .choice.report-item { position: relative; aspect-ratio: auto; min-height: 132px; padding: 18px 54px 18px 18px; gap: 6px; cursor: default; }
+  .report-item .choice__title { font-size: 16.5px; }
+  .report-item .choice__text { font-size: 14px; }
+  .report-item__note { color: var(--muted-light); font-size: 12.5px; font-style: italic; }
+  .report-item__left { color: var(--muted); font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .report-item__remove {
+    position: absolute; top: 10px; right: 10px; display: grid; place-content: center; min-width: 32px; height: 32px; padding: 0 8px;
+    border: 1px solid transparent; border-radius: var(--radius-sm); background: none; color: var(--muted);
+    font: 600 24px/1 var(--font-body); cursor: pointer;
+  }
+  .report-item__remove:hover { background: var(--line); color: var(--red); }
+  .report-item__remove:focus-visible { outline: none; box-shadow: var(--focus); }
+  .report-item__remove.is-add { border-color: var(--teal-200); background: var(--bg); color: var(--teal-700); font-size: 13px; font-weight: 700; }
+  .report-item__remove.is-add:hover { background: var(--teal-50); color: var(--teal-700); }
+  .choice.report-item.is-removed { border-style: dashed; background: var(--bg-alt); box-shadow: none; }
+  .report-item.is-removed .choice__title, .report-item.is-removed .choice__text, .report-item.is-removed .report-item__note { color: var(--muted-light); }
   .choice__tag { padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .own-legend { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; color: var(--muted); font-size: 13px; }
   .own-swatch { width: 4px; height: 16px; border-radius: 2px; background: var(--red); }
@@ -2100,15 +2135,6 @@
         </div>
         <div class="g-row"><label class="tick-label">Do you want a zipped version of report files?<input type="checkbox" class="tick" id="v-zip"></label></div>
       </fieldset>
-      <fieldset class="group form__wide">
-        <div class="g-row detail-row">
-          <label class="g-label" for="v-concise">How detailed do you want the report to be?</label>
-          <select class="s-select" id="v-concise">
-            <option value="true">Concise</option>
-            <option value="false">Detailed</option>
-          </select>
-        </div>
-      </fieldset>
       <fieldset class="group form__wide" id="v-group-depth_bins">
         <legend>Which depth bins do you want for vertical validation?</legend>
         <p class="group__intro">Point datasets validated through the water column are summarised in these depth ranges. Leave <strong>To</strong> empty on the deepest bin for everything below it. Observations outside every bin are left out.</p>
@@ -2151,6 +2177,49 @@
       <button type="submit" hidden></button>
     </form>
     <p class="lede" id="v-report-dir" hidden></p>
+    <!-- the pages after the report options: a detailed report, or one customized by leaving figures out (see oceanval.report_items) -->
+    <div class="report-page" id="v-page-customize" hidden>
+      <div class="report-question" id="v-customize-question">
+        <h2 class="report-question__title" id="v-customize-title">Do you need to customize the validation output?</h2>
+        <div class="choices is-two" role="radiogroup" aria-labelledby="v-customize-title">
+          <button type="button" class="choice" id="v-customize-yes" role="radio" aria-checked="false">
+            <span class="choice__icon" data-icon="preferences"></span>
+            <span class="choice__title">Yes, customize it</span>
+            <span class="choice__text">Choose which figures and analyses to leave out of the report, in the next steps.</span>
+          </button>
+          <button type="button" class="choice" id="v-customize-no" role="radio" aria-checked="false">
+            <span class="choice__icon" data-icon="report"></span>
+            <span class="choice__title">No, a detailed report</span>
+            <span class="choice__text">A detailed report with every figure and analysis will be produced.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="report-page" id="v-page-each" hidden>
+      <div class="report-question" id="v-each-question">
+        <h2 class="report-question__title" id="v-each-title">Do you want to customize the output variable by variable?</h2>
+        <div class="choices is-two" role="radiogroup" aria-labelledby="v-each-title">
+          <button type="button" class="choice" id="v-each-yes" role="radio" aria-checked="false">
+            <span class="choice__icon" data-icon="chart"></span>
+            <span class="choice__title">Yes, variable by variable</span>
+            <span class="choice__text">A page for each variable and dataset, then one for the summary.</span>
+          </button>
+          <button type="button" class="choice" id="v-each-no" role="radio" aria-checked="false">
+            <span class="choice__icon" data-icon="check"></span>
+            <span class="choice__title">No, all together</span>
+            <span class="choice__text">One page, whose choices apply to every variable and dataset.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="report-page" id="v-page-items" hidden>
+      <div class="report-items__head">
+        <h2 class="report-items__title" id="v-items-title"></h2>
+        <span class="report-items__count" id="v-items-count"></span>
+      </div>
+      <p class="lede">Click the <strong>×</strong> on a box to leave that figure or analysis out of the report. A box left out is greyed out: click <strong>Add back</strong> to keep it after all.</p>
+      <div id="v-items-groups"></div>
+    </div>
   </section>
 
   <section id="view-compare" hidden>
@@ -3324,7 +3393,8 @@
       case "units_table": return "";  // the page heads itself, top left
       case "output": return state.action === "matchup" && outputPage.number === 2 ? "Where do you want the matchups to be saved?"
         : "";
-      case "validate": return "Build a validation report";
+      // the pages after the options head themselves
+      case "validate": return reportPage.index > 0 ? "" : "Build a validation report";
       case "compare": return "Which validations do you want to compare?";
       case "report_options": return "";
       case "point_time_res": return "Some point observations may not match the model's output";
@@ -3378,7 +3448,8 @@
       Boolean(state.run.back),
       state.own.entries.point.length, state.own.entries.gridded.length, Boolean(state.units.rows),
       state.register.saved.length, analyzeFilesReady(), scFilesReady(), analyzePage.number,
-      scUnits.page, outputPage.number, outputChecksPassed()].join("|");
+      scUnits.page, outputPage.number, outputChecksPassed(),
+      ...(view === "validate" || view === "report_options" ? [reportPage.index, onLastReportPage()] : [])].join("|");
     if (key === barShown) {
       if (view === "setup") refreshSetup();
       if (view === "output") refreshMatchupOutput();
@@ -3478,18 +3549,24 @@
       // with what was typed, which is shown again for the same data
       actions.push(backTo(() => post("api/back", { boxes: readFuture() })),
         button("Add this data for use now and in future", "primary", submitFuture, { id: "future-save", disabled: true }));
-    } else if (view === "validate") {
-      actions.push(backTo(() => post("api/back", { form: validateForm })),
-        button("Build the report", "primary", submitValidate, { id: "build" }));
-    } else if (view === "report_options") {
-      // matchup waits on whether the matchups are right until these are chosen,
-      // so Back shows them again; without it, they are made already
-      const waiting = Boolean(state.question);
+    } else if (view === "validate" || view === "report_options") {
+      // the options, then whether to customize the report and how (see reportPages): Back and Continue go
+      // between the pages, and the last one builds the report.
+      // To validate as well as match up, matchup waits on whether the matchups are right until these are
+      // chosen, so Back from the options shows them again; without it, they are made already
+      const waiting = view === "report_options" && Boolean(state.question);
+      if (reportPage.index > 0) actions.push(backTo(() => reportTo(reportPage.index - 1)));
       // with the boxes, which are shown again as they are
-      if (waiting) actions.push(backTo(() => post("api/back", { form: validateForm })),
-        button("Stop and store Python script for later", "ghost", submitSaveScript, { id: "save-script" }));
-      actions.push(button(!waiting ? "Build the report" : "Match up and validate",
-        "primary", submitValidate, { id: "build" }));
+      else if (view === "validate" || waiting) actions.push(backTo(() => post("api/back", { form: validateForm })));
+      // the two questions go on as they are answered, so they have no Continue
+      const answering = ["customize", "each"].includes(reportPageNow().kind);
+      if (!onLastReportPage()) {
+        if (!answering) actions.push(button("Continue", "primary", () => reportTo(reportPage.index + 1), { id: "v-next" }));
+      } else {
+        if (waiting) actions.push(button("Stop and store Python script for later", "ghost", submitSaveScript, { id: "save-script" }));
+        actions.push(button(view === "report_options" && waiting ? "Match up and validate" : "Build the report",
+          "primary", submitValidate, { id: "build" }));
+      }
     } else if (view === "point_time_res") {
       // to the matchups, whose question is still being asked, with the boxes
       actions.push(backTo(() => post("api/back", { form: readPointTimeRes() })),
@@ -9195,6 +9272,8 @@
     "vm-cores": ["cores"],
   };
   const validateForm = {};
+  // the page of the report options shown: the options themselves, then the pages after them (see reportPages)
+  const reportPage = { index: 0 };
   let validateErrors = {};
   // the matchups in the directory typed in, as the live check finds them
   // (app.matchups_found), and the check asked for last
@@ -9448,7 +9527,10 @@
     for (const name of VALIDATE_TEXT) $(`v-${name}`).value = validateForm[name];
     for (const name of VALIDATE_TICKS) $(`v-${name}`).checked = Boolean(validateForm[name]);
     validateHistory.fill(validateForm);
-    $("v-concise").value = String(Boolean(validateForm.concise));
+    // the pages after the options start at the options, with what was chosen on them kept
+    validateForm.omit_all = [...(state.validate.form.omit_all || [])];
+    validateForm.omit_each = Object.fromEntries(Object.entries(state.validate.form.omit_each || {}).map(([key, ids]) => [key, [...ids]]));
+    reportPage.index = 0;
     for (const box of $("validate-form").querySelectorAll(".is-oceanval")) box.classList.remove("is-oceanval");
     $("v-data_dir").placeholder = state.cwd;
     $("v-out_dir").placeholder = state.cwd;
@@ -9631,7 +9713,6 @@
       }
     });
   }
-  $("v-concise").addEventListener("change", (event) => { validateForm.concise = event.target.value === "true"; });
   $("v-cores").addEventListener("change", (event) => {
     validateForm.cores = event.target.value;
     delete validateErrors.cores;
@@ -9681,20 +9762,31 @@
     if (validateErrors.domain_mask_path && !reportMask.error()) {
       message("vm-domain_mask_path", [line(validateErrors.domain_mask_path, "error")], true);
     }
+    // the page shown: the options, or one of the pages after them
+    renderReportPage();
+    // there is nothing to build until there are matchups to validate
+    const noMatchups = state.view === "validate" && !validateMatchups();
+    const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing() || historyBlocked();
+    const why = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
+      : coresMissing() ? "Choose the number of cores"
+      : noneTicked ? NONE_TICKED
+      : historyBlocked() ? (validateHistory.read().add_to_history ? "Name the validation to add it to your history" : "Say whether to add this validation to your history")
+      : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
+      : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
+    const maskWhy = maskBlocked() ? "Give a domain mask file that can be used, or answer No" : "";
+    // Continue: from the options, as the report would be built; from a question, once it is answered
+    const next = $("v-next");
+    if (next) {
+      const page = reportPageNow();
+      const unanswered = (page.kind === "customize" && !reportAnswer("customize")) || (page.kind === "each" && !reportAnswer("per_matchup"));
+      next.disabled = page.kind === "options" ? blocked || maskBlocked() : unanswered;
+      next.title = page.kind === "options" ? why || maskWhy : unanswered ? "Answer Yes or No first" : "";
+    }
     // the report is not built along a transect that cannot be used
     const build = $("build");
     if (build) {
-      // there is nothing to build until there are matchups to validate
-      const noMatchups = state.view === "validate" && !validateMatchups();
-      const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing() || historyBlocked();
       build.disabled = blocked || maskBlocked();
-      const why = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
-        : coresMissing() ? "Choose the number of cores"
-        : noneTicked ? NONE_TICKED
-        : historyBlocked() ? (validateHistory.read().add_to_history ? "Name the validation to add it to your history" : "Say whether to add this validation to your history")
-        : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
-        : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
-      build.title = why || (maskBlocked() ? "Give a domain mask file that can be used, or answer No" : "");
+      build.title = why || maskWhy;
       const save = $("save-script");
       if (save) {
         save.disabled = blocked;
@@ -9708,6 +9800,11 @@
     if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || historyBlocked()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
+    // Enter on the options goes on to the next page, rather than building the report
+    if (!onLastReportPage()) {
+      if (reportPage.index === 0) reportTo(1);
+      return;
+    }
     validateBusy = true;
     refreshValidate();
     // the report options of a matchup and validate run, or the report from matchups made earlier
@@ -9724,20 +9821,13 @@
     }
     validateBusy = false;
     refreshValidate();
-    if (!reply.ok) {
-      validateErrors = reply.errors || {};
-      if (reply.error) toast(reply.error);
-      refreshValidate();
-      const first = Object.keys(validateErrors)[0];
-      // the depth bins are a grid of boxes, rather than one
-      const box = first === "depth_bins" ? $("depth-bins-rows").querySelector("input") : first && $(`v-${first}`);
-      if (box) box.focus();
-    }
+    if (!reply.ok) reportErrors(reply);
   }
 
   // stops before anything is matched up, keeping the script with the report options as they are
   async function submitSaveScript() {
     if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || historyBlocked()) return;
+    if (!onLastReportPage()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
     validateBusy = true;
@@ -9745,13 +9835,214 @@
     const reply = await post("api/save_script", { form: validateForm });
     validateBusy = false;
     refreshValidate();
-    if (!reply.ok) {
-      validateErrors = reply.errors || {};
-      if (reply.error) toast(reply.error);
-      refreshValidate();
-      const first = Object.keys(validateErrors)[0];
-      const box = first === "depth_bins" ? $("depth-bins-rows").querySelector("input") : first && $(`v-${first}`);
-      if (box) box.focus();
+    if (!reply.ok) reportErrors(reply);
+  }
+
+  // what the server found wrong: the options' boxes are on the first page, so it is shown again for them
+  function reportErrors(reply) {
+    validateErrors = reply.errors || {};
+    if (reply.error) toast(reply.error);
+    const first = Object.keys(validateErrors)[0];
+    if (first && !REPORT_PAGE_ERRORS.includes(first)) reportPage.index = 0;
+    render();
+    refreshValidate();
+    if (first && REPORT_PAGE_ERRORS.includes(first)) {
+      toast(validateErrors[first]);
+      return;
+    }
+    // the depth bins are a grid of boxes, rather than one
+    const box = first === "depth_bins" ? $("depth-bins-rows").querySelector("input") : first && $(`v-${first}`);
+    if (box) box.focus();
+  }
+
+  // ---- what the report has in it: the pages after the report options ----
+  // The options are the first page; then "Do you need to customize the validation output?" (No is a detailed report);
+  // with Yes, "Do you want to customize the output variable by variable?"; then the pages of boxes, one for every
+  // matchup together, or one for each matchup and one for the summary. Each box is a figure or analysis
+  // (oceanval.report_items, in state.validate.report_items): its × leaves it out (omit_all, or omit_each by the
+  // matchup's key and "summary"), greying it out, and Add back keeps it again.
+  const REPORT_PAGE_ERRORS = ["customize", "per_matchup", "omit"];
+  const reportAnswer = (name) => (validateForm[name] === "yes" || validateForm[name] === "no" ? validateForm[name] : "");
+
+  // the matchups the boxes are for: those ticked, or, if they are not known yet, as the recipes chosen say
+  function reportMatchups() {
+    const ticked = tickedMatchups();
+    if (ticked) return ticked;
+    const report = state.report || {};
+    return [
+      ...(report.gridded === false ? [] : [{ kind: "gridded", vertical: report.vertical !== false, key: "" }]),
+      { kind: "point", layer: report.vertical === false ? "surface" : "all", key: "" },
+    ];
+  }
+
+  // whether an item can be on a page of these matchups, as far as the options say before the report is built
+  function itemApplies(item, matchups) {
+    const gridded = matchups.filter((matchup) => matchup.kind === "gridded");
+    const point = matchups.filter((matchup) => matchup.kind === "point");
+    if (item.page === "gridded" && !gridded.length) return false;
+    if (item.page === "point" && !point.length) return false;
+    return item.when.every((condition) => {
+      if (condition === "subregions") return Boolean(validateForm.subregions);
+      if (condition === "transect") return Boolean(validateForm.transect);
+      if (condition === "vertical") return gridded.some((matchup) => matchup.vertical);
+      if (condition === "all_layer") return point.some((matchup) => matchup.layer === "all");
+      if (condition === "gridded") return gridded.length > 0;
+      // seasonal: only known once the matchups are made, which the box says
+      return true;
+    });
+  }
+
+  function pageItems(page) {
+    const items = state.validate.report_items || [];
+    if (page.kind === "matchup") return items.filter((item) => item.page === page.matchup.kind && itemApplies(item, [page.matchup]));
+    const matchups = reportMatchups();
+    if (page.kind === "summary") return items.filter((item) => item.page === "summary" && itemApplies(item, matchups));
+    return items.filter((item) => itemApplies(item, matchups));
+  }
+
+  function reportPages() {
+    const pages = [{ kind: "options" }, { kind: "customize" }];
+    if (reportAnswer("customize") !== "yes") return pages;
+    pages.push({ kind: "each" });
+    if (!reportAnswer("per_matchup")) return pages;
+    const ticked = tickedMatchups();
+    if (reportAnswer("per_matchup") === "no" || !ticked) return [...pages, { kind: "all" }];
+    pages.push(...ticked.map((matchup) => ({ kind: "matchup", matchup, key: matchup.key })));
+    const summary = { kind: "summary", key: "summary" };
+    if (pageItems(summary).length) pages.push(summary);
+    return pages;
+  }
+
+  const reportPageNow = () => {
+    const pages = reportPages();
+    return pages[Math.min(reportPage.index, pages.length - 1)];
+  };
+
+  // the last page, whose buttons build the report: No to customizing, or the last page of boxes
+  function onLastReportPage() {
+    const pages = reportPages();
+    const page = reportPageNow();
+    if (reportPage.index < pages.length - 1) return false;
+    return page.kind === "customize" ? reportAnswer("customize") === "no" : page.kind !== "options" && page.kind !== "each";
+  }
+
+  function reportTo(index) {
+    reportPage.index = Math.max(0, Math.min(index, reportPages().length - 1));
+    render();
+    refreshValidate();
+    window.scrollTo(0, 0);
+    const page = reportPageNow();
+    const focus = page.kind === "options" ? (state.view === "validate" ? "v-data_dir" : "v-lon_min")
+      : page.kind === "customize" ? (reportAnswer("customize") === "no" ? "v-customize-no" : "v-customize-yes")
+      : page.kind === "each" ? (reportAnswer("per_matchup") === "no" ? "v-each-no" : "v-each-yes") : null;
+    if (focus) $(focus).focus();
+    else {
+      const first = document.querySelector("#v-items-groups .report-item__remove");
+      if (first) first.focus();
+    }
+  }
+
+  function removedOn(page) {
+    if (page.kind === "all") return validateForm.omit_all || [];
+    return (validateForm.omit_each || {})[page.key] || [];
+  }
+
+  function setRemoved(page, id, removed) {
+    const now = new Set(removedOn(page));
+    if (removed) now.add(id);
+    else now.delete(id);
+    const ids = (state.validate.report_items || []).map((item) => item.id).filter((one) => now.has(one));
+    if (page.kind === "all") validateForm.omit_all = ids;
+    else validateForm.omit_each = { ...(validateForm.omit_each || {}), [page.key]: ids };
+    delete validateErrors.omit;
+  }
+
+  function matchupName(matchup) {
+    const where = matchup.kind === "point" && LAYERS[matchup.layer] ? `, ${LAYERS[matchup.layer]}` : "";
+    return `${matchup.title} (${matchup.source}${where})`;
+  }
+
+  function itemCard(item, page) {
+    const removed = removedOn(page).includes(item.id);
+    return el("div", { class: `choice report-item${removed ? " is-removed" : ""}`, "data-item": item.id },
+      el("span", { class: "choice__title report-item__title", text: item.label }),
+      el("span", { class: "choice__text", text: item.text }),
+      item.when.includes("seasonal") ? el("span", { class: "report-item__note", text: "Only if the observations have more than one month." }) : null,
+      removed ? el("span", { class: "report-item__left", text: "Left out of the report" }) : null,
+      el("button", {
+        type: "button",
+        class: `report-item__remove${removed ? " is-add" : ""}`,
+        "aria-label": removed ? `Add ${item.label} back to the report` : `Remove ${item.label} from the report`,
+        title: removed ? "Add it back to the report" : "Leave it out of the report",
+        text: removed ? "Add back" : "×",
+        onclick: (event) => {
+          event.stopPropagation();
+          setRemoved(page, item.id, !removed);
+          renderReportPage();
+          const again = document.querySelector(`#v-items-groups [data-item="${item.id}"] .report-item__remove`);
+          if (again) again.focus();
+        },
+      }));
+  }
+
+  let reportItemsShown = null;
+  function renderReportItems(page) {
+    const pages = reportPages().filter((one) => ["all", "matchup", "summary"].includes(one.kind));
+    const number = pages.findIndex((one) => one.kind === page.kind && one.key === page.key) + 1;
+    const groups = page.kind === "all"
+      ? [["gridded", "Pages of the gridded datasets"], ["point", "Pages of the point datasets"], ["summary", "The summary page"]]
+        .map(([kind, heading]) => [heading, pageItems(page).filter((item) => item.page === kind)])
+      : [[null, pageItems(page)]];
+    const shown = JSON.stringify([page.kind, page.key, number, pages.length, removedOn(page), groups.map(([h, items]) => [h, items.map((item) => item.id)])]);
+    if (shown === reportItemsShown) return;
+    reportItemsShown = shown;
+    $("v-items-title").textContent = page.kind === "matchup" ? matchupName(page.matchup)
+      : page.kind === "summary" ? "The summary page" : "What do you want in the report?";
+    $("v-items-count").textContent = pages.length > 1 ? `Page ${number} of ${pages.length}` : "";
+    $("v-items-groups").replaceChildren(...groups.filter(([, items]) => items.length).map(([heading, items]) =>
+      el("section", { class: "report-items__group" },
+        heading ? el("h3", { class: "report-items__kind", text: heading }) : null,
+        el("div", { class: "report-items" }, ...items.map((item) => itemCard(item, page))))));
+  }
+
+  // the page shown, of the options and the pages after them
+  function renderReportPage() {
+    // the pages can be fewer than they were (an answer changed), which leaves the page shown the last
+    const pages = reportPages();
+    reportPage.index = Math.max(0, Math.min(reportPage.index, pages.length - 1));
+    const page = pages[reportPage.index];
+    $("validate-form").hidden = page.kind !== "options";
+    $("v-report-dir").hidden = page.kind !== "options" || state.view !== "report_options";
+    $("v-page-customize").hidden = page.kind !== "customize";
+    $("v-page-each").hidden = page.kind !== "each";
+    const items = ["all", "matchup", "summary"].includes(page.kind);
+    $("v-page-items").hidden = !items;
+    // each question must be answered, so it is boxed in red until it is
+    for (const [name, prefix] of [["customize", "v-customize"], ["per_matchup", "v-each"]]) {
+      const answer = reportAnswer(name);
+      for (const value of ["yes", "no"]) {
+        $(`${prefix}-${value}`).classList.toggle("is-chosen", answer === value);
+        $(`${prefix}-${value}`).setAttribute("aria-checked", String(answer === value));
+      }
+      $(`${prefix}-question`).classList.toggle("needs-answer", !answer);
+    }
+    if (items) renderReportItems(page);
+    else reportItemsShown = null;
+  }
+
+  for (const [name, prefix] of [["customize", "v-customize"], ["per_matchup", "v-each"]]) {
+    for (const value of ["yes", "no"]) {
+      $(`${prefix}-${value}`).addEventListener("click", () => {
+        validateForm[name] = value;
+        delete validateErrors[name];
+        if (name === "customize" && value === "no") {
+          // the detailed report: the last page, so its button builds the report
+          render();
+          refreshValidate();
+        } else {
+          reportTo(reportPage.index + 1);
+        }
+      });
     }
   }
 

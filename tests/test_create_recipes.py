@@ -1336,6 +1336,28 @@ class TestSettings:
         # without the window's report options, there is none
         assert "live_validation" not in self.build(settings=settings(pdf=True))
 
+    def test_the_figures_left_out_of_the_report_are_written_for_validate_and_the_interim_report(self):
+        # chosen in the oceanval window once the matchups are checked, as a list or by matchup
+        for omit, written in (
+            (["monthly_maps", "taylor"], '["monthly_maps", "taylor"]'),
+            ({"temperature/COBE2": ["bias_map"], "summary": ["taylor"]},
+             '{"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}'),
+        ):
+            script = self.build(settings=settings(out_dir="/run"), report={"concise": False, "omit": omit})
+            ast.parse(script)
+
+            assert (
+                'oceanval.validate(\n'
+                '    data_dir="/run",\n'
+                '    out_dir="/run",\n'
+                '    concise=False,\n'
+                f'    omit={written},\n'
+                ')'
+            ) in script
+            assert f'    live_validation={{"concise": False, "omit": {written}}},\n' in matchup_call(script)
+        # none is left out unless it is chosen
+        assert "omit" not in self.build(settings=settings(), report={"concise": False}).split("oceanval.validate(")[-1]
+
     def test_the_matchups_chosen_to_overwrite_and_validate_are_written(self):
         # chosen in the oceanval window's simulation step, of those there already
         script = self.build(

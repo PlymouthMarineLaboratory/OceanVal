@@ -42,7 +42,7 @@ import time
 import traceback
 
 import oceanval
-from oceanval import depths, selection, transects
+from oceanval import depths, report_items, selection, transects
 
 # where the interim report is built, in the report's out_dir
 FOLDER = "oceanval_interim_report"
@@ -50,7 +50,7 @@ FOLDER = "oceanval_interim_report"
 # validate()'s arguments that live_validation takes
 OPTIONS = (
     "out_dir", "lon_lim", "lat_lim", "subregions", "fixed_scale", "concise", "transect",
-    "depth_bins", "variables", "test",
+    "depth_bins", "variables", "test", "omit",
 )
 
 # validate()'s arguments for the other forms of the full report
@@ -124,6 +124,8 @@ def check_options(live_validation, out_dir):
     options["depth_bins"] = depths.check_depth_bins(live_validation.get("depth_bins"))
     # checked against the matchups as they are made: those it does not pick are left out
     options["variables"] = selection.check_variables(live_validation.get("variables"))
+    # what the pages leave out: a key that picks no matchup made leaves nothing out
+    options["omit"] = report_items.check_omit(live_validation.get("omit"))
     report_dir = live_validation.get("out_dir", out_dir)
     if not isinstance(report_dir, str):
         raise TypeError("live_validation's out_dir must be a string")
@@ -424,9 +426,10 @@ class InterimReport:
 
     # ---- the notebooks ----
 
-    def finish_notebook(self, path):
+    def finish_notebook(self, path, removed=None):
         """Put the chunks and the report options in a notebook just written
-        from its template, as validate() does for the full report."""
+        from its template, as validate() does for the full report. removed is
+        what the page leaves out (see oceanval.report_items)."""
         from oceanval.chunkers import add_chunks
 
         options = self.options
@@ -442,17 +445,18 @@ class InterimReport:
             options["test"],
             transect=options.get("transect"),
             depth_bins=options.get("depth_bins"),
+            removed=removed,
         )
         oceanval._run_jupytext(["--sync"], glob.escape(path))
         oceanval._fill_notebook_paths(path, self.data_dir, self.folder)
         if os.path.exists(script):
             os.remove(script)
 
-    def write_notebook(self, stem, text):
+    def write_notebook(self, stem, text, removed=None):
         path = os.path.join(self.notebooks_dir, f"{stem}.ipynb")
         with open(path, "w") as file:
             file.write(text)
-        self.finish_notebook(path)
+        self.finish_notebook(path, removed)
         return path
 
     def template(self, name):
@@ -488,6 +492,7 @@ class InterimReport:
                 self.data_dir,
                 self.folder,
             )
+            removed = report_items.removed_for(options.get("omit"), report_items.POINT, variable, source, layer)
         else:
             stem = f"{source}_{variable}"
             [ff_def, *_] = glob.glob(
@@ -506,7 +511,8 @@ class InterimReport:
                 options["n_regions"],
                 transect=options.get("transect"),
             )
-        return self.write_notebook(stem, text), stem
+            removed = report_items.removed_for(options.get("omit"), report_items.GRIDDED, variable, source)
+        return self.write_notebook(stem, text, removed), stem
 
     # ---- the report ----
 
@@ -523,7 +529,9 @@ class InterimReport:
             self.template("001_methods.ipynb").replace("info_text", "Validation metrics summary"),
         )
         self.summary = self.write_notebook(
-            "summary", self.template("summary.ipynb").replace("domain_title", "Full domain")
+            "summary",
+            self.template("summary.ipynb").replace("domain_title", "Full domain"),
+            report_items.removed_for(self.options.get("omit"), report_items.SUMMARY),
         )
         self.write_status("starting")
         try:

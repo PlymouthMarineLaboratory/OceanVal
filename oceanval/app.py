@@ -74,7 +74,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store, store_view
-from oceanval import cdo_check, depths, file_workers, model_check, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, depths, file_workers, model_check, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, report_items, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
@@ -260,6 +260,11 @@ def check_domain_mask(form, cwd, errors):
     return path
 
 
+# whether the report is customized starts as nothing chosen, which must be answered (the tests
+# that are not about the question start it as "no", see tests/conftest.py)
+DEFAULT_CUSTOMIZE = ""
+
+
 def default_validate_form():
     """The report options step's boxes, as they start."""
     return {
@@ -275,7 +280,14 @@ def default_validate_form():
         "pdf": False,
         "word": False,
         "zip": False,
-        "concise": True,
+        # what the report has in it: "no" to customize it is the detailed report;
+        # "yes" leaves out the figures chosen, for every matchup together
+        # (per_matchup "no", omit_all) or for each (per_matchup "yes", omit_each,
+        # by the matchup's key and "summary"); see oceanval.report_items
+        "customize": DEFAULT_CUSTOMIZE,
+        "per_matchup": "",
+        "omit_all": [],
+        "omit_each": {},
         "transect": False,
         "transect_start_lon": "",
         "transect_start_lat": "",
@@ -413,6 +425,8 @@ def _form(form, defaults):
             if isinstance(value, bool)
             else _keys(form.get(name, value))
             if name in KEY_LISTS
+            else _omit_each(form.get(name, value))
+            if isinstance(value, dict)
             else _pairs(form.get(name, value))
             if isinstance(value, list)
             else str(form.get(name, value) or "").strip()
@@ -422,7 +436,20 @@ def _form(form, defaults):
 
 
 # the boxes that are lists of names, such as the matchups unticked
-KEY_LISTS = ("unticked", "unused")
+KEY_LISTS = ("unticked", "unused", "omit_all")
+
+
+def _omit_each(sent):
+    """The figures left out of each page, as the page sent them: a list of
+    ids by each matchup's key, and "summary", leaving out anything that is
+    not one."""
+    if not isinstance(sent, dict):
+        return {}
+    return {
+        key.strip(): _keys(ids)
+        for key, ids in sent.items()
+        if isinstance(key, str) and key.strip() and _keys(ids)
+    }
 
 
 def _keys(names):
@@ -679,6 +706,9 @@ def choose_matchups(form, matchups, errors):
             form[name] = defaults[name]
     if not any(matchup["kind"] == "point" and matchup["vertical"] for matchup in ticked):
         form["depth_bins"] = defaults["depth_bins"]
+    # a page is customized only for a matchup ticked
+    keys = {matchup["key"] for matchup in ticked} | {report_items.SUMMARY_KEY}
+    form["omit_each"] = {key: ids for key, ids in (form.get("omit_each") or {}).items() if key in keys}
     if len(ticked) == len(matchups):
         return form, None
     return form, list(dict.fromkeys(matchup["key"] for matchup in ticked))
@@ -724,9 +754,13 @@ def check_report(form, cwd, out_dir=None):
     for name in ("fixed_scale", "pdf", "word", "zip"):
         if form[name]:
             arguments[name] = True
-    # validate's own default is the concise report
-    if not form["concise"]:
+    # the detailed report, with the figures chosen left out if it is customized
+    omit, omit_errors = check_customize(form)
+    errors.update(omit_errors)
+    if not omit_errors:
         arguments["concise"] = False
+        if omit is not None:
+            arguments["omit"] = omit
     bins = check_depth_boxes(form["depth_bins"], errors)
     # validate's own default is OceanVal's bins
     if bins is not None and bins != depths.DEFAULT_DEPTH_BINS:
@@ -737,6 +771,66 @@ def check_report(form, cwd, out_dir=None):
     if name is not None:
         arguments["name"] = name
     return arguments, errors
+
+
+# the figures and analyses of the report, as the page shows them as boxes
+REPORT_ITEMS = report_items.as_json()
+
+# why the report's contents cannot be used, as the page says it too
+CUSTOMIZE_ASK = "Say whether you need to customize the validation output."
+PER_MATCHUP_ASK = "Say whether to customize the output variable by variable."
+
+
+def _omit_of_made(arguments):
+    """validate()'s arguments, once the matchups are made, with what omit
+    leaves out of the pages of matchups that could not be made taken out of
+    it, as validate refuses a key that picks no matchup."""
+    omit = arguments.get("omit")
+    if not isinstance(omit, dict):
+        return arguments
+    try:
+        made = selection.on_disk(arguments["data_dir"])
+    except (KeyError, OSError):
+        return arguments
+    kept = {
+        key: ids for key, ids in omit.items()
+        if key == report_items.SUMMARY_KEY
+        or any(selection.wanted([key], m["variable"], m["source"], m["layer"]) for m in made)
+    }
+    arguments = dict(arguments)
+    if kept:
+        arguments["omit"] = kept
+    else:
+        del arguments["omit"]
+    return arguments
+
+
+def check_customize(form):
+    """validate()'s omit, from the pages after the report options: None if
+    nothing is left out (the detailed report, which is all of it), a list of
+    ids for every matchup together, or a dict of them by each matchup's key
+    and "summary" (see oceanval.report_items). Returned with the errors, as
+    (omit, errors)."""
+    errors = {}
+    if form["customize"] not in ("yes", "no"):
+        errors["customize"] = CUSTOMIZE_ASK
+        return None, errors
+    if form["customize"] == "no":
+        return None, errors
+    if form["per_matchup"] not in ("yes", "no"):
+        errors["per_matchup"] = PER_MATCHUP_ASK
+        return None, errors
+    omit = form["omit_all"] if form["per_matchup"] == "no" else form["omit_each"]
+    try:
+        checked = report_items.check_omit(omit or None)
+    except ValueError as error:
+        errors["omit"] = str(error)
+        return None, errors
+    if checked is None:
+        return None, errors
+    if form["per_matchup"] == "no":
+        return checked[report_items.EVERY_PAGE], errors
+    return checked, errors
 
 
 # why the depth bins cannot be used, as the page says it too
@@ -1865,6 +1959,8 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 "validate": {
                     "form": self.validate_form,
                     "depth_defaults": default_depth_boxes(),
+                    # the figures and analyses the report can leave out
+                    "report_items": REPORT_ITEMS,
                 },
                 "compare": {"form": self.compare_form},
                 "report": {
@@ -5679,7 +5775,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
                 and not self.closed.is_set()
             )
             if report_next and self.report_arguments is not None:
-                validate = dict(self.report_arguments)
+                validate = _omit_of_made(dict(self.report_arguments))
             else:
                 self.status = status
                 self.returncode = run.returncode

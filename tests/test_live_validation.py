@@ -35,6 +35,7 @@ class TestOptions:
             "transect": None,
             "depth_bins": oceanval.depths.DEFAULT_DEPTH_BINS,
             "variables": None,
+            "omit": None,
         }
 
     def test_validates_report_options(self, tmp_path):
@@ -65,6 +66,14 @@ class TestOptions:
         # as validate has it: lists of floats
         assert options["transect"] == {"start": [-30.0, 0.0], "end": [-30.0, 65.0]}
         assert all(isinstance(x, float) for x in options["transect"]["start"])
+
+    def test_omit_is_checked_and_kept(self):
+        options = check_options({"omit": ["taylor", "monthly_maps"]}, "/run")
+        assert options["omit"] == {"*": ["monthly_maps", "taylor"]}
+        options = check_options({"omit": {"temperature/foo": "bias_map", "summary": ["taylor"]}}, "/run")
+        assert options["omit"] == {"temperature/foo": ["bias_map"], "summary": ["taylor"]}
+        with pytest.raises(ValueError, match="not a figure or analysis"):
+            check_options({"omit": ["nonsense"]}, "/run")
 
     def test_depth_bins_are_checked_and_kept(self):
         options = check_options({"depth_bins": [[20, None], [0, 20]]}, "/run")

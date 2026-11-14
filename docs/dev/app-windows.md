@@ -181,6 +181,21 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   where playwright/Chromium is missing, as in CI (`pip install playwright && python -m playwright install chromium` runs them).
 
 
+## The report's contents (`view-validate`, after the options)
+
+The report options (`validate` and `report_options`, `#validate-form`) are the first of several pages of one view (`reportPage.index`,
+`reportPages()`, `renderReportPage` in `oceanval_app.html`; Back steps back through them through `backTo`, and an answer on the two questions goes straight on to the next page (no Continue there; No to customizing is the last page, so its button builds the report), and a page of the view
+has the view's bar): **"Do you need to customize the validation output?"** (`#v-page-customize`, Yes/No `.choice` tiles; No is the
+detailed report, `concise=False`, and the last page), then, with Yes, **"Do you want to customize the output variable by variable?"**
+(`#v-page-each`), then boxes (`#v-page-items`): one page for every dataset (`omit_all`, a list) or one for each ticked matchup and then
+the summary (`omit_each`, by matchup key and `"summary"`). The catalogue is `report_items.as_json()`, sent as `state.validate.report_items`;
+each box is a `.choice.report-item` with a `.report-item__remove` (× at the top right, which becomes "Add back" and greys the box out).
+Both questions are required: the server's `check_customize` refuses them unanswered (`DEFAULT_CUSTOMIZE`, which the tests' autouse fixture
+`customize_question_answered` sets to "no"; mark a test `customize_question` to meet it empty), and `.report-question.needs-answer` boxes them
+in red. There is no Concise/Detailed choice in the window any more; `concise` stays in `validate()`. Which boxes a page has comes from each
+item's `when` and the options (`itemApplies`); seasonal ones say they need more than one month, as that is only known once matched up.
+Tests: `test_customizing_the_output_*_in_a_browser`, `TestValidateChecks`, `tests/test_report_omit.py`.
+
 ## Required ticks
 
 A tick the user must give (`f-existing_confirmed`, `ao-replace_analysis`) carries `data-check-needed`, so `OceanValGUI.syncRequired`

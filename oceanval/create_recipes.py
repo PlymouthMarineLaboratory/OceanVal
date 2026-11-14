@@ -904,7 +904,7 @@ MATCHUP_SETTINGS = (
     "as_missing",
     "domain_mask",
 )
-VALIDATE_SETTINGS = ("subregions", "pdf", "word", "concise")
+VALIDATE_SETTINGS = ("subregions", "pdf", "word", "concise", "omit")
 
 
 def _defaults(function, names):
@@ -1990,14 +1990,16 @@ def _footer(
         *(
             [
                 "# word=True and pdf=True also write Word and PDF versions of the report,",
-                "# and concise=False builds the full report rather than the concise one.",
+                "# concise=False builds the full report rather than the concise one, and",
+                "# omit leaves figures out of it (see help(oceanval.validate)).",
                 *validate_call,
             ]
             if validate
             else [
                 "# Build the report once the matchups are made, by running this. word=True",
-                "# and pdf=True also write Word and PDF versions of the report, and",
-                "# concise=False builds the full report rather than the concise one.",
+                "# and pdf=True also write Word and PDF versions of the report, concise=False",
+                "# builds the full report rather than the concise one, and omit leaves",
+                "# figures out of it (see help(oceanval.validate)).",
                 *_comment(validate_call),
             ]
         ),

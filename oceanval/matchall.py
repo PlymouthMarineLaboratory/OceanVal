@@ -1479,7 +1479,7 @@ def matchup(
         page is added as soon as the matchup is made, and the summary is run again, so the
         results can be looked at long before the last matchup is made. True builds it with
         validate's defaults. A dict gives validate's report options: out_dir, lon_lim, lat_lim,
-        subregions, fixed_scale, concise and transect (pdf, word and zip are for validate's
+        subregions, fixed_scale, concise, omit and transect (pdf, word and zip are for validate's
         full report).
         It is built in oceanval_interim_report, in out_dir (matchup's, unless the dict gives
         another), and matchup waits for it to be finished before returning. Build the full
