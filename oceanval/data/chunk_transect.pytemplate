@@ -5,7 +5,8 @@ from oceanval import transects
 
 transect = the_transect
 transect_file = ff_vertical.replace("_vertical.nc", "_surface.nc")
-transect_log = variable == "chlorophyll"
+from oceanval import skill
+transect_log = skill.is_log(variable)
 transect_problem = None
 transect_steps = None
 transect_unit = ""

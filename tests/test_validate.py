@@ -15,12 +15,12 @@ class TestValidate:
 
     def test_invalid_region(self):
         """Test that ValueError is raised for invalid subregions"""
-        with pytest.raises(ValueError, match="subregions must be 'nwes', 'global' or a path to a .nc file"):
+        with pytest.raises(ValueError, match="subregions must be 'nwes', 'global', 'latbands', 'cmems', 'biomes' or a path to a .nc file"):
             oceanval.validate(subregions="invalid_region", test=True)
 
     def test_valid_regions(self):
         """Test that supported regions pass validation."""
-        for region in ["nwes", "global"]:
+        for region in ["nwes", "global", "latbands", "cmems", "biomes"]:
             with pytest.raises(ValueError) as error:
                 oceanval.validate(subregions=region, lon_lim="not_a_list", test=True)
             assert "subregions must be" not in str(error.value)
@@ -138,7 +138,7 @@ class TestRegionFile:
 
     def test_region_file_not_nc(self, tmp_path):
         """Test that ValueError is raised when subregions is a path that is not a .nc file"""
-        with pytest.raises(ValueError, match="subregions must be 'nwes', 'global' or a path to a .nc file"):
+        with pytest.raises(ValueError, match="subregions must be 'nwes', 'global', 'latbands', 'cmems', 'biomes' or a path to a .nc file"):
             oceanval.validate(subregions=str(tmp_path / "regions.txt"), test=True)
 
     def test_region_file_missing(self, tmp_path):

@@ -2,7 +2,7 @@
 way the analysis report is (see oceanval.analysis_report) from its own
 notebook templates, and the words its notebooks use."""
 
-from oceanval import analysis
+from oceanval import analysis, regions
 
 # the chunk of a variable's page for each kind of analysis: letters only, as chunkers.is_chunk needs
 CHUNKS = {
@@ -91,9 +91,7 @@ def series_area_text(info, analysis_, variable, kind):
         where += f" inside longitudes {lon[0]:g} to {lon[1]:g} and latitudes {lat[0]:g} to {lat[1]:g}"
     text = f"The series are area-weighted means over {where}"
     if analysis_["regions"]:
-        which = {"nwes": "the northwest European Shelf regions", "global": "the global regions"}.get(
-            info.get("subregions"), "the regions of your own file"
-        )
+        which = regions.description(info.get("subregions"), "the regions of your own file")
         text += f", and over each of {which} ({', '.join(analysis_['regions'])})"
     if analysis_["stations"]:
         text += ", and at the cell of the model's grid nearest each station"
@@ -323,9 +321,7 @@ def methods(info):
             "The sections, the grids of months and the heat maps of the simulations share one colour scale. With exactly two simulations, each figure is followed by one of the first simulation minus the second, on a scale that is symmetric about zero."
         )
     if info.get("subregions"):
-        which = {"nwes": "the northwest European Shelf regions", "global": "the global regions"}.get(
-            info["subregions"], f"the regions in `{info['subregions']}`"
-        )
+        which = regions.description(info["subregions"], f"the regions in `{info['subregions']}`")
         methods_.append(
             f"**Regions.** The regional summaries use {which}, as OceanVal's validation does: the model's field is put on the regions' grid, multiplied by each region's map, and its area-weighted spatial mean taken. "
             "A region with no cells in the model's domain is left out."

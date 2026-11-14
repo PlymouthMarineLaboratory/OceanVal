@@ -906,6 +906,28 @@ if available and wanted("stats_table"):
 
 
 # %% tags=["remove-input"]
+# chlorophyll and kd490 are roughly log-normal, so their statistics are given on log10 values too
+from oceanval import skill
+if available and wanted("stats_table") and skill.is_log(variable):
+    log_rows = [("All", skill.log_stats(df_raw.model.values, df_raw.observation.values))]
+    if is_month:
+        for month_number in sorted(df_raw.month.unique()):
+            df_month = df_raw.query("month == @month_number")
+            log_rows.append((calendar.month_abbr[int(month_number)], skill.log_stats(df_month.model.values, df_month.observation.values)))
+    df_log = pd.DataFrame({
+        "Time period": [x[0] for x in log_rows],
+        "Bias": [x[1]["bias"] for x in log_rows],
+        "RMSD": [x[1]["rmsd"] for x in log_rows],
+        "Correlation": [x[1]["r"] for x in log_rows],
+        "Number of observations": ["{:,}".format(x[1]["n"]) for x in log_rows],
+    })
+    df_log.iloc[:, 1:4] = df_log.iloc[:, 1:4].astype(float).round(3)
+    df_display(df_log)
+    md(f"**Table {i_table}:** The statistics of Table {i_table - 1} on the log10 of {layer_long} {vv_name} (log10 of {unit}), as {vv_name} is roughly log-normal. Observations where the model or the observation is not positive are left out.")
+    i_table += 1
+
+
+# %% tags=["remove-input"]
 if available and wanted("regression_table"):
     md(f"A linear regression analysis of modelled and observed {vv_name} was performed. The modelled {vv_name} was used as the independent variable and the observed {vv_name} was used as the dependent variable. The results are shown in the table below.")
 

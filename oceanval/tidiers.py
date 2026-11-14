@@ -106,7 +106,7 @@ def df_display(df):
             df = pd.concat([df1, df2])
             df = df.reset_index(drop = True)
 
-    if len(df.columns) > 7:
+    if len(df.columns) > 7 and "Variable" in df.columns:
         # remove concentration from variable
         df = df.assign(Variable = df["Variable"].str.replace(" concentration", ""))
 

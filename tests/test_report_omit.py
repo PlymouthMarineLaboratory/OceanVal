@@ -174,7 +174,11 @@ def test_a_point_page_leaves_out_the_figures_and_tables_omitted(detailed, omitte
 def test_the_summary_leaves_out_the_figures_omitted(detailed, omitted):
     text = omitted["summary"]
 
-    assert "Taylor diagram" not in text
+    # the diagram's heading and caption (the spatial table's caption still says its
+    # numbers place each variable on a Taylor diagram)
+    assert "Taylor diagrams for the sea surface" in detailed["summary"]
+    assert "Taylor diagrams for the sea surface" not in text
+    assert "Taylor diagram for sea surface" not in text
     # its other tables are still there
     assert "Model biases based on gridded sea surface data" in text
     assert "Spatial performance of the model" in text

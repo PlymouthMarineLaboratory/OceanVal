@@ -2,7 +2,8 @@
 # %% tags=["remove-input"]
 
 
-if variable == "chlorophyll":
+from oceanval import skill
+if skill.is_log(variable):
     transformation = "log10"
 else:
     transformation = None 

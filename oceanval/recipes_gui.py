@@ -47,7 +47,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import model_expr, netcdf_lock, own_data, time_res, user_recipes, variable_identify
+from oceanval import model_expr, netcdf_lock, own_data, regions, time_res, user_recipes, variable_identify
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -385,7 +385,7 @@ def check_missing(text, errors):
 
 def check_subregions(text, errors):
     """The regional summaries chosen in the subregions and subregions_file
-    boxes: None, "nwes", "global" or the path to a .nc file.
+    boxes: None, a built-in set (oceanval.regions.BUILT_IN) or the path to a .nc file.
 
     text(name) is what a box holds. None as well if they cannot be used, in
     which case errors says why.
@@ -401,7 +401,7 @@ def check_subregions(text, errors):
             errors["subregions_file"] = "There is no file at this path."
         else:
             return path
-    elif choice in ("", "nwes", "global"):
+    elif choice == "" or regions.is_built_in(choice):
         return choice or None
     else:
         errors["subregions"] = "Choose one of the options."

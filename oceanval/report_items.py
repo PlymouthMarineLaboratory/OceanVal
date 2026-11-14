@@ -35,8 +35,9 @@ EVERY_PAGE = "*"
 # seasonal (the observations have more than one month), subregions
 # (validate's subregions), vertical (the matchup is through the water
 # column), transect (validate's transect), all_layer (a point matchup
-# through the water column), gridded (the report has a gridded matchup)
-WHEN = ("seasonal", "subregions", "vertical", "transect", "all_layer", "gridded")
+# through the water column), gridded (the report has a gridded matchup),
+# depths (a point or gridded matchup through the water column)
+WHEN = ("seasonal", "subregions", "vertical", "transect", "all_layer", "gridded", "depths")
 
 Item = namedtuple("Item", ["id", "page", "label", "text", "when"])
 
@@ -62,6 +63,9 @@ ITEMS = [
          "Bias, RMSD and correlation in each region.", ("subregions",)),
     Item("zonal_sections", GRIDDED, "Depth-latitude sections",
          "Zonal mean sections through the water column, and their bias.", ("vertical",)),
+    Item("depth_level_table", GRIDDED, "Statistics at each depth",
+         "Bias, RMSD, correlation and the normalised standard deviation at each depth level of the observations.",
+         ("vertical",)),
     Item("transect_map", GRIDDED, "Transect map",
          "A map of the transect.", ("transect",)),
     Item("transect_surface", GRIDDED, "Values along the transect",
@@ -98,8 +102,9 @@ ITEMS = [
     Item("temporal_table", SUMMARY, "Temporal correlation table",
          "The spatial mean of each gridded matchup's seasonal correlation.", ("gridded",)),
     Item("depth_performance", SUMMARY, "Performance across depths",
-         "A map of the point matchups at each depth range, and RMSD, bias and correlation tables.",
-         ("all_layer",)),
+         "A map of the point matchups at each depth range, and RMSD, bias and correlation tables of the point and "
+         "gridded matchups through the water column.",
+         ("depths",)),
 ]
 
 BY_ID = {item.id: item for item in ITEMS}

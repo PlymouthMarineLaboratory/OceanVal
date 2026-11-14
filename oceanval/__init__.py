@@ -20,6 +20,7 @@ import dill
 
 from oceanval import depths
 from oceanval import prompts
+from oceanval import regions
 from oceanval import report_items
 from oceanval import selection
 from oceanval import transects
@@ -1253,9 +1254,9 @@ def _check_report_options(
         subregions = region
     region_file = None
     n_regions = None
-    if subregions is not None and subregions not in ["nwes", "global"]:
+    if subregions is not None and not regions.is_built_in(subregions):
         if not str(subregions).endswith(".nc"):
-            raise ValueError("subregions must be 'nwes', 'global' or a path to a .nc file")
+            raise ValueError(f"subregions must be {regions.choices_text()}")
         region_file = os.path.abspath(os.path.expanduser(subregions))
         n_regions = _check_region_file(region_file)
     return subregions, region_file, n_regions
@@ -1335,6 +1336,12 @@ def _gridded_notebook_text(
     elif region_file is not None:
         filedata = filedata.replace(
             "zonal_height", str(max(2000, 350 * (n_regions + 1)))
+        )
+    elif regions.is_built_in(subregions) and subregions != "global":
+        # the zonal sections are drawn for each region, so the figure grows with them
+        n_built_in = len(nc.open_data(regions.path(subregions), checks=False).variables)
+        filedata = filedata.replace(
+            "zonal_height", str(max(2000, 350 * (n_built_in + 1)))
         )
     else:
         filedata = filedata.replace("zonal_height", "2000")
@@ -1489,7 +1496,7 @@ def validate(
     fixed_scale : bool
         Whether to use a fixed scale for the seasonal plots. Default is False. If True, the minimum and maximum values are capped to cover the 2nd and 98th percentiles of both model and observations.
     subregions : str or None
-        The sub-regions used for the regional summaries. Either "nwes" (northwest European Shelf), "global", or a path to your own regions netCDF (.nc) file. The file should have one 2D (lon/lat) variable per region, with 1 for grid cells in the region and missing values elsewhere. Any 0 is set to missing and ignored in regional summaries. Each region is named by its long_name attribute, or its variable name if it has none. Default is None.
+        The sub-regions used for the regional summaries. Either "nwes" (northwest European Shelf), "global" (ocean basins), "latbands" (latitude bands), "cmems" (the regions of the Copernicus Marine global quality documents), "biomes" (the 17 open-ocean biomes of Fay and McKinley, 2014), or a path to your own regions netCDF (.nc) file. The file should have one 2D (lon/lat) variable per region, with 1 for grid cells in the region and missing values elsewhere. Any 0 is set to missing and ignored in regional summaries. Each region is named by its long_name attribute, or its variable name if it has none. Default is None.
     pdf : bool
         Whether to also generate PDF downloads of the report (a per-page PDF and a combined PDF of the whole report). Default is False, since generating them is slow and most users only need the HTML report.
     word : bool
@@ -1511,7 +1518,7 @@ def validate(
     name : str or None
         A name for this validation, to add it to your OceanVal history, where the window's Tools & info > View previous work lists it with a link to its report. It must not be the name of another validation there. Default is None, which does not add the validation to the history.
     omit : list, dict or None
-        Figures and analyses to leave out of the report, by id, on top of what concise leaves out. A list leaves them out of every page they are on, e.g. ["monthly_maps", "regression_table", "taylor"]. A dict leaves them out of some pages: each key is a matchup, as for variables ("temperature" for all its sources, or "variable/source"), or "summary" for the summary page, e.g. {"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}. The ids are, on a gridded matchup's page, clim_map, bias_map, seasonal_cor_map, monthly_maps, spatial_cor_table, regional_map, regional_cycle, regional_table, zonal_sections, transect_map, transect_surface and transect_section; on a point matchup's page, locations_map, mean_map, point_bias_map, scatter, stats_table, regression_table, depth_locations_map and depth_table; and on the summary page, taylor, bias_table, spatial_table, temporal_maps, temporal_table and depth_performance (see oceanval.report_items). What other pages read is still calculated, so the summary is unchanged by what a matchup's page leaves out. Default is None, which leaves nothing else out.
+        Figures and analyses to leave out of the report, by id, on top of what concise leaves out. A list leaves them out of every page they are on, e.g. ["monthly_maps", "regression_table", "taylor"]. A dict leaves them out of some pages: each key is a matchup, as for variables ("temperature" for all its sources, or "variable/source"), or "summary" for the summary page, e.g. {"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}. The ids are, on a gridded matchup's page, clim_map, bias_map, seasonal_cor_map, monthly_maps, spatial_cor_table, regional_map, regional_cycle, regional_table, zonal_sections, depth_level_table, transect_map, transect_surface and transect_section; on a point matchup's page, locations_map, mean_map, point_bias_map, scatter, stats_table, regression_table, depth_locations_map and depth_table; and on the summary page, taylor, bias_table, spatial_table, temporal_maps, temporal_table and depth_performance (see oceanval.report_items). What other pages read is still calculated, so the summary is unchanged by what a matchup's page leaves out. Default is None, which leaves nothing else out.
 
     Returns
     -------

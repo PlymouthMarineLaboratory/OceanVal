@@ -33,3 +33,17 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
    `title` its scatters use are written whatever is shown); and a section whose items are all left out loses its heading. A new
    figure needs an `Item`, a `wanted()` gate and a line in `tests/test_report_omit.py`; `tests/test_report_items.py` checks the
    catalogue and the notebooks agree.
+6. **Statistics are worked out once, in `oceanval/skill.py`, and by nctoolkit** (the gap report's options 30–33; the user's rule,
+   2026-11-14: every calculation on gridded data is nctoolkit's, never xarray or numpy). `sums(ds, log)` runs one CDO `expr` (area `gridarea(model)`, or `cos(clat())` weights if CDO cannot work areas out): the cells with both (`isMissval`), their area `w`, `w` times the model and the observation, and `w` times the squared deviations of each from its own area-weighted mean over the grid (`fldsum` inside the expr) and their product, the squared and absolute difference, then `spatial_sum()`, one row per time step and level, written in F64 (nctoolkit forgets `set_precision` at each run, so it is set for the last). The deviations are centred in CDO because E[x²] − E[x]² from raw sums lost the variance of a field whose spread is small next to its mean (r came out 1.0003). Only `stats_from_sums` is Python, pooling the rows (over months, or levels weighted by `layer_thickness`) with the spread of the rows' means added, into the means, population SDs, bias, pbias, MAE, RMSD, centred RMSD, r, nsd and crmsd/σo, so crmsd² = σo² + σm² − 2σoσm·r holds. CDO's `log10(0)` is −inf, so the log is `(x>0)?log10(x):missval(x)`; and `0*missing` is 0 in CDO's expr, so masks are ternaries (`skill.paired` masks a dataset for the figures). The tests check these numbers independently with xarray and xCDAT's area weights (`tests/test_skill.py`, `tests/test_report_statistics.py`). `LOG_VARIABLES` (chlorophyll, kd490; `is_log`) are also given on log10
+   values (no pbias). The summary's bias and spatial tables (`file_stats` of the annual means), the gridded regional table (cell 21,
+   `dataset_stats` of the climatology times each region's mask, written to `regionals/{source}_{variable}_regional_stats.csv` with
+   `scale` linear/log10 and a "Full Domain" row when the region file has none), and `chunk_verticalstats` (`level_stats`, then
+   `bin_stats` by `depth_bins`, written to `oceanval_results/{variable}_{source}_gridded_depth_summary.csv`, which the summary's depth
+   tables read beside the point `*_depth_summary.csv`) all use it. Point matchups are csv tables, so the point page's log10 table uses
+   `weighted_stats`/`log_stats` on its columns (pandas). `tidiers.df_display` drops " concentration" from a `Variable` column only if
+   there is one.
+7. **The built-in region sets are `oceanval/regions.py`** (`BUILT_IN`, `path`, `is_built_in`, `SOURCES` for the page's Data Sources):
+   `nwes`, `global`, and `latbands`, `cmems`, `biomes`, the last three written by `scripts/make_region_files.py` on `global_subdomains.nc`'s
+   1° grid, land masked with `TM_WORLD_BORDERS`. Every place that takes `subregions` (validate, live, analyze, compare_simulations, the
+   windows' checks, `gridded_template` cell 18, `comparison_regional`) asks it, so a new set is a file and an entry there. The report item
+   condition `depths` is a point all-layer matchup or a gridded vertical one (`itemApplies` in `oceanval_app.html`).
