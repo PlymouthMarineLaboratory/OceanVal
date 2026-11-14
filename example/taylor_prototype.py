@@ -10,41 +10,68 @@ def sector_and_rmax(nsd, r, cap=2.0):
     return half, min(rmax, cap) if np.max(nsd) > cap else rmax
 
 def draw(ax, nsd, r, nums, half, rmax, ms=13):
-    ax.set_theta_zero_location("E"); ax.set_theta_direction(1)
-    ax.set_thetamin(0); ax.set_thetamax(180 if half else 90)
-    ax.set_rlim(0, rmax)
-    ticks = [-0.99,-0.9,-0.8,-0.6,-0.4,-0.2] if half else []
-    ticks = ticks[::-1] if False else ticks
-    pos = [0,0.2,0.4,0.6,0.8,0.9,0.95,0.99]
-    allt = sorted(set((ticks if half else []) + pos), reverse=True)
-    allt = [t for t in allt if t != -0.99] if half else allt
-    ax.set_xticks([math.acos(t) for t in allt]); ax.set_xticklabels([f"{t:g}" for t in allt], fontsize=8, color=MUTED)
-    ax.set_rgrids(np.arange(0.5, rmax+1e-9, 0.5), fontsize=8, color=MUTED, angle=0 if not half else 90)
-    ax.grid(color=GRID, lw=0.6)
-    # RMSD arcs around reference (1, theta=0)
+    """Cartesian Taylor diagram: a point at radius nsd and angle arccos(r) sits at (nsd*r, nsd*sqrt(1-r^2)).
+    The axis box is exactly the sector (2:1 for a half circle, square for a quarter), so no band is left empty."""
+    th_max = np.pi if half else np.pi/2
+    xmin = -rmax if half else 0.0
+    ax.set_xlim(xmin, rmax); ax.set_ylim(0, rmax)
+    ax.set_aspect("equal"); ax.axis("off")
+
+    def arc(rho, a, b, **kw):
+        t = np.linspace(a, b, 300)
+        ax.plot(rho*np.cos(t), rho*np.sin(t), **kw)
+
+    # standard-deviation arcs, centred on the origin, labelled along the baseline
+    for k in np.arange(0.5, rmax+1e-9, 0.5):
+        arc(k, 0, th_max, color=GRID, lw=0.6)
+        ax.text(k, -0.04*rmax, f"{k:g}", ha="center", va="top", fontsize=8, color=MUTED)
+
+    # centred-RMSD arcs, centred on the reference point (1, 0)
+    t = np.linspace(0, np.pi, 400)
     for d in (0.25, 0.5, 0.75, 1.0):
-        t = np.linspace(0, math.pi, 400); x = 1 + d*np.cos(t); y = d*np.sin(t)
-        for sgn in (1,):
-            rr = np.hypot(x, y); th = np.arctan2(y, x)
-            m = (rr <= rmax) & (th <= (math.pi if half else math.pi/2))
-            ax.plot(np.where(m, th, np.nan), np.where(m, rr, np.nan), color=GRID, lw=0.8, ls=(0,(4,3)))
-    ax.plot([0],[1], marker="*", color=INK, ms=14, ls="", zorder=5, clip_on=False)
-    th = np.arccos(np.clip(r,-1,1)); rad = np.minimum(nsd, rmax)
-    X=rad*np.cos(th); Y=rad*np.sin(th); mind=0.105*rmax
+        x = 1 + d*np.cos(t); y = d*np.sin(t)
+        m = (np.hypot(x, y) <= rmax) & (y >= 0) & (x >= xmin)
+        ax.plot(np.where(m, x, np.nan), np.where(m, y, np.nan), color=GRID, lw=0.8, ls=(0, (4, 3)))
+
+    # correlation rays, labelled just outside the rim
+    cors = [0, 0.2, 0.4, 0.6, 0.8, 0.9, 0.95, 0.99] + ([-0.9, -0.8, -0.6, -0.4, -0.2] if half else [])
+    for c in cors:
+        th = math.acos(c)
+        ax.plot([0, rmax*np.cos(th)], [0, rmax*np.sin(th)], color=GRID, lw=0.6)
+        ax.text(1.06*rmax*np.cos(th), 1.06*rmax*np.sin(th), f"{c:g}", ha="center", va="center", fontsize=8, color=MUTED)
+
+    # axis titles: standard deviation under the baseline, correlation outside the rim
+    ax.text((xmin + rmax)/2, -0.14*rmax, "Normalised standard deviation", ha="center", va="top",
+            fontsize=9, color=MUTED, clip_on=False)
+    a = th_max/2
+    ax.text(1.2*rmax*np.cos(a), 1.2*rmax*np.sin(a), "Correlation", ha="center", va="center",
+            fontsize=9, color=MUTED, rotation=math.degrees(a) - 90, clip_on=False)
+
+    # rim and baseline
+    arc(rmax, 0, th_max, color="black", lw=0.9)
+    ax.plot([xmin, rmax], [0, 0], color="black", lw=0.9)
+
+    # reference point (observations)
+    ax.plot([1], [0], marker="*", color=INK, ms=14, ls="", zorder=5, clip_on=False)
+
+    # variables; outliers beyond rmax are pinned to the rim as hollow markers
+    rad = np.minimum(nsd, rmax)
+    th = np.arccos(np.clip(r, -1, 1))
+    X = rad*np.cos(th); Y = rad*np.sin(th)
+    mind = 0.105*rmax
     for _ in range(60):
         for i in range(len(X)):
-            for j in range(i+1,len(X)):
-                dx,dy=X[j]-X[i],Y[j]-Y[i]; d=math.hypot(dx,dy)
-                if d<mind:
-                    if d<1e-9: dx,dy,d=1e-3,0,1e-3
-                    k=(mind-d)/2/d; X[i]-=dx*k;Y[i]-=dy*k;X[j]+=dx*k;Y[j]+=dy*k
-    Y=np.maximum(Y,0.0); th=np.arctan2(Y,X); rad=np.hypot(X,Y)
+            for j in range(i+1, len(X)):
+                dx, dy = X[j]-X[i], Y[j]-Y[i]; d = math.hypot(dx, dy)
+                if d < mind:
+                    if d < 1e-9: dx, dy, d = 1e-3, 0, 1e-3
+                    k = (mind-d)/2/d; X[i] -= dx*k; Y[i] -= dy*k; X[j] += dx*k; Y[j] += dy*k
+    Y = np.maximum(Y, 0.0)
     clipped = nsd > rmax
-    for t, rr, n, c in zip(th, rad, nums, clipped):
-        ax.plot([t],[rr], marker="o", ms=ms, mfc=("white" if c else BLUE), mec=BLUE, mew=1.5, ls="", zorder=6, clip_on=False)
-        ax.annotate(str(n), (t, rr), ha="center", va="center", fontsize=7.5 if n<10 else 7, color=(BLUE if c else "white"), fontweight="bold", zorder=7, annotation_clip=False)
-    ax.set_ylabel("")
-    ax.text(0.5 if not half else 0.5, -0.02, "", transform=ax.transAxes)
+    for x, y, n, c in zip(X, Y, nums, clipped):
+        ax.plot([x], [y], marker="o", ms=ms, mfc=("white" if c else BLUE), mec=BLUE, mew=1.5, ls="", zorder=6, clip_on=False)
+        ax.annotate(str(n), (x, y), ha="center", va="center", fontsize=7.5 if n < 10 else 7,
+                    color=(BLUE if c else "white"), fontweight="bold", zorder=7, annotation_clip=False)
 
 ROW = 0.22      # table row height, inches
 TABLE_W = 2.6   # table width, inches
@@ -88,10 +115,7 @@ def figure(labels, nsd, r, max_per_panel=10, path="out.png", split_by="order"):
     fig = plt.figure(figsize=(W, H))
     for p, ii in enumerate(idx):
         x0 = p*(panel_w + 0.4)
-        # A polar axis is always fitted into a square box, with the drawn wedge centred in it
-        # (a half circle sits in the middle band). Give it a dw x dw box placed so the wedge
-        # lands on the dw x dh region we laid out.
-        ax = fig.add_axes([(x0+PAD_L)/W, (PAD_B - (dw-dh)/2)/H, dw/W, dw/H], projection="polar")
+        ax = fig.add_axes([(x0+PAD_L)/W, PAD_B/H, dw/W, dh/H])
         draw(ax, nsd[ii], r[ii], nums[ii], half, rmax)
         if npan>1:
             fig.text(x0/W, 1 - 0.02/H, f"({'ab'[p]})", fontsize=10, fontweight="bold", va="top")
