@@ -294,6 +294,8 @@ def default_validate_form():
         "transect_end_lon": "",
         "transect_end_lat": "",
         "depth_bins": default_depth_boxes(),
+        # validate's map_depths, as typed (e.g. "200, 1000"): empty for its defaults
+        "map_depths": "",
         # the matchups listed whose ticks were taken off, by their
         # "variable/source": any others, as of matchups found later, are ticked
         "unticked": [],
@@ -715,7 +717,7 @@ def choose_matchups(form, matchups, errors):
 
 
 # the report options that are only for gridded matchups
-GRIDDED_ONLY = ("subregions", "subregions_file", "fixed_scale", "transect")
+GRIDDED_ONLY = ("subregions", "subregions_file", "fixed_scale", "transect", "map_depths")
 
 
 def check_report(form, cwd, out_dir=None):
@@ -761,6 +763,9 @@ def check_report(form, cwd, out_dir=None):
         arguments["concise"] = False
         if omit is not None:
             arguments["omit"] = omit
+    map_depths = check_map_depths_box(form["map_depths"], errors)
+    if map_depths is not None:
+        arguments["map_depths"] = map_depths
     bins = check_depth_boxes(form["depth_bins"], errors)
     # validate's own default is OceanVal's bins
     if bins is not None and bins != depths.DEFAULT_DEPTH_BINS:
@@ -771,6 +776,30 @@ def check_report(form, cwd, out_dir=None):
     if name is not None:
         arguments["name"] = name
     return arguments, errors
+
+
+# what the page says under the map depths' box (oceanval_app.html's MAP_DEPTHS_HINT)
+MAP_DEPTHS_HINT = (
+    "Leave it empty for oxygen at 200 m and 500 m, and every other variable at 500 m. "
+    "Each map is at the observations' depth level nearest the depth."
+)
+MAP_DEPTHS_NUMBERS = "Give the depths as numbers of metres, 0 or more, separated by commas, e.g. 200, 1000."
+
+
+def check_map_depths_box(text, errors):
+    """validate()'s map_depths from its box: None (validate's defaults) if it
+    is empty, else the depths, sorted. None, with errors["map_depths"] saying
+    why, if they cannot be used."""
+    text = str(text or "").strip()
+    if not text:
+        return None
+    parts = [x for x in re.split(r"[,\s;]+", text) if x]
+    try:
+        values = [float(x) for x in parts]
+        return depths.check_map_depths(values)
+    except ValueError:
+        errors["map_depths"] = MAP_DEPTHS_NUMBERS
+        return None
 
 
 # the figures and analyses of the report, as the page shows them as boxes

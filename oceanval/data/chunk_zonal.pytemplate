@@ -1,0 +1,132 @@
+# %% tags=["remove-cell"]
+# zonal means of the matchup, worked out by nctoolkit (the gap report's options 3, 4 and 13):
+# the annual mean against latitude, the monthly climatology by latitude and month, and, for a
+# matchup of paired years, every month by latitude. Chlorophyll and kd490 are shown as log10
+from oceanval import gridded_plots, skill, transects
+import matplotlib.pyplot as plt
+zonal_log = skill.is_log(variable)
+zonal_file = ff_vertical.replace("_vertical.nc", "_surface.nc")
+# the unit in mathtext, as the transect figures label it
+try:
+    zonal_unit = transects.unit_text(zonal_file, variable)
+except:
+    zonal_unit = ""
+zonal_label = f"{vv_name} ({zonal_unit})" if zonal_unit else vv_name
+
+
+def zonal_of(ds_in):
+    """The zonal means of a matchup's model and observation and their difference, by
+    nctoolkit: (times, latitudes, observation, model, difference), each (time, latitude)."""
+    def reduced(regular):
+        ds_z = ds_in.copy()
+        skill.paired(ds_z, log = zonal_log)
+        ds_z.cdo_command("aexpr,'difference=model-observation;'")
+        if regular:
+            # a grid CDO cannot take zonal means of (curvilinear) goes onto a regular one, as the maps do
+            ds_z.to_latlon(lon = [lon_min, lon_max], lat = [lat_min, lat_max],
+                           res = [max((lon_max - lon_min) / 200, 0.05), max((lat_max - lat_min) / 200, 0.05)])
+        ds_z.zonal_mean()
+        ds_z.run()
+        return ds_z
+    try:
+        ds_z = reduced(False)
+    except:
+        ds_z = reduced(True)
+    xz = ds_z.to_xarray()
+    lat_name = [x for x in xz.coords if "lat" in x.lower()][0]
+    time_name = [x for x in xz["model"].dims if "time" in x.lower()][0]
+    def values(name):
+        found = xz[name].transpose(time_name, lat_name, ...)
+        return found.values.reshape(found.sizes[time_name], found.sizes[lat_name])
+    return xz[time_name].values, xz[lat_name].values, values("observation"), values("model"), values("difference")
+
+
+zonal_wanted = [x for x in ["zonal_lines", "hovmoller_clim", "hovmoller_years"] if wanted(x)]
+zonal_paired = False
+if os.path.exists(zonal_file):
+    ds_zonal = nc.open_data(zonal_file, checks = False)
+    ds_zonal.subset(lon = lon_lim, lat = lat_lim)
+    zonal_paired = len(ds_zonal.times) > 12
+
+# %% tags=["remove-input"]
+if os.path.exists(zonal_file) and len(zonal_wanted) > 0:
+    md(f"## How does the model compare with the observations across latitudes?")
+    md(f"The figures below compare the zonal mean of {layer_long} {vv_name}, its average over longitude, in the model and the observations. Only grid cells with both model and observational data are included." + (f" As {vv_name} is roughly log-normal, its log10 is averaged and shown." if zonal_log else ""))
+
+# %% tags=["remove-input"]
+# the zonal mean of the annual mean, and the observations' interquartile range across longitude,
+# written for compare() whatever this page shows
+if os.path.exists(zonal_file):
+    ds_annual_zonal = ds_zonal.copy()
+    ds_annual_zonal.tmean("month")
+    ds_annual_zonal.tmean()
+    ds_annual_zonal.run()
+    _, zonal_lats, zonal_obs, zonal_model, _ = zonal_of(ds_annual_zonal)
+    zonal_quartiles = []
+    for pctl in (25, 75):
+        ds_q = ds_annual_zonal.copy()
+        skill.paired(ds_q, log = zonal_log)
+        ds_q.subset(variables = "observation")
+        try:
+            ds_q.cdo_command(f"zonpctl,{pctl}")
+            ds_q.run()
+        except:
+            ds_q = ds_annual_zonal.copy()
+            skill.paired(ds_q, log = zonal_log)
+            ds_q.subset(variables = "observation")
+            ds_q.to_latlon(lon = [lon_min, lon_max], lat = [lat_min, lat_max],
+                           res = [max((lon_max - lon_min) / 200, 0.05), max((lat_max - lat_min) / 200, 0.05)])
+            ds_q.cdo_command(f"zonpctl,{pctl}")
+            ds_q.run()
+        zonal_quartiles.append(ds_q.to_xarray()["observation"].values.reshape(-1))
+    if not os.path.exists("../../oceanval_results/zonal_mean"):
+        os.makedirs("../../oceanval_results/zonal_mean")
+    pd.DataFrame({
+        "lat": zonal_lats, "observation": zonal_obs[0], "model": zonal_model[0],
+        "observation_q25": zonal_quartiles[0], "observation_q75": zonal_quartiles[1],
+        "log10": zonal_log, "unit": zonal_unit,
+    }).to_csv(f"../../oceanval_results/zonal_mean/zonalmean_{variable}_{source}.csv", index = False)
+    if wanted("zonal_lines"):
+        gridded_plots.zonal_lines(
+            zonal_lats, zonal_obs[0], zonal_model[0], f"log10 {zonal_label}" if zonal_log else zonal_label,
+            obs_low = zonal_quartiles[0], obs_high = zonal_quartiles[1],
+        )
+        plt.show()
+
+# %% tags=["remove-input"]
+if os.path.exists(zonal_file) and wanted("zonal_lines"):
+    md(f"**Figure {i_figure}**: Zonal mean of the annual mean {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + f" in the model and the observations. The grey band is the observations' interquartile range across longitude at each latitude.{annual_note}")
+    i_figure += 1
+
+# %% tags=["remove-input"]
+# latitude by month: the monthly climatology's zonal mean
+zonal_clim = os.path.exists(zonal_file) and len(clim_months) == 12 and wanted("hovmoller_clim")
+if zonal_clim:
+    ds_hov = ds_zonal.copy()
+    ds_hov.tmean("month")
+    ds_hov.run()
+    hov_times, hov_lats, hov_obs, hov_model, hov_diff = zonal_of(ds_hov)
+    hov_months = [int(str(x)[5:7]) for x in hov_times]
+    gridded_plots.hovmoller(hov_months, hov_lats, hov_obs, hov_model, hov_diff, zonal_label, log = zonal_log)
+    plt.show()
+
+# %% tags=["remove-input"]
+if zonal_clim:
+    md(f"**Figure {i_figure}**: Zonal mean of {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + " in each month of the climatology, by latitude, in the observations, the model, and the model minus the observations" + (" (the log10 of their ratio)" if zonal_log else "") + ". It shows whether blooms, nutrient drawdown and other seasonal changes happen at the right latitude and the right time.")
+    i_figure += 1
+
+# %% tags=["remove-input"]
+# latitude by time: every month of a matchup of paired years
+zonal_years = os.path.exists(zonal_file) and zonal_paired and wanted("hovmoller_years")
+if zonal_years:
+    year_times, year_lats, year_obs, year_model, year_diff = zonal_of(ds_zonal)
+    gridded_plots.hovmoller(gridded_plots.decimal_years(year_times), year_lats, year_obs, year_model, year_diff,
+                            zonal_label, log = zonal_log, monthly = False)
+    plt.show()
+
+# %% tags=["remove-input"]
+if zonal_years:
+    md(f"**Figure {i_figure}**: Zonal mean of {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + " in every month matched up, by latitude, in the observations, the model, and the model minus the observations. Unlike the climatology, it shows the differences between years, such as El Niño or a weak bloom year, and any drift of the model.")
+    i_figure += 1
+if os.path.exists(zonal_file):
+    del ds_zonal

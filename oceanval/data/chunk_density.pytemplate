@@ -1,0 +1,45 @@
+# %% tags=["remove-input"]
+# every matched cell and month as a density scatter (the gap report's option 9). The values are
+# paired, and log10 for chlorophyll and kd490, by nctoolkit, and its statistics are nctoolkit's
+# (oceanval.skill). Only the drawing bins the values, a time step at a time
+from oceanval import gridded_plots, skill, transects
+import matplotlib.pyplot as plt
+density_file = ff_vertical.replace("_vertical.nc", "_surface.nc")
+density_log = skill.is_log(variable)
+density_shown = False
+if os.path.exists(density_file) and wanted("density_scatter"):
+    ds_density = nc.open_data(density_file, checks = False)
+    ds_density.subset(lon = lon_lim, lat = lat_lim)
+    skill.paired(ds_density, log = density_log)
+    ds_density.run()
+    density_stats = skill.dataset_stats(ds_density)
+    if density_stats["n"] > 1:
+        density_values = xr.open_dataset(ds_density.current[0])
+        density_time = [x for x in density_values["model"].dims if "time" in x.lower()]
+
+        def density_step(k):
+            step = density_values.isel({density_time[0]: k}) if density_time else density_values
+            return step["model"].values, step["observation"].values
+
+        n_steps = density_values.sizes[density_time[0]] if density_time else 1
+        limits = gridded_plots.value_limits(density_step, n_steps)
+        if limits is not None:
+            density = gridded_plots.Density(limits[0], limits[1], log = density_log)
+            for k in range(n_steps):
+                density.add(*density_step(k))
+            # the unit in mathtext, as the transect figures label it
+            try:
+                density_unit = transects.unit_text(density_file, variable)
+            except:
+                density_unit = ""
+            md(f"## How do the modelled values of {layer_long} {vv_name} compare with the observed ones?")
+            md(f"The figure below shows every grid cell and month with both model and observational data, modelled against observed" + (", on log10 values" if density_log else "") + ". The colour of each bin is the number of values in it, so the densest part of the cloud stands out where a scatter plot of so many points would be a solid block.")
+            density.figure(density_stats, f"{vv_name} ({density_unit})" if density_unit else vv_name)
+            plt.show()
+            density_shown = True
+        density_values.close()
+
+# %% tags=["remove-input"]
+if density_shown:
+    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell and month matched up, as the number of matched values in each bin. The dashed line is 1:1, and the red line the least-squares fit of the model on the observations. r, the bias and the RMSD are weighted by the area of the grid cells, and N is the number of values. The axes run from the 0.5th to the 99.5th percentile of the values.")
+    i_figure += 1

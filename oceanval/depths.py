@@ -127,3 +127,56 @@ def bin_depth(depth, depth_bins):
         if above and (high is None or depth <= high):
             return depth_label(low, high)
     return None
+
+
+# validate()'s map_depths: the depths (m) a gridded matchup through the water column is mapped
+# at (the gap report's option 1). By default oxygen at 200 m, which stands in for the oxygen
+# minimum zones, and 500 m, below them; every other variable at 500 m, where ventilation and
+# remineralisation biases show that the surface hides
+MAP_DEPTHS_OXYGEN = (200, 500)
+MAP_DEPTHS = (500,)
+_OXYGEN = ("oxygen", "aou", "o2sat")
+
+
+def check_map_depths(map_depths):
+    """map_depths checked: None (the defaults), False (no maps) or a sorted list of
+    depths in metres. Raises ValueError if it cannot be used."""
+    if map_depths is None or map_depths is False:
+        return map_depths
+    if map_depths is True:
+        return None
+    if isinstance(map_depths, (str, dict)) or not hasattr(map_depths, "__iter__"):
+        raise ValueError("map_depths must be a list of depths in metres, e.g. [200, 500], or False for no maps")
+    found = []
+    for value in map_depths:
+        depth = _depth(value, "map depth")
+        if depth is None or depth < 0:
+            raise ValueError("map_depths: each depth must be a number of metres, 0 or more")
+        if depth not in found:
+            found.append(depth)
+    if not found:
+        raise ValueError("map_depths must have at least one depth, or be False for no maps")
+    return sorted(found)
+
+
+def map_depths_for(variable, map_depths):
+    """The depths (m) the matchup of variable is mapped at: map_depths as
+    check_map_depths gives it, the defaults for None, nothing for False."""
+    if map_depths is False:
+        return []
+    if map_depths is None:
+        return list(MAP_DEPTHS_OXYGEN if str(variable).lower() in _OXYGEN else MAP_DEPTHS)
+    return list(map_depths)
+
+
+def nearest_level(levels, depth, tolerance=0.2):
+    """The index of the level nearest depth, or None if the nearest is further than
+    tolerance times the depth (or 20 m, whichever is more), so a map is not labelled
+    with a depth it is far from."""
+    if len(levels) == 0:
+        return None
+    gaps = [abs(float(x) - depth) for x in levels]
+    k = gaps.index(min(gaps))
+    if gaps[k] > max(20.0, tolerance * depth):
+        return None
+    return k

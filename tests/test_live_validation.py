@@ -34,6 +34,7 @@ class TestOptions:
             "n_regions": None,
             "transect": None,
             "depth_bins": oceanval.depths.DEFAULT_DEPTH_BINS,
+            "map_depths": None,
             "variables": None,
             "omit": None,
         }

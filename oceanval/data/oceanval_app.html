@@ -2125,6 +2125,11 @@
           </div>
           <p class="group__msg" id="vm-transect"></p>
         </fieldset>
+        <fieldset class="group" id="v-group-map_depths">
+          <legend>Maps at depth</legend>
+          <label class="g-row"><span class="g-label">At what depths (metres) do you want maps of gridded datasets validated through the water column?</span><input class="s-input is-num" id="v-map_depths" placeholder="e.g. 200, 1000" spellcheck="false" autocomplete="oceanval-none"></label>
+          <p class="group__msg" id="vm-map_depths"></p>
+        </fieldset>
       </div>
       <fieldset class="group form__wide">
         <legend>Options</legend>
@@ -9266,7 +9271,7 @@
   // the transect's start and end, each longitude then latitude
   const TRANSECT_BOXES = ["transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat"];
   const VALIDATE_TEXT = ["data_dir", "out_dir", ...SUBSET_BOXES, ...MISSING_BOXES, "subregions", "subregions_file",
-    ...TRANSECT_BOXES];
+    ...TRANSECT_BOXES, "map_depths"];
   const VALIDATE_TICKS = ["fixed_scale", "pdf", "word", "zip", "transect"];
   const VALIDATE_GROUPS = {
     "vm-data_dir": ["data_dir"],
@@ -9275,6 +9280,7 @@
     "vm-missing": MISSING_BOXES,
     "vm-subregions": ["subregions", "subregions_file"],
     "vm-transect": ["transect", ...TRANSECT_BOXES],
+    "vm-map_depths": ["map_depths"],
     "vm-cores": ["cores"],
   };
   const validateForm = {};
@@ -9289,6 +9295,8 @@
   // the list of matchups shown, so that it is only made again when it changes
   let datasetsShown = null;
   const NONE_TICKED = "Tick at least one dataset to validate.";
+  // the same words as app.MAP_DEPTHS_HINT
+  const MAP_DEPTHS_HINT = "Leave it empty for oxygen at 200 m and 500 m, and every other variable at 500 m. Each map is at the observations' depth level nearest the depth.";
   // while the report options are being sent, so the button stays disabled
   let validateBusy = false;
 
@@ -9675,7 +9683,7 @@
       : !(state.report && state.report.gridded === false);
     const vertical = ticked ? ticked.some((matchup) => matchup.kind === "point" && matchup.vertical)
       : !(state.report && state.report.vertical === false);
-    for (const id of ["v-group-subregions", "v-group-transect", "row-fixed_scale"]) $(id).hidden = !gridded;
+    for (const id of ["v-group-subregions", "v-group-transect", "v-group-map_depths", "row-fixed_scale"]) $(id).hidden = !gridded;
     $("v-group-depth_bins").hidden = !vertical;
     return none;
   }
@@ -9751,6 +9759,7 @@
       "vm-data_dir": matchupsMessage(),
       "vm-subset": coresAsked() ? [line(SUBSET_HINT)] : [],
       "vm-missing": coresAsked() ? missingLines("v", validateForm) : [],
+      "vm-map_depths": [line(MAP_DEPTHS_HINT)],
     };
     for (const [id, names] of Object.entries(VALIDATE_GROUPS)) {
       // the transect is checked as it is typed, as well as by the server

@@ -47,3 +47,17 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
    1° grid, land masked with `TM_WORLD_BORDERS`. Every place that takes `subregions` (validate, live, analyze, compare_simulations, the
    windows' checks, `gridded_template` cell 18, `comparison_regional`) asks it, so a new set is a file and an entry there. The report item
    condition `depths` is a point all-layer matchup or a gridded vertical one (`itemApplies` in `oceanval_app.html`).
+8. **The gridded page's figures from the gap report** (options 1, 3, 4, 8, 9, 13 and the peak month of 10) are chunks of their own, each
+   with an item (`report_items`) and a heading of its own, so leaving a neighbour out never strands one: `chunk_density` (after
+   `chunk_bias`), `chunk_peakmonth` (after `chunk_seasonal`, needs its `ds_ts` and 12 months), `chunk_zonal` (after the spatial table:
+   `zonal_lines`, `hovmoller_clim`, `hovmoller_years`), and `chunk_profiles` and `chunk_depthmaps` (after `chunk_verticalstats`, whose
+   `ds_levels` and `level_rows` the profiles use and then delete). Every value is nctoolkit's: `zonal_mean`/`zonpctl` (a curvilinear
+   grid goes `to_latlon` first), `skill.paired` for the masks and log10, the peak month as `tmax` of `cmonth()` where the field equals
+   its `tmax` (the last such month on a tie), its lag wrapped to -5..6 in `expr`, `sellevidx` for the maps at depth (`validate(map_depths=)`,
+   `depths.check_map_depths`/`map_depths_for`/`nearest_level`, a level with no cell matched is skipped without a figure number).
+   `oceanval/gridded_plots.py` only draws what they give it; the density scatter is the one figure that bins values (numpy, a time
+   step at a time, the user's exception), and its numbers and line are `skill`'s. Files written whatever is shown:
+   `oceanval_results/zonal_mean/zonalmean_{variable}_{source}.csv` (for compare) and `peak_month/peakmonth_{variable}_{source}.nc`.
+   Axis labels take their unit as mathtext (`transects.unit_text`, `gridded_plots.mathtext_unit`), never `fix_unit`'s HTML. The point
+   page's depth summary also writes `Model mean`/`Observation mean` (pandas) for `point_profiles`; the table on the page leaves them
+   out. `tests/test_report_figures.py` checks the zonal means and the peak months against xarray, and every id against `omit`.
