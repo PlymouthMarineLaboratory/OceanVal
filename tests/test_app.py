@@ -5156,8 +5156,8 @@ def test_words_to_skip_are_a_list_in_a_browser(browser, tmp_path):
         page.press("#f-exclude-add", "Enter")
         assert page.input_value("#f-exclude") == "restart spinup"
         assert page.locator("#f-exclude-items .word-list__word").all_inner_texts() == ["restart", "spinup"]
-        # taken as typed: the line under the boxes says the filters are passed on
-        page.wait_for_function("() => document.querySelector('#m-simulation').innerText.includes('The filters are passed on')")
+        # taken as typed (the line that said the filters are passed on is gone)
+        page.wait_for_function("() => document.getElementById('f-exclude').value === 'restart spinup'")
         # a word typed again is not added twice, and the x removes a word
         page.fill("#f-exclude-add", "5d spinup")
         page.press("#f-exclude-add", "Enter")
@@ -5199,7 +5199,8 @@ def test_the_files_skipped_start_as_they_should_in_a_browser(browser, tmp_path, 
         if tile == "#home-validate":
             page.click('button.choice[data-action="matchup_validate"]')
         amber = lambda: page.locator("#f-exclude").evaluate("node => node.classList.contains('is-detected')")
-        page.wait_for_selector("#view-setup:not([hidden])")
+        # the viewer's setup opens in a pop-out
+        page.wait_for_selector("#vw-setup-pop:not([hidden])" if tile == "#home-viewer" else "#view-setup:not([hidden])")
         assert page.input_value("#f-exclude") == "restart spinup"
         assert not amber()
         assert "Only file names are checked" not in page.inner_text("#m-simulation")
@@ -5209,7 +5210,8 @@ def test_the_files_skipped_start_as_they_should_in_a_browser(browser, tmp_path, 
         assert "skipped. Remove restart" not in page.inner_text("#m-simulation")
         # the line that said only file names are checked is gone (the user's rule, 2026-11-06)
         assert "Only file names are checked" not in page.inner_text("#m-simulation")
-        assert ("The filters are passed on" in page.inner_text("#m-simulation")) == (tile != "#home-viewer")
+        # nor is the line that said the filters are passed on
+        assert "The filters are passed on" not in page.inner_text("#m-simulation")
         set_words(page, "#f-exclude", "")
         assert not amber()
     finally:
@@ -5217,8 +5219,9 @@ def test_the_files_skipped_start_as_they_should_in_a_browser(browser, tmp_path, 
 
 
 def test_required_tags_show_only_while_empty(browser, tmp_path):
-    """The red Required tag is there at the start and goes once the box is
-    filled (typed or written by a script), and comes back when it is emptied."""
+    """A required box is boxed in red while it is empty (the Required tag is
+    never shown), and not once it is filled (typed or written by a script),
+    and again when it is emptied."""
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
@@ -5230,15 +5233,17 @@ def test_required_tags_show_only_while_empty(browser, tmp_path):
         page.wait_for_selector("#view-setup:not([hidden])")
         tag = page.locator('label[for="f-ndown"] .own-req')
         simdir = page.locator('label[for="f-simdir"] .own-req')
-        assert tag.is_visible() and simdir.is_visible()
+        assert tag.is_hidden() and simdir.is_hidden()
+        page.wait_for_selector("#f-simdir.is-needed")
+        page.wait_for_selector("#f-ndown.is-needed")
         page.fill("#f-simdir", str(tmp_path / "sim"))
-        page.wait_for_selector('label[for="f-simdir"] .own-req', state="hidden")
-        assert tag.is_visible()
+        page.wait_for_selector("#f-simdir.is-needed", state="detached")
+        assert "is-needed" in page.locator("#f-ndown").get_attribute("class")
         # a value written by a script fires no event
         page.evaluate("document.getElementById('f-ndown').value = '0'")
-        page.wait_for_selector('label[for="f-ndown"] .own-req', state="hidden")
+        page.wait_for_selector("#f-ndown.is-needed", state="detached")
         page.fill("#f-simdir", "")
-        page.wait_for_selector('label[for="f-simdir"] .own-req', state="visible")
+        page.wait_for_selector("#f-simdir.is-needed")
         # the tag stays in the page: only its display changes
         assert page.locator('label[for="f-ndown"]').text_content().strip().endswith("Required")
     finally:
@@ -5286,17 +5291,18 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.locator("#m-domain").count() == 0
         assert "OceanVal is running from" not in page.text_content("#meta")
         assert "Next, OceanVal reads the simulation, and shows you what it found." not in page.text_content("#bar")
-        assert page.locator(".ndown-row").evaluate(
+        assert page.locator("#view-setup .ndown-row").evaluate(
             "node => getComputedStyle(node).display"
-        ) == "grid"
+        ) == "flex"
         assert page.locator("#f-ndown").evaluate(
             "node => node.getBoundingClientRect().width"
         ) <= 100
         assert page.locator("#ndown-example").count() == 0
         ndown_label = page.locator('label[for="f-ndown"]')
         assert page.locator("#f-ndown").evaluate("node => node.required")
-        assert ndown_label.evaluate("node => getComputedStyle(node).color") == "rgb(192, 57, 43)"
-        assert ndown_label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
+        # required: boxed in red while empty, with its label in the ordinary weight
+        assert "is-needed" in page.locator("#f-ndown").get_attribute("class")
+        assert ndown_label.evaluate("node => getComputedStyle(node).fontWeight") == "500"
         assert "Required" in ndown_label.text_content()
         assert page.is_hidden("#f-start")
         assert page.is_hidden("#f-end")
@@ -5304,8 +5310,8 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         simdir_label = page.locator('label[for="f-simdir"]')
         assert simdir_label.text_content().startswith("Which directory stores your simulation data?")
         assert simdir_label.locator(".own-req").text_content() == "Required"
-        assert simdir_label.evaluate("node => getComputedStyle(node).color") == "rgb(192, 57, 43)"
-        assert simdir_label.evaluate("node => getComputedStyle(node).fontWeight") == "700"
+        assert "is-needed" in page.locator("#f-simdir").get_attribute("class")
+        assert simdir_label.evaluate("node => getComputedStyle(node).fontWeight") == "500"
         # nothing is said in the bar but the link to how files are identified, beside Continue
         assert page.text_content("#summary").strip() == "How does OceanVal identify simulation files to matchup?"
         assert page.locator("#summary > *").count() == 1 and page.locator("#summary #how-files").count() == 1
@@ -5360,17 +5366,21 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
         # nothing is Vertical, so no thickness is asked for
         assert page.is_hidden("#group-thickness")
         # a dataset through the water column cannot go ahead without a thickness
-        nsbc = 'input[aria-label="NSBC, Northwest European Shelf, for Temperature"]'
-        page.check(nsbc)
+        # (WOA23 is the temperature dataset with a Vertical option; NSBC has no temperature any more)
+        woa23 = 'input[aria-label="WOA23, Global, for Temperature"]'
+        page.check(woa23)
         page.check(
-            'input[aria-label="Validate NSBC observations for Temperature through the full water column"]'
+            'input[aria-label="Validate WOA23 observations for Temperature through the full water column"]'
         )
+        # ticking Vertical asks for the thickness in a pop-out: cancelled here, so the box at the top is filled in below
+        assert page.is_visible("#thickness-dialog")
+        page.click("#thickness-ask-cancel")
         assert page.is_disabled("#write")
         assert page.is_visible("#page-gridded #group-thickness")
         assert "a thickness is needed" in page.text_content("#g-thickness")
         page.fill("#s-thickness", "z_level")
         assert page.is_enabled("#write")
-        page.uncheck(nsbc)
+        page.uncheck(woa23)
         assert page.is_hidden("#group-thickness")
         # the point datasets' page, from which the units are next
         page.click("#write")
@@ -5402,7 +5412,8 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
             "Time resolution", "Dates",
         ]
         # the answer is in the bar, and none are in the card; Back is the arrow at the top
-        assert page.locator("#review button:not(.btn--text):not(#review-refilter)").count() == 0
+        # (the x beside each word of the skip list is not an answer)
+        assert page.locator("#review button:not(.btn--text):not(#review-refilter):not(.word-list__remove)").count() == 0
         assert [button.text_content() for button in page.locator("#actions button").all()] == ["Yes, continue"]
         assert page.is_enabled("#back-open")
         assert page.locator("text=No, stop the run").count() == 0
@@ -5426,23 +5437,24 @@ def test_the_window_in_a_browser(browser, tmp_path, monkeypatch):
 
         # the file filters can be changed, to find the files again with
         assert page.is_visible("#review-filters")
-        assert page.input_value("#review-exclude") == ""
+        # the words to skip start as restart and spinup, as everywhere
+        assert page.input_value("#review-exclude") == "restart spinup"
         assert page.input_value("#review-require") == ""
         assert page.is_disabled("#review-refilter")
         assert page.text_content("#review-refilter") == "Use these filters"
-        page.fill("#review-require", "nowhere")
+        set_words(page, "#review-require", "nowhere")
         page.wait_for_function(
             "document.getElementById('review-filters-msg').textContent.startsWith('No files pass')"
         )
         assert page.is_disabled("#review-refilter")
-        page.fill("#review-require", "2011")
+        set_words(page, "#review-require", "2011")
         page.wait_for_function(
             "document.getElementById('review-filters-msg').textContent.includes('pass these filters')"
         )
         assert re.match(r"\d+ of the \d+ files found pass these filters\.$", page.text_content("#review-filters-msg"))
         assert page.is_enabled("#review-refilter")
         # as they were, there is nothing to find again
-        page.fill("#review-require", "")
+        set_words(page, "#review-require", "")
         assert page.is_disabled("#review-refilter")
         assert page.text_content("#review-filters-msg") == ""
 
@@ -6468,7 +6480,7 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
     """The report options ask whether to validate along a transect, which must
     run north-south or east-west, and the report cannot be asked for until it
     does."""
-    red_bold = ["rgb(192, 57, 43)", "700"]
+    ink_bold = ["rgb(11, 37, 48)", "700"]
     app, validated = report_options_app(tmp_path, monkeypatch, gridded=True)
     url = app.start()
     try:
@@ -6512,7 +6524,7 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
             "The transect must run north–south or east–west: give both ends the same "
             "longitude, or the same latitude."
         )
-        assert problem.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]") == red_bold
+        assert problem.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]") == ink_bold
         for name in ("start_lon", "start_lat", "end_lon", "end_lat"):
             assert "is-invalid" in page.get_attribute(f"#v-transect_{name}", "class")
         assert page.is_disabled("#v-next")
@@ -6567,6 +6579,8 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
             "data_dir": str(tmp_path),
             "out_dir": str(tmp_path),
             "transect": [{"start": [-10, 55], "end": [8, 55]}],
+            # a detailed report, as the report options start
+            "concise": False,
         }
     finally:
         app.close()
@@ -6577,7 +6591,7 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
     with the depth bins: OceanVal's own to start with, each removed with its
     x, more added with +, and the report not asked for while they cannot be
     used."""
-    red_bold = ["rgb(192, 57, 43)", "700"]
+    ink_bold = ["rgb(11, 37, 48)", "700"]
     app, validated = report_options_app(tmp_path, monkeypatch, gridded=False, vertical=True)
     url = app.start()
     try:
@@ -6644,7 +6658,7 @@ def test_depth_bins_in_a_browser(browser, tmp_path, monkeypatch):
         page.keyboard.type("3000")
         problem = page.locator("#vm-depth_bins .group__line")
         assert problem.text_content() == "Only the deepest bin can leave To empty, for everything below it."
-        assert problem.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]") == red_bold
+        assert problem.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]") == ink_bold
         assert "is-invalid" in box("To", 10).get_attribute("class")
         assert page.is_disabled("#v-next")
         assert page.get_attribute("#v-next", "title") == "Fix what is marked in red first"
@@ -6737,7 +6751,7 @@ def test_comparing_validations_in_a_browser(browser, tmp_path, monkeypatch):
         problem = page.locator("#cm-rows .group__line.is-error")
         assert problem.text_content() == "Simulation 2: There is no directory at this path."
         assert problem.evaluate("node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]") == [
-            "rgb(192, 57, 43)", "700",
+            "rgb(11, 37, 48)", "700",
         ]
         assert "is-invalid" in page.get_attribute("#c-dir_2", "class")
         assert compared == []
@@ -7256,7 +7270,7 @@ def test_the_analyses_grid_in_a_browser(browser, tmp_path):
         app.close()
 
 
-def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
+def test_no_files_in_the_simulation_is_bold_and_large(browser, tmp_path):
     write_simulation(tmp_path / "sim")
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
@@ -7274,7 +7288,8 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
         body = warning.evaluate(
             "node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight, getComputedStyle(node).fontSize]"
         )
-        assert body == ["rgb(192, 57, 43)", "700", "25px"]
+        # in the ink colour (errors are bold ink; red is for boxes and bars)
+        assert body == ["rgb(11, 37, 48)", "700", "25px"]
     finally:
         app.close()
 
@@ -7288,7 +7303,7 @@ def test_no_files_in_the_simulation_is_red_bold_and_large(browser, tmp_path):
     ],
 )
 def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, layout, depth, text):
-    """The box is bold, and the user's own value is never replaced by it."""
+    """The box is bold, and the user's own value is not replaced by it, until the directory changes."""
     write_folders(tmp_path / "sim", layout)
     write_simulation(tmp_path / "other")
     app = App(cwd=str(tmp_path))
@@ -7312,12 +7327,15 @@ def test_the_directories_down_are_filled_in_from_the_layout(browser, tmp_path, l
         # a directory without the layout empties what OceanVal filled in
         page.fill("#f-simdir", "other")
         page.wait_for_function("document.querySelector('#f-ndown').value === ''")
-        # a value typed is the user's: it stays, with no suggestion shown
+        # a value typed is the user's: it stays, with no suggestion shown, while the directory is not changed
         page.fill("#f-ndown", "3")
-        page.fill("#f-simdir", "sim")
         page.wait_for_timeout(1000)
         assert page.input_value("#f-ndown") == "3"
         assert not ndown.evaluate("node => node.classList.contains('is-detected')")
+        # a directory typed again starts the depth afresh (a typed one would count the wrong files)
+        page.fill("#f-simdir", "sim")
+        page.wait_for_function(f"document.querySelector('#f-ndown').value === '{depth}'")
+        assert ndown.evaluate("node => node.classList.contains('is-detected')")
     finally:
         app.close()
 
@@ -7543,8 +7561,10 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         assert page.locator("#m-out_dir .group__line.is-warn").count() == 0
         assert page.text_content("#existing-title") == "What do you want to do with existing matchups? Required"
         # confirming what is chosen is required, report or not
-        assert page.is_visible("#existing-required")
+        # (the Required tag is never shown: the unticked confirmation is boxed in red instead)
+        assert page.is_hidden("#existing-required")
         assert page.is_visible("#row-existing-confirm")
+        assert "is-needed" in page.get_attribute("#f-existing_confirmed", "class")
         # a column for each option some row has
         columns = ["use", "replace", "ignore"] if report else ["use", "replace"]
         assert [name for name in ("use", "replace", "ignore") if page.is_visible(f"#existing-col-{name}")] == columns
@@ -7588,7 +7608,8 @@ def test_what_is_done_with_existing_matchups_must_be_said(browser, tmp_path, mon
         page.click("#output-run")
         # the one replaced is all those the run makes; only those used are in the report
         wait_for(lambda: app.view != "output")
-        assert app.overwrite is True
+        # the ones replaced are deleted now, so the run has nothing to overwrite
+        assert app.overwrite is False
         if report:
             assert app.view == "report_options"
             assert app.previous == ["temperature/WOA23", "nitrate/ICES/surface"]
@@ -7697,11 +7718,12 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         page.wait_for_selector("#units-confirm.is-needed")
         assert page.is_disabled("#units-continue")
         assert page.is_hidden("#units-reading")
-        # two sections, and with no point datasets the second says so
+        # two sections; nwes ticks ICES temperature, a point dataset, so the second has its row (the
+        # empty note is for when no point dataset is ticked)
         assert page.text_content("#units-title-gridded") == "Gridded datasets"
         assert page.text_content("#units-title-point") == "Point datasets"
-        assert page.locator("#units-body-point tr").count() == 0
-        assert page.is_visible("#units-empty-point")
+        assert page.locator("#units-body-point tr[data-units-row]").count() == 1
+        assert page.is_hidden("#units-empty-point")
         assert page.is_hidden("#units-empty-gridded")
 
         temperature = page.locator('tr[data-units-row="recipe:temperature:cobe2"]')
@@ -7725,11 +7747,11 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
                 "node => [getComputedStyle(node).color, getComputedStyle(node).fontWeight]"
             )
 
-        red_bold = ["rgb(192, 57, 43)", "700"]
+        ink_bold = ["rgb(11, 37, 48)", "700"]
         oceanval = nitrate.locator('input[data-units-box="multiplier"]')
         oceanval_note = nitrate.locator(f"{below}//*[contains(@class, 'group__line')]")
-        assert look(oceanval) == red_bold
-        assert look(oceanval_note) == red_bold
+        assert look(oceanval) == ink_bold
+        assert look(oceanval_note) == ink_bold
         assert look(multiplier)[1] == "400"
         assert look(temperature.locator(f"{below}//*[contains(@class, 'group__line')]"))[1] == "400"
         # units OceanVal has concluded are the same are amber
@@ -7741,8 +7763,8 @@ def test_the_units_step_in_a_browser(browser, tmp_path, monkeypatch):
         assert look(oceanval_note)[1] == "400"
         assert "You have changed the conversion OceanVal filled in" in nitrate.locator(below).text_content()
         oceanval.fill("1.025")
-        assert look(oceanval) == red_bold
-        assert look(oceanval_note) == red_bold
+        assert look(oceanval) == ink_bold
+        assert look(oceanval_note) == ink_bold
 
         # the units always have to be confirmed, under the tables, to carry on
         page.check("#units-confirm")
@@ -7886,9 +7908,10 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         else start_run([args[0], str(stand_in)], label),
     )
     url = app.start()
-    red_bold = ["rgb(192, 57, 43)", "700"]
-    nsbc = 'input[aria-label="NSBC, Northwest European Shelf, for Temperature"]'
-    nsbc_start = 'input[aria-label="First year of NSBC observations for Temperature"]'
+    ink_bold = ["rgb(11, 37, 48)", "700"]
+    # (WOA23, ticked here, as NSBC has no temperature any more)
+    woa23 = 'input[aria-label="WOA23, Global, for Temperature"]'
+    woa23_start = 'input[aria-label="First year of WOA23 observations for Temperature"]'
     try:
         page = browser.new_page()
 
@@ -7920,8 +7943,8 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.click("#back-open")
         assert page.text_content("#page-title") == "Gridded data selection"
         assert page.input_value("#s-clim_start") == "2011"
-        page.check(nsbc)
-        page.fill(nsbc_start, "2012")
+        page.check(woa23)
+        page.fill(woa23_start, "2012")
         page.click("#write")
         assert page.input_value("#s-point_start") == "2011"
         page.click("#write")
@@ -7945,7 +7968,7 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert temperature.input_value() == "0.5"
         assert look(temperature)[1] == "400"
         assert nitrate.input_value() == "1.025"
-        assert look(nitrate) == red_bold
+        assert look(nitrate) == ink_bold
         # the units are confirmed afresh
         assert not page.is_checked("#units-confirm")
         assert page.is_disabled("#units-continue")
@@ -7957,8 +7980,8 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         assert page.text_content("#page-title") == "Point data selection"
         assert (page.input_value("#s-point_start"), page.input_value("#s-point_end")) == ("2011", "2012")
         page.click("#back-open")
-        assert page.is_checked(nsbc)
-        assert page.input_value(nsbc_start) == "2012"
+        assert page.is_checked(woa23)
+        assert page.input_value(woa23_start) == "2012"
         page.click("#write")
         page.click("#write")
         to_units()
@@ -7993,6 +8016,9 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         page.locator("#back-open").click()
         to_output()
         assert page.input_value("#f-out") == "mine.py"
+        # the output step has two pages: Back goes from the second (where it is saved) to the first
+        # (the checks), and then from there to the matchups
+        page.locator("#back-open").click()
         page.locator("#back-open").click()
         page.wait_for_selector("#review:not([hidden])")
         page.click("#actions button:has-text('Yes')")
@@ -8008,6 +8034,8 @@ def test_going_back_keeps_what_was_entered_in_a_browser(browser, tmp_path, monke
         # and back all the way to the simulation
         page.locator("#back-open").click()
         to_output()
+        # (two pages in the output step again)
+        page.locator("#back-open").click()
         page.locator("#back-open").click()
         page.wait_for_selector("#review:not([hidden])")
         page.locator("#back-open").click()
@@ -8039,7 +8067,7 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
     app = App(cwd=str(tmp_path))
     app.choose("validate_menu")
     url = app.start()
-    red_bold = ["rgb(192, 57, 43)", "700"]
+    ink_bold = ["rgb(11, 37, 48)", "700"]
     try:
         app.choose("matchup")
         post(app, "/api/setup", {"form": SETUP_FORM})
@@ -8063,13 +8091,14 @@ def test_the_recipes_window_after_the_simulation_changes_in_a_browser(browser, t
         page.wait_for_url("**/recipes/**", timeout=90000)
         lede = page.locator("#lede-gridded .oceanval-change")
         assert lede.text_content() == "As the domain has changed, OceanVal has ticked the datasets afresh for it."
-        assert look(lede) == red_bold
+        assert look(lede) == ink_bold
         dropped = page.locator("#message-gridded-nitrate .oceanval-change")
         assert dropped.text_content() == "N3_n+thetao, chosen before, is not in this simulation's output."
-        assert look(dropped) == red_bold
+        assert look(dropped) == ink_bold
         # temperature is kept, with its datasets ticked as for the domain, and the years
         assert page.input_value('input[aria-label="Simulation variable for Temperature"]') == "thetao"
-        assert page.is_checked('input[aria-label="NSBC, Northwest European Shelf, for Temperature"]')
+        # (COBE2 is the gridded temperature dataset nwes ticks)
+        assert page.is_checked('input[aria-label="COBE2, Global, for Temperature"]')
         assert (page.input_value("#s-point_start"), page.input_value("#s-point_end")) == ("2011", "2012")
         # once nitrate is filled in, it is the user's
         page.fill('#rows-gridded input[aria-label="Simulation variable for Nitrate"]', "thetao")
@@ -8160,7 +8189,9 @@ def test_adding_your_own_data_in_a_browser(browser, tmp_path):
         for name in ("name", "source", "model_variable", "obs_path"):
             field = field_of(name)
             assert "is-required" in field.get_attribute("class")
-            assert field.locator(".g-label").evaluate("node => getComputedStyle(node).color") == red
+            # required: a red bar at the left of the field, and its empty box boxed in red
+            assert field.evaluate("node => getComputedStyle(node).borderLeftColor") == red
+            assert "is-needed" in page.locator(f"#o-point-{name}").get_attribute("class")
         # optional ones are not
         assert field_of("long_name").get_attribute("class") == "own-field"
 
@@ -9140,7 +9171,8 @@ class TestSettings:
             assert page.locator("#store-table-in th").all_text_contents() == heads + [""]
             assert page.locator("#store-table-out th").all_text_contents() == heads[:5] + [""]
             held = page.locator("#store-table-in tbody tr").count()
-            assert held == 3 and page.text_content("#store-in-title") == "In the data store (3)"
+            # ICES salinity is held too: it is in the same CTD export as ICES temperature
+            assert held == 4 and page.text_content("#store-in-title") == "In the data store (4)"
             assert page.locator("#store-table-out tbody tr").count() == len(app_module.BUILTIN_DATASETS) - held
             assert page.text_content("#store-out-title") == f"Not in the data store ({len(app_module.BUILTIN_DATASETS) - held})"
             link = page.locator("#store-table-out tbody a").first

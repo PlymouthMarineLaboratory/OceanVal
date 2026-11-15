@@ -1164,8 +1164,8 @@ class TestModelVariablesBox:
             # it sits under the box (or over it, where there is more room), never on it
             pop, under = page.locator(".vars__popover:not([hidden])").bounding_box(), box.bounding_box()
             assert pop["y"] >= under["y"] + under["height"] or pop["y"] + pop["height"] <= under["y"]
-            # and closes when the box loses the focus, or on Escape
-            page.locator("h1").first.click()
+            # and closes when the box loses the focus (the page's h1 is hidden on every page, so the focus is taken away), or on Escape
+            box.evaluate("el => el.blur()")
             assert page.evaluate(SHOWN) is None
             box.click()
             box.press("Escape")
@@ -1179,8 +1179,11 @@ class TestModelVariablesBox:
         try:
             page = browser.new_page()
             page.goto(url)
-            row = page.locator("#rows-gridded tbody tr").first
-            box = row.locator(".chip input[type=checkbox]").first
+            # the Temperature row: the first row (Ammonium) has only NSBC, which is hidden for a global model
+            cobe2 = 'input[aria-label="COBE2, Global, for Temperature"]'
+            # (#rows-gridded is the tbody itself)
+            row = page.locator("#rows-gridded tr", has=page.locator(cobe2))
+            box = row.locator(cobe2)
             box.uncheck()
             assert "is-selected" not in row.get_attribute("class")
             plain = row.evaluate("tr => getComputedStyle(tr).backgroundColor")
@@ -1214,13 +1217,18 @@ class TestModelVariablesBox:
     def test_the_search_takes_wildcards(self, browser):
         recipe_page = self.page(
             {"P1_Chl": "Diatom chlorophyll", "P2_Chl": "Flagellate chlorophyll", "Chl_total": "Total chlorophyll", "so": "Sea water salinity"},
-            available=("P1_Chl", "P2_Chl", "Chl_total", "so"),
+            # thetao is there for the row's own variable, so that its datasets can be ticked
+            available=("P1_Chl", "P2_Chl", "Chl_total", "so", "thetao"),
         )
         url = recipe_page.start()
         try:
             page = browser.new_page()
             page.goto(url)
-            box = page.locator("#rows-gridded .field__input").first
+            # in the boxes that take a formula, * and ? are its operators, not wildcards, so they are
+            # tried in a box that takes one name: the thickness the Vertical pop-out asks for
+            page.check(WOA23_CHIP)
+            page.check(WOA23_VERTICAL)
+            box = page.locator("#thickness-ask-input")
             for text, names in [
                 ("P*_Chl", ["P1_Chl", "P2_Chl"]),
                 ("p?_chl", ["P1_Chl", "P2_Chl"]),
@@ -1384,6 +1392,116 @@ class TestThicknessBox:
             page = browser.new_page()
             page.goto(url)
             assert page.locator("#s-thickness").is_disabled()
+        finally:
+            recipe_page.close()
+
+
+WOA23_CHIP = 'input[aria-label="WOA23, Global, for Temperature"]'
+WOA23_VERTICAL = 'input[aria-label="Validate WOA23 observations for Temperature through the full water column"]'
+ICES_CHIP = 'input[aria-label="ICES, European, for Temperature"]'
+ICES_VERTICAL = 'input[aria-label="Validate ICES observations for Temperature through the full water column"]'
+
+
+class TestVerticalPopOut:
+    """Ticking Vertical with no thickness asks for one in a pop-out, which fills
+    in the Model data info box at the top; cancelling leaves Vertical ticked."""
+
+    def open(self, browser):
+        recipe_page = RecipePage(
+            recipe_rows({"temperature": "thetao"}, "global"),
+            {"e3t", "thetao", "so"},
+            dict(CONTEXT, long_names={"e3t": "Cell thickness", "thetao": "Sea water temperature", "so": "Sea water salinity"}),
+            lambda *chosen: "/out/matchup.py",
+        )
+        page = browser.new_page()
+        page.goto(recipe_page.start())
+        return recipe_page, page
+
+    def test_ticking_vertical_asks_and_save_fills_the_box(self, browser):
+        recipe_page, page = self.open(browser)
+        try:
+            # WOA23's dataset is ticked first: its options show once it is
+            page.check(WOA23_CHIP)
+            page.check(WOA23_VERTICAL)
+            assert page.is_visible("#thickness-dialog")
+            # the box has the focus, Save waits for a thickness, and z_level is listed first
+            assert page.evaluate("() => document.activeElement.id") == "thickness-ask-input"
+            assert page.is_disabled("#thickness-ask-save")
+            page.click("#thickness-ask-input")
+            assert page.evaluate(SHOWN)[0] == ["z_level", ""]
+            # one pick only: the list closes, and Save is then enabled
+            row(page, "z_level").click()
+            assert page.evaluate(SHOWN) is None
+            assert page.is_enabled("#thickness-ask-save")
+            page.click("#thickness-ask-save")
+            assert page.locator("#thickness-dialog").count() == 0
+            # the box at the top shows the thickness, and Vertical stays ticked
+            assert page.input_value("#s-thickness") == "z_level"
+            assert page.is_visible("#page-gridded #group-thickness")
+            assert page.is_checked(WOA23_VERTICAL)
+        finally:
+            recipe_page.close()
+
+    def test_cancel_leaves_vertical_ticked_and_the_box_empty(self, browser):
+        recipe_page, page = self.open(browser)
+        try:
+            page.check(WOA23_CHIP)
+            page.check(WOA23_VERTICAL)
+            page.click("#thickness-ask-cancel")
+            assert page.locator("#thickness-dialog").count() == 0
+            assert page.is_checked(WOA23_VERTICAL)
+            assert page.is_visible("#page-gridded #group-thickness")
+            assert page.input_value("#s-thickness") == ""
+        finally:
+            recipe_page.close()
+
+    def test_escape_and_a_click_outside_close_it_and_it_is_asked_again(self, browser):
+        recipe_page, page = self.open(browser)
+        try:
+            page.check(WOA23_CHIP)
+            page.check(WOA23_VERTICAL)
+            page.keyboard.press("Escape")
+            assert page.locator("#thickness-dialog").count() == 0
+            assert page.is_checked(WOA23_VERTICAL)
+            # unanswered, so ticking it again asks again
+            page.uncheck(WOA23_VERTICAL)
+            page.check(WOA23_VERTICAL)
+            assert page.is_visible("#thickness-dialog")
+            page.mouse.click(5, 5)
+            assert page.locator("#thickness-dialog").count() == 0
+            assert page.is_checked(WOA23_VERTICAL)
+        finally:
+            recipe_page.close()
+
+    def test_no_pop_out_once_the_box_is_filled_or_when_unticked(self, browser):
+        recipe_page, page = self.open(browser)
+        try:
+            page.check(WOA23_CHIP)
+            page.check(WOA23_VERTICAL)
+            page.click("#thickness-ask-cancel")
+            page.fill("#s-thickness", "z_level")
+            page.uncheck(WOA23_VERTICAL)
+            # the thickness is there, so ticking again does not ask
+            page.check(WOA23_VERTICAL)
+            assert page.locator("#thickness-dialog").count() == 0
+            page.uncheck(WOA23_VERTICAL)
+            assert page.is_hidden("#group-thickness")
+        finally:
+            recipe_page.close()
+
+    def test_a_point_dataset_asks_on_the_point_page(self, browser):
+        recipe_page, page = self.open(browser)
+        try:
+            _continue(page)
+            page.check(ICES_CHIP)
+            page.check(ICES_VERTICAL)
+            assert page.is_visible("#thickness-dialog")
+            page.click("#thickness-ask-input")
+            row(page, "z_level").click()
+            page.click("#thickness-ask-save")
+            assert page.input_value("#s-thickness") == "z_level"
+            assert page.is_visible("#page-point #group-thickness")
+            assert page.is_checked(ICES_VERTICAL)
         finally:
             recipe_page.close()
 
@@ -1571,7 +1689,7 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.text_content("#write") == "Continue"
     gridded = page.locator("#rows-gridded")
     assert page.locator("#page-gridded thead th").all_text_contents() == [
-        "Environmental variable", "What is the simulation variable name?", "What gridded datasets do you want?Deselect all",
+        "No.", "Environmental variable", "What is the simulation variable name?", "What gridded datasets do you want?Deselect all",
     ]
     assert gridded.locator('input[aria-label="ICES, European, for Temperature"]').count() == 0
 
@@ -1580,18 +1698,17 @@ def test_the_two_pages_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.text_content("#cancel") == "Back"
     assert page.text_content("#write") == "Write script"
     assert page.locator("#page-point thead th").all_text_contents() == [
-        "Environmental variable", "What is the simulation variable name?", "What point datasets do you want?Deselect all",
+        "No.", "Environmental variable", "What is the simulation variable name?", "What point datasets do you want?Deselect all",
         "Gridded data selected",
     ]
     temperature = page.locator("#rows-point tr", has=page.locator('input[aria-label="Simulation variable for Temperature"]'))
-    assert temperature.locator(".chosen").text_content() == "Yes: NSBC"
+    # COBE2 is the gridded dataset nwes ticks for temperature
+    assert temperature.locator(".chosen").text_content() == "Yes: COBE2"
     # KD490 has no point dataset, so is not on this page
     assert page.locator('#rows-point input[aria-label="Simulation variable for KD490"]').count() == 0
 
     page.click("#cancel")
     assert page.text_content("#page-title") == "Gridded data selection"
-    page.uncheck('input[aria-label="NSBC, Northwest European Shelf, for Temperature"]')
-    page.check('input[aria-label="COBE2, Global, for Temperature"]')
     page.locator('#rows-gridded input[aria-label="Simulation variable for Temperature"]').fill("kd_misc")
     _continue(page)
     assert temperature.locator(".chosen").text_content() == "Yes: COBE2"
@@ -1624,16 +1741,20 @@ def test_a_variable_row_grows_and_lifts_on_hover_in_the_browser(browser, tmp_pat
 
 
 def test_a_variable_filled_in_on_the_point_page_ticks_no_gridded_dataset(browser, tmp_path, monkeypatch):
-    """Salinity is not identified and is on both pages. Leaving the gridded
-    page with nothing ticked and filling the variable in on the point page
-    ticks the point defaults only; the gridded page keeps nothing ticked."""
+    """Salinity is not identified and is on both pages. Deselecting the gridded
+    datasets, and filling the variable in on the point page, ticks the point
+    defaults only; the gridded page keeps nothing ticked."""
     page, _, _ = _open_window(browser, tmp_path, monkeypatch)
     nsbc = 'input[aria-label="NSBC, Northwest European Shelf, for Salinity"]'
     assert not page.is_checked(nsbc)
+    # Deselect all keeps the gridded page cleared; without it, going back to the page ticks its defaults
+    # for a row filled in on the point page
+    page.click("#clear-gridded")
     _continue(page)
     box = page.locator('#rows-point input[aria-label="Simulation variable for Salinity"]')
     box.fill("kd_misc")
-    row = page.locator("#rows-point tr", has=box)
+    # has= is relative to the row, so the box is found from the row down, not from the page's #rows-point
+    row = page.locator("#rows-point tr", has=page.locator('input[aria-label="Simulation variable for Salinity"]'))
     assert row.locator("input[type=checkbox]:checked").count() >= 1
     assert row.locator(".chosen").text_content() == "None"
     page.click("#cancel")
@@ -1648,7 +1769,8 @@ def test_the_ices_point_datasets_are_european_in_the_browser(browser, tmp_path, 
     gridded_tags = page.locator("#explainer-gridded .chip__region")
     assert "NWES" in gridded_tags.all_text_contents()
     assert "EUR" not in gridded_tags.all_text_contents()
-    nsbc = page.locator('#rows-gridded input[aria-label="NSBC, Northwest European Shelf, for Temperature"]')
+    # NSBC has no temperature any more: its salinity
+    nsbc = page.locator('#rows-gridded input[aria-label="NSBC, Northwest European Shelf, for Salinity"]')
     assert nsbc.locator("xpath=..").locator(".chip__region").text_content().startswith("NWES")
 
     _continue(page)
@@ -1667,21 +1789,27 @@ def test_the_info_beside_a_gridded_source_in_the_browser(browser, tmp_path, monk
     """An i beside each built-in gridded source gives the years it covers and
     a link to its page."""
     page, _, _ = _open_window(browser, tmp_path, monkeypatch)
+    # NSBC has no temperature any more: its salinity
     nsbc = page.locator("#rows-gridded .dataset", has=page.locator(
-        'input[aria-label="NSBC, Northwest European Shelf, for Temperature"]'))
+        'input[aria-label="NSBC, Northwest European Shelf, for Salinity"]'))
     info = nsbc.locator(".dataset__info")
     assert info.locator(".opts__help-popover").is_hidden()
     info.locator("summary").click()
     assert info.locator(".opts__help-popover").is_visible()
     assert "Years covered: 1960–2014" in info.inner_text()
+    # and how it is gridded and sampled
+    assert "Spatial resolution: 0.25° × 0.25°, standard depth levels" in info.inner_text()
+    assert "Temporal resolution: Monthly climatology" in info.inner_text()
     link = info.locator("a")
     assert link.get_attribute("href") == "https://www.geo.uni-hamburg.de/en/service/icdc/data/ocean/nsbc.html"
     assert link.get_attribute("target") == "_blank"
     page.keyboard.press("Escape")
     assert info.locator(".opts__help-popover").is_hidden()
-    # every built-in gridded source has one, and the point ones none
+    # every built-in source has one, gridded and point alike (ICES's among them)
     assert page.locator("#rows-gridded .dataset__info").count() == page.locator("#rows-gridded .chip").count()
-    assert page.locator("#rows-point .dataset__info").count() == 0
+    assert page.locator("#rows-point .dataset__info").count() == page.locator("#rows-point .chip").count()
+    ices = page.locator("#rows-point .dataset", has=page.locator('input[aria-label="ICES, European, for Temperature"]'))
+    assert ices.locator(".dataset__info").count() == 1
 
 
 def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
@@ -1699,12 +1827,16 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     assert page.locator("#group-thickness").is_hidden()
     # a gridded dataset's years and Vertical, which only depth-resolved ones offer:
     # the years create_recipes was given, in bold until typed over
-    first_nsbc = page.locator('input[aria-label="First year of NSBC observations for Temperature"]')
-    assert first_nsbc.input_value() == "2011"
-    assert "is-oceanval" in first_nsbc.get_attribute("class")
-    first_nsbc.fill("2012")
-    assert "is-oceanval" not in first_nsbc.get_attribute("class")
-    page.check('input[aria-label="Validate NSBC observations for Temperature through the full water column"]')
+    first_cobe2 = page.locator('input[aria-label="First year of COBE2 observations for Temperature"]')
+    assert first_cobe2.input_value() == "2011"
+    assert "is-oceanval" in first_cobe2.get_attribute("class")
+    first_cobe2.fill("2012")
+    assert "is-oceanval" not in first_cobe2.get_attribute("class")
+    # WOA23 is the temperature dataset with a Vertical option; its options show once it is ticked
+    page.check(WOA23_CHIP)
+    page.check(WOA23_VERTICAL)
+    # the pop-out asks for the thickness: cancelled, the box at the top shows
+    page.click("#thickness-ask-cancel")
     assert page.locator("#page-gridded #group-thickness").is_visible()
     assert page.locator("#s-thickness").evaluate("node => node.previousElementSibling.textContent") == "Is the simulation z-level or is thickness supplied?"
     assert page.locator(
@@ -1720,7 +1852,8 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     page.fill("#s-point_end", "")
     assert "First must be a year, e.g. 2011." in page.text_content("#g-years")
     assert "Last must be a year, e.g. 2011." in page.text_content("#g-years")
-    assert page.locator("#s-point_start-required").is_visible()
+    # marked as required (the "Required" tag is hidden: the box is boxed in red instead)
+    assert "is-required" in page.locator("#s-point_start-label").get_attribute("class")
     page.fill("#s-point_start", "2011")
     page.fill("#s-point_end", "2012")
     assert page.locator("#s-missing_from").evaluate("node => node.closest('.g-row').querySelector('.g-label').textContent") == "What should be treated as missing values?"
@@ -1785,9 +1918,11 @@ def test_settings_in_the_browser(browser, tmp_path, monkeypatch):
     assert "    concise=False,\n" in script
     # each dataset's years are given, as the page fills them in
     assert '    recipe={"temperature": "ices"},\n    start=2011,\n    end=2012,\n    point_time_res=["month"],\n' in script
+    # COBE2's first year was typed over; WOA23, ticked for its Vertical, has the years the page filled in
+    assert '    recipe={"temperature": "cobe2"},\n    start=2012,\n    end=2012,\n' in script
     assert (
-        '    recipe={"temperature": "nsbc"},\n'
-        '    start=2012,\n'
+        '    recipe={"temperature": "woa23"},\n'
+        '    start=2011,\n'
         '    end=2012,\n'
         '    climatology=True,\n'
         '    vertical=True,'
@@ -1799,26 +1934,30 @@ def test_only_the_settings_the_datasets_need_are_shown_in_the_browser(browser, t
     on the gridded datasets' page if one of them is, else on the point
     datasets'. The years to validate are needed only for point datasets."""
     page, _, _ = _open_window(browser, tmp_path, monkeypatch)
-    nsbc_vertical = 'input[aria-label="Validate NSBC observations for Temperature through the full water column"]'
+    # WOA23 is the temperature dataset with a Vertical option (NSBC has no temperature any more)
+    woa23_vertical = WOA23_VERTICAL
     ices_vertical = 'input[aria-label="Validate ICES observations for Temperature through the full water column"]'
 
     assert page.locator("#group-thickness").is_hidden()
-    page.check(nsbc_vertical)
+    page.check(WOA23_CHIP)
+    page.check(woa23_vertical)
+    page.click("#thickness-ask-cancel")
     assert page.locator("#page-gridded #group-thickness").is_visible()
-    page.uncheck(nsbc_vertical)
+    page.uncheck(woa23_vertical)
     assert page.locator("#group-thickness").is_hidden()
 
     _continue(page)
     # nwes ticks ICES, a point dataset
     assert page.locator("#group-point").is_visible()
-    assert page.locator("#s-point_start-required").is_visible()
+    assert "is-required" in page.locator("#s-point_start-label").get_attribute("class")
     page.check(ices_vertical)
+    page.click("#thickness-ask-cancel")
     assert page.locator("#page-point #group-thickness").is_visible()
     page.uncheck(ices_vertical)
     assert page.locator("#group-thickness").is_hidden()
 
     page.click("#clear-point")
-    assert page.locator("#s-point_start-required").is_hidden()
+    assert "is-required" not in page.locator("#s-point_start-label").get_attribute("class")
     page.fill("#s-point_start", "")
     page.fill("#s-point_end", "")
     # nothing needs them, and the gridded datasets have years of their own
@@ -1830,7 +1969,10 @@ def test_nothing_ticked_can_continue_but_is_told_and_kept_on_the_point_page_in_t
     blank years do not disable Continue; clicking it says nothing
     is ticked and keeps the user on the point datasets' page until Return."""
     page, out, finished = _open_window(browser, tmp_path, monkeypatch)
+    # COBE2 and ICES are ticked to start with, so nothing is ticked once both pages are cleared
+    page.click("#clear-gridded")
     _continue(page)
+    page.click("#clear-point")
     page.fill("#s-point_start", "")
     page.fill("#s-point_end", "")
 
@@ -1861,28 +2003,30 @@ def test_the_gridded_years_are_required_in_the_browser(browser, tmp_path, monkey
     assert "is-required" not in year_row.get_attribute("class")
     assert page.is_enabled("#write")
 
-    # the climatologies take the years for them, COBE2, a time series, does not
-    page.fill("#s-clim_start", "2000")
-    page.fill("#s-clim_end", "2010")
-    assert (first("NSBC").input_value(), last("NSBC").input_value()) == ("2000", "2010")
+    # the climatologies take the years for them, COBE2, a time series, does not. WOA23 is the temperature
+    # climatology (NSBC has no temperature any more); its years sit in one decade
+    page.fill("#s-clim_start", "2005")
+    page.fill("#s-clim_end", "2014")
+    page.check(WOA23_CHIP)
+    assert (first("WOA23").input_value(), last("WOA23").input_value()) == ("2005", "2014")
     assert first("COBE2").input_value() == "2011"
     assert last("COBE2").input_value() == "2012"
     # typed over, the dataset's own stay
-    last("NSBC").fill("2009")
+    last("WOA23").fill("2009")
     page.fill("#s-clim_end", "2008")
-    assert (first("NSBC").input_value(), last("NSBC").input_value()) == ("2000", "2009")
+    assert (first("WOA23").input_value(), last("WOA23").input_value()) == ("2005", "2009")
 
     _continue(page)
     page.click("#write")
     page.wait_for_selector("#done:not([hidden])")
     assert finished() == out
     script = open(out).read()
-    block = script.split('recipe={"temperature": "nsbc"},\n')[1].split(")\n")[0]
-    assert "    start=2000,\n    end=2009,\n" in block
+    block = script.split('recipe={"temperature": "woa23"},\n')[1].split(")\n")[0]
+    assert "    start=2005,\n    end=2009,\n" in block
     block = script.split('recipe={"temperature": "cobe2"},\n')[1].split(")\n")[0]
     assert "    start=2011,\n    end=2012,\n" in block
     # matchup is given every year a dataset is matched up for
-    assert "start=2000" in script.split("oceanval.matchup(")[1] and "end=2012" in script.split("oceanval.matchup(")[1]
+    assert "start=2005" in script.split("oceanval.matchup(")[1] and "end=2012" in script.split("oceanval.matchup(")[1]
 
 
 def test_your_own_data_is_shown_ticked_in_the_browser(browser, tmp_path, monkeypatch):
@@ -1928,6 +2072,7 @@ def test_your_own_data_is_shown_ticked_in_the_browser(browser, tmp_path, monkeyp
     assert page.locator(f'select[aria-label="Match {name} by"]').is_visible()
     assert page.locator(f'input[aria-label="First year of {name}"]').input_value() == "2011"
     page.check(f'input[aria-label="Validate {name} through the full water column"]')
+    page.click("#thickness-ask-cancel")
     page.select_option(f'select[aria-label="Match {name} by"]', "year,month")
     # checked as a recipe's are
     page.fill(f'input[aria-label="Last year of {name}"]', "1990")
@@ -1976,6 +2121,8 @@ def test_the_years_for_climatologies_are_used_when_they_fit_a_decade(browser, tm
     page.fill("#s-clim_start", "2006")
     page.fill("#s-clim_end", "2012")
     page.check('input[aria-label="WOA23, Global, for Temperature"]')
+    # COBE2 is ticked to start with; this is about WOA23's years, so it is left out
+    page.uncheck('input[aria-label="COBE2, Global, for Temperature"]')
     assert "published per decade" not in page.inner_text("#g-climate")
 
     _continue(page)
@@ -1985,9 +2132,9 @@ def test_the_years_for_climatologies_are_used_when_they_fit_a_decade(browser, tm
     script = open(out).read()
     block = script.split('recipe={"temperature": "woa23"},\n')[1].split(")\n")[0]
     assert "    start=2006,\n    end=2012,\n" in block
-    # COBE2 is not ticked, so its block has no years
-    block = script.split('recipe={"temperature": "cobe2"},\n')[1].split(")\n")[0]
-    assert "start=" not in block
+    # COBE2 is not ticked, so it is only written as a comment: no line of it is live
+    live = [line for line in script.splitlines() if line.startswith('    recipe={"temperature": "cobe2"}')]
+    assert live == []
 
 
 class TestHiddenDatasetsAndShortSimulations:
@@ -2021,8 +2168,9 @@ class TestHiddenDatasetsAndShortSimulations:
             assert errors == []
             assert page.locator("#show-hidden-gridded").is_visible()
             assert not any(self._visible(page))
-            # nothing is left showing a dash beside a dataset that is shown
-            assert page.locator("#rows-gridded .chips .none:visible").count() == 0
+            # nothing is left showing a dash beside a dataset that is shown (a row whose only dataset is
+            # hidden, such as Ammonium's NSBC, does show one, on purpose)
+            assert page.locator("#rows-gridded .chips:has(.dataset:not([hidden])) .none:visible").count() == 0
 
             page.check("#show-hidden-box-gridded")
             assert all(self._visible(page))
@@ -2049,6 +2197,11 @@ class TestHiddenDatasetsAndShortSimulations:
     def test_a_simulation_of_under_five_years_is_told_to_ignore_the_year(self, browser, years, shown):
         recipe_page, page = self._open(browser, dict(CONTEXT, output_years=years), [])
         try:
+            # the note is on the point datasets' page. In the app the gridded datasets ticked need
+            # their years typed in before Continue, so none is ticked
+            page.click("#clear-gridded")
+            page.click("#write")
+            assert page.locator("#page-point").is_visible()
             note = page.locator("#g-short-sim")
             assert note.is_visible() is shown
             if shown:

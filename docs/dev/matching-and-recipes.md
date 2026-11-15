@@ -185,5 +185,5 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   (`matchupYears`: the span of the ticked datasets' years). WOA23 temperature/salinity (`decadal`) need years inside one
   `_WOA23_PERIODS` decade: filled years that fit none are an error on the dataset (the `#woa-dialog` is gone; the server
   still takes `woa23_start`/`woa23_end` → `settings["woa_years"]`). Each built-in gridded source has an **i**
-  (`coverageInfo`, from `create_recipes._COVERAGE` → the catalogue's `coverage`: years covered, a note and a link).
+  (`coverageInfo`, from `create_recipes._COVERAGE` → the catalogue's `coverage`: years covered, a note and a link). Ticking Vertical (`buildOptions`' change handler) with `#s-thickness` blank calls `askThickness`: a `.picker` pop-out with its own `#thickness-ask-input` (`variableBox` over `thicknessChoices()`, z_level first, one pick). Save sets the top box and fires its `input`, so the `FIELDS` listener stores it as usual; Cancel, Escape or a click outside leave Vertical ticked and the box empty. `thicknessProblem` is the check Save and `settingErrors` share.
 
