@@ -217,7 +217,9 @@ def pixels(data):
 
 # each script is run as a file of its own, with nothing of the others'
 RUN_EACH = """
-import runpy, sys
+import faulthandler, runpy, sys
+# a figure stuck (as in pyproj's Transformer.from_crs on a CI runner) ends the run with every thread's stack
+faulthandler.dump_traceback_later(300, exit=True)
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -255,7 +257,7 @@ def test_each_figure_is_drawn_by_the_code_it_copies(analyses, case, tmp_path):
     path = os.pathsep.join(x for x in (package, os.environ.get("PYTHONPATH")) if x)
     run = subprocess.run(
         [sys.executable, "-c", RUN_EACH, *scripts], cwd=str(other), capture_output=True, text=True,
-        env=dict(os.environ, MPLBACKEND="Agg", PYTHONPATH=path),
+        env=dict(os.environ, MPLBACKEND="Agg", PYTHONPATH=path), timeout=420,
     )
     assert run.returncode == 0, run.stderr[-3000:]
     for (name, args, figure), image, script in zip(drawn, shown, scripts):

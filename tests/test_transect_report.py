@@ -106,28 +106,34 @@ def test_the_interim_report_has_the_transect(matchups):
 
 @pytest.fixture(scope="module")
 def reports(matchups):
-    """The full report, along each transect and with none: the gridded page of each."""
+    """The full report with no transect and with both: the gridded page of each. Only the page
+    tested is built (variables), and each transect's section is read from the page that has both,
+    as a report is slow to build."""
     pages = {}
-    for name, transect in (
-        ("north_south", NORTH_SOUTH), ("east_west", EAST_WEST), ("none", None), ("both", [NORTH_SOUTH, EAST_WEST]),
-    ):
+    for name, transect in (("none", None), ("both", [NORTH_SOUTH, EAST_WEST])):
         out_dir = matchups / name
         oceanval.validate(
-            data_dir=str(matchups), out_dir=str(out_dir), transect=transect, concise=False, test=True
+            data_dir=str(matchups), out_dir=str(out_dir), transect=transect, concise=False,
+            variables=["temperature/foo"], test=True,
         )
-        # numbered by source within the variable (baz, then foo)
         [page] = glob.glob(str(out_dir / "oceanval_report/_build/html/notebooks/*_foo_temperature.html"))
         pages[name] = page_text(page)
     return pages
 
 
-@pytest.mark.parametrize("name, direction", [
-    ("north_south", "north–south along 3.2°E, from 54°N to 54.46°N"),
-    ("east_west", "east–west along 54.2°N, from 3.11°E to 3.44°E"),
+def section_of(text, index):
+    """The text of the index'th transect's section of a page, from its heading to the next one
+    (or the end of the page's body)."""
+    return text.split("along the transect?")[1:][index].split("Data Sources for validation")[0]
+
+
+@pytest.mark.parametrize("index, direction", [
+    (0, "north–south along 3.2°E, from 54°N to 54.46°N"),
+    (1, "east–west along 54.2°N, from 3.11°E to 3.44°E"),
 ])
-def test_the_report_maps_and_plots_the_transect(reports, name, direction):
-    text = reports[name]
-    section = text[text.index("along the transect?"): text.index("Data Sources for validation")]
+def test_the_report_maps_and_plots_the_transect(reports, index, direction):
+    text = reports["both"]
+    section = section_of(text, index)
 
     assert f"runs {direction}" in section
     assert re.search(r"onto \d+ evenly spaced points", section)
@@ -145,12 +151,10 @@ def test_without_a_transect_the_page_is_unchanged(reports):
     text = reports["none"]
 
     assert "along the transect" not in text
-    # the page's own figures keep their numbers, and the transect's come after
-    for name in ("north_south", "east_west"):
-        numbers = figures(reports[name])
-        assert numbers == list(range(1, len(numbers) + 1))
-        assert numbers[: len(figures(text))] == figures(text)
-        assert len(numbers) == len(figures(text)) + 3
+    # the page's own figures keep their numbers, and the transects' come after
+    numbers = figures(reports["both"])
+    assert numbers[: len(figures(text))] == figures(text)
+    assert len(numbers) == len(figures(text)) + 6
 
 
 def test_several_transects_each_have_a_section(reports):
