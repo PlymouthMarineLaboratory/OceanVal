@@ -3,6 +3,10 @@
 import json
 import os
 
+# PROJ must not look for grids over the network: where conda's proj-data is missing it is on, and every map
+# drawn (here, in the report's kernels and in the figure scripts' Pythons) can wait on a connection
+os.environ["PROJ_NETWORK"] = "OFF"
+
 import pytest
 
 
