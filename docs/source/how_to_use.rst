@@ -428,6 +428,8 @@ Once you have generated validation reports for different simulations, you can co
         ask=True,
     )
 
+The spatial page compares the simulations' annual means at the sea surface, on the grid cells every simulation has: a Taylor diagram of every simulation (a colour each) and variable (a number each); a skill heat map, simulations against variables, of the absolute bias and the centred RMSD, each divided by the observations' standard deviation, and the correlation, each cell shaded by the simulation's rank for the variable (the numbers are also written to `compare_skill.csv`); and the zonal means of each variable, one line per simulation. Every statistic is weighted by the area of the grid cells, and chlorophyll and kd490 are on log10 values. The best value in each row of the comparison's tables is in bold.
+
 The `model_dict` should map a short name for each model to the directory containing that model's validation output. The HTML comparison report is written to `oceanval_comparison/compare/_build/html/index.html`.
 
 Viewing a simulation's output

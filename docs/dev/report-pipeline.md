@@ -69,4 +69,11 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
    = "all"` prints expression statements in loops, not in functions), and `plt.show()` after each figure keeps them in order.
    `map_extent` is None for a line most of the way round the globe (`set_global`). Oxygen sections draw `OXYGEN_CONTOURS`
    (20, 60). The app's ticks `section_<name>` come first in the list, then the line of the user's own; none ticked passes nothing.
+10. **compare()'s spatial page** (the gap report's options 6, 12, 13): `comparison_spatial` cell 7's loop, which already regrids each
+    simulation's annual mean onto the mask every simulation has, takes `skill.dataset_stats` of it (log10 for `is_log`) before
+    `cor_space` overwrites it, into `df_skill`, written to `compare_skill.csv` beside the notebooks. `oceanval/taylor.py` (the
+    Cartesian sector of `example/taylor_prototype.py`, a colour per simulation, a number per variable) and `compare_plots.heatmap`
+    (colour by rank within a variable) only draw. The zonal lines read each validation's `oceanval_results/zonal_mean` csvs;
+    `gridded_plots.zonal_lines` takes `(lat, line)` for a simulation on a grid of its own. The best value of compare's tables is
+    `<b>…</b>`: `df_display` returns a Styler, which renders HTML, so the old `x**` never showed bold.
 

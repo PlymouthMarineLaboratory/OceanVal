@@ -515,6 +515,13 @@ oceanval.<a href="api.html#validate"><span class="tok-fn">validate</span></a>(lo
     </div>
     <p><code>model_dict</code> maps a short name for each model to its validation output directory. The HTML comparison report is written to <code>oceanval_comparison/compare/_build/html/notebooks/comparison_seasonal.html</code>.</p>
     <p>Comparison reports take <code>word=True</code> and <code>pdf=True</code> as well, producing the same <a href="#formats">Word and PDF versions</a> as a validation report.</p>
+    <p>The spatial page compares the simulations&rsquo; annual means at the sea surface, on the grid cells every simulation has:</p>
+    <ul class="param-list">
+      <li><p><strong>A Taylor diagram</strong> of every simulation (a colour each) and variable (a number each): the spatial correlation with the observations, the spatial standard deviation divided by theirs, and the centred RMSD as dashed arcs about the observations&rsquo; point.</p></li>
+      <li><p><strong>A skill heat map</strong>, simulations against variables: the absolute bias and the centred RMSD, each divided by the observations&rsquo; standard deviation, and the correlation. Each cell is shaded by the simulation&rsquo;s rank for the variable, darkest for the best. The numbers are also written to <code>compare_skill.csv</code>.</p></li>
+      <li><p><strong>Zonal means</strong> of each variable, one line per simulation, with the observations and their interquartile range across longitude.</p></li>
+    </ul>
+    <p>Every statistic is weighted by the area of the grid cells, and chlorophyll and kd490 are on log10 values. The best value in each row of the comparison&rsquo;s tables is in bold.</p>
     <h2 id="analyze">Analyzing a simulation on its own</h2>
     <p><a href="api.html#analyze"><code>oceanval.analyze</code></a> works out climatologies, phenology and time series from a simulation&rsquo;s output alone, with no observations, and builds an HTML report of them the way <code>validate</code> builds the validation report:</p>
     <div class="code-block">

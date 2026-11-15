@@ -131,7 +131,8 @@ def decimal_years(times):
 def zonal_lines(lat, obs, model, label, obs_low=None, obs_high=None, log=False, title=None):
     """The zonal-mean annual mean of the observations and the model against
     latitude, with the observations' interquartile range across longitude as a
-    band. model may be a dict of name: line (compare(), one per simulation)."""
+    band. model may be a dict of name: line (compare(), one per simulation), each
+    line (latitudes, values) if the simulation's grid is its own."""
     plt = _plt()
     lat = np.asarray(lat, dtype="float64")
     models = model if isinstance(model, dict) else {"Model": model}
@@ -144,9 +145,11 @@ def zonal_lines(lat, obs, model, label, obs_low=None, obs_high=None, log=False, 
     ax.plot(lat[ok], np.asarray(obs)[ok], color=OBS, lw=1.6, label="Observations")
     colours = [MODEL] if len(models) == 1 else simulation_colours(len(models))
     for (name, line), colour in zip(models.items(), colours):
-        line = np.asarray(line, dtype="float64")
+        # a simulation on a grid of its own gives (its latitudes, its line)
+        line_lat, line = line if isinstance(line, tuple) else (lat, line)
+        line_lat, line = np.asarray(line_lat, dtype="float64"), np.asarray(line, dtype="float64")
         ok = np.isfinite(line)
-        ax.plot(lat[ok], line[ok], color=colour, lw=1.6, label=name)
+        ax.plot(line_lat[ok], line[ok], color=colour, lw=1.6, label=name)
     if log:
         ax.set_yscale("log")
     ax.set_xlabel("Latitude")
