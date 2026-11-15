@@ -665,7 +665,7 @@
   } else {
     // z_level and the model's variables are listed as the thickness is typed in, one only (a pick is an input event)
     OceanValGUI.variableBox(field("thickness"), {
-      available: ["z_level", ...state.available.filter((name) => name !== "z_level")], longNames: state.long_names || {}, multi: false });
+      available: thicknessChoices(), longNames: state.long_names || {}, multi: false });
   }
 
   function setControl(name) {
@@ -757,6 +757,20 @@
     || rows.some((row) => row.status === "ok" && row.datasets.some(
       (dataset) => dataset.checked && dataset.kind === "point" && lacksOwnYears(dataset)));
   const THICKNESS_NEEDED = "A dataset is set to Vertical, or is a mean over some depths, so a thickness is needed: z_level, a cell thickness variable or a file.";
+  // what is wrong with a typed thickness (a variable or a file it cannot be), or null; shared by the box and the Vertical pop-out
+  function thicknessProblem(text) {
+    const thickness = String(text).trim();
+    if (!thickness || context.fvcom) return null;
+    if (!/^z[ _-]level$/.test(thickness) && !available.has(thickness) && !/[\/~.]/.test(thickness)) {
+      return "Not a variable in the simulation output, or a file that exists.";
+    }
+    return null;
+  }
+  // z_level first, then the model's variables: what the thickness box and its pop-out list
+  // a declaration, not a const: the box is set up above this line in the script
+  function thicknessChoices() {
+    return ["z_level", ...state.available.filter((name) => name !== "z_level")];
+  }
 
   // the thickness is asked on the point datasets' page if only they are set
   // to Vertical, else on the page of the gridded datasets. Returns that page
@@ -845,9 +859,9 @@
 
     // a path can only be checked by create_recipes, when the script is written
     const thickness = String(form.thickness).trim();
-    if (thickness && !context.fvcom && !/^z[ _-]level$/.test(thickness)
-        && !available.has(thickness) && !/[\/~.]/.test(thickness)) {
-      errors.thickness = "Not a variable in the simulation output, or a file that exists.";
+    const thicknessWrong = thicknessProblem(thickness);
+    if (thicknessWrong) {
+      errors.thickness = thicknessWrong;
     } else if (!thickness && app && needsThickness()) {
       errors.thickness = THICKNESS_NEEDED;
     }
@@ -1140,7 +1154,9 @@
       tr.classList.toggle("is-invalid", row.status === "invalid");
       // the user's own data is always ticked
       tr.classList.toggle("is-selected", row.status === "ok"
-        && (chips.some((chip) => chip.dataset.kind === kind && chip.dataset.checked) || ownChips(row, kind).length > 0));
+        // not ownChips(row, kind): that builds the chips, and each one it builds is listed in ownChipList,
+        // where those never shown would replace the options the user typed in
+        && (chips.some((chip) => chip.dataset.kind === kind && chip.dataset.checked) || row.own.some((entry) => entry.kind === kind)));
       input.setAttribute("aria-invalid", String(row.status === "invalid"));
       msg.replaceChildren(...message(row));
     }
@@ -1296,6 +1312,8 @@
         delete dataset.serverErrors[key];
         delete dataset.serverErrors[""];
         summarise();
+        // ticking Vertical with no thickness yet asks for one at once, in a pop-out
+        if (tick && control.checked && needsThickness() && !String(form.thickness).trim()) askThickness(control);
       });
     }
     const msg = el("p", { class: "opts__msg" });
@@ -1790,6 +1808,61 @@
     overlay.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
     document.body.append(overlay);
     back.focus();
+  }
+
+  // ticking Vertical asks for the thickness here, in a pop-out, rather than
+  // at the top of the page. Save fills in the Model data info box through its
+  // own listener; Cancel, Escape or a click outside leaves Vertical ticked and
+  // the box empty, as before
+  function askThickness(tick) {
+    document.getElementById("thickness-dialog")?.remove();
+    const input = el("input", {
+      class: "s-input is-mono", id: "thickness-ask-input", spellcheck: "false", autocapitalize: "off",
+      "aria-describedby": "thickness-ask-msg", value: String(form.thickness || ""),
+    });
+    const message = el("p", { class: "group__msg", id: "thickness-ask-msg" });
+    const cancel = el("button", { type: "button", class: "btn", id: "thickness-ask-cancel", text: "Cancel" });
+    const save = el("button", { type: "button", class: "btn btn--primary", id: "thickness-ask-save", text: "Save" });
+    const overlay = el("div", { class: "picker", id: "thickness-dialog" },
+      el("div", { class: "picker__card restart__card", role: "dialog", "aria-modal": "true", "aria-labelledby": "thickness-ask-title" },
+        el("div", { class: "restart__body" },
+          el("h2", { id: "thickness-ask-title", text: "Thickness for Vertical" }),
+          el("p", { text: "Validating through the water column needs the simulation's cell thickness. "
+            + "Enter it here and it fills in Model data info at the top of the page." }),
+          el("label", { class: "g-row" }, el("span", { class: "g-label", text: "Is the simulation z-level or is thickness supplied?" }), input),
+          message),
+        el("div", { class: "picker__foot" }, cancel, save)));
+
+    const check = () => {
+      const text = input.value.trim();
+      const wrong = text ? thicknessProblem(text) : null;
+      message.textContent = wrong || "";
+      save.disabled = !text || Boolean(wrong);
+    };
+    const close = () => { overlay.remove(); tick.focus(); };
+    const accept = () => {
+      if (save.disabled) return;
+      // the top box's own listener stores the value and runs summarise(), so it shows as if typed there
+      field("thickness").value = input.value.trim();
+      field("thickness").dispatchEvent(new Event("input", { bubbles: true }));
+      close();
+    };
+    document.body.append(overlay);
+    // the box has the focus before its list is built, so the list stays shut and the buttons below are not covered:
+    // it opens when the box is typed in or clicked
+    input.focus();
+    // built once the box is in the page, with z_level first and one pick only; before the listeners
+    // below, so Enter picks a highlighted variable first (the box prevents that default), and a second Enter saves
+    variableBox(input, { available: thicknessChoices(), multi: false });
+    input.addEventListener("input", check);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.defaultPrevented) { event.preventDefault(); accept(); }
+    });
+    save.addEventListener("click", accept);
+    cancel.addEventListener("click", close);
+    overlay.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+    overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+    check();
   }
 
   writeButton.addEventListener("click", async () => {

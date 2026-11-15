@@ -659,7 +659,8 @@ const OceanValGUI = (() => {
     const part = () => {
       const text = input.value;
       if (!multi) return { start: 0, end: text.length, text: text.trim() };
-      if (isSumLike()) {
+      // (a search of several words, "potential temp", has no operator but its +s, so is a part like a sum's)
+      if (isSumLike() || !/[\-*/^()<>=!?:&|,;]/.test(text)) {
         // a sum: the part between the +s, as it always was
         const caret = input.selectionStart === null ? text.length : input.selectionStart;
         const start = caret > 0 ? text.lastIndexOf("+", caret - 1) + 1 : 0;
