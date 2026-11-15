@@ -127,7 +127,7 @@ jobs:
           # the heavy groups (the sim and analysis figures, the detailed reports) get twice the time per test, a runner
           # taking several times as long as a laptop
           case "${{ matrix.group }}" in 1|5|7|8|9|13|14|15|16|17) LIMIT=1800 ;; *) LIMIT=900 ;; esac
-          OPTIONS="-v --timeout=$LIMIT --timeout-method=thread --durations=30 --junitxml=durations-${{ matrix.group }}.xml"
+          OPTIONS="-v -rP --timeout=$LIMIT --timeout-method=thread --durations=30 --junitxml=durations-${{ matrix.group }}.xml"
           case "${{ matrix.group }}" in
             1) python -m pytest $OPTIONS $GROUP1 ;;
             2) python -m pytest $OPTIONS $GROUP2 ;;
