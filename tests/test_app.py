@@ -1115,6 +1115,14 @@ class TestValidateChecks:
         errors = check_validate({"customize": "yes"}, str(tmp_path))[1]
         assert errors == {"per_matchup": app_module.PER_MATCHUP_ASK}
 
+    def test_concise_is_the_concise_report(self, tmp_path):
+        write_matchups(tmp_path)
+
+        arguments, errors = check_validate({"customize": "concise", "omit_all": ["taylor"]}, str(tmp_path))
+        assert errors == {}
+        assert arguments["concise"] is True
+        assert "omit" not in arguments
+
     def test_no_to_customizing_is_the_detailed_report(self, tmp_path):
         write_matchups(tmp_path)
 
@@ -6241,11 +6249,12 @@ def test_customizing_the_output_for_every_matchup_together_in_a_browser(browser,
         # the first question: boxed in red until answered, and no button
         page.wait_for_selector("#v-page-customize:not([hidden])")
         assert page.is_hidden("#validate-form")
-        assert page.text_content("#v-customize-title") == "Do you need to customize the validation output?"
+        assert page.text_content("#v-customize-title") == "How detailed do you want the validation report to be?"
+        assert page.locator("#v-page-customize .choice").all_text_contents()[0].split()[0] == "Concise"
         assert "needs-answer" in page.get_attribute("#v-customize-question", "class")
         assert page.locator("#v-next").count() == 0
         assert "A detailed report with every figure and analysis will be produced." in page.text_content("#v-customize-no")
-        # Yes goes straight on to the question of variable by variable
+        # Customize goes straight on to the question of variable by variable
         page.click("#v-customize-yes")
         page.wait_for_selector("#v-page-each:not([hidden])")
         assert page.is_hidden("#v-page-customize")

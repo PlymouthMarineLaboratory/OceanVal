@@ -21,6 +21,7 @@ import dill
 from oceanval import depths
 from oceanval import prompts
 from oceanval import regions
+from oceanval import release_figures
 from oceanval import report_items
 from oceanval import selection
 from oceanval import transects
@@ -1499,7 +1500,7 @@ def validate(
     lat_lim : list or None
         The latitude limits for the validation. Default is None
     concise : bool
-        Whether to build the concise report, which leaves out the gridded matchups' monthly maps and the point matchups' map of locations, and shows one scatter plot of model against observations rather than one for each month. Default is True. False builds the detailed report, with every figure and analysis.
+        Whether to build the concise report, which leaves out the gridded matchups' monthly maps and the point matchups' map of locations, and shows one scatter plot of model against observations rather than one for each month. It also leaves out the figures added since OceanVal's first release (the density scatter, zonal means, Hovmöller plots, regional, depth and transect figures and total over the area matched: see oceanval.release_figures.detailed_only). Default is True. False builds the detailed report, with every figure and analysis.
     fixed_scale : bool
         Whether to use a fixed scale for the seasonal plots. Default is False. If True, the minimum and maximum values are capped to cover the 2nd and 98th percentiles of both model and observations.
     subregions : str or None
@@ -1541,6 +1542,9 @@ def validate(
     depth_bins = depths.check_depth_bins(depth_bins)
     map_depths = depths.check_map_depths(map_depths)
     omit = report_items.check_omit(omit)
+    if concise:
+        # the concise report is the report from before the newer figures
+        omit = report_items.with_ids(omit, release_figures.detailed_only())
     # convert data_dir to absolute path
     data_dir = os.path.expanduser(data_dir)
     data_dir = os.path.abspath(data_dir)

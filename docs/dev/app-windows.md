@@ -185,14 +185,14 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 
 The report options (`validate` and `report_options`, `#validate-form`) are the first of several pages of one view (`reportPage.index`,
 `reportPages()`, `renderReportPage` in `oceanval_app.html`; Back steps back through them through `backTo`, and an answer on the two questions goes straight on to the next page (no Continue there; No to customizing is the last page, so its button builds the report), and a page of the view
-has the view's bar): **"Do you need to customize the validation output?"** (`#v-page-customize`, Yes/No `.choice` tiles; No is the
-detailed report, `concise=False`, and the last page), then, with Yes, **"Do you want to customize the output variable by variable?"**
+has the view's bar): **"How detailed do you want the validation report to be?"** (`#v-page-customize`, three `.choice` tiles: Concise, `concise=True`, the
+report from before the newer figures (`release_figures.detailed_only`); Detailed (`customize` "no"), `concise=False`, every figure; Customize ("yes"). Concise and Detailed are the last page), then, with Customize, **"Do you want to customize the output variable by variable?"**
 (`#v-page-each`), then boxes (`#v-page-items`): one page for every dataset (`omit_all`, a list) or one for each ticked matchup and then
 the summary (`omit_each`, by matchup key and `"summary"`). The catalogue is `report_items.as_json()`, sent as `state.validate.report_items`;
 each box is a `.choice.report-item` with a `.report-item__remove` (× at the top right, which becomes "Add back" and greys the box out).
 Both questions are required: the server's `check_customize` refuses them unanswered (`DEFAULT_CUSTOMIZE`, which the tests' autouse fixture
 `customize_question_answered` sets to "no"; mark a test `customize_question` to meet it empty), and `.report-question.needs-answer` boxes them
-in red. There is no Concise/Detailed choice in the window any more; `concise` stays in `validate()`. Which boxes a page has comes from what the server says each matchup can show (`items`, from `oceanval/option_profiles.py`: a built-in variable and
+in red. `concise=True` leaves out `release_figures.detailed_only()` (every figure not in `release_figures.ALWAYS`) through `report_items.with_ids`, in `validate()` and the interim report (`live.py`). Which boxes a page has comes from what the server says each matchup can show (`items`, from `oceanval/option_profiles.py`: a built-in variable and
 dataset know their months, total and depth) and the options typed (`itemApplies`); a seasonal box says it needs more than one month only for the
 user's own data, whose months are not known until matched up. The report options page likewise shows a group (subregions, transect, maps at depth,
 fixed scale, depth bins) only if a ticked matchup's `options` has it.

@@ -213,6 +213,16 @@ def check_omit(omit):
     return checked or None
 
 
+def with_ids(omit, extra):
+    """omit (as check_omit gives it, or None) with the ids in extra also left
+    out of every page."""
+    if not extra:
+        return omit
+    omit = dict(omit or {})
+    omit[EVERY_PAGE] = sorted(set(omit.get(EVERY_PAGE, [])) | set(extra), key=ids().index)
+    return omit
+
+
 def check_against(omit, matchups):
     """Raises ValueError if a key of omit (as check_omit gives it) picks none
     of the matchups (as selection.on_disk gives them), or leaves out an item

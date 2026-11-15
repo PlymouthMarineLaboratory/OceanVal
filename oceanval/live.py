@@ -42,7 +42,7 @@ import time
 import traceback
 
 import oceanval
-from oceanval import depths, report_items, selection, transects
+from oceanval import depths, release_figures, report_items, selection, transects
 
 # where the interim report is built, in the report's out_dir
 FOLDER = "oceanval_interim_report"
@@ -127,6 +127,8 @@ def check_options(live_validation, out_dir):
     options["variables"] = selection.check_variables(live_validation.get("variables"))
     # what the pages leave out: a key that picks no matchup made leaves nothing out
     options["omit"] = report_items.check_omit(live_validation.get("omit"))
+    if options["concise"]:
+        options["omit"] = report_items.with_ids(options["omit"], release_figures.detailed_only())
     report_dir = live_validation.get("out_dir", out_dir)
     if not isinstance(report_dir, str):
         raise TypeError("live_validation's out_dir must be a string")

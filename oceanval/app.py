@@ -280,8 +280,8 @@ def default_validate_form():
         "pdf": False,
         "word": False,
         "zip": False,
-        # what the report has in it: "no" to customize it is the detailed report;
-        # "yes" leaves out the figures chosen, for every matchup together
+        # what the report has in it: "concise" is the concise report, "no" (not customized) the
+        # detailed report; "yes" (customize) leaves out the figures chosen, for every matchup together
         # (per_matchup "no", omit_all) or for each (per_matchup "yes", omit_each,
         # by the matchup's key and "summary"); see oceanval.report_items
         "customize": DEFAULT_CUSTOMIZE,
@@ -772,7 +772,10 @@ def check_report(form, cwd, out_dir=None):
     # the detailed report, with the figures chosen left out if it is customized
     omit, omit_errors = check_customize(form)
     errors.update(omit_errors)
-    if not omit_errors:
+    if not omit_errors and form["customize"] == "concise":
+        # validate()'s concise report leaves out the newer figures itself
+        arguments["concise"] = True
+    elif not omit_errors:
         arguments["concise"] = False
         # what is not in release_figures.csv is never drawn, whatever the window asked for
         omit = _with_unreleased(omit)
@@ -826,7 +829,7 @@ REPORT_ITEMS = [
 ]
 
 # why the report's contents cannot be used, as the page says it too
-CUSTOMIZE_ASK = "Say whether you need to customize the validation output."
+CUSTOMIZE_ASK = "Say how detailed the validation report is to be: concise, detailed or customized."
 PER_MATCHUP_ASK = "Say whether to customize the output variable by variable."
 
 
@@ -873,15 +876,15 @@ def _omit_of_made(arguments):
 
 def check_customize(form):
     """validate()'s omit, from the pages after the report options: None if
-    nothing is left out (the detailed report, which is all of it), a list of
+    nothing is left out (the concise report, or the detailed one, which is all of it), a list of
     ids for every matchup together, or a dict of them by each matchup's key
     and "summary" (see oceanval.report_items). Returned with the errors, as
     (omit, errors)."""
     errors = {}
-    if form["customize"] not in ("yes", "no"):
+    if form["customize"] not in ("yes", "no", "concise"):
         errors["customize"] = CUSTOMIZE_ASK
         return None, errors
-    if form["customize"] == "no":
+    if form["customize"] in ("no", "concise"):
         return None, errors
     if form["per_matchup"] not in ("yes", "no"):
         errors["per_matchup"] = PER_MATCHUP_ASK

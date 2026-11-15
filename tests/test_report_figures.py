@@ -97,10 +97,10 @@ def reports(tmp_path_factory):
         data_dir=str(folder), out_dir=str(detailed), concise=False, subregions="cmems",
         map_depths=[20, 5000], test=True,
     )
+    # the concise report, which leaves every one of them out (the same as omit=NEW_GRIDDED): cheaper
     omitted = folder / "omitted"
     oceanval.validate(
-        data_dir=str(folder), out_dir=str(omitted), concise=False, subregions="cmems",
-        omit=NEW_GRIDDED + ["point_profiles"], test=True,
+        data_dir=str(folder), out_dir=str(omitted), concise=True, omit=["point_profiles"], test=True,
     )
     yield folder, detailed, omitted
     oceanval.reset()

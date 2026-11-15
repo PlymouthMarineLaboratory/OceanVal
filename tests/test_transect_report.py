@@ -68,7 +68,7 @@ def matchups(tmp_path_factory):
         ask=False,
         cores=1,
         out_dir=str(folder),
-        live_validation={"transect": NORTH_SOUTH, "test": True},
+        live_validation={"transect": NORTH_SOUTH, "concise": False, "test": True},
     )
     yield folder
     oceanval.reset()
@@ -113,7 +113,7 @@ def reports(matchups):
     ):
         out_dir = matchups / name
         oceanval.validate(
-            data_dir=str(matchups), out_dir=str(out_dir), transect=transect, test=True
+            data_dir=str(matchups), out_dir=str(out_dir), transect=transect, concise=False, test=True
         )
         # numbered by source within the variable (baz, then foo)
         [page] = glob.glob(str(out_dir / "oceanval_report/_build/html/notebooks/*_foo_temperature.html"))

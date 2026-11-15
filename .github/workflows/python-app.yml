@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 
     steps:
       - uses: actions/checkout@v7
@@ -61,10 +61,10 @@ jobs:
         run: |
           python -c "from importlib.metadata import version; v = version('jupyter-book'); print('jupyter-book', v); assert int(v.split('.')[0]) >= 2, f'jupyter-book {v} is installed, the tests need 2'"
 
-      - name: Test with pytest (group ${{ matrix.group }} of 12)
+      - name: Test with pytest (group ${{ matrix.group }} of 17)
         shell: bash -l {0}
         run: |
-          # Groups 1-11 are named sets of test files, balanced by run time (the old six groups cut in two,
+          # Groups 1-11 and 13-17 are named sets of test files, balanced by run time (the old six groups cut in two,
           # from the junit times of a run, which each job uploads); group 12
           # is every other test file, so a new test file is always picked up.
           # macos-app.yml runs the same groups: change both together.
@@ -73,12 +73,18 @@ jobs:
           GROUP3="tests/test_sim_compare_app.py tests/test_analysis_app.py"
           GROUP4="tests/test_point_matchups.py tests/test_gridded_failures.py tests/test_matchup_formula.py tests/test_short_simulations.py tests/test_viewer_mesh.py"
           GROUP5="tests/test_gridded_matchups.py tests/test_matchups.py tests/test_live_validation.py"
-          GROUP6="tests/test_model_check.py tests/test_transects.py tests/test_viewer_times.py tests/test_report_figures.py"
-          GROUP7="tests/test_transect_report.py tests/test_analysis_plots.py tests/test_analysis_changes.py tests/test_report_statistics.py"
+          GROUP6="tests/test_model_check.py tests/test_transects.py tests/test_viewer_times.py"
+          GROUP7="tests/test_analysis_plots.py tests/test_analysis_changes.py"
           GROUP8="tests/test_fvcom.py tests/test_analysis.py tests/test_user_recipes.py tests/test_calendars.py tests/test_report_compare.py"
           GROUP9="tests/test_sim_compare.py tests/test_analysis_report.py tests/test_analysis_series.py"
-          GROUP10="tests/test_analysis_transects.py tests/test_sim_unify.py tests/test_viewer_catalogue.py tests/test_report_totals.py"
+          GROUP10="tests/test_analysis_transects.py tests/test_sim_unify.py tests/test_viewer_catalogue.py"
           GROUP11="tests/test_app.py tests/test_viewer_browser.py tests/test_store_expand.py tests/test_adders.py"
+          # 13-17: the report tests that need the detailed report (concise=False), one job each
+          GROUP13="tests/test_report_figures.py"
+          GROUP14="tests/test_report_statistics.py"
+          GROUP15="tests/test_report_totals.py"
+          GROUP16="tests/test_transect_report.py"
+          GROUP17="tests/test_report_omit.py"
           # -v names each test as it starts, and a test still running after
           # 15 minutes ends the run with every thread's stack, so a stall shows
           # which test it is and where it is stuck; --durations lists the slowest
@@ -97,7 +103,12 @@ jobs:
             9) python -m pytest $OPTIONS $GROUP9 ;;
             10) python -m pytest $OPTIONS $GROUP10 ;;
             11) python -m pytest $OPTIONS $GROUP11 ;;
-            12) python -m pytest $OPTIONS tests $(for f in $GROUP1 $GROUP2 $GROUP3 $GROUP4 $GROUP5 $GROUP6 $GROUP7 $GROUP8 $GROUP9 $GROUP10 $GROUP11; do echo --ignore=$f; done) ;;
+            13) python -m pytest $OPTIONS $GROUP13 ;;
+            14) python -m pytest $OPTIONS $GROUP14 ;;
+            15) python -m pytest $OPTIONS $GROUP15 ;;
+            16) python -m pytest $OPTIONS $GROUP16 ;;
+            17) python -m pytest $OPTIONS $GROUP17 ;;
+            12) python -m pytest $OPTIONS tests $(for f in $GROUP1 $GROUP2 $GROUP3 $GROUP4 $GROUP5 $GROUP6 $GROUP7 $GROUP8 $GROUP9 $GROUP10 $GROUP11 $GROUP13 $GROUP14 $GROUP15 $GROUP16 $GROUP17; do echo --ignore=$f; done) ;;
           esac
 
       - name: Upload the test times

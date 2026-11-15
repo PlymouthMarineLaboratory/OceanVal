@@ -68,6 +68,7 @@
   .report-question { width: 100%; max-width: 1000px; padding: 18px 20px 24px; border: 3px solid transparent; border-radius: var(--radius-md); }
   .report-question__title { margin: 0 0 28px; font: 600 30px/1.25 var(--font-head); letter-spacing: -0.4px; text-align: center; }
   .report-question .choices.is-two { width: 100%; max-width: 960px; gap: 28px; margin: 0 auto; }
+  .report-question .choices.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; max-width: 1100px; gap: 28px; margin: 0 auto; }
   .report-question .choice { aspect-ratio: auto; min-height: 200px; padding: 32px 30px; gap: 12px; }
   .report-question .choice__icon svg { width: 21px; height: 21px; }
   .report-question .choice__title { font-size: 22px; }
@@ -164,7 +165,7 @@
   .reg-form .s-input.is-oceanval, .reg-form .s-select.is-oceanval, .reg-form .group__line.is-oceanval { color: var(--ink); font-weight: 700; }
   .reg-form .s-input:disabled.is-oceanval { color: var(--ink); -webkit-text-fill-color: var(--ink); opacity: 1; }
   @media (max-width: 720px) { .reg-labels { grid-template-columns: minmax(0, 1fr); } }
-  @media (max-width: 720px) { .own-fields, .choices.is-two { grid-template-columns: minmax(0, 1fr); } #view-own .choice { min-height: 0; padding: 26px 22px; } }
+  @media (max-width: 720px) { .own-fields, .choices.is-two, .report-question .choices.is-three { grid-template-columns: minmax(0, 1fr); } #view-own .choice { min-height: 0; padding: 26px 22px; } }
 
   /* ---- your own data, saved for future use too ---- */
   .own-actions { flex-wrap: wrap; }
@@ -2201,17 +2202,22 @@
     <!-- the pages after the report options: a detailed report, or one customized by leaving figures out (see oceanval.report_items) -->
     <div class="report-page" id="v-page-customize" hidden>
       <div class="report-question" id="v-customize-question">
-        <h2 class="report-question__title" id="v-customize-title">Do you need to customize the validation output?</h2>
-        <div class="choices is-two" role="radiogroup" aria-labelledby="v-customize-title">
-          <button type="button" class="choice" id="v-customize-yes" role="radio" aria-checked="false">
-            <span class="choice__icon" data-icon="preferences"></span>
-            <span class="choice__title">Yes, customize it</span>
-            <span class="choice__text">Choose which figures and analyses to leave out of the report, in the next steps.</span>
+        <h2 class="report-question__title" id="v-customize-title">How detailed do you want the validation report to be?</h2>
+        <div class="choices is-three" role="radiogroup" aria-labelledby="v-customize-title">
+          <button type="button" class="choice" id="v-customize-concise" role="radio" aria-checked="false">
+            <span class="choice__icon" data-icon="check"></span>
+            <span class="choice__title">Concise</span>
+            <span class="choice__text">The core figures and tables. Quicker to build: it leaves out the newer, more detailed figures.</span>
           </button>
           <button type="button" class="choice" id="v-customize-no" role="radio" aria-checked="false">
             <span class="choice__icon" data-icon="report"></span>
-            <span class="choice__title">No, a detailed report</span>
+            <span class="choice__title">Detailed</span>
             <span class="choice__text">A detailed report with every figure and analysis will be produced.</span>
+          </button>
+          <button type="button" class="choice" id="v-customize-yes" role="radio" aria-checked="false">
+            <span class="choice__icon" data-icon="preferences"></span>
+            <span class="choice__title">Customize</span>
+            <span class="choice__text">Choose which figures and analyses to leave out of the report, in the next steps.</span>
           </button>
         </div>
       </div>
@@ -9815,7 +9821,7 @@
       const page = reportPageNow();
       const unanswered = (page.kind === "customize" && !reportAnswer("customize")) || (page.kind === "each" && !reportAnswer("per_matchup"));
       next.disabled = page.kind === "options" ? blocked || maskBlocked() : unanswered;
-      next.title = page.kind === "options" ? why || maskWhy : unanswered ? "Answer Yes or No first" : "";
+      next.title = page.kind === "options" ? why || maskWhy : unanswered ? "Answer the question first" : "";
     }
     // the report is not built along a transect that cannot be used
     const build = $("build");
@@ -9897,7 +9903,7 @@
   // (oceanval.report_items, in state.validate.report_items): its × leaves it out (omit_all, or omit_each by the
   // matchup's key and "summary"), greying it out, and Add back keeps it again.
   const REPORT_PAGE_ERRORS = ["customize", "per_matchup", "omit"];
-  const reportAnswer = (name) => (validateForm[name] === "yes" || validateForm[name] === "no" ? validateForm[name] : "");
+  const reportAnswer = (name) => (["yes", "no", "concise"].includes(validateForm[name]) ? validateForm[name] : "");
 
   // the matchups the boxes are for: those ticked, or, if they are not known yet, as the recipes chosen say
   function reportMatchups() {
@@ -9966,7 +9972,7 @@
     const pages = reportPages();
     const page = reportPageNow();
     if (reportPage.index < pages.length - 1) return false;
-    return page.kind === "customize" ? reportAnswer("customize") === "no" : page.kind !== "options" && page.kind !== "each";
+    return page.kind === "customize" ? ["no", "concise"].includes(reportAnswer("customize")) : page.kind !== "options" && page.kind !== "each";
   }
 
   function reportTo(index) {
@@ -9976,7 +9982,7 @@
     window.scrollTo(0, 0);
     const page = reportPageNow();
     const focus = page.kind === "options" ? (state.view === "validate" ? "v-data_dir" : "v-lon_min")
-      : page.kind === "customize" ? (reportAnswer("customize") === "no" ? "v-customize-no" : "v-customize-yes")
+      : page.kind === "customize" ? (reportAnswer("customize") === "no" ? "v-customize-no" : reportAnswer("customize") === "concise" ? "v-customize-concise" : "v-customize-yes")
       : page.kind === "each" ? (reportAnswer("per_matchup") === "no" ? "v-each-no" : "v-each-yes") : null;
     if (focus) $(focus).focus();
     else {
@@ -10073,7 +10079,7 @@
     // each question must be answered, so it is boxed in red until it is
     for (const [name, prefix] of [["customize", "v-customize"], ["per_matchup", "v-each"]]) {
       const answer = reportAnswer(name);
-      for (const value of ["yes", "no"]) {
+      for (const value of name === "customize" ? ["concise", "no", "yes"] : ["yes", "no"]) {
         $(`${prefix}-${value}`).classList.toggle("is-chosen", answer === value);
         $(`${prefix}-${value}`).setAttribute("aria-checked", String(answer === value));
       }
@@ -10084,12 +10090,12 @@
   }
 
   for (const [name, prefix] of [["customize", "v-customize"], ["per_matchup", "v-each"]]) {
-    for (const value of ["yes", "no"]) {
+    for (const value of name === "customize" ? ["concise", "no", "yes"] : ["yes", "no"]) {
       $(`${prefix}-${value}`).addEventListener("click", () => {
         validateForm[name] = value;
         delete validateErrors[name];
-        if (name === "customize" && value === "no") {
-          // the detailed report: the last page, so its button builds the report
+        if (name === "customize" && value !== "yes") {
+          // the concise or detailed report: the last page, so its button builds the report
           render();
           refreshValidate();
         } else {

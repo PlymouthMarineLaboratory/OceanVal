@@ -55,3 +55,12 @@ class TestAFigureInRelease:
         for name in release_figures.ALWAYS:
             assert name in shown and not shown[name]["in_development"]
         assert app._with_unreleased(None) == [staged]
+
+
+def test_a_concise_report_leaves_out_every_figure_added_since_the_first_release():
+    from oceanval import release_figures, report_items
+
+    left_out = release_figures.detailed_only()
+    assert set(left_out) == set(report_items.ids()) - set(release_figures.ALWAYS)
+    # none of the figures the report always had is among them
+    assert not set(left_out) & set(release_figures.ALWAYS)

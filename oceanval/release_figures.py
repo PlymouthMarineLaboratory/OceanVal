@@ -69,3 +69,9 @@ def not_released():
     """The ids of the figures that are not in the release, in the order of report_items.ids()."""
     released = in_release()
     return [item for item in report_items.ids() if item not in released]
+
+
+def detailed_only():
+    """The ids of the figures a concise report leaves out: those OceanVal did not
+    have before the phased release (the others in ALWAYS are the concise report's)."""
+    return [item for item in report_items.ids() if item not in ALWAYS]
