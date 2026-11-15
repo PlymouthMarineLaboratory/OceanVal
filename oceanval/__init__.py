@@ -29,7 +29,7 @@ from oceanval.session import session_info
 from oceanval.utils import restrict_r_to_conda
 restrict_r_to_conda()
 import webbrowser
-from oceanval.chunkers import add_chunks
+from oceanval.chunkers import add_chunks, squeeze_blank_lines
 import os
 import re
 import html
@@ -220,6 +220,10 @@ def _remove_diagnostic_outputs(notebooks):
                     elif output.output_type == "execute_result" and set(output.data) != {"text/plain"}:
                         cleaned_outputs.append(output)
                 cell.outputs = cleaned_outputs
+                # the pages are written without code, so a cell that shows
+                # nothing would only leave an empty block (a gap) in the page
+                if not cleaned_outputs:
+                    continue
             kept_cells.append(cell)
         notebook.cells = kept_cells
         nbformat.write(notebook, notebook_path)
@@ -1412,8 +1416,7 @@ def _rewrite_notebook_source(
 
     # write the new lines to the file
     with open(path, "w") as file:
-        for line in new_lines:
-            file.write(line + "\n")
+        file.write(squeeze_blank_lines("\n".join(new_lines)))
 
 
 def _page_removed(path, page_removed, omit):

@@ -18,6 +18,28 @@ def is_chunk(x):
         return False
 
 
+def squeeze_blank_lines(text):
+    """text with at most one blank line in a row, and none at its start. Blank
+    lines inside a triple-quoted string are left as they are."""
+    out = []
+    quote = None
+    blank = False
+    for line in text.split("\n"):
+        if quote is None and line.strip() == "":
+            if blank or not out:
+                continue
+            blank = True
+            out.append("")
+            continue
+        blank = False
+        out.append(line)
+        for q in re.findall(r'"""|\'\'\'', line):
+            quote = q if quote is None else (None if quote == q else quote)
+    while out and out[-1] == "":
+        out.pop()
+    return "\n".join(out) + "\n"
+
+
 def add_chunks( dir=None, paths=None):
     """Put the chunk_* templates in place in the report's .py:percent
     notebooks, or only in those listed in paths."""
@@ -70,5 +92,5 @@ def add_chunks( dir=None, paths=None):
 
         # write the new lines to the file
         file1 = open(path, "w")
-        file1.writelines(new_lines)
+        file1.write(squeeze_blank_lines("".join(new_lines)))
         file1.close()

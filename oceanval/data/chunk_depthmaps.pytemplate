@@ -50,7 +50,6 @@ def depth_level(k):
         limits = [limits[0] - 0.5 * (abs(limits[0]) or 1), limits[0] + 0.5 * (abs(limits[0]) or 1)]
     return ds_level, limits
 
-
 depthmap_intro = False
 for target, k in depthmap_levels:
     found = depth_level(k)

@@ -4,8 +4,6 @@ if wanted("bias_map"):
 #
 # A critical metric for model performance is the bias between model and observed values. Here the bias is calculated as the mean difference between model and observed values. A positive bias indicates that the model overestimates the observed values, while a negative bias indicates that the model underestimates the observed values.
 
-
-
 # %% tags=["remove-input"]
 ds_bias = ds_model.copy()
 ds_bias - ds_obs
@@ -42,8 +40,6 @@ if wanted("bias_map"):
         negative_bias = str(100-positive_bias) + "%"
         md(f"The spatial average bias of {layer} {vv_name} is {ave_bias:.2f} {the_unit}. Overall, the model underestimates the observations in {negative_bias} of the model domain.")
 
-
-
 # %% tags=["remove-input"]
 
 if not wanted("bias_map"):
@@ -61,9 +57,7 @@ else:
     ds_bias.pub_plot(robust = True, land = "lightgrey")
     land_below()
 
-
 # %% tags=["remove-input"]
 if wanted("bias_map"):
     md(f"**Figure {i_figure}**: Bias of {layer} {vv_name} from the model. A positive bias indicates that the model overestimates the observation.  For clarity, the colorbar is limited to the 2nd and 98th percentile of the data.{annual_note}")
     i_figure += 1
-

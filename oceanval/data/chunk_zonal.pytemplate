@@ -13,7 +13,6 @@ except:
     zonal_unit = ""
 zonal_label = f"{vv_name} ({zonal_unit})" if zonal_unit else vv_name
 
-
 def zonal_of(ds_in):
     """The zonal means of a matchup's model and observation and their difference, by
     nctoolkit: (times, latitudes, observation, model, difference), each (time, latitude)."""
@@ -39,7 +38,6 @@ def zonal_of(ds_in):
         found = xz[name].transpose(time_name, lat_name, ...)
         return found.values.reshape(found.sizes[time_name], found.sizes[lat_name])
     return xz[time_name].values, xz[lat_name].values, values("observation"), values("model"), values("difference")
-
 
 zonal_wanted = [x for x in ["zonal_lines", "hovmoller_clim", "hovmoller_years"] if wanted(x)]
 zonal_paired = False

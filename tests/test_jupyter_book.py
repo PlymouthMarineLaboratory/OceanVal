@@ -222,9 +222,9 @@ def test_remove_diagnostic_outputs_drops_warning_streams(tmp_path):
 
     oceanval._remove_diagnostic_outputs([str(notebook_path)])
 
+    # nothing is left to show, so the cell goes (it would be an empty block)
     written_notebook = nbformat.read(notebook_path, as_version=4)
-    outputs = written_notebook.cells[0].outputs
-    assert outputs == []
+    assert written_notebook.cells == []
 
 
 def test_remove_diagnostic_outputs_keeps_real_plot_outputs(tmp_path):
@@ -666,3 +666,24 @@ def test_pdf_pages_are_numbered_and_carry_a_linked_wordmark():
     assert ".oceanval-pdf-footer{position:running(oceanvalfooter)}" in style
     assert 'href="https://PlymouthMarineLaboratory.github.io/OceanVal/"' in footer
     assert "data:image/svg+xml;base64," in footer
+
+def test_remove_diagnostic_outputs_drops_cells_that_show_nothing(tmp_path):
+    notebook_path = tmp_path / "report.ipynb"
+    notebook = nbformat.v4.new_notebook(
+        cells=[
+            nbformat.v4.new_code_cell("x = 1"),
+            nbformat.v4.new_code_cell(
+                "print('a')", outputs=[nbformat.v4.new_output("stream", text="a")]
+            ),
+            nbformat.v4.new_code_cell(
+                "1", outputs=[nbformat.v4.new_output("display_data", data={"text/html": "<p>"})]
+            ),
+            nbformat.v4.new_markdown_cell("text"),
+        ]
+    )
+    nbformat.write(notebook, notebook_path)
+
+    oceanval._remove_diagnostic_outputs([str(notebook_path)])
+
+    cells = nbformat.read(notebook_path, as_version=4).cells
+    assert [c.source for c in cells] == ["1", "text"]

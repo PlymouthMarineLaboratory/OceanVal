@@ -46,7 +46,6 @@ try:
 except:
     removed = set()
 
-
 def wanted(item):
     """Whether the figure or analysis item is in this page of the report."""
     return item not in removed
@@ -71,7 +70,6 @@ restrict_r_to_conda()
 %matplotlib inline
 
 test_status = the_test_status
-
 
 i_figure = 1
 i_table = 1

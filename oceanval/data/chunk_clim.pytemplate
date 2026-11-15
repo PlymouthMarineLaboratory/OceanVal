@@ -1,13 +1,10 @@
-
 # %% tags=["remove-input"]
-
 
 from oceanval import skill
 if skill.is_log(variable):
     transformation = "log10"
 else:
     transformation = None 
-
 
 ds_annual = ds_model.copy()
 ds_annual.tmean()
@@ -83,7 +80,6 @@ if lon_max < 90:
 
 if fix_grid:
     ds_both.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
-
 
 # %% tags=["remove-cell"]
 import matplotlib.pyplot as plt

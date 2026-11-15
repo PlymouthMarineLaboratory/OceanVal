@@ -1,6 +1,3 @@
-
-
-
 # %% tags=["remove-input", "remove-cell"]
 n_levels = definitions[variable].n_levels
 if n_levels > 1: 
@@ -70,9 +67,6 @@ df_locs = df.loc[:,["lon", "lat"]].drop_duplicates()
 # bin to 0.01 resolution
 df_raw = copy.deepcopy(df)
 
-
-
-
 if len(point_time_res) > 0:
     if "year" in point_time_res:
         df = df.groupby(["lon", "lat", "year", "month"]).mean().reset_index()
@@ -98,7 +92,6 @@ if bin_res is not None:
     grouping = [x for x in grouping if x in df.columns]
     df = df.groupby(grouping).mean().reset_index()
 
-
 available = len(df_raw) > 10
 
 # the figures and tables the user kept (validate's omit), for the R cells
@@ -107,25 +100,23 @@ show_mean_map = wanted("mean_map")
 show_bias_map = wanted("point_bias_map")
 show_scatter = wanted("scatter")
 
-
 # %% tags=["remove-input", "remove-cell"]
 # A function for generating the data source
 
 def data_source(vv_source, vv_name):
     return vv_source
 
-
 # %% tags=["remove-input"]
 if available:
     intro = []
-    
+
     if n_levels > 1:
         intro.append(f"This data was extracted from vertical profiles. Values from the **top 5m** were extracted from the database. This was compared with the model values from the sea surface level.")
     else:
         intro.append(f"This data was extracted from point measurements in the database.")
-    
+
     model_variable = definitions[variable].model_variable    
-    
+
     import pickle
     try:
         ff_dict = f"data_dir_value/oceanval_matchups/point/{layer}/{variable}/matchup_dict.pkl"
@@ -134,12 +125,12 @@ if available:
             min_year = matchup_dict["start"]
             max_year = matchup_dict["end"]
             point_time_res = matchup_dict["point_time_res"]
-    
+
         if min_year == max_year:
             intro.append(f"The model output was matched up with the observational data with model output from  the year **{min_year}**.")
         else:
             intro.append(f"The model output was matched up with the observational data with model output from the years **{min_year} to {max_year}**.")
-        
+
         if point_time_res == ["year", "month", "day"]:
             intro.append(f"The model output was matched up precisely with the observational data for each day of the year in the years with data in both model and observations.")
         if point_time_res == ["month", "day"]:
@@ -154,7 +145,7 @@ if available:
                     intro.append(f"The observational data was restricted to the years **{point_start} to {point_end}**.")
                 else:
                     intro.append(f"The observational data was restricted to the year **{point_start}**.")
-        
+
     except:
         if "year" in df_raw.columns:
             min_year = df_raw.year.min()
@@ -166,11 +157,9 @@ if available:
             intro.append(f"The model output was matched up with the observational data for the year **{min_year}**.")
         else:
             intro.append(f"The model output was matched up with the observational data for the years **{min_year} to {max_year}**.")
-    
-    
-    
+
     md_basic(" ".join(intro).strip().replace("  ", " "))
-    
+
     if show_locations_map:
         md(f"In total there were {len(df_raw)} values extracted from the observational database. The map below shows the locations of the matched up data for {vv_name}.", number = True)
     else:
@@ -217,7 +206,6 @@ bin_value <- function(x, bin_res) {
 xlim = c(min(df_locs$lon), max(df_locs$lon))
 ylim = c(min(df_locs$lat), max(df_locs$lat))
 
-
 bin_value <- function(x, bin_res) {
 	floor((x + bin_res / 2) / bin_res + 0.5) * bin_res - bin_res / 2
 }
@@ -239,8 +227,6 @@ if( min(df_locs$lon) < -13 ){
           axis.ticks.x = element_blank(), axis.ticks.y = element_blank(),
           axis.title.x = element_blank(), axis.title.y = element_blank()) +
     labs(x = "", y = "") 
-
-
 
 }
 
@@ -314,11 +300,9 @@ name <- str_replace(name, "O_2", "O<sub>2</sub>")
 # CO2
 name <- str_replace(name, "CO2", "CO<sub>2</sub>")
 
-
 bin_value <- function(x, bin_res) {
 	floor((x + bin_res / 2) / bin_res + 0.5) * bin_res - bin_res / 2
 }
-
 
 n_panels <- length(unique(df_map$variable))
 panel_ncol <- if (n_panels == 3) 3 else ceiling(sqrt(n_panels))
@@ -343,8 +327,6 @@ gg <- ggplot()+
 
     legend.position = "bottom", legend.direction = "horizontal", legend.box = "horizontal", legend.key.width = unit(3.0, "cm"),
     legend.key.height = unit(1.0, "cm"))
-
-
 
 # remove x and y axis names
 
@@ -399,8 +381,6 @@ if available:
     else:
         df_totals = pd.DataFrame({"month": ["All"], "n": [len(df_raw)]})
 
-
-
 # %% tags=["remove-input"]
 if available and show_bias_map:
     bias_text = []
@@ -440,11 +420,9 @@ if (diff(range(df$lon, na.rm = TRUE)) > 50 | diff(range(df$lat, na.rm = TRUE)) >
 xlim = c(min(df$lon), max(df$lon))
 ylim = c(min(df$lat), max(df$lat))
 
-
 bin_value <- function(x, bin_res) {
 	floor((x + bin_res / 2) / bin_res + 0.5) * bin_res - bin_res / 2
 }
-
 
 df <- df %>%
     mutate(bias = model - observation) 
@@ -458,8 +436,6 @@ bias_high <- df1$bias %>% quantile(0.98)
 # cap the bias to +/1 98th percentile
 df$bias[df$bias > bias_high] <- bias_high
 df$bias[df$bias < -bias_high] <- -bias_high
-
-
 
 plot_month <- FALSE
 if("month" %in% colnames(df))
@@ -499,9 +475,7 @@ title = str_replace(title, "pCO2", "pCO<sub>2</sub>")
 title = str_replace(title, "O_2", "O<sub>2</sub>")
 # 
 
-
 title <- str_replace_all(title, "m-([0-9]+)", "m<sup>-\\1</sup>")
-
 
 # not for ben
     plot_width <- 6.0
@@ -527,7 +501,6 @@ gg <- ggplot()+
     legend.key.height = unit(1.0, "cm"))+
     # set the legend title to bias
     labs(fill = title)
-
 
 if (plot_month){
     n_panels <- length(unique(df$month))
@@ -582,14 +555,12 @@ if available:
     df_raw.to_csv("adhoc/tmp/df_raw.csv")
     df.to_csv("adhoc/tmp/df.csv")
 
-
 # %% tags=["remove-input"]
 if available and show_scatter:
     scatter_text = []
     scatter_text.append(f"Figure {i_figure} shows the distribution of {layer_long} {vv_name} observations in the model and observational datasets.") 
 
     md(" ".join(scatter_text).strip().replace("  ", " "))
-
 
 # %% tags=["remove-input"]
 # %%capture --no-display
@@ -602,10 +573,8 @@ bin_value <- function(x, bin_res) {
 
 library(tidyverse, warn.conflicts = FALSE, quietly = TRUE)
 
-
 x_lab <- str_glue("Model {vv_name} ({unit})")
 y_lab <- str_glue("Observed {vv_name} ({unit})")
-
 
 x_lab <- str_replace(x_lab, "/m\\^3", "m<sup>-3</sup>")
 y_lab <- str_replace(y_lab, "/m\\^3", "m<sup>-3</sup>")
@@ -618,7 +587,6 @@ x_lab <- str_replace(x_lab, "O_2", "O<sub>2</sub>")
 y_lab <- str_replace(y_lab, "O_2", "O<sub>2</sub>")
 x_lab <- str_replace(x_lab, "CO2", "CO<sub>2</sub>")
 y_lab <- str_replace(y_lab, "CO2", "CO<sub>2</sub>")
-
 
 if ("month" %in% colnames(df)){
 df <- df %>%
@@ -646,8 +614,6 @@ y_lab <- str_replace(y_lab, "/day", "day<sup>-1</sup>")
 # fix O_2
 x_lab <- str_replace(x_lab, "O_2", "O<sub>2</sub>")
 y_lab <- str_replace(y_lab, "O_2", "O<sub>2</sub>")
-
-
 
 gg <- df %>%
 # final six months of the year
@@ -699,8 +665,6 @@ bin_value <- function(x, bin_res) {
 }
 
 df <- read_csv("adhoc/tmp/df.csv")
-
-
 
 x_lab <- str_glue("Model {vv_name} ({unit})")
 y_lab <- str_glue("Observed {vv_name} ({unit})")
@@ -892,8 +856,6 @@ if available:
     elif wanted("stats_table"):
         df_display(df_table)
 
-
-
 # %% tags=["remove-input"]
 if bin_res is not None:
     final_text = " Numbers in brackets show the number of raw unbinned observations."
@@ -903,7 +865,6 @@ else:
 if available and wanted("stats_table"):
     md(f"**Table {i_table}:** Average bias ({unit}) and root-mean square deviation ({unit}) for the model's {layer_long} {vv_name} for each month. The bias is calculated as model - observation. The average bias is calculated as the mean of the monthly biases. {final_text}")
     i_table += 1
-
 
 # %% tags=["remove-input"]
 # chlorophyll and kd490 are roughly log-normal, so their statistics are given on log10 values too
@@ -925,7 +886,6 @@ if available and wanted("stats_table") and skill.is_log(variable):
     df_display(df_log)
     md(f"**Table {i_table}:** The statistics of Table {i_table - 1} on the log10 of {layer_long} {vv_name} (log10 of {unit}), as {vv_name} is roughly log-normal. Observations where the model or the observation is not positive are left out.")
     i_table += 1
-
 
 # %% tags=["remove-input"]
 if available and wanted("regression_table"):

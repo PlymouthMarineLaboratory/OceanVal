@@ -34,5 +34,3 @@ ds_monthly.to_nc(out_file, zip = True, overwrite = True)
 out_def = out_dir + f"monthlymean_{variable}_{source}.pkl"
 with open(out_def, "wb") as f:
     pickle.dump(definitions, f)
-
- 

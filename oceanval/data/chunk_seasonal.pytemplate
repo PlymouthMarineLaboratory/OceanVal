@@ -23,7 +23,6 @@ out_def = f"../../oceanval_results/temporals/{variable}_cor_{source}.pkl"
 with open(out_def, "wb") as f:
     pickle.dump(definitions, f)
 
-
 # %% tags=["remove-input"]
 
 df_cor = ds_cor.to_dataframe().reset_index()
@@ -37,8 +36,6 @@ elif fix_grid:
 else:
     ds_cor.pub_plot("cor", land = "lightgrey")
     land_below()
-
-
 
 # %% tags=["remove-input"]
 if wanted("seasonal_cor_map"):
@@ -54,14 +51,7 @@ if lon_range > 340:
     if lat_range > 160:
         global_grid = True
 
-
-    
-
 # %% tags=["remove-cell"]
-
-
-
-
 
 # %% tags=["remove-cell"]
 #shape = gpd.read_file(f"{data_dir}/mapping/TM_WORLD_BORDERS-0.3.shp")
@@ -109,7 +99,6 @@ if time_name is not None:
     lon_name = [x for x in list(ds_obs.to_xarray().coords) if "lon" in x][0]
     lat_name = [x for x in list(ds_obs.to_xarray().coords) if "lat" in x][0]
 
-
     df_obs = (
         df_obs
         .rename(columns = {time_name: "time"}  )
@@ -137,13 +126,10 @@ if time_name is not None:
     df_obs["lon" ] = [x if x < 180 else x -360 for x in df_obs.lon]
     df_diff["lon" ] = [x if x < 180 else x -360 for x in df_diff.lon]
 
-
     # %% tags=["remove-input"]
 
     if not concise and wanted("monthly_maps"):
         md(f"The seasonal cycles of simulated and observed {vv_name} are compared in Figure {i_figure} below. This figure shows the model and observation average in each month of the year, and the differences between the two each month") 
-
-
 
 # %% tags=["remove-cell"]
 def plot_seasonal_months(months, divider = False):
@@ -329,7 +315,6 @@ def plot_seasonal_months(months, divider = False):
         fig.add_artist(Line2D([left, 0.99], [bottom, bottom], **line))
     return True
 
-
 # %% tags=["remove-input"]
 # global maps are twice as wide as they are tall, so show them four months at a time, not six
 if global_grid:
@@ -345,7 +330,6 @@ if not concise and wanted("monthly_maps"):
     seasonal_periods = [x for x in seasonal_periods if set(x) & set(df_model.month)]
     for i, months in enumerate(seasonal_periods):
         plot_seasonal_months(months, divider = i < len(seasonal_periods) - 1)
-
 
 # %% tags=["remove-input"]
 if not concise and wanted("monthly_maps"):
