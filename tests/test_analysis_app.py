@@ -344,7 +344,7 @@ class TestOptions:
         for kind in ("climatology", "long_term", "seasonal"):
             assert state["forms"][kind]["rows"]["Temperature"] == {
                 "use": False, "start": "", "end": "", "surface": False, "bottom": False, "mean": False, "integral": False,
-                "window": "1", "show": "absolute",
+                "window": "1", "show": "absolute", "total": False,
             }
         assert state["forms"]["phenology"]["rows"]["Chlorophyll"] == {"use": False, "start": "", "end": ""}
         assert state["forms"]["climatology"]["thickness"] == ""

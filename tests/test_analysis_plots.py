@@ -61,7 +61,7 @@ def write_many_regions(path, count=ap.MANY_REGIONS + 1):
 @pytest.fixture(scope="module")
 def analyses(tmp_path_factory):
     """An analysis with each kind of figure, without its report: {case: its
-    results directory}."""
+    results directory}, run the first time a case is used."""
     root = tmp_path_factory.mktemp("figures")
     daily = str(root / "daily_sim")
     write_analysis_simulation(daily)
@@ -159,14 +159,18 @@ def analyses(tmp_path_factory):
             "Velocity": [{"start": [-4.47, 50.0], "end": [-4.47, 51.0], "climatology": fvcom_years}],
         },
     )
-    found = {}
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(analysis_report, "InterimBook", no_book([]))
-        for case, arguments in runs.items():
+    # each analysis is run when a test first asks for it, so a test pays only for its own case (the
+    # first to ask would otherwise be charged for all eight, and time out)
+    class Lazy(dict):
+        def __missing__(self, case):
             out = str(root / case)
-            oceanval.analyze(n_dirs_down=1, out_dir=out, cores=1, view=False, **arguments)
-            found[case] = os.path.join(out, analysis.FOLDER, analysis.RESULTS)
-    return found
+            with pytest.MonkeyPatch.context() as patch:
+                patch.setattr(analysis_report, "InterimBook", no_book([]))
+                oceanval.analyze(n_dirs_down=1, out_dir=out, cores=1, view=False, **runs[case])
+            self[case] = os.path.join(out, analysis.FOLDER, analysis.RESULTS)
+            return self[case]
+
+    return Lazy()
 
 
 def figures(info):
