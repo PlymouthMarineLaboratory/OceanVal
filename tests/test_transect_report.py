@@ -108,7 +108,9 @@ def test_the_interim_report_has_the_transect(matchups):
 def reports(matchups):
     """The full report, along each transect and with none: the gridded page of each."""
     pages = {}
-    for name, transect in (("north_south", NORTH_SOUTH), ("east_west", EAST_WEST), ("none", None)):
+    for name, transect in (
+        ("north_south", NORTH_SOUTH), ("east_west", EAST_WEST), ("none", None), ("both", [NORTH_SOUTH, EAST_WEST]),
+    ):
         out_dir = matchups / name
         oceanval.validate(
             data_dir=str(matchups), out_dir=str(out_dir), transect=transect, test=True
@@ -149,3 +151,16 @@ def test_without_a_transect_the_page_is_unchanged(reports):
         assert numbers == list(range(1, len(numbers) + 1))
         assert numbers[: len(figures(text))] == figures(text)
         assert len(numbers) == len(figures(text)) + 3
+
+
+def test_several_transects_each_have_a_section(reports):
+    text = reports["both"]
+    # one section each, in the order given, every figure numbered without a gap
+    assert text.count("along the transect?") == 2
+    assert text.index("north–south along 3.2°E") < text.index("east–west along 54.2°N")
+    numbers = figures(text)
+    assert numbers == list(range(1, len(numbers) + 1))
+    assert len(numbers) == len(figures(reports["none"])) + 6
+    assert "could not be" not in text
+    assert "This is getting to the end!" in text
+

@@ -42,6 +42,32 @@ TOO_OLD = (
 # the land as one shape, made the first time a map is drawn
 _LAND = None
 
+# the named sections validate's transect takes (the gap report's option 2): the Equator and 155°W
+# in the Pacific, the two sections the Copernicus Marine global biogeochemistry quality documents
+# (GLO-QUID-001-028 and -029) show for every nutrient and oxygen, and the Atlantic's meridional
+# section at 25°W, which model papers add. The documents name them but give no ends, so each runs
+# as far as its ocean goes (the Equator all the way round, with the Pacific in the middle); land on
+# the way has no values, as anywhere else
+SECTIONS = {
+    "equator": {"label": "the Equator", "start": [0.0, 0.0], "end": [360.0, 0.0]},
+    "pacific_155w": {"label": "155°W in the Pacific", "start": [-155.0, -78.0], "end": [-155.0, 60.0]},
+    "atlantic_25w": {"label": "25°W in the Atlantic", "start": [-25.0, -75.0], "end": [-25.0, 65.0]},
+}
+
+# the sections drawn on the page of a global matchup through the water column when validate's
+# transect is None
+DEFAULT_SECTIONS = ("equator", "pacific_155w")
+
+# the oxygen (mmol m-3) of the contours on an oxygen section: hypoxia and the edge of the
+# oxygen minimum zones, as the quality documents and model papers draw them
+OXYGEN_CONTOURS = (20, 60)
+
+# what transect takes, for its errors
+TAKES = (
+    "transect must be a named section (" + ", ".join(repr(x) for x in SECTIONS) + "), a dict of start "
+    'and end, each [lon, lat], e.g. {"start": [-30, 0], "end": [-30, 65]}, a list of these, or False'
+)
+
 
 def available():
     """Whether the installed nctoolkit can extract a transect."""
@@ -96,6 +122,65 @@ def check_transect(transect):
     if not available():
         raise ValueError(TOO_OLD)
     return ends
+
+
+def check_transects(transect):
+    """validate()'s transect, checked: None (the default sections, on the pages of
+    global matchups through the water column: see default_sections), False (none),
+    or a list of transects as check_transect gives them, a named section's with its
+    "name" too. A single section or dict is a list of one.
+
+    Raises TypeError or ValueError if it cannot be used.
+    """
+    if transect is None or transect is False:
+        return transect
+    if transect is True:
+        return None
+    if isinstance(transect, (str, dict)):
+        transect = [transect]
+    if not isinstance(transect, (list, tuple)):
+        raise TypeError(TAKES)
+    if len(transect) == 0:
+        return False
+    found = []
+    for item in transect:
+        if isinstance(item, str):
+            key = item.strip().lower()
+            if key not in SECTIONS:
+                raise ValueError(f"{item!r} is not a named section: {TAKES}")
+            ends = check_transect({"start": SECTIONS[key]["start"], "end": SECTIONS[key]["end"]})
+            ends["name"] = key
+        elif isinstance(item, dict):
+            ends = check_transect(item)
+        else:
+            raise TypeError(TAKES)
+        if ends not in found:
+            found.append(ends)
+    return found
+
+
+def label(transect):
+    """What the report calls the transect: a named section's label ("the
+    Equator"), or "the transect"."""
+    name = transect.get("name") if isinstance(transect, dict) else None
+    return SECTIONS[name]["label"] if name in SECTIONS else "the transect"
+
+
+def default_sections(path):
+    """The sections drawn on a page when validate's transect is None: the
+    DEFAULT_SECTIONS, as check_transects gives them, if the matchup in path goes
+    all the way round the globe (a global model), else none."""
+    import xarray as xr
+
+    try:
+        with xr.open_dataset(path, decode_times=False) as data:
+            name = _coordinate(list(data.coords) + list(data.variables), "lon")
+            lons = np.asarray(data[name].values, dtype=float)
+    except Exception:
+        return []
+    if not wraps_round(lons):
+        return []
+    return check_transects(list(DEFAULT_SECTIONS))
 
 
 def direction(transect):
@@ -595,9 +680,10 @@ def plot_line(frame, transect, unit, name):
     return fig
 
 
-def plot_section(frame, transect, unit, name, log=False):
+def plot_section(frame, transect, unit, name, log=False, contours=None):
     """The model, observations and bias along the transect through the water
-    column: latitude or longitude across, and depth down."""
+    column: latitude or longitude across, and depth down. contours are values
+    drawn as lines on the model and the observations (oxygen's OXYGEN_CONTOURS)."""
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
 
@@ -617,6 +703,11 @@ def plot_section(frame, transect, unit, name, log=False):
             norm=bias_norm if column == "bias" else values_norm,
             shading="nearest",
         )
+        if contours and column != "bias" and np.isfinite(grid.values).sum() > 3:
+            ax.contour(
+                positions, depths, np.ma.masked_invalid(grid.values), levels=sorted(contours),
+                colors="black", linewidths=0.8,
+            )
         # the seabed, and anything else without values, shows as land
         ax.set_facecolor(LAND)
         # few enough latitudes or longitudes for their labels to fit a third of the figure
@@ -663,6 +754,9 @@ def map_extent(transect):
         south, north = lats[0] - across, lats[1] + across
     if lons[1] <= 180:
         west, east = max(west, -180.0), min(east, 180.0)
+    if east - west >= 300:
+        # a line most of the way round the globe (the Equator) is drawn on a map of it all
+        return None
     return [west, east, max(south, -90.0), min(north, 90.0)]
 
 
@@ -675,14 +769,21 @@ def plot_map(transect):
     from matplotlib.transforms import offset_copy
 
     start, end = line_ends(transect)
-    west, east, south, north = map_extent(transect)
+    extent = map_extent(transect)
     # a line given beyond 180°E is drawn on a map centred on the date line
     central = 180 if max(start[0], end[0]) > 180 else 0
     width = 6.5
-    height = min(max(width * (north - south) / (east - west), 3.0), 8.0)
+    if extent is None:
+        height = width / 2
+    else:
+        west, east, south, north = extent
+        height = min(max(width * (north - south) / (east - west), 3.0), 8.0)
     fig = plt.figure(figsize=(width, height))
     ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree(central_longitude=central))
-    ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
+    if extent is None:
+        ax.set_global()
+    else:
+        ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
     ax.add_geometries(
         [_land()], crs=ccrs.PlateCarree(),
         facecolor=LAND, edgecolor="black", linewidth=0.5, zorder=1,

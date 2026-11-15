@@ -1320,8 +1320,9 @@ def _gridded_notebook_text(
     transect=None,
 ):
     """gridded_template.ipynb, filled in for the matchup of variable with the
-    gridded observations of source, with the transect section if there is a
-    transect."""
+    gridded observations of source, with the transect section unless transect
+    is False (None is the default sections, which the page draws if the
+    matchup is global and through the water column)."""
     file1 = importlib.resources.files(__name__).joinpath("data/gridded_template.ipynb")
     with open(file1, "r") as file:
         filedata = file.read()
@@ -1350,7 +1351,7 @@ def _gridded_notebook_text(
     filedata = filedata.replace("source_title", source_capital)
     if seasonal is False:
         filedata = filedata.replace("chunk_seasonal", "")
-    if transect is None:
+    if transect is False:
         filedata = filedata.replace("chunk_transect", "")
     if region_file is not None:
         filedata = filedata.replace("sub_regions_value", "custom")
@@ -1510,8 +1511,8 @@ def validate(
         Default is False. Ignore, unless you are testing oceanval.
     region : str or None
         Deprecated, use subregions instead.
-    transect : dict or None
-        A transect to validate the gridded matchups along, as a dict of its start and end, each [lon, lat], e.g. {"start": [-30, 0], "end": [-30, 65]}. It must run north-south (the same longitude at both ends) or east-west (the same latitude at both ends). Each gridded matchup's page then maps it, shows the monthly climatology of the surface values along it, and, for matchups made through the water column (vertical=True), a section of the annual mean along it, interpolated onto 30 evenly spaced depths. Requires nctoolkit 1.3.6 or later. Default is None.
+    transect : str, dict, list, bool or None
+        The transects to validate the gridded matchups along. Each is a named section, "equator" (the Equator, all the way round), "pacific_155w" (155°W in the Pacific) or "atlantic_25w" (25°W in the Atlantic), or a dict of its start and end, each [lon, lat], e.g. {"start": [-30, 0], "end": [-30, 65]}, which must run north-south (the same longitude at both ends) or east-west (the same latitude at both ends). A list gives several, e.g. ["equator", {"start": [-30, 0], "end": [-30, 65]}]. Each gridded matchup's page then maps each, shows the monthly climatology of the surface values along it, and, for matchups made through the water column (vertical=True), a section of the annual mean along it, interpolated onto 30 evenly spaced depths, with the 20 and 60 mmol m-3 contours for oxygen. Default is None, which draws the Equator and 155°W, the sections of the Copernicus Marine global quality documents, on the page of each global matchup made through the water column, and nothing for a regional model. False draws none. Requires nctoolkit 1.3.6 or later.
     depth_bins : list or None
         The depth ranges, in metres, that point matchups made through the water column (vertical=True) are summarised in, as a list of [min, max] pairs, e.g. [[0, 20], [20, 200], [200, None]]. A depth is in a bin if it is deeper than min and no deeper than max (the shallowest bin also takes its min). The deepest bin can have a max of None, for everything below its min. Bins can leave gaps, and observations in a gap are left out, but cannot overlap. The same bins are used for every point dataset, and in the summary. Default is None, which uses 0-10, 10-30, 30-60, 60-100, 100-150, 150-300, 300-600, 600-1000 and >1000 m.
     map_depths : list, bool or None
@@ -1533,7 +1534,7 @@ def validate(
     subregions, region_file, n_regions = _check_report_options(
         lon_lim, lat_lim, concise, fixed_scale, subregions, region
     )
-    transect = transects.check_transect(transect)
+    transect = transects.check_transects(transect)
     depth_bins = depths.check_depth_bins(depth_bins)
     map_depths = depths.check_map_depths(map_depths)
     omit = report_items.check_omit(omit)

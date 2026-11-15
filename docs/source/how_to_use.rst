@@ -282,7 +282,7 @@ The following options are available:
 - `subregions`: The sub-regions used for the regional summaries: `"global"` (ocean basins), `"nwes"` (Northwest European Shelf), `"latbands"` (latitude bands), `"cmems"` (the sub-regions of the Copernicus Marine global biogeochemistry quality documents), `"biomes"` (the mean ocean biomes of Fay and McKinley, 2014), or a path to your own regions netCDF (`.nc`) file. `region` is its old name, and is deprecated.
 - `concise`: Whether to build the concise report, which leaves out the gridded matchups' monthly maps and the point matchups' map of locations, and shows one scatter plot of model against observations rather than one for each month. This defaults to True. False builds the detailed report, with every figure and analysis.
 - `omit`: Figures and analyses to leave out of the report, by id, on top of what `concise` leaves out. A list leaves them out of every page they are on, e.g. `["monthly_maps", "regression_table", "taylor"]`. A dict leaves them out of some pages: each key is a matchup, as for `variables`, or `"summary"` for the summary page, e.g. `{"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}`. The ids are, on a gridded matchup's page `clim_map`, `bias_map`, `density_scatter`, `seasonal_cor_map`, `monthly_maps`, `peak_month`, `spatial_cor_table`, `zonal_lines`, `hovmoller_clim`, `hovmoller_years`, `regional_map`, `regional_cycle`, `regional_table`, `zonal_sections`, `depth_level_table`, `mean_profiles`, `depth_maps`, `transect_map`, `transect_surface` and `transect_section`; on a point matchup's page `locations_map`, `mean_map`, `point_bias_map`, `scatter`, `stats_table`, `regression_table`, `depth_locations_map`, `depth_table` and `point_profiles`; and on the summary page `taylor`, `bias_table`, `spatial_table`, `temporal_maps`, `temporal_table` and `depth_performance`. What other pages read is still calculated, so the summary is not changed by what a matchup's page leaves out. If not specified, nothing else is left out.
-- `transect`: A transect to validate the gridded matchups along, as a dict of its start and end, each `[lon, lat]`, e.g. `{"start": [-30, 0], "end": [-30, 65]}`. It must run north-south (the same longitude at both ends) or east-west (the same latitude at both ends). See below.
+- `transect`: The transects to validate the gridded matchups along: named sections (`"equator"`, `"pacific_155w"`, `"atlantic_25w"`), dicts of a start and end, each `[lon, lat]`, e.g. `{"start": [-30, 0], "end": [-30, 65]}`, or a list of these. By default the Equator and 155°W, on global matchups through the water column; `False` for none. See below.
 - `depth_bins`: The depth ranges, in metres, that point matchups made through the water column (`vertical=True`) are summarised in, as a list of `[min, max]` pairs. See below.
 - `map_depths`: The depths, in metres, that gridded matchups made through the water column (`vertical=True`) are mapped at, e.g. `[200, 1000]`. Default `None`: oxygen at 200 m and 500 m, and every other variable at 500 m. `False` maps none. See below.
 
@@ -322,6 +322,14 @@ To see how well the model reproduces the observations along a line, give `valida
     oceanval.validate(transect={"start": [-30, 0], "end": [-30, 65]})
 
 Each gridded matchup's page then has a section with a map of the transect over the land; the monthly climatology of the surface model and observations along it, and their difference, by latitude (or longitude) and month; and, if the matchup was made through the water column (`vertical=True`), a section of the annual mean, with depth down and latitude (or longitude) across. The matchup's depths can be unevenly spaced, so they are first interpolated onto 30 evenly spaced depths between the shallowest and the deepest. The values are extracted with nctoolkit's `to_transect`, so this needs nctoolkit 1.3.6 or later. The `oceanval` command asks for the transect on its last page, and does not let you carry on until it is a straight north-south or east-west line.
+
+Three named sections can be given instead of a line, or with lines of your own in a list: `"equator"` (the Equator, all the way round, with the Pacific in the middle), `"pacific_155w"` (155°W in the Pacific, from 78°S to 60°N) and `"atlantic_25w"` (25°W in the Atlantic, from 75°S to 65°N). The Equator and 155°W are the sections the Copernicus Marine global biogeochemistry quality documents show for every nutrient and oxygen; they name them but give no ends, so each runs as far as its ocean goes. Oxygen's sections have the 20 and 60 mmol m-3 contours, the edges of hypoxia and of the oxygen minimum zones.
+
+.. code:: ipython3
+
+    oceanval.validate(transect=["equator", "atlantic_25w", {"start": [-30, 0], "end": [-30, 65]}])
+
+By default (`transect=None`) the page of each global dataset matched up through the water column has the Equator and 155°W; a regional model gets none. `transect=False` draws none.
 
 **Choosing the depth bins**
 
@@ -419,6 +427,8 @@ Once you have generated validation reports for different simulations, you can co
         view=True,
         ask=True,
     )
+
+The spatial page compares the simulations' annual means at the sea surface, on the grid cells every simulation has: a Taylor diagram of every simulation (a colour each) and variable (a number each); a skill heat map, simulations against variables, of the absolute bias and the centred RMSD, each divided by the observations' standard deviation, and the correlation, each cell shaded by the simulation's rank for the variable (the numbers are also written to `compare_skill.csv`); and the zonal means of each variable, one line per simulation. Every statistic is weighted by the area of the grid cells, and chlorophyll and kd490 are on log10 values. The best value in each row of the comparison's tables is in bold.
 
 The `model_dict` should map a short name for each model to the directory containing that model's validation output. The HTML comparison report is written to `oceanval_comparison/compare/_build/html/index.html`.
 

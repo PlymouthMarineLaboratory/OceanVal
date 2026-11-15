@@ -628,3 +628,66 @@ class TestPlots:
         [ax] = fig.axes
 
         assert sorted(text.get_text() for text in ax.texts) == ["15°W", "5°E"]
+
+
+class TestNamedSections:
+    """The named sections (transects.SECTIONS) and validate's transect as a list, False or None."""
+
+    def test_a_name_is_a_list_of_its_section(self):
+        found = transects.check_transects("equator")
+        assert found == [{"start": [0.0, 0.0], "end": [360.0, 0.0], "name": "equator"}]
+        assert transects.label(found[0]) == "the Equator"
+        assert transects.label(NORTH_SOUTH) == "the transect"
+
+    def test_names_and_lines_of_ones_own_mix_once_each(self):
+        found = transects.check_transects(["PACIFIC_155W", NORTH_SOUTH, "pacific_155w"])
+        assert [x.get("name") for x in found] == ["pacific_155w", None]
+        assert transects.direction(found[0]) == "north-south"
+
+    def test_none_is_the_default_and_false_or_nothing_is_none(self):
+        assert transects.check_transects(None) is None
+        assert transects.check_transects(False) is False
+        assert transects.check_transects([]) is False
+
+    @pytest.mark.parametrize("value", ["arctic", 7, ["equator", 3]])
+    def test_what_is_not_a_section_says_what_is(self, value):
+        with pytest.raises((TypeError, ValueError), match="named section"):
+            transects.check_transects(value)
+
+    def test_the_default_sections_are_for_a_global_grid_only(self, tmp_path):
+        regional = write_matchup(tmp_path / "regional.nc")
+        assert transects.default_sections(regional) == []
+        world = write_matchup(tmp_path / "world.nc", lon=np.arange(-179, 180, 2.0), lat=np.arange(-79, 80, 2.0))
+        assert [x["name"] for x in transects.default_sections(world)] == list(transects.DEFAULT_SECTIONS)
+
+    def test_the_equator_is_mapped_on_the_whole_globe(self):
+        equator = transects.check_transects("equator")[0]
+        assert transects.map_extent(equator) is None
+        fig = transects.plot_map(equator)
+        plt.close(fig)
+
+    @needs_to_transect
+    def test_the_equator_is_extracted_all_the_way_round(self, tmp_path):
+        world = write_matchup(tmp_path / "world.nc", lon=np.arange(-179, 180, 2.0), lat=np.arange(-79, 80, 2.0))
+        equator = transects.check_transects("equator")[0]
+        steps = transects.transect_steps(world, equator)
+        frame = transects.surface_frame(world, equator, steps)
+        # from 0° east, round through the date line, back to 0°
+        assert frame.position.min() == pytest.approx(0) and frame.position.max() == pytest.approx(360)
+        assert frame.model.notna().sum() > 0
+
+    def test_oxygen_sections_have_their_contours(self):
+        positions = np.linspace(-60, 60, 25)
+        depths = np.array([5.0, 100.0, 300.0, 600.0, 1000.0])
+        rows = []
+        for p in positions:
+            for d in depths:
+                value = 200 - 180 * np.exp(-((d - 400) / 300) ** 2) * np.exp(-(p / 30) ** 2)
+                rows.append({"position": p, "depth": d, "model": value, "observation": value + 5, "bias": -5.0})
+        frame = pd.DataFrame(rows)
+        section = transects.check_transects("pacific_155w")[0]
+        fig = transects.plot_section(frame, section, "mmol m$^{-3}$", "oxygen", contours=transects.OXYGEN_CONTOURS)
+        # the model's and the observations' panels each have the two lines; the bias has none
+        drawn = [len(ax.collections) for ax in fig.axes[:3]]
+        assert drawn[0] > 1 and drawn[1] > 1 and drawn[2] == 1
+        plt.close(fig)
