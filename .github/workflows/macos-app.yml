@@ -62,7 +62,7 @@ jobs:
         with:
           micromamba-version: '1.4.5-0'
           environment-name: oceanval
-          create-args: nctoolkit>=1.4.0 cmocean cartopy proj-data pandoc python=3.13 rpy2 r-base r-tidyverse r-ggtext jupyter-book>=2 r-mapdata texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel h5py bokeh holoviews hvplot geoviews-core cftime dask xcdat
+          create-args: mpi=*=nompi nctoolkit>=1.4.0 cmocean cartopy proj-data pandoc python=3.13 rpy2 r-base r-tidyverse r-ggtext jupyter-book>=2 r-mapdata texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel h5py bokeh holoviews hvplot geoviews-core cftime dask xcdat
           init-shell: >-
             bash
           cache-environment: true
@@ -76,6 +76,14 @@ jobs:
           pip install pyarrow
           pip install rioxarray
           pip install pytest pytest-timeout
+
+      # The MPI builds of the netCDF libraries (esmf, libnetcdf, hdf5: ucx and openmpi come with them) made the
+      # report and figure tests several times slower (a 27 minute job took 5), and the solver chose them on some
+      # days. mpi=*=nompi above keeps them out; stop here if they are back.
+      - name: Check no MPI libraries were installed
+        shell: bash -l {0}
+        run: |
+          micromamba list | grep -Ei "^ *(openmpi|ucx|mpich) |mpi_(openmpi|mpich)" && { echo "an MPI build of a library was installed"; exit 1; } || echo "no MPI builds installed"
 
       # OceanVal needs jupyter-book 2 or later, so make sure the solver gave us it
       - name: Check jupyter-book is version 2, and the oceanval command is installed
