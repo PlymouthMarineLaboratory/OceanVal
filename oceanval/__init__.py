@@ -3,6 +3,7 @@ import shutil
 import glob
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import warnings
@@ -155,20 +156,35 @@ def _notebooks_to_html(notebooks, html_dir, log=None):
     """Write each run notebook as an HTML page in html_dir, without its code.
     What nbconvert prints goes to log, a file, if given."""
     os.makedirs(html_dir, exist_ok=True)
-    subprocess.run(
-        [
-            "jupyter",
-            "nbconvert",
-            "--to",
-            "html",
-            "--no-input",
-            "--output-dir",
-            html_dir,
-            *notebooks,
-        ],
-        check=True,
-        **({} if log is None else {"stdout": log, "stderr": subprocess.STDOUT}),
-    )
+    # The pages are written without code, so a cell that shows nothing would only
+    # leave an empty block (a gap) in a page. Those cells are left out of copies
+    # of the notebooks, not the notebooks: an analysis report runs its notebooks
+    # again as each variable is added, and they need their setup cells.
+    with tempfile.TemporaryDirectory(prefix="oceanval_pages_") as folder:
+        pages = []
+        for path in notebooks:
+            notebook = nbformat.read(path, as_version=4)
+            notebook.cells = [
+                cell for cell in notebook.cells
+                if cell.cell_type != "code" or cell.get("outputs")
+            ]
+            page = os.path.join(folder, os.path.basename(path))
+            nbformat.write(notebook, page)
+            pages.append(page)
+        subprocess.run(
+            [
+                "jupyter",
+                "nbconvert",
+                "--to",
+                "html",
+                "--no-input",
+                "--output-dir",
+                html_dir,
+                *pages,
+            ],
+            check=True,
+            **({} if log is None else {"stdout": log, "stderr": subprocess.STDOUT}),
+        )
 
 
 def _build_book(book_dir, validation_links=None, pdf=False, word=False):
@@ -225,10 +241,6 @@ def _remove_diagnostic_outputs(notebooks):
                     elif output.output_type == "execute_result" and set(output.data) != {"text/plain"}:
                         cleaned_outputs.append(output)
                 cell.outputs = cleaned_outputs
-                # the pages are written without code, so a cell that shows
-                # nothing would only leave an empty block (a gap) in the page
-                if not cleaned_outputs:
-                    continue
             kept_cells.append(cell)
         notebook.cells = kept_cells
         nbformat.write(notebook, notebook_path)
