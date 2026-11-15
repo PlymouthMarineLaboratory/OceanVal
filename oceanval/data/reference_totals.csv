@@ -1,0 +1,7 @@
+quantity,variables,low,high,units,period,depth,quote,citation,paper,doi
+co2flux,co2flux,2.4,3.2,Pg C yr-1,2022,,"SOCEAN was 2.8±0.4 Gt C yr−1","Friedlingstein et al. (2023), Global Carbon Budget 2023",Friedlingstein_2023_GCB2023_ESSD.pdf,10.5194/essd-15-5301-2023
+co2flux,co2flux,1.9,3.1,Pg C yr-1,2009-2018,,"the ocean took up on average, 2.5 ± 0.6 PgC yr−1 ... over the decade 2009–2018","Hauck et al. (2020)",Hauck_2020_GCB_ocean_sink_FMS.pdf,10.3389/fmars.2020.571720
+npp,npp|primary_production|netpp|intpp,49,63,Pg C yr-1,,,"Marine phytoplankton is responsible for 56 ± 7 Pg C yr−1 of primary production (Buitenhuis et al., 2013)","Buitenhuis et al. (2013), as cited by Eyring et al. (2020)",Eyring_2020_ESMValTool_v2_GMD.pdf,10.5194/gmd-13-3383-2020
+poc_export,export|poc_export|epc100,4.8,7.2,Pg C yr-1,,100 m,"a more recent satellite-based approach that accounts for food-web processes revealing values of 6 ± 1.2 Pg C yr−1 (Siegel et al., 2014)","Siegel et al. (2014), as cited by Tjiputra et al. (2020)",Tjiputra_2020_NorESM2_GMD.pdf,10.5194/gmd-13-2393-2020
+pic_export,pic_export|epcalc100,44,55,Tmol yr-1,,100 m,"a particulate inorganic carbon (PIC) export estimate of 44–55 Tmol yr−1 at 100 m","Planchat et al. (2023)",Planchat_2023_alkalinity_CMIP_BG.pdf,10.5194/bg-20-1195-2023
+alkalinity,alkalinity,3150,3150,Pmol,,,"the global ocean inventory of Alk ... estimated at about 3150 Pmol (Sarmiento and Gruber, 2006)","Sarmiento and Gruber (2006), as cited by Planchat et al. (2023)",Planchat_2023_alkalinity_CMIP_BG.pdf,10.5194/bg-20-1195-2023

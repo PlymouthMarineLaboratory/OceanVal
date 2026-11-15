@@ -429,9 +429,16 @@ class TestOptions:
         assert post(app, "/api/analyze_option", {"kind": "long_term", "form": form}) == (200, {"ok": True})
         chosen = app.analyze_chosen["long_term"]["rows"]["Chlorophyll"]
         assert chosen["window"] == 2 and "show" not in chosen
+        # the total over the domain is given only when ticked
+        rows["Chlorophyll"].update(total=True)
+        assert post(app, "/api/analyze_option", {"kind": "long_term", "form": form}) == (200, {"ok": True})
+        assert app.analyze_chosen["long_term"]["rows"]["Chlorophyll"]["total"] is True
+        assert app.analyze_forms["long_term"]["rows"]["Chlorophyll"]["total"] is True
         # they are the long-term series' alone
         assert post(app, "/api/analyze_option", {"kind": "seasonal", "form": form}) == (200, {"ok": True})
         assert "window" not in app.analyze_chosen["seasonal"]["rows"]["Chlorophyll"]
+        assert "total" not in app.analyze_chosen["seasonal"]["rows"]["Chlorophyll"]
+        rows["Chlorophyll"].pop("total")
         # what cannot be used is said by the variable
         for window, show, box in [("0", "absolute", "window"), ("x", "absolute", "window"), ("3", "absolute", "window"),
                                   ("2", "percentage_change", "show")]:
@@ -1614,13 +1621,15 @@ def test_the_long_term_series_have_a_rolling_mean_and_a_way_to_show_them(browser
         heads = page.locator("#clim-dialog thead tr").nth(1).locator("th:visible").all_inner_texts()
         assert [" ".join(h.lower().replace("required", "").split()) for h in heads] == [
             "variable", "start", "end", "surface", "bottom", "vertical mean", "vertical integration",
-            "use a rolling mean (years)", "show as"]
+            "use a rolling mean (years)", "show as", "total over the domain"]
         row = page.locator("#clim-body > tr").first
         window = row.locator("input.is-window")
         show = row.locator("select.is-show")
         assert window.input_value() == "1"
         assert show.locator("option").all_inner_texts() == ["Absolute value", "Absolute change", "Percentage change"]
         assert show.input_value() == "absolute"
+        # the total over the domain is not ticked to start with
+        assert not row.locator("input[aria-label^='The total of']").is_checked()
         row.locator("input[type=checkbox]").nth(1).check()
         page.locator("#clim-body input.is-year").nth(0).fill("2011")
         page.locator("#clim-body input.is-year").nth(1).fill("2013")

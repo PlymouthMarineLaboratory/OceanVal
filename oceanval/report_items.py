@@ -68,6 +68,9 @@ ITEMS = [
     Item("hovmoller_years", GRIDDED, "Latitude by time",
          "The zonal mean in every month matched up, by latitude (for matchups of more than 12 months).",
          ("seasonal",)),
+    Item("global_series", GRIDDED, "Total over the area matched",
+         "A flux (the air-sea CO2 flux) summed over the cells matched up in each month, with published "
+         "ranges of the global total.", ()),
     Item("regional_map", GRIDDED, "Map of the regions",
          "A map of each region the matchup is summarised in.", ("subregions",)),
     Item("regional_cycle", GRIDDED, "Regional seasonal cycles",
@@ -121,6 +124,9 @@ ITEMS = [
          "Maps of the seasonal correlation of each gridded matchup.", ("gridded",)),
     Item("temporal_table", SUMMARY, "Temporal correlation table",
          "The spatial mean of each gridded matchup's seasonal correlation.", ("gridded",)),
+    Item("global_totals", SUMMARY, "Totals table",
+         "Each gridded matchup's flux or inventory summed over the cells matched up, with published ranges "
+         "of the global total.", ("gridded",)),
     Item("depth_performance", SUMMARY, "Performance across depths",
          "A map of the point matchups at each depth range, and RMSD, bias and correlation tables of the point and "
          "gridded matchups through the water column.",

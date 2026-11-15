@@ -289,8 +289,14 @@ def check_arguments(
                 row[kind] = {"start": start, "end": end, "layers": _layers(entry, name, kind)}
                 if kind == "long_term":
                     row[kind]["window"], row[kind]["show"] = _series_options(entry, name, start, end)
-                elif {"window", "show"} & set(entry):
-                    raise ValueError(f"window and show are for long_term only, not {kind}[{name!r}].")
+                    # the total over the domain each year as well (oceanval.totals), for a flux per area
+                    # or a depth integral
+                    total = entry.get("total", False)
+                    if not isinstance(total, bool):
+                        raise ValueError(f"The total of long_term[{name!r}] must be True or False, not {total!r}.")
+                    row[kind]["total"] = total
+                elif {"window", "show", "total"} & set(entry):
+                    raise ValueError(f"window, show and total are for long_term only, not {kind}[{name!r}].")
         if name in given_by_kind["phenology"]:
             start, end = _years(given_by_kind["phenology"][name], name, "phenology")
             row["phenology"] = {"start": start, "end": end}

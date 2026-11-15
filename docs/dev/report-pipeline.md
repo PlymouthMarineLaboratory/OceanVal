@@ -76,4 +76,16 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
     (colour by rank within a variable) only draw. The zonal lines read each validation's `oceanval_results/zonal_mean` csvs;
     `gridded_plots.zonal_lines` takes `(lat, line)` for a simulation on a grid of its own. The best value of compare's tables is
     `<b>…</b>`: `df_display` returns a Styler, which renders HTML, so the old `x**` never showed bold.
+11. **Totals** (the gap report's options 5 and 34, validate's part) are `oceanval/totals.py`: `sums` is one CDO expr (`gridarea`,
+    or cos(latitude) times a degree square if CDO cannot) on the cells with both, then `spatial_sum`, per step and level; `factor`
+    reads the matchup's units with `unit_conversion._parse` and pint (carbon's molar mass between moles and mass, seawater at 1025 kg
+    m-3 for per kilogram); `inventory` weights the levels by `skill.layer_thickness`. `chunk_totals` (after `chunk_zonal`) writes
+    `oceanval_results/totals/{variable}_{source}_totals.csv` for every flux or inventory matchup, and draws the flux's monthly total
+    (`global_series`, `gridded_plots.total_series`); summary cell 23 is the table (`global_totals`). `data/reference_totals.csv`
+    holds only ranges quoted from a paper in `research/papers`, with the quote, the paper's file and its DOI.
+12. **analyze()'s totals** (`long_term={"NPP": {..., "total": True}}`, checked in `analysis.check_arguments`): `analysis_series.total_series`
+    takes the layer's monthly means (in the lon/lat box), `totals.field_series` (nctoolkit) and the units' factor, a FLUX for the surface,
+    bottom or vertical mean and an INVENTORY for the depth integral (the concentration's own units times the volume), and saves the yearly
+    mean of the monthly totals as `{key}_{layer}_long_term_total.csv`, with `saved["total"]` in the info file; `analysis_plots.total_plot`
+    draws it with the published ranges, and `chunk_longterm` shows it. FVCOM output and units OceanVal cannot total get a note instead.
 

@@ -484,6 +484,18 @@ class TestArguments:
         with pytest.raises(ValueError, match=message):
             analysis.check_arguments(**given)
 
+    def test_a_long_term_series_can_have_its_total(self):
+        rows = analysis.check_arguments(
+            {"NPP": "netPP"}, long_term={"NPP": {"start": 2000, "end": 2001, "surface": True, "total": True}},
+        )
+        assert rows[0]["long_term"]["total"] is True
+        rows = analysis.check_arguments({"NPP": "netPP"}, long_term={"NPP": {"start": 2000, "end": 2001, "surface": True}})
+        assert rows[0]["long_term"]["total"] is False
+        with pytest.raises(ValueError, match="The total of long_term\\['NPP'\\] must be True or False"):
+            analysis.check_arguments({"NPP": "netPP"}, long_term={"NPP": {"start": 2000, "end": 2001, "surface": True, "total": "yes"}})
+        with pytest.raises(ValueError, match="window, show and total are for long_term only"):
+            analysis.check_arguments({"NPP": "netPP"}, seasonal={"NPP": {"start": 2000, "end": 2001, "surface": True, "total": True}})
+
     def test_a_formula_is_kept_with_its_variables(self):
         rows = analysis.check_arguments(
             {"Chlorophyll": " P1_Chl + 2 * P2_Chl ", "Total": "P1_Chl + P2_Chl"},

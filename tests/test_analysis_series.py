@@ -155,7 +155,7 @@ class TestArguments:
             {"T": "thetao"}, long_term={"T": {"start": 2000, "end": 2001, "surface": True}}
         )
         assert rows[0]["long_term"] == {
-            "start": 2000, "end": 2001, "layers": ["surface"], "window": 1, "show": "absolute",
+            "start": 2000, "end": 2001, "layers": ["surface"], "window": 1, "show": "absolute", "total": False,
         }
         assert rows[0]["seasonal"] is None
         with pytest.raises(ValueError, match="nothing to analyze"):
@@ -260,6 +260,48 @@ class TestSeries:
         heat = series(out, "heat_integral_long_term.csv")
         assert heat.value.iloc[0] == pytest.approx((LEVELS * THICKNESS).sum() + 6.5 * THICKNESS.sum(), abs=1e-3)
         assert no_report[0]["variables"][1]["long_term"]["layers"]["integral"]["units"] == "degC m"
+
+    def test_a_total_of_degrees_is_not_worked_out(self, sim, tmp_path, no_report):
+        out = str(tmp_path)
+        run(
+            sim, out, variables={"Heat": "thetao"},
+            long_term={"Heat": {"start": 2012, "end": 2013, "water_column": "integral", "total": True}},
+            seasonal=None, thickness="e3t",
+        )
+        long_term = no_report[0]["variables"][0]["long_term"]
+        assert "total" not in long_term["layers"]["integral"]
+        assert any("There is no total of the depth integral of Heat" in note for note in long_term["notes"])
+
+    def test_the_total_of_a_concentration_is_its_inventory(self, tmp_path, no_report):
+        xcdat = pytest.importorskip("xcdat")
+        root = tmp_path / "sim"
+        write_analysis_simulation(str(root), years=(2012, 2013), daily=False)
+        # the same output as a concentration, in mmol m-3
+        for path in glob.glob(str(root / "*" / "*grid_T*.nc")):
+            with xr.open_dataset(path, decode_times=False) as data:
+                data = data.load()
+            data["thetao"].attrs["units"] = "mmol m-3"
+            data.to_netcdf(path + ".tmp")
+            os.replace(path + ".tmp", path)
+        out = str(tmp_path / "out")
+        run(
+            str(root), out, variables={"N": "thetao"},
+            long_term={"N": {"start": 2012, "end": 2013, "water_column": "integral", "total": True}},
+            seasonal=None, thickness="e3t",
+        )
+        saved = no_report[0]["variables"][0]["long_term"]["layers"]["integral"]["total"]
+        assert (saved["units"], saved["kind"]) == ("Pmol", "inventory")
+        total = series(out, saved["csv"])
+        assert total.year.tolist() == [2012, 2013] and total.months.tolist() == [12, 12]
+        # each cell's depth integral, the mean of the year's months: the levels' values plus the month
+        integral = (LEVELS * THICKNESS).sum() + 6.5 * THICKNESS.sum()
+        # times the area of the domain, from xCDAT's bounds, on CDO's sphere
+        grid = xcdat.open_dataset(glob.glob(str(root / "2012" / "*grid_T*.nc"))[0], add_bounds=["X", "Y"], decode_times=False)
+        lat_b, lon_b = grid.lat_bnds.values, grid.lon_bnds.values
+        area = (np.radians(lon_b[:, 1] - lon_b[:, 0])[None, :]
+                * (np.sin(np.radians(lat_b[:, 1])) - np.sin(np.radians(lat_b[:, 0])))[:, None]) * 6371000.0 ** 2
+        # mmol is 1e-3 mol, and a Pmol 1e15 mol
+        assert total.total.tolist() == pytest.approx([integral * area.sum() * 1e-18] * 2, rel=5e-3)
 
     def test_the_bottom_is_the_deepest_value_with_water(self, shallow, regions, tmp_path, no_report):
         out = str(tmp_path)
