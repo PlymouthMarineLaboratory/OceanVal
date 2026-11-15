@@ -2,7 +2,7 @@
 skill for every variable on one diagram, the observations' point at a
 normalised standard deviation of 1 and a correlation of 1.
 
-The layout is example/taylor_prototype.py's: a Cartesian sector (a quarter
+The layout follows the original Taylor-diagram prototype: a Cartesian sector (a quarter
 circle, or a half circle when a correlation is negative) whose box has the
 sector's own shape, standard-deviation arcs about the origin, centred-RMSD arcs
 about the observations' point, correlation rays, and a numbered marker for each
