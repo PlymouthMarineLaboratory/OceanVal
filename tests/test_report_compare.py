@@ -68,7 +68,7 @@ def comparison(tmp_path_factory):
         )
         run = folder / name
         oceanval.matchup(sim_dir=sim_dir, start=2000, end=2000, ask=False, cores=1, out_dir=str(run))
-        oceanval.validate(data_dir=str(run), out_dir=str(run), concise=False, test=True)
+        oceanval.validate(data_dir=str(run), out_dir=str(run), test=True)
         validations[name] = str(run)
     oceanval.compare(model_dict=validations, out_dir=str(folder), view=False, ask=False)
     pages = glob.glob(str(folder / "oceanval_comparison/**/_build/html/notebooks/comparison_spatial.html"), recursive=True)
