@@ -65,8 +65,9 @@ class TestOptions:
         )
 
         # as validate has it: lists of floats
-        assert options["transect"] == {"start": [-30.0, 0.0], "end": [-30.0, 65.0]}
-        assert all(isinstance(x, float) for x in options["transect"]["start"])
+        # a list of the transects, as validate takes it (transects.check_transects)
+        assert options["transect"] == [{"start": [-30.0, 0.0], "end": [-30.0, 65.0]}]
+        assert all(isinstance(x, float) for x in options["transect"][0]["start"])
 
     def test_omit_is_checked_and_kept(self):
         options = check_options({"omit": ["taylor", "monthly_maps"]}, "/run")

@@ -1220,7 +1220,7 @@ class TestTransectChecks:
         arguments, errors = check_other_options(TRANSECT_FORM, str(tmp_path))
 
         assert errors == {}
-        assert arguments == {"transect": {"start": [-30, 0], "end": [-30, 65]}}
+        assert arguments == {"transect": [{"start": [-30, 0], "end": [-30, 65]}]}
 
     @needs_to_transect
     def test_an_east_west_transect(self, tmp_path):
@@ -1230,7 +1230,7 @@ class TestTransectChecks:
         )
 
         assert check_other_options(form, str(tmp_path)) == (
-            {"transect": {"start": [-10, 55], "end": [8, 55]}}, {},
+            {"transect": [{"start": [-10, 55], "end": [8, 55]}]}, {},
         )
 
     def test_a_transect_that_is_not_asked_for_is_not_used(self, tmp_path):
@@ -1322,7 +1322,7 @@ class TestTransectChecks:
 
         arguments, errors = check_validate(form, str(tmp_path))
         assert errors == {}
-        assert arguments["transect"] == {"start": [-30, 0], "end": [-30, 65]}
+        assert arguments["transect"] == [{"start": [-30, 0], "end": [-30, 65]}]
 
         # point matchups only
         gridded = tmp_path / "oceanval_matchups" / "gridded"
@@ -1424,6 +1424,18 @@ class TestChoosingMatchups:
         # point nitrate at the surface only
         arguments = check_validate(dict(DEPTH_FORM, unticked=["nitrate/glodap/all"]), str(tmp_path))[0]
         assert "depth_bins" not in arguments
+
+    def test_the_named_sections_ticked_are_validates_transect(self, tmp_path):
+        form = {"section_equator": True, "section_atlantic_25w": True}
+        assert check_report(form, str(tmp_path))[0]["transect"] == ["equator", "atlantic_25w"]
+        # with a line of the user's own after them
+        form = dict(form, transect=True, transect_start_lon="-30", transect_start_lat="0",
+                    transect_end_lon="-30", transect_end_lat="65")
+        assert check_report(form, str(tmp_path))[0]["transect"] == [
+            "equator", "atlantic_25w", {"start": [-30.0, 0.0], "end": [-30.0, 65.0]},
+        ]
+        # none ticked is validate's default
+        assert "transect" not in check_report({}, str(tmp_path))[0]
 
     def test_the_map_depths_box_is_validates_map_depths(self, tmp_path):
         assert check_report({"map_depths": "1000, 200"}, str(tmp_path))[0]["map_depths"] == [200, 1000]
@@ -6412,7 +6424,7 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
         assert page.is_visible("#v-group-transect")
         assert page.text_content("#v-group-transect legend") == "Transect"
         assert page.locator("#v-transect").evaluate("node => node.closest('label').textContent") == (
-            "Do you want to validate against gridded datasets along a transect?"
+            "Do you want to validate against gridded datasets along a transect of your own?"
         )
         assert not page.is_checked("#v-transect")
         assert page.is_hidden("#row-transect")
@@ -6495,7 +6507,7 @@ def test_a_transect_in_a_browser(browser, tmp_path, monkeypatch):
         assert json.loads(validated[0][1]) == {
             "data_dir": str(tmp_path),
             "out_dir": str(tmp_path),
-            "transect": {"start": [-10, 55], "end": [8, 55]},
+            "transect": [{"start": [-10, 55], "end": [8, 55]}],
         }
     finally:
         app.close()

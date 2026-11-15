@@ -120,7 +120,7 @@ def check_options(live_validation, out_dir):
     )
     if not isinstance(options["test"], bool):
         raise ValueError("test must be a boolean")
-    options["transect"] = transects.check_transect(live_validation.get("transect"))
+    options["transect"] = transects.check_transects(live_validation.get("transect"))
     options["depth_bins"] = depths.check_depth_bins(live_validation.get("depth_bins"))
     options["map_depths"] = depths.check_map_depths(live_validation.get("map_depths"))
     # checked against the matchups as they are made: those it does not pick are left out

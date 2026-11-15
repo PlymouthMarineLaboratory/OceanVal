@@ -2104,7 +2104,16 @@
         </fieldset>
         <fieldset class="group" id="v-group-transect">
           <legend>Transect</legend>
-          <div class="g-row"><label class="tick-label"><input type="checkbox" class="tick" id="v-transect">Do you want to validate against gridded datasets along a transect?</label></div>
+          <div class="g-row detail-row" role="group" aria-labelledby="v-sections-label">
+            <span class="g-label" id="v-sections-label">Which standard sections do you want?</span>
+            <div class="ticks">
+              <label class="tick-label"><input type="checkbox" class="tick" id="v-section_equator">The Equator</label>
+              <label class="tick-label"><input type="checkbox" class="tick" id="v-section_pacific_155w">155°W, Pacific</label>
+              <label class="tick-label"><input type="checkbox" class="tick" id="v-section_atlantic_25w">25°W, Atlantic</label>
+            </div>
+          </div>
+          <p class="group__intro">With none ticked, a global dataset validated through the water column gets the Equator and 155°W, as in the Copernicus Marine quality documents.</p>
+          <div class="g-row"><label class="tick-label"><input type="checkbox" class="tick" id="v-transect">Do you want to validate against gridded datasets along a transect of your own?</label></div>
           <div id="row-transect" hidden>
             <p class="group__intro transect-rule">The transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends.</p>
             <div class="g-row span-row transect-heads" aria-hidden="true">
@@ -9272,7 +9281,8 @@
   const TRANSECT_BOXES = ["transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat"];
   const VALIDATE_TEXT = ["data_dir", "out_dir", ...SUBSET_BOXES, ...MISSING_BOXES, "subregions", "subregions_file",
     ...TRANSECT_BOXES, "map_depths"];
-  const VALIDATE_TICKS = ["fixed_scale", "pdf", "word", "zip", "transect"];
+  const SECTION_TICKS = ["section_equator", "section_pacific_155w", "section_atlantic_25w"];
+  const VALIDATE_TICKS = ["fixed_scale", "pdf", "word", "zip", "transect", ...SECTION_TICKS];
   const VALIDATE_GROUPS = {
     "vm-data_dir": ["data_dir"],
     "vm-out_dir": ["out_dir"],
@@ -9898,7 +9908,9 @@
     if (item.page === "point" && !point.length) return false;
     return item.when.every((condition) => {
       if (condition === "subregions") return Boolean(validateForm.subregions);
-      if (condition === "transect") return Boolean(validateForm.transect);
+      // a transect of the user's own, a named section, or the default sections of a global matchup through the water column
+      if (condition === "transect") return Boolean(validateForm.transect) || SECTION_TICKS.some((name) => validateForm[name])
+        || gridded.some((matchup) => matchup.vertical);
       if (condition === "vertical") return gridded.some((matchup) => matchup.vertical);
       if (condition === "all_layer") return point.some((matchup) => matchup.layer === "all");
       if (condition === "depths") return point.some((matchup) => matchup.layer === "all") || gridded.some((matchup) => matchup.vertical);

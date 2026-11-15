@@ -289,6 +289,11 @@ def default_validate_form():
         "omit_all": [],
         "omit_each": {},
         "transect": False,
+        # the named sections ticked (transects.SECTIONS): none ticked is validate's
+        # default, the Equator and 155°W on a global matchup through the water column
+        "section_equator": False,
+        "section_pacific_155w": False,
+        "section_atlantic_25w": False,
         "transect_start_lon": "",
         "transect_start_lat": "",
         "transect_end_lon": "",
@@ -717,7 +722,10 @@ def choose_matchups(form, matchups, errors):
 
 
 # the report options that are only for gridded matchups
-GRIDDED_ONLY = ("subregions", "subregions_file", "fixed_scale", "transect", "map_depths")
+GRIDDED_ONLY = (
+    "subregions", "subregions_file", "fixed_scale", "transect", "map_depths",
+    "section_equator", "section_pacific_155w", "section_atlantic_25w",
+)
 
 
 def check_report(form, cwd, out_dir=None):
@@ -750,9 +758,13 @@ def check_report(form, cwd, out_dir=None):
             errors["subregions_file"] = str(error)
     if subregions is not None:
         arguments["subregions"] = subregions
+    # the named sections ticked, then the line of the user's own: validate's transect, as a list
+    chosen = [name for name in transects.SECTIONS if form.get(f"section_{name}")]
     transect = check_transect_boxes(form, errors)
     if transect is not None:
-        arguments["transect"] = transect
+        chosen.append(transect)
+    if chosen:
+        arguments["transect"] = chosen
     for name in ("fixed_scale", "pdf", "word", "zip"):
         if form[name]:
             arguments[name] = True

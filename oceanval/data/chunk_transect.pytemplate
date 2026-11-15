@@ -1,108 +1,101 @@
 # %% tags=["remove-cell"]
-# validate's transect: the gridded matchups along a north-south or east-west line
+# validate's transects: the gridded matchups along north-south or east-west lines, among them the
+# named sections (transects.SECTIONS, the gap report's option 2). None is the default sections, on
+# the page of a global matchup through the water column (transects.default_sections)
 import matplotlib.pyplot as plt
 from oceanval import transects
-
-transect = the_transect
-transect_file = ff_vertical.replace("_vertical.nc", "_surface.nc")
 from oceanval import skill
+
+transect_list = the_transect
+transect_file = ff_vertical.replace("_vertical.nc", "_surface.nc")
+if transect_list is None:
+    transect_list = transects.default_sections(ff_vertical) if os.path.exists(ff_vertical) else []
 transect_log = skill.is_log(variable)
-transect_problem = None
-transect_steps = None
-transect_unit = ""
-df_transect = None
-try:
-    transect_steps = transects.transect_steps(transect_file, transect)
-    transect_unit = transects.unit_text(transect_file, variable)
-    df_transect = transects.surface_frame(transect_file, transect, transect_steps)
-except Exception as error:
-    transect_problem = str(error)
-# the water column has its own file, if the matchup was made through it
-df_section = None
-section_problem = None
-if transect_problem is None and os.path.exists(ff_vertical):
-    try:
-        df_section = transects.section_frame(ff_vertical, transect, transect_steps)
-    except Exception as error:
-        section_problem = str(error)
-
-# %% tags=["remove-input"]
-# the section goes if the user removed all of its figures (validate's omit)
+# oxygen's sections have the contours of hypoxia and the oxygen minimum zones
+transect_contours = transects.OXYGEN_CONTOURS if variable == "oxygen" else None
 transect_wanted = any(wanted(x) for x in ["transect_map", "transect_surface", "transect_section"])
-if transect_wanted:
-    md(f"## How well does the model reproduce {vv_longname} along the transect?")
-    if wanted("transect_map"):
-        md(f"The model and observations were compared along a transect that runs {transects.describe(transect)}, mapped in Figure {i_figure}.")
-    else:
-        md(f"The model and observations were compared along a transect that runs {transects.describe(transect)}.")
-    if transect_steps is not None and (wanted("transect_surface") or wanted("transect_section")):
-        md(f"Model and observed values were bilinearly interpolated from the matchup's grid onto {transect_steps} evenly spaced points along the transect, using nctoolkit's to_transect.")
 
 # %% tags=["remove-input"]
-transect_map = False
-if wanted("transect_map"):
+# each transect in turn: its map, the surface values along it and the section through the water
+# column, each left out if the user removed it (validate's omit)
+for transect in (transect_list if transect_wanted else []):
+    transect_name = transects.label(transect)
+    transect_problem = None
+    transect_steps = None
+    transect_unit = ""
+    df_transect = None
     try:
-        transect_figure = transects.plot_map(transect)
-        transect_map = True
-    except Exception:
-        plt.close("all")
-
-# %% tags=["remove-input"]
-if transect_map:
-    md(f"**Figure {i_figure}**: The transect, which runs {transects.describe(transect)}.")
-    i_figure += 1
-
-# %% tags=["remove-input"]
-transect_surface = None
-if not wanted("transect_surface"):
-    pass
-elif transect_problem is not None:
-    md(f"The values along the transect could not be extracted: {transect_problem}")
-elif len(df_transect) == 0:
-    md(f"No part of the transect has both model and observed {layer_long} {vv_name}, so there is nothing to compare along it.")
-else:
-    try:
-        if df_transect.month.nunique() > 1:
-            transect_figure = transects.plot_months(df_transect, transect, transect_unit, vv_name, log = transect_log)
-            transect_surface = "months"
-            md(f"Figure {i_figure} shows the monthly climatology of {layer_long} {vv_name} along the transect, from the model and the observations, and the difference between the two.")
-        else:
-            transect_figure = transects.plot_line(df_transect, transect, transect_unit, vv_name)
-            transect_surface = "line"
-            md(f"Figure {i_figure} shows {layer_long} {vv_name} along the transect, from the model and the observations.")
+        transect_steps = transects.transect_steps(transect_file, transect)
+        transect_unit = transects.unit_text(transect_file, variable)
+        df_transect = transects.surface_frame(transect_file, transect, transect_steps)
     except Exception as error:
-        plt.close("all")
-        md(f"The values along the transect could not be plotted: {error}")
+        transect_problem = str(error)
+    # the water column has its own file, if the matchup was made through it
+    df_section = None
+    section_problem = None
+    if transect_problem is None and os.path.exists(ff_vertical):
+        try:
+            df_section = transects.section_frame(ff_vertical, transect, transect_steps)
+        except Exception as error:
+            section_problem = str(error)
 
-# %% tags=["remove-input"]
-if transect_surface == "months":
-    md(f"**Figure {i_figure}**: Monthly climatology of {layer_long} {vv_name} along the transect, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows land, or where there are no matched values.")
-    i_figure += 1
-if transect_surface == "line":
-    md(f"**Figure {i_figure}**: {layer_long[0].upper() + layer_long[1:]} {vv_name} along the transect, from the model and the observations.")
-    i_figure += 1
+    md(f"## How well does the model reproduce {vv_longname} along {transect_name}?")
+    if wanted("transect_map"):
+        md(f"The model and observations were compared along {transect_name}, which runs {transects.describe(transect)}, mapped in Figure {i_figure}.")
+    else:
+        md(f"The model and observations were compared along {transect_name}, which runs {transects.describe(transect)}.")
+    if transect_steps is not None and (wanted("transect_surface") or wanted("transect_section")):
+        md(f"Model and observed values were bilinearly interpolated from the matchup's grid onto {transect_steps} evenly spaced points along it, using nctoolkit's to_transect.")
 
-# %% tags=["remove-input"]
-transect_vertical = False
-if not wanted("transect_section"):
-    pass
-elif section_problem is not None:
-    md(f"The values through the water column along the transect could not be extracted: {section_problem}")
-elif transect_problem is None and os.path.exists(ff_vertical):
-    if df_section is None:
-        md(f"The vertical matchup of {vv_name} has a single depth, so there is no section through the water column along the transect.")
-    elif len(df_section) == 0:
-        md(f"No part of the transect has both model and observed {vv_name} below the surface, so there is no section through the water column along it.")
+    if wanted("transect_map"):
+        try:
+            transects.plot_map(transect)
+            plt.show()
+            md(f"**Figure {i_figure}**: {transect_name[0].upper() + transect_name[1:]}, which runs {transects.describe(transect)}.")
+            i_figure += 1
+        except Exception:
+            plt.close("all")
+
+    if not wanted("transect_surface"):
+        pass
+    elif transect_problem is not None:
+        md(f"The values along {transect_name} could not be extracted: {transect_problem}")
+    elif len(df_transect) == 0:
+        md(f"No part of {transect_name} has both model and observed {layer_long} {vv_name}, so there is nothing to compare along it.")
     else:
         try:
-            transect_figure = transects.plot_section(df_section, transect, transect_unit, vv_name, log = transect_log)
-            transect_vertical = True
-            md(f"Figure {i_figure} shows the annual mean {vv_name} along the transect through the water column, from the model and the observations, and the difference between the two. The matchup's depths can be unevenly spaced, so the model and observations were first interpolated onto {transects.N_DEPTHS} evenly spaced depths, from {transects.format_depth(df_section.depth.min())} to {transects.format_depth(df_section.depth.max())}.")
+            if df_transect.month.nunique() > 1:
+                md(f"Figure {i_figure} shows the monthly climatology of {layer_long} {vv_name} along {transect_name}, from the model and the observations, and the difference between the two.")
+                transects.plot_months(df_transect, transect, transect_unit, vv_name, log = transect_log)
+                plt.show()
+                md(f"**Figure {i_figure}**: Monthly climatology of {layer_long} {vv_name} along {transect_name}, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows land, or where there are no matched values.")
+            else:
+                md(f"Figure {i_figure} shows {layer_long} {vv_name} along {transect_name}, from the model and the observations.")
+                transects.plot_line(df_transect, transect, transect_unit, vv_name)
+                plt.show()
+                md(f"**Figure {i_figure}**: {layer_long[0].upper() + layer_long[1:]} {vv_name} along {transect_name}, from the model and the observations.")
+            i_figure += 1
         except Exception as error:
             plt.close("all")
-            md(f"The values through the water column along the transect could not be plotted: {error}")
+            md(f"The values along {transect_name} could not be plotted: {error}")
 
-# %% tags=["remove-input"]
-if transect_vertical:
-    md(f"**Figure {i_figure}**: Annual mean {vv_name} along the transect through the water column, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows the seabed, or where there are no matched values.")
-    i_figure += 1
+    if not wanted("transect_section"):
+        pass
+    elif section_problem is not None:
+        md(f"The values through the water column along {transect_name} could not be extracted: {section_problem}")
+    elif transect_problem is None and os.path.exists(ff_vertical):
+        if df_section is None:
+            md(f"The vertical matchup of {vv_name} has a single depth, so there is no section through the water column along {transect_name}.")
+        elif len(df_section) == 0:
+            md(f"No part of {transect_name} has both model and observed {vv_name} below the surface, so there is no section through the water column along it.")
+        else:
+            try:
+                md(f"Figure {i_figure} shows the annual mean {vv_name} along {transect_name} through the water column, from the model and the observations, and the difference between the two. The matchup's depths can be unevenly spaced, so the model and observations were first interpolated onto {transects.N_DEPTHS} evenly spaced depths, from {transects.format_depth(df_section.depth.min())} to {transects.format_depth(df_section.depth.max())}.")
+                transects.plot_section(df_section, transect, transect_unit, vv_name, log = transect_log, contours = transect_contours)
+                plt.show()
+                contour_text = f" The black lines are the {' and '.join(str(x) for x in transect_contours)} mmol m<sup>-3</sup> contours, the edges of hypoxia and of the oxygen minimum zones." if transect_contours else ""
+                md(f"**Figure {i_figure}**: Annual mean {vv_name} along {transect_name} through the water column, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows the seabed, or where there are no matched values.{contour_text}")
+                i_figure += 1
+            except Exception as error:
+                plt.close("all")
+                md(f"The values through the water column along {transect_name} could not be plotted: {error}")

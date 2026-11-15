@@ -61,3 +61,12 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
    Axis labels take their unit as mathtext (`transects.unit_text`, `gridded_plots.mathtext_unit`), never `fix_unit`'s HTML. The point
    page's depth summary also writes `Model mean`/`Observation mean` (pandas) for `point_profiles`; the table on the page leaves them
    out. `tests/test_report_figures.py` checks the zonal means and the peak months against xarray, and every id against `omit`.
+9. **Named sections** (the gap report's option 2) are `transects.SECTIONS` (`equator` 0°→360°E so the Pacific is in the middle,
+   `pacific_155w`, `atlantic_25w`): straight transects with a `name`, so the extraction and drawing are the old ones.
+   `check_transects` gives validate's (and live's) transect as None (the default: `default_sections` of the page's vertical file,
+   `DEFAULT_SECTIONS` only if its longitudes `wraps_round`), False (`_gridded_notebook_text` drops `chunk_transect`) or a list.
+   `chunk_transect` is one top-level loop over the list: `md()` only shows from a top-level loop (IPython's `ast_node_interactivity
+   = "all"` prints expression statements in loops, not in functions), and `plt.show()` after each figure keeps them in order.
+   `map_extent` is None for a line most of the way round the globe (`set_global`). Oxygen sections draw `OXYGEN_CONTOURS`
+   (20, 60). The app's ticks `section_<name>` come first in the list, then the line of the user's own; none ticked passes nothing.
+
