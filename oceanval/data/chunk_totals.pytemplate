@@ -56,7 +56,7 @@ if totals_kind == totals.FLUX and totals_series is not None and len(totals_rows)
         totals_x = [int(str(x)[5:7]) for x in totals_series.time]
     else:
         totals_x = gridded_plots.decimal_years(totals_series.time.values)
-    gridded_plots.total_series(totals_x, totals_series.model, totals_series.observation,
+    _fig = gridded_plots.total_series(totals_x, totals_series.model, totals_series.observation,
                                f"{vv_name} ({row['units']})", totals_refs, monthly = monthly)
     plt.show()
     totals_shown = True

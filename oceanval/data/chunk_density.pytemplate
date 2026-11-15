@@ -34,7 +34,7 @@ if os.path.exists(density_file) and wanted("density_scatter"):
                 density_unit = ""
             md(f"## How do the modelled values of {layer_long} {vv_name} compare with the observed ones?")
             md(f"The figure below shows every grid cell and month with both model and observational data, modelled against observed" + (", on log10 values" if density_log else "") + ". The colour of each bin is the number of values in it, so the densest part of the cloud stands out where a scatter plot of so many points would be a solid block.")
-            density.figure(density_stats, f"{vv_name} ({density_unit})" if density_unit else vv_name)
+            _fig = density.figure(density_stats, f"{vv_name} ({density_unit})" if density_unit else vv_name)
             plt.show()
             density_shown = True
         density_values.close()

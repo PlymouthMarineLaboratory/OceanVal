@@ -75,6 +75,8 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
    `DEFAULT_SECTIONS` only if its longitudes `wraps_round`), False (`_gridded_notebook_text` drops `chunk_transect`) or a list.
    `chunk_transect` is one top-level loop over the list: `md()` only shows from a top-level loop (IPython's `ast_node_interactivity
    = "all"` prints expression statements in loops, not in functions), and `plt.show()` after each figure keeps them in order.
+   A helper that returns its figure is called as `_fig = ...`, never as a bare statement: under `"all"` a bare call displays the figure once as the
+   statement's value and again at `plt.show()` (`tests/test_figures_once.py` checks the chunks).
    `map_extent` is None for a line most of the way round the globe (`set_global`). Oxygen sections draw `OXYGEN_CONTOURS`
    (20, 60). The app's ticks `section_<name>` come first in the list, then the line of the user's own; none ticked passes nothing.
 10. **compare()'s spatial page** (the gap report's options 6, 12, 13): `comparison_spatial` cell 7's loop, which already regrids each

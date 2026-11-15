@@ -87,7 +87,7 @@ if os.path.exists(zonal_file):
         "log10": zonal_log, "unit": zonal_unit,
     }).to_csv(f"../../oceanval_results/zonal_mean/zonalmean_{variable}_{source}.csv", index = False)
     if wanted("zonal_lines"):
-        gridded_plots.zonal_lines(
+        _fig = gridded_plots.zonal_lines(
             zonal_lats, zonal_obs[0], zonal_model[0], f"log10 {zonal_label}" if zonal_log else zonal_label,
             obs_low = zonal_quartiles[0], obs_high = zonal_quartiles[1],
         )
@@ -107,7 +107,7 @@ if zonal_clim:
     ds_hov.run()
     hov_times, hov_lats, hov_obs, hov_model, hov_diff = zonal_of(ds_hov)
     hov_months = [int(str(x)[5:7]) for x in hov_times]
-    gridded_plots.hovmoller(hov_months, hov_lats, hov_obs, hov_model, hov_diff, zonal_label, log = zonal_log)
+    _fig = gridded_plots.hovmoller(hov_months, hov_lats, hov_obs, hov_model, hov_diff, zonal_label, log = zonal_log)
     plt.show()
 
 # %% tags=["remove-input"]
@@ -120,7 +120,7 @@ if zonal_clim:
 zonal_years = os.path.exists(zonal_file) and zonal_paired and wanted("hovmoller_years")
 if zonal_years:
     year_times, year_lats, year_obs, year_model, year_diff = zonal_of(ds_zonal)
-    gridded_plots.hovmoller(gridded_plots.decimal_years(year_times), year_lats, year_obs, year_model, year_diff,
+    _fig = gridded_plots.hovmoller(gridded_plots.decimal_years(year_times), year_lats, year_obs, year_model, year_diff,
                             zonal_label, log = zonal_log, monthly = False)
     plt.show()
 
