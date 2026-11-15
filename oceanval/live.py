@@ -71,6 +71,13 @@ def matchup_key(kind, variable, source, layer=None):
     return f"{kind}|{variable}|{source}|{layer or ''}"
 
 
+def _omit_of(options):
+    """What the pages leave out: the user's omit, and with a concise report the figures it does not have."""
+    if options["concise"]:
+        return report_items.with_ids(options.get("omit"), release_figures.detailed_only())
+    return options.get("omit")
+
+
 def check_options(live_validation, out_dir):
     """The interim report's options, from matchup's live_validation.
 
@@ -127,8 +134,6 @@ def check_options(live_validation, out_dir):
     options["variables"] = selection.check_variables(live_validation.get("variables"))
     # what the pages leave out: a key that picks no matchup made leaves nothing out
     options["omit"] = report_items.check_omit(live_validation.get("omit"))
-    if options["concise"]:
-        options["omit"] = report_items.with_ids(options["omit"], release_figures.detailed_only())
     report_dir = live_validation.get("out_dir", out_dir)
     if not isinstance(report_dir, str):
         raise TypeError("live_validation's out_dir must be a string")
@@ -496,7 +501,7 @@ class InterimReport:
                 self.data_dir,
                 self.folder,
             )
-            removed = report_items.removed_for(options.get("omit"), report_items.POINT, variable, source, layer)
+            removed = report_items.removed_for(_omit_of(options), report_items.POINT, variable, source, layer)
         else:
             stem = f"{source}_{variable}"
             [ff_def, *_] = glob.glob(
@@ -515,7 +520,7 @@ class InterimReport:
                 options["n_regions"],
                 transect=options.get("transect"),
             )
-            removed = report_items.removed_for(options.get("omit"), report_items.GRIDDED, variable, source)
+            removed = report_items.removed_for(_omit_of(options), report_items.GRIDDED, variable, source)
         return self.write_notebook(stem, text, removed), stem
 
     # ---- the report ----
@@ -535,7 +540,7 @@ class InterimReport:
         self.summary = self.write_notebook(
             "summary",
             self.template("summary.ipynb").replace("domain_title", "Full domain"),
-            report_items.removed_for(self.options.get("omit"), report_items.SUMMARY),
+            report_items.removed_for(_omit_of(self.options), report_items.SUMMARY),
         )
         self.write_status("starting")
         try:

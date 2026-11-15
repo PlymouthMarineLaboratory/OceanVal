@@ -19,7 +19,7 @@ jobs:
     runs-on: "ubuntu-latest" 
     # a run normally takes about 10 minutes, so a stalled one is stopped long
     # before GitHub's own six hour limit
-    timeout-minutes: ${{ contains(fromJSON('[1,7,13,14,15,16,17]'), matrix.group) && 75 || 45 }}
+    timeout-minutes: ${{ contains(fromJSON('[1,5,7,8,9,13,14,15,16,17]'), matrix.group) && 75 || 45 }}
 
     # The suite is split over six jobs that run side by side. Each job has its own
     # checkout, which matters: the matchup tests share cwd-relative output folders.
@@ -97,7 +97,7 @@ jobs:
           # every test's time, to balance the groups by
           # the heavy groups (the sim and analysis figures, the detailed reports) get twice the time per test, a runner
           # taking several times as long as a laptop
-          case "${{ matrix.group }}" in 1|7|13|14|15|16|17) LIMIT=1800 ;; *) LIMIT=900 ;; esac
+          case "${{ matrix.group }}" in 1|5|7|8|9|13|14|15|16|17) LIMIT=1800 ;; *) LIMIT=900 ;; esac
           OPTIONS="-v --timeout=$LIMIT --timeout-method=thread --durations=30 --junitxml=durations-${{ matrix.group }}.xml"
           case "${{ matrix.group }}" in
             1) python -m pytest $OPTIONS $GROUP1 ;;
