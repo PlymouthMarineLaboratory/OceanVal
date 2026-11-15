@@ -28,7 +28,7 @@ hidden. The boxes that hang on what the user has typed (subregions, transect)
 are the page's, as they are not about the matchup.
 """
 
-from oceanval import report_items
+from oceanval import release_figures, report_items
 
 GRIDDED = "gridded"
 POINT = "point"
@@ -172,12 +172,15 @@ def items_for(matchup):
     or feed on the summary page, in the order of report_items.ITEMS. Which of
     the summary's one matchup feeds is for the summary to take the union of."""
     profile = profile_for(matchup)
+    released = release_figures.in_release()
     return [
         item.id
         for item in report_items.ITEMS
+        # one not in release_figures.csv is not offered
+        if item.id in released
         # taylor and the summary's tables are of the gridded matchups, and depth_performance of any through
         # the water column: a matchup feeds the items of the summary whose conditions it meets
-        if item.page in (report_items.SUMMARY, matchup.get("kind"))
+        and item.page in (report_items.SUMMARY, matchup.get("kind"))
         and all(_holds(condition, matchup, profile) for condition in item.when)
     ]
 

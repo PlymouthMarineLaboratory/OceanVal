@@ -7,6 +7,7 @@ include MANIFEST.in
 
 # Runtime package data (also listed in package_data in setup.py)
 include oceanval/data/*
+include oceanval/release_figures.csv
 
 # Keep repo-only material out of the sdist
 prune docs

@@ -196,7 +196,12 @@ in red. There is no Concise/Detailed choice in the window any more; `concise` st
 dataset know their months, total and depth) and the options typed (`itemApplies`); a seasonal box says it needs more than one month only for the
 user's own data, whose months are not known until matched up. The report options page likewise shows a group (subregions, transect, maps at depth,
 fixed scale, depth bins) only if a ticked matchup's `options` has it.
-Tests: `test_customizing_the_output_*_in_a_browser`, `TestValidateChecks`, `tests/test_report_omit.py`.
+**Staging a release: `oceanval/release_figures.csv`** (Kind, Figure name = the item id, In release Y/N; one row per `report_items.ITEMS`
+id, checked by `release_figures.problems()` and `tests/test_release_figures.py`). An N figure is not offered (`REPORT_ITEMS` in `app.py` and
+`option_profiles.items_for` leave it out) and `app._with_unreleased` adds it to the `omit` the window gives `validate()`, so it is not drawn;
+`validate(omit=)` called from a script is unchanged. A Y figure is sent with `in_development: true`: its card is amber (`.report-item.is-dev`,
+`--amber`/`--amber-bg`) with an "In development" tag and a note above the cards. To release a figure for good, drop `in_development` for it.
+Tests: `test_customizing_the_output_*_in_a_browser`, `TestValidateChecks`, `tests/test_report_omit.py`, `tests/test_release_figures.py`.
 
 ## Required ticks
 

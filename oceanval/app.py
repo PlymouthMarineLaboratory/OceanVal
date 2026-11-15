@@ -74,7 +74,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store, store_view
-from oceanval import cdo_check, depths, file_workers, model_check, option_profiles, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, report_items, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, depths, file_workers, model_check, option_profiles, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, release_figures, report_items, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
@@ -774,6 +774,8 @@ def check_report(form, cwd, out_dir=None):
     errors.update(omit_errors)
     if not omit_errors:
         arguments["concise"] = False
+        # what is not in release_figures.csv is never drawn, whatever the window asked for
+        omit = _with_unreleased(omit)
         if omit is not None:
             arguments["omit"] = omit
     map_depths = check_map_depths_box(form["map_depths"], errors)
@@ -816,11 +818,33 @@ def check_map_depths_box(text, errors):
 
 
 # the figures and analyses of the report, as the page shows them as boxes
-REPORT_ITEMS = report_items.as_json()
+# (only those in release_figures.csv, each marked as in development, its tile amber, unless it is one that is always in)
+REPORT_ITEMS = [
+    dict(item, in_development=item["id"] in release_figures.in_development())
+    for item in report_items.as_json()
+    if item["id"] in release_figures.in_release()
+]
 
 # why the report's contents cannot be used, as the page says it too
 CUSTOMIZE_ASK = "Say whether you need to customize the validation output."
 PER_MATCHUP_ASK = "Say whether to customize the output variable by variable."
+
+
+def _with_unreleased(omit):
+    """omit (as check_customize gives it) with the figures that are not in
+    release_figures.csv added, for every page."""
+    unreleased = release_figures.not_released()
+    if not unreleased:
+        return omit
+    if omit is None:
+        return unreleased
+    if isinstance(omit, dict):
+        omit = dict(omit)
+        omit[report_items.EVERY_PAGE] = sorted(
+            set(omit.get(report_items.EVERY_PAGE, [])) | set(unreleased), key=report_items.ids().index
+        )
+        return omit
+    return sorted(set(omit) | set(unreleased), key=report_items.ids().index)
 
 
 def _omit_of_made(arguments):
@@ -836,7 +860,7 @@ def _omit_of_made(arguments):
         return arguments
     kept = {
         key: ids for key, ids in omit.items()
-        if key == report_items.SUMMARY_KEY
+        if key in (report_items.SUMMARY_KEY, report_items.EVERY_PAGE)
         or any(selection.wanted([key], m["variable"], m["source"], m["layer"]) for m in made)
     }
     arguments = dict(arguments)

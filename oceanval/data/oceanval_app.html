@@ -96,6 +96,10 @@
   .report-item__remove.is-add:hover { background: var(--teal-50); color: var(--teal-700); }
   .choice.report-item.is-removed { border-style: dashed; background: var(--bg-alt); box-shadow: none; }
   .report-item.is-removed .choice__title, .report-item.is-removed .choice__text, .report-item.is-removed .report-item__note { color: var(--muted-light); }
+  .choice.report-item.is-dev { border-color: var(--amber); background: var(--amber-bg); }
+  .choice.report-item.is-dev.is-removed { border-style: dashed; }
+  .report-item__dev { align-self: flex-start; padding: 2px 9px; border-radius: 999px; background: var(--amber); color: var(--bg); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .report-items__dev-note { margin: 0 0 18px; padding: 10px 14px; border: 1px solid var(--amber); border-radius: var(--radius-sm); background: var(--amber-bg); color: var(--amber); font-size: 14px; font-weight: 600; }
   .choice__tag { padding: 2px 9px; border-radius: 999px; background: var(--teal-50); color: var(--teal-700); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .own-legend { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; color: var(--muted); font-size: 13px; }
   .own-swatch { width: 4px; height: 16px; border-radius: 2px; background: var(--red); }
@@ -10009,7 +10013,8 @@
 
   function itemCard(item, page) {
     const removed = removedOn(page).includes(item.id);
-    return el("div", { class: `choice report-item${removed ? " is-removed" : ""}`, "data-item": item.id },
+    return el("div", { class: `choice report-item${removed ? " is-removed" : ""}${item.in_development ? " is-dev" : ""}`, "data-item": item.id },
+      item.in_development ? el("span", { class: "report-item__dev", text: "In development" }) : null,
       el("span", { class: "choice__title report-item__title", text: item.label }),
       el("span", { class: "choice__text", text: item.text }),
       item.when.includes("seasonal") && seasonUnknown(item, page) ? el("span", { class: "report-item__note", text: "Only if the observations have more than one month." }) : null,
@@ -10044,7 +10049,10 @@
     $("v-items-title").textContent = page.kind === "matchup" ? matchupName(page.matchup)
       : page.kind === "summary" ? "The summary page" : "What do you want in the report?";
     $("v-items-count").textContent = pages.length > 1 ? `Page ${number} of ${pages.length}` : "";
-    $("v-items-groups").replaceChildren(...groups.filter(([, items]) => items.length).map(([heading, items]) =>
+    const inDevelopment = groups.some(([, items]) => items.some((item) => item.in_development));
+    $("v-items-groups").replaceChildren(
+      inDevelopment ? el("p", { class: "report-items__dev-note", text: "Amber tiles are in development: they are new, and may change." }) : null,
+      ...groups.filter(([, items]) => items.length).map(([heading, items]) =>
       el("section", { class: "report-items__group" },
         heading ? el("h3", { class: "report-items__kind", text: heading }) : null,
         el("div", { class: "report-items" }, ...items.map((item) => itemCard(item, page))))));

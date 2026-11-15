@@ -52,7 +52,7 @@ setup(name='oceanval',
       author_email='rwi@pml.ac.uk',
       include_package_data=True,
       package_data={
-      'oceanval': ['data/*'] },
+      'oceanval': ['data/*', 'release_figures.csv'] },
 
       packages = ["oceanval"],
       # both spellings open the OceanVal window (oceanval/app.py)

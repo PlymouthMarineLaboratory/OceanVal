@@ -1,0 +1,18 @@
+Kind,Figure name,In release
+gridded,density_scatter,Y
+gridded,peak_month,Y
+gridded,zonal_lines,Y
+gridded,hovmoller_clim,Y
+gridded,hovmoller_years,Y
+gridded,global_series,Y
+gridded,regional_map,Y
+gridded,regional_cycle,Y
+gridded,regional_table,Y
+gridded,zonal_sections,Y
+gridded,depth_level_table,Y
+gridded,mean_profiles,Y
+gridded,depth_maps,Y
+gridded,transect_map,Y
+gridded,transect_surface,Y
+gridded,transect_section,Y
+summary,global_totals,Y
