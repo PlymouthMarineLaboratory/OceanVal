@@ -309,6 +309,8 @@ def default_climatology(placed, years_of):
             row["name"]: {"use": False, "start": "", "end": "", "surface": False, "bottom": False, "mean": False, "integral": False,
                 # the long-term series' rolling mean, none to start with, and how it is shown
                 "window": "1", "show": analysis.SHOW_ABSOLUTE,
+                # the long-term series' total over the domain (oceanval.totals), not to start with
+                "total": False,
             }
             for row in placed
         },
@@ -342,6 +344,7 @@ def clean_climatology(form, placed):
             **_water_boxes(box),
             "window": str(box.get("window") or "1").strip() or "1",
             "show": box.get("show") if box.get("show") in analysis.SHOWS else analysis.SHOW_ABSOLUTE,
+            "total": bool(box.get("total")),
         }
     return {"rows": rows, "thickness": str(form.get("thickness") or "").strip()}
 
@@ -466,6 +469,8 @@ def check_climatology(form, placed, known_years, available, cwd, label="climatol
             chosen[row["name"]]["window"] = window
         if series and show != analysis.SHOW_ABSOLUTE:
             chosen[row["name"]]["show"] = show
+        if series and box.get("total"):
+            chosen[row["name"]]["total"] = True
         column = column or bool(_water_column(box))
     thickness = None
     if column and not fvcom:

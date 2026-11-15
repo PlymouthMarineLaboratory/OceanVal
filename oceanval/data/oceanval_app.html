@@ -2998,7 +2998,7 @@
       <table>
         <thead>
           <tr class="is-need"><th colspan="3"></th><th colspan="4"><span class="own-req" data-required-tick>Required</span></th><th colspan="2" class="is-series" hidden></th></tr>
-          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col" class="is-layer">Surface</th><th scope="col" class="is-layer">Bottom</th><th scope="col" class="is-layer">Vertical mean</th><th scope="col" class="is-layer">Vertical integration</th><th scope="col" class="is-series" hidden>Use a rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th></tr>
+          <tr><th scope="col">Variable</th><th scope="col">Start <span class="own-req">Required</span></th><th scope="col">End <span class="own-req">Required</span></th><th scope="col" class="is-layer">Surface</th><th scope="col" class="is-layer">Bottom</th><th scope="col" class="is-layer">Vertical mean</th><th scope="col" class="is-layer">Vertical integration</th><th scope="col" class="is-series" hidden>Use a rolling mean (years)</th><th scope="col" class="is-series" hidden>Show as</th><th scope="col" class="is-series" hidden>Total over the domain</th></tr>
         </thead>
         <tbody class="analyze-all" id="clim-all"></tbody>
         <tbody id="clim-body"></tbody>
@@ -6673,7 +6673,7 @@
   const KIND_TITLES = { climatology: "Map climatologies", phenology: "Map phenologies", long_term: "Long-term time series", seasonal: "Seasonal cycles", map_changes: "Map temporal changes", transects: "Analyse transects" };
   const KIND_INTROS = {
     climatology: "The climatological annual and monthly average is calculated for the year range given, and each will be mapped.",
-    long_term: "The annual average is calculated for the year range given, over the whole domain, each region and each station chosen, and plotted as a time series. A rolling mean can be taken, and the series shown as values or as their change from the first year.",
+    long_term: "The annual average is calculated for the year range given, over the whole domain, each region and each station chosen, and plotted as a time series. A rolling mean can be taken, and the series shown as values or as their change from the first year. With Total over the domain ticked, a flux per area (such as primary production) or a depth integral is also summed over the domain each year, beside published global totals where there are any.",
     seasonal: "The climatological monthly average is calculated for the year range given, over the whole domain, each region and each station chosen, and plotted as a seasonal cycle.",
   };
   // the pop-outs whose rows choose layers: the surface, the bottom, the water column
@@ -7225,6 +7225,9 @@
       const show = el("select", { class: "s-select is-show", "aria-label": `How to show the long-term series of ${row.name}` },
         ...Object.entries(SERIES_SHOWS).map(([value, text]) => el("option", { value, text })));
       show.value = box.show in SERIES_SHOWS ? box.show : "absolute";
+      // and the total over the domain each year, for a flux per area or a depth integral (oceanval.totals)
+      const total = el("input", { type: "checkbox", class: "tick", "aria-label": `The total of ${row.name} over the domain` });
+      total.checked = Boolean(box.total);
       const msg = el("p", { class: "analyze-msg" });
       const reset = resetLink(row.name);
       const tr = el("tr", {},
@@ -7236,7 +7239,7 @@
           ? withInfo(el("label", { class: "tick-label" }, bottom, "Bottom"), kind, "bottom", `the bottom option of ${row.name}`)
           : noColumn()),
         ...waterCells(row, kind, mean, integral, column, noColumn),
-        ...(series ? [el("td", {}, rolling), el("td", {}, show)] : []));
+        ...(series ? [el("td", {}, rolling), el("td", {}, show), el("td", {}, total)] : []));
       const refresh = () => {
         tr.classList.toggle("is-off", !use.checked);
         tr.classList.toggle("is-on", use.checked);
@@ -7251,7 +7254,7 @@
           refresh();
         });
       }
-      analyzeDialog.rows[row.name] = { use, start, end, surface, bottom, mean, integral, rolling, show, msg, reset, refresh };
+      analyzeDialog.rows[row.name] = { use, start, end, surface, bottom, mean, integral, rolling, show, total, msg, reset, refresh };
       refresh();
       return tr;
     }));
@@ -7478,6 +7481,7 @@
         el("td", {}, controls.rolling = el("input", { class: "s-input is-num is-window", type: "text", inputmode: "numeric", placeholder: "1",
           "aria-label": "Years of the rolling mean of the annual means of every variable (1 is none)", spellcheck: "false", autocomplete: "oceanval-none" })),
         el("td", {}, selectOf("show", "How to show the long-term series", SERIES_SHOWS)),
+        el("td", {}, controls.total = el("input", { type: "checkbox", class: "tick", "aria-label": "The total over the domain of every variable" })),
       ] : [];
       trs.push(el("tr", { class: "is-all" }, name, yearOf("start", "Start", hint(0)), yearOf("end", "End", hint(1)), ...layers(), ...series));
     }
@@ -7990,7 +7994,7 @@
       if (LAYERED.includes(kind)) {
         rows[name] = { use: row.use.checked, start: row.start.value, end: row.end.value,
           surface: row.surface.checked, bottom: row.bottom.checked, mean: row.mean.checked, integral: row.integral.checked };
-        if (kind === "long_term") Object.assign(rows[name], { window: row.rolling.value, show: row.show.value });
+        if (kind === "long_term") Object.assign(rows[name], { window: row.rolling.value, show: row.show.value, total: row.total.checked });
       } else {
         rows[name] = { use: row.use.checked, start: row.start.value, end: row.end.value };
       }

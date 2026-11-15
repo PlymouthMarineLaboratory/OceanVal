@@ -1095,6 +1095,39 @@ def long_term_plot(results_dir, key, layer):
     return Drawn(code, False, {"regions": _regions_in(done["frame"])}, _about(info))
 
 
+def total_plot(results_dir, key, layer):
+    """The total over the domain in each year (oceanval.totals, worked out by
+    analysis_series.total_series), with each published range of the global
+    total as a band. None if the layer has no total."""
+    info = load(results_dir)
+    variable = entry(info, key)
+    saved = variable["long_term"]["layers"][layer]
+    total = saved.get("total")
+    if not total:
+        return None
+    path = _path(results_dir, total["csv"])
+    bands = [
+        (float(row["low"]), float(row["high"]), row["citation"] + (f", {row['period']}" if row.get("period") else ""))
+        for row in total["references"] if float(row["low"]) < float(row["high"])
+    ]
+    ylabel = f"{variable['name']} ({total['units']})"
+    blocks = [
+        _call("fig, ax = plt.subplots", {"figsize": (8, 3.8)}),
+        _listing("bands", bands, "each published range of the global total: its low, its high and where it is from"),
+        "for low, high, label in bands:",
+        '    ax.axhspan(low, high, color="#c9c8c2", alpha=0.5, linewidth=0, label=label)',
+        'ax.plot(frame.year, frame.total, color="#d03b3b", linewidth=1.6, marker="o", markersize=4, label="Model")',
+        f"ax.set_ylabel({_py(ylabel)})",
+        YEAR_TICKS,
+        LINE_STYLE,
+        _call("ax.legend", {"frameon": False, "fontsize": 8, "loc": "best"}),
+    ]
+    code = _code("import matplotlib.pyplot as plt\nimport pandas as pd\n", f"frame = pd.read_csv({_py(path)})", *blocks,
+                 "fig.tight_layout()")
+    _run(code, "total_plot")
+    return Drawn(code, False, {"bands": len(bands)}, _about(info))
+
+
 def seasonal_cycle_regions(results_dir, key, layer):
     """The mean seasonal cycle: the mean of each month of the year, over the
     years of the series, over the domain and over each region. Drawn.found

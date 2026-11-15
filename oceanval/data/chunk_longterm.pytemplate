@@ -43,6 +43,22 @@ for layer, saved in lt["layers"].items():
         + open_circles + gaps
     ))
     i_figure += 1
+    # the total over the domain in each year, with the published ranges (long_term's total)
+    drawn = ap.total_plot(results_dir, variable, layer)
+    if drawn:
+        ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")
+        total = saved["total"]
+        ranges = "; ".join(
+            f"{row['low']:g}–{row['high']:g} {row['units']} ({row['citation']}{', ' + row['period'] if row.get('period') else ''})"
+            for row in total["references"] if row["low"] < row["high"]
+        )
+        display(md(
+            f"**Figure {i_figure}**: Total {where} {name} over the model's domain in each year, {years}, in {total['units']}: "
+            + ("the depth integral summed over the area, an inventory." if total["kind"] == "inventory" else "the flux summed over the area, as a rate for the year.")
+            + (f" The grey bands are the published ranges of the global total: {ranges}." if ranges else "")
+            + " A regional model's total is over its domain only."
+        ))
+        i_figure += 1
     drawn = ap.station_plot(results_dir, variable, "long_term", layer)
     if drawn:
         ap.show(drawn, figure_code, f"Figure {i_figure} on the {name} page")

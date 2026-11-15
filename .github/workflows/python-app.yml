@@ -77,7 +77,7 @@ jobs:
           GROUP7="tests/test_transect_report.py tests/test_analysis_plots.py tests/test_analysis_changes.py tests/test_report_statistics.py"
           GROUP8="tests/test_fvcom.py tests/test_analysis.py tests/test_user_recipes.py tests/test_calendars.py tests/test_report_compare.py"
           GROUP9="tests/test_sim_compare.py tests/test_analysis_report.py tests/test_analysis_series.py"
-          GROUP10="tests/test_analysis_transects.py tests/test_sim_unify.py tests/test_viewer_catalogue.py"
+          GROUP10="tests/test_analysis_transects.py tests/test_sim_unify.py tests/test_viewer_catalogue.py tests/test_report_totals.py"
           GROUP11="tests/test_app.py tests/test_viewer_browser.py tests/test_store_expand.py tests/test_adders.py"
           # -v names each test as it starts, and a test still running after
           # 15 minutes ends the run with every thread's stack, so a stall shows

@@ -1,0 +1,67 @@
+# %% tags=["remove-cell"]
+# totals over the cells matched up (the gap report's options 5 and 34): a flux summed over their
+# area for each month (an air-sea CO2 flux in Pg C yr-1), or, through the water column, the
+# inventory of the annual mean, with the published ranges of oceanval/data/reference_totals.csv.
+# Every sum is nctoolkit's (oceanval.totals); the summary's table reads the file written here,
+# whatever this page shows
+from oceanval import gridded_plots, totals
+import matplotlib.pyplot as plt
+totals_file = ff_vertical.replace("_vertical.nc", "_surface.nc")
+try:
+    totals_units = str(nc.open_data(totals_file, checks = False).contents.query("variable == 'model'").unit.values[0])
+except:
+    totals_units = ""
+totals_kind = totals.kind_of(totals_units, variable)
+totals_refs = totals.references(variable)
+totals_rows = []
+totals_series = None
+if totals_kind == totals.FLUX:
+    ds_totals = nc.open_data(totals_file, checks = False)
+    ds_totals.subset(lon = lon_lim, lat = lat_lim)
+    totals_series, totals_target = totals.flux_series(ds_totals, totals_units, variable)
+    if totals_series is not None and totals_series.model.notna().any():
+        totals_rows.append({
+            "variable": variable, "source": source, "kind": totals.FLUX, "units": totals_target,
+            "model": float(totals_series.model.mean()), "observation": float(totals_series.observation.mean()),
+            "area_km2": float(totals_series.area.mean() / 1e6), "volume_km3": np.nan,
+            "months": int(totals_series.model.notna().sum()),
+        })
+    del ds_totals
+elif totals_kind == totals.INVENTORY and os.path.exists(ff_vertical):
+    ds_totals = nc.open_data(ff_vertical, checks = False)
+    ds_totals.subset(lon = lon_lim, lat = lat_lim)
+    ds_totals.tmean("month")
+    ds_totals.tmean()
+    ds_totals.run()
+    totals_model, totals_obs, totals_volume, totals_target = totals.inventory(ds_totals, totals_units, variable)
+    if totals_model is not None and totals_volume:
+        totals_rows.append({
+            "variable": variable, "source": source, "kind": totals.INVENTORY, "units": totals_target,
+            "model": totals_model, "observation": totals_obs, "area_km2": np.nan,
+            "volume_km3": totals_volume / 1e9, "months": len(clim_months),
+        })
+    del ds_totals
+if len(totals_rows) > 0:
+    os.makedirs("../../oceanval_results/totals", exist_ok = True)
+    pd.DataFrame(totals_rows).to_csv(f"../../oceanval_results/totals/{variable}_{source}_totals.csv", index = False)
+
+# %% tags=["remove-input"]
+totals_shown = False
+if totals_kind == totals.FLUX and totals_series is not None and len(totals_rows) > 0 and wanted("global_series"):
+    row = totals_rows[0]
+    md(f"## How much {vv_name} is there over the area matched up?")
+    md(f"The figure below shows {vv_name} summed over the grid cells with both model and observational data in each month, in {row['units']}, with the published estimates of the global total" + (" as grey bands" if totals_refs else "") + f". The cells cover {row['area_km2'] / 1e6:.1f} million km<sup>2</sup> on average, so this is the total over the area matched up, not a global total, unless the observations cover the whole ocean. Over the year, the model's total is {row['model']:.3g} {row['units']} and the observations' {row['observation']:.3g} {row['units']}.")
+    monthly = len(totals_series) <= 12
+    if monthly:
+        totals_x = [int(str(x)[5:7]) for x in totals_series.time]
+    else:
+        totals_x = gridded_plots.decimal_years(totals_series.time.values)
+    gridded_plots.total_series(totals_x, totals_series.model, totals_series.observation,
+                               f"{vv_name} ({row['units']})", totals_refs, monthly = monthly)
+    plt.show()
+    totals_shown = True
+
+# %% tags=["remove-input"]
+if totals_shown:
+    md(f"**Figure {i_figure}**: Total {vv_name} over the grid cells with both model and observational data in each month, in the model and the observations." + (" The grey bands are the published ranges of the global total: " + "; ".join(f"{x['low']:g}–{x['high']:g} {x['units']} ({x['citation']}{', ' + x['period'] if x['period'] else ''})" for x in totals_refs) + "." if totals_refs else ""))
+    i_figure += 1

@@ -578,6 +578,43 @@ def months_per_year(times):
     return 12 if any(len(months) > 1 for months in by_year.values()) else 1
 
 
+def total_series(ds, row, layer, results_dir, area):
+    """The total over the model's domain (in the lon/lat box, if one is given) of
+    row's variable in layer, for each year: the mean of its monthly totals
+    (oceanval.totals; nctoolkit's sums of each cell's value times its area),
+    saved as {key}_{layer}_long_term_total.csv of year, total and months.
+    A flux per area (at the surface, the bottom or as the vertical mean) is a
+    rate, e.g. in Pg C yr-1; the depth integral of a concentration an
+    inventory, in Pmol. Returns ({"csv", "units", "kind", "references"}, None),
+    or (None, a note saying why there is none)."""
+    from oceanval import totals
+
+    name = row["name"]
+    if row.get("fvcom"):
+        return None, f"There is no total of {name}: OceanVal does not total FVCOM output yet."
+    units = row["units"]
+    kind = totals.kind_of(units, name)
+    wanted = totals.INVENTORY if layer == "integral" else totals.FLUX
+    if kind != wanted:
+        if layer == "integral":
+            return None, f"There is no total of the depth integral of {name}: its units, {units}, are not a concentration OceanVal can total."
+        return None, f"There is no {LAYER_TITLES[layer].lower()} total of {name}: its units, {units}, are not a flux per area OceanVal can total."
+    target = totals.target_for(name, kind, units)
+    multiplier = totals.factor(units, name, target)
+    if multiplier is None:
+        return None, f"There is no total of {name}: OceanVal cannot turn {units} into {target}."
+    box = ds if area["lon_lim"] is None and area["lat_lim"] is None else _box(ds, area["lon_lim"], area["lat_lim"])
+    frame = totals.field_series(box, row["key"])
+    times = pd.to_datetime([str(x) for x in frame.time])
+    frame = frame.assign(year=times.year, total=frame.total * multiplier)
+    frame = frame[frame.area > 0]
+    annual = frame.groupby("year").agg(total=("total", "mean"), months=("total", "size")).reset_index()
+    csv = f"{row['key']}_{layer}_long_term_total.csv"
+    annual.to_csv(os.path.join(results_dir, csv), index=False)
+    found = totals.references(name)
+    return {"csv": csv, "units": target, "kind": kind, "references": found}, None
+
+
 def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks_for):
     """The long-term and seasonal series that row asks for (see
     check_arguments, with its files and times added by analyze), saved in
@@ -651,6 +688,12 @@ def work_out(row, results_dir, thickness, thickness_for, time_shift, area, masks
                 saved["show"] = row[kind]["show"]
                 if row[kind]["show"] == SHOW_PERCENTAGE_CHANGE:
                     saved["units"] = "%"
+            if kind == "long_term" and row[kind].get("total"):
+                total, note = total_series(ds, row, layer, results_dir, area)
+                if total is not None:
+                    saved["total"] = total
+                if note:
+                    extra.append(note)
             entries[kind]["layers"][layer] = saved
             entries[kind]["regions"] = names
             entries[kind]["stations"].update(found)

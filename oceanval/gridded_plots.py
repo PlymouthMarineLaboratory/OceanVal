@@ -294,3 +294,32 @@ def profiles(depths, lines, label, title=None):
     if title:
         fig.suptitle(title, fontsize=10, x=0.01, ha="left")
     return fig
+
+
+# ---- totals over the matched cells (options 5 and 34) ----
+
+
+def total_series(times, model, obs, label, references=(), monthly=True):
+    """The total over the matched cells of each month, model and observations,
+    with each published range (totals.references: low, high, citation, period)
+    as a band. times are month numbers (a climatology) or decimal years."""
+    plt = _plt()
+    times = np.asarray(times, dtype="float64")
+    fig, ax = plt.subplots(figsize=(8, 3.4), constrained_layout=True)
+    for k, row in enumerate(references):
+        period = f", {row['period']}" if row.get("period") else ""
+        ax.axhspan(row["low"], row["high"], color=BAND, alpha=0.55 if k == 0 else 0.35, lw=0,
+                   label=f"{row['citation']}{period}")
+    for values, colour, name in ((obs, OBS, "Observations"), (model, MODEL, "Model")):
+        values = np.asarray(values, dtype="float64")
+        ok = np.isfinite(values)
+        ax.plot(times[ok], values[ok], color=colour, lw=1.6, marker="o" if monthly else None, ms=3, label=name)
+    if monthly:
+        ax.set_xticks(range(1, 13))
+        ax.set_xticklabels([m[0] for m in MONTHS])
+    else:
+        ax.set_xlabel("Year")
+    ax.set_ylabel(label)
+    ax.grid(axis="y", color=BAND, lw=0.5)
+    ax.legend(fontsize=7, frameon=False, loc="best")
+    return fig
