@@ -1173,6 +1173,33 @@ class TestValidateChecks:
         }
         assert check_validate(form, str(tmp_path))[0]["omit"] == {first: ["bias_map"]}
 
+    def test_a_figure_that_its_dataset_cannot_have_is_not_left_out(self, tmp_path):
+        # GLODAP is one annual climatology, so it has no monthly maps to leave out, and no flux to total
+        write_matchups(tmp_path)
+        gridded = tmp_path / "oceanval_matchups" / "gridded" / "alkalinity"
+        gridded.mkdir()
+        (gridded / "glodap_alkalinity_vertical.nc").touch()
+        key = "alkalinity/glodap"
+        form = {
+            "customize": "yes", "per_matchup": "yes",
+            "omit_each": {key: ["monthly_maps", "bias_map", "global_series"], "summary": ["temporal_maps", "taylor"]},
+        }
+        # the other matchup, temperature, has a seasonal cycle, so the summary's temporal maps are still possible
+        assert check_validate(form, str(tmp_path))[0]["omit"] == {
+            key: ["bias_map"], "summary": ["taylor", "temporal_maps"]}
+        form["unticked"] = ["temperature/cobe2"]
+        assert check_validate(form, str(tmp_path))[0]["omit"] == {key: ["bias_map"], "summary": ["taylor"]}
+
+    def test_an_option_that_no_matchup_ticked_takes_is_put_back(self, tmp_path):
+        write_matchups(tmp_path)
+        gridded = tmp_path / "oceanval_matchups" / "gridded" / "alkalinity"
+        gridded.mkdir()
+        (gridded / "glodap_alkalinity_surface.nc").touch()
+        # the fixed scale is of the monthly maps: temperature has them, GLODAP's annual climatology has none
+        form = {"fixed_scale": True, "unticked": ["temperature/cobe2"]}
+        assert "fixed_scale" not in check_validate(form, str(tmp_path))[0]
+        assert check_validate({"fixed_scale": True}, str(tmp_path))[0]["fixed_scale"] is True
+
     def test_a_regions_file_is_found_in_the_directory_worked_in(self, tmp_path):
         write_matchups(tmp_path)
         form = {"subregions": "file", "subregions_file": "regions.nc"}
@@ -1507,7 +1534,8 @@ class TestChoosingMatchups:
         wait_for(lambda: app.question is not None)
         assert post(app, "/api/answer", {"id": app.question.id, "answer": "y"})[0] == 200
         output_continue(app)
-        assert get_json(app, "/api/state")[1]["report"]["matchups"] == listed
+        # each with what its variable and dataset can show (see oceanval.option_profiles)
+        assert get_json(app, "/api/state")[1]["report"]["matchups"] == app_module.option_profiles.annotate(listed)
 
         # none ticked
         form = {"unticked": ["temperature/COBE2", "temperature/ICES/all"], "cores": "1"}
@@ -6155,6 +6183,34 @@ def open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch):
     return app, page, validated
 
 
+def test_the_report_options_are_those_the_matchups_ticked_take_in_a_browser(browser, tmp_path, monkeypatch):
+    """A report option is offered only if a matchup ticked can use it, as OceanVal knows of each
+    built-in variable and dataset (oceanval.option_profiles)."""
+    app, page, validated = open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch)
+    try:
+        hidden = lambda: sorted(
+            name for name, box in [
+                ("subregions", "#v-group-subregions"), ("transect", "#v-group-transect"),
+                ("map_depths", "#v-group-map_depths"), ("fixed_scale", "#row-fixed_scale"),
+                ("depth_bins", "#v-group-depth_bins")]
+            if page.is_hidden(box))
+        page.click("#v-datasets summary")
+        # the gridded temperatures are at the surface, so there are no maps at depth to ask about
+        assert hidden() == ["map_depths"]
+        page.uncheck("#v-datasets input[data-key='temperature/WOA23']")
+        assert hidden() == ["map_depths"]
+        # no gridded matchup: only the depth bins of the point matchup through the water column
+        page.uncheck("#v-datasets input[data-key='temperature/COBE2']")
+        page.wait_for_function("document.getElementById('v-group-subregions').hidden")
+        assert hidden() == ["fixed_scale", "map_depths", "subregions", "transect"]
+        # no matchup through the water column
+        page.uncheck("#v-datasets input[data-key='nitrate/glodap/all']")
+        page.wait_for_function("document.getElementById('v-group-depth_bins').hidden")
+        assert hidden() == ["depth_bins", "fixed_scale", "map_depths", "subregions", "transect"]
+    finally:
+        app.close()
+
+
 @pytest.mark.customize_question
 def test_customizing_the_output_for_every_matchup_together_in_a_browser(browser, tmp_path, monkeypatch):
     """The two questions go on as they are answered, with no Continue: No to customizing is the
@@ -6277,8 +6333,9 @@ def test_customizing_the_output_variable_by_variable_in_a_browser(browser, tmp_p
         # gridded boxes only, and not the ones for options not chosen
         assert card("clim_map").count() == 1 and card("point_bias_map").count() == 0
         assert card("regional_map").count() == 0
-        # the seasonal ones say what they need
-        assert "Only if the observations have more than one month." in card("monthly_maps").text_content()
+        # a built-in dataset's months are known: its series has latitude by time, and it has no flux to total
+        assert "Only if the observations have more than one month." not in card("monthly_maps").text_content()
+        assert card("hovmoller_years").count() == 1 and card("global_series").count() == 0
         assert page.locator("#build").count() == 0
         card("bias_map").locator(".report-item__remove").click()
         page.click("#v-next")
@@ -6286,6 +6343,8 @@ def test_customizing_the_output_variable_by_variable_in_a_browser(browser, tmp_p
         assert (title(), count()) == ("Temperature (WOA23)", "Page 2 of 4")
         # what was left out of the first is not left out of this one
         assert "is-removed" not in card("bias_map").get_attribute("class")
+        # a climatology has no latitude by time
+        assert card("monthly_maps").count() == 1 and card("hovmoller_years").count() == 0
         page.click("#v-next")
 
         assert (title(), count()) == ("Nitrate (glodap, through the water column)", "Page 3 of 4")
