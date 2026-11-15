@@ -14,7 +14,7 @@ if os.path.exists(density_file) and wanted("density_scatter"):
     ds_density.run()
     density_stats = skill.dataset_stats(ds_density)
     if density_stats["n"] > 1:
-        density_values = xr.open_dataset(ds_density.current[0])
+        density_values = xr.open_dataset(ds_density.current[0], decode_times = False)
         density_time = [x for x in density_values["model"].dims if "time" in x.lower()]
 
         def density_step(k):
