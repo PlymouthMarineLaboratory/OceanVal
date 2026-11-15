@@ -95,7 +95,9 @@ def test_build_book_runs_the_notebooks_with_nbconvert():
         "oceanval._write_offline_report_pages"
     ) as write_pages, patch(
         "oceanval.subprocess.Popen"
-    ) as popen, patch("oceanval.subprocess.run") as run:
+    ) as popen, patch("oceanval.subprocess.run") as run, patch(
+        "oceanval.nbformat.read", return_value=nbformat.v4.new_notebook()
+    ), patch("oceanval.nbformat.write"):
         _mock_popen(popen)
         oceanval._build_book("report")
 
@@ -121,21 +123,15 @@ def test_build_book_runs_the_notebooks_with_nbconvert():
     )
 
     # the --to html conversion afterwards never starts a kernel, so it's left
-    # as a plain streamed subprocess.run call, unfiltered
-    run.assert_called_once_with(
-        [
-            "jupyter",
-            "nbconvert",
-            "--to",
-            "html",
-            "--no-input",
-            "--output-dir",
-            "report/_build/html/notebooks",
-            "report/notebooks/example.ipynb",
-            "report/notebooks/summary.ipynb",
-        ],
-        check=True,
-    )
+    # as a plain streamed subprocess.run call, unfiltered; it reads copies of the
+    # notebooks (without the cells that show nothing), in a temporary folder
+    run.assert_called_once()
+    command = run.call_args.args[0]
+    assert command[:7] == [
+        "jupyter", "nbconvert", "--to", "html", "--no-input", "--output-dir", "report/_build/html/notebooks",
+    ]
+    assert [os.path.basename(x) for x in command[7:]] == ["example.ipynb", "summary.ipynb"]
+    assert run.call_args.kwargs == {"check": True}
     write_pages.assert_called_once_with(
         "report/_build/html",
         ["report/notebooks/example.ipynb", "report/notebooks/summary.ipynb"],
@@ -222,9 +218,11 @@ def test_remove_diagnostic_outputs_drops_warning_streams(tmp_path):
 
     oceanval._remove_diagnostic_outputs([str(notebook_path)])
 
-    # nothing is left to show, so the cell goes (it would be an empty block)
+    # nothing is left to show, but the cell stays: the notebook is run again as variables are added
     written_notebook = nbformat.read(notebook_path, as_version=4)
-    assert written_notebook.cells == []
+    assert len(written_notebook.cells) == 1
+    assert written_notebook.cells[0].source == ""
+    assert written_notebook.cells[0].outputs == []
 
 
 def test_remove_diagnostic_outputs_keeps_real_plot_outputs(tmp_path):
@@ -667,7 +665,7 @@ def test_pdf_pages_are_numbered_and_carry_a_linked_wordmark():
     assert 'href="https://PlymouthMarineLaboratory.github.io/OceanVal/"' in footer
     assert "data:image/svg+xml;base64," in footer
 
-def test_remove_diagnostic_outputs_drops_cells_that_show_nothing(tmp_path):
+def test_cells_that_show_nothing_stay_in_the_notebook_and_go_from_the_pages(tmp_path):
     notebook_path = tmp_path / "report.ipynb"
     notebook = nbformat.v4.new_notebook(
         cells=[
@@ -685,5 +683,17 @@ def test_remove_diagnostic_outputs_drops_cells_that_show_nothing(tmp_path):
 
     oceanval._remove_diagnostic_outputs([str(notebook_path)])
 
+    # the notebook keeps its setup cells, as an analysis report runs it again for each variable added
     cells = nbformat.read(notebook_path, as_version=4).cells
-    assert [c.source for c in cells] == ["1", "text"]
+    assert [c.source for c in cells] == ["x = 1", "print('a')", "1", "text"]
+
+    # the page is made from a copy without the cells that show nothing
+    seen = []
+
+    def run(command, **kwargs):
+        seen.extend(c.source for c in nbformat.read(command[-1], as_version=4).cells)
+
+    with patch("oceanval.subprocess.run", side_effect=run):
+        oceanval._notebooks_to_html([str(notebook_path)], str(tmp_path / "html"))
+    assert seen == ["1", "text"]
+    assert [c.source for c in nbformat.read(notebook_path, as_version=4).cells] == ["x = 1", "print('a')", "1", "text"]

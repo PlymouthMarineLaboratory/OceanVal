@@ -211,7 +211,8 @@ def test_the_gridded_notebook_makes_annual_means_from_the_monthly_climatology():
 def test_the_gridded_seasonal_sections_need_only_two_months():
     cells = ["".join(cell["source"]) for cell in json.loads(Path("oceanval/data/gridded_template.ipynb").read_text())["cells"]]
     code = "\n".join(cells)
-    assert "if n_times > 1:\n    md(f\"## Can the model reproduce seasonality" in code
+    # (and the user has not left its figures out: validate's omit)
+    assert "if n_times > 1 and seasonal_wanted:\n    md(f\"## Can the model reproduce seasonality" in code
     assert "if n_times < 2:\n    regional = False" in code
     assert "n_times < 12" not in code
     # the captions say which months there are, when not all 12
