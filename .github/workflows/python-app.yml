@@ -61,6 +61,32 @@ jobs:
         run: |
           python -c "from importlib.metadata import version; v = version('jupyter-book'); print('jupyter-book', v); assert int(v.split('.')[0]) >= 2, f'jupyter-book {v} is installed, the tests need 2'"
 
+      # cartopy downloads each Natural Earth file the first time a map uses it, inside whichever test comes first
+      # (the log showed it in test_sim_plots[daily]): fetch them here, timed, and keep them between runs
+      - name: Cache cartopy's Natural Earth files
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/cartopy
+          key: natural-earth-${{ runner.os }}-v1
+
+      - name: Download Natural Earth files
+        shell: bash -l {0}
+        run: |
+          python - <<'PY'
+          import time
+          import cartopy
+          from cartopy.io import shapereader
+          print("cartopy data_dir:", cartopy.config["data_dir"])
+          started = time.time()
+          for scale, name in (("10m", "coastline"), ("10m", "land"), ("10m", "lakes"),
+                              ("50m", "coastline"), ("50m", "land"), ("50m", "lakes"),
+                              ("110m", "coastline"), ("110m", "land"), ("110m", "lakes")):
+              began = time.time()
+              path = shapereader.natural_earth(resolution=scale, category="physical", name=name)
+              print(f"{scale} {name}: {time.time() - began:.1f}s {path}", flush=True)
+          print(f"all: {time.time() - started:.1f}s")
+          PY
+
       - name: Test with pytest (group ${{ matrix.group }} of 17)
         shell: bash -l {0}
         run: |
