@@ -47,6 +47,14 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
    1° grid, land masked with `TM_WORLD_BORDERS`. Every place that takes `subregions` (validate, live, analyze, compare_simulations, the
    windows' checks, `gridded_template` cell 18, `comparison_regional`) asks it, so a new set is a file and an entry there. The report item
    condition `depths` is a point all-layer matchup or a gridded vertical one (`itemApplies` in `oceanval_app.html`).
+   **What a built-in variable and dataset can show is `oceanval/option_profiles.py`** (`PROFILES`, keyed `(kind, variable, source)`: depth, months,
+   total, log, region), which `tests/test_option_profiles.py` checks against the catalogues, `totals.kind_of` and `skill.is_log`, and fails for a recipe
+   with no entry. `annotate()` gives each matchup the window lists (`_report_matchups`, `matchups_found`) its `items` (the ids it can show or
+   feed on the summary: `items_for`), its `options` (the report options it takes: `options_for`, which `overall_options` and `choose_matchups` use to
+   put a hidden option back to its default), `default_sections` and `known`. The page shows an item only if some matchup of its page has it in `items`,
+   and a report option only if some ticked matchup has it in `options`; the boxes that hang on what the user typed (subregions, transect) stay the
+   page's. The user's own data has no profile, so it shows all its kind and layer allow. A new built-in recipe needs a `PROFILES` entry; a new report
+   item needs its `when` conditions (`_holds` in `option_profiles.py` for those about the variable or dataset).
 8. **The gridded page's figures from the gap report** (options 1, 3, 4, 8, 9, 13 and the peak month of 10) are chunks of their own, each
    with an item (`report_items`) and a heading of its own, so leaving a neighbour out never strands one: `chunk_density` (after
    `chunk_bias`), `chunk_peakmonth` (after `chunk_seasonal`, needs its `ds_ts` and 12 months), `chunk_zonal` (after the spatial table:

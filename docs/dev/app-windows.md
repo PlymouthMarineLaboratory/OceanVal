@@ -192,8 +192,10 @@ the summary (`omit_each`, by matchup key and `"summary"`). The catalogue is `rep
 each box is a `.choice.report-item` with a `.report-item__remove` (× at the top right, which becomes "Add back" and greys the box out).
 Both questions are required: the server's `check_customize` refuses them unanswered (`DEFAULT_CUSTOMIZE`, which the tests' autouse fixture
 `customize_question_answered` sets to "no"; mark a test `customize_question` to meet it empty), and `.report-question.needs-answer` boxes them
-in red. There is no Concise/Detailed choice in the window any more; `concise` stays in `validate()`. Which boxes a page has comes from each
-item's `when` and the options (`itemApplies`); seasonal ones say they need more than one month, as that is only known once matched up.
+in red. There is no Concise/Detailed choice in the window any more; `concise` stays in `validate()`. Which boxes a page has comes from what the server says each matchup can show (`items`, from `oceanval/option_profiles.py`: a built-in variable and
+dataset know their months, total and depth) and the options typed (`itemApplies`); a seasonal box says it needs more than one month only for the
+user's own data, whose months are not known until matched up. The report options page likewise shows a group (subregions, transect, maps at depth,
+fixed scale, depth bins) only if a ticked matchup's `options` has it.
 Tests: `test_customizing_the_output_*_in_a_browser`, `TestValidateChecks`, `tests/test_report_omit.py`.
 
 ## Required ticks

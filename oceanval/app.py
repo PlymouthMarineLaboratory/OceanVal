@@ -74,7 +74,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store, store_view
-from oceanval import cdo_check, depths, file_workers, model_check, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, report_items, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, depths, file_workers, model_check, option_profiles, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, report_items, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
@@ -708,24 +708,25 @@ def choose_matchups(form, matchups, errors):
         errors["variables"] = NONE_TICKED
     form = dict(form)
     defaults = default_validate_form()
-    if not any(matchup["kind"] == "gridded" for matchup in ticked):
-        for name in GRIDDED_ONLY:
-            form[name] = defaults[name]
-    if not any(matchup["kind"] == "point" and matchup["vertical"] for matchup in ticked):
-        form["depth_bins"] = defaults["depth_bins"]
+    # an option that no matchup ticked takes is put back to its default
+    applies = option_profiles.overall_options(ticked)
+    for option, boxes in option_profiles.OPTION_BOXES.items():
+        if not applies[option]:
+            for name in boxes:
+                form[name] = defaults[name]
     # a page is customized only for a matchup ticked
     keys = {matchup["key"] for matchup in ticked} | {report_items.SUMMARY_KEY}
     form["omit_each"] = {key: ids for key, ids in (form.get("omit_each") or {}).items() if key in keys}
+    # and only of what its page can have
+    can = {matchup["key"]: set(option_profiles.items_for(matchup)) for matchup in ticked}
+    can[report_items.SUMMARY_KEY] = set().union(*can.values())
+    form["omit_each"] = {
+        key: [one for one in ids if key not in can or one in can[key]]
+        for key, ids in form["omit_each"].items()
+    }
     if len(ticked) == len(matchups):
         return form, None
     return form, list(dict.fromkeys(matchup["key"] for matchup in ticked))
-
-
-# the report options that are only for gridded matchups
-GRIDDED_ONLY = (
-    "subregions", "subregions_file", "fixed_scale", "transect", "map_depths",
-    "section_equator", "section_pacific_155w", "section_atlantic_25w",
-)
 
 
 def check_report(form, cwd, out_dir=None):
@@ -4812,7 +4813,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         question = self._held_matchups()
         if question is not None:
             listed = question.details.get("matchups")
-            return listed if isinstance(listed, list) else None
+            return option_profiles.annotate(listed) if isinstance(listed, list) else None
         if self.view != "report_options" or self.report_arguments is not None:
             return None
         directory = self.results_dir or self.out_dir
@@ -4821,7 +4822,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             # those the report validates of them, as the simulation step chose
             with contextlib.suppress(ValueError):
                 found = selection.of_last_run(found, selection.last_run(directory), self.previous)
-        return found or None
+        return option_profiles.annotate(found) or None
 
     def _report_vertical(self):
         """Whether the run's matchups include point ones through the water
@@ -5113,8 +5114,9 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         if matchups is None:
             # the options for gridded matchups are only asked for with them
             if self._report_gridded() is False:
-                for name in GRIDDED_ONLY:
-                    form[name] = default_validate_form()[name]
+                for option in ("subregions", "transect", "map_depths", "fixed_scale"):
+                    for name in option_profiles.OPTION_BOXES[option]:
+                        form[name] = default_validate_form()[name]
             # and depth bins only with point matchups through the water column
             if self._report_vertical() is False:
                 form["depth_bins"] = default_depth_boxes()
@@ -5281,7 +5283,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         except ValueError as error:
             status = "unfinished" if "did not finish" in str(error) else "none"
             return {"status": status, "error": str(error), "matchups": []}
-        return {"status": "found", "error": None, "matchups": selection.on_disk(path)}
+        return {"status": "found", "error": None, "matchups": option_profiles.annotate(selection.on_disk(path))}
 
     def _simulation_listing(self, path, depth, kept=LISTING_KEPT):
         """Every output file depth directories below path, before the file

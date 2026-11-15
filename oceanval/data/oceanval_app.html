@@ -9690,15 +9690,17 @@
     if (none) message("vm-variables", [line(NONE_TICKED, "error")], true);
     else if (validateErrors.variables) message("vm-variables", [line(validateErrors.variables, "error")], true);
     else message("vm-variables", []);
-    // the options only some matchups take: for gridded matchups, and for point
-    // matchups through the water column (or, if the matchups are not known, as
-    // the recipes chosen say)
-    const gridded = ticked ? ticked.some((matchup) => matchup.kind === "gridded")
-      : !(state.report && state.report.gridded === false);
-    const vertical = ticked ? ticked.some((matchup) => matchup.kind === "point" && matchup.vertical)
-      : !(state.report && state.report.vertical === false);
-    for (const id of ["v-group-subregions", "v-group-transect", "v-group-map_depths", "row-fixed_scale"]) $(id).hidden = !gridded;
-    $("v-group-depth_bins").hidden = !vertical;
+    // the options only some matchups take, as the server says of each (oceanval.option_profiles: for a built-in
+    // variable and dataset, what it can show; for the user's own data, what its kind and layer allow). If the matchups
+    // are not known, as the recipes chosen say
+    const takes = (option) => ticked ? ticked.some((matchup) => !matchup.options || matchup.options.includes(option))
+      : option === "depth_bins" ? !(state.report && state.report.vertical === false)
+        : !(state.report && state.report.gridded === false);
+    $("v-group-subregions").hidden = !takes("subregions");
+    $("v-group-transect").hidden = !takes("transect");
+    $("v-group-map_depths").hidden = !takes("map_depths");
+    $("row-fixed_scale").hidden = !takes("fixed_scale");
+    $("v-group-depth_bins").hidden = !takes("depth_bins");
     return none;
   }
 
@@ -9910,11 +9912,16 @@
     const point = matchups.filter((matchup) => matchup.kind === "point");
     if (item.page === "gridded" && !gridded.length) return false;
     if (item.page === "point" && !point.length) return false;
+    // what the server says each matchup's variable and dataset can show (oceanval.option_profiles); the summary's
+    // items are those some matchup feeds. Matchups it has not annotated (not known yet) show all that their kind allows
+    const mine = item.page === "summary" ? matchups : matchups.filter((matchup) => matchup.kind === item.page);
+    if (mine.length && mine.every((matchup) => Array.isArray(matchup.items))
+      && !mine.some((matchup) => matchup.items.includes(item.id))) return false;
     return item.when.every((condition) => {
       if (condition === "subregions") return Boolean(validateForm.subregions);
       // a transect of the user's own, a named section, or the default sections of a global matchup through the water column
       if (condition === "transect") return Boolean(validateForm.transect) || SECTION_TICKS.some((name) => validateForm[name])
-        || gridded.some((matchup) => matchup.vertical);
+        || gridded.some((matchup) => matchup.vertical && matchup.default_sections !== false);
       if (condition === "vertical") return gridded.some((matchup) => matchup.vertical);
       if (condition === "all_layer") return point.some((matchup) => matchup.layer === "all");
       if (condition === "depths") return point.some((matchup) => matchup.layer === "all") || gridded.some((matchup) => matchup.vertical);
@@ -9994,12 +10001,18 @@
     return `${matchup.title} (${matchup.source}${where})`;
   }
 
+  // whether the months of the observations are not known to the page: of the user's own data, not a built-in dataset
+  function seasonUnknown(item, page) {
+    const matchups = page.kind === "matchup" ? [page.matchup] : reportMatchups();
+    return matchups.some((matchup) => (item.page === "summary" || matchup.kind === item.page) && matchup.known !== true);
+  }
+
   function itemCard(item, page) {
     const removed = removedOn(page).includes(item.id);
     return el("div", { class: `choice report-item${removed ? " is-removed" : ""}`, "data-item": item.id },
       el("span", { class: "choice__title report-item__title", text: item.label }),
       el("span", { class: "choice__text", text: item.text }),
-      item.when.includes("seasonal") ? el("span", { class: "report-item__note", text: "Only if the observations have more than one month." }) : null,
+      item.when.includes("seasonal") && seasonUnknown(item, page) ? el("span", { class: "report-item__note", text: "Only if the observations have more than one month." }) : null,
       removed ? el("span", { class: "report-item__left", text: "Left out of the report" }) : null,
       el("button", {
         type: "button",

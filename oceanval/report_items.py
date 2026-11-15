@@ -36,8 +36,14 @@ EVERY_PAGE = "*"
 # (validate's subregions), vertical (the matchup is through the water
 # column), transect (validate's transect), all_layer (a point matchup
 # through the water column), gridded (the report has a gridded matchup),
-# depths (a point or gridded matchup through the water column)
-WHEN = ("seasonal", "subregions", "vertical", "transect", "all_layer", "gridded", "depths")
+# depths (a point or gridded matchup through the water column).
+# And what the variable and dataset allow (oceanval.option_profiles): seasonal
+# is also false for observations of one annual value (GLODAP), series is for
+# months of many years (not a climatology), flux is for a flux per area (which
+# has a total over the cells), and totals is for a flux, or a concentration
+# through the water column (an inventory)
+WHEN = ("seasonal", "subregions", "vertical", "transect", "all_layer", "gridded", "depths",
+        "series", "flux", "totals")
 
 Item = namedtuple("Item", ["id", "page", "label", "text", "when"])
 
@@ -67,14 +73,14 @@ ITEMS = [
          "The zonal mean in each month of the climatology, by latitude (with 12 months).", ("seasonal",)),
     Item("hovmoller_years", GRIDDED, "Latitude by time",
          "The zonal mean in every month matched up, by latitude (for matchups of more than 12 months).",
-         ("seasonal",)),
+         ("seasonal", "series")),
     Item("global_series", GRIDDED, "Total over the area matched",
          "A flux (the air-sea CO2 flux) summed over the cells matched up in each month, with published "
-         "ranges of the global total.", ()),
+         "ranges of the global total.", ("flux",)),
     Item("regional_map", GRIDDED, "Map of the regions",
          "A map of each region the matchup is summarised in.", ("subregions",)),
     Item("regional_cycle", GRIDDED, "Regional seasonal cycles",
-         "The seasonal cycle of the model and observations in each region.", ("subregions",)),
+         "The seasonal cycle of the model and observations in each region.", ("subregions", "seasonal")),
     Item("regional_table", GRIDDED, "Regional summary table",
          "Bias, RMSD and correlation in each region.", ("subregions",)),
     Item("zonal_sections", GRIDDED, "Depth-latitude sections",
@@ -90,7 +96,7 @@ ITEMS = [
     Item("transect_map", GRIDDED, "Transect map",
          "A map of the transect.", ("transect",)),
     Item("transect_surface", GRIDDED, "Values along the transect",
-         "The monthly climatology of the model and observations along the transect.", ("transect",)),
+         "The monthly climatology of the model and observations along the transect.", ("transect", "seasonal")),
     Item("transect_section", GRIDDED, "Section along the transect",
          "The annual mean through the water column along the transect.", ("transect", "vertical")),
     # a point matchup's page
@@ -121,12 +127,12 @@ ITEMS = [
     Item("spatial_table", SUMMARY, "Spatial performance table",
          "The spatial correlation and RMSD of each gridded matchup.", ("gridded",)),
     Item("temporal_maps", SUMMARY, "Temporal correlation maps",
-         "Maps of the seasonal correlation of each gridded matchup.", ("gridded",)),
+         "Maps of the seasonal correlation of each gridded matchup.", ("gridded", "seasonal")),
     Item("temporal_table", SUMMARY, "Temporal correlation table",
-         "The spatial mean of each gridded matchup's seasonal correlation.", ("gridded",)),
+         "The spatial mean of each gridded matchup's seasonal correlation.", ("gridded", "seasonal")),
     Item("global_totals", SUMMARY, "Totals table",
          "Each gridded matchup's flux or inventory summed over the cells matched up, with published ranges "
-         "of the global total.", ("gridded",)),
+         "of the global total.", ("gridded", "totals")),
     Item("depth_performance", SUMMARY, "Performance across depths",
          "A map of the point matchups at each depth range, and RMSD, bias and correlation tables of the point and "
          "gridded matchups through the water column.",
