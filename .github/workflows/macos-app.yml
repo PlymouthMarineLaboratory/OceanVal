@@ -96,6 +96,8 @@ jobs:
           # conda's proj turns PROJ_NETWORK on when proj-data is missing, and every map then waits on the network
           python -c "import pyproj; print('PROJ network enabled on this runner:', pyproj.network.is_network_enabled())"
           export PROJ_NETWORK=OFF
+          # the seconds since the start before each line of a report build, to see which notebook is slow
+          export OCEANVAL_LOG_TIMES=1
           # Groups 1-11 and 13-17 are named sets of test files, balanced by run time (the old six groups cut in two,
           # from the junit times of a run, which each job uploads); group 12
           # is every other test file, so a new test file is always picked up.
@@ -118,11 +120,14 @@ jobs:
           GROUP16="tests/test_transect_report.py"
           GROUP17="tests/test_report_omit.py"
           # -v names each test as it starts, and a test still running after
-          # 15 minutes ends the run with every thread's stack, so a stall shows
+          # its time limit ends the run with every thread's stack, so a stall shows
           # which test it is and where it is stuck; --durations lists the slowest
           # tests at the end, to see where the time goes, and the junit file has
           # every test's time, to balance the groups by
-          OPTIONS="-v --timeout=900 --timeout-method=thread --durations=30 --junitxml=durations-${{ matrix.group }}.xml"
+          # the heavy groups (the sim and analysis figures, the detailed reports) get twice the time per test, a runner
+          # taking several times as long as a laptop
+          case "${{ matrix.group }}" in 1|7|13|14|15|16|17) LIMIT=1800 ;; *) LIMIT=900 ;; esac
+          OPTIONS="-v --timeout=$LIMIT --timeout-method=thread --durations=30 --junitxml=durations-${{ matrix.group }}.xml"
           case "${{ matrix.group }}" in
             1) python -m pytest $OPTIONS $GROUP1 ;;
             2) python -m pytest $OPTIONS $GROUP2 ;;

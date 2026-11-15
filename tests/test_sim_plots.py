@@ -32,7 +32,7 @@ CASES = ("daily", "grids", "series", "transects", "changes", "fvcom")
 
 
 @pytest.fixture(scope="module")
-def comparisons(tmp_path_factory, fvcom_comparison):
+def comparisons(tmp_path_factory, request):
     """A comparison with each kind of figure, without its report: {case: its results directory}. The FVCOM
     one is conftest.fvcom_comparison, which tests/test_sim_compare.py checks."""
     root = tmp_path_factory.mktemp("sim_figures")
@@ -91,16 +91,23 @@ def comparisons(tmp_path_factory, fvcom_comparison):
             map_changes={"Temperature": dict(periods, plot="absolute_changes", change="percentage", surface=True)},
         ),
     }
-    found = {}
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(analysis_report, "InterimBook", no_book([]))
-        for case, arguments in runs.items():
+    # each comparison is run when a test first asks for it, so a test pays only for its own case (the
+    # first to ask would otherwise be charged for all, and time out)
+    class Lazy(dict):
+        def __missing__(self, case):
+            if case == "fvcom":
+                # raw FVCOM output on one mesh, with every analysis: its maps are drawn on the mesh, a panel for each simulation
+                fvcom_comparison = request.getfixturevalue("fvcom_comparison")
+                self[case] = os.path.join(str(fvcom_comparison[0]), sim_compare.FOLDER, sim_compare.RESULTS)
+                return self[case]
             out = str(root / case)
-            oceanval.compare_simulations(out_dir=out, cores=1, view=False, **arguments)
-            found[case] = os.path.join(out, sim_compare.FOLDER, sim_compare.RESULTS)
-    # raw FVCOM output on one mesh, with every analysis: its maps are drawn on the mesh, a panel for each simulation
-    found["fvcom"] = os.path.join(str(fvcom_comparison[0]), sim_compare.FOLDER, sim_compare.RESULTS)
-    return found
+            with pytest.MonkeyPatch.context() as patch:
+                patch.setattr(analysis_report, "InterimBook", no_book([]))
+                oceanval.compare_simulations(out_dir=out, cores=1, view=False, **runs[case])
+            self[case] = os.path.join(out, sim_compare.FOLDER, sim_compare.RESULTS)
+            return self[case]
+
+    return Lazy()
 
 
 def figures(info):

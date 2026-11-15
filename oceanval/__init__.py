@@ -4,6 +4,7 @@ import glob
 import subprocess
 import sys
 import threading
+import time
 import warnings
 from oceanval.quiet_nc import nc
 
@@ -84,12 +85,15 @@ def _run_filtered(cmd, check=False, out=None, **kwargs):
         **kwargs,
     )
     output_lines = []
+    started = time.time()
+    # OCEANVAL_LOG_TIMES (set on CI) puts the seconds since the start before each line, to see which notebook is slow
+    stamp = bool(os.environ.get("OCEANVAL_LOG_TIMES"))
 
     def read_output():
         for line in proc.stdout:
             output_lines.append(line)
             if not any(snippet in line for snippet in _KERNEL_WARNING_SNIPPETS):
-                out.write(line)
+                out.write(f"[+{time.time() - started:.0f}s] {line}" if stamp else line)
                 out.flush()
 
     # The output is read on a thread and the process waited for, not the end
