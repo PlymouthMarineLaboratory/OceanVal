@@ -64,4 +64,12 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   **last year** (`_last_full_year`; the year now is never kept), from 1982 for OISST (`_FIRST_KEPT`: 1981 has 4 months). Kept-whole datasets (GLODAPv3, Hansell,
   and the plain files SOCAT, MPI-SOM, COPEPOD, GLODAP) are complete once held. **ICES is never complete** (`LIVE`: past years keep gaining data). Complete rows are
   "complete" and cannot be picked in Expand multiple variables, and `App.store_expand` refuses a request of complete datasets alone.
+- **Complete means no download, for any model area** (2026-11-16, a global model re-downloaded NSBC that the page called Complete): the lookup
+  (`gridded`'s `_covering`) needs the held piece's box to contain the model's box, but the page needs only the dataset's `DOMAINS`. So `gridded` cuts the
+  model's box to the dataset's domain first (`within_domain`; a box not over the domain at all is the domain), and a global model, or one partly outside NSBC, is
+  served by a piece that has the domain. A new dataset with a limited area needs an entry in `DOMAINS`. `tests/test_data_store.py`'s
+  `TestCompleteMeansNothingIsDownloaded` holds every gridded recipe in the catalogue as the page counts it complete and checks five model areas take it from the store.
+- **`snap` is forgiving at the globe's edge, and says when the store is bypassed**: a coordinate within `EDGE_TOLERANCE` (1e-3 degrees) past ±180/±90
+  (float32 gives 90.000008) is the edge. A box `snap` still cannot keep (NaN, a degree out) makes `gridded` and `ices` skip the store, and `bypassed` says so once
+  in a banner, as the data is then downloaded and not kept.
 

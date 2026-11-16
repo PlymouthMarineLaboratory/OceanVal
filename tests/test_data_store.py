@@ -198,6 +198,14 @@ class TestBoxes:
         assert data_store.snap([10, 0], [0, 10]) is None
         assert data_store.snap(None, None) is None
 
+    def test_a_rounding_error_past_the_globes_edge_is_the_edge(self):
+        # float32 gives a grid's last latitude as 90.000008, and its longitude 180.0004
+        assert data_store.snap([-180, 180.0004], [-77.01, 90.000008]) == data_store.GLOBAL
+        assert data_store.snap([-180.0004, 10], [-90.000008, 20]) == [-180, 10, -90, 20]
+        # an error as large as a degree is not
+        assert data_store.snap([-180, 181], [0, 10]) is None
+        assert data_store.snap([0, 10], [0, 91]) is None
+
     def test_a_box_with_most_of_the_globe_is_the_whole_globe(self):
         # a global model that stops short of Antarctica's coast
         assert data_store.snap([-180, 180], [-77.01, 89.9]) == data_store.GLOBAL
@@ -207,6 +215,16 @@ class TestBoxes:
         # 60S to 60N is 87% of the globe's area
         assert data_store.snap([-180, 180], [-60, 60]) == [-180, 180, -60, 60]
         assert data_store.area_fraction([-180, 180, -60, 60]) == pytest.approx(np.sin(np.radians(60)))
+
+    def test_a_box_is_cut_to_the_area_a_dataset_has_data_for(self):
+        # NSBC's grid is over the north-west European shelf only
+        domain = data_store.DOMAINS["nsbc"]
+        assert data_store.within_domain(data_store.GLOBAL, "nsbc") == domain
+        assert data_store.within_domain([-20, 13, -1, 66], "nsbc") == [-15, 13, 48, 65]
+        assert data_store.within_domain([-5, 5, 50, 60], "nsbc") == [-5, 5, 50, 60]
+        # a model that is not over it at all is the whole domain, and datasets with no domain of their own are left as they are
+        assert data_store.within_domain([100, 120, -10, 10], "nsbc") == domain
+        assert data_store.within_domain(data_store.GLOBAL, "woa23") == data_store.GLOBAL
 
     def test_contains_and_union(self):
         assert data_store.contains([-13, 10, 48, 62], [-12.3, 9.1, 48.2, 61.7])
@@ -481,6 +499,82 @@ class TestGridded:
 
 
 COBE2_BOX = (-10.3, 5.2, 45.1, 60.2)
+
+
+def _gridded_recipes():
+    """(variable, recipe) of every gridded built-in the store keeps, a file at a time."""
+    from oceanval.create_recipes import RECIPE_CATALOGUE
+
+    return sorted(
+        {(e["variable"], e["recipe"]) for e in RECIPE_CATALOGUE
+         if e["recipe"] in data_store.GRIDDED and e["recipe"] not in data_store.BY_YEAR}
+    )
+
+
+def _hold(root, dataset, url, variable, box, levels="all"):
+    """Put a piece of a server's file in the store, as a download does."""
+    def write(path):
+        xr.Dataset(
+            {variable: (("lat", "lon"), np.ones((2, 2), "float32"))},
+            coords={"lat": [50.0, 51.0], "lon": [0.0, 1.0]},
+        ).to_netcdf(path)
+
+    entry = dict(kind="gridded", dataset=dataset, url=url, variable=variable, year=None, levels=levels, box=box)
+    assert data_store._save(root, entry, write, ".nc", lambda old: False) is not None
+
+
+class TestCompleteMeansNothingIsDownloaded:
+    """A dataset the data store page calls complete is taken from the store
+    whatever the model's area, for every one of OceanVal's gridded datasets."""
+
+    MODELS = {
+        "global": (-179.9965, 179.9903, -82.1, 89.74),  # eORCA1's cells
+        "global, lat to 90.000008": (-180, 180, -77, 90.000008),
+        "north-west European shelf": (-19.9, 13.0, 40.1, 65.0),
+        "Mediterranean": (-6, 36, 30, 46),
+        "North Sea, partly outside NSBC": (-20, 13, -1, 66),
+    }
+
+    @pytest.mark.parametrize("name,recipe", _gridded_recipes())
+    @pytest.mark.parametrize("model", list(MODELS))
+    def test_a_complete_dataset_is_not_downloaded_again(self, store, monkeypatch, name, recipe, model):
+        from oceanval import store_view
+        from oceanval.create_recipes import _WOA23_PERIODS
+
+        try:
+            found = find_recipe({name: recipe})
+        except ValueError:
+            found = find_recipe({name: recipe}, start=_WOA23_PERIODS[-1][0], end=_WOA23_PERIODS[-1][1])
+        paths = found["obs_path"]
+        urls = [paths] if isinstance(paths, str) else list(paths)
+        # OCCCI has a file for each of 324 months: the first few are enough
+        urls = urls[:3] if recipe == "occci" else urls
+        root = store()
+        domain = data_store.DOMAINS.get(recipe, data_store.GLOBAL)
+        # all of what the data store page counts (every decade's files, for WOA23's temperature and salinity)
+        for url in (urls if recipe == "occci" else store_view._urls(name, recipe)[0]):
+            _hold(root, recipe, url, found["obs_variable"], list(domain))
+        if recipe != "occci":
+            held, _ = data_store.pieces(root)
+            assert store_view._gridded_state(name, recipe, held)[1], "the data store page does not call it complete"
+
+        def never(*args, **kwargs):
+            raise AssertionError(f"{recipe} {name} was downloaded again")
+
+        monkeypatch.setattr(data_store, "_fetch_gridded", never)
+        monkeypatch.setattr(nc, "open_thredds", never)
+        comparison = {"builtin": recipe, "obs_variable": found["obs_variable"]}
+        for levels in ("all", "top"):
+            ds = data_store.gridded(comparison, urls if len(urls) > 1 else urls[0], bool(found["thredds"]),
+                                    self.MODELS[model], levels)
+            assert ds is not None
+
+    def test_a_box_the_store_cannot_keep_is_said_not_to_be_used(self, store, capsys):
+        store()
+        data_store._warned.clear()
+        comparison = {"builtin": "woa23", "obs_variable": "n_an"}
+        assert data_store.gridded(comparison, WOA_URLS, True, (float("nan"), 10, 0, 10), "all") is None
+        assert "DATA STORE IS NOT USED" in capsys.readouterr().out.upper()
 
 
 class TestDownloadingInsteadOfThredds:

@@ -360,6 +360,10 @@ def snap(lon, lat):
         west, east, south, north = (float(x) for x in (lon[0], lon[1], lat[0], lat[1]))
     except (TypeError, ValueError, IndexError):
         return None
+    # a grid's edge can be a rounding error beyond the globe's (90.000008 for
+    # 90, in float32): that is the edge, not an area the store cannot keep
+    west, east = (_edge(x, 180) for x in (west, east))
+    south, north = (_edge(x, 90) for x in (south, north))
     if not (-180 <= west <= east <= 180 and -90 <= south <= north <= 90):
         return None
     return _widen([
@@ -368,6 +372,44 @@ def snap(lon, lat):
         max(-90, math.floor(south)),
         min(90, math.ceil(north)),
     ])
+
+
+# how far past the globe's edge (180 degrees of longitude, 90 of latitude) a
+# coordinate can be and still be that edge
+EDGE_TOLERANCE = 1e-3
+
+
+def _edge(x, limit):
+    """x, or the limit if x is only a rounding error past it."""
+    if limit < x <= limit + EDGE_TOLERANCE:
+        return limit
+    if -limit - EDGE_TOLERANCE <= x < -limit:
+        return -limit
+    return x
+
+
+def within_domain(box, dataset):
+    """box (west, east, south, north) cut to the area dataset has data for
+    (DOMAINS), as the file of a dataset like NSBC is the same whatever area is
+    asked of it: a held piece that has all of its domain has all of any area
+    in it. box as it is where the dataset has no domain of its own. A box that
+    is not over the domain at all has none of it to ask for, and is the whole
+    domain (the file is what is held, and matchup finds nothing in common)."""
+    domain = DOMAINS.get(dataset)
+    if domain is None:
+        return box
+    cut = [max(box[0], domain[0]), min(box[1], domain[1]), max(box[2], domain[2]), min(box[3], domain[3])]
+    return cut if cut[0] <= cut[1] and cut[2] <= cut[3] else list(domain)
+
+
+def bypassed(label, why="the model's area could not be worked out"):
+    """Say that the store is not used for a dataset, though there is one, said
+    once: its data is downloaded and not kept."""
+    _say(
+        f"YOUR DATA STORE IS NOT USED FOR {label.upper()}",
+        [f"{label}: {why}.", "", "It is downloaded as if there were no data store, and not kept."],
+        f"the data store is not used for {label}: {why}",
+    )
 
 
 # a box with at least this much of the globe's area in it is kept as the
@@ -777,14 +819,17 @@ def gridded(comparison, files, thredds, model_box, levels, years=None, label=Non
     store = active()
     if store is None or not keeps(comparison):
         return None
+    dataset = comparison["builtin"]
+    label = label or f"{dataset.upper()} {comparison['obs_variable']}"
     box = snap(model_box[:2], model_box[2:])
     if box is None:
+        bypassed(label)
         return None
+    # only the area the dataset has data for is asked of it
+    box = within_domain(box, dataset)
     del _held[:]
-    dataset = comparison["builtin"]
     variable = comparison["obs_variable"]
     urls = [files] if isinstance(files, str) else list(files)
-    label = label or f"{dataset.upper()} {variable}"
     if dataset in BY_YEAR and len(urls) == 1 and years:
         # kept a year at a time, cut to the box, whether it is downloaded or not
         return _gridded_by_year(store, dataset, urls[0], variable, box, years, label, thredds,
@@ -1086,8 +1131,9 @@ def ices(datasets, start_year, end_year, lon_lim, lat_lim, download, store_only=
         return None
     box = snap(lon_lim, lat_lim)
     if box is None:
+        bypassed(f"ICES {', '.join(str(x) for x in datasets)}")
         return None
-    want = [float(lon_lim[0]), float(lon_lim[1]), float(lat_lim[0]), float(lat_lim[1])]
+    want =[float(lon_lim[0]), float(lon_lim[1]), float(lat_lim[0]), float(lat_lim[1])]
     root_dir = store["root"]
     entries = _entries(root_dir)
     years = list(range(int(start_year), int(end_year) + 1))
