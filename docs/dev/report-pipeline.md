@@ -100,4 +100,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
     bottom or vertical mean and an INVENTORY for the depth integral (the concentration's own units times the volume), and saves the yearly
     mean of the monthly totals as `{key}_{layer}_long_term_total.csv`, with `saved["total"]` in the info file; `analysis_plots.total_plot`
     draws it with the published ranges, and `chunk_longterm` shows it. FVCOM output and units OceanVal cannot total get a note instead.
+13. **validate()'s summary Taylor diagram** (`summary.ipynb` cells 6-8) was R's `plotrix::taylor.diagram`; it is now `taylor.figure`, the
+    same drawing as compare()'s. Cell 6 builds one row per variable, labelled "Model" as there is one simulation, from `skill.file_stats`
+    (the spatial table's nsd and r), and cell 7 draws it; a variable's colour is the same for every marker, as in compare().
 

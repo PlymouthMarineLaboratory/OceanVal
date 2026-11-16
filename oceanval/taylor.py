@@ -116,7 +116,9 @@ def figure(frame, title=None):
     numbers = {v: k + 1 for k, v in enumerate(variables)}
     half, rmax = sector_and_rmax(frame.nsd, frame.r)
 
-    rows = len(variables) + 2 + len(simulations)
+    # with one simulation the table has no simulation rows: its colour needs no key
+    one = len(simulations) == 1
+    rows = len(variables) + 1 + (0 if one else 1 + len(simulations))
     table_h = rows * ROW
     if half:
         dw = max(4.6, 2 * (table_h - PAD_T - PAD_B))
@@ -156,12 +158,13 @@ def figure(frame, title=None):
         ta.text(0.02, yy, str(numbers[variable]), fontsize=8, fontweight="bold", color=INK, va="center", ha="center",
                 transform=ta.transAxes)
         ta.text(0.1, yy, variable, fontsize=8, color=INK, va="center", transform=ta.transAxes)
-    yy -= step
-    ta.text(0.0, yy, "Simulation", fontsize=8, fontweight="bold", color=INK, va="center", transform=ta.transAxes)
-    for simulation in simulations:
+    if not one:
         yy -= step
-        ta.add_line(Line2D([0.02], [yy], marker="o", ms=8, color=colours[simulation], ls="", transform=ta.transAxes))
-        ta.text(0.1, yy, simulation, fontsize=8, color=INK, va="center", transform=ta.transAxes)
+        ta.text(0.0, yy, "Simulation", fontsize=8, fontweight="bold", color=INK, va="center", transform=ta.transAxes)
+        for simulation in simulations:
+            yy -= step
+            ta.add_line(Line2D([0.02], [yy], marker="o", ms=8, color=colours[simulation], ls="", transform=ta.transAxes))
+            ta.text(0.1, yy, simulation, fontsize=8, color=INK, va="center", transform=ta.transAxes)
     if title:
         fig.text(0.01, 1 - 0.05 / height, title, fontsize=10, fontweight="bold", va="top")
     return fig

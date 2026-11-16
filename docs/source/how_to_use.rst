@@ -294,7 +294,7 @@ The report's statistics follow the global ocean biogeochemistry literature and t
 
 - The statistics of gridded data are weighted by the area of the grid cells, and use only the cells with both model and observational data.
 - Chlorophyll and kd490 are roughly log-normal, so each table that gives their statistics also gives them on log10 values, leaving out cells where either value is not positive.
-- The summary's spatial performance table gives the normalised standard deviation (the model's spatial standard deviation over the observations') and the centred RMSD (the RMSD once each mean is removed) beside the correlation and RMSD: a variable's place on the Taylor diagram as numbers.
+- The summary's spatial performance table gives the normalised standard deviation (the model's spatial standard deviation over the observations') and the centred RMSD (the RMSD once each mean is removed) beside the correlation and RMSD: a variable's place on the Taylor diagram as numbers. The summary also draws the sea surface's Taylor diagram in the same way as the comparison's: each variable has a number, in its marker and in a table beside the diagram, and a hollow marker is beyond the diagram's edge and drawn on it.
 - Each region gets the observed and modelled mean and standard deviation, the bias and the RMSD, over every cell and month, as in the CMEMS estimated accuracy numbers.
 - A gridded matchup through the water column gets a table of the statistics at each depth level of the observations (`depth_level_table`). Its levels are also put in the depth ranges of `depth_bins`, each weighted by the thickness of the layer it stands for, so the summary's tables across depths have the point and gridded matchups side by side.
 

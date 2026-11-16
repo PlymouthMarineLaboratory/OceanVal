@@ -13,6 +13,7 @@ model's (so on log10 values the bias is -log10(2) and r is 1).
 
 import glob
 import html
+import json
 import os
 import re
 
@@ -121,6 +122,20 @@ def test_the_summary_gives_the_taylor_numbers(report):
     assert "Normalised standard deviation (σm/σo)" in text
     assert "Centred RMSD/σo" in text
     assert "Chlorophyll (log10)" in text or "chlorophyll (log10)" in text.lower()
+
+
+def test_the_summary_draws_its_taylor_diagram_in_python(report):
+    # validate()'s summary draws the sea surface's Taylor diagram with oceanval.taylor, as
+    # compare() does, not with R's plotrix
+    _, out_dir = report
+    found = glob.glob(str(out_dir / "oceanval_report/notebooks/*summary.ipynb"))
+    assert len(found) == 1, found
+    nb = json.load(open(found[0]))
+    cells = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
+    drawn = [c for c in cells if "taylor.figure" in c]
+    assert len(drawn) == 1
+    assert "%%R" not in drawn[0] and "taylor.diagram" not in drawn[0]
+    assert not any("taylor.diagram" in c or "plotrix" in c for c in cells)
 
 
 def test_the_taylor_numbers_are_right(report):

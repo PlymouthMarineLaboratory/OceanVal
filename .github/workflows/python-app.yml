@@ -47,7 +47,7 @@ jobs:
         run: |
         
           ##sudo apt-get install texlive
-          mamba install pandoc r-ggthemes r-ggridges r-maps r-plotrix r-arrow r-cowplot -y
+          mamba install pandoc r-ggthemes r-ggridges r-maps r-arrow r-cowplot -y
           python -m pip install .
           pip install pyarrow
           pip install rioxarray
