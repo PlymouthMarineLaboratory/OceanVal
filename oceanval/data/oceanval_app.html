@@ -1551,10 +1551,7 @@
         <fieldset class="prefs__group">
           <legend class="prefs__legend">Built-in datasets</legend>
           <p class="prefs__hint">The observational datasets OceanVal can compare a simulation with. Water-column means the whole water column can be validated, not just the surface.</p>
-          <h3 class="info__subtitle">Gridded data</h3>
-          <div class="info__table-wrap" id="info-gridded"></div>
-          <h3 class="info__subtitle">Point data</h3>
-          <div class="info__table-wrap" id="info-point"></div>
+          <div class="info__table-wrap" id="info-datasets"></div>
         </fieldset>
         <footer class="info__credit">
           <div class="info__credit-row">
@@ -12276,17 +12273,45 @@
 
   // the website, GitHub and the built-in datasets
   function datasetTable(rows) {
-    const head = ["Region", "Variable", "Dataset", "Water-column", "Units"];
+    const head = ["Variable", "Type", "Region", "Dataset", "Water-column", "Units"];
+    // each variable's rows share one band colour; the band alternates from one variable to the next
+    let band = 0;
+    let previous = null;
+    // how many rows each variable has, so its name is written once and spans them
+    const span = {};
+    rows.forEach((row) => { span[row.variable] = (span[row.variable] || 0) + 1; });
+    // and how many rows each Type run has within a variable (Gridded, then Point), so its label spans them
+    const typeKey = (row) => `${row.variable}|${row.point}`;
+    const typeSpan = {};
+    rows.forEach((row) => { typeSpan[typeKey(row)] = (typeSpan[typeKey(row)] || 0) + 1; });
+    let previousType = null;
     return el("table", { class: "info__table" },
       el("thead", {}, el("tr", {}, ...head.map((name) => el("th", { scope: "col", text: name })))),
-      el("tbody", {}, ...rows.map((row) => el("tr", {},
+      el("tbody", {}, ...rows.map((row) => {
+        const newVariable = previous !== null && row.variable !== previous;
+        const firstOfVariable = row.variable !== previous;
+        if (newVariable) band = 1 - band;
+        previous = row.variable;
+        // the first row of each variable gets a solid line above it
+        const classes = [band ? "is-band-b" : "is-band-a", newVariable ? "is-group-start" : null];
+        const variableCell = firstOfVariable
+          ? [el("td", { class: "info__variable", rowspan: span[row.variable], text: row.variable })]
+          : [];
+        const firstOfType = typeKey(row) !== previousType;
+        previousType = typeKey(row);
+        const typeCell = firstOfType
+          ? [el("td", { class: "info__type", rowspan: typeSpan[typeKey(row)], text: row.point ? "Point" : "Gridded" })]
+          : [];
+        return el("tr", { class: classes.filter(Boolean).join(" ") },
+        ...variableCell,
+        ...typeCell,
         el("td", { text: row.region }),
-        el("td", { text: row.variable }),
         el("td", {}, row.url
           ? el("a", { href: row.url, target: "_blank", rel: "noopener", text: row.dataset })
           : row.dataset),
         el("td", { class: row.water_column ? null : "is-no", text: row.water_column ? "Yes" : "No" }),
-        el("td", {}, el("code", { text: row.units }))))));
+        el("td", {}, el("code", { text: row.display_units })));
+      })));
   }
 
   // View the data store: every built-in dataset, with what the store holds of it (asked for when the page is
@@ -12618,8 +12643,14 @@
 
   function fillAbout() {
     const datasets = state.datasets || [];
-    $("info-gridded").replaceChildren(datasetTable(datasets.filter((row) => !row.point)));
-    $("info-point").replaceChildren(datasetTable(datasets.filter((row) => row.point)));
+    // one table, ordered by variable (gridded before point, then region and dataset, within a variable)
+    const sorted = [...datasets].sort((a, b) =>
+      a.variable.toLowerCase().localeCompare(b.variable.toLowerCase())
+      || Number(a.point) - Number(b.point)
+      || (b.region === "Global") - (a.region === "Global")
+      || a.region.localeCompare(b.region)
+      || a.dataset.localeCompare(b.dataset));
+    $("info-datasets").replaceChildren(datasetTable(sorted));
     $("info-version").textContent = `Version ${state.oceanval_version}`;
     $("info-logo").src = OceanValGUI.PML_LOGO;
   }

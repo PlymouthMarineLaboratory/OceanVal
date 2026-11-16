@@ -507,12 +507,17 @@ input.tick { cursor: pointer; }
 .info__links a:hover { color: var(--teal-900); }
 .info__table-wrap { overflow-x: auto; max-width: 1040px; border: 1px solid var(--line); border-radius: 12px; }
 .info__table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; }
-.info__table th, .info__table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.info__table th, .info__table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line-strong); }
+.info__table th:last-child, .info__table td:last-child { border-right: 0; }
 .info__table th { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .info__table tbody tr:last-child td { border-bottom: 0; }
 .info__table code { font: 500 13px/20px var(--font-mono); overflow-wrap: anywhere; }
 .info__table a { color: var(--teal-700); text-underline-offset: 2px; }
 .info__table .is-no { color: var(--muted); }
+.info__table tr.is-band-b td { background: var(--bg-alt); }
+.info__table tr.is-group-start td { border-top: 2px solid var(--line-strong); }
+.info__table td.info__type { vertical-align: middle; white-space: normal; overflow-wrap: break-word; }
+.info__table td.info__variable { max-width: 16em; overflow-wrap: break-word; font-weight: 600; color: var(--ink); vertical-align: middle; border-right: 1px solid var(--line-strong); }
 .info__table-wrap.is-wide { max-width: none; }
 .store__table { min-width: 940px; }
 .store__table td.store__act { width: 1%; text-align: right; white-space: nowrap; }

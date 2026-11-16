@@ -101,6 +101,28 @@ _DATASET_URLS = {
     "ices": "https://www.ices.dk/data/data-portals/Pages/ocean.aspx",
 }
 _DATASET_NOTE = re.compile(r"^(?P<title>.+?) - (?P<dataset>.+?)(?: \((?P<url>https?://\S+)\))?$")
+# the units the About table shows, for the catalogues' own strings (which the matcher reads, so they stay as they are)
+_DISPLAY_UNITS = {
+    "micro-mol kg-1": "µmol kg⁻¹",
+    "micromoles_per_kilogram": "µmol kg⁻¹",
+    "µmol/kg": "µmol kg⁻¹",
+    "µmol/l": "µmol L⁻¹",
+    "µg/kg": "µg kg⁻¹",
+    "µg/l": "µg L⁻¹",
+    "mEq/l": "mEq L⁻¹",
+    "ml/l": "mL L⁻¹",
+    "mmol/m^3": "mmol m⁻³",
+    "mg/m^3": "mg m⁻³",
+    "milligram m-3": "mg m⁻³",
+    "mg C m-3": "mg C m⁻³",
+    "mol m-2 yr-1": "mol m⁻² yr⁻¹",
+    "m-1": "m⁻¹",
+    "degC": "°C",
+    "°C": "°C",
+    "uatm": "µatm",
+    "1": "dimensionless",
+    "percent": "%",
+}
 
 
 def builtin_datasets():
@@ -125,6 +147,7 @@ def builtin_datasets():
                     "url": _DATASET_URLS.get(entry["recipe"], note["url"]),
                     "water_column": any("vertical" in line for line in entry["arguments"]),
                     "units": entry["units"],
+                    "display_units": _DISPLAY_UNITS.get(entry["units"], entry["units"]),
                 }
             )
     return rows

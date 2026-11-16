@@ -9339,16 +9339,37 @@ class TestInfo:
             assert page.text_content("#info-version") == f"Version {app.state()['oceanval_version']}"
             assert page.get_attribute("#info-website", "href") == "https://PlymouthMarineLaboratory.github.io/OceanVal/"
             assert page.get_attribute("#info-github", "href") == "https://github.com/PlymouthMarineLaboratory/oceanVal"
-            assert page.locator("#info-gridded tbody tr").count() == len(RECIPE_CATALOGUE)
-            assert page.locator("#info-point tbody tr").count() == len(POINT_RECIPE_CATALOGUE)
-            assert page.locator("#info-gridded tbody tr", has_text="GLODAPv2.2016b").first.is_visible()
+            # one table: Variable first, then Type; rows ordered by variable; each variable's rows share a band
+            # colour, and neighbouring variables alternate
+            assert page.locator("#info-datasets tbody tr").count() == len(RECIPE_CATALOGUE) + len(POINT_RECIPE_CATALOGUE)
+            headers = page.locator("#info-datasets thead th").all_text_contents()
+            assert headers[:2] == ["Variable", "Type"]
+            rows = page.evaluate(
+                "() => [...document.querySelectorAll('#info-datasets tbody tr')]"
+                ".map(tr => [tr.cells[0].textContent, tr.cells[1].textContent, tr.className])")
+            variables = [row[0].lower() for row in rows]
+            assert variables == sorted(variables)
+            bands = {}
+            def band_of(row):
+                return row[2].replace("is-group-start", "").strip()
+            for row in rows:
+                bands.setdefault(row[0], set()).add(band_of(row))
+            assert all(len(b) == 1 for b in bands.values())
+            ordered = [next(iter(bands[v])) for v in dict.fromkeys(row[0] for row in rows)]
+            assert all(a != b for a, b in zip(ordered, ordered[1:]))
+            # a solid line goes above the first row of each variable, and only there
+            starts = [i for i, row in enumerate(rows) if i == 0 or row[0] != rows[i - 1][0]]
+            marked = [i for i, row in enumerate(rows) if "is-group-start" in row[2]]
+            assert marked == starts
+            assert {row[1] for row in rows} == {"Gridded", "Point"}
+            assert page.locator("#info-datasets tbody tr", has_text="GLODAPv2.2016b").first.is_visible()
             # the credit, under the tables
             credit = page.locator("#view-about .info__credit")
             assert "Environmental Intelligence group at Plymouth Marine Laboratory" in credit.text_content()
             assert "GNU GPLv3 license" in credit.text_content()
             assert credit.locator("a[href='https://pml.ac.uk/']").count() == 1
             assert page.evaluate("img => img.naturalWidth", credit.locator("img").element_handle()) > 0
-            assert credit.bounding_box()["y"] > page.locator("#info-point").bounding_box()["y"]
+            assert credit.bounding_box()["y"] > page.locator("#info-datasets").bounding_box()["y"]
             # Back goes to Tools & checks
             page.click("#back-open")
             page.wait_for_selector("#view-help:not([hidden])")
