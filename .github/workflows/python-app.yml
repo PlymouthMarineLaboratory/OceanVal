@@ -30,6 +30,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+      # A release can set figures to N in release_figures.csv; the tests assume all are Y. This runs before
+      # pip install, so the installed copy is Y too (the report kernels import the installed package).
+      - name: Set every figure to In release = Y
+        run: sed -i.bak -E 's/,[Nn][[:space:]]*$/,Y/' oceanval/release_figures.csv && rm oceanval/release_figures.csv.bak
       - uses: mamba-org/setup-micromamba@v3
       # - uses: mamba-org/provision-with-micromamba@v15
         env:
