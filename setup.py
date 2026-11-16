@@ -17,14 +17,12 @@ Core abilities of oceanVal include:
 
 """
 
-
 PROJECT_URLS = {
     "Bug Tracker": "https://github.com/PlymouthMarineLaboratory/oceanVal/issues",
     "Source Code": "https://github.com/PlymouthMarineLaboratory/oceanVal",
 }
 
 extras_require: dict() = dict()
-
 
 with open("requirements.txt") as f:
     REQUIREMENTS = [i.strip() for i in f if i.strip()]
@@ -67,7 +65,3 @@ setup(name='oceanval',
       install_requires = REQUIREMENTS,
       extras_require = extras_require,
       zip_safe=False)
-
-
-
-
