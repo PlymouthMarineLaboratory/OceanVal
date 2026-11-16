@@ -158,6 +158,8 @@ where it is not like the others. Take every cell from the catalogue (the app's `
 years, `_has_vertical_option` for Water column, `_GRIDDED_UNITS`/`_POINT_UNITS`), never from memory, so the page says what the
 app says. `tests/test_units.py` checks both pages against the catalogue and fails for a dataset left off.
 
+**Tracked counts:** the home page (`docs-site/index.html`, the "Validate up to 21 variables using gridded and point datasets" feature line) states how many variables OceanVal can validate. This is counted from the catalogues: the variables are the distinct `variable` values across `RECIPE_CATALOGUE` and `POINT_RECIPE_CATALOGUE` (21). Whenever a built-in dataset or variable is added or removed, update that line in the same change. The archived pages under `docs-site/archive/` are not updated.
+
 Don't hand-edit generated pieces: `docs-site/archive/`, the
 `<!-- OCEANVAL_VERSION_HISTORY_START/END -->` block in `version-history.html`, and each page's
 `#oceanval-docs-version` badge — all are maintained automatically (see `docs-site/README.md` and
