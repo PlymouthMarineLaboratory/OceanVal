@@ -44,6 +44,8 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   `add_point_comparison`/`add_gridded_comparison`) — a dynamic attribute-tracking object recipes
   register themselves onto — and `find_recipe`, which builds obs-source URLs without touching the
   network (useful for validating recipe arguments offline).
+- **`gridded._crop_to_model_data` finds the matchup's extent on a horizontal mask** (any time or level with a model value), never with
+  `to_dataframe()`: a table of a 3D model against a 3D observation is their outer product (140 GiB for vertical WOA23 oxygen, 2026-11-16).
 - **Built-in gridded observations come four ways**: over THREDDS (`thredds=True`: WOA23, NSBC, OCCCI, COBE2, OISST; CDO
   reads whole global fields over OPeNDAP and `gridded.py` crops them afterwards), as a plain file (GLODAP), built into a
   file (`obs_convert`), or **cut on an ERDDAP server** (`oceanval/erddap.py`, CoralTemp, 0.05°): a fine global product is

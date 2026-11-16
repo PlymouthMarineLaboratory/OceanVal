@@ -340,17 +340,35 @@ def _crop_to_model_data(ds):
     """Crop ds to the lon/lat extent that actually has non-missing model
     values - the model grid's own coordinates can span a wider box than the
     area it has data for. A grid all the way round the globe keeps all its
-    longitudes, as dropping an empty column would leave a gap at the date line."""
-    df_test = ds.to_dataframe().reset_index()
-    lon_name = [x for x in df_test.columns if "lon" in x][0]
-    lat_name = [x for x in df_test.columns if "lat" in x][0]
-    wraps = wraps_round(df_test[lon_name].values)
-    df_test = df_test[df_test["model"].notna()]
-    lons = ((df_test[lon_name].values + 180) % 360) - 180
+    longitudes, as dropping an empty column would leave a gap at the date line.
+
+    Worked out on a horizontal mask (a cell has a value at any time or level),
+    never a table of every dimension: a table of a 3D model against a 3D
+    observation is their outer product, which is many GB for a whole ocean."""
+    xr_ds = ds.to_xarray()
+    lon_name = [x for x in xr_ds.coords if "lon" in x][0]
+    lat_name = [x for x in xr_ds.coords if "lat" in x][0]
+    wraps = wraps_round(xr_ds[lon_name].values)
+    lon = xr_ds[lon_name]
+    lat = xr_ds[lat_name]
+    horizontal = set(lon.dims) | set(lat.dims)
+    # a cell has a value if the model has one at any time or level there
+    has_value = xr_ds["model"].notnull()
+    other = [dim for dim in has_value.dims if dim not in horizontal]
+    if other:
+        has_value = has_value.any(dim=other)
+    if not bool(has_value.any()):
+        # no model values at all: there is no extent to crop to
+        return
+    lon_cells = lon.broadcast_like(has_value).where(has_value).values.ravel()
+    lat_cells = lat.broadcast_like(has_value).where(has_value).values.ravel()
+    lon_cells = lon_cells[np.isfinite(lon_cells)]
+    lat_cells = lat_cells[np.isfinite(lat_cells)]
+    lons = ((lon_cells + 180) % 360) - 180
     lon_min, lon_max = lons.min(), lons.max()
     if wraps:
         lon_min, lon_max = -180, 180
-    lat_min, lat_max = df_test[lat_name].min(), df_test[lat_name].max()
+    lat_min, lat_max = lat_cells.min(), lat_cells.max()
     ds.subset(lon=[lon_min, lon_max], lat=[lat_min, lat_max])
 
 

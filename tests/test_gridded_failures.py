@@ -534,3 +534,92 @@ class TestOpeningObservations:
         assert gridded._is_url(comparison["obs_path"])
         assert gridded.remote_gridded_source(variable, "GLODAPv2.2016b") is True
 
+
+
+class _MatchupStandIn:
+    """A matchup dataset for _crop_to_model_data: to_xarray gives the dataset,
+    subset records the crop, and to_dataframe fails, as building a table of a
+    3D model is what ran out of memory (140 GiB for WOA23 oxygen)."""
+
+    def __init__(self, data):
+        self.data = data
+        self.crops = []
+
+    def to_xarray(self):
+        return self.data
+
+    def to_dataframe(self):
+        raise AssertionError("the crop built a table of every dimension")
+
+    def subset(self, **kwargs):
+        self.crops.append(kwargs)
+
+
+class TestCropToModelData:
+    def _dataset(self, lon, lat, filled, levels_model=57, levels_obs=12):
+        import numpy as np
+        import xarray as xr
+
+        model = np.full((2, levels_model, len(lat), len(lon)), np.nan)
+        model[:, :, filled[0]:filled[1], filled[2]:filled[3]] = 1.0
+        obs = np.ones((2, levels_obs, len(lat), len(lon)))
+        return xr.Dataset(
+            {"model": (("time", "depth_a", "lat", "lon"), model),
+             "observation": (("time", "depth_b", "lat", "lon"), obs)},
+            coords={"time": np.arange(2), "depth_a": np.arange(levels_model), "depth_b": np.arange(levels_obs),
+                    "lat": lat, "lon": lon},
+        )
+
+    def test_the_extent_is_the_cells_with_model_values_at_any_level(self):
+        import numpy as np
+
+        lon = np.arange(-30.5, 30.5, 1.0)
+        lat = np.arange(40.5, 70.5, 1.0)
+        # a block of cells filled at some levels only
+        data = self._dataset(lon, lat, (5, 10, 8, 20))
+        data.model.values[:, 3, 5:10, 8:20] = np.nan
+        data.model.values[:, 0, 5:10, 8:20] = 1.0
+        ds = _MatchupStandIn(data)
+        gridded._crop_to_model_data(ds)
+        assert ds.crops == [{"lon": [lon[8], lon[19]], "lat": [lat[5], lat[9]]}]
+
+    def test_a_global_grid_keeps_the_whole_globe(self):
+        import numpy as np
+
+        lon = np.arange(0.5, 360, 1.0)
+        lon = ((lon + 180) % 360) - 180
+        lon = np.sort(lon)
+        lat = np.arange(-89.5, 90, 1.0)
+        ds = _MatchupStandIn(self._dataset(lon, lat, (0, len(lat), 0, len(lon))))
+        gridded._crop_to_model_data(ds)
+        assert ds.crops == [{"lon": [-180, 180], "lat": [lat[0], lat[-1]]}]
+
+    def test_curvilinear_coordinates_are_cut_by_their_cells(self):
+        import numpy as np
+        import xarray as xr
+
+        y, x = np.meshgrid(np.arange(6), np.arange(8), indexing="ij")
+        lon2 = -5.0 + x * 0.5 + y * 0.01
+        lat2 = 50.0 + y * 0.5 + x * 0.01
+        model = np.full((3, 2, 6, 8), np.nan)
+        model[:, :, 1:4, 2:6] = 2.0
+        data = xr.Dataset(
+            {"model": (("time", "depth_a", "y", "x"), model),
+             "observation": (("time", "depth_b", "y", "x"), np.ones((3, 4, 6, 8)))},
+            coords={"lon": (("y", "x"), lon2), "lat": (("y", "x"), lat2)},
+        )
+        ds = _MatchupStandIn(data)
+        gridded._crop_to_model_data(ds)
+        (crop,) = ds.crops
+        wrapped = ((lon2[1:4, 2:6] + 180) % 360) - 180
+        assert crop["lon"] == pytest.approx([wrapped.min(), wrapped.max()])
+        assert crop["lat"] == pytest.approx([lat2[1:4, 2:6].min(), lat2[1:4, 2:6].max()])
+
+    def test_no_model_values_means_no_crop(self):
+        import numpy as np
+
+        lon = np.arange(0.5, 10, 1.0)
+        lat = np.arange(50.5, 55, 1.0)
+        ds = _MatchupStandIn(self._dataset(lon, lat, (0, 0, 0, 0)))
+        gridded._crop_to_model_data(ds)
+        assert ds.crops == []
