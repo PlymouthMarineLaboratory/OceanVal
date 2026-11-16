@@ -38,6 +38,9 @@
   /* hovering a variable's row grows it by 1% and lifts it 2px (the user's rule, 2026-11-13; a tile grows 5%)
      (the user's rule, 2026-11-13); the row saying there are no datasets stays put */
   #rows-gridded tr:hover:not(:has(> td.none)), #rows-point tr:hover:not(:has(> td.none)) { position: relative; transform: translateY(-2px) scale(1.01); }
+  /* a row with an open i pop-out is lifted above the rows below it, so the pop-out is not painted under their i buttons
+     (a hovered row is its own stacking context, which would otherwise put the pop-out beneath later rows' positioned i buttons) */
+  #rows-gridded tr:has(details.opts__help[open]), #rows-point tr:has(details.opts__help[open]) { position: relative; z-index: 5; }
   @media (prefers-reduced-motion: reduce) { tbody tr { transition: none; } }
   tbody tr.is-empty { background: var(--empty-row); }
   /* a row with a dataset ticked on this page: tinted, with a teal edge, so it is plain at a glance */
@@ -127,6 +130,8 @@
   .chip.is-own, .chip.is-own:hover { cursor: default; border-color: var(--teal-400); background: var(--teal-50); color: var(--teal-900); }
   .own__model { display: block; padding-top: 8px; color: var(--ink); font: 500 13.5px/20px var(--font-mono); overflow-wrap: anywhere; }
   .none { display: inline-block; padding-top: 8px; color: var(--muted-light); }
+  .chip__star { color: var(--teal-700); font-weight: 700; margin-left: -4px; }
+  .dataset-note { margin: 10px 0 0; font-size: 13px; color: var(--muted); text-wrap: pretty; }
 
   /* ---- each page's settings, above its table ---- */
   .settings__head {
@@ -1352,6 +1357,9 @@
     },
       box,
       el("span", { class: "chip__name", text: dataset.label }),
+      // the DOC point datasets overlap, so they carry a star pointing at the note under them
+      dataset.kind === "point" && row.variable === "doc" && DOC_OVERLAP.includes(dataset.recipe)
+        ? el("span", { class: "chip__star", text: "*", "aria-hidden": "true" }) : null,
       el("span", {
         class: "chip__region" + (dataset.user ? " is-yours" : (context.regions || [context.region]).includes(dataset.region_name) ? " is-domain" : ""),
         // gridded recipes say whether they are a climatology or a time series
@@ -1443,6 +1451,9 @@
   }
 
   const DATASET_HEADS = { gridded: "What gridded datasets do you want?", point: "What point datasets do you want?" };
+  // the DOC point datasets that overlap (starred), and the note under them
+  const DOC_OVERLAP = ["hansell", "glodapv3"];
+  const DOC_OVERLAP_NOTE = "* These datasets have very similar spatial coverage and overlap significantly. Pick one or the other, or both in case one does not download.";
 
   function titleCell(row) {
     return el("td", {}, el("span", { class: "obs__title", text: row.display || row.title }));
@@ -1473,12 +1484,16 @@
     const msg = el("p", { class: "field__msg", id: `message-${kind}-${row.variable}` });
     // any number of the model's variables can be summed, as a+b (a pick is an input event, so setValue takes it)
     variableBox(input, { multi: true });
+    const datasets = datasetsCell(DATASET_HEADS[kind],
+      [...row.dom.chips.filter((chip) => chip.dataset.kind === kind), ...ownChips(row, kind)],
+      `No ${kind} dataset for ${row.title}`);
+    if (kind === "point" && row.variable === "doc") {
+      datasets.append(el("p", { class: "dataset-note", text: DOC_OVERLAP_NOTE }));
+    }
     const cells = [
       titleCell(row),
       el("td", { "data-label": "What is the simulation variable name?" }, input, msg),
-      datasetsCell(DATASET_HEADS[kind],
-        [...row.dom.chips.filter((chip) => chip.dataset.kind === kind), ...ownChips(row, kind)],
-        `No ${kind} dataset for ${row.title}`),
+      datasets,
     ];
     if (kind === "point") cells.push(chosenCell(row));
     const tr = el("tr", {}, ...cells);
