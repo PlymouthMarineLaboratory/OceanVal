@@ -185,5 +185,5 @@ pitfalls to avoid, e.g. `.gitignore`'s `/oceanval_*` rule must stay root-anchore
 - Minimalist
 - If there is a user entry box, let the text in the box speak for itself. It should tell users what to do. No need for extra stuff.
 - Always make it clear to users things are happening when they are happening. Default to rotating circles, progress trackers or X/N trackers.
-- 
+- Be consistent with plotting. Where possible, use nctoolkit for gridded maps, plotnine for scatter/line/heatmaps.
 
