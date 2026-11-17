@@ -74,7 +74,7 @@ if os.path.exists(density_file) and wanted("density_scatter"):
 
 # %% tags=["remove-input"]
 if density_shown:
-    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell and month matched up (left) and for the annual means of each grid cell (right), as the number of matched values in each bin. An annual mean is a grid cell's mean of the months matched up in a year. The dashed line is 1:1, and the red line the least-squares fit of the model on the observations. r, the bias and the RMSD are weighted by the area of the grid cells, and N is the number of values. The axes run from the 0.5th to the 99.5th percentile of the monthly values.")
+    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell and month matched up (left) and for the annual means of each grid cell (right), as the number of matched values in each bin. An annual mean is a grid cell's mean of the months matched up in a year. The dashed line is 1:1, and the red line the least-squares fit of the model on the observations. r, the bias and the RMSD are weighted by the area of the grid cells, and N is the number of values. The axes run from the 0.5th to the 99.5th percentile of the monthly values.", gallery="Model against observations: all matchups and annual means")
     i_figure += 1
 
 # %% tags=["remove-input"]
@@ -97,7 +97,7 @@ if density_shown and density_by_month:
 
 # %% tags=["remove-input"]
 if density_months_shown:
-    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell matched up in each month of the year, as the number of matched values in each bin, with the statistics of each month. The lines, the statistics and the axes are as in Figure {i_figure - 1}.")
+    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell matched up in each month of the year, as the number of matched values in each bin, with the statistics of each month. The lines, the statistics and the axes are as in Figure {i_figure - 1}.", gallery="Model against observations, month by month")
     i_figure += 1
 if density_values is not None:
     density_values.close()

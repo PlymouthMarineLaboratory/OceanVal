@@ -39,7 +39,7 @@ else:
 
 # %% tags=["remove-input"]
 if wanted("seasonal_cor_map"):
-    md(f"**Figure {i_figure}**: Seasonal temporal correlation between model and observations for {layer} {vv_name}. This is the Pearson correlation coefficient between climatological monthly mean values in the model and observations.{cor_note}")
+    md(f"**Figure {i_figure}**: Seasonal temporal correlation between model and observations for {layer} {vv_name}. This is the Pearson correlation coefficient between climatological monthly mean values in the model and observations.{cor_note}", gallery="Seasonal correlation of model and observations")
     i_figure += 1
 
 # %% tags=["remove-cell"]
@@ -336,7 +336,7 @@ if not concise and wanted("monthly_maps"):
     fixed_scale = "fixed_scale_value"
     arrows = " Arrows on the colorbars indicate values beyond the colorbar limits."
     if fixed_scale == "False":
-        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum values are capped to the 98th percentiles.{arrows}{months_note}") 
+        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum values are capped to the 98th percentiles.{arrows}{months_note}", gallery="Monthly maps: model, observations and difference")
     else:
-        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum and minimum values are capped to cover the 98th and 2nd percentiles of both model and observations.{arrows}{months_note}")
+        md(f"**Figure {i_figure}**: Monthly mean {layer} {vv_name} for the model, observation and the difference between model and observations. For clarity, the maximum and minimum values are capped to cover the 98th and 2nd percentiles of both model and observations.{arrows}{months_note}", gallery="Monthly maps: model, observations and difference")
     i_figure += 1

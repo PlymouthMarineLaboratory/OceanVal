@@ -38,7 +38,7 @@ if vertical_stats and wanted("mean_profiles"):
 
 # %% tags=["remove-input"]
 if profiles_shown:
-    md(f"**Figure {i_figure}**: Mean profiles of {vv_longname} in the model and the observations, for the domain" + (" and each region" if regional else "") + f", from the annual mean of the monthly climatology.{annual_note} Each level's mean is weighted by the area of the grid cells, and only cells with both model and observational data count.")
+    md(f"**Figure {i_figure}**: Mean profiles of {vv_longname} in the model and the observations, for the domain" + (" and each region" if regional else "") + f", from the annual mean of the monthly climatology.{annual_note} Each level's mean is weighted by the area of the grid cells, and only cells with both model and observational data count.", gallery="Mean depth profiles")
     i_figure += 1
 if vertical_stats:
     del ds_levels

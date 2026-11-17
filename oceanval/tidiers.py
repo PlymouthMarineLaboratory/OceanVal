@@ -1,4 +1,5 @@
 
+import html
 import re
 import glob
 import os
@@ -135,7 +136,10 @@ def md_basic(x):
 
     return md_markdown(x)
 
-def md(x, number = False):
+def md(x, number = False, gallery = None):
+    """The text as Markdown, tidied. gallery, a figure's or table's short title,
+    is put after a caption as an empty marker that Gallery view reads for its
+    tile (oceanval.report_gallery); being empty, it shows nowhere else."""
     x = CELSIUS_IN_BRACKETS.sub(r"\1°C\2", x)
 
     #model - observation
@@ -191,6 +195,8 @@ def md(x, number = False):
     for url in urls:
         x = x.replace(url, f"[{url}]({url})")
 
+    if gallery:
+        x = x + f'<span class="ov-gallery-title" data-title="{html.escape(gallery, quote=True)}"></span>'
 
     return md_markdown(x)
 

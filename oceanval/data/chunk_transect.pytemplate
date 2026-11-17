@@ -51,7 +51,7 @@ for transect in (transect_list if transect_wanted else []):
         try:
             _fig = transects.plot_map(transect)
             plt.show()
-            md(f"**Figure {i_figure}**: {transect_name[0].upper() + transect_name[1:]}, which runs {transects.describe(transect)}.")
+            md(f"**Figure {i_figure}**: {transect_name[0].upper() + transect_name[1:]}, which runs {transects.describe(transect)}.", gallery="Map of the transect")
             i_figure += 1
         except Exception:
             plt.close("all")
@@ -68,12 +68,12 @@ for transect in (transect_list if transect_wanted else []):
                 md(f"Figure {i_figure} shows the monthly climatology of {layer_long} {vv_name} along {transect_name}, from the model and the observations, and the difference between the two.")
                 _fig = transects.plot_months(df_transect, transect, transect_unit, vv_name, log = transect_log)
                 plt.show()
-                md(f"**Figure {i_figure}**: Monthly climatology of {layer_long} {vv_name} along {transect_name}, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows land, or where there are no matched values.")
+                md(f"**Figure {i_figure}**: Monthly climatology of {layer_long} {vv_name} along {transect_name}, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows land, or where there are no matched values.", gallery="Along the transect, month by month: model, observations and difference")
             else:
                 md(f"Figure {i_figure} shows {layer_long} {vv_name} along {transect_name}, from the model and the observations.")
                 _fig = transects.plot_line(df_transect, transect, transect_unit, vv_name)
                 plt.show()
-                md(f"**Figure {i_figure}**: {layer_long[0].upper() + layer_long[1:]} {vv_name} along {transect_name}, from the model and the observations.")
+                md(f"**Figure {i_figure}**: {layer_long[0].upper() + layer_long[1:]} {vv_name} along {transect_name}, from the model and the observations.", gallery="Along the transect: model and observations")
             i_figure += 1
         except Exception as error:
             plt.close("all")
@@ -94,7 +94,7 @@ for transect in (transect_list if transect_wanted else []):
                 _fig = transects.plot_section(df_section, transect, transect_unit, vv_name, log = transect_log, contours = transect_contours)
                 plt.show()
                 contour_text = f" The black lines are the {' and '.join(str(x) for x in transect_contours)} mmol m<sup>-3</sup> contours, the edges of hypoxia and of the oxygen minimum zones." if transect_contours else ""
-                md(f"**Figure {i_figure}**: Annual mean {vv_name} along {transect_name} through the water column, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows the seabed, or where there are no matched values.{contour_text}")
+                md(f"**Figure {i_figure}**: Annual mean {vv_name} along {transect_name} through the water column, from the model, the observations, and the model minus the observations. The model and observations share a colour scale, limited to the 2nd and 98th percentiles of the two together. Grey shows the seabed, or where there are no matched values.{contour_text}", gallery="Section through the water column: model, observations and difference")
                 i_figure += 1
             except Exception as error:
                 plt.close("all")

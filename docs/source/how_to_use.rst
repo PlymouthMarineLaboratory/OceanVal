@@ -300,7 +300,7 @@ The report's statistics follow the global ocean biogeochemistry literature and t
 
 **Report view and Gallery view**
 
-Each page of the HTML report has two buttons at the top of its sidebar. **Report view** shows the page as it is. **Gallery view** shows a tile for each figure and table, with a small picture of it and the heading it is under; clicking a tile opens the figure or table with its caption. The view chosen is kept from page to page.
+Each page of the HTML report has two buttons at the top of its sidebar. **Report view** shows the page as it is. **Gallery view** shows a tile for each figure and table, with a small picture of it and a short description of what it shows; where a section has several figures and tables, its question (for example “How well does the model reproduce vertical profiles of nitrate concentration?”) comes once before them and their tiles share a colour. Clicking a tile opens the figure or table with its caption, and a tall figure or wide table scrolls within it. The view chosen is kept from page to page.
 
 **The figures from global studies**
 

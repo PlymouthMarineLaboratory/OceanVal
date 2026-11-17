@@ -63,5 +63,5 @@ if totals_kind == totals.FLUX and totals_series is not None and len(totals_rows)
 
 # %% tags=["remove-input"]
 if totals_shown:
-    md(f"**Figure {i_figure}**: Total {vv_name} over the grid cells with both model and observational data in each month, in the model and the observations." + (" The grey bands are the published ranges of the global total: " + "; ".join(f"{x['low']:g}–{x['high']:g} {fix_unit(x['units'])} ({x['citation']}{', ' + x['period'] if x['period'] else ''})" for x in totals_refs) + "." if totals_refs else ""))
+    md(f"**Figure {i_figure}**: Total {vv_name} over the grid cells with both model and observational data in each month, in the model and the observations." + (" The grey bands are the published ranges of the global total: " + "; ".join(f"{x['low']:g}–{x['high']:g} {fix_unit(x['units'])} ({x['citation']}{', ' + x['period'] if x['period'] else ''})" for x in totals_refs) + "." if totals_refs else ""), gallery="Total in each month: model and observations")
     i_figure += 1

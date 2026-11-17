@@ -59,5 +59,5 @@ else:
 
 # %% tags=["remove-input"]
 if wanted("bias_map"):
-    md(f"**Figure {i_figure}**: Bias of {layer} {vv_name} from the model. A positive bias indicates that the model overestimates the observation.  For clarity, the colorbar is limited to the 2nd and 98th percentile of the data.{annual_note}")
+    md(f"**Figure {i_figure}**: Bias of {layer} {vv_name} from the model. A positive bias indicates that the model overestimates the observation.  For clarity, the colorbar is limited to the 2nd and 98th percentile of the data.{annual_note}", gallery="Bias: model minus observations")
     i_figure += 1

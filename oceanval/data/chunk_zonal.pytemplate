@@ -93,7 +93,7 @@ if os.path.exists(zonal_file):
 
 # %% tags=["remove-input"]
 if os.path.exists(zonal_file) and wanted("zonal_lines"):
-    md(f"**Figure {i_figure}**: Zonal mean of the annual mean {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + f" in the model and the observations. The grey band is the observations' interquartile range across longitude at each latitude.{annual_note}")
+    md(f"**Figure {i_figure}**: Zonal mean of the annual mean {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + f" in the model and the observations. The grey band is the observations' interquartile range across longitude at each latitude.{annual_note}", gallery="Zonal mean of the annual mean, by latitude")
     i_figure += 1
 
 # %% tags=["remove-input"]
@@ -110,7 +110,7 @@ if zonal_clim:
 
 # %% tags=["remove-input"]
 if zonal_clim:
-    md(f"**Figure {i_figure}**: Zonal mean of {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + " in each month of the climatology, by latitude, in the observations, the model, and the model minus the observations" + (" (the log10 of their ratio)" if zonal_log else "") + ". It shows whether blooms, nutrient drawdown and other seasonal changes happen at the right latitude and the right time.")
+    md(f"**Figure {i_figure}**: Zonal mean of {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + " in each month of the climatology, by latitude, in the observations, the model, and the model minus the observations" + (" (the log10 of their ratio)" if zonal_log else "") + ". It shows whether blooms, nutrient drawdown and other seasonal changes happen at the right latitude and the right time.", gallery="Zonal mean by latitude and month of the year")
     i_figure += 1
 
 # %% tags=["remove-input"]
@@ -124,7 +124,7 @@ if zonal_years:
 
 # %% tags=["remove-input"]
 if zonal_years:
-    md(f"**Figure {i_figure}**: Zonal mean of {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + " in every month matched up, by latitude, in the observations, the model, and the model minus the observations. Unlike the climatology, it shows the differences between years, such as El Niño or a weak bloom year, and any drift of the model.")
+    md(f"**Figure {i_figure}**: Zonal mean of {layer_long} {vv_name}" + (" (log10)" if zonal_log else "") + " in every month matched up, by latitude, in the observations, the model, and the model minus the observations. Unlike the climatology, it shows the differences between years, such as El Niño or a weak bloom year, and any drift of the model.", gallery="Zonal mean by latitude in every month matched")
     i_figure += 1
 if os.path.exists(zonal_file):
     del ds_zonal

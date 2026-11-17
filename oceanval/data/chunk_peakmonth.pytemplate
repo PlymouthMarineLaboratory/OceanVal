@@ -93,7 +93,7 @@ if peak_shown:
 
 # %% tags=["remove-input"]
 if peak_shown:
-    md(f"**Figure {i_figure}**: Month of the {peak_extreme} of the monthly climatology of {layer_long} {vv_name} in the observations and the model. Grid cells where a month is missing, or the observed seasonal cycle's range is less than a quarter of its mean, are left out, as their {peak_word} cannot be timed.")
+    md(f"**Figure {i_figure}**: Month of the {peak_extreme} of the monthly climatology of {layer_long} {vv_name} in the observations and the model. Grid cells where a month is missing, or the observed seasonal cycle's range is less than a quarter of its mean, are left out, as their {peak_word} cannot be timed.", gallery=f"Month of the {peak_word}: observations and model")
     i_figure += 1
 
 # %% tags=["remove-input"]
@@ -105,9 +105,9 @@ if peak_shown:
 # %% tags=["remove-input"]
 if peak_shown:
     if peak_low:
-        md(f"**Figure {i_figure}**: The model's month of the annual low of {vv_name} minus the observed one, on a circle of 12 months (positive: the model's low is later).")
+        md(f"**Figure {i_figure}**: The model's month of the annual low of {vv_name} minus the observed one, on a circle of 12 months (positive: the model's low is later).", gallery="Month of the annual low: model minus observations")
     else:
-        md(f"**Figure {i_figure}**: The model's month of peak {vv_name} minus the observed one, on a circle of 12 months (positive: the model peaks later).")
+        md(f"**Figure {i_figure}**: The model's month of peak {vv_name} minus the observed one, on a circle of 12 months (positive: the model peaks later).", gallery="Month of the peak: model minus observations")
     i_figure += 1
 if len(clim_months) == 12 and wanted("peak_month"):
     del ds_peak, ds_peak_max, ds_peak_month, ds_peak_amp, ds_peak_mean, ds_peak_n, ds_peaks, ds_peak_summary, ds_peak_out

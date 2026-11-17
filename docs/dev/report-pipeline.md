@@ -131,6 +131,18 @@ bold). `tests/test_unit_display.py` checks every catalogue unit.
 (`_write_offline_report_pages(gallery=True)`, from `_build_book_pages` and `live.py`), not in analyze()'s or compare_simulations()'s.
 The script adds **Report view | Gallery view** at the top of the sidebar (kept in `localStorage`, Report view by default) and builds
 the gallery from the page itself: a figure or table is every image (or table) in the `.jp-OutputArea-child`ren since the last caption
-or `h2` before a caption (a `**Figure N**`/`**Table N**` paragraph); its tile is a thumbnail (a table icon) with its number and the
-section's heading, and opens a pop-out with copies of them and the caption. Each figure is on the page once (a page opened from
+or `h2` before a caption (a `**Figure N**`/`**Table N**` paragraph); its tile is a thumbnail (a table icon) with its number and a
+short title, and opens a pop-out with copies of them, the section's question and the caption. The short title is written by the
+template: `md(caption, gallery="Bias: model minus observations")` (`oceanval/tidiers.py`) puts an **empty**
+`<span class="ov-gallery-title" data-title=…>` after the caption, so nothing shows in the page, PDF or Word; a caption without one
+falls back to its first sentence. Every gridded page caption has one (`test_the_gridded_report_captions_have_gallery_titles` fails
+for a new caption left without); titles leave out the variable, the page's own. A section (`h2`) with two or more figures/tables is
+a group (2026-11-17, the user's choice): a full-width `.ov-group` block with the question as its `h3` and its tiles inside, coloured
+from `GROUP_COLOURS` in turn (left bar, tint, tiles' top border); a section's lone figure is a plain tile with no heading.
+**No row of tiles leaves a horizontal gap** (the user's rule, 2026-11-17): the gallery and each group's tiles are wrapping flex rows
+whose tiles grow (`flex:1 1 250px`), so a row's last tile widens to the edge; never a fixed-column grid. The browser test checks
+every row's end at three widths. Each figure is on the page once (a page opened from
 disk cannot fetch fragments). PDF and Word are made from the page before this is added. `tests/test_report_gallery.py`.
+The pop-out's card is capped at `calc(100vh - 48px)` and its body (`flex:1 1 auto; min-height:0; overflow:auto`, `tabindex=0`)
+scrolls both ways, so a tall figure or wide table is all reachable while the heading and × stay put; `body.ov-dialog-open` stills the
+page behind. Not `max-height:100%`: the overlay is a grid whose `auto` row grows to the content, so a percentage capped nothing.

@@ -51,5 +51,5 @@ if vertical_stats and wanted("depth_level_table"):
     df_levels = df_levels[df_levels["Depth (m)"].isin(depth_levels.table_levels(df_levels["Depth (m)"]))].reset_index(drop = True)
     df_levels.iloc[:, 1:-1] = df_levels.iloc[:, 1:-1].astype(float).round(3)
     df_display(df_levels)
-    md(f"**Table {i_table}**: Statistics of modelled against observed {vv_longname} at the levels of the observations nearest 0, 10, 25, 50, 100, 200, 500, 1000 and 2000 m, and the deepest level ({level_unit}). The bias is the modelled mean minus the observed mean, and the normalised standard deviation is the spatial standard deviation of the model divided by that of the observations.")
+    md(f"**Table {i_table}**: Statistics of modelled against observed {vv_longname} at the levels of the observations nearest 0, 10, 25, 50, 100, 200, 500, 1000 and 2000 m, and the deepest level ({level_unit}). The bias is the modelled mean minus the observed mean, and the normalised standard deviation is the spatial standard deviation of the model divided by that of the observations.", gallery="Statistics at each depth")
     i_table += 1

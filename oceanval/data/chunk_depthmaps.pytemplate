@@ -70,12 +70,12 @@ for target, k in depthmap_levels:
     )
     land_below()
     plt.show()
-    md(f"**Figure {i_figure}**: Annual mean {vv_longname} at {level:g} m (the observations' level nearest {target:g} m) in the model and the observations. The colour scale runs from the 2nd to the 98th percentile of the two.")
+    md(f"**Figure {i_figure}**: Annual mean {vv_longname} at {level:g} m (the observations' level nearest {target:g} m) in the model and the observations. The colour scale runs from the 2nd to the 98th percentile of the two.", gallery=f"Annual mean at {level:g} m: model and observations")
     i_figure += 1
     ds_level.pub_plot("bias", robust = True, land = "lightgrey")
     land_below()
     plt.show()
-    md(f"**Figure {i_figure}**: Bias of annual mean {vv_longname} at {level:g} m, the model minus the observations.")
+    md(f"**Figure {i_figure}**: Bias of annual mean {vv_longname} at {level:g} m, the model minus the observations.", gallery=f"Bias at {level:g} m: model minus observations")
     i_figure += 1
     del ds_level
 if os.path.exists(ff_vertical) and wanted("depth_maps") and len(depthmap_targets) > 0:
