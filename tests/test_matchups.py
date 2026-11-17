@@ -812,6 +812,17 @@ class TestStaticThickness:
 
         assert matchall.is_z_up(path, "e3t_0") is up
 
+    def test_the_direction_is_read_without_copying_the_variable(self, tmp_path, monkeypatch):
+        # the coordinates come from the file's header, not an ncks copy of the variable
+        path = _thickness_nc(tmp_path / "e3t.nc", "e3t_0", time=True, positive="down")
+        dataset_class = type(nc.open_data(path, checks=False))
+
+        def no_copy(self, *args, **kwargs):
+            raise AssertionError("is_z_up copied the variable with ncks")
+
+        monkeypatch.setattr(dataset_class, "nco_command", no_copy)
+        assert matchall.is_z_up(path, "e3t_0") is False
+
     def test_no_positive_attribute_says_so(self, tmp_path):
         path = _thickness_nc(tmp_path / "e3t.nc", "e3t_0", time=False, positive=None)
 
@@ -1397,3 +1408,32 @@ class TestTimeShift:
         assert len(end.time_counter) == 12
         assert [int(x) for x in end.time_counter.dt.month] == list(range(1, 13))
         assert np.allclose(within.model.values, end.model.values, equal_nan=True, atol=1e-4)
+
+
+class TestHeaderLevels:
+    """The levels of a file are read from its vertical coordinate, not by copying the variable"""
+
+    @pytest.fixture(autouse=True)
+    def one_core(self):
+        cores = nc.session.session_info["cores"]
+        nc.options(cores=1)
+        yield
+        nc.options(cores=cores)
+
+    def test_the_levels_match_nctoolkit(self, tmp_path):
+        levels = [0.5, 1.5, 2.5]
+        path = _levels_nc(tmp_path / "t.nc", levels, "down")
+        ds = nc.open_data(path, checks=False)
+        ds.subset(variables="votemper")
+
+        assert matchall._header_levels(path, "votemper") == sorted(ds.levels) == levels
+
+    def test_the_levels_are_not_copied(self, tmp_path, monkeypatch):
+        path = _levels_nc(tmp_path / "t.nc", [0.5, 1.5, 2.5], "down")
+        dataset_class = type(nc.open_data(path, checks=False))
+
+        def no_copy(self, *args, **kwargs):
+            raise AssertionError("the levels were read with nctoolkit, not the header")
+
+        monkeypatch.setattr(dataset_class, "subset", no_copy)
+        assert matchall._levels_are_heights(path, "votemper") is False

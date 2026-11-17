@@ -113,6 +113,39 @@ def _axis_name(da, axis):
         return None
 
 
+def _vertical_coordinates(ff, var):
+    """
+    The names of the coordinates of var in ff that are neither horizontal
+    nor time. The file's header is read only: xarray opens lazily, so the
+    coordinates are read but not the variable's values, whatever the length
+    of the run.
+    """
+    with xr.open_dataset(ff) as ds:
+        horizontal = [_axis_name(ds[var], axis) for axis in ["longitude", "latitude", "time"]]
+        coords = [x for x in list(ds[var].coords) if x not in horizontal]
+        return [x for x in coords if "time" not in x.lower()]
+
+
+def _header_levels(ff, variable):
+    """
+    The levels of variable in ff, sorted, read from its vertical coordinate
+    (a 1D coordinate, so only its values are read, not the variable's).
+    Returns None if the levels cannot be read this way, so the caller can
+    ask nctoolkit instead.
+    """
+    try:
+        coords = _vertical_coordinates(ff, variable)
+        if len(coords) != 1:
+            return None
+        with xr.open_dataset(ff) as ds:
+            z = ds[coords[0]]
+            if z.ndim != 1:
+                return None
+            return sorted(set(float(x) for x in z.values))
+    except Exception:
+        return None
+
+
 def is_z_up(ff, variable=None):
     """
     Whether the first vertical level of variable (the file's first variable
@@ -123,18 +156,11 @@ def is_z_up(ff, variable=None):
     import netCDF4 as nc4
 
     try:
-        ds1 = nc.open_data(ff, checks=False)
         if variable is None:
-            var = ds1.variables[0]
+            var = nc.open_data(ff, checks=False).variables[0]
         else:
             var = variable
-        # select variable using nco
-        ds1.nco_command(f"ncks -v {var}")
-        ds1.run()
-        ds = xr.open_dataset(ds1[0])
-        horizontal = [_axis_name(ds[var], axis) for axis in ["longitude", "latitude", "time"]]
-        coords = [x for x in list(ds.coords) if x not in horizontal]
-        coords = [x for x in coords if "time" not in x.lower()]
+        coords = _vertical_coordinates(ff, var)
     except Exception:
         raise ValueError(
             f"Could not read the vertical axis of {variable or 'the first variable'} in {ff}."
@@ -169,10 +195,12 @@ def _levels_are_heights(ff, variable):
     depths, positive down, that matching on z-levels needs. Levels whose
     direction cannot be read are taken as depths.
     """
-    with warnings.catch_warnings(record=True):
-        ds = nc.open_data(ff, checks=False)
-        ds.subset(variables=variable)
-        levels = ds.levels
+    levels = _header_levels(ff, variable)
+    if levels is None:
+        with warnings.catch_warnings(record=True):
+            ds = nc.open_data(ff, checks=False)
+            ds.subset(variables=variable)
+            levels = ds.levels
     if len(levels) < 2:
         return False
     if min(levels) < 0:
@@ -589,9 +617,15 @@ def _top_cell_depths(locs, ds_depths, path, model_variable):
     Returns None if it cannot be worked out.
     """
     if ds_depths is None:
-        ds = nc.open_data(path, checks=False)
-        ds.subset(variables=model_expr.names(model_variable))
-        levels = ds.levels
+        names = model_expr.names(model_variable)
+        levels = None
+        header = [_header_levels(path, name) for name in names]
+        if all(x is not None for x in header):
+            levels = sorted(set().union(*header))
+        else:
+            ds = nc.open_data(path, checks=False)
+            ds.subset(variables=names)
+            levels = ds.levels
         if len(levels) < 2:
             return None
         return float(min(levels))
