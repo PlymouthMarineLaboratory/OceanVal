@@ -9343,9 +9343,13 @@ class TestInfo:
             assert page.locator("#info-datasets tbody tr").count() == len(RECIPE_CATALOGUE) + len(POINT_RECIPE_CATALOGUE)
             headers = page.locator("#info-datasets thead th").all_text_contents()
             assert headers[:2] == ["Variable", "Type"]
+            # a variable's name, and a run's Type, are written once, in a cell that spans its rows, so the
+            # rows after the first have no such cell: each row takes the one above it
             rows = page.evaluate(
-                "() => [...document.querySelectorAll('#info-datasets tbody tr')]"
-                ".map(tr => [tr.cells[0].textContent, tr.cells[1].textContent, tr.className])")
+                "() => { let variable = '', type = ''; return [...document.querySelectorAll('#info-datasets tbody tr')]"
+                ".map(tr => { const v = tr.querySelector('td.info__variable'); if (v) variable = v.textContent;"
+                " const t = tr.querySelector('td.info__type'); if (t) type = t.textContent;"
+                " return [variable, type, tr.className]; }); }")
             variables = [row[0].lower() for row in rows]
             assert variables == sorted(variables)
             bands = {}
@@ -9356,8 +9360,9 @@ class TestInfo:
             assert all(len(b) == 1 for b in bands.values())
             ordered = [next(iter(bands[v])) for v in dict.fromkeys(row[0] for row in rows)]
             assert all(a != b for a, b in zip(ordered, ordered[1:]))
-            # a solid line goes above the first row of each variable, and only there
-            starts = [i for i, row in enumerate(rows) if i == 0 or row[0] != rows[i - 1][0]]
+            # a solid line goes above the first row of each variable after the first (nothing is above that
+            # one, the table's own header being), and only there
+            starts = [i for i, row in enumerate(rows) if i > 0 and row[0] != rows[i - 1][0]]
             marked = [i for i, row in enumerate(rows) if "is-group-start" in row[2]]
             assert marked == starts
             assert {row[1] for row in rows} == {"Gridded", "Point"}
