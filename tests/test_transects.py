@@ -490,7 +490,8 @@ class TestExtraction:
 
     def test_units_are_as_the_report_writes_them(self, matchups):
         assert transects.unit_text(matchups["surface"], "temperature") == "°C"
-        assert transects.unit_text(matchups["surface"], "nitrate") == "mmolm$^{-3}$"
+        # the slash keeps its space: mmol m-3, not mmolm-3
+        assert transects.unit_text(matchups["surface"], "nitrate") == "mmol m$^{-3}$"
 
 
 @pytest.fixture(scope="module")

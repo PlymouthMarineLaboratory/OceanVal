@@ -124,22 +124,11 @@
     for tabular and array data,
     <a href="https://geopandas.org/" target="_blank" rel="noopener">geopandas</a>
     for regional boundaries, <a href="https://matplotlib.org/" target="_blank" rel="noopener">matplotlib</a>
-    for some figures, and <a href="https://rpy2.github.io/" target="_blank" rel="noopener">rpy2</a>
-    to call R from within Python. Many of the maps are drawn with nctoolkit's
-    plotting functions, and maps shown side by side share a single colour bar.</p>
-
-    <h3>R</h3>
-    <p>Most of the figures in a validation report are actually rendered by
-    <a href="https://www.r-project.org/" target="_blank" rel="noopener">R</a>,
-    called via rpy2. OceanVal uses
-    <a href="https://ggplot2.tidyverse.org/" target="_blank" rel="noopener">ggplot2</a>
-    (part of the <a href="https://www.tidyverse.org/" target="_blank" rel="noopener">tidyverse</a>)
-    for plotting, <a href="https://wilkelab.org/ggtext/" target="_blank" rel="noopener">ggtext</a>
-    to render units and formulae correctly in axis labels,
-    <a href="https://jrnold.github.io/ggthemes/" target="_blank" rel="noopener">ggthemes</a>
-    for colour palettes, and
-    <a href="https://wilkelab.org/cowplot/" target="_blank" rel="noopener">cowplot</a>
-    to combine multi-panel figures.</p>
+    for figures, and <a href="https://plotnine.org/" target="_blank" rel="noopener">plotnine</a>
+    (the grammar of graphics in Python) for the point pages' maps and scatter plots and the regional
+    figures. Many of the maps are drawn with nctoolkit's
+    plotting functions, and maps shown side by side share a single colour bar. Every figure is drawn
+    in Python: OceanVal does not need R.</p>
   </div>
 </div>
 

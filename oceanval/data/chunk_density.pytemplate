@@ -1,18 +1,25 @@
 # %% tags=["remove-input"]
-# every matched cell and month as a density scatter (the gap report's option 9). The values are
-# paired, and log10 for chlorophyll and kd490, by nctoolkit, and its statistics are nctoolkit's
-# (oceanval.skill). Only the drawing bins the values, a time step at a time
+# every matched cell and month as a density scatter (the gap report's option 9), beside each cell's
+# annual means, then, with all 12 months, a panel for each month. The values are paired, and log10
+# for chlorophyll and kd490, by nctoolkit, and its statistics are nctoolkit's (oceanval.skill, one
+# row of sums for each time step, pooled for all months or for each month). Only the drawing bins
+# the values, a time step at a time
 from oceanval import gridded_plots, skill, transects
+import calendar
 import matplotlib.pyplot as plt
 density_file = ff_vertical.replace("_vertical.nc", "_surface.nc")
 density_log = skill.is_log(variable)
 density_shown = False
+density_months_shown = False
+density_by_month = False
+density_values = None
 if os.path.exists(density_file) and wanted("density_scatter"):
     ds_density = nc.open_data(density_file, checks = False)
     ds_density.subset(lon = lon_lim, lat = lat_lim)
     skill.paired(ds_density, log = density_log)
     ds_density.run()
-    density_stats = skill.dataset_stats(ds_density)
+    density_sums = skill.sums(ds_density)
+    density_stats = skill.stats_from_sums(density_sums)
     if density_stats["n"] > 1:
         density_values = xr.open_dataset(ds_density.current[0], decode_times = False)
         density_time = [x for x in density_values["model"].dims if "time" in x.lower()]
@@ -22,24 +29,75 @@ if os.path.exists(density_file) and wanted("density_scatter"):
             return step["model"].values, step["observation"].values
 
         n_steps = density_values.sizes[density_time[0]] if density_time else 1
+        # the month of each time step, as nctoolkit reads the times (cftime's, for a 360-day calendar, have one)
+        density_months = [getattr(x, "month", None) or pd.Timestamp(str(x)).month for x in ds_density.times] if density_time else []
         limits = gridded_plots.value_limits(density_step, n_steps)
         if limits is not None:
             density = gridded_plots.Density(limits[0], limits[1], log = density_log)
             for k in range(n_steps):
                 density.add(*density_step(k))
+            # each cell's annual means: the mean of the months matched up in each year, of the
+            # paired values (log10 after the mean), worked out by nctoolkit
+            ds_density_annual = nc.open_data(density_file, checks = False)
+            ds_density_annual.subset(lon = lon_lim, lat = lat_lim)
+            skill.paired(ds_density_annual)
+            ds_density_annual.tmean(["year"])
+            if density_log:
+                skill.paired(ds_density_annual, log = True)
+            ds_density_annual.run()
+            density_annual_stats = skill.dataset_stats(ds_density_annual)
+            density_annual = gridded_plots.Density(limits[0], limits[1], log = density_log)
+            with xr.open_dataset(ds_density_annual.current[0], decode_times = False) as annual_values:
+                annual_time = [x for x in annual_values["model"].dims if "time" in x.lower()]
+                for k in range(annual_values.sizes[annual_time[0]] if annual_time else 1):
+                    step = annual_values.isel({annual_time[0]: k}) if annual_time else annual_values
+                    density_annual.add(step["model"].values, step["observation"].values)
             # the unit in mathtext, as the transect figures label it
             try:
                 density_unit = transects.unit_text(density_file, variable)
             except:
                 density_unit = ""
+            density_label = f"{vv_name} ({density_unit})" if density_unit else vv_name
+            # one row of sums for each time step, so each month's statistics are its rows'
+            density_by_month = (
+                sorted(set(density_months)) == list(range(1, 13))
+                and len(density_months) == n_steps == len(density_sums)
+            )
             md(f"## How do the modelled values of {layer_long} {vv_name} compare with the observed ones?")
-            md(f"The figure below shows every grid cell and month with both model and observational data, modelled against observed" + (", on log10 values" if density_log else "") + ". The colour of each bin is the number of values in it, so the densest part of the cloud stands out where a scatter plot of so many points would be a solid block.")
-            _fig = density.figure(density_stats, f"{vv_name} ({density_unit})" if density_unit else vv_name)
+            md(f"The figure below shows every grid cell and month with both model and observational data, modelled against observed" + (", on log10 values" if density_log else "") + ", beside the annual mean of each grid cell. The colour of each bin is the number of values in it, so the densest part of the cloud stands out where a scatter plot of so many points would be a solid block." + (" The figure after it shows each month of the year." if density_by_month else ""))
+            _fig = gridded_plots.density_panels(
+                [("All months", density, density_stats), ("Annual means", density_annual, density_annual_stats)],
+                density_label,
+            )
             plt.show()
             density_shown = True
-        density_values.close()
 
 # %% tags=["remove-input"]
 if density_shown:
-    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell and month matched up, as the number of matched values in each bin. The dashed line is 1:1, and the red line the least-squares fit of the model on the observations. r, the bias and the RMSD are weighted by the area of the grid cells, and N is the number of values. The axes run from the 0.5th to the 99.5th percentile of the values.")
+    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell and month matched up (left) and for the annual means of each grid cell (right), as the number of matched values in each bin. An annual mean is a grid cell's mean of the months matched up in a year. The dashed line is 1:1, and the red line the least-squares fit of the model on the observations. r, the bias and the RMSD are weighted by the area of the grid cells, and N is the number of values. The axes run from the 0.5th to the 99.5th percentile of the monthly values.")
     i_figure += 1
+
+# %% tags=["remove-input"]
+# with all 12 months, one panel for each, with the same bins and colour scale, each with its own statistics
+if density_shown and density_by_month:
+    density_month = {month: gridded_plots.Density(limits[0], limits[1], log = density_log) for month in range(1, 13)}
+    for k in range(n_steps):
+        density_month[density_months[k]].add(*density_step(k))
+    density_sums_month = np.array(density_months)
+    _fig = gridded_plots.density_panels(
+        [
+            (calendar.month_name[month], density_month[month], skill.stats_from_sums(density_sums[density_sums_month == month]))
+            for month in range(1, 13)
+        ],
+        density_label,
+        ncols = 4,
+    )
+    plt.show()
+    density_months_shown = True
+
+# %% tags=["remove-input"]
+if density_months_shown:
+    md(f"**Figure {i_figure}**: Modelled against observed {layer_long} {vv_name}" + (" (log10)" if density_log else "") + f" for every grid cell matched up in each month of the year, as the number of matched values in each bin, with the statistics of each month. The lines, the statistics and the axes are as in Figure {i_figure - 1}.")
+    i_figure += 1
+if density_values is not None:
+    density_values.close()

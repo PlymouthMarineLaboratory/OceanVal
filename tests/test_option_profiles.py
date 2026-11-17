@@ -161,3 +161,44 @@ class TestAnnotate:
 
     def test_none_stays_none(self):
         assert option_profiles.annotate(None) is None
+
+
+class TestTheTotalOfTheUsersOwnData:
+    """The total over the area matched is of a flux per area: a gridded matchup of
+    the user's own data is judged by its model's units, read from its file."""
+
+    def _write(self, data_dir, variable, source, units):
+        import numpy as np
+        import xarray as xr
+
+        folder = data_dir / "oceanval_matchups" / "gridded" / variable
+        folder.mkdir(parents=True, exist_ok=True)
+        values = np.ones((1, 2, 2))
+        ds = xr.Dataset(
+            {"model": (("time", "lat", "lon"), values), "observation": (("time", "lat", "lon"), values)},
+            coords={"time": [0.0], "lat": [50.0, 51.0], "lon": [-4.0, -3.0]},
+        )
+        ds["model"].attrs["units"] = units
+        ds.to_netcdf(folder / f"{source}_{variable}_surface.nc")
+
+    def test_a_flux_has_the_total_and_a_concentration_has_not(self, tmp_path):
+        self._write(tmp_path, "myflux", "mine", "mol m-2 yr-1")
+        self._write(tmp_path, "mynitrate", "mine", "mmol/m**3")
+        found = option_profiles.annotate([gridded("myflux", "mine"), gridded("mynitrate", "mine")], str(tmp_path))
+        assert "global_series" in found[0]["items"]
+        assert "global_series" not in found[1]["items"]
+        # a concentration through the water column still has its inventory on the summary
+        vertical = option_profiles.annotate([gridded("mynitrate", "mine", vertical=True)], str(tmp_path))[0]
+        assert "global_totals" in vertical["items"] and "global_series" not in vertical["items"]
+
+    def test_without_its_units_nothing_is_hidden(self, tmp_path):
+        found = option_profiles.annotate([gridded("mine", "myobs")], str(tmp_path))[0]
+        assert found["units"] is None
+        assert "global_series" in found["items"]
+        assert "global_series" in option_profiles.annotate([gridded("mine", "myobs")])[0]["items"]
+
+    def test_a_built_in_matchup_is_judged_by_its_profile(self, tmp_path):
+        self._write(tmp_path, "nitrate", "woa23", "mol m-2 yr-1")
+        found = option_profiles.annotate([gridded("nitrate", "woa23")], str(tmp_path))[0]
+        assert "units" not in found
+        assert "global_series" not in found["items"]

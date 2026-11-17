@@ -47,11 +47,10 @@ def entry(info, key):
 
 
 def unit_text(units):
-    """units as a matplotlib label: fix_unit's HTML superscripts and
-    subscripts as mathtext."""
-    text = fix_unit(str(units or ""))
-    text = re.sub(r"<sup>(.*?)</sup>", r"$^{\1}$", text)
-    return re.sub(r"<sub>(.*?)</sub>", r"$_{\1}$", text)
+    """units as a matplotlib label (oceanval.unit_display's mathtext)."""
+    from oceanval import unit_display
+
+    return unit_display.mathtext(str(units or ""))
 
 
 def unit_html(units):

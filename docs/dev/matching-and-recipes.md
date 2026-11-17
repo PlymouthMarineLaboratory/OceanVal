@@ -84,10 +84,11 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   fvcom_min_depth=, fvcom_max_depth=, fvcom_dz=)` are gone: `matchall._check_removed` (`**removed`) says so; `create_recipes` writes no
   `fvcom=True`, and the recipes window has no FVCOM boxes (an empty column keeps its layout). Forked `mm_match` workers call `open_fvcom`
   safely with `nc.options(parallel=True)` (set before forking; without it their temp files' names collide). Tests: `tests/test_fvcom.py`.
-- **The maps of the point pages** (R, `chunk_point.pytemplate`'s three, `point_template.ipynb`, `summary.ipynb`) draw the land first and the
-  points above it. A lon or lat range of more than 50 degrees (or no R `mapdata`) keeps `map_data("world")`; a smaller one uses
-  `map_data("worldHires")` from `r-mapdata`, limited to the data's extent, without the "Great Lakes" region (the lakes are water; open
-  ocean with no land falls back to `world`). The same block is in every cell (`tests/test_report_templates.py` checks that), so change them together.
+- **The maps of the point pages** (plotnine, `oceanval/plotnine_figures.py`: `chunk_point.pytemplate`'s three, `point_template.ipynb`,
+  `summary.ipynb`) draw the land first (`geom_map`) and the points above it. The land is Natural Earth's, clipped to 1° beyond the points:
+  1:10m when they are no more than 50 degrees apart either way (a lake, which a world map has too little detail for), else 1:50m, with
+  Natural Earth's lakes taken out of it (they are water). Without Natural Earth (cartopy downloads it once) the bundled
+  `TM_WORLD_BORDERS` is used (`pyplots.world_map`). `tests/test_plotnine_figures.py` draws each figure once.
 - **The land of the gridded maps** (nctoolkit `pub_plot`/`panel_plot`) is Natural Earth's, which takes in the lakes and which
   nctoolkit draws over the data, so a model of Lake Erie came out all land. `oceanval/map_land.land_below()` puts the land
   beneath the data and draws Natural Earth's lakes over it as water (no lakes, if cartopy cannot download them). Every

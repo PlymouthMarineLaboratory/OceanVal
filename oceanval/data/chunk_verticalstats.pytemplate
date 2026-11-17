@@ -34,7 +34,7 @@ if vertical_stats:
         )
 
 if vertical_stats and wanted("depth_level_table"):
-    md(f"The table below gives the statistics of the model at each depth level of the observations, from the annual mean of the monthly climatology.{annual_note} Each statistic is weighted by the area of the grid cells, and only cells with both model and observational data count.")
+    md(f"The table below gives the statistics of the model at up to ten depth levels of the observations, from the surface to the deepest level with data, from the annual mean of the monthly climatology.{annual_note} Each statistic is weighted by the area of the grid cells, and only cells with both model and observational data count.")
     df_levels = pd.DataFrame({
         "Depth (m)": [x["depth"] for x in level_rows],
         "Model mean": [x["model_mean"] for x in level_rows],
@@ -46,7 +46,10 @@ if vertical_stats and wanted("depth_level_table"):
         "Number of grid cells": [x["n"] for x in level_rows],
     })
     df_levels = df_levels.query("`Number of grid cells` > 0").reset_index(drop = True)
+    # the levels nearest the standard depths, and the deepest: not every level (oceanval.depths)
+    from oceanval import depths as depth_levels
+    df_levels = df_levels[df_levels["Depth (m)"].isin(depth_levels.table_levels(df_levels["Depth (m)"]))].reset_index(drop = True)
     df_levels.iloc[:, 1:-1] = df_levels.iloc[:, 1:-1].astype(float).round(3)
     df_display(df_levels)
-    md(f"**Table {i_table}**: Statistics of modelled against observed {vv_longname} at each depth level ({level_unit}). The bias is the modelled mean minus the observed mean, and the normalised standard deviation is the spatial standard deviation of the model divided by that of the observations.")
+    md(f"**Table {i_table}**: Statistics of modelled against observed {vv_longname} at the levels of the observations nearest 0, 10, 25, 50, 100, 200, 500, 1000 and 2000 m, and the deepest level ({level_unit}). The bias is the modelled mean minus the observed mean, and the normalised standard deviation is the spatial standard deviation of the model divided by that of the observations.")
     i_table += 1

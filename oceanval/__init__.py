@@ -29,8 +29,6 @@ from oceanval import selection
 from oceanval import transects
 from oceanval import user_cache
 from oceanval.session import session_info
-from oceanval.utils import restrict_r_to_conda
-restrict_r_to_conda()
 import webbrowser
 from oceanval.chunkers import add_chunks, squeeze_blank_lines
 import os
@@ -236,8 +234,6 @@ def _remove_diagnostic_outputs(notebooks):
                         data = getattr(output, "data", {}) or {}
                         if data and set(data) != {"text/plain"}:
                             cleaned_outputs.append(output)
-                    elif output.output_type == "error" and output.ename == "RInterpreterError":
-                        cleaned_outputs.append(output)
                     elif output.output_type == "execute_result" and set(output.data) != {"text/plain"}:
                         cleaned_outputs.append(output)
                 cell.outputs = cleaned_outputs
@@ -1336,6 +1332,16 @@ def _gridded_seasonal(data_dir, variable, source):
     return n_months > 1
 
 
+def _gridded_vertical(data_dir, variable, source):
+    """Whether the gridded matchup of variable with source is also through the
+    water column: it has a _vertical.nc file beside its _surface.nc one, as
+    the notebook's ff_vertical is."""
+    surface = glob.glob(
+        f"{data_dir}/oceanval_matchups/gridded/{variable}/{source}_*surface*.nc"
+    )
+    return any(os.path.exists(x.replace("_surface.nc", "_vertical.nc")) for x in surface)
+
+
 def _gridded_notebook_text(
     source, variable, title, seasonal, data_dir, subregions, region_file, n_regions,
     transect=None,
@@ -1343,10 +1349,18 @@ def _gridded_notebook_text(
     """gridded_template.ipynb, filled in for the matchup of variable with the
     gridded observations of source, with the transect section unless transect
     is False (None is the default sections, which the page draws if the
-    matchup is global and through the water column)."""
+    matchup is global and through the water column). Its title says sea
+    surface only if the matchup is of the sea surface alone: one through the
+    water column is titled by the variable, and its surface sections still say
+    sea surface."""
     file1 = importlib.resources.files(__name__).joinpath("data/gridded_template.ipynb")
     with open(file1, "r") as file:
         filedata = file.read()
+
+    if _gridded_vertical(data_dir, variable, source):
+        filedata = filedata.replace(
+            "# Sea surface template_title validation", "# template_title validation", 1
+        )
 
     # Replace the target string
     filedata = filedata.replace("template_variable", variable)
@@ -1385,8 +1399,8 @@ def _rewrite_notebook_source(
     path, lon_lim, lat_lim, fixed_scale, concise, test, transect=None, depth_bins=None,
     removed=None, map_depths=None,
 ):
-    """Fill in the report options in a notebook's paired .py:percent file,
-    and silence R's warnings in each R cell. depth_bins are as
+    """Fill in the report options in a notebook's paired .py:percent file.
+    depth_bins are as
     depths.check_depth_bins gives them, or None for the default ones.
     removed is the ids of the figures and analyses the page leaves out (see
     oceanval.report_items), or None for none. map_depths are as
@@ -1398,14 +1412,7 @@ def _rewrite_notebook_source(
         filedata = file.read()
 
     # loop through line by line, and rewrite the original file
-    lines = filedata.split("\n")
-    new_lines = []
-    for line in lines:
-        if "%%R" in line:
-            new_lines.append(line)
-            new_lines.append("options(warn=-1)")
-        else:
-            new_lines.append(line)
+    new_lines = filedata.split("\n")
     # loop through all lines in lines and replace the_test_status with True
     for i in range(len(new_lines)):
         new_lines[i] = new_lines[i].replace("latexpagebreak", "")

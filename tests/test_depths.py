@@ -111,3 +111,36 @@ class TestMapDepths:
         assert depths.nearest_level(levels, 500) == 4  # 46 m off, within a fifth of 500 m
         assert depths.nearest_level(levels, 2000) is None
         assert depths.nearest_level([], 20) is None
+
+
+class TestTableLevels:
+    """The levels of the gridded page's table of statistics at each depth: at most
+    ten, from the surface to the deepest level with data."""
+
+    # GLODAPv2's 33 standard depths, to 5500 m
+    GLODAP = [0, 10, 20, 30, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000,
+              1100, 1200, 1300, 1400, 1500, 1750, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500]
+    # the World Ocean Atlas's standard depths, as far as 800 m
+    WOA_TO_800 = (list(range(0, 100, 5)) + list(range(100, 500, 25)) + list(range(500, 801, 50)))
+    # a shelf sea's levels, to 200 m
+    SHELF = [0, 5, 10, 20, 30, 50, 75, 100, 150, 200]
+
+    def test_a_deep_dataset_has_ten_levels_from_the_surface_to_the_deepest(self):
+        assert depths.table_levels(self.GLODAP) == [0, 10, 20, 50, 100, 200, 500, 1000, 2000, 5500]
+
+    def test_a_dataset_to_800_m_stops_at_its_deepest_level(self):
+        assert depths.table_levels(self.WOA_TO_800) == [0, 10, 25, 50, 100, 200, 500, 800]
+
+    def test_a_shelf_sea_has_fewer(self):
+        assert depths.table_levels(self.SHELF) == [0, 10, 20, 50, 100, 200]
+
+    def test_never_more_than_ten_and_always_the_deepest(self):
+        levels = [x * 7.3 + 1.2 for x in range(500)]
+        chosen = depths.table_levels(levels)
+        assert len(chosen) <= 10
+        assert chosen[0] == levels[0] and chosen[-1] == levels[-1]
+        assert chosen == sorted(set(chosen))
+
+    def test_nothing_or_one_level(self):
+        assert depths.table_levels([]) == []
+        assert depths.table_levels([float("nan"), 4.0]) == [4.0]

@@ -26,11 +26,11 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
 5. **Figures and analyses the user leaves out (`validate(omit=)`)** are named in `oceanval/report_items.py` (`ITEMS`, one id for
    each, unique across the gridded, point and summary pages; `check_omit`, `check_against`, `removed_for`). `validate()` and the
    interim report (`live.OPTIONS`, `LiveValidation.make_page`) give each page its ids through `_rewrite_notebook_source(removed=)`,
-   which fills `the_removed_items` in `chunk_start.pytemplate`; the notebooks ask `wanted("id")` (R cells: a `show_...` flag set from
+   which fills `the_removed_items` in `chunk_start.pytemplate`; the notebooks ask `wanted("id")` (or a `show_...` flag set from
    it). `compare()` and `analyze()` fill the placeholder with `[]`. Three rules: **a gated item takes its lead-in text, plot and
    caption out together** (the `i_figure`/`i_table` counters then renumber on their own); **a gated item never gates what another
-   page reads** (`chunk_results`, the `temporals` files, the regionals csv, `*_depth_summary.csv`, the point bias csv and the R
-   `title` its scatters use are written whatever is shown); and a section whose items are all left out loses its heading. A new
+   page reads** (`chunk_results`, the `temporals` files, the regionals csv, `*_depth_summary.csv`, and the point bias csv are
+   written whatever is shown); and a section whose items are all left out loses its heading. A new
    figure needs an `Item`, a `wanted()` gate and a line in `tests/test_report_omit.py`; `tests/test_report_items.py` checks the
    catalogue and the notebooks agree.
    `oceanval/release_figures.csv` chooses which items a PyPI release has (Y/N per id): the window offers only the Y ones, in amber as in
@@ -100,7 +100,27 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
     bottom or vertical mean and an INVENTORY for the depth integral (the concentration's own units times the volume), and saves the yearly
     mean of the monthly totals as `{key}_{layer}_long_term_total.csv`, with `saved["total"]` in the info file; `analysis_plots.total_plot`
     draws it with the published ranges, and `chunk_longterm` shows it. FVCOM output and units OceanVal cannot total get a note instead.
-13. **validate()'s summary Taylor diagram** (`summary.ipynb` cells 6-8) was R's `plotrix::taylor.diagram`; it is now `taylor.figure`, the
+13. **validate()'s summary Taylor diagram** (`summary.ipynb` cells 6-8) is `taylor.figure`, the
     same drawing as compare()'s. Cell 6 builds one row per variable, labelled "Model" as there is one simulation, from `skill.file_stats`
     (the spatial table's nsd and r), and cell 7 draws it; a variable's colour is the same for every marker, as in compare().
 
+
+## The figures plotnine draws (2026-11-17)
+
+Every report figure is Python; OceanVal needs no R. The figures ggplot2 used to draw are plotnine's, in
+`oceanval/plotnine_figures.py`, one function per figure taking the data frame the page made: the point page's
+`locations_map`, `mean_map`, `bias_map` (with `capped_bias`, whose csv is written whatever is shown) and `scatter` (detailed: all
+months and each month; concise: all together), `point_template.ipynb`'s `depth_locations_map`, the summary's `depth_matchup_map`,
+the gridded page's `regional_cycles` and `zonal_sections` (each region's model and observations, then their bias, stacked with
+plotnine's composition), and `comparison_regional.ipynb`'s `comparison_cycles`. `show(plot, width, height)` draws at 72 dpi, so a size
+in pixels is the page's. Units are `oceanval.unit_display.mathtext`. `tests/test_report_templates.py` fails if a template has
+`%%R`, `rpy2` or `library(` again.
+
+## Units (2026-11-17)
+
+`oceanval/unit_display.py` writes every unit: `html` (the text and tables; `tidiers.fix_unit` is it), `mathtext` (figure labels;
+`gridded_plots.mathtext_unit`, `transects.unit_text`, `analysis_plots.unit_text` call it) and `plain`. It reads a unit as factors
+(a divisor's power is negative, `m3`/`m^3`/`m**3`/`m-3` are powers, O2/CO2/NO3 have subscripts, `umol` is µmol), so
+`mmol O2/m**3` is mmol O<sub>2</sub> m<sup>-3</sup> and `mmol/m3` keeps its space. A unit that has been written already is left as
+it is. `md()` no longer edits units: a template writes a unit with `fix_unit` before putting it in text (`**3` in markdown is
+bold). `tests/test_unit_display.py` checks every catalogue unit.

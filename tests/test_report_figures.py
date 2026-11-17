@@ -9,7 +9,8 @@ whose effect is known: temperature's are 1.1 times the model's plus 0.5, month
 by month for 2000 and 2001 (so the matchup pairs 24 months, and the model peaks
 when the observations do), and "chlorophyll" (the model's nitrate) is twice the
 model's monthly climatology a month later (so the observations peak a month
-after the model).
+after the model). "oxygen" is the same as chlorophyll, so its annual low, which
+is what oxygen's page times, is also a month after the model's.
 """
 
 import glob
@@ -84,6 +85,10 @@ def reports(tmp_path_factory):
         name="chlorophyll", obs_path=str(folder / "obs_chl"), source="bar",
         model_variable="N3_n", obs_variable="N3_n", climatology=True, start=2000, end=2001,
     )
+    oceanval.add_gridded_comparison(
+        name="oxygen", obs_path=str(folder / "obs_chl"), source="qux",
+        model_variable="N3_n", obs_variable="N3_n", climatology=True, start=2000, end=2001,
+    )
     oceanval.add_point_comparison(
         name="temperature", obs_path="data/evaldata/point/nws/all/temperature", source="baz",
         model_variable="votemper", vertical=True, obs_adder=273.15,
@@ -132,7 +137,7 @@ def test_every_page_ran_and_numbers_its_figures_without_a_gap(reports):
 
 
 CAPTIONS = {
-    "density_scatter": "for every grid cell and month matched up, as the number of matched values in each bin",
+    "density_scatter": "for every grid cell and month matched up (left) and for the annual means of each grid cell (right)",
     "peak_month": "Month of the maximum of the monthly climatology",
     "zonal_lines": "Zonal mean of the annual mean",
     "hovmoller_clim": "in each month of the climatology, by latitude",
@@ -224,6 +229,11 @@ def _peaks(model, obs):
     return ok, peak_model, peak_obs, lag
 
 
+def _lows(model, obs):
+    """The month of the annual low of each cell: _peaks of the values' negatives."""
+    return _peaks(-model, -obs)
+
+
 def test_the_peak_month_agrees_with_xarray(reports):
     folder, detailed, _ = reports
     for variable, source, lag_wanted in (("temperature", "foo", 0), ("chlorophyll", "bar", -1)):
@@ -255,3 +265,72 @@ def test_the_point_depth_summary_has_the_means_of_the_profiles(reports):
     assert {"Model mean", "Observation mean"} <= set(summary.columns)
     # the bias is the model's mean minus the observations', over the same values
     assert np.allclose(summary.Bias, summary["Model mean"] - summary["Observation mean"], atol=1e-6)
+
+
+def test_oxygen_times_its_annual_low_and_agrees_with_xarray(reports):
+    folder, detailed, _ = reports
+    model, obs = _climatology(_surface(folder, "oxygen", "qux"))
+    # the amplitude test is of the observations' range over their mean, the same for the low
+    ok, _, _, _ = _peaks(model, obs)
+    _, low_model, low_obs, lag = _lows(model, obs)
+    assert ok.any()
+    got = xr.open_dataset(detailed / "oceanval_results/peak_month/peakmonth_oxygen_qux.nc")
+    assert got.attrs["timing"] == "low"
+    got_lag = np.squeeze(got["lag"].values)
+    assert np.array_equal(np.isfinite(got_lag), ok)
+    assert np.array_equal(np.squeeze(got["peak_obs"].values)[ok], low_obs[ok])
+    assert np.array_equal(np.squeeze(got["peak_model"].values)[ok], low_model[ok])
+    assert np.all(got_lag[ok] == -1)
+    text = page(detailed, "qux_oxygen")
+    # the variable registered here is named oxygen (the built-in recipes' is dissolved oxygen)
+    assert "When does sea surface oxygen reach its annual low?" in text
+    assert "Month of the minimum of the monthly climatology" in text
+    assert " peak?" not in text
+    # the others time their peak
+    peak = xr.open_dataset(detailed / "oceanval_results/peak_month/peakmonth_chlorophyll_bar.nc")
+    assert peak.attrs["timing"] == "high"
+
+
+def _h1(out_dir, name):
+    found = glob.glob(str(out_dir / f"oceanval_report/_build/html/notebooks/*{name}.html"))
+    heading = re.search(r"<h1[^>]*>(.*?)</h1>", open(found[0]).read(), re.S).group(1)
+    return html.unescape(re.sub(r"<[^>]+>", "", heading)).replace("¶", "").strip()
+
+
+def test_a_page_through_the_water_column_is_not_titled_sea_surface(reports):
+    _, detailed, _ = reports
+    assert not _h1(detailed, "foo_temperature").lower().startswith("sea surface")
+    assert "validation using gridded observations from FOO" in _h1(detailed, "foo_temperature")
+    assert _h1(detailed, "bar_chlorophyll").lower().startswith("sea surface")
+
+
+def test_the_depth_table_has_at_most_ten_levels_from_the_surface_to_the_deepest(reports):
+    from oceanval import depths
+
+    folder, detailed, _ = reports
+    found = glob.glob(str(detailed / "oceanval_report/_build/html/notebooks/*foo_temperature.html"))
+    tables = [t for t in re.findall(r"<table.*?</table>", open(found[0]).read(), re.S) if "Depth (m)" in t]
+    assert len(tables) == 1
+    body = tables[0][tables[0].index("<tbody"):]
+    # the first cell of each row of the table body is its depth
+    shown = [float(re.sub(r"<[^>]+>", "", row).split()[0]) for row in re.findall(r"<td[^>]*>.*?</td>", body, re.S)[::8]]
+    vertical = xr.open_dataset(folder / "oceanval_matchups/gridded/temperature/foo_temperature_vertical.nc")
+    depth_name = [x for x in vertical["observation"].dims if "dep" in x][0]
+    both = vertical["observation"].notnull() & vertical["model"].notnull()
+    has_data = both.any([x for x in both.dims if x != depth_name])
+    levels = vertical[depth_name].values[has_data.values]
+    assert 1 < len(shown) <= 10
+    # the table shows the depths to 2 decimal places
+    assert np.allclose(shown, depths.table_levels(levels), atol=0.006)
+    assert np.isclose(shown[-1], levels.max(), atol=0.006)
+
+
+def test_each_month_has_its_density_scatter_and_the_spatial_patterns_follow_it(reports):
+    _, detailed, _ = reports
+    for name in ("foo_temperature", "bar_chlorophyll"):
+        text = page(detailed, name)
+        assert "for every grid cell matched up in each month of the year" in text, name
+        density = text.index(CAPTIONS["density_scatter"])
+        patterns = text.index("Can the model reproduce spatial patterns of")
+        seasonality = text.index("Can the model reproduce seasonality of")
+        assert density < patterns < seasonality, name

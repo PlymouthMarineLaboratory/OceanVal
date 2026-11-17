@@ -6288,7 +6288,7 @@ def test_customizing_the_output_for_every_matchup_together_in_a_browser(browser,
         # x leaves it out, greying it out
         assert "is-removed" not in card("monthly_maps").get_attribute("class")
         assert page.get_attribute('[data-item="monthly_maps"] .report-item__remove', "aria-label") == (
-            "Remove Monthly maps from the report"
+            "Remove Monthly maps of models vs. observations from the report"
         )
         card("monthly_maps").locator(".report-item__remove").click()
         assert "is-removed" in card("monthly_maps").get_attribute("class")

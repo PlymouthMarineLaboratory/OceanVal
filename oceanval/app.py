@@ -4863,7 +4863,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         question = self._held_matchups()
         if question is not None:
             listed = question.details.get("matchups")
-            return option_profiles.annotate(listed) if isinstance(listed, list) else None
+            return option_profiles.annotate(listed, self.results_dir or self.out_dir) if isinstance(listed, list) else None
         if self.view != "report_options" or self.report_arguments is not None:
             return None
         directory = self.results_dir or self.out_dir
@@ -4872,7 +4872,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             # those the report validates of them, as the simulation step chose
             with contextlib.suppress(ValueError):
                 found = selection.of_last_run(found, selection.last_run(directory), self.previous)
-        return option_profiles.annotate(found) or None
+        return option_profiles.annotate(found, directory) or None
 
     def _report_vertical(self):
         """Whether the run's matchups include point ones through the water
@@ -5333,7 +5333,7 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
         except ValueError as error:
             status = "unfinished" if "did not finish" in str(error) else "none"
             return {"status": status, "error": str(error), "matchups": []}
-        return {"status": "found", "error": None, "matchups": option_profiles.annotate(selection.on_disk(path))}
+        return {"status": "found", "error": None, "matchups": option_profiles.annotate(selection.on_disk(path), path)}
 
     def _simulation_listing(self, path, depth, kept=LISTING_KEPT):
         """Every output file depth directories below path, before the file

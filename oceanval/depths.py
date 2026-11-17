@@ -13,6 +13,11 @@ leave gaps, and observations in a gap are left out, but may not overlap.
 import math
 import numbers
 
+# the depths (m) whose nearest levels the gridded page's table of statistics at
+# each depth shows, with the deepest level: at most ten rows, from the surface
+# down, whatever the number of levels of the observations
+TABLE_DEPTHS = (0, 10, 25, 50, 100, 200, 500, 1000, 2000)
+
 # the bins OceanVal has always used
 DEFAULT_DEPTH_BINS = [
     (0, 10),
@@ -180,3 +185,19 @@ def nearest_level(levels, depth, tolerance=0.2):
     if gaps[k] > max(20.0, tolerance * depth):
         return None
     return k
+
+
+def table_levels(levels):
+    """The levels of the gridded page's table of statistics at each depth: the
+    level nearest each of TABLE_DEPTHS no deeper than the deepest level, and
+    the deepest, sorted from the surface (at most ten). levels are the depths
+    (m) of the levels with data; a level nearest two depths is shown once."""
+    found = sorted({float(x) for x in levels if x is not None and math.isfinite(float(x))})
+    if not found:
+        return []
+    deepest = found[-1]
+    chosen = {deepest}
+    for depth in TABLE_DEPTHS:
+        if depth <= deepest:
+            chosen.add(min(found, key=lambda level: (abs(level - depth), level)))
+    return sorted(chosen)

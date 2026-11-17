@@ -17,7 +17,7 @@ notebook
 multiprocess
 weasyprint
 python-docx
-rpy2
+plotnine>=0.15
 requests
 pint
 tqdm

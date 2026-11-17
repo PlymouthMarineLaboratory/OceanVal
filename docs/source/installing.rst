@@ -4,7 +4,7 @@ Installation and a quick example
 **System requirements**: OceanVal runs on Linux and macOS with Python 3.10-3.13, and needs jupyter-book 2 or later.
 
 The recommended way to install OceanVal is via conda, which handles the
-scientific dependencies (including CDO and R) for you. If you do not have
+scientific dependencies (including CDO and NCO) for you. If you do not have
 conda installed, follow the
 `conda installation guide <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`_.
 

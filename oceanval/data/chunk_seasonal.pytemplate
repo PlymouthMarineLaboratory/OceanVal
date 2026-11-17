@@ -175,7 +175,7 @@ def plot_seasonal_months(months, divider = False):
     diff_caps = (cap(df_diff, "diff", 0.02), cap(df_diff, "diff", 0.98))
 
     def diff_colours(lo, hi):
-        # ggplot2's scale_fill_gradient2(low = "blue", high = "red"): white at zero, and the
+        # a diverging scale from blue to red: white at zero, and the
         # same colours for the same size of difference on either side of it
         blue_white_red = LinearSegmentedColormap.from_list("blue_white_red", ["blue", "white", "red"])
         largest = max(abs(lo), abs(hi))

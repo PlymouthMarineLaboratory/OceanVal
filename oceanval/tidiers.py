@@ -32,27 +32,11 @@ def celsius(x):
 
 
 def fix_unit(x):
-    x = x.replace("/m^3", "m<sup>-3</sup>") 
-    x = x.replace("/m**3", "m<sup>-3</sup>") 
-    x = x.replace("/m3", "m<sup>-3</sup>")
-    x = x.replace("m-3", "m<sup>-3</sup>")
-    x = x.replace("m-1", "m<sup>-1</sup>")
-    x = x.replace("m-2", "m<sup>-2</sup>")
-    x = x.replace("/m^2", "m<sup>-2</sup>")
-    x = x.replace("/m2", "m<sup>-2</sup>")
-    x = x.replace("m2", "m<sup>2</sup>")
-    x = x.replace("m3", "m<sup>3</sup>")
-    #O_2
-    x = x.replace("O_2", "O<sub>2</sub>")
-    # fix CO2
-    x = x.replace("CO2", "CO<sub>2</sub>")
-    # fix /yr
-    x = x.replace("/yr", "year<sup>-1</sup>")
-    # degC, degrees_C, deg_C, degree_Celsius...
-    x = celsius(x)
+    """x, a unit, as the report's text and tables write it (oceanval.unit_display.html):
+    mmol O2/m**3 is mmol O<sub>2</sub> m<sup>-3</sup>, and degC is °C."""
+    from oceanval import unit_display
 
-
-    return x
+    return unit_display.html(x)
 
 
 
@@ -173,8 +157,6 @@ def md(x, number = False):
     x = x.replace(" ph ", " pH ")
     x = x.replace(" R2 ", " R<sup>2</sup> ")
     x = x.replace(" R2.", " R<sup>2</sup>.")
-    # fix g/kg
-    x = x.replace("g/kg", "g kg<sup>-1</sup>")
 
     # get rid of double spaces
     x = x.replace("  ", " ")
@@ -196,18 +178,7 @@ def md(x, number = False):
     x = x.replace(" :", ":")
     x = x.replace(" ;", ";")
     x = x.replace(" %", "%")
-    # /m^3
-    x = x.replace("/m3", "m<sup>-3</sup>")
-    x = x.replace("/m^3", "m<sup>-3</sup>")
-    # handle /m^2
-    x = x.replace("/m2", "m<sup>-2</sup>")
-    x = x.replace("/m^2", "m<sup>-2</sup>")
-    # handl m-3
-    x = x.replace(" m-3", " m<sup>-3</sup>")
-    # fix /yr
-    x = x.replace("/yr", "year<sup>-1</sup>")
-    # fix /day
-    x = x.replace("/day", "day<sup>-1</sup>")
+    # units are written by oceanval.unit_display (fix_unit) where they are put in the text
 
     if number:
         if "year" not in x.lower():

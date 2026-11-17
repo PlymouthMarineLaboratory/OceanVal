@@ -49,13 +49,13 @@ box is an empty box that the user must act on; filled-in values are shown red an
 
 ## Environment setup
 
-Conda is the supported environment (`oceanval.yml`) — R packages (rpy2, r-tidyverse, r-ggtext,
-etc.) and `cdo`/`nco` are required and not pip-installable:
+Conda is the supported environment (`oceanval.yml`) — `cdo`/`nco` are required and not pip-installable.
+OceanVal needs no R (2026-11-17): every report figure is Python, plotnine where ggplot2 drew it
+(`oceanval/plotnine_figures.py`):
 
 ```sh
 conda env create -f oceanval.yml
 conda activate oceanval
-Rscript -e "install.packages('Rcpp', repos = 'https://cloud.r-project.org/')"
 pip install .
 ```
 
@@ -88,7 +88,7 @@ python -m pytest tests/test_create_recipes.py -k some_test  # single test
 
 Coverage config (`.coveragerc`) excludes `tests/` and `oceanval/fvcom.py` (undocumented).
 
-CI (`.github/workflows/python-app.yml`) builds a micromamba env with nctoolkit, cartopy, R/tidyverse,
+CI (`.github/workflows/python-app.yml`) builds a micromamba env with nctoolkit, cartopy, plotnine,
 jupyter-book, pandoc, texlive, then `pip install .` and runs the tests as seventeen jobs side by side (matrix `group`: eleven named sets of test files, the old six groups cut in two, to be rebalanced from the junit times of a run; groups 13-17, one report test file each, the ones that need the detailed report (`concise=False`; a test that does not should use the default, concise, which is much quicker); and group 12, which runs every file not named, so a new test file is still run; GitHub allows 20); each job has its own checkout, which the cwd-relative `oceanval_matchups` folders need, and prints its 30 slowest tests (`--durations`) and uploads every test's time as a junit artifact (`durations-linux-<group>`, `durations-macos-<group>`): rebalance the groups from those (largest file first into the group with least time so far; `test_sim_plots.py` alone is over 10 minutes). A new slow test file should be added to a group in the workflow. **A figure test draws a figure once** (`test_sim_plots.draw` keeps each one drawn; every figure runs its script in a Python of its own, seconds each), and **two tests that would run the same `matchup()`/`analyze()`/`compare_simulations()` share one run** (a class/module fixture, or one test with both sets of checks). `.github/workflows/macos-app.yml`
 runs the same groups on `macos-latest` (Apple silicon, 90 minute limit per job): keep the two
 workflows' group lists the same.
@@ -103,9 +103,8 @@ servers in a kernel that died keep the pipe open, which hung the interim report'
 process that made a spawn-context Lock (tqdm's `create_mp_lock` does, in a forked process later killed) ended without its
 finalizers. `OCEANVAL_TRACE_SEMAPHORES=<file> oceanval` records every semaphore made (`oceanval/semaphore_trace.py`), and
 `python -m oceanval.semaphore_trace <file>` lists those never released, with the stack that made each.
-Never put conda's `lib` on `DYLD_LIBRARY_PATH` (`utils.restrict_r_to_conda` sets `LD_LIBRARY_PATH` on Linux only):
-dyld swaps libraries by file name, so ImageIO's own `libPng.dylib` became conda's libpng (the file system ignores
-case) and every report kernel inheriting it could die in a `%%R` figure (SIGBUS in `QuartzBitmap_Close`).
+Never put conda's `lib` on `DYLD_LIBRARY_PATH`: dyld swaps libraries by file name, so ImageIO's own `libPng.dylib`
+became conda's libpng (the file system ignores case) and a report kernel inheriting it could die drawing a figure.
 
 ## Architecture
 

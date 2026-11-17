@@ -508,20 +508,18 @@ def section_frame(path, transect, steps):
 
 
 def unit_text(path, variable):
-    """The matchup's unit, as the report's colour bars show it: tidied as
-    fix_unit does, in mathtext, and °C for temperature, as in
+    """The matchup's unit, as the report's colour bars show it:
+    oceanval.unit_display's mathtext, and °C for temperature, as in
     chunk_seasonal."""
     import xarray as xr
 
-    from oceanval.tidiers import fix_unit
+    from oceanval import unit_display
 
     if variable == "temperature":
         return "°C"
     with xr.open_dataset(path, decode_times=False) as data:
         unit = data["model"].attrs.get("units") or data["observation"].attrs.get("units")
-    unit = fix_unit(str(unit or ""))
-    unit = re.sub(r"<sup>(.*?)</sup>", r"$^{\1}$", unit)
-    return re.sub(r"<sub>(.*?)</sub>", r"$_{\1}$", unit)
+    return unit_display.mathtext(str(unit or ""))
 
 
 def _label(name, unit):

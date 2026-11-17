@@ -33,12 +33,10 @@ def _plt():
 
 def mathtext_unit(unit):
     """A unit as the report's colour bars show it (as transects.unit_text does):
-    tidied by fix_unit, its superscripts and subscripts in mathtext."""
-    from oceanval.tidiers import fix_unit
+    oceanval.unit_display's mathtext."""
+    from oceanval import unit_display
 
-    unit = fix_unit(str(unit or ""))
-    unit = re.sub(r"<sup>(.*?)</sup>", r"$^{\1}$", unit)
-    return re.sub(r"<sub>(.*?)</sub>", r"$_{\1}$", unit)
+    return unit_display.mathtext(str(unit or ""))
 
 
 def lat_label(value):
@@ -196,39 +194,69 @@ class Density:
             counts, _, _ = np.histogram2d(obs[ok], model[ok], bins=[self.edges, self.edges])
             self.counts += counts
 
-    def figure(self, stats, label, title=None):
-        """The figure, with stats (oceanval.skill's, of the values drawn): the
-        line is the least-squares fit of model on observation, slope r times
-        nsd through the two means."""
-        plt = _plt()
-        from matplotlib.colors import LogNorm
-
-        fig, ax = plt.subplots(figsize=(5.4, 4.8), constrained_layout=True)
+    def draw(self, ax, stats, label, norm, title=None, fontsize=8):
+        """Draw the bins on ax, coloured by norm, with stats (oceanval.skill's, of
+        the values drawn): the dashed 1:1 line, the red least-squares fit of model
+        on observation (slope r times nsd, through the two means) and a box of r,
+        the bias, the RMSD and N. The lines have no legend: the caption says what
+        they are. Returns the bins' mesh, for a colour bar."""
         counts = np.ma.masked_equal(self.counts.T, 0)
-        mesh = ax.pcolormesh(self.edges, self.edges, counts, cmap="viridis",
-                             norm=LogNorm(vmin=1, vmax=max(2, counts.max() if counts.count() else 2)))
+        mesh = ax.pcolormesh(self.edges, self.edges, counts, cmap="viridis", norm=norm)
         low, high = self.edges[0], self.edges[-1]
-        ax.plot([low, high], [low, high], color=INK, lw=1, ls=(0, (4, 3)), label="1:1")
+        ax.plot([low, high], [low, high], color=INK, lw=1, ls=(0, (4, 3)))
         slope = stats["r"] * stats["nsd"]
         if np.isfinite(slope):
             intercept = stats["model_mean"] - slope * stats["obs_mean"]
-            ax.plot([low, high], [intercept + slope * low, intercept + slope * high],
-                    color=MODEL, lw=1.4, label=f"Least squares: slope {slope:.2f}")
+            ax.plot([low, high], [intercept + slope * low, intercept + slope * high], color=MODEL, lw=1.4)
         ax.set_xlim(low, high)
         ax.set_ylim(low, high)
         ax.set_aspect("equal")
         prefix = "log10 " if self.log else ""
         ax.set_xlabel(f"Observed {prefix}{label}")
         ax.set_ylabel(f"Modelled {prefix}{label}")
-        text = f"r = {stats['r']:.2f}\nbias = {stats['bias']:.3g}\nRMSD = {stats['rmsd']:.3g}\nN = {stats['n']:,}"
-        ax.text(0.03, 0.97, text, transform=ax.transAxes, va="top", fontsize=8, color=INK,
+        if stats["n"] > 0 and np.isfinite(stats["r"]):
+            text = f"r = {stats['r']:.2f}\nbias = {stats['bias']:.3g}\nRMSD = {stats['rmsd']:.3g}\nN = {stats['n']:,}"
+        else:
+            text = f"N = {stats['n']:,}"
+        ax.text(0.03, 0.97, text, transform=ax.transAxes, va="top", fontsize=fontsize, color=INK,
                 bbox={"facecolor": "white", "edgecolor": BAND, "boxstyle": "round,pad=0.3"})
-        ax.legend(loc="lower right", fontsize=7, frameon=False)
-        colourbar = fig.colorbar(mesh, ax=ax, shrink=0.85)
-        colourbar.set_label("Number of matched values", fontsize=8)
         if title:
-            ax.set_title(title, loc="left", fontsize=10)
-        return fig
+            ax.set_title(title, loc="left", fontsize=fontsize + 2)
+        return mesh
+
+    def max_count(self):
+        return float(self.counts.max()) if self.counts.size else 0.0
+
+    def figure(self, stats, label, title=None):
+        """The figure of these bins alone (density_panels of one panel)."""
+        return density_panels([(title, self, stats)], label)
+
+
+def density_panels(panels, label, ncols=None):
+    """A figure of density scatters side by side, with the same axes and one
+    colour scale: panels is [(title, Density, stats)], in order, e.g. all
+    months and the annual means, or each month of the year (4 to a row)."""
+    plt = _plt()
+    from matplotlib.colors import LogNorm
+
+    n = len(panels)
+    ncols = ncols or min(n, 4)
+    nrows = math.ceil(n / ncols)
+    side = 4.6 if n <= 2 else 2.9
+    fontsize = 8 if n <= 2 else 7
+    fig, axes = plt.subplots(nrows, ncols, figsize=(side * ncols + 1.0, side * nrows), constrained_layout=True,
+                             squeeze=False, sharex=True, sharey=True)
+    top = max([density.max_count() for _, density, _ in panels] + [2])
+    norm = LogNorm(vmin=1, vmax=top)
+    mesh = None
+    for ax, (title, density, stats) in zip(axes.ravel(), panels):
+        mesh = density.draw(ax, stats, label, norm, title=title, fontsize=fontsize)
+        ax.label_outer()
+    for ax in axes.ravel()[n:]:
+        ax.set_visible(False)
+    colourbar = fig.colorbar(mesh, ax=axes, shrink=0.85 if nrows == 1 else 0.6)
+    colourbar.set_label("Number of matched values", fontsize=8)
+    return fig
 
 
 def value_limits(read, steps, log=False, q=(0.5, 99.5)):

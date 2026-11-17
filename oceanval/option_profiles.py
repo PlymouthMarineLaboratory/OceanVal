@@ -24,9 +24,14 @@ items_for(matchup) is the figures and analyses (oceanval.report_items) a matchup
 can show or feed, and overall_options(matchups) the report options that apply
 to a set of them. A matchup with no profile (the user's own data) is assumed to
 show everything its kind and its layer allow: nothing that might apply is
-hidden. The boxes that hang on what the user has typed (subregions, transect)
+hidden. Only its total is judged from its units, when they are known (annotate
+reads them from a gridded matchup's file): the total over the area matched is
+of a flux per area (oceanval.totals.kind_of), so a concentration is never
+offered one. The boxes that hang on what the user has typed (subregions, transect)
 are the page's, as they are not about the matchup.
 """
+
+import os
 
 from oceanval import release_figures, report_items
 
@@ -160,10 +165,19 @@ def _holds(condition, matchup, profile):
         return profile is None or profile["months"] != ANNUAL
     if condition == "series":
         return profile is None or profile["months"] == SERIES
-    if condition == "flux":
-        return profile is None or profile["total"] == FLUX
-    if condition == "totals":
-        return profile is None or profile["total"] == FLUX or (profile["total"] == INVENTORY and vertical)
+    if condition in ("flux", "totals"):
+        if profile is not None:
+            total = profile["total"]
+        elif matchup.get("units") is not None:
+            # the user's own data, whose units say what its total is
+            from oceanval import totals
+
+            total = totals.kind_of(matchup["units"], matchup.get("variable", ""))
+        else:
+            return True
+        if condition == "flux":
+            return total == FLUX
+        return total == FLUX or (total == INVENTORY and vertical)
     return True
 
 
@@ -192,12 +206,38 @@ def default_sections(matchup):
     return profile is None or profile["region"] == GLOBAL
 
 
-def annotate(matchups):
+def _gridded_units(matchup, data_dir):
+    """The units of the model in a gridded matchup's surface file in data_dir,
+    from its header, or None if there is no such file or it has none."""
+    if not data_dir or matchup.get("kind") != GRIDDED:
+        return None
+    import netCDF4
+
+    from oceanval import netcdf_lock
+
+    variable, source = matchup.get("variable", ""), matchup.get("source", "")
+    path = os.path.join(data_dir, "oceanval_matchups", GRIDDED, variable, f"{source}_{variable}_surface.nc")
+    if not os.path.exists(path):
+        return None
+    try:
+        with netcdf_lock.LOCK, netCDF4.Dataset(path) as ds:
+            return getattr(ds.variables["model"], "units", None)
+    except Exception:
+        return None
+
+
+def annotate(matchups, data_dir=None):
     """The matchups (as selection.on_disk gives them), each with its items (see
     items_for), the report options it takes (options_for) and whether it has the default sections, for the window. None
-    stays None."""
+    stays None. With data_dir, the folder of the matchups, a gridded matchup
+    of the user's own data has its model's units read, to judge its total."""
     if matchups is None:
         return None
+    matchups = [
+        matchup if profile_for(matchup) is not None or "units" in matchup
+        else dict(matchup, units=_gridded_units(matchup, data_dir))
+        for matchup in matchups
+    ]
     return [
         dict(
             matchup,

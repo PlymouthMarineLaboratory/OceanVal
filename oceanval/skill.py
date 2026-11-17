@@ -48,6 +48,17 @@ def is_log(variable):
     return str(variable).lower() in LOG_VARIABLES
 
 
+# the variables whose seasonal cycle is timed by its annual low, not its peak: dissolved
+# oxygen is lowest at the surface when warming drives it out, so its low is what is timed
+LOW_VARIABLES = ("oxygen",)
+
+
+def times_the_low(variable):
+    """Whether the gridded page times variable's annual low (the month of the
+    minimum of its monthly climatology), not its peak."""
+    return str(variable).lower() in LOW_VARIABLES
+
+
 def _expr(log, area):
     """The CDO expr that sums() runs: log10 first if log (missing where not
     positive), the area of each cell (area: an expression, or cell_area), and

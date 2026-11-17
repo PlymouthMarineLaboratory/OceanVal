@@ -53,12 +53,6 @@ Activate this environment.
 conda activate oceanval
 ```
 
-Now, sometimes R package installs go wrong in conda. Run the following command to ensure Rcpp is installed correctly.
-
-```sh
-Rscript -e "install.packages('Rcpp', repos = 'https://cloud.r-project.org/')"
-```
-
 Now, install the package.
 
 ```sh

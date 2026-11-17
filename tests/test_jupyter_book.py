@@ -152,9 +152,6 @@ def test_remove_diagnostic_outputs_preserves_formatted_content(tmp_path):
                 outputs=[
                     nbformat.v4.new_output("stream", text="warning"),
                     nbformat.v4.new_output("error", ename="Error", evalue="failure"),
-                        nbformat.v4.new_output(
-                            "error", ename="RInterpreterError", evalue="R plot failed"
-                        ),
                     nbformat.v4.new_output("execute_result", data={"text/plain": "0"}),
                     nbformat.v4.new_output("execute_result", data={"text/html": "<table>"}),
                     nbformat.v4.new_output("display_data", data={"image/png": "data"}),
@@ -167,12 +164,11 @@ def test_remove_diagnostic_outputs_preserves_formatted_content(tmp_path):
     oceanval._remove_diagnostic_outputs([str(notebook_path)])
 
     outputs = nbformat.read(notebook_path, as_version=4).cells[0].outputs
+    # errors are not kept: every figure is Python, and its failure is not shown as output
     assert [output.output_type for output in outputs] == [
-        "error",
         "execute_result",
         "display_data",
     ]
-    assert outputs[0].ename == "RInterpreterError"
 
 
 def test_remove_diagnostic_outputs_preserves_remove_cell_tags(tmp_path):

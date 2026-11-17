@@ -29,7 +29,7 @@ ds_summary.rename({ds_summary.variables[0]: "bias"})
 positive_bias = ds_summary.to_dataframe().bias.values[0] * 100
 # as a percentage to 1 dp
 positive_bias = round(positive_bias, 1)
-the_unit = celsius(str(ds_summary.contents.unit.values[0]))
+the_unit = fix_unit(str(ds_summary.contents.unit.values[0]))
 
 if wanted("bias_map"):
     md(f"Figure {i_figure} shows the average bias of {layer} {vv_name} simulated by the model. A positive bias indicates that the model overestimates the observation, while a negative bias indicates that the model overpredicts the observation.")

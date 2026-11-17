@@ -126,7 +126,7 @@ def test_the_summary_gives_the_taylor_numbers(report):
 
 def test_the_summary_draws_its_taylor_diagram_in_python(report):
     # validate()'s summary draws the sea surface's Taylor diagram with oceanval.taylor, as
-    # compare() does, not with R's plotrix
+    # compare() does
     _, out_dir = report
     found = glob.glob(str(out_dir / "oceanval_report/notebooks/*summary.ipynb"))
     assert len(found) == 1, found
@@ -134,7 +134,7 @@ def test_the_summary_draws_its_taylor_diagram_in_python(report):
     cells = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
     drawn = [c for c in cells if "taylor.figure" in c]
     assert len(drawn) == 1
-    assert "%%R" not in drawn[0] and "taylor.diagram" not in drawn[0]
+    assert "taylor.diagram" not in drawn[0]
     assert not any("taylor.diagram" in c or "plotrix" in c for c in cells)
 
 

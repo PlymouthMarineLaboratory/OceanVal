@@ -50,18 +50,18 @@ totals_shown = False
 if totals_kind == totals.FLUX and totals_series is not None and len(totals_rows) > 0 and wanted("global_series"):
     row = totals_rows[0]
     md(f"## How much {vv_name} is there over the area matched up?")
-    md(f"The figure below shows {vv_name} summed over the grid cells with both model and observational data in each month, in {row['units']}, with the published estimates of the global total" + (" as grey bands" if totals_refs else "") + f". The cells cover {row['area_km2'] / 1e6:.1f} million km<sup>2</sup> on average, so this is the total over the area matched up, not a global total, unless the observations cover the whole ocean. Over the year, the model's total is {row['model']:.3g} {row['units']} and the observations' {row['observation']:.3g} {row['units']}.")
+    md(f"The figure below shows {vv_name} summed over the grid cells with both model and observational data in each month, in {fix_unit(row['units'])}, with the published estimates of the global total" + (" as grey bands" if totals_refs else "") + f". The cells cover {row['area_km2'] / 1e6:.1f} million km<sup>2</sup> on average, so this is the total over the area matched up, not a global total, unless the observations cover the whole ocean. Over the year, the model's total is {row['model']:.3g} {fix_unit(row['units'])} and the observations' {row['observation']:.3g} {fix_unit(row['units'])}.")
     monthly = len(totals_series) <= 12
     if monthly:
         totals_x = [int(str(x)[5:7]) for x in totals_series.time]
     else:
         totals_x = gridded_plots.decimal_years(totals_series.time.values)
     _fig = gridded_plots.total_series(totals_x, totals_series.model, totals_series.observation,
-                               f"{vv_name} ({row['units']})", totals_refs, monthly = monthly)
+                               f"{vv_name} ({gridded_plots.mathtext_unit(row['units'])})", totals_refs, monthly = monthly)
     plt.show()
     totals_shown = True
 
 # %% tags=["remove-input"]
 if totals_shown:
-    md(f"**Figure {i_figure}**: Total {vv_name} over the grid cells with both model and observational data in each month, in the model and the observations." + (" The grey bands are the published ranges of the global total: " + "; ".join(f"{x['low']:g}–{x['high']:g} {x['units']} ({x['citation']}{', ' + x['period'] if x['period'] else ''})" for x in totals_refs) + "." if totals_refs else ""))
+    md(f"**Figure {i_figure}**: Total {vv_name} over the grid cells with both model and observational data in each month, in the model and the observations." + (" The grey bands are the published ranges of the global total: " + "; ".join(f"{x['low']:g}–{x['high']:g} {fix_unit(x['units'])} ({x['citation']}{', ' + x['period'] if x['period'] else ''})" for x in totals_refs) + "." if totals_refs else ""))
     i_figure += 1

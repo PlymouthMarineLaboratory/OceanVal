@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from oceanval import analysis_plots as ap
-from oceanval import pyplots
 from oceanval.tidiers import celsius, fix_unit, md
 
 SPELLINGS = [
@@ -60,7 +59,7 @@ def test_what_is_not_celsius_is_left_alone(units):
 def test_celsius_in_units_with_more_in_them():
     assert fix_unit("degrees_C m") == "°C m"
     assert fix_unit("deg_C m-2") == "°C m<sup>-2</sup>"
-    assert fix_unit("degrees_Celsius-1") == "°C-1"
+    assert fix_unit("degrees_Celsius-1") == "°C<sup>-1</sup>"
     assert fix_unit("mg C m-3") == "mg C m<sup>-3</sup>"
 
 
@@ -78,11 +77,6 @@ def test_the_analyze_report_shows_degrees_c():
     assert ap.unit_html("degrees_C") == "°C"
     assert ap.unit_text("degrees_C") == "°C"
     assert ap.legend("Temperature", "Deg_C") == "Temperature (°C)"
-
-
-def test_the_python_plots_label_degrees_c():
-    assert pyplots._strip_html("Model temperature (degrees_C)") == "Model temperature (°C)"
-    assert pyplots._strip_html("mmol m<sup>-3</sup>") == "mmol m-3"
 
 
 def test_the_unit_column_of_a_table():

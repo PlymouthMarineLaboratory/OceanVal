@@ -41,7 +41,7 @@ jobs:
         with:
           micromamba-version: '1.4.5-0'
           environment-name: foo
-          create-args: esmf=*=nompi_* libnetcdf=*=nompi_* hdf5=*=nompi_* netcdf-fortran=*=nompi_* netcdf4=*=nompi_* h5py=*=nompi_* nctoolkit>=1.4.0 cmocean cartopy proj-data pandoc python=3.13 rpy2 r-base r-tidyverse r-ggtext jupyter-book>=2 r-mapdata texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel bokeh holoviews hvplot geoviews-core cftime dask xcdat
+          create-args: esmf=*=nompi_* libnetcdf=*=nompi_* hdf5=*=nompi_* netcdf-fortran=*=nompi_* netcdf4=*=nompi_* h5py=*=nompi_* nctoolkit>=1.4.0 cmocean cartopy proj-data pandoc python=3.13 plotnine>=0.15 jupyter-book>=2 texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel bokeh holoviews hvplot geoviews-core cftime dask xcdat
           init-shell: >-
             bash
           cache-environment: true
@@ -51,7 +51,7 @@ jobs:
         run: |
         
           ##sudo apt-get install texlive
-          mamba install pandoc r-ggthemes r-ggridges r-maps r-arrow r-cowplot -y
+          mamba install pandoc -y
           python -m pip install .
           pip install pyarrow
           pip install rioxarray
