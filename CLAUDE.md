@@ -61,9 +61,14 @@ pip install .
 
 Supported Python: 3.10–3.13.
 
+## netCDF processing in code versus tests
+
+Rule: always process model and observation netCDF files using nctoolkit. Testing needs to be as independent as possible. Use xarray for this, where possible.:w
+
+
 ## Running tests
 
-**Use the `ov_testing` conda env for all oceanval testing** (2026-11-10, the user's rule): `source /local1/data/scratch/pmlersem/rwi/miniforge3/etc/profile.d/conda.sh && conda activate ov_testing`, or call `/local1/data/scratch/pmlersem/rwi/miniforge3/envs/ov_testing/bin/python -m pytest` directly. It is `oceanval.yml` plus pytest, pytest-timeout, pytest-cov, playwright with Chromium, jupyter-book 2, pandoc and xcdat (the tests' own area weights, to check the statistics nctoolkit works out; both CI workflows install it), so the browser tests run instead of skipping and nothing needs borrowing from another env. oceanval itself is **not** installed in it: the scratch copy is what is imported (report tests that start kernels need `PYTHONPATH=<scratch copy>`). If playwright or Chromium go missing, fix them there (`pip install playwright && playwright install chromium`), not by symlinks.
+**Use the `ov_testing` conda env for all oceanval testing** (2026-11-10, the user's rule): activate it with `conda activate ov_testing`, then run `python -m pytest`. It is `oceanval.yml` plus pytest, pytest-timeout, pytest-cov, playwright with Chromium, jupyter-book 2, pandoc and xcdat (the tests' own area weights, to check the statistics nctoolkit works out; both CI workflows install it), so the browser tests run instead of skipping and nothing needs borrowing from another env. oceanval itself is **not** installed in it: the scratch copy is what is imported (report tests that start kernels need `PYTHONPATH=<scratch copy>`). If playwright or Chromium go missing, fix them there (`pip install playwright && playwright install chromium`), not by symlinks.
 
 **Always `python -m pytest`, never bare `pytest`.** The bare `pytest` entry point resolves the
 *installed* oceanval in site-packages rather than the repo copy, so tests silently run against
@@ -174,3 +179,12 @@ pitfalls to avoid, e.g. `.gitignore`'s `/oceanval_*` rule must stay root-anchore
   inspecting the artifact (rasterize PDFs, screenshot HTML with a headless browser using a virtual
   time budget for MathJax, etc.) rather than reasoning from code — these bugs tend to be purely
   visual.
+
+
+## Random design principles for the app
+
+- Minimalist
+- If there is a user entry box, let the text in the box speak for itself. It should tell users what to do. No need for extra stuff.
+- Always make it clear to users things are happening when they are happening. Default to rotating circles, progress trackers or X/N trackers.
+- 
+
