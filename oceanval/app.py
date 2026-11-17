@@ -74,7 +74,7 @@ from oceanval import sim_compare
 from oceanval import analysis
 from oceanval import analysis_report
 from oceanval import data_store, store_view
-from oceanval import cdo_check, depths, file_workers, model_check, option_profiles, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, release_figures, report_items, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
+from oceanval import cdo_check, depths, file_workers, model_check, option_profiles, output_years, own_data, pattern_checks, recipe_checks, recipe_forms, release_figures, report_examples, report_items, selection, time_res, time_stamps, transects, units, user_cache, user_recipes, user_settings
 from oceanval.create_recipes import (
     POINT_RECIPE_CATALOGUE,
     RECIPE_CATALOGUE,
@@ -311,12 +311,10 @@ def default_validate_form():
         "per_matchup": "",
         "omit_all": [],
         "omit_each": {},
+        # a transect of the user's own; the named sections (transects.SECTIONS) are not asked
+        # for: validate's default draws the Equator and 155°W on a global matchup through the
+        # water column
         "transect": False,
-        # the named sections ticked (transects.SECTIONS): none ticked is validate's
-        # default, the Equator and 155°W on a global matchup through the water column
-        "section_equator": False,
-        "section_pacific_155w": False,
-        "section_atlantic_25w": False,
         "transect_start_lon": "",
         "transect_start_lat": "",
         "transect_end_lon": "",
@@ -782,13 +780,10 @@ def check_report(form, cwd, out_dir=None):
             errors["subregions_file"] = str(error)
     if subregions is not None:
         arguments["subregions"] = subregions
-    # the named sections ticked, then the line of the user's own: validate's transect, as a list
-    chosen = [name for name in transects.SECTIONS if form.get(f"section_{name}")]
+    # the line of the user's own: validate's transect, as a list (without one, validate's default)
     transect = check_transect_boxes(form, errors)
     if transect is not None:
-        chosen.append(transect)
-    if chosen:
-        arguments["transect"] = chosen
+        arguments["transect"] = [transect]
     for name in ("fixed_scale", "pdf", "word", "zip"):
         if form[name]:
             arguments[name] = True
@@ -5004,6 +4999,41 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             "so no matchups can be run."
         )
 
+    def regions_map(self, subregions, path):
+        """The map of a set of regions for the report options' Map it: a built-in
+        set's name, or "file" with the path of the user's own (relative to the
+        directory worked in). {"ok", "kind": "image", "data": base64 PNG} or
+        {"ok": False, "error"}."""
+        import base64
+        import io
+
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        if regions.is_built_in(subregions):
+            target = subregions
+        elif subregions == "file" and path.strip():
+            target = _path(path.strip(), self.cwd)
+            try:
+                oceanval._check_region_file(target)
+            except ValueError as error:
+                return {"ok": False, "error": str(error)}
+        else:
+            return {"ok": False, "error": "Choose a set of regions first."}
+        # one figure at a time, as matplotlib is not thread-safe (the examples draw under the same lock)
+        with report_examples._LOCK:
+            try:
+                figure = regions.panel_map(target)
+                buffer = io.BytesIO()
+                figure.savefig(buffer, format="png", dpi=80, bbox_inches="tight")
+            except Exception as error:
+                return {"ok": False, "error": f"The regions could not be mapped: {error}"}
+            finally:
+                plt.close("all")
+        return {"ok": True, "kind": "image", "data": base64.b64encode(buffer.getvalue()).decode("ascii")}
+
     def pattern_plot(self, number):
         """The interactive map of the check of file pattern number: {"ok", "item"}."""
         checks = self.pattern_checks
@@ -6178,6 +6208,8 @@ class _Handler(recipes_gui._Handler):
             "/api/viewer/limits",
             "/api/viewer/missing",
             "/api/pattern_checks/plot",
+            "/api/validate/example",
+            "/api/regions/map",
             "/bokeh.min.js",
         ):
             self._reply(404, "Not found", "text/plain; charset=utf-8")
@@ -6229,6 +6261,10 @@ class _Handler(recipes_gui._Handler):
             self._reply_json(200, self.app.viewer_plot(query))
         elif url.path == "/api/pattern_checks/plot":
             self._reply_json(200, self.app.pattern_plot(_number(query.get("number"))))
+        elif url.path == "/api/validate/example":
+            self._reply_json(200, report_examples.example(query.get("item", "")))
+        elif url.path == "/api/regions/map":
+            self._reply_json(200, self.app.regions_map(query.get("subregions", ""), query.get("path", "")))
         elif url.path == "/api/viewer/limits":
             self._reply_json(200, self.app.viewer_limits(query))
         elif url.path == "/api/viewer/missing":

@@ -124,3 +124,13 @@ in pixels is the page's. Units are `oceanval.unit_display.mathtext`. `tests/test
 `mmol O2/m**3` is mmol O<sub>2</sub> m<sup>-3</sup> and `mmol/m3` keeps its space. A unit that has been written already is left as
 it is. `md()` no longer edits units: a template writes a unit with `fix_unit` before putting it in text (`**3` in markdown is
 bold). `tests/test_unit_display.py` checks every catalogue unit.
+
+## Report view and Gallery view (2026-11-17)
+
+`oceanval/report_gallery.py`'s style and script are put in the pages of `validate()`'s report and its interim report
+(`_write_offline_report_pages(gallery=True)`, from `_build_book_pages` and `live.py`), not in analyze()'s or compare_simulations()'s.
+The script adds **Report view | Gallery view** at the top of the sidebar (kept in `localStorage`, Report view by default) and builds
+the gallery from the page itself: a figure or table is every image (or table) in the `.jp-OutputArea-child`ren since the last caption
+or `h2` before a caption (a `**Figure N**`/`**Table N**` paragraph); its tile is a thumbnail (a table icon) with its number and the
+section's heading, and opens a pop-out with copies of them and the caption. Each figure is on the page once (a page opened from
+disk cannot fetch fragments). PDF and Word are made from the page before this is added. `tests/test_report_gallery.py`.

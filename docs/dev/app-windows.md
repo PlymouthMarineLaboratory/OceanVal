@@ -189,7 +189,14 @@ has the view's bar): **"How detailed do you want the validation report to be?"**
 report from before the newer figures (`release_figures.detailed_only`); Detailed (`customize` "no"), `concise=False`, every figure; Customize ("yes"). Concise and Detailed are the last page), then, with Customize, **"Do you want to customize the output variable by variable?"**
 (`#v-page-each`), then boxes (`#v-page-items`): one page for every dataset (`omit_all`, a list) or one for each ticked matchup and then
 the summary (`omit_each`, by matchup key and `"summary"`). The catalogue is `report_items.as_json()`, sent as `state.validate.report_items`;
-each box is a `.choice.report-item` with a `.report-item__remove` (× at the top right, which becomes "Add back" and greys the box out).
+each box is a `.choice.report-item` with its place in the report at its left (`.report-item__num`, 1… in each group, in `report_items.ITEMS`
+order, which is the page's order), a `.report-item__remove` (× at the top right, which becomes "+" and greys the box out) and a
+`.report-item__example` (a picture, bottom right) that opens `#figure-dialog` with an example drawn from made-up data:
+`GET /api/validate/example?item=` → `oceanval/report_examples.example` (the report's own plotting code on arrays made in memory, nothing
+on disk; drawn once per session, one at a time under its `_LOCK`; `tests/test_report_examples.py` draws each once). **Map it**
+(`#v-subregions-map`, shown once a set is chosen or a file's path typed) opens the same pop-out with `GET /api/regions/map` →
+`App.regions_map` → `regions.panel_map` (the file read whole with xarray under `netcdf_lock.LOCK`, drawn with cartopy: nctoolkit's
+`panel_plot` took 16 s). The named transect sections are not asked for (2026-11-17): only a line of the user's own is passed.
 Both questions are required: the server's `check_customize` refuses them unanswered (`DEFAULT_CUSTOMIZE`, which the tests' autouse fixture
 `customize_question_answered` sets to "no"; mark a test `customize_question` to meet it empty), and `.report-question.needs-answer` boxes them
 in red. `concise=True` leaves out `release_figures.detailed_only()` (every figure not in `release_figures.ALWAYS`) through `report_items.with_ids`, in `validate()` and the interim report (`live.py`). Which boxes a page has comes from what the server says each matchup can show (`items`, from `oceanval/option_profiles.py`: a built-in variable and

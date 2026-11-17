@@ -138,6 +138,8 @@ def test_build_book_runs_the_notebooks_with_nbconvert():
         validation_links=None,
         pdf=False,
         word=False,
+        # a validation report's pages also have the gallery view (oceanval.report_gallery)
+        gallery=True,
     )
     remove_diagnostics.assert_called_once_with(
         ["report/notebooks/example.ipynb", "report/notebooks/summary.ipynb"]

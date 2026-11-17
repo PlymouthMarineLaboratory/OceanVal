@@ -63,3 +63,62 @@ def choices_text():
     """The subregions a function takes, for its error messages."""
     names = ", ".join(f"'{x}'" for x in BUILT_IN)
     return f"{names} or a path to a .nc file"
+
+
+def panel_map(regions):
+    """A figure of a set of regions, one panel per region, the region dark over
+    light grey land, as the report's map of the regions shows them: regions is
+    a built-in set's name or the path of a file. Full Domain comes first, then
+    the order in the file. The window's Map it shows it. The file is small, so
+    it is read whole with xarray, holding oceanval.netcdf_lock.LOCK, and drawn
+    with cartopy: nctoolkit's panel_plot, which the report uses, takes too long
+    to wait for in the window."""
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import xarray as xr
+    from matplotlib.colors import ListedColormap
+
+    from oceanval import netcdf_lock
+
+    file = path(regions) if is_built_in(regions) else regions
+    panels = []
+    with netcdf_lock.LOCK, xr.open_dataset(file) as ds:
+        for name, variable in ds.data_vars.items():
+            lon = [x for x in variable.coords if "lon" in x.lower()]
+            lat = [x for x in variable.coords if "lat" in x.lower()]
+            if not lon or not lat:
+                continue
+            values = np.squeeze(variable.values).astype("float64")
+            inside = np.isfinite(values) & (values != 0)
+            title = variable.attrs.get("long_name") or name
+            panels.append((str(title), variable[lon[0]].values, variable[lat[0]].values, inside))
+    if not panels:
+        raise ValueError("The file has no regions in it.")
+    panels = [x for x in panels if x[0] == "Full Domain"] + [x for x in panels if x[0] != "Full Domain"]
+    ncol = 3 if len(panels) == 3 else int(np.ceil(np.sqrt(len(panels))))
+    nrow = int(np.ceil(len(panels) / ncol))
+    # the extent of every region together, a little beyond it
+    lons = np.concatenate([np.broadcast_to(lon if lon.ndim == 2 else lon[None, :], inside.shape)[inside]
+                           for _, lon, lat, inside in panels])
+    lats = np.concatenate([np.broadcast_to(lat if lat.ndim == 2 else lat[:, None], inside.shape)[inside]
+                           for _, lon, lat, inside in panels])
+    extent = None
+    if lons.size:
+        pad_lon, pad_lat = max(1.0, 0.03 * np.ptp(lons)), max(1.0, 0.03 * np.ptp(lats))
+        extent = [max(-180, lons.min() - pad_lon), min(180, lons.max() + pad_lon),
+                  max(-90, lats.min() - pad_lat), min(90, lats.max() + pad_lat)]
+    fig, axes = plt.subplots(nrow, ncol, figsize=(10, 2.4 * nrow), squeeze=False,
+                             subplot_kw={"projection": ccrs.PlateCarree()}, constrained_layout=True)
+    dark = ListedColormap(["#333333"])
+    for ax, (title, lon, lat, inside) in zip(axes.ravel(), panels):
+        ax.add_feature(cfeature.LAND.with_scale("110m"), facecolor="lightgrey", zorder=1)
+        ax.pcolormesh(lon, lat, np.where(inside, 1.0, np.nan), cmap=dark, vmin=0, vmax=1, shading="nearest",
+                      transform=ccrs.PlateCarree(), zorder=2)
+        if extent is not None:
+            ax.set_extent(extent, crs=ccrs.PlateCarree())
+        ax.set_title(title, fontsize=9)
+    for ax in axes.ravel()[len(panels):]:
+        ax.set_visible(False)
+    return fig

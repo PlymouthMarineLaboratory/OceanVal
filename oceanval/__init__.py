@@ -24,6 +24,7 @@ from oceanval import depths
 from oceanval import prompts
 from oceanval import regions
 from oceanval import release_figures
+from oceanval import report_gallery
 from oceanval import report_items
 from oceanval import selection
 from oceanval import transects
@@ -216,7 +217,7 @@ def _build_book_pages(book_dir, validation_links=None, pdf=False, word=False):
         os.path.join(output_dir, "notebooks", "oceanval_wordmark.svg"),
     )
     _write_offline_report_pages(
-        output_dir, notebooks, validation_links=validation_links, pdf=pdf, word=word
+        output_dir, notebooks, validation_links=validation_links, pdf=pdf, word=word, gallery=True
     )
 
 
@@ -938,10 +939,12 @@ def _write_atomically(path, text):
 
 def _write_offline_report_pages(
     output_dir, notebooks, validation_links=None, pdf=False, word=False,
-    raw_dir=None, banner=None,
+    raw_dir=None, banner=None, gallery=False,
 ):
     """Add the navigation (and the download buttons) to each notebook's HTML
-    page in output_dir/notebooks.
+    page in output_dir/notebooks. With gallery, a validation report's pages
+    can also be seen as a gallery of their figures and tables
+    (oceanval.report_gallery).
 
     The pages are read from raw_dir, if given, rather than rewritten where
     they are, so that the navigation can be put in again as pages are
@@ -1032,8 +1035,9 @@ def _write_offline_report_pages(
             raw_html,
             count=1,
         )
+        views = (report_gallery.style() + report_gallery.script()) if gallery else ""
         page_html = page_html.replace(
-            "</head>", f"{style}{_offline_report_sidebar_script()}</head>", 1
+            "</head>", f"{style}{_offline_report_sidebar_script()}{views}</head>", 1
         )
         page_updates.append((page, page_html))
 
@@ -1358,8 +1362,9 @@ def _gridded_notebook_text(
         filedata = file.read()
 
     if _gridded_vertical(data_dir, variable, source):
+        # the title starts the heading, so it starts with a capital
         filedata = filedata.replace(
-            "# Sea surface template_title validation", "# template_title validation", 1
+            "# Sea surface template_title validation", f"# {title[:1].upper()}{title[1:]} validation", 1
         )
 
     # Replace the target string

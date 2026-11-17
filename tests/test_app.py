@@ -3,6 +3,7 @@ matchup and validate in, the window's server and, where a browser can be
 run, the window itself."""
 
 import ast
+import base64
 import datetime
 import glob
 import io
@@ -1460,17 +1461,15 @@ class TestChoosingMatchups:
         arguments = check_validate(dict(DEPTH_FORM, unticked=["nitrate/glodap/all"]), str(tmp_path))[0]
         assert "depth_bins" not in arguments
 
-    def test_the_named_sections_ticked_are_validates_transect(self, tmp_path):
-        form = {"section_equator": True, "section_atlantic_25w": True}
-        assert check_report(form, str(tmp_path))[0]["transect"] == ["equator", "atlantic_25w"]
-        # with a line of the user's own after them
-        form = dict(form, transect=True, transect_start_lon="-30", transect_start_lat="0",
+    def test_a_line_of_the_users_own_is_validates_transect(self, tmp_path):
+        # the named sections are not asked for: without a line, validate's default draws the
+        # Equator and 155°W on a global matchup through the water column
+        form = dict(transect=True, transect_start_lon="-30", transect_start_lat="0",
                     transect_end_lon="-30", transect_end_lat="65")
-        assert check_report(form, str(tmp_path))[0]["transect"] == [
-            "equator", "atlantic_25w", {"start": [-30.0, 0.0], "end": [-30.0, 65.0]},
-        ]
-        # none ticked is validate's default
+        assert check_report(form, str(tmp_path))[0]["transect"] == [{"start": [-30.0, 0.0], "end": [-30.0, 65.0]}]
         assert "transect" not in check_report({}, str(tmp_path))[0]
+        # a section ticked in an old form is not passed
+        assert "transect" not in check_report({"section_equator": True}, str(tmp_path))[0]
 
     def test_the_map_depths_box_is_validates_map_depths(self, tmp_path):
         assert check_report({"map_depths": "1000, 200"}, str(tmp_path))[0]["map_depths"] == [200, 1000]
@@ -6235,7 +6234,7 @@ def test_the_report_options_are_those_the_matchups_ticked_take_in_a_browser(brow
 def test_customizing_the_output_for_every_matchup_together_in_a_browser(browser, tmp_path, monkeypatch):
     """The two questions go on as they are answered, with no Continue: No to customizing is the
     detailed report (the last page), and Yes, then No to variable by variable, is one page of
-    boxes for every matchup. The x on a box leaves its figure out, greying it out, and Add back
+    boxes for every matchup. The x on a box leaves its figure out, greying it out, and +
     keeps it again."""
     app, page, validated = open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch)
     try:
@@ -6293,10 +6292,10 @@ def test_customizing_the_output_for_every_matchup_together_in_a_browser(browser,
         card("monthly_maps").locator(".report-item__remove").click()
         assert "is-removed" in card("monthly_maps").get_attribute("class")
         assert card("monthly_maps").locator(".report-item__left").text_content() == "Left out of the report"
-        assert card("monthly_maps").locator(".report-item__remove").text_content() == "Add back"
+        assert card("monthly_maps").locator(".report-item__remove").text_content() == "+"
         # which keeps the others
         assert "is-removed" not in card("clim_map").get_attribute("class")
-        # Add back keeps it again, and x again leaves it out
+        # + keeps it again, and x again leaves it out
         card("monthly_maps").locator(".report-item__remove").click()
         assert "is-removed" not in card("monthly_maps").get_attribute("class")
         card("monthly_maps").locator(".report-item__remove").click()
@@ -9412,3 +9411,117 @@ def test_back_is_an_arrow_left_of_restart(browser, tmp_path):
         assert page.locator("#restart-open").is_visible() and page.locator("#back-open").is_visible()
     finally:
         app.close()
+
+
+# a 1x1 PNG, for the examples and maps the window is given in these tests (each is drawn in test_report_examples)
+_PIXEL = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
+@pytest.mark.customize_question
+def test_the_tiles_are_numbered_and_show_an_example_in_a_browser(browser, tmp_path, monkeypatch):
+    """Each tile has its place in the report at its left, + to keep it again once left out, and a
+    picture button that shows an example of its figure, or table, in a pop-out."""
+    asked = []
+
+    def example(item):
+        asked.append(item)
+        if item == "stats_table":
+            return {"ok": True, "kind": "table", "html": "<table class='example-table'><tr><td>1.5</td></tr></table>"}
+        return {"ok": True, "kind": "image", "data": _PIXEL}
+
+    monkeypatch.setattr(app_module.report_examples, "example", example)
+    app, page, validated = open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch)
+    try:
+        # no named sections to tick, and no note that they are drawn without
+        assert page.locator("#v-section_equator").count() == 0
+        assert "Copernicus Marine quality documents" not in page.text_content("#v-group-transect")
+        page.click("#v-next")
+        page.wait_for_selector("#v-page-customize:not([hidden])")
+        assert page.text_content("#v-customize-concise .choice__text") == "The core figures and tables."
+        assert page.text_content("#v-customize-yes .choice__text") == (
+            "Choose which figures and analyses to leave out of the report."
+        )
+        page.click("#v-customize-yes")
+        page.click("#v-each-no")
+        page.wait_for_selector("#v-page-items:not([hidden])")
+        # no instructions: the x and + speak for themselves
+        assert page.locator("#v-page-items .lede").count() == 0
+        card = lambda item: page.locator(f'#v-items-groups [data-item="{item}"]')
+        # numbered 1, 2, 3... in each group, in the order of the report
+        gridded = page.locator(".report-items__group").first
+        numbers = gridded.locator(".report-item__num").all_text_contents()
+        assert numbers == [str(k) for k in range(1, len(numbers) + 1)]
+        assert gridded.locator(".report-item__title").all_text_contents()[:4] == [
+            "Annual mean maps", "Annual bias map", "Density scatter plot of model vs. observations",
+            "Spatial correlation table",
+        ]
+        # the number stays on a tile left out, which + adds back
+        card("monthly_maps").locator(".report-item__remove").click()
+        assert card("monthly_maps").locator(".report-item__remove").text_content() == "+"
+        assert card("monthly_maps").locator(".report-item__num").is_visible()
+
+        # the example of a figure, in a pop-out
+        card("density_scatter").locator(".report-item__example").click()
+        page.wait_for_selector("#figure-dialog .figure-img")
+        assert page.text_content("#figure-title") == "Density scatter plot of model vs. observations"
+        assert page.text_content("#figure-where") == "An example, drawn from made-up data"
+        assert page.get_attribute("#figure-dialog .figure-img", "src") == f"data:image/png;base64,{_PIXEL}"
+        page.keyboard.press("Escape")
+        assert page.is_hidden("#figure-dialog")
+        # and of a table
+        card("stats_table").locator(".report-item__example").click()
+        page.wait_for_selector("#figure-dialog .figure-table td")
+        assert page.text_content("#figure-dialog .figure-table td") == "1.5"
+        page.click("#figure-close")
+        assert asked == ["density_scatter", "stats_table"]
+        # the example button does not leave the tile out
+        assert "is-removed" not in card("density_scatter").get_attribute("class")
+    finally:
+        app.close()
+
+
+def test_map_it_shows_the_regions_chosen_in_a_browser(browser, tmp_path, monkeypatch):
+    """Map it is beside the regional summaries once a set is chosen, and shows its map in a pop-out."""
+    mapped = []
+
+    def regions_map(self, subregions, path):
+        mapped.append((subregions, path))
+        return {"ok": True, "kind": "image", "data": _PIXEL}
+
+    monkeypatch.setattr(App, "regions_map", regions_map)
+    app, page, validated = open_report_options_of_mixed_matchups(browser, tmp_path, monkeypatch)
+    try:
+        assert page.is_hidden("#v-subregions-map")
+        page.select_option("#v-subregions", "nwes")
+        page.wait_for_selector("#v-subregions-map:not([hidden])")
+        page.click("#v-subregions-map")
+        page.wait_for_selector("#figure-dialog .figure-img")
+        assert page.text_content("#figure-title") == "Northwest European Shelf subregions"
+        page.click("#figure-close")
+        # a file of the user's own has nothing to map until its path is given
+        page.select_option("#v-subregions", "file")
+        assert page.is_hidden("#v-subregions-map")
+        page.fill("#v-subregions_file", "regions.nc")
+        page.wait_for_selector("#v-subregions-map:not([hidden])")
+        page.click("#v-subregions-map")
+        page.wait_for_selector("#figure-dialog .figure-img")
+        assert mapped == [("nwes", ""), ("file", "regions.nc")]
+    finally:
+        app.close()
+
+
+class TestRegionsMap:
+    """The map of a set of regions the window's Map it shows (App.regions_map)."""
+
+    def test_a_built_in_set_is_mapped(self, tmp_path):
+        reply = App(cwd=str(tmp_path)).regions_map("nwes", "")
+        assert reply["ok"] and reply["kind"] == "image"
+        assert base64.b64decode(reply["data"])[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_nothing_chosen_or_a_missing_file_says_so(self, tmp_path):
+        app = App(cwd=str(tmp_path))
+        assert app.regions_map("", "") == {"ok": False, "error": "Choose a set of regions first."}
+        reply = app.regions_map("file", "missing.nc")
+        assert not reply["ok"] and reply["error"]

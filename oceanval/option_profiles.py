@@ -253,7 +253,7 @@ def annotate(matchups, data_dir=None):
 # the report options that are about one kind of matchup, with the form's boxes each is made of
 OPTION_BOXES = {
     "subregions": ("subregions", "subregions_file"),
-    "transect": ("transect", "section_equator", "section_pacific_155w", "section_atlantic_25w"),
+    "transect": ("transect",),
     "map_depths": ("map_depths",),
     "fixed_scale": ("fixed_scale",),
     "depth_bins": ("depth_bins",),

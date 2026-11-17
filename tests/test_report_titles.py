@@ -7,20 +7,24 @@ import oceanval
 from oceanval import skill
 
 
-def _title(data_dir, vertical):
+def _title(data_dir, vertical, title="Nitrate"):
     folder = data_dir / "oceanval_matchups" / "gridded" / "nitrate"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "woa23_nitrate_surface.nc").write_text("")
     if vertical:
         (folder / "woa23_nitrate_vertical.nc").write_text("")
     text = oceanval._gridded_notebook_text(
-        "woa23", "nitrate", "Nitrate", True, str(data_dir), None, None, None,
+        "woa23", "nitrate", title, True, str(data_dir), None, None, None,
     )
     return "".join(json.loads(text)["cells"][0]["source"])
 
 
 def test_a_matchup_through_the_water_column_is_not_titled_sea_surface(tmp_path):
     assert _title(tmp_path, vertical=True) == "# Nitrate validation using gridded observations from WOA23"
+
+
+def test_the_title_starts_with_a_capital(tmp_path):
+    assert _title(tmp_path, vertical=True, title="nitrate").startswith("# Nitrate validation")
 
 
 def test_a_matchup_of_the_surface_alone_is(tmp_path):

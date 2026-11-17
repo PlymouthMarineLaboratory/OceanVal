@@ -89,6 +89,13 @@ jobs:
         run: |
           micromamba list | grep -Ei "^ *(openmpi|ucx|mpich) |mpi_(openmpi|mpich)" && { echo "an MPI build of a library was installed"; exit 1; } || echo "no MPI builds installed"
 
+      # OceanVal needs no R (every figure is Python, plotnine where ggplot2 drew it): stop here if R, rpy2 or
+      # an R package (r-*) is in the env, as something has brought it back
+      - name: Check no R is installed
+        shell: bash -l {0}
+        run: |
+          micromamba list | grep -E "^ *(r-[a-z0-9.]+|r-base|rpy2) " && { echo "R or an R package was installed"; exit 1; } || echo "no R installed"
+
       # OceanVal needs jupyter-book 2 or later, so make sure the solver gave us it
       - name: Check jupyter-book is version 2, and the oceanval command is installed
         shell: bash -l {0}

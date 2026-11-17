@@ -625,6 +625,7 @@ class InterimReport:
             [os.path.join(self.notebooks_dir, f"{stem}.ipynb") for stem in stems],
             raw_dir=self.raw_dir,
             banner=_banner(len(self.pages), len(self.expected), complete),
+            gallery=True,
         )
         landing = "summary" if "summary" in stems else stems[0] if stems else None
         if landing is not None:

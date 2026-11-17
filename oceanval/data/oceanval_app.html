@@ -81,7 +81,22 @@
   .report-items__kind { margin: 0 0 12px; color: var(--muted); font: 700 13px/1.3 var(--font-head); letter-spacing: 0.05em; text-transform: uppercase; }
   .report-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
   @media (max-width: 860px) { .report-items { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .choice.report-item { position: relative; aspect-ratio: auto; min-height: 132px; padding: 18px 54px 18px 18px; gap: 6px; cursor: default; }
+  .choice.report-item { position: relative; aspect-ratio: auto; min-height: 132px; padding: 18px 54px 18px 66px; gap: 6px; cursor: default; }
+  /* the tile's place in the report, at its left */
+  .report-item__num {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%); display: grid; place-content: center;
+    width: 34px; height: 34px; border-radius: 50%; background: var(--teal-50); color: var(--teal-700);
+    font: 700 15px/1 var(--font-head); font-variant-numeric: tabular-nums;
+  }
+  .report-item.is-removed .report-item__num { background: var(--line); color: var(--muted-light); }
+  /* the picture at the bottom right: an example of the figure, in a pop-out */
+  .report-item__example {
+    position: absolute; right: 10px; bottom: 10px; display: grid; place-content: center; width: 32px; height: 32px;
+    border: 1px solid transparent; border-radius: var(--radius-sm); background: none; color: var(--teal-700); cursor: pointer;
+  }
+  .report-item__example svg { width: 19px; height: 19px; }
+  .report-item__example:hover { background: var(--teal-50); }
+  .report-item__example:focus-visible { outline: none; box-shadow: var(--focus); }
   .report-item .choice__title { font-size: 16.5px; }
   .report-item .choice__text { font-size: 14px; }
   .report-item__note { color: var(--muted-light); font-size: 12.5px; font-style: italic; }
@@ -93,7 +108,7 @@
   }
   .report-item__remove:hover { background: var(--line); color: var(--red); }
   .report-item__remove:focus-visible { outline: none; box-shadow: var(--focus); }
-  .report-item__remove.is-add { border-color: var(--teal-200); background: var(--bg); color: var(--teal-700); font-size: 13px; font-weight: 700; }
+  .report-item__remove.is-add { border-color: var(--teal-200); background: var(--bg); color: var(--teal-700); }
   .report-item__remove.is-add:hover { background: var(--teal-50); color: var(--teal-700); }
   .choice.report-item.is-removed { border-style: dashed; background: var(--bg-alt); box-shadow: none; }
   .report-item.is-removed .choice__title, .report-item.is-removed .choice__text, .report-item.is-removed .report-item__note { color: var(--muted-light); }
@@ -1322,6 +1337,17 @@
   .info-btn:hover { background: var(--teal-50); color: var(--teal-900); }
   .info-btn:focus-visible { outline: none; box-shadow: var(--focus); }
   .picker__card.example-card { max-width: 720px; }
+  .picker__card.figure-card { max-width: 1100px; }
+  .figure-body { flex: 1; min-height: 160px; overflow: auto; padding: 4px 22px 12px; overscroll-behavior: contain; }
+  .figure-wait { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 160px; color: var(--muted); font-size: 15px; }
+  .figure-img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  .figure-error { margin: 24px 0; color: var(--red); font-weight: 600; }
+  .example-table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  .example-table th { padding: 7px 10px; border-bottom: 2px solid var(--line); color: var(--ink); text-align: left; }
+  .example-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+  /* Map it, beside the regions chosen */
+  .map-it-row { display: flex; align-items: center; gap: 12px; }
+  .map-it-row .s-select { flex: 1; min-width: 0; }
   .example-where { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
   .example-body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px 8px; overscroll-behavior: contain; }
   .example-text p { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
@@ -2090,7 +2116,7 @@
         </fieldset>
         <fieldset class="group" id="v-group-subregions">
           <legend>Which regional summaries do you want?</legend>
-          <div class="g-row">
+          <div class="g-row map-it-row">
             <select class="s-select" id="v-subregions" aria-label="Which regional summaries do you want?">
               <option value="">None</option>
               <option value="nwes">Northwest European Shelf subregions</option>
@@ -2100,21 +2126,13 @@
               <option value="biomes">Global ocean biomes (Fay and McKinley 2014)</option>
               <option value="file">A .nc file of your own…</option>
             </select>
+            <button type="button" class="btn btn--ghost" id="v-subregions-map" hidden>Map it</button>
           </div>
           <label class="g-row" id="row-subregions_file" hidden><span class="g-label">Path to the file</span><input class="s-input is-mono" id="v-subregions_file" placeholder="/path/to/regions.nc" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"></label>
           <p class="group__msg" id="vm-subregions"></p>
         </fieldset>
         <fieldset class="group" id="v-group-transect">
           <legend>Transect</legend>
-          <div class="g-row detail-row" role="group" aria-labelledby="v-sections-label">
-            <span class="g-label" id="v-sections-label">Which standard sections do you want?</span>
-            <div class="ticks">
-              <label class="tick-label"><input type="checkbox" class="tick" id="v-section_equator">The Equator</label>
-              <label class="tick-label"><input type="checkbox" class="tick" id="v-section_pacific_155w">155°W, Pacific</label>
-              <label class="tick-label"><input type="checkbox" class="tick" id="v-section_atlantic_25w">25°W, Atlantic</label>
-            </div>
-          </div>
-          <p class="group__intro">With none ticked, a global dataset validated through the water column gets the Equator and 155°W, as in the Copernicus Marine quality documents.</p>
           <div class="g-row"><label class="tick-label"><input type="checkbox" class="tick" id="v-transect">Do you want to validate against gridded datasets along a transect of your own?</label></div>
           <div id="row-transect" hidden>
             <p class="group__intro transect-rule">The transect must run <strong>north–south</strong>, with the same longitude at both ends, or <strong>east–west</strong>, with the same latitude at both ends.</p>
@@ -2204,7 +2222,7 @@
           <button type="button" class="choice" id="v-customize-concise" role="radio" aria-checked="false">
             <span class="choice__icon" data-icon="check"></span>
             <span class="choice__title">Concise</span>
-            <span class="choice__text">The core figures and tables. Quicker to build: it leaves out the newer, more detailed figures.</span>
+            <span class="choice__text">The core figures and tables.</span>
           </button>
           <button type="button" class="choice" id="v-customize-no" role="radio" aria-checked="false">
             <span class="choice__icon" data-icon="report"></span>
@@ -2214,7 +2232,7 @@
           <button type="button" class="choice" id="v-customize-yes" role="radio" aria-checked="false">
             <span class="choice__icon" data-icon="preferences"></span>
             <span class="choice__title">Customize</span>
-            <span class="choice__text">Choose which figures and analyses to leave out of the report, in the next steps.</span>
+            <span class="choice__text">Choose which figures and analyses to leave out of the report.</span>
           </button>
         </div>
       </div>
@@ -2241,7 +2259,6 @@
         <h2 class="report-items__title" id="v-items-title"></h2>
         <span class="report-items__count" id="v-items-count"></span>
       </div>
-      <p class="lede">Click the <strong>×</strong> on a box to leave that figure or analysis out of the report. A box left out is greyed out: click <strong>Add back</strong> to keep it after all.</p>
       <div id="v-items-groups"></div>
     </div>
   </section>
@@ -3176,6 +3193,22 @@
     </div>
     <div class="picker__foot">
       <button type="button" class="btn btn--primary" id="example-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- a figure in a pop-out: an example of one of the report's figures (a tile's picture button), or the map of the regions (Map it) -->
+<div class="picker" id="figure-dialog" hidden>
+  <div class="picker__card figure-card" role="dialog" aria-modal="true" aria-labelledby="figure-title">
+    <div class="picker__head">
+      <div>
+        <h2 id="figure-title"></h2>
+        <p class="example-where" id="figure-where"></p>
+      </div>
+    </div>
+    <div class="figure-body" id="figure-body"></div>
+    <div class="picker__foot">
+      <button type="button" class="btn btn--primary" id="figure-close">Close</button>
     </div>
   </div>
 </div>
@@ -9292,8 +9325,7 @@
   const TRANSECT_BOXES = ["transect_start_lon", "transect_start_lat", "transect_end_lon", "transect_end_lat"];
   const VALIDATE_TEXT = ["data_dir", "out_dir", ...SUBSET_BOXES, ...MISSING_BOXES, "subregions", "subregions_file",
     ...TRANSECT_BOXES, "map_depths"];
-  const SECTION_TICKS = ["section_equator", "section_pacific_155w", "section_atlantic_25w"];
-  const VALIDATE_TICKS = ["fixed_scale", "pdf", "word", "zip", "transect", ...SECTION_TICKS];
+  const VALIDATE_TICKS = ["fixed_scale", "pdf", "word", "zip", "transect"];
   const VALIDATE_GROUPS = {
     "vm-data_dir": ["data_dir"],
     "vm-out_dir": ["out_dir"],
@@ -9774,6 +9806,9 @@
 
   function refreshValidate() {
     $("row-subregions_file").hidden = validateForm.subregions !== "file";
+    // Map it, once there are regions to map
+    $("v-subregions-map").hidden = !validateForm.subregions
+      || (validateForm.subregions === "file" && !String(validateForm.subregions_file || "").trim());
     const noneTicked = refreshDatasets();
     $("row-transect").hidden = !validateForm.transect;
     const transect = transectCheck();
@@ -9926,8 +9961,8 @@
       && !mine.some((matchup) => matchup.items.includes(item.id))) return false;
     return item.when.every((condition) => {
       if (condition === "subregions") return Boolean(validateForm.subregions);
-      // a transect of the user's own, a named section, or the default sections of a global matchup through the water column
-      if (condition === "transect") return Boolean(validateForm.transect) || SECTION_TICKS.some((name) => validateForm[name])
+      // a transect of the user's own, or the default sections of a global matchup through the water column
+      if (condition === "transect") return Boolean(validateForm.transect)
         || gridded.some((matchup) => matchup.vertical && matchup.default_sections !== false);
       if (condition === "vertical") return gridded.some((matchup) => matchup.vertical);
       if (condition === "all_layer") return point.some((matchup) => matchup.layer === "all");
@@ -10014,9 +10049,11 @@
     return matchups.some((matchup) => (item.page === "summary" || matchup.kind === item.page) && matchup.known !== true);
   }
 
-  function itemCard(item, page) {
+  // a tile: its place in the report (number), and a picture button that shows an example of it
+  function itemCard(item, page, number) {
     const removed = removedOn(page).includes(item.id);
     return el("div", { class: `choice report-item${removed ? " is-removed" : ""}${item.in_development ? " is-dev" : ""}`, "data-item": item.id },
+      el("span", { class: "report-item__num", "aria-hidden": "true", text: String(number) }),
       item.in_development ? el("span", { class: "report-item__dev", text: "In development" }) : null,
       el("span", { class: "choice__title report-item__title", text: item.label }),
       el("span", { class: "choice__text", text: item.text }),
@@ -10027,7 +10064,7 @@
         class: `report-item__remove${removed ? " is-add" : ""}`,
         "aria-label": removed ? `Add ${item.label} back to the report` : `Remove ${item.label} from the report`,
         title: removed ? "Add it back to the report" : "Leave it out of the report",
-        text: removed ? "Add back" : "×",
+        text: removed ? "+" : "×",
         onclick: (event) => {
           event.stopPropagation();
           setRemoved(page, item.id, !removed);
@@ -10035,8 +10072,76 @@
           const again = document.querySelector(`#v-items-groups [data-item="${item.id}"] .report-item__remove`);
           if (again) again.focus();
         },
+      }),
+      el("button", {
+        type: "button",
+        class: "report-item__example",
+        "aria-haspopup": "dialog",
+        "aria-label": `See an example of ${item.label}`,
+        title: "See an example",
+        html: ICONS.image,
+        onclick: (event) => {
+          event.stopPropagation();
+          openFigure(item.label, "An example, drawn from made-up data", `api/validate/example?${query({ item: item.id })}`, event.currentTarget);
+        },
       }));
   }
+
+  // ---- a figure in a pop-out: an example of a figure of the report, or the map of the regions ----
+  // drawn by the server when asked (oceanval.report_examples, regions.panel_map); a spinner until it comes
+  const figureDialog = { opener: null, request: 0 };
+
+  async function openFigure(title, where, url, opener) {
+    figureDialog.opener = opener;
+    const request = ++figureDialog.request;
+    $("figure-title").textContent = title;
+    $("figure-where").textContent = where;
+    $("figure-body").replaceChildren(el("div", { class: "figure-wait", role: "status" },
+      el("span", { class: "identify__spinner", "aria-hidden": "true" }), el("span", { text: "Drawing it…" })));
+    $("figure-dialog").hidden = false;
+    $("figure-close").focus();
+    let reply;
+    try {
+      reply = await (await fetch(url, { cache: "no-store" })).json();
+    } catch (error) {
+      reply = { ok: false, error: "The window could not reach OceanVal." };
+    }
+    // closed, or another asked for, while this was drawn
+    if (request !== figureDialog.request || $("figure-dialog").hidden) return;
+    if (!reply.ok) {
+      $("figure-body").replaceChildren(el("p", { class: "figure-error", text: reply.error || "It could not be drawn." }));
+    } else if (reply.kind === "table") {
+      const table = el("div", { class: "figure-table" });
+      table.innerHTML = reply.html; // the server's own table of made-up numbers
+      $("figure-body").replaceChildren(table);
+    } else {
+      $("figure-body").replaceChildren(el("img", { class: "figure-img", alt: title, src: `data:image/png;base64,${reply.data}` }));
+    }
+  }
+
+  function closeFigure() {
+    if ($("figure-dialog").hidden) return;
+    $("figure-dialog").hidden = true;
+    figureDialog.request += 1;
+    if (figureDialog.opener && document.contains(figureDialog.opener)) figureDialog.opener.focus();
+  }
+
+  $("figure-close").addEventListener("click", closeFigure);
+  $("figure-dialog").addEventListener("click", (event) => { if (event.target === $("figure-dialog")) closeFigure(); });
+  $("figure-dialog").addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeFigure();
+  });
+
+  // Map it: the regions chosen, each on a map of its own
+  $("v-subregions-map").addEventListener("click", (event) => {
+    const own = validateForm.subregions === "file";
+    const name = own ? "Your regions" : $("v-subregions").selectedOptions[0].textContent;
+    openFigure(name, "Each region on a map of its own", `api/regions/map?${query({
+      subregions: validateForm.subregions || "", path: own ? validateForm.subregions_file || "" : "" })}`, event.currentTarget);
+  });
 
   let reportItemsShown = null;
   function renderReportItems(page) {
@@ -10058,7 +10163,7 @@
       ...groups.filter(([, items]) => items.length).map(([heading, items]) =>
       el("section", { class: "report-items__group" },
         heading ? el("h3", { class: "report-items__kind", text: heading }) : null,
-        el("div", { class: "report-items" }, ...items.map((item) => itemCard(item, page))))));
+        el("div", { class: "report-items" }, ...items.map((item, index) => itemCard(item, page, index + 1))))));
   }
 
   // the page shown, of the options and the pages after them
