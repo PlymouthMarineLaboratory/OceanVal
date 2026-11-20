@@ -527,199 +527,71 @@ def _label(name, unit):
     return f"{name} ({unit})" if unit else name
 
 
-def _extend(values, low, high):
-    """Which ends of a colour bar need arrows, for values beyond it."""
-    below = len(values) > 0 and values.min() < low
-    above = len(values) > 0 and values.max() > high
-    return "both" if below and above else "min" if below else "max" if above else "neither"
-
-
-def _colour_scales(frame, log=False):
-    """The colour scales of a transect's plots: model and observations on
-    one viridis scale, limited to the 2nd and 98th percentiles of the two
-    together (log10 if log, as for chlorophyll), and the bias on
-    blue-white-red, symmetric about zero and limited to its 98th percentile.
-
-    Returns (values norm, values extend, bias norm, bias extend).
-    """
-    from matplotlib.colors import LogNorm, Normalize
-
-    values = pd.concat([frame.model, frame.observation]).dropna()
-    low, high = (float(x) for x in np.percentile(values, [2, 98]))
-    if high <= low:
-        pad = abs(low) * 0.01 or 0.5
-        low, high = low - pad, high + pad
-    if log and low > 0:
-        values_norm = LogNorm(vmin=low, vmax=high)
-    else:
-        values_norm = Normalize(vmin=low, vmax=high)
-    bias = frame.bias.dropna()
-    largest = float(np.percentile(bias.abs(), 98)) if len(bias) else 0.0
-    if largest <= 0:
-        largest = float(bias.abs().max()) if len(bias) else 0.0
-    if largest <= 0:
-        largest = 1.0
-    bias_norm = Normalize(vmin=-largest, vmax=largest)
-    return (
-        values_norm,
-        _extend(values, low, high),
-        bias_norm,
-        _extend(bias, -largest, largest),
-    )
-
-
 def _position_axis(transect):
-    """The label and tick formatter of the latitude or longitude axis."""
-    from matplotlib.ticker import FuncFormatter
-
+    """The title and the labels (a function of the values) of a transect's
+    latitude or longitude axis."""
     if direction(transect) == "north-south":
-        return "Latitude", FuncFormatter(lambda value, _: format_lat(value))
-    return "Longitude", FuncFormatter(lambda value, _: format_lon(value))
+        return "Latitude", lambda values: [format_lat(v) for v in values]
+    return "Longitude", lambda values: [format_lon(v) for v in values]
 
 
-# the panels of each plot: title, and the data frame's column
-PANELS = (
-    ("Model", "model"),
-    ("Observation", "observation"),
-    ("Model − observation", "bias"),
-)
+def months_plot(frame, transect, unit, name, log=False):
+    """The plotnine plot of plot_months (plotnine_figures.transect_months)."""
+    from oceanval import plotnine_figures as pf
 
-
-def _colour_bars(fig, axes, meshes, values_extend, bias_extend, name, unit):
-    """One colour bar for the model and observations, which share a scale,
-    and one for the bias."""
-    fig.colorbar(
-        meshes[1], ax=list(axes[:2]), extend=values_extend, label=_label(name, unit)
-    )
-    fig.colorbar(
-        meshes[2],
-        ax=axes[2],
-        extend=bias_extend,
-        label=_label("model − observation", unit),
-    )
+    position_label, labels = _position_axis(transect)
+    return pf.transect_months(frame, direction(transect) == "north-south", position_label, labels,
+                              name[:1].upper() + name[1:], unit, log=log)
 
 
 def plot_months(frame, transect, unit, name, log=False):
-    """The model, observations and bias along the transect in each month.
+    """The model, observations and bias along the transect in each month, in
+    the house layout (plotnine_figures.paired_heat): the model and the
+    observations on one scale, then the bias, symmetric about 0.
 
     A north-south line is shown by month (across) and latitude (up), and an
     east-west one by longitude (across) and month (down), so north is up
     and east is right, as on the map.
     """
-    import matplotlib.pyplot as plt
+    from oceanval import plotnine_figures as pf
 
-    months = sorted(int(month) for month in frame.month.unique())
-    positions = np.sort(frame.position.unique())
-    values_norm, values_extend, bias_norm, bias_extend = _colour_scales(frame, log)
-    position_label, formatter = _position_axis(transect)
-    month_names = [calendar.month_abbr[month] for month in months]
-    north_south = direction(transect) == "north-south"
-    # about as wide as the report's other figures
-    if north_south:
-        fig, axes = plt.subplots(1, 3, figsize=(10, 4.6), sharey=True, layout="constrained")
-    else:
-        fig, axes = plt.subplots(
-            3, 1, figsize=(8.5, 8.5), sharex=True, sharey=True, layout="constrained"
-        )
-    meshes = []
-    for ax, (title, column) in zip(axes, PANELS):
-        grid = frame.pivot_table(
-            index="position", columns="month", values=column, dropna=False
-        ).reindex(index=positions, columns=months)
-        values = np.ma.masked_invalid(grid.values)
-        colours = "bwr" if column == "bias" else "viridis"
-        norm = bias_norm if column == "bias" else values_norm
-        if north_south:
-            mesh = ax.pcolormesh(
-                np.arange(len(months)), positions, values,
-                cmap=colours, norm=norm, shading="nearest",
-            )
-            # a third of the figure is too narrow for the month names side by side
-            ax.set_xticks(range(len(months)), month_names, rotation=90)
-            ax.yaxis.set_major_formatter(formatter)
-            ax.set_xlabel("Month")
-        else:
-            mesh = ax.pcolormesh(
-                positions, np.arange(len(months)), values.T,
-                cmap=colours, norm=norm, shading="nearest",
-            )
-            ax.set_yticks(range(len(months)), month_names)
-            ax.xaxis.set_major_formatter(formatter)
-            ax.set_ylabel("Month")
-        # what has no values shows as land, as on the map
-        ax.set_facecolor(LAND)
-        ax.set_title(title)
-        meshes.append(mesh)
-    if north_south:
-        axes[0].set_ylabel(position_label)
-    else:
-        # January at the top, in all three, as they share the month axis
-        axes[0].invert_yaxis()
-        axes[-1].set_xlabel(position_label)
-    _colour_bars(fig, axes, meshes, values_extend, bias_extend, name, unit)
-    return fig
+    size = (10, 6.4) if direction(transect) == "north-south" else (8.5, 9.5)
+    return pf.draw(months_plot(frame, transect, unit, name, log=log), size)
+
+
+def line_plot(frame, transect, unit, name):
+    """The plotnine plot of plot_line (plotnine_figures.transect_line)."""
+    from oceanval import plotnine_figures as pf
+
+    position_label, labels = _position_axis(transect)
+    return pf.transect_line(frame, position_label, labels, _label(name, unit))
 
 
 def plot_line(frame, transect, unit, name):
     """The model and observations along the transect, for a matchup with a
     single time step, which has no months to show."""
-    import matplotlib.pyplot as plt
+    from oceanval import plotnine_figures as pf
 
-    data = frame.groupby("position")[["model", "observation"]].mean()
-    position_label, formatter = _position_axis(transect)
-    fig, ax = plt.subplots(figsize=(8, 4.2), layout="constrained")
-    ax.plot(data.index, data.model, color="#d62728", linewidth=2, label="Model")
-    ax.plot(data.index, data.observation, color="#1f77b4", linewidth=2, label="Observation")
-    ax.xaxis.set_major_formatter(formatter)
-    ax.set_xlabel(position_label)
-    ax.set_ylabel(_label(name, unit))
-    ax.grid(alpha=0.3)
-    ax.legend(frameon=False)
-    return fig
+    return pf.draw(line_plot(frame, transect, unit, name), (8, 4.2))
+
+
+def section_plot(frame, transect, unit, name, log=False, contours=None):
+    """The plotnine plot of plot_section (plotnine_figures.transect_section)."""
+    from oceanval import plotnine_figures as pf
+
+    position_label, labels = _position_axis(transect)
+    return pf.transect_section(frame, position_label, labels, name[:1].upper() + name[1:], unit, log=log,
+                               contours=contours)
 
 
 def plot_section(frame, transect, unit, name, log=False, contours=None):
     """The model, observations and bias along the transect through the water
-    column: latitude or longitude across, and depth down. contours are values
-    drawn as lines on the model and the observations (oxygen's OXYGEN_CONTOURS)."""
-    import matplotlib.pyplot as plt
-    from matplotlib.ticker import MaxNLocator
+    column: latitude or longitude across, and depth down, in the house layout
+    (plotnine_figures.paired_heat). contours are values drawn as lines on the
+    model and the observations (oxygen's OXYGEN_CONTOURS)."""
+    from oceanval import plotnine_figures as pf
 
-    positions = np.sort(frame.position.unique())
-    depths = np.sort(frame.depth.unique())
-    values_norm, values_extend, bias_norm, bias_extend = _colour_scales(frame, log)
-    position_label, formatter = _position_axis(transect)
-    fig, axes = plt.subplots(1, 3, figsize=(10, 4.2), sharey=True, layout="constrained")
-    meshes = []
-    for ax, (title, column) in zip(axes, PANELS):
-        grid = frame.pivot_table(
-            index="depth", columns="position", values=column, dropna=False
-        ).reindex(index=depths, columns=positions)
-        mesh = ax.pcolormesh(
-            positions, depths, np.ma.masked_invalid(grid.values),
-            cmap="bwr" if column == "bias" else "viridis",
-            norm=bias_norm if column == "bias" else values_norm,
-            shading="nearest",
-        )
-        if contours and column != "bias" and np.isfinite(grid.values).sum() > 3:
-            ax.contour(
-                positions, depths, np.ma.masked_invalid(grid.values), levels=sorted(contours),
-                colors="black", linewidths=0.8,
-            )
-        # the seabed, and anything else without values, shows as land
-        ax.set_facecolor(LAND)
-        # few enough latitudes or longitudes for their labels to fit a third of the figure
-        ax.xaxis.set_major_locator(MaxNLocator(4))
-        ax.xaxis.set_major_formatter(formatter)
-        ax.set_xlabel(position_label)
-        ax.set_title(title)
-        meshes.append(mesh)
-    axes[0].set_ylabel("Depth (m)")
-    # the surface at the top, and the axis from the shallowest depth to the
-    # deepest, rather than half a cell beyond each
-    axes[0].set_ylim(depths.max(), depths.min())
-    _colour_bars(fig, axes, meshes, values_extend, bias_extend, name, unit)
-    return fig
+    return pf.draw(section_plot(frame, transect, unit, name, log=log, contours=contours), (10, 6.4))
 
 
 def _land():

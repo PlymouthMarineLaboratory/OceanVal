@@ -21,6 +21,7 @@ else:
     from multiprocess.managers import SyncManager
 import pathlib
 import os
+import numpy as np
 import pandas as pd
 import string
 import random
@@ -44,7 +45,11 @@ from oceanval import cdo_watch
 from oceanval import extent
 from oceanval import glodap
 from oceanval import hansell
+from oceanval import nsbs
 from oceanval import ices
+from oceanval import en4
+from oceanval import strat_match
+from oceanval import stratification
 from oceanval import live
 from oceanval import surface
 from oceanval import model_check
@@ -58,7 +63,7 @@ from oceanval import user_cache
 
 # the module that downloads each built-in point source, by the "kind" of the
 # recipe dict add_point_comparison keeps
-POINT_SOURCES = {"ices": ices, "glodapv3": glodap, "hansell": hansell}
+POINT_SOURCES = {"ices": ices, "glodapv3": glodap, "hansell": hansell, "nsbs": nsbs, "en4": en4}
 
 
 def climatological(point_time_res):
@@ -609,7 +614,7 @@ nc.options(progress=False)
 TOP_CELL_OFFSET = 1e-4
 
 
-def _top_cell_depths(locs, ds_depths, path, model_variable):
+def _top_cell_depths(locs, ds_depths, path, model_variable, nearest=False):
     """
     The depth of the centre of the model's top cell at each lon/lat of locs,
     as a dataframe of lon, lat and top_depth, or as one number for output on
@@ -617,15 +622,7 @@ def _top_cell_depths(locs, ds_depths, path, model_variable):
     Returns None if it cannot be worked out.
     """
     if ds_depths is None:
-        names = model_expr.names(model_variable)
-        levels = None
-        header = [_header_levels(path, name) for name in names]
-        if all(x is not None for x in header):
-            levels = sorted(set().union(*header))
-        else:
-            ds = nc.open_data(path, checks=False)
-            ds.subset(variables=names)
-            levels = ds.levels
+        levels = _file_levels(path, model_variable)
         if len(levels) < 2:
             return None
         return float(min(levels))
@@ -636,7 +633,7 @@ def _top_cell_depths(locs, ds_depths, path, model_variable):
     ds.vertical_min()
     # the depths of raw FVCOM output are on its mesh, which CDO only regrids by nearest
     # neighbour: as nctoolkit's match_points takes FVCOM's depths at the points
-    method = "nn" if session_info.get("fvcom", False) else "bil"
+    method = "nn" if session_info.get("fvcom", False) or nearest else "bil"
     try:
         top = ds.match_points(locs.loc[:, ["lon", "lat"]].drop_duplicates(), quiet=True, regrid=method)
     except ValueError:
@@ -650,6 +647,101 @@ def _top_cell_depths(locs, ds_depths, path, model_variable):
         .rename(columns={"depth": "top_depth"})
         .astype({"top_depth": "float64"})
     )
+
+
+def _file_levels(path, model_variable):
+    """The vertical levels of model_variable in path, sorted: from the header
+    if it says, else as CDO reads them."""
+    names = model_expr.names(model_variable)
+    header = [_header_levels(path, name) for name in names]
+    if all(x is not None for x in header):
+        return sorted(set().union(*header))
+    ds = nc.open_data(path, checks=False)
+    ds.subset(variables=names)
+    return sorted(ds.levels)
+
+
+def _wet_cells(path, model_variable, salinity_variable=None):
+    """The sea cells of the model at the first time of path, surface first:
+    a dataset of wet, 1 where model_variable (the first variable in it) and
+    salinity_variable are given and not exactly 0, and missing elsewhere.
+    Some models write the cells under the sea bed as 0, not missing, as
+    NEMO's last level of COMFORT's AMM7, whose thickness is not 0: a cell
+    whose temperature and salinity are exactly 0 is not water. The missing
+    value is found by isMissval: CDO's setmissval first makes it miss them."""
+    t = model_expr.names(model_variable)[0]
+    s = model_expr.names(salinity_variable)[0] if salinity_variable else None
+    names = [t] + ([s] if s is not None and s != t else [])
+    ds = nc.open_data(path, checks=False)
+    ds.subset(time=0, variables=names)
+    if session_info["as_missing"] is not None:
+        ds.as_missing(session_info["as_missing"])
+    if session_info["invert"]:
+        ds.invert_levels()
+    if len(names) == 1:
+        formula = f"wet=isMissval({t})?0:({t}!=0)"
+    else:
+        formula = f"wet=(isMissval({t})||isMissval({s}))?0:(({t}!=0)&&({s}!=0))"
+    ds.cdo_command(f"-expr,'{formula}'")
+    ds.cdo_command("-setctomiss,0")
+    ds.run()
+    return ds
+
+
+def _bottom_cell_depths(locs, ds_depths, path, model_variable, salinity_variable=None):
+    """
+    The depth of the centre of the model's bottom cell, and the water depth
+    (the sum of the thicknesses of its cells), at each lon/lat of locs, as a
+    dataframe of lon, lat, bottom_depth and water_depth (see
+    oceanval.strat_match). ds_depths is the cells' centre depths (None for
+    output on z-levels, whose depths are the file's levels: the water depth is
+    then the bottom level's depth and half the gap to the level above). The
+    cells are those in which the model's temperature (and salinity) is given,
+    at the first time of path. Returns None if it cannot be worked out.
+    """
+    places = locs.loc[:, ["lon", "lat"]].drop_duplicates()
+    fvcom = bool(session_info.get("fvcom", False))
+    # the cast's own water column, nearest it, whose values are matched too
+    method = "nn"
+    try:
+        if ds_depths is None:
+            levels = _file_levels(path, model_variable)
+            if len(levels) < 2:
+                return None
+            ds = _wet_cells(path, model_variable, salinity_variable)
+            ds.cdo_command("-expr,'bottom_depth=clev(wet)*wet'")
+            ds.vertical_max()
+            found = ds.match_points(places, quiet=True, regrid=method)
+            if found is None:
+                return None
+            found = found.loc[:, ["lon", "lat", "bottom_depth"]].dropna().astype({"bottom_depth": "float64"})
+            levels = np.asarray(levels, dtype=float)
+            # the level matched is that nearest the depth found
+            index = np.abs(found.bottom_depth.to_numpy()[:, None] - levels[None, :]).argmin(axis=1)
+            above = np.where(index > 0, levels[np.maximum(index - 1, 0)], 0.0)
+            found = found.assign(water_depth=found.bottom_depth + (found.bottom_depth - above) / 2)
+            return found.drop_duplicates(["lon", "lat"])
+        depths = nc.open_data(ds_depths[0], checks=False)
+        thickness = nc.open_data(session_info["ds_thickness"], checks=False)
+        # raw FVCOM output, which CDO cannot read, is wet in every sigma layer
+        if not fvcom:
+            wet = _wet_cells(path, model_variable, salinity_variable)
+            depths.multiply(wet)
+            thickness.multiply(wet)
+        depths.vertical_max()
+        depths.rename({depths.variables[0]: "bottom_depth"})
+        thickness.vertical_sum()
+        thickness.rename({thickness.variables[0]: "water_depth"})
+        bottom = depths.match_points(places, quiet=True, regrid=method)
+        water = thickness.match_points(places, quiet=True, regrid=method)
+    except ValueError:
+        # no location is in the sea
+        return None
+    if bottom is None or water is None:
+        return None
+    bottom = bottom.loc[:, ["lon", "lat", "bottom_depth"]].drop_duplicates(["lon", "lat"])
+    water = water.loc[:, ["lon", "lat", "water_depth"]].drop_duplicates(["lon", "lat"])
+    return bottom.merge(water, on=["lon", "lat"]).dropna().astype({"bottom_depth": "float64", "water_depth": "float64"})
 
 
 def _match_above_top_cell(df, top):
@@ -694,8 +786,115 @@ def _surface_is_first_level(path, model_variable):
     return found, small_cache
 
 
+def _model_unit(path, model_variable):
+    """The unit of the first variable of model_variable in path."""
+    the_variable = model_expr.names(model_variable)[0]
+    if session_info.get("fvcom", False):
+        # raw FVCOM output, which CDO cannot read: from its header
+        contents = fvcom_mod.fvcom_contents(path)
+    else:
+        contents = nc.open_data(path, checks=False).contents
+    return list(contents.query("variable == @the_variable").unit)[0]
+
+
+def _save_point_matchup(out, variable, model_variable, comparison, point_time_res, path, model_unit=None):
+    """Save beside the point matchup out (its csv) the definitions, with the
+    model's unit (that of model_variable in path, if not given), and its
+    matchup_dict.pkl: the years it is of, how it was matched and the model
+    variable."""
+    import dill
+
+    definitions[variable].model_unit = model_unit if model_unit is not None else _model_unit(path, model_variable)
+    with open(out.replace(".csv", "_definitions.pkl"), "wb") as f:
+        dill.dump(definitions, file=f)
+
+    point_start, point_end = comparison.get("start", -5000), comparison.get("end", 10000)
+    min_year = max(session_info["min_year"], point_start)
+    max_year = min(session_info["max_year"], point_end)
+    the_dict = {
+        "start": min_year,
+        "end": max_year,
+        "point_time_res": point_time_res,
+        "model_variable": model_variable,
+        "time_shift": session_info["time_shift"],
+    }
+    with open(out.replace(os.path.basename(out), "matchup_dict.pkl"), "wb") as f:
+        pickle.dump(the_dict, f)
+
+
+def _stratification_salinity(path):
+    """The model's salinity for stratification, if every variable of it is
+    in path (the files of its temperature), else None, saying so."""
+    salinity_variable = getattr(definitions[strat_match.STRATIFICATION], "salinity_variable", None)
+    if salinity_variable is None:
+        print("No salinity was given for stratification, so the potential energy anomaly of temperature and salinity is left out")
+        return None
+    if session_info.get("fvcom", False):
+        variables = list(fvcom_mod.fvcom_contents(path).variable)
+    else:
+        variables = nc.open_data(path, checks=False).variables
+    missing = [x for x in model_expr.names(salinity_variable) if x not in variables]
+    if missing:
+        print(
+            f"The salinity for stratification ({', '.join(missing)}) is not in the files of its temperature, "
+            "so the potential energy anomaly of temperature and salinity is left out"
+        )
+        return None
+    return salinity_variable
+
+
+def _stratification_matchup(matched, rows, places, out, source, model_variable, comparison, point_time_res, path,
+                            lon_lim, lat_lim, reused):
+    """Write the stratification matchup out (its csv: the measures of each
+    cast, see oceanval.stratification) from the model's values matched at
+    rows (strat_match.with_cell_rows) of the cells places, with its profiles
+    and casts beside it, and the temperature and salinity matchups through
+    the water column of source it gives (reused, from strat_match.add_reused).
+    Returns the variables of those written, or None if nothing was."""
+    profiles, casts, kelvin = strat_match.split(matched, rows, places)
+
+    def keep(frame):
+        if lon_lim is not None:
+            frame = frame.query(f"lon > {lon_lim[0]} and lon < {lon_lim[1]}")
+        if lat_lim is not None:
+            frame = frame.query(f"lat > {lat_lim[0]} and lat < {lat_lim[1]}")
+        # only those in the domain mask's cells of 1
+        return domain_mask_mod.mask_points(frame, session_info["domain_mask"]).reset_index(drop=True)
+
+    profiles, casts = keep(profiles), keep(casts)
+    measures = stratification.measures(profiles, casts)
+    if len(measures) == 0:
+        print(f"No casts of {source} could be compared with the model for stratification")
+        return None
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    measures.to_csv(out, index=False)
+    profiles.to_csv(strat_match.profile_path(out), index=False)
+    casts.to_csv(strat_match.casts_path(out), index=False)
+    print(f"Stratification: {measures.groupby(stratification.cast_keys(measures)).ngroups} casts of {source} compared with the model")
+    unit = _model_unit(path, model_variable)
+    _save_point_matchup(out, strat_match.STRATIFICATION, model_variable, comparison, point_time_res, path, model_unit=unit)
+
+    written = []
+    frames = strat_match.reused_frames(profiles, kelvin)
+    for name in [name for (name, from_source) in reused if from_source == source]:
+        frame = frames.get(name)
+        if frame is None or len(frame) == 0:
+            continue
+        name_out = f"{session_info['out_dir']}/oceanval_matchups/point/all/{name}/{source}/{source}_all_{name}.csv"
+        os.makedirs(os.path.dirname(name_out), exist_ok=True)
+        frame.to_csv(name_out, index=False)
+        name_model = definitions[name].model_variable
+        _save_point_matchup(
+            name_out, name, name_model, definitions[name].point_comparisons[source], point_time_res, path,
+            model_unit=unit if name == "temperature" else None,
+        )
+        written.append(name)
+    return written
+
+
 def mm_match(
-    ff, model_variable, df, df_times, ds_depths, variable, df_all, layer=None, surface_fast=False, small_cache=False
+    ff, model_variable, df, df_times, ds_depths, variable, df_all, layer=None, surface_fast=False, small_cache=False,
+    salinity_variable=None,
 ):
     """
     Parameters
@@ -710,6 +909,10 @@ def mm_match(
         Dataframe of observational data 
     ds_depths: list
         Depths to match
+    salinity_variable: str
+        For stratification: the model's salinity, matched in the same pass
+        as model_variable, its temperature. The two are then worked out as
+        strat_match.TEMPERATURE and strat_match.SALINITY.
 
     """
 
@@ -719,6 +922,8 @@ def mm_match(
     use_cache = session_info["cache"] and not session_info.get("time_shift")
     # a matchup is kept for its model variable: one of another sum or formula is not used
     cached_as = model_expr.normalise(model_variable)
+    if salinity_variable is not None:
+        cached_as = f"{cached_as}|{model_expr.normalise(salinity_variable)}"
 
     if use_cache:
         try:
@@ -742,6 +947,8 @@ def mm_match(
     try:
         with warnings.catch_warnings(record=True) as w:
             var_match = model_expr.names(model_variable)
+            if salinity_variable is not None:
+                var_match += [x for x in model_expr.names(salinity_variable) if x not in var_match]
             # raw FVCOM output is opened by nctoolkit's open_fvcom (see oceanval.fvcom)
             fvcom = bool(session_info.get("fvcom", False))
             ds = fvcom_mod.open_model(ff, var_match, fvcom=fvcom)
@@ -804,7 +1011,14 @@ def mm_match(
                 ds.run()
 
 
-            if model_expr.kind(model_variable) != model_expr.NAME:
+            if salinity_variable is not None:
+                # the temperature and the salinity of stratification, named so they are told apart
+                ds.cdo_command(
+                    model_expr.cdo_operator_many(
+                        [(strat_match.TEMPERATURE, model_variable), (strat_match.SALINITY, salinity_variable)]
+                    )
+                )
+            elif model_expr.kind(model_variable) != model_expr.NAME:
                 # the sum, or the formula, of the variables (see oceanval.model_expr), each
                 # taken to its layer first, as nctoolkit's sum_all added them
                 ds.cdo_command(model_expr.cdo_operator("total", model_variable))
@@ -813,13 +1027,16 @@ def mm_match(
 
             if len(df_locs) > 0:
                 ds.run()
+                # stratification compares each cast with the model's water column
+                # nearest it (see oceanval.strat_match), as FVCOM's always is
+                regrid = {"regrid": "nn"} if salinity_variable is not None or variable == strat_match.STRATIFICATION else {}
                 if ds_depths is not None:
                     df_ff = ds.match_points(
-                        df_locs, depths=ds_depths, quiet=True, max_extrap=0
+                        df_locs, depths=ds_depths, quiet=True, max_extrap=0, **regrid
                     )
                 else:
                     df_ff = ds.match_points(
-                        df_locs, quiet=True, max_extrap=0
+                        df_locs, quiet=True, max_extrap=0, **regrid
                     )
                 if df_ff is not None:
                     df_ff = df_ff.dropna().reset_index(drop=True)
@@ -1694,6 +1911,11 @@ def matchup(
         # do the same for gridded
         for source in definitions[key].gridded_comparisons:
             gridded.append((key, source))
+    # the temperature and salinity matchups through the water column that a
+    # stratification matchup gives too, added if not asked for (see
+    # oceanval.strat_match), and those it wrote in this run
+    reused = strat_match.add_reused(definitions, point["all"], session_info["point_time_res"])
+    reused_made = set()
 
     # if cache is True, create a cache directory in out_dir
     if cache:
@@ -2349,10 +2571,16 @@ def matchup(
         depths = copy.deepcopy(key)
         layer = depths
 
-        # sort the list
-        point_vars.sort()
+        # sorted, with stratification first: it gives temperature and salinity matchups
+        point_vars[:] = strat_match.first(point_vars)
 
         for vv, source in point_vars:
+
+            if (vv, source, layer) in reused_made:
+                # written by the stratification matchup of its source, just now
+                print(f"The {layer} {vv} ({source}) matchup was made with the stratification matchup")
+                told.made("point", vv, source, layer)
+                continue
 
 
             variable = vv
@@ -2602,7 +2830,23 @@ def matchup(
                             print("No data for this variable")
                             return None
 
-                        if layer == "all" and "depth" in df.columns and len(paths) > 0:
+                        # stratification: the casts' depths and the model's top and bottom cells, matched
+                        # with the salinity in the same pass (see oceanval.strat_match)
+                        strat = variable == strat_match.STRATIFICATION
+                        salinity_variable = None
+                        if strat and len(paths) > 0:
+                            salinity_variable = _stratification_salinity(paths[0])
+                            top = _top_cell_depths(df, ds_depths, paths[0], model_variable, nearest=True)
+                            bottom = _bottom_cell_depths(df, ds_depths, paths[0], model_variable, salinity_variable)
+                            if top is None or bottom is None:
+                                print("The model's top and bottom cells could not be found where the casts are")
+                                return False
+                            places = strat_match.cells(df, top, bottom)
+                            df = strat_match.with_cell_rows(df, places)
+                            if len(df) == 0:
+                                print("No cast is in the model's sea")
+                                return False
+                        elif layer == "all" and "depth" in df.columns and len(paths) > 0:
                             top = _top_cell_depths(df, ds_depths, paths[0], model_variable)
                             if top is not None:
                                 df = _match_above_top_cell(df, top)
@@ -2662,6 +2906,7 @@ def matchup(
                                             layer,
                                             surface_fast,
                                             small_cache,
+                                            salinity_variable,
                                         ],
                                     )
 
@@ -2692,6 +2937,7 @@ def matchup(
                                     layer,
                                     surface_fast,
                                     small_cache,
+                                    salinity_variable,
                                 )
                                 pbar.update(1)
                                 told.files("point", variable, source, len(paths), pbar.n, layer)
@@ -2707,6 +2953,16 @@ def matchup(
                             return False
 
                         df_all = pd.concat(df_all)
+
+                        if strat:
+                            written = _stratification_matchup(
+                                df_all, df, places, out, source, model_variable, comparison, point_time_res,
+                                paths[0], lon_lim, lat_lim, reused,
+                            )
+                            if written is None:
+                                return False
+                            reused_made.update((name, source, "all") for name in written)
+                            return None
 
                         change_this = [
                             x
@@ -2801,58 +3057,7 @@ def matchup(
                                     )
 
                             df_all.to_csv(out, index=False)
-                            # save the definitions
-                            out_definitions = out.replace(
-                                ".csv", "_definitions.pkl"
-                            )
-                            import dill
-                            # get the model unit
-                            the_variable = model_expr.names(model_variable)[0]
-                            if fvcom:
-                                # raw FVCOM output, which CDO cannot read: from its header
-                                contents = fvcom_mod.fvcom_contents(paths[0])
-                            else:
-                                contents = nc.open_data(paths[0], checks=False).contents
-                            model_unit = list(
-                                contents.query(
-                                    "variable == @the_variable"
-                                ).unit
-                            )[0]
-                            definitions[variable].model_unit = model_unit
-                            dill.dump( definitions, file=open(out_definitions, "wb"))
-
-                            out1 = out.replace(
-                                os.path.basename(out), "matchup_dict.pkl"
-                            )
-                            # read in the adhoc dict in mm_match
-
-                            point_start = -5000
-                            point_end = 10000
-                            try:
-                                point_start = comparison["start"]
-                                point_end = comparison["end"]
-                            except:
-                                pass
-
-                            min_year = session_info["min_year"]
-                            max_year = session_info["max_year"]
-
-                            if point_start > min_year:
-                                min_year = point_start
-                            if point_end < max_year:
-                                max_year = point_end
-
-                            the_dict = {
-                                "start": min_year,
-                                "end": max_year,
-                                "point_time_res": point_time_res,
-                                "model_variable": model_variable,
-                                "time_shift": session_info["time_shift"],
-                            }
-                            # remove the adhoc dict
-                            # write to pickle
-                            with open(out1, "wb") as f:
-                                pickle.dump(the_dict, f)
+                            _save_point_matchup(out, variable, model_variable, comparison, point_time_res, paths[0])
 
                             return None
                         else:

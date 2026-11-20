@@ -190,3 +190,18 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   still takes `woa23_start`/`woa23_end` → `settings["woa_years"]`). Each built-in gridded source has an **i**
   (`coverageInfo`, from `create_recipes._COVERAGE` → the catalogue's `coverage`: years covered, a note and a link). Ticking Vertical (`buildOptions`' change handler) with `#s-thickness` blank calls `askThickness`: a `.picker` pop-out with its own `#thickness-ask-input` (`variableBox` over `thicknessChoices()`, z_level first, one pick). Save sets the top box and fires its `input`, so the `FIELDS` listener stores it as usual; Cancel, Escape or a click outside leave Vertical ticked and the box empty. `thicknessProblem` is the check Save and `settingErrors` share.
 
+
+### Stratification (`strat_match.py`, `stratification.py`, `en4.py`)
+
+A point variable of its own (recipes `{"stratification": "ices"|"en4"}`), always through the water column and by year, month and
+day. `strat_match.add_reused` (called in `matchup` after the comparisons are listed) adds the temperature and salinity
+all-depths comparisons of its source if they were not asked for; one asked for and matched the same way (vertical, by day, same
+years and model variable) is given by stratification and skipped (`reused_made`), and one matched otherwise is matched on its
+own. `strat_match.first` puts stratification first. In `point_match`: `_top_cell_depths(nearest=True)` and `_bottom_cell_depths`
+(thickness or depths masked by `_wet_cells`: temperature and salinity given **and not exactly 0**, as COMFORT's AMM7 writes its
+dummy 51st level as 0 with a thickness; `vertical_max` of centres, `vertical_sum` of thicknesses; z-levels use `clev`), then
+`with_cell_rows` adds a row at each cast's top and bottom cell centres (role column) and clips cast depths inside them.
+`mm_match(salinity_variable=)` reads both in one `cdo_operator_many` and matches **by nearest neighbour**: bilinear needs all four
+corners, which lost deep samples and the bottom cell wherever the sea bed shelves. `_stratification_matchup` writes the measures
+csv, `_profiles.csv.gz` and `_casts.csv.gz` (not `.csv`, which the report would take for matchups) and the reused temperature and
+salinity matchups (`_save_point_matchup`). Tests: `test_strat_match.py` on the made-up model of `tests/strat_model.py`.

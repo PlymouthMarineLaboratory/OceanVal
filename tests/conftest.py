@@ -1,7 +1,15 @@
 """What the test modules share."""
 
 import json
+import multiprocessing
 import os
+import sys
+
+# Python 3.14 starts processes by forkserver on Linux, whose children import nctoolkit with stdin closed (its
+# isatty() raises) and whose Manager exits at once: every matchup() fails. fork, the default to 3.13 and so in CI,
+# is what OceanVal's matchups are made with. Not on macOS, whose default (spawn) the macOS workflow tests.
+if sys.platform.startswith("linux") and multiprocessing.get_start_method(allow_none=True) is None:
+    multiprocessing.set_start_method("fork")
 
 # PROJ must not look for grids over the network: where conda's proj-data is missing it is on, and every map
 # drawn (here, in the report's kernels and in the figure scripts' Pythons) can wait on a connection
@@ -324,6 +332,18 @@ def customize_question_answered(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def figure_code_question_answered(request, monkeypatch):
+    """Whether the report has code to reproduce its figures (see oceanval.app.check_figure_code_box)
+    starts as "no" in the tests that are not about it, so a form they send without it is still
+    complete. A test marked figure_code_question meets it with nothing chosen."""
+    if request.node.get_closest_marker("figure_code_question"):
+        return
+    from oceanval import app
+
+    monkeypatch.setattr(app, "DEFAULT_FIGURE_CODE", "no")
+
+
+@pytest.fixture(autouse=True)
 def oceanvaltimes(tmp_path_factory, monkeypatch):
     """Keep the user's own ~/.oceanvaltimes (the times of the files the viewer
     has read, see oceanval.viewer_times) out of the tests: each test has a
@@ -456,6 +476,9 @@ document.addEventListener("DOMContentLoaded", () => {
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "customize_question: the test meets the question of whether to customize the validation output with nothing chosen"
+    )
+    config.addinivalue_line(
+        "markers", "figure_code_question: the test meets the question of whether the report has figure code with nothing chosen"
     )
     config.addinivalue_line(
         "markers", "history_question: the test meets the question of whether to add work to the history with nothing chosen"

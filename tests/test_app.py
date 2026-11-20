@@ -9179,8 +9179,9 @@ class TestSettings:
             assert page.locator("#store-table-in th").all_text_contents() == heads + [""]
             assert page.locator("#store-table-out th").all_text_contents() == heads[:5] + [""]
             held = page.locator("#store-table-in tbody tr").count()
-            # ICES salinity is held too: it is in the same CTD export as ICES temperature
-            assert held == 4 and page.text_content("#store-in-title") == "In the data store (4)"
+            # ICES salinity is held too: it is in the same CTD export as ICES temperature, and so is
+            # ICES stratification, whose casts are the temperature and salinity of that export
+            assert held == 5 and page.text_content("#store-in-title") == "In the data store (5)"
             assert page.locator("#store-table-out tbody tr").count() == len(app_module.BUILTIN_DATASETS) - held
             assert page.text_content("#store-out-title") == f"Not in the data store ({len(app_module.BUILTIN_DATASETS) - held})"
             link = page.locator("#store-table-out tbody a").first

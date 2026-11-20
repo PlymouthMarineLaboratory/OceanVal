@@ -20,6 +20,7 @@ import pytest
 import xarray as xr
 
 import oceanval
+from figure_code_checks import check_every_figure_has_its_code, check_the_code_draws_each_figure
 from oceanval import skill
 
 
@@ -71,7 +72,7 @@ def report(tmp_path_factory):
         thickness="data/example/e3t.nc", out_dir=str(folder),
     )
     out_dir = folder / "report"
-    oceanval.validate(data_dir=str(folder), out_dir=str(out_dir), concise=False, test=True)
+    oceanval.validate(data_dir=str(folder), out_dir=str(out_dir), concise=False, test=True, figure_code=True)
     yield folder, out_dir
     oceanval.reset()
 
@@ -104,6 +105,14 @@ def test_the_pages_have_the_totals_numbered_without_a_gap(report):
         for word in ("Figure", "Table"):
             found = [int(x) for x in re.findall(rf"{word} (\d+) ?:", text)]
             assert found == list(range(1, len(found) + 1))
+
+
+def test_the_code_of_the_totals_draws_them_again(report, tmp_path):
+    _, out_dir = report
+    html_dir = str(out_dir / "oceanval_report/_build/html/notebooks")
+    check_every_figure_has_its_code(html_dir, str(out_dir / "oceanval_results"))
+    check_the_code_draws_each_figure(html_dir, str(tmp_path))
+    assert "gridded_plots.total_series(" in "".join(open(p).read() for p in glob.glob(f"{tmp_path}/*.py"))
 
 
 def test_the_flux_total_agrees_with_xarray(report):

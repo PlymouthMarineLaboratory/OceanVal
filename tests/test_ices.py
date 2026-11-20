@@ -422,3 +422,47 @@ def test_no_data_in_any_dataset_gives_empty_point_columns(fake_ices):
 
     assert len(df) == 0
     assert list(df.columns) == POINT_COLUMNS
+
+
+# the casts of a stratification recipe: temperature with the salinity of the same samples
+
+SAL = "Practical salinity (PSALPR01_UUUU) [dmnless]"
+
+
+def _cast_raw(rows):
+    """An export with a salinity column too: rows of (depth, temp, temp_flag, sal, sal_flag)."""
+    header = HEADER + [SAL, f"QV:ODV:{SAL}"]
+    return pd.DataFrame(
+        [["26DA", "0003", "*", "2012-07-15T10:00Z", -5.0, 50.0, 60, d, 0, t, tf, s, sf] for d, t, tf, s, sf in rows],
+        columns=header,
+    )
+
+
+def test_casts_join_salinity_to_the_temperature_of_the_same_sample():
+    raw = _cast_raw([(1.0, 15.0, 0, 35.0, 0), (20.0, 12.0, 0, 35.1, 0), (50.0, 10.0, 0, 35.2, 0)])
+    df = ices.to_casts(raw)
+    assert list(df.columns) == ices.CAST_COLUMNS
+    assert df.depth.tolist() == [1.0, 20.0, 50.0]
+    assert df.observation.tolist() == [15.0, 12.0, 10.0]
+    assert df.salinity.tolist() == pytest.approx([35.0, 35.1, 35.2])
+
+
+def test_casts_keep_temperature_without_a_good_salinity():
+    # the second sample's salinity is flagged bad, the third's temperature
+    raw = _cast_raw([(1.0, 15.0, 0, 35.0, 0), (20.0, 12.0, 0, 35.1, 4), (50.0, 10.0, 4, 35.2, 0)])
+    df = ices.to_casts(raw)
+    assert df.depth.tolist() == [1.0, 20.0]
+    assert df.salinity.iloc[0] == pytest.approx(35.0)
+    assert np.isnan(df.salinity.iloc[1])
+
+
+def test_casts_of_an_export_with_no_salinity():
+    df = ices.to_casts(_raw([_row(depth=1.0), _row(depth=10.0, temp=8.0)]))
+    assert df.observation.tolist() == [8.5, 8.0]
+    assert df.salinity.isna().all()
+
+
+def test_a_stratification_recipe_asks_for_casts():
+    raw = _cast_raw([(1.0, 15.0, 0, 35.0, 0), (20.0, 12.0, 0, 35.1, 0)])
+    assert "salinity" in ices._observations(raw, {"parameter": "TEMPPR01", "casts": True}).columns
+    assert "salinity" not in ices._observations(raw, {"parameter": "TEMPPR01"}).columns

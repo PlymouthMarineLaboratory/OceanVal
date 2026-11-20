@@ -60,7 +60,8 @@ for target, k in depthmap_levels:
     if not depthmap_intro:
         md(f"The maps below show {vv_longname} at fixed depths in the model and the observations, and the model minus the observations, from the annual mean of the monthly climatology.{annual_note} Each is the depth level of the observations nearest the depth asked for.")
         depthmap_intro = True
-    nc.panel_plot(
+    _fig = figures.call(
+        nc.panel_plot,
         {"Model": ds_level, "Observation": ds_level},
         var = ["model", "observation"],
         limits = limits,
@@ -69,12 +70,12 @@ for target, k in depthmap_levels:
         grid_labels = False,
     )
     land_below()
-    plt.show()
+    figures.show(i_figure)
     md(f"**Figure {i_figure}**: Annual mean {vv_longname} at {level:g} m (the observations' level nearest {target:g} m) in the model and the observations. The colour scale runs from the 2nd to the 98th percentile of the two.", gallery=f"Annual mean at {level:g} m: model and observations")
     i_figure += 1
-    ds_level.pub_plot("bias", robust = True, land = "lightgrey")
+    _fig = figures.method(ds_level, "pub_plot", "bias", robust = True, land = "lightgrey")
     land_below()
-    plt.show()
+    figures.show(i_figure)
     md(f"**Figure {i_figure}**: Bias of annual mean {vv_longname} at {level:g} m, the model minus the observations.", gallery=f"Bias at {level:g} m: model minus observations")
     i_figure += 1
     del ds_level

@@ -13,7 +13,7 @@ from oceanval import report_items, selection
 DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "oceanval", "data")
 
 # the notebooks and chunks a validation report is made of
-TEMPLATES = ["gridded_template.ipynb", "point_template.ipynb", "summary.ipynb"] + [
+TEMPLATES = ["gridded_template.ipynb", "point_template.ipynb", "stratification_template.ipynb", "summary.ipynb"] + [
     os.path.basename(path)
     for path in glob.glob(os.path.join(DATA, "chunk_*.pytemplate"))
     if os.path.basename(path)

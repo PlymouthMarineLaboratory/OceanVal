@@ -217,6 +217,9 @@ _FLUX_UNITS = re.compile(
     r"|/m\*\*3\*m\b|/m\^3\*m\b|/m3\*m\b|m-3\*?m\b)"
 )
 
+# units of a rate (per time), which the amount of something per area never has
+_PER_TIME = re.compile(r"(?:s-1|s\^-1|/s\b|/sec|d-1|/d\b|day-1|/day|yr-1|/yr|year-1|/year)")
+
 # how each variable OceanVal filled in was found, by (variable, model variable)
 _found_by = {}
 
@@ -250,6 +253,9 @@ def units_fit(variable, units):
     if variable == "o2sat":
         # the saturation as a percentage or fraction, not a concentration or a flux
         return text in _FRACTIONS
+    if variable == "macrobenthos":
+        # an amount per area of the sea bed, so never a flux's per time
+        return not _PER_TIME.search(text)
     if variable == "pco2":
         return not is_flux(units) and (any(x in text for x in _PRESSURES) or text in _FRACTIONS)
     return not is_flux(units)
@@ -260,8 +266,8 @@ def fitting(variable, contents):
     a rule of their own (those whose long_names are easily taken for another
     quantity); every row for the rest, whose matches have always been as they are."""
     if variable not in (
-        "aou", "bacteria", "co2flux", "diatoms", "doc", "mesozooplankton", "microzooplankton", "o2sat",
-        "pco2", "picophytoplankton", "poc",
+        "aou", "bacteria", "co2flux", "diatoms", "doc", "macrobenthos", "mesozooplankton", "microzooplankton",
+        "o2sat", "pco2", "picophytoplankton", "poc",
     ):
         return contents
     units = _units_of(contents)

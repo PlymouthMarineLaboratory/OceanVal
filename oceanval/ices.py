@@ -18,6 +18,7 @@ import tempfile
 import time
 import zipfile
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -272,6 +273,40 @@ def to_oceanval_format(raw, parameter_code):
     ).reset_index(drop=True)
 
 
+# the ICES parameters of the casts a stratification recipe matches: the
+# temperature and the salinity of the same samples
+TEMPERATURE_CODE = "TEMPPR01"
+SALINITY_CODE = "PSALPR01"
+CAST_COLUMNS = POINT_COLUMNS + ["salinity"]
+
+
+def to_casts(raw):
+    """The temperature of each sample of an ICES export, with its salinity
+    beside it where the sample has one that passed quality control (NaN
+    otherwise), as CAST_COLUMNS: the casts a stratification recipe matches.
+    Samples at the same place, date and depth are averaged."""
+    keys = ["lon", "lat", "year", "month", "day", "depth"]
+    temperature = to_oceanval_format(raw, TEMPERATURE_CODE)
+    if len(temperature) == 0:
+        return pd.DataFrame(columns=CAST_COLUMNS)
+    temperature = temperature.groupby(keys, as_index=False).observation.mean()
+    salinity = to_oceanval_format(raw, SALINITY_CODE)
+    if len(salinity) == 0:
+        return temperature.assign(salinity=np.nan).loc[:, CAST_COLUMNS]
+    salinity = (
+        salinity.groupby(keys, as_index=False).observation.mean().rename(columns={"observation": "salinity"})
+    )
+    return temperature.merge(salinity, how="left", on=keys).loc[:, CAST_COLUMNS]
+
+
+def _observations(raw, recipe):
+    """An ICES export's rows as a recipe has them: the casts of temperature and
+    salinity (to_casts) for a stratification recipe, else its one parameter."""
+    if recipe.get("casts"):
+        return to_casts(raw)
+    return to_oceanval_format(raw, recipe["parameter"])
+
+
 # stations are told apart by their date and their position to this many
 # decimal places of a degree (about 1 km)
 STATION_DECIMALS = 2
@@ -361,7 +396,7 @@ def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
     if stored is not None:
         frames = []
         for dataset in datasets:
-            df = to_oceanval_format(_in_box(stored[dataset], lon_lim, lat_lim), recipe["parameter"])
+            df = _observations(_in_box(stored[dataset], lon_lim, lat_lim), recipe)
             if len(datasets) > 1:
                 print(f"{len(df)} ICES {dataset} observations passed quality control")
             frames.append((dataset, df))
@@ -379,8 +414,9 @@ def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
         for first, last in data_store._runs([x for x in years if (dataset, x, box) not in _kept])
     ]
     if wanted:
+        codes = f"{TEMPERATURE_CODE} and {SALINITY_CODE}" if recipe.get("casts") else recipe["parameter"]
         print(
-            f"Downloading ICES {' and '.join(datasets)} data ({recipe['parameter']}) for "
+            f"Downloading ICES {' and '.join(datasets)} data ({codes}) for "
             f"{int(start_year)}-{int(end_year)}, lon {lon_lim}, lat {lat_lim}"
         )
     for group in waves(wanted):
@@ -393,7 +429,7 @@ def download_point_data(recipe, start_year, end_year, lon_lim, lat_lim):
     frames = []
     for dataset in datasets:
         pieces = [_kept_rows(dataset, x, box) for x in years]
-        df = to_oceanval_format(_in_box([x for x in pieces if x is not None], lon_lim, lat_lim), recipe["parameter"])
+        df = _observations(_in_box([x for x in pieces if x is not None], lon_lim, lat_lim), recipe)
         if len(datasets) > 1:
             print(f"{len(df)} ICES {dataset} observations passed quality control")
         frames.append((dataset, df))

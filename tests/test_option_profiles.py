@@ -38,8 +38,9 @@ class TestProfilesAgreeWithTheCatalogues:
     def test_what_the_catalogue_can_say_is_the_profiles(self, variable, recipe, entry):
         kind = "point" if entry in [e for _, _, e in POINT_ENTRIES] else "gridded"
         found = option_profiles.PROFILES[(kind, variable, recipe)]
-        # through the water column
-        assert (found["depth"] == "profile") == create_recipes._has_vertical_option(entry)
+        # through the water column: by choice, or always (stratification, worked out from whole casts)
+        always = variable == "stratification"
+        assert (found["depth"] == "profile") == (create_recipes._has_vertical_option(entry) or always)
         # log10 statistics
         assert found["log"] == skill.is_log(variable)
         # the region

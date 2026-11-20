@@ -42,8 +42,11 @@ EVERY_PAGE = "*"
 # months of many years (not a climatology), flux is for a flux per area (which
 # has a total over the cells), and totals is for a flux, or a concentration
 # through the water column (an inventory)
+# stratification is a stratification matchup (whose page is its own, of the
+# measures of each cast: oceanval.stratification), and values any other point
+# matchup, whose page is of the values matched.
 WHEN = ("seasonal", "subregions", "vertical", "transect", "all_layer", "gridded", "depths",
-        "series", "flux", "totals")
+        "series", "flux", "totals", "stratification", "values")
 
 Item = namedtuple("Item", ["id", "page", "label", "text", "when"])
 
@@ -103,24 +106,38 @@ ITEMS = [
          "The annual mean through the water column along the transect.", ("transect", "vertical")),
     # a point matchup's page
     Item("locations_map", POINT, "Map of the matchups",
-         "Where the observations matched up with the model are.", ()),
+         "Where the observations matched up with the model are.", ("values",)),
     Item("mean_map", POINT, "Map of average values",
-         "The average model and observed values at each place, if the data have no months.", ()),
+         "The average model and observed values at each place, if the data have no months.", ("values",)),
     Item("point_bias_map", POINT, "Bias map",
-         "The model's bias at each observation, for each month.", ()),
+         "The model's bias at each observation, for each month.", ("values",)),
     Item("scatter", POINT, "Model versus observations",
-         "Scatter plots of the model against the observations, overall and for each month.", ()),
+         "Scatter plots of the model against the observations, overall and for each month.", ("values",)),
     Item("stats_table", POINT, "Summary statistics table",
          "Bias, RMSD, correlation and the number of observations, overall and for each month.",
-         ()),
+         ("values",)),
     Item("regression_table", POINT, "Regression table",
-         "A linear regression of the observations on the model, overall and for each month.", ()),
+         "A linear regression of the observations on the model, overall and for each month.", ("values",)),
     Item("depth_locations_map", POINT, "Map of the matchups at each depth",
-         "Where the observations are, in each depth range.", ("all_layer",)),
+         "Where the observations are, in each depth range.", ("all_layer", "values")),
     Item("depth_table", POINT, "Depth summary table",
-         "Bias, RMSD and correlation in each depth range.", ("all_layer",)),
+         "Bias, RMSD and correlation in each depth range.", ("all_layer", "values")),
     Item("point_profiles", POINT, "Mean profiles",
-         "The mean of the model and the observations in each depth range.", ("all_layer",)),
+         "The mean of the model and the observations in each depth range.", ("all_layer", "values")),
+    # a stratification matchup's page (oceanval.stratification)
+    Item("strat_locations_map", POINT, "Map of the casts",
+         "Where the casts compared with the model are (the detailed report only).", ("stratification",)),
+    Item("strat_seasonal", POINT, "Seasonal cycle of stratification",
+         "The mean of each measure (surface minus bottom temperature, potential energy anomaly, mixed layer depth) "
+         "over the casts of each month, observed and modelled.", ("stratification",)),
+    Item("strat_maps", POINT, "Summer stratification maps",
+         "Maps of the summer's surface minus bottom temperature in the model and the observations, and the bias.",
+         ("stratification",)),
+    Item("strat_scatter", POINT, "Model versus observations, cast by cast",
+         "Each cast's measures in the model against those observed.", ("stratification",)),
+    Item("strat_table", POINT, "Statistics and agreement tables",
+         "The bias, RMSD and correlation of each measure, and how often the model and the observations agree on "
+         "whether a cast is stratified.", ("stratification",)),
     # the summary page
     Item("taylor", SUMMARY, "Taylor diagram",
          "A Taylor diagram of the gridded matchups' annual means at the sea surface.", ("gridded",)),

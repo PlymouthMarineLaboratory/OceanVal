@@ -131,6 +131,14 @@ PROFILES = {
     (POINT, "ph", "ices"): _POINT_REGIONAL,
     (POINT, "phosphate", "ices"): _POINT_REGIONAL,
     (POINT, "silicate", "ices"): _POINT_REGIONAL,
+    # the sea bed's animals, which have no depth: a matchup of them is never through the water column
+    (POINT, "macrobenthos", "nsbs"): _profile(SURFACE, DATED, region=REGIONAL),
+    # EN4's profiles, of the whole ocean
+    (POINT, "temperature", "en4"): _POINT,
+    (POINT, "salinity", "en4"): _POINT,
+    # casts of temperature and salinity, whose stratification is worked out (oceanval.stratification)
+    (POINT, "stratification", "ices"): _POINT_REGIONAL,
+    (POINT, "stratification", "en4"): _POINT,
 }
 
 
@@ -159,8 +167,15 @@ def _holds(condition, matchup, profile):
         return gridded and vertical
     if condition == "all_layer":
         return matchup.get("kind") == POINT and matchup.get("layer") == "all"
+    stratification = matchup.get("kind") == POINT and matchup.get("variable") == "stratification"
+    if condition == "stratification":
+        return stratification
+    if condition == "values":
+        # the page of any other point matchup, of the values matched
+        return not stratification
     if condition == "depths":
-        return vertical or matchup.get("layer") == "all"
+        # a stratification matchup has no depth summary for the summary page
+        return (vertical or matchup.get("layer") == "all") and not stratification
     if condition == "seasonal":
         return profile is None or profile["months"] != ANNUAL
     if condition == "series":

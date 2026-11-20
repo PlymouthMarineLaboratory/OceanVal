@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Validating simulations — OceanVal</title>
-<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, NOAA OISST v2.1, NOAA CoralTemp v3.1, Ocean Colour CCI, GLODAP, MPI-SOM-FFN, SOCAT, COPEPOD, the North Sea Biogeochemical Climatology, GLODAPv3, the Hansell et al. DOM compilation and the European point data of ICES.">
+<meta name="description" content="The observational datasets OceanVal can validate a simulation against with no files of your own: World Ocean Atlas 2023, COBE-SST 2, NOAA OISST v2.1, NOAA CoralTemp v3.1, Ocean Colour CCI, GLODAP, MPI-SOM-FFN, SOCAT, COPEPOD, the North Sea Biogeochemical Climatology, GLODAPv3, the Hansell et al. DOM compilation, the EN4 profiles and the European point data of ICES.">
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -86,6 +86,8 @@
       <li><a href="#point">What point datasets are available?</a></li>
       <li class="docs-toc-sub"><a href="#bottle-data">How GLODAPv3 and Hansell et al. are treated</a></li>
       <li class="docs-toc-sub"><a href="#ices-data">How ICES data is treated</a></li>
+      <li class="docs-toc-sub"><a href="#en4-data">How EN4 is treated</a></li>
+      <li class="docs-toc-sub"><a href="#stratification">How stratification is worked out</a></li>
       <li><a href="#units">Units</a></li>
       <li><a href="#own-data">Your own data</a></li>
     </ul>
@@ -430,7 +432,7 @@
     </div>
 
     <h2 id="point" style="margin-top:2.4rem;">What point datasets are available?</h2>
-    <p style="max-width:70ch;">Point datasets have no grid: each observation is a single sample at its own station, depth and date, so the spatial and temporal resolution is that of the samples. Point datasets are measurements at particular places, times and depths. The global ones are bottle samples from research cruises, GLODAPv3 and the Hansell et al. compilation of organic carbon. The European ones, covering European and neighbouring seas, are measurements at sea from the ICES Oceanographic database, downloaded for the years you match up, in the area given by the longitude and latitude limits you set in the app or, if you set none, the area your simulation covers. See <a href="#bottle-data">how GLODAPv3 and Hansell et al. are treated</a> and <a href="#ices-data">how ICES data is treated</a> for what is kept.</p>
+    <p style="max-width:70ch;">Point datasets have no grid: each observation is a single sample at its own station, depth and date, so the spatial and temporal resolution is that of the samples. Point datasets are measurements at particular places, times and depths. The global ones are bottle samples from research cruises, GLODAPv3 and the Hansell et al. compilation of organic carbon. The European ones, covering European and neighbouring seas, are measurements at sea from the ICES Oceanographic database, downloaded for the years you match up, in the area given by the longitude and latitude limits you set in the app or, if you set none, the area your simulation covers. EN4 is the Met Office Hadley Centre&rsquo;s quality controlled profiles of temperature and salinity for the whole ocean. Stratification is worked out cast by cast from the temperature and salinity profiles of ICES or EN4. See <a href="#bottle-data">how GLODAPv3 and Hansell et al. are treated</a>, <a href="#ices-data">how ICES data is treated</a>, <a href="#en4-data">how EN4 is treated</a> and <a href="#stratification">how stratification is worked out</a> for what is kept.</p>
     <div class="table-wrap" style="margin-top:1.6rem; overflow-x:auto;">
       <table>
         <thead>
@@ -476,6 +478,18 @@
           </tr>
           <tr>
             <td>Global</td><td>Particulate organic carbon concentration in sea water</td><td><a href="https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html" target="_blank" rel="noopener">Hansell et al. DOM compilation</a></td><td>1995&ndash;2018</td><td><span class="badge badge-yes">Yes</span></td><td><code>&micro;mol/kg</code></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Stratification of the water column</td><td><a href="https://www.metoffice.gov.uk/hadobs/en4/" target="_blank" rel="noopener">EN4.2.2 quality controlled profiles</a> (Met Office Hadley Centre)</td><td>1900 to the present</td><td><span class="badge badge-yes">Always</span></td><td><code>&deg;C, J/m&sup3;, m</code></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Sea water temperature</td><td><a href="https://www.metoffice.gov.uk/hadobs/en4/" target="_blank" rel="noopener">EN4.2.2 quality controlled profiles</a> (Met Office Hadley Centre)</td><td>1900 to the present</td><td><span class="badge badge-yes">Yes</span></td><td><code>&deg;C</code></td>
+          </tr>
+          <tr>
+            <td>Global</td><td>Sea water salinity</td><td><a href="https://www.metoffice.gov.uk/hadobs/en4/" target="_blank" rel="noopener">EN4.2.2 quality controlled profiles</a> (Met Office Hadley Centre)</td><td>1900 to the present</td><td><span class="badge badge-yes">Yes</span></td><td><code>dimensionless</code></td>
+          </tr>
+          <tr>
+            <td>European</td><td>Stratification of the water column</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Always</span></td><td><code>&deg;C, J/m&sup3;, m</code></td>
           </tr>
           <tr>
             <td>European</td><td>Sea water temperature</td><td><a href="https://www.ices.dk/data/data-portals/Pages/ocean.aspx" target="_blank" rel="noopener">ICES Oceanographic database</a>, CTD profiles and bottle data</td><td>Any: the years you match up</td><td><span class="badge badge-yes">Yes</span></td><td><code>&deg;C</code></td>
@@ -543,6 +557,19 @@
     <p style="max-width:70ch;"><strong>Depth.</strong> The depth is ICES&rsquo;s adopted depth (<code>ADEPZZ01</code>), in metres. Observations at 5&nbsp;m or less make up the surface layer. Through the water column, an observation above the centre of the model&rsquo;s top cell, as many bottle values at 0&nbsp;m are, is compared with the top cell.</p>
     <p style="max-width:70ch;"><strong>Time.</strong> Only the date of an observation is used, not the time of day. Times without a time zone are taken as UTC. A time written as hour 24 (<code>1981-04-27T24</code>) is 00:00 of the next day, as ISO&nbsp;8601 has it. An observation dated only to the month or the year, or whose time cannot be read, is left out rather than given a day, and the run&rsquo;s output says how many were.</p>
     <p style="max-width:70ch;"><strong>Values.</strong> Values are used as ICES gives them, in the units in the table above. OceanVal does not screen them for range or remove duplicates, beyond the quality flags and the repeated stations above. ICES revises its data, so a later download can differ. With a <a href="app.html#data-store">data store</a> set to always use what it has, the copy kept is used however old it is; the run says when it was downloaded.</p>
+
+    <h3 id="en4-data" style="margin-top:2rem;">How EN4 is treated</h3>
+    <p style="max-width:70ch;"><strong>What is downloaded.</strong> EN4 (version EN.4.2.2, with the g10 corrections to the depths of expendable bathythermographs) comes as one file a year for the whole ocean, so a year is downloaded whole however small your area: about 0.5 to 0.9&nbsp;GB a year since 2012, and less before. The app shows the size of the years you type beside the EN4 tick, so choose a few years. One download a year serves stratification, temperature and salinity alike, and only the profiles in your area are kept from it.</p>
+    <p style="max-width:70ch;"><strong>Which values are used.</strong> The potential temperature and practical salinity as EN4 corrects them (<code>POTM_CORRECTED</code>, <code>PSAL_CORRECTED</code>), at the corrected depths (<code>DEPH_CORRECTED</code>). A profile is used only if its position, its depths and its temperature passed EN4&rsquo;s quality control, and it is not marked as a duplicate of another; within a profile, only the levels whose depth and value passed are used. A salinity profile that failed leaves its levels without a salinity.</p>
+
+    <h3 id="stratification" style="margin-top:2rem;">How stratification is worked out</h3>
+    <p style="max-width:70ch;">Stratification is a variable of its own, matched through the water column and always by the year, month and day of each cast. Each cast is compared with the model&rsquo;s water column nearest it, on the day it was made: the model is read at every depth observed, and at the centres of its top and bottom cells, which are the surface and the bottom. The bottom cell is the deepest in which the model&rsquo;s temperature and salinity are given (a level some models write as 0 under the sea bed is not water), and the water depth is the sum of the cells&rsquo; thicknesses, so stratification needs the cell thickness of the model, or its output on depth levels. Four measures are then worked out the same way from the observed cast, interpolated to the model&rsquo;s surface and bottom, and from the model:</p>
+    <ul style="max-width:70ch;">
+      <li><strong>Surface minus bottom temperature</strong> (&deg;C). A cast is stratified when it is over 0.5&nbsp;&deg;C.</li>
+      <li><strong>Potential energy anomaly</strong> (J/m&sup3;), the energy needed to mix the water column (Simpson, 1981), of the top 200&nbsp;m at most, from the temperature and salinity, and from the temperature alone with the salinity held at 35. A cast is stratified when it is over 10&nbsp;J/m&sup3;.</li>
+      <li><strong>Mixed layer depth</strong> (m), where the temperature first differs from its value at 10&nbsp;m by more than 0.2&nbsp;&deg;C, or the water depth if it never does.</li>
+    </ul>
+    <p style="max-width:70ch;">A cast is used if it has at least 3 depths, the shallowest within 5&nbsp;m of the surface. The same casts are also matched up as temperature and salinity through the water column, so the report has those pages too, without a second matching; a temperature or salinity matchup you tick that is matched the same way is not matched again. The report&rsquo;s stratification page has the seasonal cycle of each measure, maps of the summer&rsquo;s surface minus bottom temperature, the model against the observations cast by cast, and tables of the statistics and of how often the model and the observations agree on whether a cast is stratified.</p>
 
     <h2 id="units" style="margin-top:2.4rem;">Units</h2>
     <p style="max-width:70ch;">The Units columns give the units of the observations as each dataset&rsquo;s files state them. Your model may use others, such as mmol/m&sup3; for nutrients where the World Ocean Atlas uses &micro;mol/kg. The app&rsquo;s <a href="app.html">Units step</a> lists the units of your model and of the observations side by side, suggests a conversion where it can tell how to convert one into the other, and asks you to confirm them before anything is matched up. Check the units, and for the World Ocean Atlas the period, every time.</p>

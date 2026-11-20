@@ -39,7 +39,7 @@ WHERE_LABELS = {
 
 # the keys of the recipes OceanVal comes with, which cannot be used for your own
 BUILTIN_SOURCES = (
-    "cobe2", "copepod", "coraltemp", "glodap", "glodapv3", "hansell", "ices", "mpisom", "nsbc",
+    "cobe2", "copepod", "coraltemp", "en4", "glodap", "glodapv3", "hansell", "ices", "mpisom", "nsbc", "nsbs",
     "occci", "oisst", "socat", "woa23",
 )
 
@@ -71,6 +71,8 @@ VARIABLE_LABELS = {
     "picophytoplankton": ("picophytoplankton biomass", "picophytoplankton carbon biomass", "Picophytoplankton"),
     "bacteria": ("bacterial biomass", "heterotrophic bacteria carbon biomass", "Bacteria"),
     "microzooplankton": ("microzooplankton biomass", "microzooplankton carbon biomass", "Microzooplankton"),
+    "stratification": ("stratification", "stratification of the water column", "Stratification"),
+    "macrobenthos": ("macrobenthos biomass", "macrobenthos carbon biomass", "Macrobenthos"),
 }
 
 # what the variables are called in the window's tables of datasets (the
@@ -91,6 +93,7 @@ DISPLAY_NAMES = {
     "poc": "Particulate organic carbon concentration in sea water",
     "kd490": "Diffuse attenuation coefficient at 490 nm",
     "mesozooplankton": "Mesozooplankton carbon biomass in sea water",
+    "macrobenthos": "Macrobenthos carbon biomass on the sea bed",
     "nitrate": "Nitrate concentration in sea water",
     "o2sat": "Oxygen saturation of sea water",
     "omegaaragonite": "Aragonite saturation state of sea water",
@@ -101,6 +104,7 @@ DISPLAY_NAMES = {
     "phosphate": "Phosphate concentration in sea water",
     "salinity": "Sea water salinity",
     "silicate": "Silicate concentration in sea water",
+    "stratification": "Stratification of the water column",
     "temperature": "Sea water temperature",
 }
 

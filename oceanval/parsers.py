@@ -99,6 +99,19 @@ GLODAPV3_VARIABLES = (
 )
 # the variables of the Hansell et al. DOM compilation (see oceanval.hansell)
 HANSELL_VARIABLES = ("doc", "poc")
+# the variable of the North Sea Benthos Survey (see oceanval.nsbs)
+NSBS_VARIABLES = ("macrobenthos",)
+NSBS_SOURCE_INFO = (
+    "Craeymeersch, J., Kingston, P., Rachor, E., Duineveld, G., Heip, C. and Vanden Berghe, E. (1986): "
+    "North Sea Benthos Survey, ICES Benthos Ecology Working Group, published by the Flanders Marine "
+    "Institute (VLIZ), https://marineinfo.org/doc/dataset/67. Heip, C., Basford, D., Craeymeersch, J. A., "
+    "et al. (1992): Trends in biomass, density and diversity of North Sea macrofauna, ICES Journal of Marine "
+    "Science, 49, 13-22. Biomass as ash-free dry weight, taken as carbon at 0.5 g C per g."
+)
+# the observations of the North Sea Benthos Survey are one spring of 1986, which no
+# model's benthos will be of, so they are always matched by month, with the model's of
+# every year: point_time_res cannot be given for them, and matchup's is not used
+NSBS_POINT_TIME_RES = ["month"]
 
 # WOA23's apparent oxygen utilization and oxygen saturation: variable ->
 # (the folder, the letter its files' names have, the variable in them)
@@ -194,6 +207,25 @@ recipe_list = [
 ]
 
 
+# the point variable of casts of temperature and salinity, and its datasets
+STRATIFICATION = "stratification"
+STRATIFICATION_SOURCES = ("ices", "en4")
+# stratification is worked out cast by cast, so each cast is compared with the simulation on
+# the day it was made: matching by anything coarser would mix casts of different days into one
+# profile, making the calculation unreliable. It cannot be chosen, and matchup's is not used
+STRATIFICATION_POINT_TIME_RES = ["year", "month", "day"]
+# what EN4's profiles can be recipes for
+EN4_VARIABLES = (STRATIFICATION, "temperature", "salinity")
+ICES_SOURCE_INFO = "In-situ observations from the ICES Oceanographic database (https://ocean.ices.dk), International Council for the Exploration of the Sea, Copenhagen. Licensed under CC BY 4.0."
+EN4_SOURCE_INFO = (
+    "EN.4.2.2 quality controlled temperature and salinity profiles, Met Office Hadley Centre "
+    "(https://www.metoffice.gov.uk/hadobs/en4/), with the Gouretski and Reseghetti (2010) XBT and Gouretski "
+    "and Cheng (2020) MBT corrections. Good, S. A., M. J. Martin and N. A. Rayner, 2013: EN4: quality "
+    "controlled ocean temperature and salinity profiles and monthly objective analyses with uncertainty "
+    "estimates, Journal of Geophysical Research: Oceans, 118, 6704-6716, doi:10.1002/2013JC009067."
+)
+
+
 def find_recipe(x, start=None, end=None, cwd=None):
     """What a recipe, such as {"nitrate": "woa23"}, stands for.
 
@@ -234,6 +266,41 @@ def find_recipe(x, start=None, end=None, cwd=None):
     # in the data store (see oceanval.data_store), which never holds yours
     output["builtin"] = value
 
+    if name.lower() == STRATIFICATION:
+        # casts of temperature and salinity, whose stratification is worked out
+        # from the observed casts and the model at their depths (oceanval.stratification)
+        if value not in STRATIFICATION_SOURCES:
+            raise ValueError(
+                f"Recipe value {value} is not valid for stratification: use one of "
+                f"{', '.join(STRATIFICATION_SOURCES)}."
+            )
+        output["name"] = STRATIFICATION
+        output["point"] = True
+        output["vertical"] = True
+        output["stratification"] = True
+        output["point_time_res"] = list(STRATIFICATION_POINT_TIME_RES)
+        if value == "ices":
+            output["source"] = "ICES"
+            output["source_info"] = ICES_SOURCE_INFO
+            output["ices_parameter"] = "TEMPPR01"
+            output["ices_dataset"] = ["CTD", "ICE"]
+        else:
+            output["source"] = "EN4"
+            output["source_info"] = EN4_SOURCE_INFO
+            output["en4_variable"] = STRATIFICATION
+        return output
+
+    if value == "en4":
+        # EN4's temperature or salinity on its own (oceanval.en4)
+        if name.lower() not in EN4_VARIABLES:
+            raise ValueError(f"Recipe value en4 is only for {', '.join(EN4_VARIABLES)}, not {name}.")
+        output["source"] = "EN4"
+        output["source_info"] = EN4_SOURCE_INFO
+        output["name"] = name.lower()
+        output["point"] = True
+        output["en4_variable"] = name.lower()
+        return output
+
     if value == "glodap":
         obs_variable = GLODAP_MAPPED.get(name.lower())
         if obs_variable is not None:
@@ -262,6 +329,17 @@ def find_recipe(x, start=None, end=None, cwd=None):
             output["name"] = name.lower()
             output["point"] = True
             output["hansell_variable"] = name.lower()
+            return output
+
+    if value == "nsbs":
+        if name.lower() in NSBS_VARIABLES:
+            output["source"] = "NSBS"
+            output["source_info"] = NSBS_SOURCE_INFO
+            output["name"] = name.lower()
+            output["point"] = True
+            output["vertical"] = False
+            output["nsbs_variable"] = name.lower()
+            output["point_time_res"] = list(NSBS_POINT_TIME_RES)
             return output
 
     if value in BUILT_RECIPES and name.lower() in BUILT_RECIPES[value]["variables"]:
@@ -452,7 +530,7 @@ def find_recipe(x, start=None, end=None, cwd=None):
 
     if value == "ices":
         output["source"] = "ICES"
-        output["source_info"] = "In-situ observations from the ICES Oceanographic database (https://ocean.ices.dk), International Council for the Exploration of the Sea, Copenhagen. Licensed under CC BY 4.0."
+        output["source_info"] = ICES_SOURCE_INFO
         output["name"] = name.lower()
         output["point"] = True
         # temperature and salinity are in both the CTD and the bottle
@@ -922,7 +1000,8 @@ class Validator:
                              obs_adder = 0,
                              binning = None,
                              recipe = None,
-                             point_time_res = None  ):
+                             point_time_res = None,
+                             salinity_variable = None  ):
         """
 
         Add a point comparison variable to the Validator
@@ -965,6 +1044,11 @@ class Validator:
         point_time_res given to matchup. Defaults to None, which uses
         matchup's.
 
+        salinity_variable (str): For stratification only: the model's
+        salinity, as model_variable is its temperature. Without it, the
+        stratification from temperature alone is validated (the potential
+        energy anomaly of temperature and salinity is left out).
+
         """
         if recipe is not None:
             recipe_info = find_recipe(recipe)
@@ -995,15 +1079,46 @@ class Validator:
                 recipe = dict(kind="glodapv3", variable=recipe_info["glodap_variable"])
             elif recipe_info["builtin"] == "hansell":
                 recipe = dict(kind="hansell", variable=recipe_info["hansell_variable"])
+            elif recipe_info["builtin"] == "nsbs":
+                recipe = dict(kind="nsbs", variable=recipe_info["nsbs_variable"])
+                # one spring's survey, 1986, which no model's benthos will be of: it is
+                # always matched by month, whatever the year, and there is no choosing
+                if point_time_res is not None:
+                    raise ValueError(
+                        "The North Sea Benthos Survey is one spring (1986), so it is always matched "
+                        "by month, whatever the year: leave out point_time_res."
+                    )
+                point_time_res = list(recipe_info["point_time_res"])
+            elif recipe_info["builtin"] == "en4":
+                recipe = dict(kind="en4", variable=recipe_info["en4_variable"])
             else:
                 recipe = dict(
                     kind="ices",
                     parameter = recipe_info["ices_parameter"],
                     dataset = recipe_info["ices_dataset"],
                 )
+                if recipe_info.get("stratification"):
+                    # the temperature of each sample, with its salinity (oceanval.ices.to_casts)
+                    recipe["casts"] = True
+            if recipe_info.get("stratification"):
+                vertical = True
+                given = [point_time_res] if isinstance(point_time_res, str) else point_time_res
+                if given is not None and sorted(given) != sorted(STRATIFICATION_POINT_TIME_RES):
+                    raise ValueError(
+                        "Stratification is worked out cast by cast, so it is always matched by year, "
+                        "month and day: leave out point_time_res."
+                    )
+                point_time_res = list(STRATIFICATION_POINT_TIME_RES)
 
         if name is None:
             raise ValueError("Name must be supplied")
+        if name == STRATIFICATION and recipe is None:
+            raise ValueError(
+                'stratification is worked out from casts of temperature and salinity: use recipe='
+                '{"stratification": "ices"} or {"stratification": "en4"}'
+            )
+        if salinity_variable is not None and name != STRATIFICATION:
+            raise ValueError("salinity_variable is only for stratification")
 
         # check what is supplied is valid
         # name can only have str or numbers
@@ -1118,12 +1233,15 @@ class Validator:
                     raise ValueError("Each element of binning must be a number")
         # one variable, a sum or a formula, as oceanval.model_expr reads it
         model_variable = _checked_model_variable(model_variable, name)
+        if salinity_variable is not None:
+            salinity_variable = _checked_model_variable(salinity_variable, name)
         # figure out if self[name] exists already
         if getattr(self, name, None) is None:
             # add it
             var = Variable()
             setattr(self, name, var)
             self[name].model_variable = model_variable
+            self[name].salinity_variable = salinity_variable
             self[name].sources = dict()
             self[name].gridded_comparisons = dict()
             self[name].point_comparisons = dict()
@@ -1135,6 +1253,11 @@ class Validator:
             if self[name].model_variable != model_variable:
                 old_model_variable = self[name].model_variable
                 raise ValueError(f"Model variable for {name} already exists as {old_model_variable}, cannot change to {model_variable}")
+            if getattr(self[name], "salinity_variable", None) != salinity_variable:
+                raise ValueError(
+                    f"The salinity variable for {name} already exists as "
+                    f"{getattr(self[name], 'salinity_variable', None)}, cannot change to {salinity_variable}"
+                )
             if source_name in self[name].sources:
                 # ensure the value is the same
                 if self[name].sources[source_name] != source_info:

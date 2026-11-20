@@ -39,6 +39,14 @@ try:
 except:
     concise = False
 
+# the figures of this page, with the code to reproduce each if the report has
+# figure code (validate's and compare's figure_code, see oceanval.figure_code)
+from oceanval.figure_code import Figures, Of, from_options as figure_options
+try:
+    figures = figure_options(the_figure_code)
+except:
+    figures = Figures(False)
+
 # the figures and analyses the user removed from this page (validate's omit,
 # see oceanval.report_items)
 try:

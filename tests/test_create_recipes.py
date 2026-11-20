@@ -786,13 +786,16 @@ class TestGeneratedScript:
 
 
 ICES_CATALOGUE = [entry for entry in POINT_RECIPE_CATALOGUE if entry["recipe"] == "ices"]
+# the point recipes the shelf's script is written with: those of the European region, ICES's and the
+# North Sea Benthos Survey's (the global ones only when ticked)
+EUROPEAN_CATALOGUE = [entry for entry in POINT_RECIPE_CATALOGUE if entry["region"] == "European"]
 
 
 class TestPointRecipes:
     def test_ices_recipes_are_included_when_domain_is_nwes(self, scripts):
         script = scripts["nwes"]
 
-        assert script.count("add_point_comparison(") == len(ICES_CATALOGUE)
+        assert script.count("add_point_comparison(") == len(EUROPEAN_CATALOGUE)
         assert 'recipe={"temperature": "ices"}' in script
         # the simulation fixture holds a model variable for every ICES
         # variable, so every point block should be live, not commented
@@ -821,7 +824,7 @@ class TestPointRecipes:
         script = open(out).read()
 
         # every point recipe is still there, so nothing is silently dropped
-        assert script.count("add_point_comparison(") == len(ICES_CATALOGUE)
+        assert script.count("add_point_comparison(") == len(EUROPEAN_CATALOGUE)
         assert '\noceanval.add_point_comparison(' not in script
         assert "# No temperature variable was found in the model output." in script
 
@@ -1026,6 +1029,8 @@ class TestSelection:
             ("temperature", "ices"),
             ("salinity", "ices"),
             ("chlorophyll", "ices"),
+            # matched with the temperature's model variable
+            ("stratification", "ices"),
         }
 
     def test_a_variable_can_be_validated_against_several_sources(self):
@@ -1058,8 +1063,8 @@ class TestSelection:
         )
 
         assert "\noceanval.add_gridded_comparison(" not in script
-        # cobe2, oisst, coraltemp and woa23
-        assert script.count("# Not selected when this script was generated.") == 4
+        # cobe2, oisst, coraltemp and woa23, and EN4's temperature and stratification
+        assert script.count("# Not selected when this script was generated.") == 6
 
     def test_an_ices_recipe_can_be_selected_for_the_global_domain(self):
         mapping = {"temperature": "thetao", "salinity": "so"}
@@ -1069,7 +1074,9 @@ class TestSelection:
         )
         ast.parse(script)
 
-        assert script.count("add_point_comparison(") == len(POINT_RECIPE_CATALOGUE)
+        # every source's section, but the North Sea Benthos Survey's, which is written on the shelf, or when ticked
+        written = [entry for entry in POINT_RECIPE_CATALOGUE if entry["recipe"] != "nsbs"]
+        assert script.count("add_point_comparison(") == len(written)
         assert '\noceanval.add_point_comparison(\n    name="temperature",' in script
         # salinity has a model variable, but its ICES recipe was not selected
         assert '\noceanval.add_point_comparison(\n    name="salinity",' not in script

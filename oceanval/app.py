@@ -286,6 +286,21 @@ def check_domain_mask(form, cwd, errors):
 # whether the report is customized starts as nothing chosen, which must be answered (the tests
 # that are not about the question start it as "no", see tests/conftest.py)
 DEFAULT_CUSTOMIZE = ""
+# whether the report has code to reproduce its figures (validate's and compare's figure_code) starts
+# as nothing chosen too, and must be answered: "yes" or "no" (the tests that are not about the
+# question start it as "no", see tests/conftest.py)
+DEFAULT_FIGURE_CODE = ""
+FIGURE_CODE_ASK = "Say whether the report should have code to reproduce its figures."
+
+
+def check_figure_code_box(form, errors):
+    """Whether the report is to have figure code, from the step's Yes/No:
+    True or False, or None with errors["figure_code"] if it is not answered."""
+    choice = str(form.get("figure_code") or "").strip().lower()
+    if choice not in ("yes", "no"):
+        errors["figure_code"] = FIGURE_CODE_ASK
+        return None
+    return choice == "yes"
 
 
 def default_validate_form():
@@ -311,6 +326,8 @@ def default_validate_form():
         "per_matchup": "",
         "omit_all": [],
         "omit_each": {},
+        # whether each figure has a button that copies the code that draws it again (see check_figure_code_box)
+        "figure_code": DEFAULT_FIGURE_CODE,
         # a transect of the user's own; the named sections (transects.SECTIONS) are not asked
         # for: validate's default draws the Equator and 155°W on a global matchup through the
         # water column
@@ -787,6 +804,8 @@ def check_report(form, cwd, out_dir=None):
     for name in ("fixed_scale", "pdf", "word", "zip"):
         if form[name]:
             arguments[name] = True
+    if check_figure_code_box(form, errors):
+        arguments["figure_code"] = True
     # the detailed report, with the figures chosen left out if it is customized
     omit, omit_errors = check_customize(form)
     errors.update(omit_errors)
@@ -1016,7 +1035,7 @@ def check_transect_boxes(form, errors):
 def default_compare_form():
     """The compare step's boxes, as they start: a name and a validation
     directory for each simulation, and where to build the comparison."""
-    form = {"out_dir": "", **history_forms.defaults()}
+    form = {"out_dir": "", "figure_code": DEFAULT_FIGURE_CODE, **history_forms.defaults()}
     for row in range(1, COMPARE_ROWS + 1):
         form[f"name_{row}"] = ""
         form[f"dir_{row}"] = ""
@@ -1071,6 +1090,8 @@ def check_compare(form, cwd):
     if os.path.isfile(out_dir):
         errors["out_dir"] = "This is a file, not a directory."
     arguments = {"model_dict": model_dict, "out_dir": out_dir}
+    if check_figure_code_box(form, errors):
+        arguments["figure_code"] = True
     # whether to add the comparison to the history, with its name if so
     name, history_errors = history_forms.check(form, history_forms.COMPARISON, out_dir)
     errors.update(history_errors)
@@ -1082,9 +1103,10 @@ def check_compare(form, cwd):
 def _compare_call(arguments, cwd):
     """How a compare run is shown: the call it makes."""
     model_dict = {name: _shown(path, cwd) for name, path in arguments["model_dict"].items()}
+    figure_code = ", figure_code=True" if arguments.get("figure_code") else ""
     return (
         f"oceanval.compare(model_dict={_literal(model_dict)}, "
-        f"out_dir={_literal(_shown(arguments['out_dir'], cwd))})"
+        f"out_dir={_literal(_shown(arguments['out_dir'], cwd))}{figure_code})"
     )
 
 

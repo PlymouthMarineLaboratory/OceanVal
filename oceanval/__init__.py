@@ -580,7 +580,16 @@ def _combined_report_pdf_source(output_dir, notebooks, notebook_bodies, pdf_styl
     )
 
 
+# the "Copy code to reproduce figure" button and the code it copies (oceanval.figure_code), which
+# only work in the HTML page: a Word document has the figure alone (the PDF hides them by its print style)
+_FIGURE_CODE_PARTS = re.compile(
+    r'<div class="oceanval-figure__bar">.*?</div>|<textarea[^>]*oceanval-figure__code[^>]*>.*?</textarea>',
+    re.S,
+)
+
+
 def _word_report_source(body):
+    body = _FIGURE_CODE_PARTS.sub("", body)
     return (
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
         f"<title>OceanVal validation report</title></head><body>{body}</body></html>"
@@ -1285,8 +1294,10 @@ def _check_report_options(
 
 def _point_notebook_text(source, layer, variable, title, n_levels, data_dir, out_dir):
     """point_template.ipynb, filled in for the matchup of variable with the
-    point observations of source, at layer."""
-    file1 = importlib.resources.files(__name__).joinpath("data/point_template.ipynb")
+    point observations of source, at layer: stratification_template.ipynb for
+    stratification, whose matchup is the measures of each cast."""
+    template = "stratification_template.ipynb" if variable == "stratification" else "point_template.ipynb"
+    file1 = importlib.resources.files(__name__).joinpath(f"data/{template}")
     with open(file1, "r") as file:
         filedata = file.read()
 
@@ -1372,20 +1383,15 @@ def _gridded_notebook_text(
     filedata = filedata.replace("template_title", title)
     filedata = filedata.replace("data_dir_value", data_dir)
     filedata = filedata.replace("source_name", source)
-    if subregions == "nwes":
-        filedata = filedata.replace("zonal_height", "6000")
-    elif region_file is not None:
-        filedata = filedata.replace(
-            "zonal_height", str(max(2000, 350 * (n_regions + 1)))
-        )
-    elif regions.is_built_in(subregions) and subregions != "global":
-        # the zonal sections are drawn for each region, so the figure grows with them
+    # the zonal sections are drawn for each region and the full domain, so the figure grows with them
+    from oceanval.plotnine_figures import zonal_height
+    if region_file is not None:
+        filedata = filedata.replace("zonal_height", str(zonal_height(n_regions)))
+    elif regions.is_built_in(subregions):
         n_built_in = len(nc.open_data(regions.path(subregions), checks=False).variables)
-        filedata = filedata.replace(
-            "zonal_height", str(max(2000, 350 * (n_built_in + 1)))
-        )
+        filedata = filedata.replace("zonal_height", str(zonal_height(n_built_in)))
     else:
-        filedata = filedata.replace("zonal_height", "2000")
+        filedata = filedata.replace("zonal_height", str(zonal_height(0)))
     # make every letter a capital
     source_capital = source.upper()
     filedata = filedata.replace("source_title", source_capital)
@@ -1402,14 +1408,17 @@ def _gridded_notebook_text(
 
 def _rewrite_notebook_source(
     path, lon_lim, lat_lim, fixed_scale, concise, test, transect=None, depth_bins=None,
-    removed=None, map_depths=None,
+    removed=None, map_depths=None, figure_code=None,
 ):
     """Fill in the report options in a notebook's paired .py:percent file.
     depth_bins are as
     depths.check_depth_bins gives them, or None for the default ones.
     removed is the ids of the figures and analyses the page leaves out (see
     oceanval.report_items), or None for none. map_depths are as
-    depths.check_map_depths gives them (None for the defaults, False for none)."""
+    depths.check_map_depths gives them (None for the defaults, False for none).
+    figure_code is the page's figure code options, (True, the folder its
+    figures' data is saved in, what the report is), or None for none (see
+    _figure_code_options)."""
     if depth_bins is None:
         depth_bins = depths.DEFAULT_DEPTH_BINS
     depth_bins = repr([list(pair) for pair in depth_bins])
@@ -1436,6 +1445,7 @@ def _rewrite_notebook_source(
         new_lines[i] = new_lines[i].replace("the_map_depths", repr(map_depths))
         new_lines[i] = new_lines[i].replace("fixed_scale_value", str(fixed_scale))
         new_lines[i] = new_lines[i].replace("the_removed_items", repr(sorted(removed or [])))
+        new_lines[i] = new_lines[i].replace("the_figure_code", repr(figure_code))
         # replace concice_value with concice
         if "concise_value" in new_lines[i]:
             if concise:
@@ -1446,6 +1456,23 @@ def _rewrite_notebook_source(
     # write the new lines to the file
     with open(path, "w") as file:
         file.write(squeeze_blank_lines("\n".join(new_lines)))
+
+
+def _figure_code_options(path, results_dir, about):
+    """The figure code options of the page whose notebook (or its .py) is
+    path, for validate's and compare's figure_code: each figure's data is
+    saved in results_dir/figure_data/<page>, and its code says it is of about,
+    the report (see oceanval.figure_code)."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return (True, os.path.join(results_dir, "figure_data", stem), about)
+
+
+def _check_figure_code(figure_code):
+    import numpy as np
+
+    if not isinstance(figure_code, (bool, np.bool_)):
+        raise ValueError("figure_code must be True or False.")
+    return bool(figure_code)
 
 
 def _page_removed(path, page_removed, omit):
@@ -1516,6 +1543,7 @@ def validate(
     previous=True,
     name=None,
     omit=None,
+    figure_code=False,
 ):
     # docstring
     """
@@ -1528,7 +1556,7 @@ def validate(
     lat_lim : list or None
         The latitude limits for the validation. Default is None
     concise : bool
-        Whether to build the concise report, which leaves out the gridded matchups' monthly maps and the point matchups' map of locations, and shows one scatter plot of model against observations rather than one for each month. It also leaves out the figures added since OceanVal's first release (the density scatter, zonal means, Hovmöller plots, regional, depth and transect figures and total over the area matched: see oceanval.release_figures.detailed_only). Default is True. False builds the detailed report, with every figure and analysis.
+        Whether to build the concise report, which leaves out the gridded matchups' monthly maps and the point matchups' map of locations, and shows one scatter plot of model against observations rather than one for each month. It also leaves out the figures added since OceanVal's first release (the density scatter, zonal means, Hovmöller plots, regional, depth and transect figures and total over the area matched: see oceanval.release_figures.detailed_only), but for the stratification page, which keeps all but its map of the casts. Default is True. False builds the detailed report, with every figure and analysis.
     fixed_scale : bool
         Whether to use a fixed scale for the seasonal plots. Default is False. If True, the minimum and maximum values are capped to cover the 2nd and 98th percentiles of both model and observations.
     subregions : str or None
@@ -1556,7 +1584,9 @@ def validate(
     name : str or None
         A name for this validation, to add it to your OceanVal history, where the window's Tools & info > View previous work lists it with a link to its report. It must not be the name of another validation there. Default is None, which does not add the validation to the history.
     omit : list, dict or None
-        Figures and analyses to leave out of the report, by id, on top of what concise leaves out. A list leaves them out of every page they are on, e.g. ["monthly_maps", "regression_table", "taylor"]. A dict leaves them out of some pages: each key is a matchup, as for variables ("temperature" for all its sources, or "variable/source"), or "summary" for the summary page, e.g. {"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}. The ids are, on a gridded matchup's page, clim_map, bias_map, density_scatter, seasonal_cor_map, monthly_maps, peak_month, spatial_cor_table, zonal_lines, hovmoller_clim, hovmoller_years, global_series, regional_map, regional_cycle, regional_table, zonal_sections, depth_level_table, mean_profiles, depth_maps, transect_map, transect_surface and transect_section; on a point matchup's page, locations_map, mean_map, point_bias_map, scatter, stats_table, regression_table, depth_locations_map, depth_table and point_profiles; and on the summary page, taylor, bias_table, spatial_table, temporal_maps, temporal_table, global_totals and depth_performance (see oceanval.report_items). What other pages read is still calculated, so the summary is unchanged by what a matchup's page leaves out. Default is None, which leaves nothing else out.
+        Figures and analyses to leave out of the report, by id, on top of what concise leaves out. A list leaves them out of every page they are on, e.g. ["monthly_maps", "regression_table", "taylor"]. A dict leaves them out of some pages: each key is a matchup, as for variables ("temperature" for all its sources, or "variable/source"), or "summary" for the summary page, e.g. {"temperature/COBE2": ["bias_map"], "summary": ["taylor"]}. The ids are, on a gridded matchup's page, clim_map, bias_map, density_scatter, seasonal_cor_map, monthly_maps, peak_month, spatial_cor_table, zonal_lines, hovmoller_clim, hovmoller_years, global_series, regional_map, regional_cycle, regional_table, zonal_sections, depth_level_table, mean_profiles, depth_maps, transect_map, transect_surface and transect_section; on a point matchup's page, locations_map, mean_map, point_bias_map, scatter, stats_table, regression_table, depth_locations_map, depth_table and point_profiles; on a stratification matchup's page, strat_locations_map, strat_seasonal, strat_maps, strat_scatter and strat_table; and on the summary page, taylor, bias_table, spatial_table, temporal_maps, temporal_table, global_totals and depth_performance (see oceanval.report_items). What other pages read is still calculated, so the summary is unchanged by what a matchup's page leaves out. Default is None, which leaves nothing else out.
+    figure_code : bool
+        Give each figure in the report a "Copy code to reproduce figure" button, which copies Python code that draws the figure again. The data each figure is drawn from is saved in oceanval_results/figure_data (tables as .csv, maps as .nc), and the code reads it from there: run it in the conda environment OceanVal ran in. Default is False.
 
     Returns
     -------
@@ -1566,6 +1596,7 @@ def validate(
     subregions, region_file, n_regions = _check_report_options(
         lon_lim, lat_lim, concise, fixed_scale, subregions, region
     )
+    figure_code = _check_figure_code(figure_code)
     transect = transects.check_transects(transect)
     depth_bins = depths.check_depth_bins(depth_bins)
     map_depths = depths.check_map_depths(map_depths)
@@ -1875,6 +1906,10 @@ def validate(
                 ff, lon_lim, lat_lim, fixed_scale, concise, test, transect=transect,
                 depth_bins=depth_bins, removed=_page_removed(ff, page_removed, omit),
                 map_depths=map_depths,
+                figure_code=_figure_code_options(
+                    ff, os.path.join(out_dir, "oceanval_results"),
+                    f"the OceanVal validation report in {out_dir} (oceanval {__version__})",
+                ) if figure_code else None,
             )
 
         # sync the notebooks
@@ -1955,7 +1990,7 @@ def rebuild(data_dir=".", pdf=False):
     webbrowser.open("file://" + os.path.abspath(out_ff))
 
 
-def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir=".", name=None):
+def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir=".", name=None, figure_code=False):
     """
     Compare pre-validated simulations.
     This function will compare the validation output from multiple simulations.
@@ -1976,6 +2011,8 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
         The directory to build the comparison in: it goes in oceanval_comparison, inside it. Default is the current directory.
     name : str or None
         A name for this comparison, to add it to your OceanVal history, where the window's Tools & info > View previous work lists it with a link to its report. It must not be the name of another comparison of validations there. Default is None, which does not add the comparison to the history.
+    figure_code : bool
+        Give each figure in the report a "Copy code to reproduce figure" button, which copies Python code that draws the figure again. The data each figure is drawn from is saved in oceanval_comparison/figure_data (tables as .csv, maps as .nc), and the code reads it from there: run it in the conda environment OceanVal ran in. Default is False.
 
     Each path in model_dict is a directory validate() built its report in (its out_dir), which holds oceanval_report and oceanval_results. The comparison reads oceanval_results, and compares the gridded datasets validated in at least two of the simulations.
     """
@@ -1983,6 +2020,7 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
         raise AttributeError("model_dict must be provided")
     if not isinstance(model_dict, dict):
         raise AttributeError("model_dict must be a dictionary")
+    figure_code = _check_figure_code(figure_code)
 
     for key in model_dict.keys():
         if not os.path.exists(model_dict[key]):
@@ -2064,6 +2102,12 @@ def compare(model_dict=None, view=True, ask=True, pdf=False, word=False, out_dir
         filedata = filedata.replace("concise_value", "False")
         filedata = filedata.replace("the_removed_items", "[]")
         filedata = filedata.replace("fast_plot_value", "False")
+        filedata = filedata.replace("the_figure_code", repr(
+            _figure_code_options(
+                book, comparison_dir,
+                f"the OceanVal comparison report in {comparison_dir} (oceanval {__version__})",
+            ) if figure_code else None
+        ))
         with open(book, "w") as file:
             file.write(filedata)
     _run_jupytext(["--sync"], f"{glob.escape(notebooks_dir)}/*.ipynb")

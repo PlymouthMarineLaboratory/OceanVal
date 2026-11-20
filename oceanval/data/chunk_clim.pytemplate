@@ -131,7 +131,8 @@ for vv in the_contents.variable:
 
 # one call draws both maps on the same colour scale, with one colour bar
 def plot_clim():
-    nc.panel_plot(
+    figures.call(
+        nc.panel_plot,
         {"Model": ds_both, "Observation": ds_both},
         var = ["model", "observation"],
         limits = [z_min, z_max],
@@ -150,6 +151,7 @@ if wanted("clim_map"):
         ds_both.to_latlon(lon = [lon_min , lon_max], lat = [lat_min, lat_max], res = [lon_res, lat_res])
         md("The model grid was regridded to a regular lon-lat grid for plotting purposes.")
         plot_clim()
+    figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if wanted("clim_map"):

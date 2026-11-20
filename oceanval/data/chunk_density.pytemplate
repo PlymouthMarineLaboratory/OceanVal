@@ -65,11 +65,11 @@ if os.path.exists(density_file) and wanted("density_scatter"):
             )
             md(f"## How do the modelled values of {layer_long} {vv_name} compare with the observed ones?")
             md(f"The figure below shows every grid cell and month with both model and observational data, modelled against observed" + (", on log10 values" if density_log else "") + ", beside the annual mean of each grid cell. The colour of each bin is the number of values in it, so the densest part of the cloud stands out where a scatter plot of so many points would be a solid block." + (" The figure after it shows each month of the year." if density_by_month else ""))
-            _fig = gridded_plots.density_panels(
+            _fig = figures.call(gridded_plots.density_panels,
                 [("All months", density, density_stats), ("Annual means", density_annual, density_annual_stats)],
                 density_label,
             )
-            plt.show()
+            figures.show(i_figure)
             density_shown = True
 
 # %% tags=["remove-input"]
@@ -84,7 +84,7 @@ if density_shown and density_by_month:
     for k in range(n_steps):
         density_month[density_months[k]].add(*density_step(k))
     density_sums_month = np.array(density_months)
-    _fig = gridded_plots.density_panels(
+    _fig = figures.call(gridded_plots.density_panels,
         [
             (calendar.month_name[month], density_month[month], skill.stats_from_sums(density_sums[density_sums_month == month]))
             for month in range(1, 13)
@@ -92,7 +92,7 @@ if density_shown and density_by_month:
         density_label,
         ncols = 4,
     )
-    plt.show()
+    figures.show(i_figure)
     density_months_shown = True
 
 # %% tags=["remove-input"]

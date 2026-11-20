@@ -47,14 +47,17 @@ def test_the_maps_are_drawn_by_panel_plot_alone():
 def test_seasonal_template_separates_groups_of_months_with_a_line():
     template = Path("oceanval/data/chunk_seasonal.pytemplate").read_text()
 
-    # every group of months but the last is followed by a line under its difference maps
-    assert "def plot_seasonal_months(months, divider = False):" in template
+    # every group of months but the last is followed by a line under its difference maps, which
+    # oceanval.report_maps draws (one call, so the report's figure code can draw it again)
+    assert "report_maps.seasonal_month_maps" in template
     assert "divider = i < len(seasonal_periods) - 1" in template
+    maps = Path("oceanval/report_maps.py").read_text()
+    assert "def seasonal_month_maps(ds_model, ds_obs, months, unit_text, divider = False," in maps
 
 
 def test_seasonal_template_titles_maps_with_full_month_names():
-    template = Path("oceanval/data/chunk_seasonal.pytemplate").read_text()
-    source = template[template.index("def plot_seasonal_months"):template.index("    return True\n")]
+    maps = Path("oceanval/report_maps.py").read_text()
+    source = maps[maps.index("def seasonal_month_maps"):maps.index("def bias_maps")]
 
     assert "calendar.month_name[month]" in source
     assert "month_abbr" not in source
@@ -129,10 +132,11 @@ def test_no_report_page_needs_r(name, text):
 def test_every_map_of_the_point_pages_is_drawn_by_plotnine():
     # chunk_point's three, the matchup locations of the point page and the summary's
     point = Path("oceanval/data/chunk_point.pytemplate").read_text()
+    # each made for plotnine_figures.sized by figures.call (Of), so the figure code can make it again
     for name in ("locations_map", "mean_map", "bias_map"):
-        assert f"plotnine_figures.{name}(" in point
-    assert "plotnine_figures.depth_locations_map(" in Path("oceanval/data/point_template.ipynb").read_text()
-    assert "plotnine_figures.depth_matchup_map(" in Path("oceanval/data/summary.ipynb").read_text()
+        assert f"Of(plotnine_figures.{name}," in point
+    assert "Of(plotnine_figures.depth_locations_map," in Path("oceanval/data/point_template.ipynb").read_text()
+    assert "Of(plotnine_figures.depth_matchup_map," in Path("oceanval/data/summary.ipynb").read_text()
 
 
 def test_the_gridded_notebook_makes_annual_means_from_the_monthly_climatology():

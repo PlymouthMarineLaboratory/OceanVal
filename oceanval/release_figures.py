@@ -71,7 +71,15 @@ def not_released():
     return [item for item in report_items.ids() if item not in released]
 
 
+# the figures of a page OceanVal did not have before the phased release (the
+# stratification page), which a concise report keeps: without them the page
+# would be empty. Its map of the casts is the detailed report's, as a point
+# page's map of the matchups is
+CONCISE_NEW_PAGES = ("strat_seasonal", "strat_maps", "strat_scatter", "strat_table")
+
+
 def detailed_only():
     """The ids of the figures a concise report leaves out: those OceanVal did not
-    have before the phased release (the others in ALWAYS are the concise report's)."""
-    return [item for item in report_items.ids() if item not in ALWAYS]
+    have before the phased release (the others in ALWAYS are the concise report's),
+    but for those of a page that is new since (CONCISE_NEW_PAGES)."""
+    return [item for item in report_items.ids() if item not in ALWAYS and item not in CONCISE_NEW_PAGES]

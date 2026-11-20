@@ -11,6 +11,7 @@ import nctoolkit as nc
 import pytest
 
 import oceanval
+from figure_code_checks import check_every_figure_has_its_code, check_the_code_draws_each_figure
 from oceanval import live, transects
 
 pytestmark = pytest.mark.skipif(
@@ -112,9 +113,10 @@ def reports(matchups):
     pages = {}
     for name, transect in (("none", None), ("both", [NORTH_SOUTH, EAST_WEST])):
         out_dir = matchups / name
+        # the page with the transects has figure code, to check the code of their figures
         oceanval.validate(
             data_dir=str(matchups), out_dir=str(out_dir), transect=transect, concise=False,
-            variables=["temperature/foo"], test=True,
+            variables=["temperature/foo"], test=True, figure_code=name == "both",
         )
         [page] = glob.glob(str(out_dir / "oceanval_report/_build/html/notebooks/*_foo_temperature.html"))
         pages[name] = page_text(page)
@@ -155,6 +157,15 @@ def test_without_a_transect_the_page_is_unchanged(reports):
     numbers = figures(reports["both"])
     assert numbers[: len(figures(text))] == figures(text)
     assert len(numbers) == len(figures(text)) + 6
+
+
+def test_the_code_of_the_transect_figures_draws_them_again(reports, matchups, tmp_path):
+    out_dir = matchups / "both"
+    html_dir = str(out_dir / "oceanval_report/_build/html/notebooks")
+    check_every_figure_has_its_code(html_dir, str(out_dir / "oceanval_results"))
+    scripts = glob.glob(str(out_dir / "oceanval_results/figure_data/*foo_temperature/*"))
+    assert scripts
+    assert check_the_code_draws_each_figure(html_dir, str(tmp_path)) > 6
 
 
 def test_several_transects_each_have_a_section(reports):

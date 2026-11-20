@@ -57,9 +57,10 @@ OPTIONS = (
 EXPORTS = ("pdf", "word", "zip")
 
 # validate()'s arguments the interim report has no use for: those, previous,
-# as it only ever has the matchups of the run building it, and name, which adds
-# the finished report to the user's history (see oceanval.user_cache)
-NOT_INTERIM = (*EXPORTS, "previous", "name")
+# as it only ever has the matchups of the run building it, name, which adds
+# the finished report to the user's history (see oceanval.user_cache), and
+# figure_code, as only the full report has the buttons that copy each figure's code
+NOT_INTERIM = (*EXPORTS, "previous", "name", "figure_code")
 
 # the interim report matchup is building, for abandon()
 current = None

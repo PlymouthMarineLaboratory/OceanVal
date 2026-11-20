@@ -161,7 +161,7 @@ def _box_of_file(path, kind):
         return _looked_at[key]
     box = None
     try:
-        if kind in ("glodapv3", "hansell"):
+        if kind in ("glodapv3", "hansell", "nsbs"):
             import pandas as pd
 
             found = pd.read_csv(path, usecols=["lon", "lat"])
@@ -218,19 +218,20 @@ def _stored(row, held, extent=True):
     not extent, as the files are read for it), the text shown when all its years
     are held (None if they are not) and whether it is complete."""
     area = _extent if extent else (lambda pieces: None)
-    if row["point"] and row["recipe"] in ("glodapv3", "hansell"):
+    if row["point"] and row["recipe"] in ("glodapv3", "hansell", "nsbs"):
         # the whole globe and every year of the variable, in one piece: complete once held
         mine = [p for p in held if p["kind"] == row["recipe"] and p["variable"] == row["name"]]
         if not mine:
             return None, None, None, None, False
-        if row["recipe"] == "hansell":
-            from oceanval.hansell import YEARS
+        if row["recipe"] in ("hansell", "nsbs"):
+            from oceanval import hansell, nsbs
 
-            first, last = YEARS[row["name"]]
-            years = f"{first}–{last}"
+            first, last = (hansell if row["recipe"] == "hansell" else nsbs).YEARS[row["name"]]
+            years = f"{first}–{last}" if first != last else str(first)
         else:
             years = "1972–2023"
-        return years if mine[0].get("rows") else "No data found", "All depths", area(mine), "All years", True
+        column = "Sea bed" if row["recipe"] == "nsbs" else "All depths"
+        return years if mine[0].get("rows") else "No data found", column, area(mine), "All years", True
     if row["point"]:
         # one export of an ICES dataset and year serves every variable from it;
         # its years keep gaining observations, so it is never complete (LIVE)

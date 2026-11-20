@@ -161,6 +161,10 @@ def _recipe_obs_variable(variable, recipe, cwd=None):
         from oceanval.hansell import VARIABLES
 
         return VARIABLES[found["hansell_variable"]][0]
+    if found.get("nsbs_variable"):
+        from oceanval.nsbs import VARIABLES
+
+        return VARIABLES[found["nsbs_variable"]]
     return found.get("obs_variable") or found.get("ices_parameter")
 
 

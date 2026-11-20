@@ -16,3 +16,8 @@ gridded,transect_map,Y
 gridded,transect_surface,Y
 gridded,transect_section,Y
 summary,global_totals,Y
+point,strat_locations_map,Y
+point,strat_seasonal,Y
+point,strat_maps,Y
+point,strat_scatter,Y
+point,strat_table,Y

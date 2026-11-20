@@ -32,8 +32,8 @@ if vertical_stats and wanted("mean_profiles"):
         profile_unit = transects.unit_text(ff_vertical, variable)
     except:
         profile_unit = ""
-    _fig = gridded_plots.profiles(profile_depths, profile_lines, f"{vv_name} ({profile_unit})" if profile_unit else vv_name)
-    plt.show()
+    _fig = figures.call(gridded_plots.profiles, profile_depths, profile_lines, f"{vv_name} ({profile_unit})" if profile_unit else vv_name)
+    figures.show(i_figure)
     profiles_shown = True
 
 # %% tags=["remove-input"]

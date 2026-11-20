@@ -79,7 +79,8 @@ if peak_shown:
         md(f"## When does {layer_long} {vv_name} peak?")
         md(f"The maps below show the month in which {layer_long} {vv_name} peaks in the monthly climatology of the observations and of the model, and how many months the model's peak is from the observed one (positive: the model peaks later). The mean difference, ignoring its sign, is **{peak_mean_lag:.1f} months**, and the model peaks within a month of the observations in **{100 * peak_within:.0f}%** of the area, weighted by cell area.")
     month_colours = plt.get_cmap("twilight", 12)
-    nc.panel_plot(
+    _fig = figures.call(
+        nc.panel_plot,
         {"Observation": ds_peaks, "Model": ds_peaks},
         var = ["peak_obs", "peak_model"],
         colours = month_colours,
@@ -89,7 +90,7 @@ if peak_shown:
         grid_labels = False,
     )
     land_below()
-    plt.show()
+    figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if peak_shown:
@@ -98,9 +99,9 @@ if peak_shown:
 
 # %% tags=["remove-input"]
 if peak_shown:
-    ds_peaks.pub_plot("lag", limits = [-6, 6], colours = "RdBu_r", land = "lightgrey", legend = f"Model {peak_word} minus observed {peak_word} (months)")
+    _fig = figures.method(ds_peaks, "pub_plot", "lag", limits = [-6, 6], colours = "RdBu_r", land = "lightgrey", legend = f"Model {peak_word} minus observed {peak_word} (months)")
     land_below()
-    plt.show()
+    figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if peak_shown:

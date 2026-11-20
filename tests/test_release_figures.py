@@ -61,6 +61,11 @@ def test_a_concise_report_leaves_out_every_figure_added_since_the_first_release(
     from oceanval import release_figures, report_items
 
     left_out = release_figures.detailed_only()
-    assert set(left_out) == set(report_items.ids()) - set(release_figures.ALWAYS)
+    # but those of a page that is new since, which would otherwise be empty
+    assert set(left_out) == set(report_items.ids()) - set(release_figures.ALWAYS) - set(release_figures.CONCISE_NEW_PAGES)
+    assert "strat_locations_map" in left_out
+    assert set(release_figures.CONCISE_NEW_PAGES) == {
+        item.id for item in report_items.ITEMS if "stratification" in item.when
+    } - {"strat_locations_map"}
     # none of the figures the report always had is among them
     assert not set(left_out) & set(release_figures.ALWAYS)

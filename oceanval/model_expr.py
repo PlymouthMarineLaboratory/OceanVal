@@ -537,6 +537,14 @@ def cdo_operator(target, text, append=False):
     return f"-{'aexpr' if append else 'expr'},'{target}={formula};'"
 
 
+def cdo_operator_many(pairs, append=False):
+    """The CDO operator that works out several model variables at once, each
+    as the variable it is paired with: pairs of (target, text), in one -expr
+    (-aexpr if append), quoted as cdo_operator's is."""
+    formulas = "".join(f"{target}={normalise(text)};" for target, text in pairs)
+    return f"-{'aexpr' if append else 'expr'},'{formulas}'"
+
+
 def describe(text):
     """A line saying what the model variable text is made of: "" for one
     variable, "Sum of a, b" or "Expression based on a, b"."""

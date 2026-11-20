@@ -66,6 +66,8 @@ _SUBSTANCES = {
     "oxygen": {"O2", "O_2"},
     # a mole of CO2 holds a mole of carbon, so either names the flux's moles
     "co2flux": {"C", "CO2"},
+    # the carbon of the sea bed's animals
+    "macrobenthos": {"C"},
 }
 
 # a mass is turned into moles when the other side is one of these, and the
@@ -73,6 +75,7 @@ _SUBSTANCES = {
 _MASS_PARTNERS = {
     "mass per volume": ({"amount per volume", "amount per mass"}, "mol / m ** 3"),
     "mass per area per time": ({"amount per area per time"}, "mol / m ** 2 / s"),
+    "mass per area": ({"amount per area"}, "mol / m ** 2"),
 }
 
 # what a model's long_name or standard_name says when it gives a TEOS-10
@@ -119,6 +122,9 @@ _KINDS = {
     "pressure": "[pressure]",
     "amount per area per time": "[substance] / [length] ** 2 / [time]",
     "mass per area per time": "[mass] / [length] ** 2 / [time]",
+    # the biomass of the sea bed's animals, per area of it
+    "amount per area": "[substance] / [length] ** 2",
+    "mass per area": "[mass] / [length] ** 2",
 }
 
 # prefixes, as written, and pint's names for them

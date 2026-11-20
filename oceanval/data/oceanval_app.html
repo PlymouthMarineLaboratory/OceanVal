@@ -2172,6 +2172,8 @@
         </div>
         <div class="g-row"><label class="tick-label">Do you want a zipped version of report files?<input type="checkbox" class="tick" id="v-zip"></label></div>
       </fieldset>
+      <!-- whether each figure has a button that copies the code that draws it (validate's figure_code) -->
+      <fieldset class="group form__wide" id="v-code-group"></fieldset>
       <fieldset class="group form__wide" id="v-group-depth_bins">
         <legend>Which depth bins do you want for vertical validation?</legend>
         <p class="group__intro">Point datasets validated through the water column are summarised in these depth ranges. Leave <strong>To</strong> empty on the deepest bin for everything below it. Observations outside every bin are left out.</p>
@@ -2291,6 +2293,8 @@
         <div class="g-row"><label class="g-label" for="c-out_dir">Which directory do you want to build the comparison in?</label><div class="path-field"><input class="s-input is-mono" id="c-out_dir" list="c-out_dir-folders" spellcheck="false" autocapitalize="off" autocomplete="oceanval-none"><button type="button" class="btn btn--ghost btn--field" data-browse="c-out_dir">Browse…</button></div><datalist id="c-out_dir-folders"></datalist></div>
         <p class="group__msg" id="cm-out_dir"></p>
       </fieldset>
+      <!-- whether each figure has a button that copies the code that draws it (compare's figure_code) -->
+      <fieldset class="group form__wide" id="c-code-group"></fieldset>
       <!-- whether to add the comparison to the user's history (see oceanval.history_forms) -->
       <fieldset class="group form__wide" id="c-history-group"></fieldset>
       <button type="submit" hidden></button>
@@ -5555,6 +5559,45 @@
     const node = $(id);
     node.className = "group__msg" + (error ? " is-error" : "");
     node.replaceChildren(...lines);
+  }
+
+  // ---- whether the report has code to reproduce its figures (validate's and compare's figure_code) ----
+  // A Yes/No with nothing chosen to start, which must be answered (app.check_figure_code_box): until it is,
+  // its row is boxed in red (see .history-question.needs-answer). host is an empty fieldset; prefix makes
+  // the ids (`<prefix>-code-yes`, `<prefix>-code-no`, `<prefix>-code-msg`).
+  function figureCodeQuestion(host, prefix, onChange) {
+    const question = `${prefix}-code-question`;
+    const radio = (value, text) => el("label", { class: "ptr-mode" },
+      el("input", { type: "radio", name: `${prefix}-code`, value, id: `${prefix}-code-${value}` }), text);
+    const yes = radio("yes", "Yes");
+    const no = radio("no", "No");
+    const questionRow = el("div", { class: "g-row history-question", id: `${prefix}-code-row` },
+      el("span", { class: "g-label", id: question }, "Do you want the report to contain code to reproduce figures?"),
+      el("div", { class: "analyze-code", role: "radiogroup", "aria-labelledby": question }, yes, no));
+    host.append(el("legend", {}, "Figure code"), questionRow,
+      el("p", { class: "group__intro analyze-code__help" }, "With Yes, each figure in the report has a ",
+        el("strong", {}, "Copy code to reproduce figure"),
+        " button at its top right. It copies the Python code that draws the figure again from its data, which OceanVal saves with the report."),
+      el("p", { class: "group__msg", id: `${prefix}-code-msg` }));
+    const answer = () => (yes.querySelector("input").checked ? "yes" : no.querySelector("input").checked ? "no" : "");
+    const api = {
+      read: () => ({ figure_code: answer() }),
+      answered: () => Boolean(answer()),
+      fill(form) {
+        yes.querySelector("input").checked = (form || {}).figure_code === "yes";
+        no.querySelector("input").checked = (form || {}).figure_code === "no";
+        api.sync();
+      },
+      sync() { questionRow.classList.toggle("needs-answer", !answer()); },
+      // the reason the server gave, under the question
+      show(errors) {
+        const text = (errors || {}).figure_code || "";
+        message(`${prefix}-code-msg`, text ? [line(text, "error")] : [], Boolean(text));
+      },
+    };
+    for (const input of [yes, no]) input.querySelector("input").addEventListener("change", () => { api.sync(); api.show({}); onChange(); });
+    api.sync();
+    return api;
   }
 
   // ---- whether to add the work to the user's OceanVal history, and the name to give it ----
@@ -9594,6 +9637,7 @@
     for (const name of VALIDATE_TEXT) $(`v-${name}`).value = validateForm[name];
     for (const name of VALIDATE_TICKS) $(`v-${name}`).checked = Boolean(validateForm[name]);
     validateHistory.fill(validateForm);
+    validateCode.fill(validateForm);
     // the pages after the options start at the options, with what was chosen on them kept
     validateForm.omit_all = [...(state.validate.form.omit_all || [])];
     validateForm.omit_each = Object.fromEntries(Object.entries(state.validate.form.omit_each || {}).map(([key, ids]) => [key, [...ids]]));
@@ -9796,6 +9840,13 @@
   });
   validateHistory.setWords("validation");
   const historyBlocked = () => Object.keys(validateHistory.problems()).length > 0;
+  // whether the report has code to reproduce its figures, which must be answered
+  const validateCode = figureCodeQuestion($("v-code-group"), "v", () => {
+    Object.assign(validateForm, validateCode.read());
+    delete validateErrors.figure_code;
+    refreshValidate();
+  });
+  const codeBlocked = () => !validateCode.answered();
   // whether the report options ask for matchup's cores: before anything is matched up
   const coresAsked = () => state.view === "report_options" && Boolean(state.question);
   const coresMissing = () => coresAsked() && !String(validateForm.cores || "").trim();
@@ -9831,6 +9882,7 @@
       else message(id, hints[id] || []);
     }
     validateHistory.show(validateErrors);
+    validateCode.show(validateErrors);
     $("v-domain_mask_path").classList.toggle("is-invalid", Boolean(validateErrors.domain_mask_path || reportMask.error()));
     if (validateErrors.domain_mask_path && !reportMask.error()) {
       message("vm-domain_mask_path", [line(validateErrors.domain_mask_path, "error")], true);
@@ -9839,10 +9891,11 @@
     renderReportPage();
     // there is nothing to build until there are matchups to validate
     const noMatchups = state.view === "validate" && !validateMatchups();
-    const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing() || historyBlocked();
+    const blocked = validateBusy || transect.block !== null || depthBlocked || noneTicked || noMatchups || coresMissing() || codeBlocked() || historyBlocked();
     const why = noMatchups ? (matchupsFound ? matchupsFound.error : "Looking for the matchups…")
       : coresMissing() ? "Choose the number of cores"
       : noneTicked ? NONE_TICKED
+      : codeBlocked() ? "Say whether the report should have code to reproduce its figures"
       : historyBlocked() ? (validateHistory.read().add_to_history ? "Name the validation to add it to your history" : "Say whether to add this validation to your history")
       : transect.block === "empty" ? "Fill in both ends of the transect, or untick it"
       : transect.block || depthBlocked ? "Fix what is marked in red first" : "";
@@ -9870,7 +9923,7 @@
 
   async function submitValidate() {
     // Enter in a box sends the form too, past the disabled button
-    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || historyBlocked()) return;
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || codeBlocked() || historyBlocked()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
     // Enter on the options goes on to the next page, rather than building the report
@@ -9899,7 +9952,7 @@
 
   // stops before anything is matched up, keeping the script with the report options as they are
   async function submitSaveScript() {
-    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || historyBlocked()) return;
+    if (validateBusy || transectCheck().block !== null || depthCheck().problems.length || coresMissing() || codeBlocked() || historyBlocked()) return;
     if (!onLastReportPage()) return;
     const ticked = tickedMatchups();
     if (ticked && !ticked.length) return;
@@ -9965,8 +10018,12 @@
       if (condition === "transect") return Boolean(validateForm.transect)
         || gridded.some((matchup) => matchup.vertical && matchup.default_sections !== false);
       if (condition === "vertical") return gridded.some((matchup) => matchup.vertical);
-      if (condition === "all_layer") return point.some((matchup) => matchup.layer === "all");
-      if (condition === "depths") return point.some((matchup) => matchup.layer === "all") || gridded.some((matchup) => matchup.vertical);
+      // a stratification matchup has a page of its own (its measures), and no depth summary for the summary page
+      const strat = (matchup) => matchup.variable === "stratification";
+      if (condition === "stratification") return point.some(strat);
+      if (condition === "values") return point.some((matchup) => !strat(matchup));
+      if (condition === "all_layer") return point.some((matchup) => matchup.layer === "all" && !strat(matchup));
+      if (condition === "depths") return point.some((matchup) => matchup.layer === "all" && !strat(matchup)) || gridded.some((matchup) => matchup.vertical);
       if (condition === "gridded") return gridded.length > 0;
       // seasonal: only known once the matchups are made, which the box says
       return true;
@@ -10223,11 +10280,18 @@
     refreshCompare();
   });
   compareHistory.setWords("comparison of validations");
+  // whether the comparison has code to reproduce its figures, which must be answered
+  const compareCode = figureCodeQuestion($("c-code-group"), "c", () => {
+    Object.assign(compareForm, compareCode.read());
+    delete compareErrors.figure_code;
+    refreshCompare();
+  });
 
   function fillCompare() {
     Object.assign(compareForm, state.compare.form);
     for (const name of COMPARE_TEXT) $(`c-${name}`).value = compareForm[name];
     compareHistory.fill(compareForm);
+    compareCode.fill(compareForm);
     $("c-out_dir").placeholder = state.cwd;
     compareErrors = {};
     refreshCompare();
@@ -10268,20 +10332,22 @@
     if (compareErrors.out_dir) message("cm-out_dir", [line(compareErrors.out_dir, "error")], true);
     else message("cm-out_dir", [line("The comparison is built in oceanval_comparison, inside this directory. Empty: the directory you started oceanval in.")]);
     compareHistory.show(compareErrors);
-    // compare needs two simulations, and the history question answered
+    compareCode.show(compareErrors);
+    // compare needs two simulations, and the figure code and history questions answered
     const go = $("compare");
     if (go) {
       const few = filledRows() < 2;
       const unanswered = Object.keys(compareHistory.problems()).length > 0;
-      go.disabled = compareBusy || few || unanswered;
+      go.disabled = compareBusy || few || !compareCode.answered() || unanswered;
       go.title = few ? "Fill in at least two simulations"
+        : !compareCode.answered() ? "Say whether the report should have code to reproduce its figures"
         : unanswered ? (compareHistory.read().add_to_history ? "Name the comparison to add it to your history" : "Say whether to add this comparison to your history") : "";
     }
   }
 
   async function submitCompare() {
     // Enter in a box sends the form too, past the disabled button
-    if (compareBusy || filledRows() < 2 || Object.keys(compareHistory.problems()).length) return;
+    if (compareBusy || filledRows() < 2 || !compareCode.answered() || Object.keys(compareHistory.problems()).length) return;
     compareBusy = true;
     refreshCompare();
     let reply = await post("api/compare", { form: { ...compareForm, overwrite_history: false } });

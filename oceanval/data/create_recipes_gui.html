@@ -132,6 +132,14 @@
   .none { display: inline-block; padding-top: 8px; color: var(--muted-light); }
   .chip__star { color: var(--teal-700); font-weight: 700; margin-left: -4px; }
   .dataset-note { margin: 10px 0 0; font-size: 13px; color: var(--muted); text-wrap: pretty; }
+  /* the Stratification row: the Temperature and Salinity rows' variables, which it is matched with */
+  .strat__vars { display: block; padding-top: 8px; font-size: 13.5px; line-height: 20px; color: var(--ink); overflow-wrap: anywhere; }
+  .strat__label { color: var(--muted); }
+  .strat__name { font: 500 13.5px/20px var(--font-mono); color: var(--ink); }
+  .strat__none { color: var(--muted); font-style: italic; }
+  .strat__dot { color: var(--muted-light); }
+  /* how much EN4 downloads for the years given */
+  .opts__size { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 
   /* ---- each page's settings, above its table ---- */
   .settings__head {
@@ -188,6 +196,8 @@
   .opts { display: grid; gap: 14px; width: 188px; max-width: 100%; }
   .opts__row { display: grid; grid-template-columns: 50px minmax(0, 1fr); align-items: center; gap: 6px; }
   .opts__label { color: var(--muted); font-size: 11.5px; font-weight: 500; }
+  /* how a dataset is always matched, where there is nothing to choose */
+  .opts__fixed { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-size: 12.5px; }
   .opts__row.is-required { grid-template-columns: 64px minmax(0, 1fr); }
   .opts__row.is-required .opts__label { font-weight: 500; }
   .opts__help { position: relative; display: inline-flex; margin-left: 3px; vertical-align: middle; }
@@ -749,7 +759,7 @@
   const verticalTicked = (kind) =>
     ownChipList.some(({ chip }) => chip.dataset.kind === kind && chip.dataset.opts.vertical)
     || rows.some((row) => row.status === "ok" && row.datasets.some(
-      (dataset) => dataset.kind === kind && dataset.checked && dataset.opts.vertical));
+      (dataset) => dataset.kind === kind && dataset.checked && (dataset.opts.vertical || dataset.always_vertical)));
   // a gridded dataset that is a mean over some depths (COPEPOD's, of the top 200 m) needs the water column too
   const depthMeanTicked = () => rows.some((row) => row.status === "ok" && row.datasets.some(
     (dataset) => dataset.kind === "gridded" && dataset.checked && dataset.depth_mean));
@@ -761,7 +771,7 @@
     : Boolean(app && app.own_point))
     || rows.some((row) => row.status === "ok" && row.datasets.some(
       (dataset) => dataset.checked && dataset.kind === "point" && lacksOwnYears(dataset)));
-  const THICKNESS_NEEDED = "A dataset is set to Vertical, or is a mean over some depths, so a thickness is needed: z_level, a cell thickness variable or a file.";
+  const THICKNESS_NEEDED = "A dataset is set to Vertical, is stratification, or is a mean over some depths, so a thickness is needed: z_level, a cell thickness variable or a file.";
   // what is wrong with a typed thickness (a variable or a file it cannot be), or null; shared by the box and the Vertical pop-out
   function thicknessProblem(text) {
     const thickness = String(text).trim();
@@ -932,7 +942,7 @@
         return [{ text: "Empty: the directory you run the script from. The report is built there too." }];
       case "thickness": {
         // only shown when a dataset is set to Vertical, or is a mean over some depths, which need it
-        const hints = [{ text: "A dataset is set to Vertical, or is a mean over some depths, so OceanVal needs the simulation's cell thickness: z_level, a cell thickness variable or a file." }];
+        const hints = [{ text: "A dataset is set to Vertical, is stratification, or is a mean over some depths, so OceanVal needs the simulation's cell thickness: z_level, a cell thickness variable or a file." }];
         // in the app, a missing thickness is an error instead
         if (!app && !String(form.thickness).trim()) {
           hints.push({ text: "Matchup needs a thickness.", warn: true });
@@ -1029,7 +1039,8 @@
   // datasets' from the boxes above them, the climatologies' from the years
   // for climatologies, and otherwise the years OceanVal starts with, if any
   function filledValue(dataset, name) {
-    if (name === "point_time_res") return String(form.point_time_res);
+    // one always matched the same way (the North Sea Benthos Survey, by month) has nothing to fill in
+    if (name === "point_time_res") return dataset.fixed_time_res ? "" : String(form.point_time_res);
     let value = "";
     if (dataset.kind === "point") value = String(form[`point_${name}`]).trim();
     else if (dataset.climatology) value = String(form[`clim_${name}`]).trim();
@@ -1086,7 +1097,64 @@
       applyDefaults(row);
     }
     update(row);
+    // stratification is matched with the Temperature and Salinity rows' variables
+    if (row.variable === "temperature" || row.variable === "salinity") followStratification();
     summarise();
+  }
+
+  // ---- stratification: no simulation variable of its own ----
+  const STRATIFICATION = "stratification";
+  const rowOf = (variable) => rows.find((row) => row.variable === variable);
+  // the Stratification row takes the Temperature row's variable, and shows the Salinity row's beside it
+  // (at the start, before the page's buttons are there to summarise, only the row is set)
+  function followStratification(starting = false) {
+    const strat = rowOf(STRATIFICATION);
+    if (!strat || !strat.dom) return;
+    const temperature = rowOf("temperature");
+    const value = temperature ? temperature.value : "";
+    if (strat.value === value) update(strat);
+    else if (!starting) setValue(strat, value);
+    else {
+      strat.value = value;
+      Object.assign(strat, check(value));
+      update(strat);
+    }
+  }
+  // what the Stratification row's simulation variable cell says
+  function stratificationNames() {
+    const temperature = rowOf("temperature");
+    const salinity = rowOf("salinity");
+    const named = (row) => row && row.status === "ok" ? row.value.trim() : "";
+    const t = named(temperature);
+    const s = named(salinity);
+    const name = (label, text) => el("span", { class: "strat__var" },
+      el("span", { class: "strat__label", text: `${label}: ` }),
+      text ? el("code", { class: "strat__name", text }) : el("span", { class: "strat__none", text: "none" }));
+    return [name("Temperature", t), el("span", { class: "strat__dot", "aria-hidden": "true", text: " · " }), name("Salinity", s)];
+  }
+  function stratificationMessage() {
+    const temperature = rowOf("temperature");
+    if (!temperature || temperature.status !== "ok") {
+      return [icon("warn"), el("span", { text: "Give the Temperature row a simulation variable to use these datasets." })];
+    }
+    const salinity = rowOf("salinity");
+    if (!salinity || salinity.status !== "ok") {
+      return [el("span", { text: "No salinity: only the stratification from temperature is validated." })];
+    }
+    return [el("span", { class: "found-by", text: "From the Temperature and Salinity rows." })];
+  }
+  // EN4 is downloaded a year at a time for the whole ocean: its size for the years given
+  function en4Size(start, end) {
+    const sizes = state.en4_sizes || {};
+    const known = Object.keys(sizes).map(Number).sort((a, b) => a - b);
+    if (!known.length || !isInteger(String(start).trim()) || !isInteger(String(end).trim()) || +start > +end) return "";
+    const year = (y) => sizes[String(y)] ?? sizes[String(known.filter((k) => k <= y).pop() ?? known[0])];
+    let total = 0;
+    for (let y = +start; y <= +end; y += 1) total += year(y);
+    const gb = (mb) => mb >= 100 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.max(mb, 1)} MB`;
+    const each = +start === +end ? `${gb(total)} for ${start}`
+      : `${gb(year(+start))} for ${start}, ${gb(total)} for ${start}–${end}`;
+    return `EN4 is downloaded a year at a time for the whole ocean: about ${each}.`;
   }
 
   // the row's simulation variable box on the page shown, or on the other
@@ -1152,9 +1220,13 @@
 
   function update(row) {
     const { views, chips } = row.dom;
-    for (const { kind, tr, input, msg } of views) {
-      if (input.value !== row.value) input.value = row.value;
-      input.title = row.value;
+    for (const { kind, tr, input, msg, names } of views) {
+      if (input) {
+        if (input.value !== row.value) input.value = row.value;
+        input.title = row.value;
+      } else {
+        names.replaceChildren(...stratificationNames());
+      }
       tr.classList.toggle("is-empty", row.status === "empty");
       tr.classList.toggle("is-invalid", row.status === "invalid");
       // the user's own data is always ticked
@@ -1162,8 +1234,12 @@
         // not ownChips(row, kind): that builds the chips, and each one it builds is listed in ownChipList,
         // where those never shown would replace the options the user typed in
         && (chips.some((chip) => chip.dataset.kind === kind && chip.dataset.checked) || row.own.some((entry) => entry.kind === kind)));
-      input.setAttribute("aria-invalid", String(row.status === "invalid"));
-      msg.replaceChildren(...message(row));
+      if (input) {
+        input.setAttribute("aria-invalid", String(row.status === "invalid"));
+        msg.replaceChildren(...message(row));
+      } else {
+        msg.replaceChildren(...stratificationMessage());
+      }
     }
     const locked = row.status !== "ok";
     for (const chip of chips) {
@@ -1241,6 +1317,10 @@
     opts.msg.textContent = Object.values(errors).find(Boolean) || (outside ? outside.text : "");
     opts.msg.classList.toggle("is-warn", Boolean(outside) && !Object.keys(errors).length);
     for (const name of ["start", "end"]) opts.controls[name].classList.toggle("is-outside", Boolean(outside));
+    if (opts.size) {
+      opts.size.textContent = shown ? en4Size(dataset.opts.start, dataset.opts.end) : "";
+      opts.size.hidden = !opts.size.textContent;
+    }
     return Object.keys(errors).length > 0;
   }
 
@@ -1250,7 +1330,16 @@
     const name = `${dataset.label} observations for ${row.title}`;
     const controls = {};
     const parts = [];
-    if (dataset.kind === "point") {
+    if (dataset.kind === "point" && dataset.fixed_time_res) {
+      // always matched the same way, whatever the year: shown, not chosen
+      const why = dataset.fixed_time_res_why ? el("details", { class: "opts__help" },
+        el("summary", { "aria-label": `Why ${name} are always matched this way`, title: "Why this cannot be changed" }, "?"),
+        el("div", { class: "opts__help-popover", role: "note" }, el("p", { text: dataset.fixed_time_res_why }))) : null;
+      parts.push(el("div", { class: "opts__row" },
+        el("span", { class: "opts__label", text: "Match by" }),
+        // the text and its ? together, in the row's second column
+        el("span", { class: "opts__fixed" }, dataset.fixed_time_res, why)));
+    } else if (dataset.kind === "point") {
       controls.point_time_res = el("select", { class: "s-select is-small", "aria-label": `Match ${name} by` },
         ...state.time_res_options.map((option) => el("option", { value: option.value, text: option.label })));
       const given = dataset.own ? dataset.opts.point_time_res : "";
@@ -1322,8 +1411,9 @@
       });
     }
     const msg = el("p", { class: "opts__msg" });
-    const block = el("div", { class: "opts" }, ...parts, msg);
-    return { block, controls, years, yearsRow, msg };
+    const size = dataset.recipe === "en4" ? el("p", { class: "opts__size" }) : null;
+    const block = el("div", { class: "opts" }, ...parts, size, msg);
+    return { block, controls, years, yearsRow, msg, size };
   }
 
   // the i beside a source: the years its observations cover, their spatial and temporal resolution, and its page
@@ -1350,6 +1440,8 @@
       update(row);
       summarise();
       syncHidden();
+      // stratification is always through the water column: ticked with no thickness yet, one is asked for at once
+      if (dataset.always_vertical && box.checked && needsThickness() && !String(form.thickness).trim()) askThickness(box);
     });
     const label = el("label", {
       class: "chip",
@@ -1468,7 +1560,41 @@
 
   // a recipe row on one page: its simulation variable box, which each page
   // the row is on has a copy of, and the datasets of that page's kind
+  // the Stratification row: the Temperature and Salinity rows' variables, not a box of its own
+  function buildStratificationRow(row, kind) {
+    const names = el("span", { class: "strat__vars" });
+    const msg = el("p", { class: "field__msg", id: `message-${kind}-${row.variable}` });
+    const datasets = datasetsCell(DATASET_HEADS[kind],
+      row.dom.chips.filter((chip) => chip.dataset.kind === kind), `No ${kind} dataset for ${row.title}`);
+    datasets.append(el("p", { class: "dataset-note", text: STRATIFICATION_NOTE }));
+    const cells = [
+      stratificationTitleCell(row),
+      el("td", { "data-label": "What is the simulation variable name?" }, names, msg),
+      datasets,
+      chosenCell(row),
+    ];
+    const tr = el("tr", { class: "is-stratification" }, ...cells);
+    row.dom.views.push({ kind, tr, input: null, msg, names });
+    return tr;
+  }
+  const STRATIFICATION_NOTE = "Also gives the temperature and salinity (all depths) matchups of the datasets ticked.";
+  function stratificationTitleCell(row) {
+    const help = el("details", { class: "opts__help" },
+      el("summary", { "aria-label": "What stratification is validated with", title: "What is validated" }, "i"),
+      el("div", { class: "opts__help-popover", role: "note" },
+        el("p", { text: "Each cast of temperature and salinity is compared with the simulation at the cast's depths, by:" }),
+        el("dl", {},
+          el("dt", { text: "Surface minus bottom temperature" }),
+          el("dd", { text: "Between the centres of the model's top and bottom cells. Stratified above 0.5 °C." }),
+          el("dt", { text: "Potential energy anomaly" }),
+          el("dd", { text: "The energy needed to mix the water column (top 200 m), from temperature alone and from temperature and salinity. Stratified above 10 J m⁻³." }),
+          el("dt", { text: "Mixed layer depth" }),
+          el("dd", { text: "Where the temperature first differs from its value at 10 m by 0.2 °C." }))));
+    return el("td", {}, el("span", { class: "g-label-row" }, el("span", { class: "obs__title", text: row.display || row.title }), help));
+  }
+
   function buildRow(row, kind) {
+    if (row.variable === STRATIFICATION) return buildStratificationRow(row, kind);
     const input = el("input", {
       class: "field__input",
       type: "text",
@@ -1566,6 +1692,8 @@
     Object.assign(row, check(row.value));
     update(row);
   }
+  // stratification starts from the Temperature row's variable
+  followStratification(true);
   for (const kind of KINDS) {
     if (!tbodies[kind].children.length) {
       tbodies[kind].append(el("tr", {}, el("td", { colspan: kind === "point" ? "5" : "4", class: "none",
@@ -1618,7 +1746,8 @@
     for (const kind of KINDS) found[kind].settings = counts[kind];
     for (const row of rows) {
       for (const kind of KINDS) {
-        if (row.status === "invalid" && hasKind(row, kind)) found[kind].variables += 1;
+        // the Stratification row is invalid only through the Temperature row, counted already
+        if (row.status === "invalid" && hasKind(row, kind) && row.variable !== STRATIFICATION) found[kind].variables += 1;
       }
       for (const chip of row.dom.chips) {
         if (refreshOptions(row, chip)) found[chip.dataset.kind].settings += 1;
@@ -1635,7 +1764,7 @@
     const found = problems();
     refreshChosen();
     // a row on both pages is counted once
-    const invalidRows = rows.filter((row) => row.status === "invalid").length;
+    const invalidRows = rows.filter((row) => row.status === "invalid" && row.variable !== STRATIFICATION).length;
     // the gridded page needs its own fixed to carry on; the point page, everything
     const here = page === "gridded"
       ? { invalid: found.gridded.variables, settings: found.gridded.settings }

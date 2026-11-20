@@ -72,6 +72,17 @@ class TestCatalogue:
         }
 
 
+def _water_column(entry):
+    """The website's Water column cell of a catalogue entry: Yes if it can be
+    matched through the water column, Always for stratification, which always
+    is (it has no Vertical option), else No."""
+    from oceanval.create_recipes import _has_vertical_option
+
+    if entry["variable"] == "stratification":
+        return "Always"
+    return "Yes" if _has_vertical_option(entry) else "No"
+
+
 def _cells(row):
     return [
         html.unescape(re.sub(r"<.*?>", "", cell)).strip()
@@ -98,6 +109,7 @@ class TestWebsiteDatasets:
         "glodapv3": "GLODAPv3 bottle data",
         "hansell": "Hansell et al. DOM compilation",
         "ices": "ICES Oceanographic database",
+        "en4": "EN4",
     }
     REGIONS = {
         "Global": "Global",
@@ -134,7 +146,7 @@ class TestWebsiteDatasets:
         assert set(listed) == set(expected)
         for key, (years, water, units) in listed.items():
             entry = expected[key]
-            assert water == ("Yes" if _has_vertical_option(entry) else "No"), key
+            assert water == _water_column(entry), key
             assert units == entry["units"], key
             if years is not None and entry["recipe"] not in ("ices", "copepod") and not entry.get("decadal"):
                 assert years == entry["coverage"]["years"], key
@@ -165,7 +177,7 @@ class TestWebsiteDatasets:
             cells = _cells(row)
             gridded[cells[1].lower().replace(" ", ""), cells[2]] = cells[4]
         assert gridded == {
-            (entry["variable"], entry["recipe"]): "Yes" if _has_vertical_option(entry) else "No"
+            (entry["variable"], entry["recipe"]): _water_column(entry)
             for entry in RECIPE_CATALOGUE
         }
 
@@ -186,7 +198,7 @@ class TestWebsiteDatasets:
                 entry["region"],
                 titles.get(entry["variable"], entry["variable"].title()),
                 entry["recipe"],
-            ): "Yes" if _has_vertical_option(entry) else "No"
+            ): _water_column(entry)
             for entry in POINT_RECIPE_CATALOGUE
         }
 

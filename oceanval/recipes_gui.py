@@ -33,6 +33,8 @@ import urllib.parse
 import webbrowser
 
 from oceanval.create_recipes import (
+    DERIVED_VARIABLES,
+    STRATIFICATION,
     USER_REGION,
     _WOA23_PERIODS,
     _has_vertical_option,
@@ -47,7 +49,7 @@ from oceanval.create_recipes import (
     recipe_variables,
     validate_defaults,
 )
-from oceanval import model_expr, netcdf_lock, own_data, regions, time_res, user_recipes, variable_identify
+from oceanval import en4, model_expr, netcdf_lock, own_data, regions, time_res, user_recipes, variable_identify
 
 # how each recipe's dataset is named in the window
 DATASET_LABELS = {
@@ -55,11 +57,13 @@ DATASET_LABELS = {
     "glodap": "GLODAP",
     "copepod": "COPEPOD",
     "coraltemp": "CoralTemp",
+    "en4": "EN4",
     "glodapv3": "GLODAPv3",
     "hansell": "Hansell",
     "ices": "ICES",
     "mpisom": "MPI-SOM-FFN",
     "nsbc": "NSBC",
+    "nsbs": "NSBS",
     "occci": "OC-CCI",
     "oisst": "OISST",
     "socat": "SOCAT",
@@ -102,8 +106,8 @@ def is_likely_nemo_ersem(variables):
 
 # why the oceanval app's window cannot carry on without a thickness
 THICKNESS_NEEDED = (
-    "A dataset is set to Vertical, or is a mean over some depths, so a thickness is needed: z_level, a cell "
-    "thickness variable or a file."
+    "A dataset is set to Vertical, is stratification, or is a mean over some depths, so a thickness is needed: "
+    "z_level, a cell thickness variable or a file."
 )
 
 
@@ -408,6 +412,22 @@ def check_subregions(text, errors):
     return None
 
 
+# why a variable's datasets are always matched the same way, beside "Match by"
+FIXED_TIME_RES_WHY = {
+    STRATIFICATION: "Each cast is compared with the simulation on the day it was made: "
+    "matched by month or year, casts of different days would be mixed into one profile, and the stratification "
+    "worked out from it would be unreliable.",
+}
+
+
+def _time_res_label(point_time_res):
+    """How a dataset always matched by point_time_res is shown ("Month"), or None."""
+    if not point_time_res:
+        return None
+    text = ", ".join(point_time_res)
+    return text[0].upper() + text[1:]
+
+
 def _year_range(coverage):
     """[first, last] of the years a time series covers, from a catalogue
     entry's coverage ("to the present" is this year), or None for a dataset
@@ -681,6 +701,8 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
             # whether the page offers Vertical, and makes the years sit
             # inside one WOA23 decade
             "vertical_option": _has_vertical_option(entry),
+            # always through the water column, with nothing to tick: stratification, worked out from whole casts
+            "always_vertical": entry["variable"] == STRATIFICATION,
             "decadal": bool(entry.get("decadal")),
             # [top, bottom] in metres if the observations are a mean over them: the simulation's
             # is taken over them too, which needs the cell thickness
@@ -690,8 +712,15 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
             "climatology": _is_climatology(entry),
             # the years its observations cover, and its web page, for the i beside it
             "coverage": entry.get("coverage"),
-            # [first, last] of a time series: no year outside it can be chosen
-            "year_range": _year_range(entry.get("coverage")),
+            # [first, last] of a time series: no year outside it can be chosen. Not of one
+            # always matched without its year, whose years are only the simulation's to use
+            # one always matched without its year (the North Sea Benthos Survey) is of every year
+            "year_range": None if "year" not in (entry.get("fixed_point_time_res") or ("year",)) else _year_range(entry.get("coverage")),
+            # why it is always matched that way, for the ? beside it
+            "fixed_time_res_why": FIXED_TIME_RES_WHY.get(entry["variable"]),
+            # how a point dataset is always matched (the North Sea Benthos Survey's one
+            # spring, by month), which the page shows in place of a choice, or None
+            "fixed_time_res": _time_res_label(entry.get("fixed_point_time_res")),
         }
 
     rows = [
@@ -719,7 +748,8 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
                 for item in own.get(variable, [])
             ],
         }
-        for variable in sorted(variables)
+        # stratification at the very top of the point page (the user's wish, 2026-11-17)
+        for variable in sorted(variables, key=lambda x: (x != STRATIFICATION, x))
     ]
     for row in rows:
         # the name in the Environmental variable column (the title stays the report's)
@@ -1002,6 +1032,8 @@ class RecipePage:
                 for value, label, hint in POINT_TIME_RES_OPTIONS
             ],
             "woa23_periods": _WOA23_PERIODS,
+            # the size of each year of EN4's profiles, in MB, for the line under its years
+            "en4_sizes": en4.sizes(),
             "cpu_count": os.cpu_count(),
         }
         return render_page("create_recipes_gui.html", state)
@@ -1093,8 +1125,12 @@ class RecipePage:
                         if (variable, recipe) not in selection or recipe not in forms:
                             continue
                         if kind == "point":
+                            form = forms[recipe]
+                            if dataset.get("fixed_time_res") and isinstance(form, dict):
+                                # always matched the same way: there is nothing to choose
+                                form = dict(form, point_time_res="")
                             options, problems = check_point_options(
-                                forms[recipe], years, dataset.get("year_range"), dataset["label"]
+                                form, years, dataset.get("year_range"), dataset["label"]
                             )
                         else:
                             options, problems = check_gridded_options(
@@ -1130,6 +1166,9 @@ class RecipePage:
                 vertical = own_vertical or any(
                     options.get("vertical")
                     for options in [*gridded_options.values(), *point_options.values()]
+                ) or any(
+                    # stratification is always through the water column
+                    variable == STRATIFICATION for variable, _ in selection
                 ) or any(
                     dataset["depth_mean"]
                     for variable, recipe in selection

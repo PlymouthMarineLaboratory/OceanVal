@@ -441,6 +441,65 @@ def _point_profiles():
     return gridded_plots.profiles(DEPTH_RANGES, {"All": (means.observation.values, means.model.values)}, _label())
 
 
+def _strat_measures(n=240):
+    """Made-up measures of casts on the shelf (oceanval.stratification): stratified in summer, more so in deep
+    water, and the model a little too stratified."""
+    from oceanval import stratification
+
+    rng = np.random.default_rng(11)
+    casts = pd.DataFrame({"lon": rng.uniform(-10, 8, n), "lat": rng.uniform(48, 60, n), "year": 2012,
+                          "month": np.resize(MONTHS, n), "day": 15})
+    water = rng.uniform(20, 150, n)
+    season = np.clip(np.sin(np.pi * (casts.month - 3) / 7), 0, None) * (casts.month.between(3, 10))
+    dt = season * np.clip((water - 30) / 15, 0, 6) + rng.normal(0, 0.2, n).clip(0)
+    rows = []
+    for measure, observed in [("dt", dt), ("pea_t", 9 * dt), ("pea", 10 * dt), ("mld", np.where(dt > 0.5, 15 + 20 * (1 - season), water))]:
+        model = observed * 1.15 + rng.normal(0, 0.15 * (observed.std() + 1e-9), n)
+        rows.append(casts.assign(measure=measure, observation=observed, model=np.clip(model, 0, None), water_depth=water))
+    df = pd.concat(rows, ignore_index=True)
+    return df.loc[df.measure.isin(stratification.MEASURES)]
+
+
+def _strat_locations_map():
+    from oceanval import plotnine_figures
+
+    return _plotnine(plotnine_figures.locations_map(_strat_measures()[["lon", "lat"]].drop_duplicates()), 600, 500)
+
+
+def _strat_seasonal():
+    from oceanval import plotnine_figures
+
+    return _plotnine(plotnine_figures.stratification_cycle(_strat_measures()), 1000, 700)
+
+
+def _strat_maps():
+    from oceanval import plotnine_figures
+
+    df = _strat_measures().query("measure == 'dt' and month in [6, 7, 8]")
+    df = df.groupby(["lon", "lat"], as_index=False)[["observation", "model"]].mean()
+    return _plotnine(plotnine_figures.mean_map(df, "Surface minus bottom temperature (°C)"), 1000, 700)
+
+
+def _strat_scatter():
+    from oceanval import plotnine_figures
+
+    return _plotnine(plotnine_figures.stratification_scatter(_strat_measures()), 1000, 900)
+
+
+def _strat_table():
+    from oceanval import stratification
+
+    df = _strat_measures()
+    rows = []
+    for measure in stratification.MEASURES:
+        part = df.loc[df.measure == measure]
+        rows.append((f"{stratification.LABELS[measure]} ({stratification.UNITS[measure]})", len(part),
+                     part.observation.mean(), part.model.mean(), part.model.mean() - part.observation.mean(),
+                     np.sqrt(((part.model - part.observation) ** 2).mean()), part.model.corr(part.observation)))
+    return pd.DataFrame(rows, columns=["Measure", "Number of casts", "Observed mean", "Model mean", "Bias", "RMSD",
+                                       "Correlation"])
+
+
 VARIABLES = ["Temperature", "Salinity", "Nitrate", "Chlorophyll"]
 
 
@@ -519,6 +578,11 @@ DRAW = {
     "depth_locations_map": _depth_locations_map,
     "depth_table": _depth_table,
     "point_profiles": _point_profiles,
+    "strat_locations_map": _strat_locations_map,
+    "strat_seasonal": _strat_seasonal,
+    "strat_maps": _strat_maps,
+    "strat_scatter": _strat_scatter,
+    "strat_table": _strat_table,
     "taylor": _taylor,
     "bias_table": _bias_table,
     "spatial_table": _spatial_table,

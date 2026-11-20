@@ -111,8 +111,10 @@ Every report figure is Python; OceanVal needs no R. The figures ggplot2 used to 
 `oceanval/plotnine_figures.py`, one function per figure taking the data frame the page made: the point page's
 `locations_map`, `mean_map`, `bias_map` (with `capped_bias`, whose csv is written whatever is shown) and `scatter` (detailed: all
 months and each month; concise: all together), `point_template.ipynb`'s `depth_locations_map`, the summary's `depth_matchup_map`,
-the gridded page's `regional_cycles` and `zonal_sections` (each region's model and observations, then their bias, stacked with
-plotnine's composition), and `comparison_regional.ipynb`'s `comparison_cycles`. `show(plot, width, height)` draws at 72 dpi, so a size
+the gridded page's `regional_cycles`, `zonal_sections` and `density_scatter` (the density scatters, 2026-11-17: `gridded_plots.density_panels` bins and works out the boxes' text and lines, plotnine's `facet_wrap` shares the axes so each axis title is given once, the box reads r, Bias, RMSD, N, and it still returns the matplotlib figure; `tests/test_density_panels.py`) (each region's model and observations, then their bias, stacked with
+plotnine's composition; each colour bar's title is written across above a 90px bar, the name wrapped and the units on their own line,
+so the bars stay beside their row and inside the figure, and `zonal_height(n)` gives `max(2000, 450 × (regions + 1))` px for every set
+of regions, the template's `zonal_height`), and `comparison_regional.ipynb`'s `comparison_cycles`. `show(plot, width, height)` draws at 72 dpi, so a size
 in pixels is the page's. Units are `oceanval.unit_display.mathtext`. `tests/test_report_templates.py` fails if a template has
 `%%R`, `rpy2` or `library(` again.
 
@@ -146,3 +148,40 @@ disk cannot fetch fragments). PDF and Word are made from the page before this is
 The pop-out's card is capped at `calc(100vh - 48px)` and its body (`flex:1 1 auto; min-height:0; overflow:auto`, `tabindex=0`)
 scrolls both ways, so a tall figure or wide table is all reachable while the heading and × stay put; `body.ov-dialog-open` stills the
 page behind. Not `max-height:100%`: the overlay is a grid whose `auto` row grows to the content, so a percentage capped nothing.
+
+## Figure code (2026-11-17)
+
+`validate(figure_code=True)` and `compare(figure_code=True)` (the window's required Yes/No "Do you want the report to contain
+code to reproduce figures?" on the report options page and the compare page, `app.check_figure_code_box`; the tests start it as
+"no", `conftest.figure_code_question_answered`) give each figure a **Copy code to reproduce figure** button. Unlike Analyze's
+(`analysis_plots`, scripts that draw from the saved results), the code **redraws the figure from its data, saved when it was drawn**
+(the user's choice): `oceanval/figure_code.py`'s `Figures`, made in `chunk_start` from `the_figure_code` (filled in per page by
+`_figure_code_options`: on, `oceanval_results/figure_data/<page>` or `oceanval_comparison/figure_data/<page>`, and what the report
+is; `None`, or not filled in at all as in the analysis templates, is off).
+
+- **Every figure of the validation and comparison templates is one call through `figures`**:
+  `_fig = figures.call(function, *args, **kwargs)` (an OceanVal drawing function, `nc.panel_plot`, or
+  `plotnine_figures.sized` with the plot as `Of(plotnine_figures.x, ...)`) or `figures.method(ds, "pub_plot", ...)`, then
+  `figures.show(i_figure)` where `plt.show()` was (`figures.show(number, fig=fig)` for a figure displayed later, as compare's bias
+  and seasonality maps). **A new figure must be drawn the same way**; drawing that takes more than one call goes in a function first
+  (`report_maps.seasonal_month_maps`, `report_maps.bias_maps`). Always assign the call (`_fig = `): a bare expression's value is
+  shown again by the page (`ast_node_interactivity = "all"`), which is how the plotnine figures were each shown twice.
+- `call` saves each argument when figure code is on (DataFrame/Series `.csv`, gzipped past 50,000 rows, with its index, dates,
+  categories and text kept; arrays `.npy`, or written in for up to 24 numbers; xarray and `gridded_plots.Density` `.nc`; an
+  nctoolkit DataSet's files copied, once for all the figures that draw it; colour maps and norms as code; anything else pickled), and
+  writes the code that reads them back and makes the same call. `show` names the files `figure_<N>[_part<k>]_<argument>` and puts
+  the PNG in `copy_block` (shared with Analyze). Off, nothing is saved and `show` is `plt.show()`, so the page is as it was.
+- Keeping a figure's code never breaks the page: if it fails, the figure is shown without the button (`Figures.failures`). The report
+  build drops error outputs, so a failure is only seen as a missing button: `tests/figure_code_checks.py` fails for a PNG figure
+  without one, and runs every copied script in one fresh Python, each of which must draw its figure again pixel for pixel
+  (`test_report_figures`, `test_report_compare`, `test_transect_report`, `test_report_totals`; `tests/test_figure_code.py` for the
+  pieces).
+
+### The stratification page
+
+`_point_notebook_text` uses `stratification_template.ipynb` (edit the notebook; its figures go through `figures.call`) for the variable
+`stratification`. Its items are `strat_*` (`when=("stratification",)`); every other point item has `"values"`, so neither page
+shows the other's (`option_profiles._holds`, `itemApplies` in `oceanval_app.html`), and `depths` is false for it (no depth summary for
+the summary page). A concise report keeps its figures but the map of the casts (`release_figures.CONCISE_NEW_PAGES`), or the page
+would be empty. It writes `oceanval_results/stratification_<source>_statistics.csv` and `_agreement.csv`. Figures:
+`plotnine_figures.stratification_cycle` and `stratification_scatter`. Test: `test_stratification_report.py`.

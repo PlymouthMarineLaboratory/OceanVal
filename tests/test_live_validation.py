@@ -96,6 +96,16 @@ class TestOptions:
         with pytest.raises(ValueError, match="the interim report is HTML only"):
             check_options({name: True}, "/run")
 
+    def test_the_windows_report_options_are_left_without_what_only_validate_takes(self):
+        """The oceanval window gives the interim report its report's options, without
+        live.NOT_INTERIM: figure_code is validate()'s, whose full report has the buttons."""
+        from oceanval import live
+
+        report = {"concise": True, "figure_code": True, "pdf": True, "name": "run", "fixed_scale": True}
+        options = check_options({k: v for k, v in report.items() if k not in live.NOT_INTERIM}, "/run")
+        assert options["concise"] and options["fixed_scale"]
+        assert "figure_code" not in options
+
     def test_the_matchups_are_matchups_own(self):
         with pytest.raises(ValueError, match="does not take data_dir"):
             check_options({"data_dir": "/elsewhere"}, "/run")

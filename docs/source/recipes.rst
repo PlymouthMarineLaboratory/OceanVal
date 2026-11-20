@@ -149,6 +149,10 @@ seas.
    :header: "Region", "Variable", "Recipe", "Dataset", "Units", "Water-column"
    :widths: 18, 14, 12, 28, 10, 12
 
+   "Global", "Stratification", "``en4``", "`EN4.2.2 quality controlled profiles <https://www.metoffice.gov.uk/hadobs/en4/>`_, the whole ocean from 1900, a year at a time", "°C, J/m³, m", "Always"
+   "Global", "Temperature", "``en4``", "`EN4.2.2 quality controlled profiles <https://www.metoffice.gov.uk/hadobs/en4/>`_, the whole ocean from 1900, a year at a time", "°C", "Yes"
+   "Global", "Salinity", "``en4``", "`EN4.2.2 quality controlled profiles <https://www.metoffice.gov.uk/hadobs/en4/>`_, the whole ocean from 1900, a year at a time", "dimensionless", "Yes"
+   "European", "Stratification", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "°C, J/m³, m", "Always"
    "European", "Temperature", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "°C", "Yes"
    "European", "Salinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, CTD profiles and bottle data", "dimensionless", "Yes"
    "European", "Total Alkalinity", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "mEq/l", "Yes"
@@ -159,6 +163,30 @@ seas.
    "European", "pH", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "pH units", "Yes"
    "European", "Phosphate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
    "European", "Silicate", "``ices``", "`ICES Oceanographic database <https://ocean.ices.dk>`_, bottle and low resolution CTD data", "µmol/l", "Yes"
+
+**Stratification** is worked out cast by cast from the temperature and salinity
+of ICES or EN4 casts: the surface minus bottom temperature, the potential energy
+anomaly (from temperature and salinity, and from temperature alone) and the mixed
+layer depth, each from the observed cast and from the model's water column nearest
+it, whose surface and bottom are the centres of its top and bottom cells. Its model
+variable is the temperature and ``salinity_variable`` the salinity. It is always
+matched through the water column by year, month and day, needs the model's cell
+thickness, and also gives the temperature and salinity matchups through the water
+column of its dataset, which are not matched again.
+
+.. code-block:: text
+
+   oceanval.add_point_comparison(
+       model_variable="votemper",               # <--- the model's temperature
+       salinity_variable="vosaline",            # <--- the model's salinity
+       recipe={"stratification": "en4"},        # <--- or "ices"
+       start=2012, end=2014,                    # <--- EN4: a few years
+   )
+
+**EN4** (EN.4.2.2, g10) is downloaded a year at a time for the whole ocean, about
+0.5 to 0.9 GB a year since 2012, so give a few years; one download a year serves
+stratification, temperature and salinity. Only profiles and levels that passed
+EN4's quality control, and are not duplicates, are used.
 
 .. _ices-data:
 

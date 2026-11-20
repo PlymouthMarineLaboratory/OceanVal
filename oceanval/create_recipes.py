@@ -723,10 +723,26 @@ _POINT_UNITS = {
     ("ph", "glodapv3"): "total scale",
     ("phosphate", "glodapv3"): "\u00b5mol/kg",
     ("silicate", "glodapv3"): "\u00b5mol/kg",
+    ("stratification", "ices"): "\u00b0C, J/m\u00b3, m",
+    ("stratification", "en4"): "\u00b0C, J/m\u00b3, m",
+    ("temperature", "en4"): "\u00b0C",
+    ("salinity", "en4"): "dimensionless",
+    ("macrobenthos", "nsbs"): "mg C/m2",
 }
 
 # the years a point source covers, and its web page, for the i beside it
 _POINT_COVERAGE = {
+    "nsbs": {
+        "years": "1986",
+        "range": (1986, 1986),
+        "spatial": "Point observations at stations across the North Sea, on the sea bed",
+        "temporal": "One survey, in April and May 1986, matched by month",
+        "note": (
+            "Macrobenthos biomass of 205 samples of the ICES North Sea Benthos Survey, "
+            "as ash-free dry weight taken as carbon at 0.5 g C per g."
+        ),
+        "url": "https://marineinfo.org/doc/dataset/67",
+    },
     "glodapv3": {
         "years": "1972–2023",
         "range": (1972, 2023),
@@ -747,16 +763,109 @@ _POINT_COVERAGE = {
         "note": "Bottle samples from 223 cruises, with good (WOCE flag 2) values kept.",
         "url": "https://www.ncei.noaa.gov/data/oceans/ncei/ocads/metadata/0227166.html",
     },
+    "en4": {
+        "years": "1900 to the present",
+        "range": (1900, None),
+        "spatial": "Profiles at the places sampled, at the depths sampled",
+        "temporal": "Individual profiles, by date",
+        "note": (
+            "Quality controlled profiles of the whole ocean, downloaded a year at a time: "
+            "0.5 to 0.9 GB a year since 2012, less before."
+        ),
+        "url": "https://www.metoffice.gov.uk/hadobs/en4/",
+    },
 }
+
+# the variable worked out from casts of temperature and salinity (oceanval.stratification):
+# its model variable is the temperature's, and its salinity the salinity's, so it is never
+# looked for in the model output itself
+STRATIFICATION = "stratification"
+DERIVED_VARIABLES = {STRATIFICATION: "temperature"}
+# why a chosen stratification recipe is written commented out
+STRATIFICATION_THICKNESS_NOTE = (
+    "Stratification is worked out through the water column, which needs the model's cell",
+    'thickness: give matchup thickness= (e.g. "e3t"), then uncomment this block.',
+)
+STRATIFICATION_NOTE = (
+    "Stratification of each cast: surface minus bottom temperature, the potential energy anomaly",
+    "(of temperature alone, and of temperature and salinity) and the mixed layer depth, of the",
+    "observations and of the model at the cast's depths. The model's temperature and salinity",
+    "are those of the temperature and salinity recipes, and the temperature and salinity",
+    "matchups through the water column are made from the same casts.",
+)
 
 # the section of the script each point source is written in
 POINT_SECTIONS = {
     "glodapv3": "Global - GLODAPv3 bottle data",
     "hansell": "Global - Hansell et al. DOM compilation",
     "ices": "European - ICES point observations",
+    "en4": "Global - EN4 profiles",
+    "nsbs": "North Sea - North Sea Benthos Survey",
 }
 
-POINT_RECIPE_CATALOGUE = tuple(
+_STRATIFICATION_RECIPES = (
+    {
+        "variable": STRATIFICATION,
+        "recipe": "ices",
+        "region": "European",
+        "units": _POINT_UNITS[STRATIFICATION, "ices"],
+        "example_variable": "temperature",
+        "notes": (
+            "Stratification - ICES Oceanographic database (https://ocean.ices.dk)",
+            "recipe: 'ices'",
+            *STRATIFICATION_NOTE,
+            "CTD profiles and bottle data with good (quality flag 0) flags.",
+        ),
+        "arguments": (),
+        # always matched by the day of each cast (see oceanval.parsers.STRATIFICATION_POINT_TIME_RES)
+        "fixed_point_time_res": ("year", "month", "day"),
+        "coverage": {
+            **_POINT_COVERAGE["ices"],
+            "note": "Casts of temperature and salinity from the ICES Oceanographic database, downloaded for the model's area and years.",
+        },
+    },
+    {
+        "variable": STRATIFICATION,
+        "recipe": "en4",
+        "region": "Global",
+        "units": _POINT_UNITS[STRATIFICATION, "en4"],
+        "example_variable": "temperature",
+        "notes": (
+            "Stratification - EN4 profiles (https://www.metoffice.gov.uk/hadobs/en4/)",
+            "recipe: 'en4'",
+            *STRATIFICATION_NOTE,
+            "EN.4.2.2 profiles, quality controlled. Each year is downloaded whole, for the",
+            "whole ocean: 0.5 to 0.9 GB a year since 2012.",
+        ),
+        "arguments": (),
+        "fixed_point_time_res": ("year", "month", "day"),
+        "coverage": _POINT_COVERAGE["en4"],
+    },
+)
+
+_EN4_RECIPES = tuple(
+    {
+        "variable": variable,
+        "recipe": "en4",
+        "region": "Global",
+        "units": _POINT_UNITS[variable, "en4"],
+        "example_variable": variable,
+        "notes": (
+            f"{title} - EN4 profiles (https://www.metoffice.gov.uk/hadobs/en4/)",
+            "recipe: 'en4'",
+            f"EN.4.2.2 profiles, 1900 to the present, {reported}, quality controlled.",
+            "Each year is downloaded whole, for the whole ocean: 0.5 to 0.9 GB a year since 2012.",
+        ),
+        "arguments": ("vertical=False,  # set True to validate the full water column",),
+        "coverage": _POINT_COVERAGE["en4"],
+    }
+    for variable, title, reported in (
+        ("temperature", "Temperature", "potential temperature in degrees C"),
+        ("salinity", "Salinity", "practical salinity"),
+    )
+)
+
+POINT_RECIPE_CATALOGUE = _STRATIFICATION_RECIPES + tuple(
     {
         "variable": variable,
         "recipe": "glodapv3",
@@ -807,6 +916,27 @@ POINT_RECIPE_CATALOGUE = tuple(
         "coverage": _POINT_COVERAGE["ices"],
     }
     for variable, title, dataset, units in _ICES_RECIPES
+) + _EN4_RECIPES + (
+    {
+        "variable": "macrobenthos",
+        "recipe": "nsbs",
+        "region": "European",
+        "units": _POINT_UNITS["macrobenthos", "nsbs"],
+        "coverage": _POINT_COVERAGE["nsbs"],
+        "example_variable": "macrobenthos",
+        "notes": (
+            "Macrobenthos - North Sea Benthos Survey (https://marineinfo.org/doc/dataset/67)",
+            "recipe: 'nsbs'",
+            "The carbon biomass of the animals of the sea bed caught on a 1 mm sieve, at",
+            "205 stations of the ICES survey of April and May 1986. Its ash-free dry weight",
+            "is taken as carbon at 0.5 g C per g. The model's should be its macrofauna",
+            "(ERSEM's deposit and suspension feeders), not its meiofauna. One spring is",
+            "matched by month, with every year of the model: no model's benthos is of 1986.",
+        ),
+        "arguments": (),
+        # how it is always matched, which cannot be chosen (see oceanval.parsers.NSBS_POINT_TIME_RES)
+        "fixed_point_time_res": ("month",),
+    },
 )
 
 # the observational variables the catalogues can match a model variable to
@@ -1009,6 +1139,32 @@ def _candidate_long_names(variable, contents):
     if variable == "temperature":
         # air temperature is stored alongside sea temperature in coupled runs
         return plain("temperature", "air")
+
+    if variable == "macrobenthos":
+        # the biomass of the animals of the sea bed that a 1 mm sieve keeps: ERSEM's
+        # deposit and suspension feeders ("benthic deposit feeder carbon"), which are
+        # summed, or a model's macrofauna or macrobenthos. Not its meiofauna, which
+        # the sieve lets through, nor the rates named after the animals ("benthic
+        # deposit feeders predation of meiofauna carbon"), which name something "of",
+        # "to", "from" or "by" them, nor their nitrogen or phosphorus.
+        animals = re.compile(
+            r"(?:deposit|suspension|filter)[ _-]?feeder|macro[ _-]?(?:benth|fauna|zoobenth)"
+        )
+        process_words = (
+            "production", "release", "uptake", "loss", "respiration", "mortality", "grazing",
+            "predation", "scaveng", "excretion", "egestion", "ingestion", "flux", "rate",
+            "result", "integrated", "meio", "nitrogen", "phosph", "silic",
+        )
+        matches = []
+        for name in names:
+            lowered = name.lower()
+            if not animals.search(lowered) or any(word in lowered for word in process_words):
+                continue
+            stripped = re.sub(r"\b(?:mass |mole )?(?:concentration|content|amount|biomass)s? of ", "", lowered)
+            if not re.search(r"\b(?:of|to|from|by)\b", stripped):
+                matches.append(name)
+        carbon = [name for name in matches if "carbon" in name.lower()]
+        return carbon or matches
 
     if variable == "oxygen":
         return plain("oxygen", "saturation", "util", "flux")
@@ -1250,6 +1406,8 @@ def contents_mapping(contents, cwd=None, standard_names=None):
     mapping = {}
     for variable in RECIPE_VARIABLES:
         mapping[variable] = None
+        if variable in DERIVED_VARIABLES:
+            continue
         for search in searches:
             # a variable whose long_names are easily taken for another (oxygen saturation
             # for an air-sea flux of it) is only looked for among those with units that suit
@@ -1259,7 +1417,7 @@ def contents_mapping(contents, cwd=None, standard_names=None):
             model_variables = _matching_variables(
                 search, _candidate_long_names(variable, search)
             )
-            if len(model_variables) > 1 and variable not in ("chlorophyll", "doc", "poc"):
+            if len(model_variables) > 1 and variable not in ("chlorophyll", "doc", "poc", "macrobenthos"):
                 # no way to tell which of them the recipe wants
                 break
             if model_variables:
@@ -1305,7 +1463,19 @@ def contents_mapping(contents, cwd=None, standard_names=None):
         if mapping.get(variable) is None and model_variable in variables:
             mapping[variable] = model_variable
 
+    with_derived(mapping)
     return mapping, set(depth_contents.variable)
+
+
+def with_derived(mapping):
+    """mapping (recipe variable to model variable, changed in place) with each
+    variable worked out from another (DERIVED_VARIABLES) given that one's:
+    stratification is matched with the model's temperature."""
+    for variable, source in DERIVED_VARIABLES.items():
+        # only when that one is found: a mapping of nothing found stays empty
+        if mapping.get(source) is not None:
+            mapping[variable] = mapping[source]
+    return mapping
 
 
 def _file_pattern(path):
@@ -1468,7 +1638,7 @@ def voted_mapping(found, cwd=None):
         mapping[variable] = sorted(
             counts, key=lambda name: (-counts[name], name not in water_column, name)
         )[0]
-    return mapping
+    return with_derived(mapping)
 
 
 def _variable_long_names(simdir, ndown, exclude=None, require=None, paths=None):
@@ -1799,7 +1969,7 @@ def _recipe_block(
 
 
 def _point_recipe_block(
-    entry, model_variable, selected=True, options=None, fvcom=False
+    entry, model_variable, selected=True, options=None, fvcom=False, salinity_variable=None, needs_thickness=False
 ):
     """The source lines for one point recipe.
 
@@ -1823,6 +1993,8 @@ def _point_recipe_block(
         *[f"    {argument}" for argument in arguments],
         ")",
     ]
+    if entry["variable"] == STRATIFICATION and salinity_variable:
+        call.insert(3, f'    salinity_variable="{salinity_variable}",')
 
     if model_variable is None:
         lines.extend(
@@ -1834,6 +2006,10 @@ def _point_recipe_block(
                 ]
             )
         )
+        lines.extend(_comment(call))
+    elif needs_thickness:
+        # chosen, but matchup could not work it out without the cell thickness
+        lines.extend(_comment(STRATIFICATION_THICKNESS_NOTE))
         lines.extend(_comment(call))
     elif not selected:
         lines.extend(_comment(_unselected_note(entry["variable"], ())))
@@ -1949,7 +2125,7 @@ def _footer(
             "#",
             "# live_validation builds an interim HTML report as the matchups are made,",
             "# in oceanval_interim_report, with the report's options other than pdf,",
-            "# word and zip.",
+            "# word, zip and figure_code.",
         ]
     validate_arguments = [
         f"{name}={_literal(value)}," for name, value in validate_changed
@@ -2030,6 +2206,10 @@ def _preferred_entries(mapping, domain):
     return preferred
 
 
+# the point recipes never ticked by default: EN4's years are 0.5 to 0.9 GB each
+OPT_IN_POINT_RECIPES = ("en4",)
+
+
 def default_selection(mapping, domain, cwd=None):
     """The recipes left live when none are chosen by hand.
 
@@ -2048,7 +2228,9 @@ def default_selection(mapping, domain, cwd=None):
         (entry["variable"], entry["recipe"])
         for entry in POINT_RECIPE_CATALOGUE
         if entry["region"] == POINT_DOMAIN_REGIONS[domain]
-        and mapping.get(entry["variable"]) is not None
+        # EN4 is downloaded a whole year at a time, for the whole ocean, so only by choice
+        and entry["recipe"] not in OPT_IN_POINT_RECIPES
+        and mapping.get(DERIVED_VARIABLES.get(entry["variable"], entry["variable"])) is not None
     )
     selection.update(
         (entry["variable"], entry["recipe"])
@@ -2116,11 +2298,21 @@ def build_recipe_script(
         selection = default_selection(mapping, domain, cwd)
     user_entries = _user_entries(cwd)
 
-    def live(entry):
+    # stratification is always through the water column, so matchup needs the cell thickness for it
+    # (FVCOM's sigma layers are worked out from its files)
+    thickness_given = fvcom or bool(str((settings or {}).get("thickness") or "").strip())
+
+    def chosen(entry):
         return (
             mapping.get(entry["variable"]) is not None
             and (entry["variable"], entry["recipe"]) in selection
         )
+
+    def lacks_thickness(entry):
+        return entry["variable"] == STRATIFICATION and chosen(entry) and not thickness_given
+
+    def live(entry):
+        return chosen(entry) and not lacks_thickness(entry)
 
     lines = _header(simdir, ndown, mapping, years, domain, fvcom, bool(user_entries))
     period = _woa23_period(years)
@@ -2163,10 +2355,14 @@ def build_recipe_script(
             continue
         lines.extend(_section(title))
         for entry in entries:
-            model_variable = mapping.get(entry["variable"])
-            options = point_options.get((entry["variable"], entry["recipe"]))
+            variable = entry["variable"]
+            model_variable = mapping.get(DERIVED_VARIABLES.get(variable, variable))
+            options = point_options.get((variable, entry["recipe"]))
+            salinity = mapping.get("salinity") if variable == STRATIFICATION else None
             lines.extend(
-                _point_recipe_block(entry, model_variable, live(entry), options, fvcom)
+                _point_recipe_block(
+                    entry, model_variable, live(entry), options, fvcom, salinity, lacks_thickness(entry)
+                )
             )
             lines.append("")
 

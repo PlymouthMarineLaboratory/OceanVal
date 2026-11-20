@@ -24,6 +24,7 @@ import pytest
 import xarray as xr
 
 import oceanval
+from figure_code_checks import check_every_figure_has_its_code, check_no_figure_code, check_the_code_draws_each_figure
 
 NEW_GRIDDED = [
     "density_scatter", "peak_month", "zonal_lines", "hovmoller_clim", "hovmoller_years",
@@ -98,9 +99,10 @@ def reports(tmp_path_factory):
         thickness="data/example/e3t.nc", out_dir=str(folder),
     )
     detailed = folder / "detailed"
+    # with figure code: every figure has the button that copies the code that draws it
     oceanval.validate(
         data_dir=str(folder), out_dir=str(detailed), concise=False, subregions="cmems",
-        map_depths=[20, 5000], test=True,
+        map_depths=[20, 5000], test=True, figure_code=True,
     )
     # the concise report, which leaves every one of them out (the same as omit=NEW_GRIDDED): cheaper
     omitted = folder / "omitted"
@@ -109,6 +111,43 @@ def reports(tmp_path_factory):
     )
     yield folder, detailed, omitted
     oceanval.reset()
+
+
+def test_every_figure_has_its_picture(reports):
+    # each "Figure N" caption has an image between it and the caption before it: a figure that was
+    # drawn but not shown (plotnine's draw() closes its figure, so a plt.show() after it showed
+    # nothing) leaves its caption alone
+    _, detailed, _ = reports
+    pages = glob.glob(str(detailed / "oceanval_report/_build/html/notebooks/*.html"))
+    alone = []
+    for path in pages:
+        text = open(path).read()
+        tokens = re.finditer(r"<img\b|<strong>(Figure|Table) (\d+)</strong>", text)
+        pictures = 0
+        for token in tokens:
+            if token.group(0) == "<img":
+                pictures += 1
+            elif token.group(1):
+                if token.group(1) == "Figure" and pictures == 0:
+                    alone.append(f"{path.split('/')[-1]}: Figure {token.group(2)}")
+                pictures = 0
+    assert pages and not alone, alone
+
+
+def test_every_figure_has_the_code_that_draws_it_again(reports, tmp_path):
+    # figure_code=True: each figure's button copies code that, run on its own, draws the
+    # figure the page shows, from the data saved in oceanval_results/figure_data
+    _, detailed, _ = reports
+    html_dir = str(detailed / "oceanval_report/_build/html/notebooks")
+    shown = check_every_figure_has_its_code(html_dir, str(detailed / "oceanval_results"))
+    # the point page and the summary as well as the gridded pages
+    assert all(shown[page][0] > 0 for page in shown if "methods" not in page), shown
+    assert check_the_code_draws_each_figure(html_dir, str(tmp_path)) == sum(n for n, _ in shown.values())
+
+
+def test_without_figure_code_nothing_is_saved_for_it(reports):
+    _, _, omitted = reports
+    check_no_figure_code(str(omitted / "oceanval_report/_build/html"), str(omitted / "oceanval_results"))
 
 
 def _surface(folder, variable, source):

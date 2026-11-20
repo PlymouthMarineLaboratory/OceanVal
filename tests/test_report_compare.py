@@ -22,6 +22,7 @@ import pytest
 import xarray as xr
 
 import oceanval
+from figure_code_checks import check_every_figure_has_its_code, check_no_figure_code, check_the_code_draws_each_figure
 
 
 def text_of(path):
@@ -70,7 +71,7 @@ def comparison(tmp_path_factory):
         oceanval.matchup(sim_dir=sim_dir, start=2000, end=2000, ask=False, cores=1, out_dir=str(run))
         oceanval.validate(data_dir=str(run), out_dir=str(run), test=True)
         validations[name] = str(run)
-    oceanval.compare(model_dict=validations, out_dir=str(folder), view=False, ask=False)
+    oceanval.compare(model_dict=validations, out_dir=str(folder), view=False, ask=False, figure_code=True)
     pages = glob.glob(str(folder / "oceanval_comparison/**/_build/html/notebooks/comparison_spatial.html"), recursive=True)
     assert len(pages) == 1, pages
     yield folder, validations, text_of(pages[0]), open(pages[0]).read()
@@ -84,6 +85,22 @@ def test_the_spatial_page_has_the_new_figures_in_order(comparison):
         assert words in text, words
     found = [int(x) for x in re.findall(r"Figure (\d+) ?:", text)]
     assert found == list(range(1, len(found) + 1))
+
+
+def test_every_figure_has_the_code_that_draws_it_again(comparison, tmp_path):
+    folder, validations, _, _ = comparison
+    html_dir = str(folder / "oceanval_comparison/compare/_build/html/notebooks")
+    shown = check_every_figure_has_its_code(html_dir, str(folder / "oceanval_comparison"))
+    # the bias and seasonality maps, the Taylor diagram, heat map and zonal means (there are no
+    # regions in these validations, so the regional page has no figure); each once: the maps are
+    # not also shown where they are drawn
+    assert {page: n for page, (n, _) in shown.items() if n} == {
+        "comparison_bias.html": 2, "comparison_seasonal.html": 2, "comparison_spatial.html": 4,
+    }, shown
+    assert check_the_code_draws_each_figure(html_dir, str(tmp_path)) == sum(n for n, _ in shown.values())
+    # the validations were built without it
+    for path in validations.values():
+        check_no_figure_code(os.path.join(path, "oceanval_report/_build/html"), os.path.join(path, "oceanval_results"))
 
 
 def test_the_best_value_is_bold(comparison):

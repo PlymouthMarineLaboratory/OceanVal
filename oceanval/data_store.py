@@ -48,6 +48,8 @@ What the store holds is in pieces, listed in ``oceanval_data_store.json``:
   and every year, as the rows OceanVal keeps of it (see oceanval.hansell).
   Its server has it as one workbook, so every variable is kept as it is first
   downloaded.
+- North Sea Benthos Survey: the macrobenthos biomass of every sample, as the
+  rows OceanVal keeps of it (see oceanval.nsbs), from its one archive.
 
 Anything asked for inside a piece is taken from it: cropping a crop gives the
 same cells as cropping once, so the matchups are the same either way.
@@ -102,7 +104,7 @@ DOMAINS = {"nsbc": [-15, 15, 48, 65]}
 # the gridded datasets the store keeps, by their recipe key
 GRIDDED = ("woa23", "nsbc", "occci", "cobe2", "oisst", "coraltemp", "glodap", "mpisom", "socat", "copepod")
 # the point datasets the store keeps, each in a folder of its own
-POINT_KINDS = ("ices", "glodapv3", "hansell")
+POINT_KINDS = ("ices", "glodapv3", "hansell", "nsbs")
 # a gridded dataset kept a year at a time, as its server has every year in one
 # file (CoralTemp's ERDDAP server is asked for a year at a time)
 BY_YEAR = ("cobe2", "oisst", "coraltemp")
@@ -132,6 +134,7 @@ BUILTIN_HOSTS = (
     "www.st.nmfs.noaa.gov",
     "store.pangaea.de",
     "coastwatch.pfeg.noaa.gov",
+    "ipt.vliz.be",
 )
 # the names OceanVal gives the pieces' files: no other file is ever used or
 # removed, whatever the index says
@@ -1236,7 +1239,7 @@ def _whole_file(kind, name, what, everything, variables, download, store_only, o
     """The variables of a dataset kept whole, one piece a variable, by way of the
     data store, as {variable: DataFrame of its rows}, or None when there is no store.
 
-    kind is the dataset's kind and folder ("glodapv3", "hansell"); name and what
+    kind is the dataset's kind and folder ("glodapv3", "hansell", "nsbs"); name and what
     say it in messages ("GLODAPv3", "the GLODAPv3 bottle data"). everything is
     every variable the dataset has.
 
@@ -1331,6 +1334,20 @@ def hansell(variables, download, store_only=False, on_piece=None):
     from oceanval.hansell import VARIABLES
 
     return _whole_file("hansell", "Hansell", "the Hansell et al. DOM compilation", list(VARIABLES),
+                       variables, download, store_only, on_piece)
+
+
+# --------------------------------------------------------------------------
+# the North Sea Benthos Survey
+
+
+def nsbs(variables, download, store_only=False, on_piece=None):
+    """The North Sea Benthos Survey's macrobenthos biomass by way of the data
+    store, as {variable: DataFrame of its rows}, or None when there is no store.
+    See _whole_file (see oceanval.nsbs.VARIABLES)."""
+    from oceanval.nsbs import VARIABLES
+
+    return _whole_file("nsbs", "NSBS", "the North Sea Benthos Survey", list(VARIABLES),
                        variables, download, store_only, on_piece)
 
 
@@ -1439,6 +1456,8 @@ def _describe(entry):
         return f"GLODAPv3 {entry.get('variable')}"
     if entry.get("kind") == "hansell":
         return f"Hansell {entry.get('variable')}"
+    if entry.get("kind") == "nsbs":
+        return f"NSBS {entry.get('variable')}"
     last = str(entry.get("url")).rsplit("/", 1)[-1]
     year = f" {entry['year']}" if entry.get("year") is not None else ""
     return f"{str(entry.get('dataset')).upper()} {entry.get('variable')}{year} ({last})"
@@ -1624,7 +1643,7 @@ def check(root_dir):
         if kind == "ices":
             continue
         why = None
-        if kind in ("glodapv3", "hansell"):
+        if kind in ("glodapv3", "hansell", "nsbs"):
             url = entry.get("url")
             parsed = urllib.parse.urlparse(url) if isinstance(url, str) else None
             if parsed is None or parsed.scheme not in ("http", "https") or parsed.hostname not in BUILTIN_HOSTS:

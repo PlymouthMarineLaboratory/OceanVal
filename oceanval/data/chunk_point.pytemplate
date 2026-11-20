@@ -187,7 +187,8 @@ if available:
 # where the observations matched up are, on the land (oceanval.plotnine_figures)
 if available and show_locations_map:
     from oceanval import plotnine_figures
-    plotnine_figures.show(plotnine_figures.locations_map(df_locs), 600, 500)
+    _fig = figures.call(plotnine_figures.sized, Of(plotnine_figures.locations_map, df_locs), 600, 500)
+    figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if available and show_locations_map:
@@ -204,10 +205,10 @@ if available and show_locations_map:
 # the average model and observed value at each place, for data with no months
 if available and show_mean_map and "month" not in df.columns:
     from oceanval import plotnine_figures, unit_display
-    plotnine_figures.show(
-        plotnine_figures.mean_map(df, f"{layer_long.title()} {vv_name} ({unit_display.mathtext(unit)})".strip()),
+    _fig = figures.call(plotnine_figures.sized, Of(plotnine_figures.mean_map, df, f"{layer_long.title()} {vv_name} ({unit_display.mathtext(unit)})".strip()),
         1000, 700,
     )
+    figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if available and show_mean_map:
@@ -271,10 +272,10 @@ if available:
     else:
         df_bias.to_csv(bias_out, index = False)
     if show_bias_map:
-        plotnine_figures.show(
-            plotnine_figures.bias_map(df_bias, bias_high, f"Bias in {layer_long} {vv_name} ({unit_display.mathtext(unit)})"),
+        _fig = figures.call(plotnine_figures.sized, Of(plotnine_figures.bias_map, df_bias, bias_high, f"Bias in {layer_long} {vv_name} ({unit_display.mathtext(unit)})"),
             1000, 1200,
         )
+        figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if available and show_bias_map:
@@ -297,12 +298,12 @@ if available and show_scatter:
 # modelled against observed, overall and for each month, with the 1:1 and least-squares lines
 if not concise and available and show_scatter:
     from oceanval import plotnine_figures, unit_display
-    plotnine_figures.show(
-        plotnine_figures.scatter(
+    _fig = figures.call(plotnine_figures.sized, Of(plotnine_figures.scatter,
             df, f"Model {vv_name} ({unit_display.mathtext(unit)})", f"Observed {vv_name} ({unit_display.mathtext(unit)})",
         ),
         1000, 1200,
     )
+    figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if available and show_scatter:
@@ -322,13 +323,13 @@ if available and show_scatter:
 # the concise report's scatter plot, of every month together
 if concise and available and show_scatter:
     from oceanval import plotnine_figures, unit_display
-    plotnine_figures.show(
-        plotnine_figures.scatter(
+    _fig = figures.call(plotnine_figures.sized, Of(plotnine_figures.scatter,
             df, f"Model {vv_name} ({unit_display.mathtext(unit)})", f"Observed {vv_name} ({unit_display.mathtext(unit)})",
             by_month = False, base_size = 14,
         ),
         600, 500,
     )
+    figures.show(i_figure)
 
 # %% tags=["remove-input"]
 if available:

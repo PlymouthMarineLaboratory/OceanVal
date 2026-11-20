@@ -45,6 +45,10 @@ CONTEXT = {
 }
 
 
+# the rows' order: stratification first, at the top of the point page, then the rest alphabetically
+ROW_ORDER = sorted(RECIPE_VARIABLES, key=lambda x: (x != "stratification", x))
+
+
 def ticks(rows, variable, kind="gridded"):
     row = next(row for row in rows if row["variable"] == variable)
     return {dataset["recipe"]: dataset["ticked"] for dataset in row[kind]}
@@ -53,7 +57,8 @@ def ticks(rows, variable, kind="gridded"):
 class TestRows:
     def test_there_is_one_row_per_variable_alphabetically(self):
         rows = recipe_rows({}, "global")
-        assert [row["variable"] for row in rows] == sorted(RECIPE_VARIABLES)
+        # stratification first, at the top of the point page; the rest alphabetically
+        assert [row["variable"] for row in rows] == ROW_ORDER
 
     def test_titles_are_the_ones_the_notes_use(self):
         titles = {row["variable"]: row["title"] for row in recipe_rows({}, "global")}
@@ -137,13 +142,13 @@ class TestRows:
 
         rows = recipe_rows({"temperature": "temp"}, "global", cwd, replaced, own)
         found = {row["variable"]: row for row in rows}
-        assert [row["variable"] for row in rows] == sorted(found)
+        assert [row["variable"] for row in rows] == sorted(found, key=lambda x: (x != "stratification", x))
         # json, for the page
         json.dumps(rows)
 
         # beside the datasets, in place of the recipe it was saved as
         temperature = found["temperature"]
-        assert [d["recipe"] for d in temperature["point"]] == ["ices"]
+        assert [d["recipe"] for d in temperature["point"]] == ["ices", "en4"]
         assert temperature["own"] == [{
             "kind": "point", "index": 0, "label": "pygetm", "model_variable": "temp",
             "path": "/points", "saved": True,
@@ -225,12 +230,13 @@ class TestErsemDetection:
         rows = recipe_rows({"temperature": "thetao"}, "nwes")
         # no temperature dataset is for the shelf now, so the global COBE2 is the one left live
         assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False}
-        assert ticks(rows, "temperature", "point") == {"ices": True}
+        # EN4, 0.5 to 0.9 GB a year, is never ticked by default
+        assert ticks(rows, "temperature", "point") == {"ices": True, "en4": False}
 
         rows = recipe_rows({"temperature": "thetao"}, "global")
         # and within a region only the recipe the script leaves live is ticked
         assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False}
-        assert ticks(rows, "temperature", "point") == {"ices": False}
+        assert ticks(rows, "temperature", "point") == {"ices": False, "en4": False}
 
     def test_a_dataset_outside_the_domain_is_ticked_if_it_is_the_only_one(self):
         assert ticks(recipe_rows({"ammonium": "N4_n"}, "global"), "ammonium") == {
@@ -253,6 +259,7 @@ class TestErsemDetection:
             "woa23": False,
             "nsbc": True,
             "ices": True,
+            "en4": False,
         }
 
     def test_kd490_has_no_point_dataset(self):
@@ -272,7 +279,7 @@ class TestErsemDetection:
         }
 
         # woa23, nsbc, ices are depth-resolved gridded/point; glodap, glodapv3 and hansell's bottle data too
-        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3", "hansell"}
+        assert {recipe for _, recipe in offered} == {"woa23", "nsbc", "ices", "glodap", "glodapv3", "hansell", "en4"}
         # surface-only: satellite and sea surface temperature
         assert not offered & {
             ("chlorophyll", "occci"), ("kd490", "occci"),
@@ -368,7 +375,7 @@ class TestServer:
         state = json.loads(state.group(1))
 
         assert status == 200
-        assert [row["variable"] for row in state["rows"]] == sorted(RECIPE_VARIABLES)
+        assert [row["variable"] for row in state["rows"]] == ROW_ORDER
         assert state["context"] == CONTEXT
 
     def test_a_variable_name_cannot_break_out_of_the_page(self, page):
@@ -1950,6 +1957,10 @@ def test_only_the_settings_the_datasets_need_are_shown_in_the_browser(browser, t
     # nwes ticks ICES, a point dataset
     assert page.locator("#group-point").is_visible()
     assert "is-required" in page.locator("#s-point_start-label").get_attribute("class")
+    # and ICES for stratification, which is always through the water column, so the thickness is asked
+    assert page.locator("#page-point #group-thickness").is_visible()
+    page.uncheck('input[aria-label="ICES, European, for Stratification"]')
+    assert page.locator("#group-thickness").is_hidden()
     page.check(ices_vertical)
     page.click("#thickness-ask-cancel")
     assert page.locator("#page-point #group-thickness").is_visible()
@@ -2212,3 +2223,39 @@ class TestHiddenDatasetsAndShortSimulations:
         finally:
             page.close()
             recipe_page.close()
+
+
+def test_the_stratification_row_in_the_browser(browser, tmp_path, monkeypatch):
+    """Stratification is the first row of the point page. It has no box of
+    its own: it shows the Temperature and Salinity rows' variables, live; it
+    is told when there is no salinity, and its datasets are locked while the
+    Temperature row has no variable. EN4's years give its download size."""
+    page, _, _ = _open_window(browser, tmp_path, monkeypatch)
+    _continue(page)
+    strat = page.locator("#rows-point tr.is-stratification")
+    assert page.locator("#rows-point tr").first.get_attribute("class").split().count("is-stratification") == 1
+    assert strat.locator("input.field__input").count() == 0
+    assert "Also gives the temperature and salinity (all depths) matchups" in strat.text_content()
+    names = strat.locator(".strat__vars")
+    # thetao is identified as temperature; this simulation has no salinity
+    assert names.text_content() == "Temperature: thetao · Salinity: none"
+    assert "No salinity" in strat.locator(".field__msg").text_content()
+    chips = strat.locator("input[type=checkbox]")
+    assert chips.count() == 2 and chips.first.is_enabled()
+
+    temperature = page.locator('#rows-point input[aria-label="Simulation variable for Temperature"]')
+    temperature.fill("kd_misc")
+    assert names.text_content() == "Temperature: kd_misc · Salinity: none"
+    temperature.fill("")
+    assert "Give the Temperature row a simulation variable" in strat.locator(".field__msg").text_content()
+    assert all(chips.nth(i).is_disabled() for i in range(chips.count()))
+    temperature.fill("thetao")
+
+    en4 = strat.locator(".dataset", has=page.locator('input[aria-label*="EN4"]'))
+    box = en4.locator('input[type=checkbox]')
+    if not box.is_checked():
+        box.check()
+    en4.locator('input[aria-label^="First year of"]').fill("2012")
+    en4.locator('input[aria-label^="Last year of"]').fill("2014")
+    assert "EN4 is downloaded a year at a time for the whole ocean: about" in en4.text_content()
+    assert "for 2012–2014" in en4.text_content()

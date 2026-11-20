@@ -17,10 +17,8 @@ pub_plot cannot read the coordinates of) is regridded to a regular lon-lat
 grid first, in the script, and Drawn.regridded says so.
 """
 
-import base64
 import calendar
 import dataclasses
-import html
 import inspect
 import json
 import linecache
@@ -37,6 +35,14 @@ from matplotlib.colors import to_hex
 
 from oceanval import extent
 from oceanval.analysis import PEAK_DAY, PEAK_VALUE, load
+from oceanval.figure_code import (  # noqa: F401 (the analysis report's figures use them)
+    COPY_LABEL,
+    COPY_SCRIPT,
+    COPY_STYLE,
+    NC_IMPORT,
+    _png,
+    copy_block,
+)
 from oceanval.map_land import LAND_CODE
 from oceanval.tidiers import fix_unit
 
@@ -181,7 +187,6 @@ def script(drawn, title=None):
 # ---- the maps ----
 
 # nctoolkit is imported quietly in the copied scripts too (they do not import oceanval)
-NC_IMPORT = "import warnings\nwith warnings.catch_warnings():\n    warnings.simplefilter(\"ignore\")\n    import nctoolkit as nc\n"
 MAP_IMPORTS = "import matplotlib.pyplot as plt\n" + NC_IMPORT
 
 
@@ -1695,95 +1700,7 @@ def transect_text(variable, index, option):
     return {"title": saved["title"], "method": method, "caption": caption}
 
 
-# ---- showing a figure, with its code ----
-
-COPY_LABEL = "Copy code to reproduce figure"
-
-COPY_STYLE = """<style>
-.oceanval-figure{width:fit-content;max-width:100%;margin:0 auto}
-.oceanval-figure__bar{text-align:right;margin:0 0 2px}
-.oceanval-copy-code{font:12px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:#24425c;background:#fff;
-border:1px solid #b9c3cc;border-radius:4px;padding:2px 9px;cursor:pointer}
-.oceanval-copy-code:hover{background:#eef3f7;border-color:#8a9aa8}
-.oceanval-copy-code:focus-visible{outline:2px solid #1b6f8a;outline-offset:1px}
-.oceanval-figure img{display:block;max-width:100%;height:auto;margin:0 auto}
-.oceanval-figure__code{display:block;box-sizing:border-box;width:100%;min-height:12em;margin-top:4px;
-font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.oceanval-figure__code[hidden]{display:none}
-@media print{.oceanval-figure__bar{display:none}}
-</style>"""
-
-COPY_SCRIPT = """<script>
-window.oceanvalCopyCode = window.oceanvalCopyCode || function (button) {
-  var box = button.closest(".oceanval-figure").querySelector(".oceanval-figure__code");
-  var code = box.value;
-  var label = button.getAttribute("data-label") || button.textContent;
-  button.setAttribute("data-label", label);
-  function done(ok) {
-    if (ok) {
-      button.textContent = "Copied";
-      setTimeout(function () { button.textContent = label; }, 2000);
-    } else {
-      box.hidden = false;
-      box.focus();
-      box.select();
-      button.textContent = "Copy failed: select the code below and press Ctrl+C";
-    }
-  }
-  function fallback() {
-    var temp = document.createElement("textarea");
-    temp.value = code;
-    temp.setAttribute("readonly", "");
-    temp.style.position = "fixed";
-    temp.style.top = "-1000px";
-    document.body.appendChild(temp);
-    temp.select();
-    var ok = false;
-    try { ok = document.execCommand("copy"); } catch (error) { ok = false; }
-    document.body.removeChild(temp);
-    done(ok);
-  }
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(code).then(function () { done(true); }, fallback);
-  } else {
-    fallback();
-  }
-};
-</script>"""
-
-
-def copy_block(png, code):
-    """The HTML of a figure, png (its PNG, as bytes or base64 text), with a
-    button above its top right corner that copies code."""
-    if isinstance(png, bytes):
-        png = base64.b64encode(png).decode("ascii")
-    return (
-        '<div class="oceanval-figure">'
-        '<div class="oceanval-figure__bar">'
-        '<button type="button" class="oceanval-copy-code" onclick="oceanvalCopyCode(this)" '
-        'title="Copies the Python code that draws this figure, from the analysis\'s saved results, '
-        'to run in the conda environment OceanVal ran in">'
-        f"{COPY_LABEL}</button></div>"
-        f'<img src="data:image/png;base64,{png}" alt="">'
-        f'<textarea class="oceanval-figure__code" readonly hidden aria-label="The code of the figure">{html.escape(code)}</textarea>'
-        "</div>"
-        f"{COPY_STYLE}{COPY_SCRIPT}"
-    )
-
-
-def _png(fig):
-    """fig as the PNG plt.show() would put in the notebook: by the
-    notebook's own formatter, or as the inline backend draws it."""
-    from IPython import get_ipython
-
-    shell = get_ipython()
-    if shell is not None:
-        data, _ = shell.display_formatter.format(fig, include=["image/png"])
-        if data.get("image/png") is not None:
-            return data["image/png"]
-    from IPython.core.pylabtools import print_figure
-
-    return print_figure(fig, "png", bbox_inches="tight")
+# ---- showing a figure, with its code (oceanval.figure_code) ----
 
 
 def show(drawn, with_code=False, title=None):

@@ -513,101 +513,119 @@ class TestPlots:
         yield
         plt.close("all")
 
+    # the plots are plotnine's in the house layout (plotnine_figures.paired_heat): the model and the
+    # observations (side by side, or stacked) on one viridis scale, then their bias on RdBu_r; they are
+    # looked at as plots, not drawn (but once, to see they draw)
     @staticmethod
-    def panels(fig):
-        """The plot's own axes, without the colour bars."""
-        return [ax for ax in fig.axes if ax.get_label() != "<colorbar>"]
+    def parts(plot):
+        """The plots of a composition: the model and observations (one, or each), then the bias."""
+        return list(plot)
 
     @staticmethod
-    def colour_maps(fig):
-        return [ax.collections[0].get_cmap().name for ax in TestPlots.panels(fig)]
+    def fill(part):
+        return part.scales.get_scales("fill")
+
+    @staticmethod
+    def scale(part, axis):
+        return [s for s in part.scales if axis in s.aesthetics][0]
+
+    @staticmethod
+    def ends(part):
+        """The colours at the two ends and the middle of the plot's colour scale."""
+        return TestPlots.fill(part).palette([0.0, 0.5, 1.0])
+
+    VIRIDIS = ["#440154", "#21918c", "#fde725"]
+    RDBU_R = ["#053061", "#f6f7f7", "#67001f"]
+    MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     def test_months_north_south_is_month_across_and_latitude_up(self, frames):
-        fig = transects.plot_months(frames["months_ns"], NORTH_SOUTH, "mmol", "nitrate")
-        model, observation, bias = self.panels(fig)
+        plot = transects.months_plot(frames["months_ns"], NORTH_SOUTH, "mmol", "nitrate")
+        values, bias = self.parts(plot)
 
-        assert [ax.get_title() for ax in (model, observation, bias)] == [
-            "Model", "Observation", "Model − observation",
-        ]
-        # three panels side by side, and a colour bar each for the values and the bias
-        assert len(fig.axes) == 5
-        assert model.get_position().y0 == pytest.approx(bias.get_position().y0)
-        assert [label.get_text() for label in model.get_xticklabels()] == [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        ]
-        fig.canvas.draw()
-        labels = [label.get_text() for label in model.get_yticklabels()]
-        assert all(label.endswith("°N") for label in labels if label)
-        assert model.get_ylabel() == "Latitude"
-        assert not model.yaxis_inverted()
+        # the model and the observations side by side, the bias below them
+        assert values.facet.__class__.__name__ == "facet_wrap" and values.facet._ncol == 2
+        assert list(values.data.panel.cat.categories) == ["Model", "Observation"]
+        assert set(bias.data.panel) == {"Bias"}
+        assert values.labels.x == "Month" and values.labels.y == "Latitude"
+        months = self.scale(values, "x")
+        assert months.labels == self.MONTHS
+        latitudes = self.scale(values, "y")
+        assert type(latitudes).__name__ == "scale_y_continuous"
+        assert all(label.endswith("°N") for label in latitudes.labels([46, 55, 64]))
         # viridis for the values and blue-white-red for the bias, as in the rest of the report
-        assert self.colour_maps(fig) == ["viridis", "viridis", "bwr"]
+        assert self.ends(values) == self.VIRIDIS and self.ends(bias) == self.RDBU_R
+        fig = transects.plot_months(frames["months_ns"], NORTH_SOUTH, "mmol", "nitrate")
+        assert len(fig.axes) >= 3
 
     def test_months_east_west_is_longitude_across_and_month_down(self, frames):
-        fig = transects.plot_months(frames["months_ew"], EAST_WEST, "mmol", "nitrate")
-        model, observation, bias = self.panels(fig)
+        plot = transects.months_plot(frames["months_ew"], EAST_WEST, "mmol", "nitrate")
+        model, observation, bias = self.parts(plot)
 
         # stacked, so that west to east reads across all of them
-        assert model.get_position().x0 == pytest.approx(bias.get_position().x0)
-        assert model.get_position().y0 > bias.get_position().y0
-        assert bias.get_xlabel() == "Longitude"
-        fig.canvas.draw()
-        labels = [label.get_text() for label in bias.get_xticklabels() if label.get_text()]
+        assert set(model.data.panel) == {"Model"} and set(observation.data.panel) == {"Observation"}
+        assert bias.labels.x == "Longitude" and bias.labels.y == "Month"
+        labels = self.scale(bias, "x").labels([-15, -5, 0, 5])
         assert all(label.endswith(("°W", "°E")) or label == "0°" for label in labels)
         # January at the top, in all three
-        assert all(ax.yaxis_inverted() for ax in (model, observation, bias))
-        assert self.colour_maps(fig) == ["viridis", "viridis", "bwr"]
+        assert all(type(self.scale(part, "y")).__name__ == "scale_y_reverse" for part in (model, observation, bias))
+        assert self.scale(bias, "y").labels == self.MONTHS
+        # the model's colour bar is the observations', so it is given once
+        assert model.theme.themeables["legend_position"].properties["value"] == "none"
+        assert self.ends(model) == self.VIRIDIS and self.ends(bias) == self.RDBU_R
 
     def test_the_bias_is_centred_on_zero_and_the_values_share_a_scale(self, frames):
-        fig = transects.plot_months(frames["months_ns"], NORTH_SOUTH, "mmol", "nitrate")
-        model, observation, bias = self.panels(fig)
+        plot = transects.months_plot(frames["months_ew"], EAST_WEST, "mmol", "nitrate")
+        model, observation, bias = self.parts(plot)
 
-        low, high = bias.collections[0].get_clim()
+        low, high = self.fill(bias).limits
         assert low == -high
-        assert model.collections[0].get_clim() == observation.collections[0].get_clim()
+        assert self.fill(model).limits == self.fill(observation).limits
 
     def test_where_there_are_no_values_is_grey(self, frames):
-        fig = transects.plot_months(frames["months_ns"], NORTH_SOUTH, "mmol", "nitrate")
+        from oceanval import plotnine_figures
 
-        assert all(ax.get_facecolor()[:3] == pytest.approx((0.851, 0.871, 0.878), abs=1e-2)
-                   for ax in self.panels(fig))
+        for part in self.parts(transects.months_plot(frames["months_ns"], NORTH_SOUTH, "mmol", "nitrate")):
+            assert part.theme.themeables["panel_background"].properties["facecolor"] == plotnine_figures.LAND
 
     def test_chlorophyll_is_on_a_log_scale(self, frames):
-        fig = transects.plot_months(frames["months_ns"], NORTH_SOUTH, "mg", "chlorophyll", log=True)
-        model = self.panels(fig)[0]
+        values, bias = self.parts(transects.months_plot(frames["months_ns"], NORTH_SOUTH, "mg", "chlorophyll", log=True))
 
-        assert type(model.collections[0].norm).__name__ == "LogNorm"
+        assert type(self.fill(values)._trans).__name__.startswith("log10")
+        assert not type(self.fill(bias)._trans).__name__.startswith("log10")
 
     def test_a_single_month_is_a_line(self, frames):
-        fig = transects.plot_line(frames["one_month"], NORTH_SOUTH, "mmol", "nitrate")
-        [ax] = self.panels(fig)
+        from oceanval import plotnine_figures
 
-        assert [line.get_label() for line in ax.get_lines()] == ["Model", "Observation"]
-        assert ax.get_xlabel() == "Latitude"
+        plot = transects.line_plot(frames["one_month"], NORTH_SOUTH, "mmol", "nitrate")
+
+        assert list(plot.data.name.cat.categories) == ["Observations", "Model"]
+        assert plot.labels.x == "Latitude"
+        colours = plot.scales.get_scales("color")
+        assert colours.palette(2) == {"Observations": plotnine_figures.OBS, "Model": plotnine_figures.MODEL}
+        fig = transects.plot_line(frames["one_month"], NORTH_SOUTH, "mmol", "nitrate")
+        assert len(fig.axes) == 1
 
     def test_the_section_is_position_across_and_depth_down(self, frames):
-        fig = transects.plot_section(frames["section_ns"], NORTH_SOUTH, "mmol", "nitrate")
-        model, observation, bias = self.panels(fig)
+        frame = frames["section_ns"]
+        values, bias = self.parts(transects.section_plot(frame, NORTH_SOUTH, "mmol", "nitrate"))
 
-        assert model.get_ylabel() == "Depth (m)"
-        # the surface is at the top
-        assert model.yaxis_inverted()
-        assert model.get_ylim() == pytest.approx((500, 0))
-        assert model.get_xlabel() == "Latitude"
-        fig.canvas.draw()
-        assert all(label.get_text().endswith("°N") for label in model.get_xticklabels() if label.get_text())
-        assert self.colour_maps(fig) == ["viridis", "viridis", "bwr"]
-        assert [ax.get_title() for ax in (model, observation, bias)] == [
-            "Model", "Observation", "Model − observation",
-        ]
+        assert values.labels.y == "Depth (m)" and values.labels.x == "Latitude"
+        # the surface is at the top, and the axis from the shallowest depth to the deepest,
+        # rather than half a cell beyond each
+        assert type(self.scale(values, "y")).__name__ == "scale_y_reverse"
+        blank = [layer for layer in values.layers if type(layer.geom).__name__ == "geom_blank"][0]
+        assert list(blank._data.y) == pytest.approx([frame.depth.min(), 500])
+        assert all(label.endswith("°N") for label in self.scale(values, "x").labels([50, 60]))
+        assert self.ends(values) == self.VIRIDIS and self.ends(bias) == self.RDBU_R
+        assert list(values.data.panel.cat.categories) == ["Model", "Observation"]
+        fig = transects.plot_section(frame, NORTH_SOUTH, "mmol", "nitrate")
+        assert len(fig.axes) >= 3
 
     def test_the_section_of_an_east_west_line_is_by_longitude(self, frames):
-        fig = transects.plot_section(frames["section_ew"], EAST_WEST, "mmol", "nitrate")
-        model = self.panels(fig)[0]
+        values, _ = self.parts(transects.section_plot(frames["section_ew"], EAST_WEST, "mmol", "nitrate"))
 
-        assert model.get_xlabel() == "Longitude"
-        fig.canvas.draw()
-        assert any(label.get_text().endswith(("°W", "°E")) for label in model.get_xticklabels())
+        assert values.labels.x == "Longitude"
+        assert any(label.endswith(("°W", "°E")) for label in self.scale(values, "x").labels([-10, 0, 5]))
 
     def test_the_map_shows_the_line_over_the_land(self):
         pytest.importorskip("cartopy")
@@ -687,8 +705,13 @@ class TestNamedSections:
                 rows.append({"position": p, "depth": d, "model": value, "observation": value + 5, "bias": -5.0})
         frame = pd.DataFrame(rows)
         section = transects.check_transects("pacific_155w")[0]
-        fig = transects.plot_section(frame, section, "mmol m$^{-3}$", "oxygen", contours=transects.OXYGEN_CONTOURS)
+        values, bias = list(transects.section_plot(frame, section, "mmol m$^{-3}$", "oxygen",
+                                                   contours=transects.OXYGEN_CONTOURS))
         # the model's and the observations' panels each have the two lines; the bias has none
-        drawn = [len(ax.collections) for ax in fig.axes[:3]]
-        assert drawn[0] > 1 and drawn[1] > 1 and drawn[2] == 1
-        plt.close(fig)
+        [paths] = [layer for layer in values.layers if type(layer.geom).__name__ == "geom_path"]
+        assert set(paths._data.panel) == {"Model", "Observation"}
+        for panel in ("Model", "Observation"):
+            levels = {group.split()[1] for group in paths._data[paths._data.panel == panel].group}
+            # the 60 line (this oxygen never falls to 20)
+            assert "60" in levels and levels <= {"20", "60"}
+        assert "geom_path" not in [type(layer.geom).__name__ for layer in bias.layers]
