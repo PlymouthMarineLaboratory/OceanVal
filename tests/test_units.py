@@ -110,6 +110,7 @@ class TestWebsiteDatasets:
         "hansell": "Hansell et al. DOM compilation",
         "ices": "ICES Oceanographic database",
         "en4": "EN4",
+        "nsbs": "North Sea Benthos Survey",
     }
     REGIONS = {
         "Global": "Global",

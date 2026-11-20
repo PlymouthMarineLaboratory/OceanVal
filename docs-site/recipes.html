@@ -702,9 +702,14 @@
           <tr>
             <td>European</td><td>Silicate</td><td><code>ices</code></td><td><a href="https://ocean.ices.dk">ICES Oceanographic database</a>, bottle and low resolution CTD data</td><td>&micro;mol/l</td><td><span class="badge badge-yes">Yes</span></td>
           </tr>
+          <tr>
+            <td>European</td><td>Macrobenthos</td><td><code>nsbs</code></td><td><a href="https://marineinfo.org/doc/dataset/67">North Sea Benthos Survey</a>, 205 stations of the ICES survey of April and May 1986</td><td>mg C/m2</td><td><span class="badge badge-no">No</span></td>
+          </tr>
         </tbody>
       </table>
     </div>
+
+    <p style="max-width:70ch;"><strong>Macrobenthos</strong> (<code>nsbs</code>) is the carbon biomass of the animals of the sea bed caught on a 1&nbsp;mm sieve at 205 stations of the ICES North Sea Benthos Survey of April and May 1986, its ash-free dry weight taken as carbon at 0.5&nbsp;g&nbsp;C per g. It is downloaded once, a zip of about 440&nbsp;KB from the Flanders Marine Institute (VLIZ), and kept in the data store if you have one. Only the 1986 survey is used: the archive&rsquo;s earlier MAFF samples have no real dates. Its model variable should be the model&rsquo;s macrofauna (ERSEM&rsquo;s deposit and suspension feeders), not its meiofauna, and the one spring is matched by month with every year of the model.</p>
 
     <p style="max-width:70ch;"><strong>Stratification</strong> is worked out cast by cast from the temperature and salinity of ICES or EN4 casts (see <a href="datasets.html#stratification">how stratification is worked out</a>). Its model variable is the temperature and <code>salinity_variable</code> the salinity; it is always matched through the water column by year, month and day, so it takes no <code>vertical</code> or <code>point_time_res</code>, and needs the model&rsquo;s cell thickness (<code>thickness</code> in <code>matchup</code>). It also gives the temperature and salinity matchups through the water column of its dataset:</p>
     <div class="code-block" style="max-width:760px;">
