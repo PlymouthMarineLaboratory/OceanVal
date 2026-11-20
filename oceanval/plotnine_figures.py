@@ -106,12 +106,16 @@ def draw(plot, size):
 def _keep_open(figure):
     """Give pyplot back the figure plotnine's draw() closed (its plot_context
     closes it, so a later plt.show() would show nothing): the way pyplot.figure
-    makes a figure current."""
+    makes a figure current. matplotlib 3.11 takes the manager off a figure it
+    closes, so the figure is given a new one."""
+    import matplotlib.pyplot as plt
     from matplotlib import _pylab_helpers
 
     manager = getattr(figure.canvas, "manager", None)
-    if manager is not None:
-        _pylab_helpers.Gcf._set_new_active_manager(manager)
+    if manager is None:
+        number = max(plt.get_fignums(), default=0) + 1
+        manager = plt._get_backend_mod().new_figure_manager_given_figure(number, figure)
+    _pylab_helpers.Gcf._set_new_active_manager(manager)
 
 
 def _split_label(label):

@@ -321,7 +321,7 @@ class TestBinding:
         report.bind()
 
         assert 'href="ices_all_oxygen.html"' in open(page).read()
-        assert open(page).read().count("oceanval-sidebar\"") == 1
+        assert open(page).read().count("<aside class=\"oceanval-sidebar\"") == 1
 
     def test_complete(self, report):
         report.pages = {
