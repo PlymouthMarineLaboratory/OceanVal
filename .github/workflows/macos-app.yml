@@ -66,7 +66,7 @@ jobs:
         with:
           micromamba-version: '1.4.5-0'
           environment-name: oceanval
-          create-args: esmf=*=nompi_* libnetcdf=*=nompi_* hdf5=*=nompi_* netcdf-fortran=*=nompi_* netcdf4=*=nompi_* h5py=*=nompi_* nctoolkit>=1.4.0 cmocean cartopy proj-data pandoc python=3.13 plotnine>=0.15 jupyter-book>=2 texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel bokeh holoviews hvplot geoviews-core cftime dask xcdat
+          create-args: esmf=*=nompi_* libnetcdf=*=nompi_* hdf5=*=nompi_* netcdf-fortran=*=nompi_* netcdf4=*=nompi_* h5py=*=nompi_* nctoolkit>=1.4.0 cmocean cartopy proj-data pandoc python=3.13 plotnine>=0.15 matplotlib<=3.10.9 jupyter-book>=2 texlive-core nodejs=22.23.2 statsmodels geopandas fiona tqdm shapely notebook ipykernel bokeh holoviews hvplot geoviews-core cftime dask xcdat
           init-shell: >-
             bash
           cache-environment: true
