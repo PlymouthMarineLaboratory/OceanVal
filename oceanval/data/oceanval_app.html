@@ -6550,7 +6550,8 @@
     analyzeVariables.rows = [blank];
     $("av-rows").append(blank.tr);
     refreshAnalyzeVariables();
-    blank.nameBox.focus();
+    // not the blank name box: focusing it opens its list of names, which covers Add multiple variables
+    $("av-add-multiple").focus();
   });
 
   async function submitAnalyzeVariables() {
@@ -13623,9 +13624,10 @@
 
   function buildScVariables() {
     const sims = scState().sims;
-    const width = Math.floor(72 / Math.max(sims.length, 1));
+    // the simulations' columns share what is left (the table is fixed-layout): widths of their own that, with the
+    // 96px, came to more than the table shrank the first column too, and Add multiple (under-first) no longer lined up
     $("scv-table").replaceChildren(
-      el("colgroup", {}, el("col", { style: "width:22%" }), ...sims.map(() => el("col", { style: `width:${width}%` })), el("col", { style: "width:96px" })),
+      el("colgroup", {}, el("col", { style: "width:22%" }), ...sims.map(() => el("col")), el("col", { style: "width:96px" })),
       el("thead", {}, el("tr", {},
         el("th", { scope: "col" }, "Environmental variable", el("p", { class: "analyze-hint", text: "Enter your own or select from available presets" })),
         ...sims.map((sim, index) => el("th", { scope: "col" }, scNamed(sim.name, scColour(index)), el("p", { class: "analyze-hint", text: "Enter variable names or search terms that will look up the variable and name and descriptions in files" }))),

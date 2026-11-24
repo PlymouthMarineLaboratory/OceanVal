@@ -1424,18 +1424,15 @@ def test_comparing_simulations_in_a_browser(browser, tmp_path):
         assert page.is_visible("#scg-baseline") and page.is_hidden("#scg-box")
         page.select_option("#scg-baseline-select", "Base run")
         assert page.is_enabled("#scg-continue")
-        page.check("#scg-method-box")
-        assert page.is_visible("#scg-box") and page.is_disabled("#scg-continue")
-        for box, value in (("lon_min", "-4"), ("lon_max", "0"), ("lat_min", "50"), ("lat_max", "53"), ("res", "0.5")):
-            page.fill(f"#scg-{box}", value)
-        assert page.is_enabled("#scg-continue")
+        # a baseline is the only choice: the lon/lat box option went (2026-11-11)
+        assert page.locator("#scg-method-box").count() == 0
         page.click("#scg-continue")
         page.wait_for_selector("#view-analyze-options:not([hidden])")
         assert page.is_visible("#ao-compare-note")
         # the tiles are the first page; the run buttons are on the second, once something is chosen
         assert page.is_hidden("#title")
         assert page.is_disabled("#ao-continue")
-        assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5}
+        assert app.sc_unify == {"baseline": "Base run"}
 
         # a comparison already where it is to be saved must be ticked to be replaced
         os.makedirs(tmp_path / "old" / sim_compare.FOLDER)
@@ -1609,15 +1606,9 @@ def test_the_grids_step_shows_each_simulation_and_a_preview_in_a_browser(browser
         page.select_option("#scg-regrid-select", "")
         assert "Generate unified grid again" in page.text_content("#scg-map-unified")
         assert page.is_enabled("#scg-continue")
-        # the box has the same maps and the same preview
-        page.check("#scg-method-box")
-        for box, text in (("lon_min", "-4"), ("lon_max", "0"), ("lat_min", "50"), ("lat_max", "53"), ("res", "0.5")):
-            page.fill(f"#scg-{box}", text)
-        page.click("#scg-generate")
-        page.wait_for_selector("#scg-map-unified.is-drawn", timeout=60000)
         page.click("#scg-continue")
         page.wait_for_selector("#view-analyze-options:not([hidden])")
-        assert app.sc_unify == {"lon": [-4.0, 0.0], "lat": [50.0, 53.0], "res": 0.5}
+        assert app.sc_unify == {"baseline": "Fine run"}
         assert errors == []
     finally:
         page.close()

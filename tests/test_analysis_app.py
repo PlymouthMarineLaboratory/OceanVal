@@ -1037,7 +1037,8 @@ def test_analyze_in_a_browser(browser, tmp_path):
         # nothing is ticked to start with; one variable has no All variables row
         assert not use.is_checked() and not surface.is_checked()
         assert page.locator("#clim-all > tr").count() == 0
-        assert "required" in page.inner_text("#clim-dialog thead").lower()
+        # no Required tags: the boxes still needed are outlined in red instead (2026-11-11)
+        assert page.locator("#clim-dialog thead .own-req:visible").count() == 0
         assert page.locator("#clim-body input.is-year").first.get_attribute("placeholder") == "2013"
         # with the variable unticked there is nothing to confirm, and a layer ticked ticks it
         assert page.is_disabled("#clim-confirm") and page.inner_text("#clim-msg") == ""
@@ -1091,14 +1092,16 @@ def test_analyze_in_a_browser(browser, tmp_path):
         assert page.is_hidden("#title")
         # the last page is not reached until the cores are given
         assert page.is_disabled("#ao-next") and page.locator("#ao-run").count() == 0
-        # the cores are marked as required until they are given, the figure code is not
-        assert "required" in page.inner_text("#ao-cores-group legend").lower()
+        # the cores are outlined in red until they are given (no Required tag, 2026-11-11), the figure code is not
+        needed = lambda group: page.evaluate("(id) => document.getElementById(id).classList.contains('is-needed')", group)
+        assert needed("ao-cores-group") and not needed("ao-code-group")
         page.select_option("#ao-cores", "2")
+        page.wait_for_function("() => !document.getElementById('ao-cores-group').classList.contains('is-needed')")
         # an unanswered figure code question is no, so the cores are all that is needed
         assert page.is_enabled("#ao-next")
         page.check("#ao-code-yes")
         wait_for(lambda: app.analyze_figure_code == "yes")
-        assert "required" not in page.inner_text("#ao-code-group legend").lower()
+        assert not needed("ao-code-group")
         # where the output is saved is the last page, which has the buttons that run the analysis
         assert page.is_enabled("#ao-next") and page.locator("#ao-run").count() == 0
         page.click("#ao-next")
@@ -1512,6 +1515,9 @@ def test_remove_all_variables_leaves_one_blank_row(browser, tmp_path):
     assert not page.is_disabled("#av-continue")
     page.click("#av-remove-all")
     assert variable_rows_of(page) == [""]
+    # the blank row's list of names is not opened over Add multiple variables, which has the focus
+    assert page.locator(".vars__popover:not([hidden])").count() == 0
+    assert page.evaluate("() => document.activeElement.id") == "av-add-multiple"
     assert page.is_disabled("#av-continue")
     assert page.is_disabled("#av-remove-all")
     # and the variables can be added again
@@ -2085,16 +2091,13 @@ def test_the_names_list_what_is_typed_and_the_missing_value_in_a_browser(browser
         assert name.input_value() == "Temperature" and model.input_value() == "thetao"
         assert "is-oceanval" in name.get_attribute("class") and "is-oceanval" in model.get_attribute("class")
         assert page.locator(".vars__popover:not([hidden])").count() == 0
-        # choosing another name replaces what the box filled in; Enter on the first row chooses it from the keyboard
+        # choosing another name replaces what the box filled in
         name.fill("Chl")
         page.locator(".vars__popover:not([hidden]) tbody tr:not([hidden])", has_text="Chlorophyll").click()
         assert name.input_value() == "Chlorophyll" and model.input_value() == "P1_Chl+P2_Chl"
+        # a name the simulation holds no variable for is not listed, even when typed
         name.fill("Sal")
-        name.press("ArrowDown")
-        name.press("Enter")
-        # one with no model variable empties it, and is not bold
-        assert name.input_value() == "Salinity" and model.input_value() == ""
-        assert "is-oceanval" not in model.get_attribute("class")
+        assert shown() == []
         # a model box the user typed in is not overwritten
         model.fill("e3t")
         assert "is-oceanval" not in model.get_attribute("class")
@@ -2322,36 +2325,36 @@ class TestClosingTheBrowser:
 
 
 def test_the_required_tags_of_the_climatology_go_when_the_rows_are_filled(browser, tmp_path):
-    """The column tags over the climatology's rows stay until a ticked
-    variable has its years and a layer, and the red round a filled year box goes."""
+    """The column tags over the climatology's rows are never shown (a red outline replaced them,
+    2026-11-11), but stay unsatisfied until a ticked variable has its years and a layer; the
+    empty year boxes of a ticked row are outlined in red until they are filled."""
     page, app, errors = open_analyze_option(browser, tmp_path, (2011, 2012, 2013, 2014), "climatology", "clim-dialog")
     try:
         years = page.locator("#clim-dialog thead tr:last-child .own-req")
         tick = page.locator("#clim-dialog thead .is-need .own-req")
+        satisfied = lambda tag: "is-satisfied" in (tag.get_attribute("class") or "")
         row = page.locator("#clim-body > tr").first
-        assert years.nth(0).is_visible() and years.nth(1).is_visible() and tick.is_visible()
+        assert page.locator("#clim-dialog thead .own-req:visible").count() == 0
+        assert not satisfied(years.nth(0)) and not satisfied(years.nth(1)) and not satisfied(tick)
         use = row.locator("input[type=checkbox]").first
         if not use.is_checked():
             use.check()
         row.locator("input[type=checkbox]").nth(1).check()
-        page.wait_for_selector("#clim-dialog thead .is-need .own-req", state="hidden")
-        # a layer is not the years
-        assert years.nth(0).is_visible() and years.nth(1).is_visible()
+        page.wait_for_function("() => document.querySelector('#clim-dialog thead .is-need .own-req').classList.contains('is-satisfied')")
+        # a layer is not the years: the year boxes of the ticked row are outlined in red
+        assert not satisfied(years.nth(0)) and not satisfied(years.nth(1))
         start = page.locator("#clim-body input.is-year").nth(0)
         end = page.locator("#clim-body input.is-year").nth(1)
-        red = "rgb(226, 165, 157)"
-        assert start.evaluate("node => getComputedStyle(node).borderTopColor") == red
+        assert "is-needed" in start.get_attribute("class") and "is-needed" in end.get_attribute("class")
         start.fill("2012")
         end.fill("2013")
-        page.wait_for_selector("#clim-dialog thead tr:last-child .own-req >> nth=1", state="hidden")
-        assert years.nth(0).is_hidden() and years.nth(1).is_hidden()
-        # the border changes colour over a transition
-        page.wait_for_function(
-            "([node, red]) => getComputedStyle(node).borderTopColor !== red", arg=[start.element_handle(), red]
-        )
+        page.wait_for_function("() => [...document.querySelectorAll('#clim-dialog thead tr:last-child .own-req')].every((tag) => tag.classList.contains('is-satisfied'))")
+        assert "is-needed" not in start.get_attribute("class") and "is-needed" not in end.get_attribute("class")
         end.fill("")
-        page.wait_for_selector("#clim-dialog thead tr:last-child .own-req >> nth=1", state="visible")
-        assert years.nth(0).is_hidden() and years.nth(1).is_visible()
+        page.wait_for_function("() => !document.querySelectorAll('#clim-dialog thead tr:last-child .own-req')[1].classList.contains('is-satisfied')")
+        assert satisfied(years.nth(0)) and not satisfied(years.nth(1))
+        assert "is-needed" in end.get_attribute("class") and "is-needed" not in start.get_attribute("class")
+        assert page.locator("#clim-dialog thead .own-req:visible").count() == 0
         assert not errors
     finally:
         app.close()
