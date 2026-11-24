@@ -120,8 +120,11 @@ def picker_state(found):
 def _model_variables_for_recipes(found, cwd=None):
     """The model variable the streams hold for each variable the validation
     recipes know, {variable: model variable} (see create_recipes.voted_mapping),
-    those it holds none for left out. These are matched as the matchups are."""
-    from oceanval.create_recipes import contents_mapping, voted_mapping
+    those it holds none for left out. These are matched as the matchups are.
+    A variable worked out from others (create_recipes.DERIVED_VARIABLES:
+    stratification, from casts of temperature and salinity) is left out: it
+    is not a model variable Analyze could read."""
+    from oceanval.create_recipes import DERIVED_VARIABLES, contents_mapping, voted_mapping
 
     mappings = []
     for stream in found:
@@ -136,7 +139,11 @@ def _model_variables_for_recipes(found, cwd=None):
             mappings.append(contents_mapping(contents, cwd))
         except Exception:
             continue
-    return voted_mapping(mappings, cwd)
+    return {
+        variable: model_variable
+        for variable, model_variable in voted_mapping(mappings, cwd).items()
+        if variable not in DERIVED_VARIABLES
+    }
 
 
 def prefill(found, cwd=None):
@@ -157,14 +164,16 @@ def presets(found, cwd=None):
     """The names the variables step's "Your name" box offers in its drop-down:
     every variable the validation recipes know, named as the recipes window
     names it, with the model variable the simulation holds for it, found as
-    the matchups find it, or None if it holds none (or cannot tell which)."""
-    from oceanval.create_recipes import recipe_variables
+    the matchups find it, or None if it holds none (or cannot tell which).
+    Variables worked out from others (stratification) are not offered."""
+    from oceanval.create_recipes import DERIVED_VARIABLES, recipe_variables
     from oceanval.recipes_gui import _title
 
     mapped = _model_variables_for_recipes(found, cwd)
     rows = [
         {"name": _title(variable, cwd), "model_variable": mapped.get(variable)}
         for variable in recipe_variables(cwd)
+        if variable not in DERIVED_VARIABLES
     ]
     return sorted(rows, key=lambda row: row["name"].lower())
 

@@ -966,6 +966,8 @@ class TestForms:
         rows = analysis_forms.prefill(analysis.streams(daily, 1))
         assert {"name": "Temperature", "model_variable": "thetao", "filled": True} in rows
         assert all(row["filled"] for row in rows)
+        # worked out from casts of temperature and salinity, not a model variable
+        assert "Stratification" not in {row["name"] for row in rows}
 
     def test_the_names_the_drop_down_offers(self, daily):
         presets = analysis_forms.presets(analysis.streams(daily, 1))
@@ -976,6 +978,8 @@ class TestForms:
         assert by_name["Salinity"] is None
         assert [preset["name"] for preset in presets] == sorted(by_name, key=str.lower)
         assert {"pH", "Nitrate", "Oxygen"} <= set(by_name)
+        # stratification is worked out from casts, so Analyze cannot read it
+        assert "Stratification" not in by_name
 
     def test_what_the_page_lists(self, daily):
         picker = analysis_forms.picker_state(analysis.streams(daily, 1))
