@@ -401,6 +401,42 @@ oceanval.add_gridded_comparison(
 
 
 # ==========================================================================
+# Stratification - worked out from temperature and salinity casts
+# ==========================================================================
+
+# Stratification - ICES Oceanographic database (https://ocean.ices.dk)
+# recipe: 'ices'
+# Stratification of each cast: surface minus bottom temperature, the potential energy anomaly
+# (of temperature alone, and of temperature and salinity) and the mixed layer depth, of the
+# observations and of the model at the cast's depths. The model's temperature and salinity
+# are those of the temperature and salinity recipes, and the temperature and salinity
+# matchups through the water column are made from the same casts.
+# CTD profiles and bottle data with good (quality flag 0) flags.
+oceanval.add_point_comparison(
+    name="stratification",
+    model_variable="temperature",
+    salinity_variable="salinity",
+    recipe={"stratification": "ices"},
+)
+
+# Stratification - EN4 profiles (https://www.metoffice.gov.uk/hadobs/en4/)
+# recipe: 'en4'
+# Stratification of each cast: surface minus bottom temperature, the potential energy anomaly
+# (of temperature alone, and of temperature and salinity) and the mixed layer depth, of the
+# observations and of the model at the cast's depths. The model's temperature and salinity
+# are those of the temperature and salinity recipes, and the temperature and salinity
+# matchups through the water column are made from the same casts.
+# EN.4.2.2 profiles, quality controlled. Each year is downloaded whole, for the
+# whole ocean: 0.5 to 0.9 GB a year since 2012.
+oceanval.add_point_comparison(
+    name="stratification",
+    model_variable="temperature",
+    salinity_variable="salinity",
+    recipe={"stratification": "en4"},
+)
+
+
+# ==========================================================================
 # Global - GLODAPv3 bottle data
 # ==========================================================================
 
@@ -638,6 +674,51 @@ oceanval.add_point_comparison(
     model_variable="silicate",
     recipe={"silicate": "ices"},
     vertical=False,  # set True to validate the full water column
+)
+
+
+# ==========================================================================
+# Global - EN4 profiles
+# ==========================================================================
+
+# Temperature - EN4 profiles (https://www.metoffice.gov.uk/hadobs/en4/)
+# recipe: 'en4'
+# EN.4.2.2 profiles, 1900 to the present, potential temperature in degrees C, quality controlled.
+# Each year is downloaded whole, for the whole ocean: 0.5 to 0.9 GB a year since 2012.
+oceanval.add_point_comparison(
+    name="temperature",
+    model_variable="temperature",
+    recipe={"temperature": "en4"},
+    vertical=False,  # set True to validate the full water column
+)
+
+# Salinity - EN4 profiles (https://www.metoffice.gov.uk/hadobs/en4/)
+# recipe: 'en4'
+# EN.4.2.2 profiles, 1900 to the present, practical salinity, quality controlled.
+# Each year is downloaded whole, for the whole ocean: 0.5 to 0.9 GB a year since 2012.
+oceanval.add_point_comparison(
+    name="salinity",
+    model_variable="salinity",
+    recipe={"salinity": "en4"},
+    vertical=False,  # set True to validate the full water column
+)
+
+
+# ==========================================================================
+# North Sea - North Sea Benthos Survey
+# ==========================================================================
+
+# Macrobenthos - North Sea Benthos Survey (https://marineinfo.org/doc/dataset/67)
+# recipe: 'nsbs'
+# The carbon biomass of the animals of the sea bed caught on a 1 mm sieve, at
+# 205 stations of the ICES survey of April and May 1986. Its ash-free dry weight
+# is taken as carbon at 0.5 g C per g. The model's should be its macrofauna
+# (ERSEM's deposit and suspension feeders), not its meiofauna. One spring is
+# matched by month, with every year of the model: no model's benthos is of 1986.
+oceanval.add_point_comparison(
+    name="macrobenthos",
+    model_variable="macrobenthos",
+    recipe={"macrobenthos": "nsbs"},
 )
 
 
