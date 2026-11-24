@@ -43,10 +43,15 @@ def test_a_semaphore_left_by_a_killed_child_is_reported(trace):
     text = semaphore_trace.report(trace)
     assert "1 registered and never unregistered" in text
     assert "_make_lock_and_leak" in text
-    # removed here, rather than by the tracker with a warning
+    # Removed here, rather than by the tracker with a warning, if it is still there: the tracker
+    # shared with the killed child removes it itself soon after (Python 3.14, on CI and here),
+    # so by now it may be gone, and that is not what is tested.
     import _multiprocessing
 
-    _multiprocessing.sem_unlink(leaked[0]["name"])
+    try:
+        _multiprocessing.sem_unlink(leaked[0]["name"])
+    except FileNotFoundError:
+        return
     resource_tracker.unregister(leaked[0]["name"], "semaphore")
 
 
