@@ -84,7 +84,7 @@ def unit_label(variable, unit):
 
 def seasonal_month_maps(ds_model, ds_obs, months, unit_text, divider = False, fixed_scale = False, global_grid = False):
     """Draw the model, observation and difference maps of these months with panel_plot,
-    from nctoolkit DataSets of the monthly climatologies of a matchup's model and
+    from the nctoolkit DataSets of the monthly climatologies of a matchup's model and
     observations. unit_text labels the colour bars (unit_label); fixed_scale puts the
     model and observations on one range; global_grid draws the whole globe.
 

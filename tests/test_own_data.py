@@ -48,6 +48,8 @@ class TestFields:
         arguments = set(inspect.signature(function).parameters) - {"self", "recipe"}
         # a depth mean is only for the datasets OceanVal builds itself
         arguments -= {"depth_mean"}
+        # the salinity is for stratification only, which is OceanVal's own dataset
+        arguments -= {"salinity_variable"}
         offered = [field["name"] for field in own_data.FIELDS[kind]]
 
         assert set(offered) == arguments

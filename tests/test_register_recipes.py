@@ -569,10 +569,9 @@ def test_the_pages_in_a_browser(browser, tmp_path):
         page.fill("#r-gridded-source_info", "My nitrate")
         page.fill("#r-gridded-obs_path", NITRATE)
         page.wait_for_function("document.querySelector('#r-gridded-obs_variable').value === 'N3_n'")
-        # what OceanVal filled in is red and bold
-        red = "rgb(192, 57, 43)"
+        # what OceanVal filled in is bold (in the ordinary ink)
         for selector in ("#r-gridded-obs_variable", "#r-gridded-units"):
-            assert page.locator(selector).evaluate("node => getComputedStyle(node).color") == red
+            assert page.locator(selector).evaluate("node => classList.contains('is-oceanval')".replace("classList", "node.classList"))
             assert page.locator(selector).evaluate("node => getComputedStyle(node).fontWeight") == "700"
         assert page.input_value("#r-gridded-units") == "mmol N/m^3"
         assert "recipe={\"nitrate\": \"mysat\"}" in page.text_content("#r-gridded-preview")
@@ -664,7 +663,11 @@ def test_saving_your_own_data_for_future_use_in_a_browser(browser, tmp_path):
 
         # a csv file says nothing of its units, so they have to be given
         assert page.input_value("#fu-units") == ""
-        assert colour("label[for=fu-units]") == red
+        # and a bold red box is around the empty one
+        page.wait_for_function("document.querySelector('#fu-units').classList.contains('is-needed')")
+        page.wait_for_function(
+            "document.querySelector('#fu-units') && getComputedStyle(document.querySelector('#fu-units')).borderTopColor === 'rgb(192, 57, 43)'")
+        assert page.locator("#fu-units").evaluate("node => getComputedStyle(node).borderTopWidth") == "4px"
         assert page.is_visible("#fu-legend-required")
         assert page.is_disabled("#future-save")
         # what OceanVal assumes is amber

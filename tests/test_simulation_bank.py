@@ -9,7 +9,7 @@ import pytest
 from oceanval import user_cache
 from oceanval.app import App
 from simulations import write_analysis_simulation
-from test_app import get_json, leftover_dir, post  # noqa: F401 (leftover_dir is autouse)
+from test_app import get_json, leftover_dir, post, set_words  # noqa: F401 (leftover_dir is autouse)
 
 
 class TestTheBankInTheCache:
@@ -358,7 +358,7 @@ def test_the_bank_in_a_browser(browser, tmp_path, oceanvalcache):
         page.wait_for_selector("#view-home:not([hidden])")
         page.click("#home-help")
         page.wait_for_selector("#view-help:not([hidden])")
-        assert page.locator("#view-help .choice").count() == 6
+        assert page.locator("#view-help .choice").count() == 5
         page.click("#help-bank")
         page.wait_for_selector("#view-bank:not([hidden])")
         assert page.locator("#bank-rows tr").count() == 1
@@ -419,9 +419,9 @@ def test_adding_simulation_info_in_a_browser(browser, tmp_path, oceanvalcache):
         page.fill("#bank-ndown", "1")
         page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('4 netCDF files found')")
         assert page.is_enabled("#bank-info-extract")
-        page.fill("#bank-require", "grid_T")
+        set_words(page, "#bank-require", "grid_T")
         page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('2 of the 4')")
-        page.fill("#bank-require", "")
+        set_words(page, "#bank-require", "")
         page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('4 netCDF files found')")
 
         # a look at a random subdirectory, above the pop-out, and back
@@ -448,7 +448,7 @@ def test_adding_simulation_info_in_a_browser(browser, tmp_path, oceanvalcache):
         row.locator("button:has-text('Regenerate')").click()
         page.wait_for_selector("#bank-info:not([hidden])")
         assert page.input_value("#bank-ndown") == "1"
-        page.fill("#bank-require", "grid_T")
+        set_words(page, "#bank-require", "grid_T")
         page.wait_for_function("() => document.querySelector('#bank-info-count').textContent.includes('2 of the 4')")
         page.click("#bank-info-extract")
         page.wait_for_selector("#bank-info", state="hidden")
@@ -582,7 +582,7 @@ def test_the_simulation_directory_boxes_have_one_drop_down_each(browser, tmp_pat
         one_drop_down("sc-dir_1")
         one_drop_down("sc-dir_2")
         # Analyze, Validate and Viewing share the setup page
-        for tile, choice in (("#home-analyze", "#menu-analyze"), ("#home-validate", 'button.choice[data-action="matchup"]'),
+        for tile, choice in (("#home-analyze", "#menu-analyze"), ("#home-validate", 'button.choice[data-action="matchup_validate"]'),
                              ("#home-viewer", None)):
             page.click("#back-open")
             if page.is_enabled("#back-open"):
@@ -591,7 +591,8 @@ def test_the_simulation_directory_boxes_have_one_drop_down_each(browser, tmp_pat
             page.click(tile)
             if choice:
                 page.click(choice)
-            page.wait_for_selector("#view-setup:not([hidden])")
+            # the viewer's setup opens in a pop-out
+            page.wait_for_selector("#vw-setup-pop:not([hidden])" if tile == "#home-viewer" else "#view-setup:not([hidden])")
             one_drop_down("f-simdir")
             assert page.locator("#f-simdir-folders").count() == 0
     finally:

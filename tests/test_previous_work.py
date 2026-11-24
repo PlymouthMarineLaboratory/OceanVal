@@ -417,6 +417,9 @@ def test_view_previous_work_in_a_browser(browser, tmp_path, oceanvalcache):
         page.wait_for_selector("#view-help:not([hidden])")
         # three across, then two: About and this are the second row
         assert page.locator("#view-help .choice").count() == 5
+        # a tile under the pointer grows and lifts, which moves its box
+        page.mouse.move(0, 0)
+        page.wait_for_timeout(500)
         top = page.locator("#help-about").bounding_box()
         last = page.locator("#help-history").bounding_box()
         # (a tile under the pointer may be a fraction of a pixel up)

@@ -648,6 +648,11 @@ def _teos10(variable, found, model_description, obs_description):
 def _suggest(variable, obs_units, model_units):
     if variable == "ph":
         return same("pH has no units, so OceanVal thinks no conversion is needed.")
+    if variable == "stratification":
+        return same(
+            "Stratification is worked out from the casts' temperature and salinity, "
+            "and a temperature in kelvin is read as such, so no conversion is needed."
+        )
     if _missing(obs_units):
         return unknown("the observations' units are not known")
     if _missing(model_units):
