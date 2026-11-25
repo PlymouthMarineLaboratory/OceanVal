@@ -196,6 +196,15 @@ class TestTheWindow:
         assert post(app, "/api/bank_remove", {"name": "Control"})[1]["bank"] == []
         assert get_json(app, "/api/state")[1]["bank"] == []
 
+    def test_the_window_lists_the_bank_a_to_z_by_name(self, app, tmp_path):
+        for name in ("Zeta", "alpha", "Beta"):
+            post(app, "/api/bank_add", {"name": name, "path": f"dir_{name}"})
+        names = lambda: [entry["name"] for entry in get_json(app, "/api/state")[1]["bank"]]
+        assert names() == ["alpha", "Beta", "Zeta"]
+        # what the window lists, the drop-downs and the bank page alike; the cache keeps the order added
+        assert [entry["name"] for entry in user_cache.bank()] == ["Zeta", "alpha", "Beta"]
+        assert [e["name"] for e in post(app, "/api/bank_remove", {"name": "alpha"})[1]["bank"]] == ["Beta", "Zeta"]
+
     def test_a_directory_that_has_gone_is_said_to(self, app, tmp_path):
         post(app, "/api/bank_add", {"name": "Gone", "path": "nowhere"})
         assert get_json(app, "/api/state")[1]["bank"][0]["exists"] is False

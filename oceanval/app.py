@@ -3653,16 +3653,19 @@ class App(AnalyzeSteps, SimCompareSteps, ViewerSteps):
             return True
 
     def _bank_state(self):
-        """The simulation bank as the page shows it: name, directory, whether
-        the directory is still there (a web address is taken to be) and, once
-        extracted, its info (see bank_extract)."""
+        """The simulation bank as the page shows it, A-Z by name (the drop-downs and the
+        bank page all list it in this order; the cache keeps the order added): name,
+        directory, whether the directory is still there (a web address is taken to be)
+        and, once extracted, its info (see bank_extract)."""
         return [
             dict(
                 entry,
                 exists=entry["path"].lower().startswith(("http://", "https://"))
                 or os.path.isdir(entry["path"]),
             )
-            for entry in user_cache.bank()
+            for entry in sorted(
+                user_cache.bank(), key=lambda entry: (entry["name"].casefold(), entry["path"])
+            )
         ]
 
     def bank_add(self, name, sim_dir):

@@ -15,7 +15,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   Preferences page (Tools & checks → Preferences; the text names the path, there is no gear any more) sets the data store folder to keep it; it is recorded on closing, and not shown if a data store is set.
   An unreadable cache counts as seen. The tests' `browser` fixture closes it unless `window.__keepValidateIntro`.
 - **The simulation bank** (`user_cache.bank`/`add_to_bank`/`remove_from_bank`; the user's design, 2026-11-05): a `"bank"` list of `{name, path, added}` in
-  the same file, a Name→Directory map the user fills on purpose (not recorded automatically, unlike `sim_dirs`). `add_to_bank` refuses, with the
+  the same file (kept in the order added, but the window lists it **A-Z by name, ignoring case**, the user's rule, 2026-11-24: `App._bank_state` sorts it once, so every drop-down and the bank page agree), a Name→Directory map the user fills on purpose (not recorded automatically, unlike `sim_dirs`). `add_to_bank` refuses, with the
   reason, a name (casefolded) already there (for the same directory: "Already in the bank."; for another) and a directory already there under another
   name: nothing is ever replaced. Paths are made absolute (a web address is kept as it is). The window: `state()["bank"]` (`App._bank_state`, with `exists`),
   `POST /api/bank_add` (relative to `App.cwd`) and `/api/bank_remove`; view `bank` (Tools & checks' second tile `#help-bank`, beside the compatibility check; the landing page has four tiles, 2 x 2,
