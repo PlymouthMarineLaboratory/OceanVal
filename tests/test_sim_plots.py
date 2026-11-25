@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
+import xarray as xr  # noqa: E402
 
 import oceanval  # noqa: E402
 from oceanval import analysis_plots as ap  # noqa: E402
@@ -47,6 +48,11 @@ def comparisons(tmp_path_factory, request):
     write_analysis_simulation(monthly[0], years=(2012, 2013, 2014), daily=False, trend=1.0, east_west=0.5)
     write_analysis_simulation(monthly[1], years=(2012, 2013, 2014), daily=False, trend=2.0, east_west=0.5)
     write_analysis_simulation(monthly[2], years=(2012, 2013, 2014), daily=False, trend=0.0, east_west=0.25)
+    # output of fewer than 12 months: Mar-Aug, and Mar-May
+    short = {name: str(root / f"short_{name}") for name in "abc"}
+    for name, months in (("a", range(3, 9)), ("b", range(3, 9)), ("c", range(3, 6))):
+        write_analysis_simulation(short[name], years=(2013,), daily=False, trend=1.0, east_west=0.5)
+        keep_months(short[name], months)
     regions = str(root / "regions.nc")
     write_analysis_regions(regions)
 
@@ -90,6 +96,15 @@ def comparisons(tmp_path_factory, request):
             simulations=sims(monthly), variables={"Temperature": "thetao"}, thickness="e3t",
             map_changes={"Temperature": dict(periods, plot="absolute_changes", change="percentage", surface=True)},
         ),
+        # two simulations with the same months (drawn with their difference), and two without (a panel each)
+        "short": dict(
+            simulations=sims([short["a"], short["b"]]), variables={"Temperature": "thetao"},
+            climatology={"Temperature": {"start": 2013, "end": 2013, "surface": True}},
+        ),
+        "short_mixed": dict(
+            simulations=sims([short["a"], short["c"]]), variables={"Temperature": "thetao"},
+            climatology={"Temperature": {"start": 2013, "end": 2013, "surface": True}},
+        ),
     }
     # each comparison is run when a test first asks for it, so a test pays only for its own case (the
     # first to ask would otherwise be charged for all, and time out)
@@ -108,6 +123,18 @@ def comparisons(tmp_path_factory, request):
             return self[case]
 
     return Lazy()
+
+
+def keep_months(path, months):
+    """Cut each file of a simulation written by write_analysis_simulation down to the months given."""
+    for folder in os.listdir(path):
+        for name in os.listdir(os.path.join(path, folder)):
+            file = os.path.join(path, folder, name)
+            with xr.open_dataset(file, decode_times=False) as ds:
+                ds = ds.load()
+            dates = xr.decode_cf(ds[["time"]])["time"].dt.month.values
+            ds.isel(time=np.flatnonzero(np.isin(dates, list(months)))).to_netcdf(file + ".tmp")
+            os.replace(file + ".tmp", file)
 
 
 def figures(info):
@@ -287,6 +314,29 @@ def test_the_maps_of_the_simulations_share_a_scale(comparisons):
     assert [line for line in one.splitlines() if line.startswith("limits = ")] == [
         line for line in other.splitlines() if line.startswith("limits = ")
     ]
+
+
+@pytest.mark.parametrize("case, months, pair", [("short", (6, 6), True), ("short_mixed", (6, 3), False)])
+def test_the_annual_mean_is_mapped_from_fewer_than_12_months(comparisons, case, months, pair):
+    # output of only some months of the year still has its annual mean mapped, the mean of the months it has
+    results = comparisons[case]
+    info = sim_compare.load(results)
+    variable = sp.entry(info, "temperature")
+    saved = [variable["sims"][sim]["climatology"]["layers"]["surface"] for sim in ("Base run", "Warm run")]
+    assert tuple(layer["months"] for layer in saved) == months
+    for sim, layer in zip(("Base run", "Warm run"), saved):
+        folder = sp.folder_of(results, info, sim)
+        with xr.open_dataset(os.path.join(folder, layer["annual"]), decode_times=False) as ds:
+            assert ds.sizes["time"] == 1
+            # thetao at the surface is its level's value plus the month, so the mean of the months it has
+            west = float(ds["temperature"].isel(time=0, lat=0, lon=2))
+        with xr.open_dataset(os.path.join(folder, layer["monthly"]), decode_times=False) as ds:
+            assert west == pytest.approx(float(ds["temperature"].isel(lat=0, lon=2).mean()), abs=1e-4)
+    figure, image, _ = draw(sp.annual_maps, results, "temperature", "surface")
+    assert figure is not None and image
+    assert sp.has_difference(results, "temperature", "surface") is pair
+    for sim in ("Base run", "Warm run"):
+        assert f'"{sim}"' in figure.code
 
 
 def test_the_maps_of_a_pair_are_5_mm_apart(comparisons):
