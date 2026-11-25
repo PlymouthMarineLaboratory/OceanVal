@@ -29,7 +29,7 @@ from simulations import write_analysis_regions, write_analysis_simulation  # noq
 B_LATS = list(np.arange(49.5, 53.6, 0.5))
 B_LONS = list(np.arange(-4.5, 0.6, 0.5))
 SERIES = {"Temperature": {"start": 2012, "end": 2014, "surface": True, "bottom": True, "water_column": "mean"}}
-CASES = ("daily", "grids", "series", "transects", "changes", "fvcom")
+CASES = ("daily", "grids", "series", "transects", "changes", "fvcom", "short_mixed")
 
 
 @pytest.fixture(scope="module")
@@ -96,7 +96,7 @@ def comparisons(tmp_path_factory, request):
             simulations=sims(monthly), variables={"Temperature": "thetao"}, thickness="e3t",
             map_changes={"Temperature": dict(periods, plot="absolute_changes", change="percentage", surface=True)},
         ),
-        # two simulations with the same months (drawn with their difference), and two without (a panel each)
+        # two simulations with the same months, and two without (Mar-Aug and Mar-May): both drawn with their difference
         "short": dict(
             simulations=sims([short["a"], short["b"]]), variables={"Temperature": "thetao"},
             climatology={"Temperature": {"start": 2013, "end": 2013, "surface": True}},
@@ -137,7 +137,7 @@ def keep_months(path, months):
             os.replace(file + ".tmp", file)
 
 
-def figures(info):
+def figures(results, info):
     """Each figure of a comparison's report: (the function, its arguments)."""
     sims = [sim["name"] for sim in info["simulations"]]
     for variable in info["variables"]:
@@ -146,7 +146,7 @@ def figures(info):
         if first["climatology"]:
             for layer in first["climatology"]["layers"]:
                 yield sp.annual_maps, (key, layer)
-                if sp.difference_pair(info, variable, layer):
+                if sp.difference_pair(results, info, variable, layer):
                     # two simulations: one figure of the months, with the difference
                     yield sp.monthly_difference_maps, (key, layer)
                     continue
@@ -227,7 +227,7 @@ def test_each_figure_is_drawn_by_the_code_it_copies(comparisons, case, tmp_path)
     results = comparisons[case]
     info = sim_compare.load(results)
     drawn, shown, scripts = [], [], []
-    for function, args in figures(info):
+    for function, args in figures(results, info):
         figure, image, _ = draw(function, results, *args)
         if figure is None:
             assert function is sp.station_plot
@@ -316,8 +316,8 @@ def test_the_maps_of_the_simulations_share_a_scale(comparisons):
     ]
 
 
-@pytest.mark.parametrize("case, months, pair", [("short", (6, 6), True), ("short_mixed", (6, 3), False)])
-def test_the_annual_mean_is_mapped_from_fewer_than_12_months(comparisons, case, months, pair):
+@pytest.mark.parametrize("case, months", [("short", (6, 6)), ("short_mixed", (6, 3))])
+def test_the_annual_mean_is_mapped_from_fewer_than_12_months(comparisons, case, months):
     # output of only some months of the year still has its annual mean mapped, the mean of the months it has
     results = comparisons[case]
     info = sim_compare.load(results)
@@ -334,9 +334,59 @@ def test_the_annual_mean_is_mapped_from_fewer_than_12_months(comparisons, case, 
             assert west == pytest.approx(float(ds["temperature"].isel(lat=0, lon=2).mean()), abs=1e-4)
     figure, image, _ = draw(sp.annual_maps, results, "temperature", "surface")
     assert figure is not None and image
-    assert sp.has_difference(results, "temperature", "surface") is pair
+    # two simulations are drawn with their difference whether or not they have the same months
+    assert sp.has_difference(results, "temperature", "surface") is True
     for sim in ("Base run", "Warm run"):
         assert f'"{sim}"' in figure.code
+
+
+def test_simulations_without_the_same_months_are_differenced_over_the_months_both_have(comparisons):
+    # Base run has Mar-Aug and Warm run Mar-May: the annual maps and their difference are of Mar-May
+    results = comparisons["short_mixed"]
+    info = sim_compare.load(results)
+    variable = sp.entry(info, "temperature")
+    found = {"Base run": [3, 4, 5, 6, 7, 8], "Warm run": [3, 4, 5]}
+    annual = drawn(sp.annual_maps, results, "temperature", "surface")
+    assert annual.found["pair"] == ["Base run", "Warm run"]
+    assert annual.found["months"] == found and annual.found["common_months"] == [3, 4, 5]
+    assert parsed(annual.code, "months_in_common") == [3, 4, 5]
+    assert "ds_first.subset(months=months_in_common)" in annual.code and "ds_first.tmean()" in annual.code
+    # each map is the mean of Mar-May of its monthly means, and the two simulations' output is the same
+    pair, paths = sp._pair_files(results, info, variable, "surface", "monthly")
+    first, second, difference = sp._pair_maps(paths, "temperature", info.get("same_grid") is not True, [3, 4, 5], annual=True)
+    for values, path in zip((first, second), paths):
+        with xr.open_dataset(path) as ds:
+            expected = ds["temperature"].sel(time=ds["time"].dt.month.isin([3, 4, 5])).mean("time").values
+        assert np.allclose(np.squeeze(values), np.squeeze(expected), equal_nan=True, atol=1e-4)
+    assert np.nanmax(np.abs(difference)) < 1e-4
+    text = oceanval.sim_report.months_text(annual.found)
+    assert "Warm run has output for March, April and May" in text and "mean of the months both have, March, April and May" in text
+
+    # the months are Mar-Aug: Warm run's Jun-Aug, and their difference, are blank
+    monthly = drawn(sp.monthly_difference_maps, results, "temperature", "surface")
+    plt.close("all")
+    assert parsed(monthly.code, "months") == [3, 4, 5, 6, 7, 8]
+    assert parsed(monthly.code, "has") == [[3, 4, 5, 6, 7, 8], [3, 4, 5], [3, 4, 5]]
+    assert '"No output"' in monthly.code and "ds_first_common.subset(months=months_in_common)" in monthly.code
+    assert monthly.found["common_months"] == [3, 4, 5]
+    assert "A blank map" in oceanval.sim_report.months_text(monthly.found, monthly=True)
+    assert draw(sp.monthly_difference_maps, results, "temperature", "surface")[1]
+
+
+@pytest.mark.parametrize(
+    "first, second, common",
+    [([3, 4, 5], [9, 10, 11], None), ([3, 4, 5], [4, 5, 6], [4, 5]), (list(range(1, 13)), list(range(1, 13)), list(range(1, 13)))],
+)
+def test_a_pair_is_drawn_with_its_difference_only_with_a_month_in_common(comparisons, monkeypatch, first, second, common):
+    # the months are compared, not how many there are: Mar-May and Sep-Nov have none in common
+    results = comparisons["short"]
+    info = sim_compare.load(results)
+    variable = sp.entry(info, "temperature")
+    months = {"Base run": first, "Warm run": second}
+    monkeypatch.setattr(sp, "_layer_months", lambda results_dir, info, variable, sim, layer: months[sim])
+    assert sp.pair_months(results, info, variable, "surface")["common"] == (common or [])
+    assert sp.difference_pair(results, info, variable, "surface") == (None if common is None else ("Base run", "Warm run"))
+    assert oceanval.sim_report.months_text({"common_months": None}) == ""
 
 
 def test_the_maps_of_a_pair_are_5_mm_apart(comparisons):
@@ -370,7 +420,7 @@ def test_two_simulations_are_drawn_with_their_difference(comparisons):
     results = comparisons["daily"]
     info = sim_compare.load(results)
     variable = sp.entry(info, "temperature")
-    assert sp.difference_pair(info, variable, "surface") == ("Base run", "Warm run")
+    assert sp.difference_pair(results, info, variable, "surface") == ("Base run", "Warm run")
     assert sp.has_difference(results, "temperature", "surface")
     for figure in (drawn(sp.annual_maps, results, "temperature", "surface"), drawn(sp.monthly_difference_maps, results, "temperature", "surface")):
         plt.close("all")
@@ -419,7 +469,7 @@ def test_three_simulations_are_drawn_as_before(comparisons):
     info = sim_compare.load(results)
     variable = sp.entry(info, "temperature")
     assert len(info["simulations"]) == 3
-    assert sp.difference_pair(info, variable, "surface") is None
+    assert sp.difference_pair(results, info, variable, "surface") is None
     figure = drawn(sp.annual_maps, results, "temperature", "surface")
     plt.close("all")
     assert figure.found == {} and "minus" not in figure.code

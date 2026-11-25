@@ -23,6 +23,7 @@ for layer, saved in clim["layers"].items():
             f"**Figure {i_figure}**: Annual mean {where} {name} ({layer_units}), {years}, in each simulation, and the difference between them. "
             "The simulations share one colour scale, from the 2nd to the 98th percentile of both of them."
             + sr.difference_text(drawn.found)
+            + sr.months_text(drawn.found)
             + regridded_text(drawn.regridded)
         ))
         i_figure += 1
@@ -33,6 +34,7 @@ for layer, saved in clim["layers"].items():
             "each simulation and one of the difference between them, named to the right of each row. "
             "Both simulations share one colour scale in every month, from the 2nd to the 98th percentile of both of them."
             + sr.difference_text(drawn.found)
+            + sr.months_text(drawn.found, monthly=True)
             + regridded_text(drawn.regridded)
         ))
         i_figure += 1

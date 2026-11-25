@@ -37,7 +37,13 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   depths and positions (never an exact join: without an increment each simulation's 50 depths differ, and an exact join once gave no figure); the template says so when
   there are no places in common. `tests/test_sim_plots.py::TestTransectDifference`.
 - **Two simulations get difference maps** (the user's rule, 2026-11-04; `sim_plots.difference_pair`/`has_difference`: exactly two simulations,
-  both with the climatology layer, the same months, not raw FVCOM, which keeps today's figures): `annual_maps` then draws, in one row, the first,
+  both with the climatology layer, at least one month in common, not raw FVCOM, which keeps today's figures; the months are read from each
+  monthly file by `_layer_months`, never the saved `"months"` count, and `pair_months` gives first/second/common/union). **Without the same
+  months** (output of less than a year; the user's rule, 2026-11-25) the annual figure opens the monthly files and maps the mean of the months in
+  common (`months_in_common`, `subset(months=)` + `tmean()` in the script) for both and the difference, and the monthly figure has a column for
+  every month either has (`months`, `has` in the script), a blank "No output" map where a simulation (or the difference, made from both cut to the
+  common months) has none, the bars' colours taken from a drawn map; `found["months"]`/`["common_months"]` give `sim_report.months_text` for the
+  captions. Tests: the `short_mixed` case. `annual_maps` then draws, in one row, the first,
   the second and the **first minus the second** (title in bold, `difference_title`), and `monthly_difference_maps` replaces the two
   per-simulation 12-month figures with one: months across (`DIFFERENCE_COLUMNS` = 4, in blocks), a row for each simulation and one for the
   difference in each block, **each row named on the right** (`rotation=270`). The simulations share one colour scale and the differences another

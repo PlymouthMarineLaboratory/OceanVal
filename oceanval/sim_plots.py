@@ -215,7 +215,7 @@ def annual_maps(results_dir, key, layer):
     annual_difference_maps)."""
     info = load(results_dir)
     variable = entry(info, key)
-    if difference_pair(info, variable, layer):
+    if difference_pair(results_dir, info, variable, layer):
         return annual_difference_maps(results_dir, key, layer)
     sims = _having(variable, "climatology")
     saved = _own(variable, sims[0])["climatology"]["layers"][layer]
@@ -298,23 +298,45 @@ def pair_size(path, key, columns, rows, side=0.3, bars=1, titles=1):
 SPACING = 'fig.get_layout_engine().set(w_pad=GAP / 2, h_pad=GAP / 2, wspace=0, hspace=0)'
 
 
-def difference_pair(info, variable, layer):
-    """The two simulations whose maps of a variable's climatology in a layer are drawn
-    with their difference, (first, second), or None: when exactly two simulations are
-    compared, both have the layer, with the same months, and it is not raw FVCOM output
-    (which is drawn on its mesh)."""
+def _layer_months(results_dir, info, variable, sim, layer):
+    """The months (1 to 12) a simulation's climatology of a variable in a layer has, from its file of
+    the monthly means (output of fewer than 12 months has only some of them)."""
+    path = _path(folder_of(results_dir, info, sim), _own(variable, sim)["climatology"]["layers"][layer]["monthly"])
+    return sorted({int(time.month) for time in nc.open_data(path, checks=False).times})
+
+
+def pair_months(results_dir, info, variable, layer):
+    """The months of the two simulations whose climatology in a layer could be drawn with their
+    difference (exactly two simulations, both with the layer, not raw FVCOM output, which is drawn on its
+    mesh): {"first": [...], "second": [...], "common": the months both have, "union": the months either
+    has}, or None if they cannot be."""
     names = names_of(info)
     if len(names) != 2:
         return None
-    layers = []
     for sim in names:
         own = variable["sims"].get(sim, {}).get("climatology")
         saved = own["layers"].get(layer) if own else None
         if saved is None or saved.get("mesh"):
             return None
-        layers.append(saved)
-    if layers[0]["months"] != layers[1]["months"]:
+    first, second = (_layer_months(results_dir, info, variable, sim, layer) for sim in names)
+    return {
+        "first": first,
+        "second": second,
+        "common": sorted(set(first) & set(second)),
+        "union": sorted(set(first) | set(second)),
+    }
+
+
+def difference_pair(results_dir, info, variable, layer):
+    """The two simulations whose maps of a variable's climatology in a layer are drawn
+    with their difference, (first, second), or None: when exactly two simulations are
+    compared, both have the layer, with at least one month in common (output of fewer than
+    12 months may not have the same ones; the difference is of the months both have), and it
+    is not raw FVCOM output (which is drawn on its mesh)."""
+    months = pair_months(results_dir, info, variable, layer)
+    if months is None or not months["common"]:
         return None
+    names = names_of(info)
     return names[0], names[1]
 
 
@@ -322,7 +344,7 @@ def has_difference(results_dir, key, layer):
     """Whether the maps of a variable's climatology in a layer are drawn with the
     first simulation minus the second (see difference_pair)."""
     info = load(results_dir)
-    return difference_pair(info, entry(info, key), layer) is not None
+    return difference_pair(results_dir, info, entry(info, key), layer) is not None
 
 
 def difference_title(first, second):
@@ -332,53 +354,94 @@ def difference_title(first, second):
 
 def _pair_files(results_dir, info, variable, layer, kind):
     """The files of the two simulations' maps (kind: "annual" or "monthly") and their names."""
-    pair = difference_pair(info, variable, layer)
+    pair = difference_pair(results_dir, info, variable, layer)
     paths = [
         _path(folder_of(results_dir, info, sim), _own(variable, sim)["climatology"]["layers"][layer][kind]) for sim in pair
     ]
     return pair, paths
 
 
-def _open_pair_code(paths, key, regrid_second):
+def _open_pair_code(paths, key, regrid_second, common=None, annual=False):
     """The code that opens the maps of two simulations as ds_first and ds_second, and makes
     ds_difference, the first minus the second. If the simulations are on different grids,
-    the second is regridded to the first's for it (bilinear)."""
-    lines = ["# open the map of each simulation"]
+    the second is regridded to the first's for it (bilinear).
+
+    common is None if the simulations have the same months; otherwise the months both have, and
+    the difference is of those months only: with annual, paths are the files of the monthly means
+    and each map is the mean of the months in common (so both maps and the difference are of the
+    same months); without, the maps are every month each has."""
+    lines = []
+    if common is not None:
+        lines += [
+            "# the simulations do not have output for the same months: the months both have",
+            f"months_in_common = {_py([int(m) for m in common])}",
+        ]
+    lines.append(
+        "# open the map of each simulation"
+        + (": the mean of the months both have" if common is not None and annual else "")
+    )
     for name, path in zip(("first", "second"), paths):
         lines += [
             f"ds_{name} = nc.open_data({_py(path)}, checks=False)",
             f"ds_{name}.subset(variables={_py(key)})",
-            f"ds_{name}.run()",
         ]
-    lines.append("# the difference: the first simulation minus the second")
+        if common is not None and annual:
+            lines += [f"ds_{name}.subset(months=months_in_common)", f"ds_{name}.tmean()"]
+        lines.append(f"ds_{name}.run()")
+    lines.append(
+        "# the difference: the first simulation minus the second"
+        + (", in the months both have" if common is not None and not annual else "")
+    )
+    if common is not None and not annual:
+        lines += [
+            "ds_first_common = ds_first.copy()",
+            "ds_first_common.subset(months=months_in_common)",
+            "ds_first_common.run()",
+            "ds_second_common = ds_second.copy()",
+            "ds_second_common.subset(months=months_in_common)",
+            "ds_second_common.run()",
+        ]
+        first, second = "ds_first_common", "ds_second_common"
+    else:
+        first, second = "ds_first", "ds_second"
     if regrid_second:
         lines += [
             "# the simulations are on different grids, so the second is regridded to the first's for it",
-            "ds_on_first = ds_second.copy()",
+            f"ds_on_first = {second}.copy()",
             f'ds_on_first.regrid(grid={_py(paths[0])}, method="bil")',
             "ds_on_first.run()",
         ]
     else:
-        lines.append("ds_on_first = ds_second")
-    lines += ["ds_difference = ds_first.copy()", "ds_difference.subtract(ds_on_first)", "ds_difference.run()"]
+        lines.append(f"ds_on_first = {second}")
+    lines += [f"ds_difference = {first}.copy()", "ds_difference.subtract(ds_on_first)", "ds_difference.run()"]
     return "\n".join(lines)
 
 
-def _difference_values(paths, key, regrid_second):
+def _pair_maps(paths, key, regrid_second, common=None, annual=False):
+    """The values of the two simulations' maps and of the first minus the second, as the
+    code of _open_pair_code works them out: (first, second, difference)."""
+    namespace = {"nc": nc}
+    exec(compile(_open_pair_code(paths, key, regrid_second, common, annual), "<difference>", "exec"), namespace)
+    return tuple(
+        np.asarray(namespace[name].to_xarray()[key].values, dtype="float64")
+        for name in ("ds_first", "ds_second", "ds_difference")
+    )
+
+
+def _difference_values(paths, key, regrid_second, common=None, annual=False):
     """The values of the first simulation's map minus the second's, worked out by
     the code of _open_pair_code."""
-    namespace = {"nc": nc}
-    exec(compile(_open_pair_code(paths, key, regrid_second), "<difference>", "exec"), namespace)
-    return np.asarray(namespace["ds_difference"].to_xarray()[key].values, dtype="float64")
+    return _pair_maps(paths, key, regrid_second, common, annual)[2]
 
 
-def _pair_scales(paths, key, regrid_second):
+def _pair_scales(paths, key, regrid_second, common=None, annual=False):
     """The colour scales of two simulations' maps and their difference:
     ((limits, extend) shared by the simulations, (limits, extend) of the difference,
-    symmetric about zero)."""
+    symmetric about zero), from the maps as they are drawn."""
+    first, second, difference = _pair_maps(paths, key, regrid_second, common, annual)
     return (
-        _scale(_all_values(paths, key)),
-        _scale(_difference_values(paths, key, regrid_second), diverging=True),
+        _scale(np.concatenate([first.ravel(), second.ravel()])),
+        _scale(difference, diverging=True),
     )
 
 
@@ -409,10 +472,11 @@ def _bars_code():
     )
 
 
-def _pair_figure(key, comment, paths, regrid_second, scales, size, draw, calendar=False):
+def _pair_figure(key, comment, paths, regrid_second, scales, size, draw, calendar=False, common=None, annual=False):
     """The function that makes the code of a figure of two simulations and their difference
     from the plot grids to regrid them to (None if they are drawn as they are, see _drawn_maps);
-    draw is the code that draws the figure, from the open maps and the settings."""
+    draw is the code that draws the figure, from the open maps and the settings; common and
+    annual as for _open_pair_code."""
     (limits, _), (difference_limits, _) = scales
     imports = ap.MAP_IMPORTS + "from matplotlib.ticker import MaxNLocator\n" + ("import calendar\n" if calendar else "")
 
@@ -427,7 +491,7 @@ def _pair_figure(key, comment, paths, regrid_second, scales, size, draw, calenda
             "# the figure's size, in inches, and its font size: the report shows it at about the width of its page\n"
             f"size = {_py(size)}\n"
             f"font_size = {DIFFERENCE_FONT}",
-            _open_pair_code(paths, key, regrid_second),
+            _open_pair_code(paths, key, regrid_second, common, annual),
             _grids_code(grids),
             draw,
         )
@@ -476,10 +540,13 @@ def annual_difference_maps(results_dir, key, layer):
     for the difference (Drawn.found["difference_regridded"])."""
     info = load(results_dir)
     variable = entry(info, key)
-    pair, paths = _pair_files(results_dir, info, variable, layer, "annual")
+    months = pair_months(results_dir, info, variable, layer)
+    # simulations without output for the same months are mapped as the mean of the months both have
+    common = None if months["first"] == months["second"] else months["common"]
+    pair, paths = _pair_files(results_dir, info, variable, layer, "annual" if common is None else "monthly")
     saved = _own(variable, pair[0])["climatology"]["layers"][layer]
     regrid_second = info.get("same_grid") is not True
-    scales = _pair_scales(paths, key, regrid_second)
+    scales = _pair_scales(paths, key, regrid_second, common, annual=True)
     title = difference_title(*pair)
     name = variable["name"]
     bars = [
@@ -524,14 +591,28 @@ def annual_difference_maps(results_dir, key, layer):
         f"# the annual mean of {name}'s climatology in {pair[0]} and {pair[1]}, and the difference between them: "
         f"{saved['title'].lower()}"
     )
-    code_for_figure = _pair_figure(key, comment, paths, regrid_second, scales, size, draw)
+    if common is not None:
+        comment += ", the mean of the months both simulations have"
+    code_for_figure = _pair_figure(key, comment, paths, regrid_second, scales, size, draw, common=common, annual=True)
 
     def code_for(regrid):
         return code_for_figure(_pair_grids(paths) if regrid else None)
 
     drawn = _drawn_maps(code_for, info, "annual_maps")
-    drawn.found = {"difference_regridded": regrid_second, "pair": list(pair)}
+    drawn.found = _pair_found(regrid_second, pair, months, common)
     return drawn
+
+
+def _pair_found(regrid_second, pair, months, common):
+    """The Drawn.found of a figure of two simulations and their difference: whether the second was
+    regridded for the difference, the pair, the months each has, and the months in common (None if they
+    have the same months; see sim_report.months_text)."""
+    return {
+        "difference_regridded": regrid_second,
+        "pair": list(pair),
+        "months": {pair[0]: months["first"], pair[1]: months["second"]},
+        "common_months": common,
+    }
 
 
 def monthly_difference_maps(results_dir, key, layer):
@@ -539,23 +620,36 @@ def monthly_difference_maps(results_dir, key, layer):
     simulations and the first minus the second: the months across, in blocks of
     DIFFERENCE_COLUMNS, and for each block a row of the first simulation, one of the second
     and one of the difference, each named on the right. The simulations share one colour
-    scale and the differences another (see annual_difference_maps)."""
+    scale and the differences another (see annual_difference_maps).
+
+    Simulations without output for the same months have a column for every month either has:
+    a month a simulation has no output for is a blank map, "No output", and so is its difference,
+    which is of the months both have."""
     info = load(results_dir)
     variable = entry(info, key)
+    months_of = pair_months(results_dir, info, variable, layer)
+    common = None if months_of["first"] == months_of["second"] else months_of["common"]
     pair, paths = _pair_files(results_dir, info, variable, layer, "monthly")
     saved = _own(variable, pair[0])["climatology"]["layers"][layer]
     regrid_second = info.get("same_grid") is not True
-    scales = _pair_scales(paths, key, regrid_second)
+    scales = _pair_scales(paths, key, regrid_second, common)
     title = difference_title(*pair)
     name = variable["name"]
-    months = int(saved["months"])
+    shown = months_of["union"]
+    has = [months_of["first"], months_of["second"], months_of["common"]]
+    months = len(shown)
     ncol = min(DIFFERENCE_COLUMNS, months)
     blocks = int(np.ceil(months / ncol))
+    # the colours of a bar are taken from a map that is drawn (the maps are 3 a month: the first
+    # simulation, the second and the difference)
+    drawn_maps = [3 * index + kind for index, month in enumerate(shown) for kind in range(3) if month in has[kind]]
+    simulation_source = next(number for number in drawn_maps if number % 3 < 2)
+    difference_source = next(number for number in drawn_maps if number % 3 == 2)
     # both colour bars are below all the maps, one under the other (the one made last is the upper)
     thin = round(1 / (3 * blocks), 3)
     bars = [
-        (0, months * 3, legend(f"{name}, {title}", saved["units"]), scales[1][1], 2, thin),
-        (0, months * 3, legend(name, saved["units"]), scales[0][1], 0, thin),
+        (0, months * 3, legend(f"{name}, {title}", saved["units"]), scales[1][1], difference_source, thin),
+        (0, months * 3, legend(name, saved["units"]), scales[0][1], simulation_source, thin),
     ]
     # a row of maps for the first simulation, the second and the difference in every block, and room for the colour bars
     size = pair_size(paths[0], key, ncol, 3 * blocks, side=NAMES_ROOM, bars=2, titles=blocks)
@@ -567,7 +661,7 @@ def monthly_difference_maps(results_dir, key, layer):
         {
             "limits": _Code("[limits, limits, difference_limits][kind]"),
             "colours": _Code('["auto", "auto", colours_of_difference][kind]'),
-            "title": _Code("calendar.month_abbr[time.month] if kind == 0 else None"),
+            "title": _Code("calendar.month_abbr[month] if kind == 0 else None"),
             "gs": _Code("grid[3 * block + kind, column]"),
         },
     )
@@ -578,6 +672,10 @@ def monthly_difference_maps(results_dir, key, layer):
             f"colours_of_difference = {_py(DIFFERENCE_COLOURS)}",
             f"ncol = {ncol}",
             "datasets = [ds_first, ds_second, ds_difference]",
+            "# the months shown, and those the first simulation, the second and the difference have: a month one",
+            "# has no output for is a blank map",
+            f"months = {_py(shown)}",
+            f"has = {_py(has)}",
             "# each colour bar: the first and last of the maps it is below, its label, whether it has arrows at its",
             "# ends, and the number of a map with its colours",
             f"bars = {_py([tuple(bar) for bar in bars])}",
@@ -590,11 +688,19 @@ def monthly_difference_maps(results_dir, key, layer):
             "    # for each block of months a row for each of the simulations and the difference",
             f"    grid = fig.add_gridspec({3 * blocks}, ncol)",
             "    maps = {}",
-            "    for index, time in enumerate(ds_first.times):",
+            "    for index, month in enumerate(months):",
             "        block, column = divmod(index, ncol)",
             "        for kind, ds_all in enumerate(datasets):",
+            "            if month not in has[kind]:",
+            "                ax = fig.add_subplot(grid[3 * block + kind, column])",
+            '                ax.axis("off")',
+            '                ax.text(0.5, 0.5, "No output", transform=ax.transAxes, ha="center", va="center")',
+            "                if kind == 0:",
+            "                    ax.set_title(calendar.month_abbr[month])",
+            "                maps[3 * block + kind, column] = ax",
+            "                continue",
             "            ds_month = ds_all.copy()",
-            "            ds_month.subset(time=index)",
+            "            ds_month.subset(months=month)",
             "            ds_month.run()",
             "\n".join("            " + line for line in _call("ds_month.pub_plot", options).split("\n")),
             "            maps[3 * block + kind, column] = fig.axes[-1]",
@@ -617,13 +723,15 @@ def monthly_difference_maps(results_dir, key, layer):
         f"# the climatology of {name}, month by month, in {pair[0]} and {pair[1]}, and the difference between them: "
         f"{saved['title'].lower()}"
     )
-    code_for_figure = _pair_figure(key, comment, paths, regrid_second, scales, size, draw, calendar=True)
+    code_for_figure = _pair_figure(
+        key, comment, paths, regrid_second, scales, size, draw, calendar=True, common=common
+    )
 
     def code_for(regrid):
         return code_for_figure(_pair_grids(paths) if regrid else None)
 
     drawn = _drawn_maps(code_for, info, "monthly_difference_maps")
-    drawn.found = {"difference_regridded": regrid_second, "pair": list(pair)}
+    drawn.found = _pair_found(regrid_second, pair, months_of, common)
     return drawn
 
 

@@ -194,6 +194,34 @@ def difference_text(found):
     return text
 
 
+def month_names(months):
+    """Months (1 to 12) as words: "March", "March and April", "March, April and May"."""
+    import calendar
+
+    names = [calendar.month_name[int(month)] for month in months]
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def months_text(found, monthly=False):
+    """What the figure of two simulations and their difference shows when the simulations do not have
+    output for the same months, as sentences, or "" if they do (found is the Drawn.found of
+    sim_plots.annual_difference_maps or, with monthly, of sim_plots.monthly_difference_maps)."""
+    common = found.get("common_months")
+    if common is None:
+        return ""
+    first, second = found["pair"]
+    each = " ".join(f"{sim} has output for {month_names(found['months'][sim])}." for sim in (first, second))
+    if monthly:
+        return (
+            f" The simulations do not have output for the same months: {each} A blank map is a month a "
+            f"simulation has no output for, and the difference is shown only for the months both have."
+        )
+    return (
+        f" The simulations do not have output for the same months: {each} So both maps and the difference "
+        f"are the mean of the months both have, {month_names(common)}."
+    )
+
+
 def conversions_text(variable, first):
     """How the simulations that give variable in other units than the first
     simulation, first, were converted into its units, as a sentence, or "" if
