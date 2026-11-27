@@ -40,7 +40,7 @@ WHERE_LABELS = {
 # the keys of the recipes OceanVal comes with, which cannot be used for your own
 BUILTIN_SOURCES = (
     "cobe2", "copepod", "coraltemp", "en4", "glodap", "glodapv3", "hansell", "ices", "mpisom", "nsbc", "nsbs",
-    "occci", "oisst", "socat", "woa23",
+    "occci", "oisst", "ostia", "socat", "woa23",
 )
 
 # what a variable's recipes are called in the report, for the variables

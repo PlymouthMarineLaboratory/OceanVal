@@ -105,6 +105,7 @@ PROFILES = {
     (GRIDDED, "temperature", "cobe2"): _profile(SURFACE, SERIES),
     (GRIDDED, "temperature", "oisst"): _profile(SURFACE, SERIES),
     (GRIDDED, "temperature", "coraltemp"): _profile(SURFACE, SERIES),
+    (GRIDDED, "temperature", "ostia"): _profile(SURFACE, SERIES),
     (GRIDDED, "pco2", "socat"): _profile(SURFACE, SERIES),
     (GRIDDED, "pco2", "mpisom"): _profile(SURFACE, CLIMATOLOGY),
     (GRIDDED, "co2flux", "mpisom"): _profile(SURFACE, CLIMATOLOGY, FLUX),

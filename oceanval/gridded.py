@@ -16,6 +16,7 @@ import numpy as np
 from oceanval.quiet_nc import nc
 import xarray as xr
 
+from oceanval import cmems
 from oceanval import data_store
 from oceanval import erddap
 from oceanval import extent
@@ -77,6 +78,16 @@ def _open_obs(path, thredds):
         # (or, for some products, made into one: see oceanval.obs_convert)
         return obs_convert.open_url(path)
     return nc.open_data(path, checks=False)
+
+
+def _server_cut(url):
+    """(module, dataset) of a dataset whose server cuts out the model's area
+    (oceanval.erddap's, or oceanval.cmems's, known by url), or None."""
+    for module in (erddap, cmems):
+        key = module.dataset_of(url)
+        if key is not None:
+            return module, key
+    return None
 
 
 def _year_months(times):
@@ -854,9 +865,9 @@ def gridded_matchup(
                     if on_observing is not None:
                         on_observing("gridded", vv, vv_source)
                     thredds = comparison["thredds"]
-                    from_erddap = erddap.dataset_of(dir_var)
-                    if from_erddap is not None:
-                        vv_file = dir_var  # its griddap address
+                    server_cut = _server_cut(dir_var)
+                    if server_cut is not None:
+                        vv_file = dir_var  # its griddap address, or product page
                     elif thredds == False:
                         if _is_nc(dir_var) and not glob.has_magic(dir_var):
                             vv_file = dir_var
@@ -899,12 +910,13 @@ def gridded_matchup(
                             )
                             thredds = False
                             vv_file = download
-                        if from_erddap is not None:
+                        if server_cut is not None:
                             # the server cuts out the model's area, rounded
                             # out to whole degrees, for the years wanted
                             bounds = _lonlat_bounds(ds_model)
                             box = data_store.snap(bounds[:2], bounds[2:]) or list(data_store.GLOBAL)
-                            ds_obs = erddap.fetch(from_erddap, sim_years, box)
+                            module, key = server_cut
+                            ds_obs = module.fetch(key, sim_years, box)
                             vv_file = ds_obs[0]
                         else:
                             ds_obs = _open_obs(vv_file, thredds)

@@ -229,13 +229,13 @@ class TestErsemDetection:
     def test_the_other_regions_datasets_start_unticked(self):
         rows = recipe_rows({"temperature": "thetao"}, "nwes")
         # no temperature dataset is for the shelf now, so the global COBE2 is the one left live
-        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False}
+        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "ostia": False, "woa23": False}
         # EN4, 0.5 to 0.9 GB a year, is never ticked by default
         assert ticks(rows, "temperature", "point") == {"ices": True, "en4": False}
 
         rows = recipe_rows({"temperature": "thetao"}, "global")
         # and within a region only the recipe the script leaves live is ticked
-        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "woa23": False}
+        assert ticks(rows, "temperature") == {"cobe2": True, "oisst": False, "coraltemp": False, "ostia": False, "woa23": False}
         assert ticks(rows, "temperature", "point") == {"ices": False, "en4": False}
 
     def test_a_dataset_outside_the_domain_is_ticked_if_it_is_the_only_one(self):

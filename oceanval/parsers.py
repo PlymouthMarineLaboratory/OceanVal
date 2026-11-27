@@ -6,7 +6,7 @@ import glob
 import warnings
 from oceanval.session import session_info
 from oceanval.utils import loud_warning
-from oceanval import erddap, model_expr, obs_convert, user_recipes
+from oceanval import cmems, erddap, model_expr, obs_convert, user_recipes
 
 
 def _checked_model_variable(model_variable, name):
@@ -176,6 +176,7 @@ recipe_list = [
     {"temperature": "cobe2"},
     {"temperature": "oisst"},
     {"temperature": "coraltemp"},
+    {"temperature": "ostia"},
     {"salinity": "woa23"},
     {"nitrate": "woa23"},
     {"ammonium": "nsbc"},
@@ -395,6 +396,21 @@ def find_recipe(x, start=None, end=None, cwd=None):
             output["climatology"] = False
             output["vertical"] = False
             output["obs_variable"] = erddap.DATASETS["coraltemp"]["variable"]
+            return output
+
+    if value == "ostia":
+        if name.lower() == "temperature":
+            # cut to the model's area by Copernicus Marine, and made monthly
+            # means of its days (see oceanval.cmems)
+            output["obs_path"] = cmems.DATASETS["ostia"]["url"]
+            output["source"] = "OSTIA"
+            output["source_info"] = "Met Office, 2026, Global Ocean OSTIA Sea Surface Temperature and Sea Ice Reprocessed (SST_GLO_SST_L4_REP_OBSERVATIONS_010_011), E.U. Copernicus Marine Service Information (CMEMS), Marine Data Store, https://doi.org/10.48670/moi-00168, as monthly means of its daily fields. Worsfold, M., S. Good, C. Atkinson, and O. Embury, 2024: Presenting a Long-Term, Reprocessed Dataset of Global Sea Surface Temperature Produced Using the OSTIA System, Remote Sensing, 16, 3358, https://doi.org/10.3390/rs16183358."
+            output["name"] = name.lower()
+            output["thredds"] = False
+            output["file_check"] = False
+            output["climatology"] = False
+            output["vertical"] = False
+            output["obs_variable"] = cmems.DATASETS["ostia"]["variable"]
             return output
 
     if value == "woa23":

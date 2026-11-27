@@ -312,6 +312,20 @@ oceanval.add_gridded_comparison(
     climatology=False,
 )
 
+# Temperature - Met Office OSTIA reprocessed, Copernicus Marine (https://doi.org/10.48670/moi-00168)
+# recipe: 'ostia'
+# Monthly means of daily satellite and in situ foundation sea surface temperature,
+# without gaps, on a 0.05 degree grid from 1982. It needs the copernicusmarine
+# toolbox and a free Copernicus Marine login (run `copernicusmarine login` once).
+# Only the model's area is downloaded, at the full resolution, so it suits
+# regional models: use 'oisst' or 'cobe2' for a global one.
+oceanval.add_gridded_comparison(
+    name="temperature",
+    model_variable="thetao",
+    recipe={"temperature": "ostia"},
+    climatology=False,
+)
+
 # Temperature - World Ocean Atlas 2023 (https://www.ncei.noaa.gov/products/world-ocean-atlas)
 # recipe: 'woa23'
 # Uses a decadal climatology, vertically resolved to ~800 m. start/end must

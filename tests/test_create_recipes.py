@@ -1063,8 +1063,8 @@ class TestSelection:
         )
 
         assert "\noceanval.add_gridded_comparison(" not in script
-        # cobe2, oisst, coraltemp and woa23, and EN4's temperature and stratification
-        assert script.count("# Not selected when this script was generated.") == 6
+        # cobe2, oisst, coraltemp, ostia and woa23, and EN4's temperature and stratification
+        assert script.count("# Not selected when this script was generated.") == 7
 
     def test_an_ices_recipe_can_be_selected_for_the_global_domain(self):
         mapping = {"temperature": "thetao", "salinity": "so"}

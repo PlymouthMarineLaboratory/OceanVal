@@ -46,13 +46,21 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   network (useful for validating recipe arguments offline).
 - **`gridded._crop_to_model_data` finds the matchup's extent on a horizontal mask** (any time or level with a model value), never with
   `to_dataframe()`: a table of a 3D model against a 3D observation is their outer product (140 GiB for vertical WOA23 oxygen, 2026-11-16).
-- **Built-in gridded observations come four ways**: over THREDDS (`thredds=True`: WOA23, NSBC, OCCCI, COBE2, OISST; CDO
+- **Built-in gridded observations come five ways**: over THREDDS (`thredds=True`: WOA23, NSBC, OCCCI, COBE2, OISST; CDO
   reads whole global fields over OPeNDAP and `gridded.py` crops them afterwards), as a plain file (GLODAP), built into a
   file (`obs_convert`), or **cut on an ERDDAP server** (`oceanval/erddap.py`, CoralTemp, 0.05°): a fine global product is
   too large to crop afterwards (~100 MB a global month), so `erddap.fetch` asks griddap for the model's box (rounded out by
   `data_store.snap`) a year at a time as `.nc` (the current year ends at `(last)`, as a time past the axis is a 404; 503 is
   retried). Such a recipe is `thredds=False` and is known by its griddap address (`erddap.dataset_of(obs_path)`), with no
   flag of its own in the comparison. It is never thinned (the user's choice, 2026-11-12): global models use OISST/COBE2.
+  Or **cut by Copernicus Marine** (`oceanval/cmems.py`, OSTIA, daily 0.05°, 2026-11-25): it has no OPeNDAP, so
+  `cmems.fetch` asks the `copernicusmarine` toolbox's `subset` for the box a month at a time, as netCDF3 (CDO 2.6
+  misreads netCDF4 string attributes: calendar "p", year 30), and makes each month a monthly mean in degC at once
+  (`cmems.monthly_mean`), deleting the days. The toolbox is optional (not in the requirements) and its own login is
+  used (`copernicusmarine login` or the env vars; `cmems.check_login`); neither is asked for before the matchup, as a
+  failed remote gridded matchup is recorded and retried like any other. `gridded._server_cut` and
+  `data_store.server_cut` route a source to `erddap` or `cmems`, which share an interface (`DATASETS`, `dataset_of`,
+  `years`, `fetch`): a new server-cut source adds a module of the same shape to both tuples.
 - **User point data** (`obs_path`) is one csv file or a directory of csv files, whichever `parsers.point_files` finds: a file is used as
   it is (whatever its name, and not filtered by `exclude`), a directory gives its `*.csv`, not those below it. Registration (`add_point_comparison`),
   `matchall.point_match`, `recipe_checks.inspect_point`, `own_data.check_entry` and the window's wording all use it, so a new place that

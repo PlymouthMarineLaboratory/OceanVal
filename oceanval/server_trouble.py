@@ -37,6 +37,7 @@ SERVERS = {
     "www.st.nmfs.noaa.gov": "NOAA",
     "store.pangaea.de": "PANGAEA",
     "coastwatch.pfeg.noaa.gov": "NOAA CoastWatch",
+    "data.marine.copernicus.eu": "Copernicus Marine",
     "ipt.vliz.be": "VLIZ (EurOBIS)",
 }
 

@@ -68,6 +68,7 @@ Global datasets
    "Global", "Temperature", "``cobe2``", "`COBE-SST 2 <https://psl.noaa.gov/data/gridded/data.cobe2.html>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_cobe2>`"
    "Global", "Temperature", "``oisst``", "`NOAA OISST v2.1 <https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_oisst>`"
    "Global", "Temperature", "``coraltemp``", "`NOAA CoralTemp v3.1 <https://coralreefwatch.noaa.gov/product/5km/index_5km_sst.php>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_coraltemp>`"
+   "Global", "Temperature", "``ostia``", "`Met Office OSTIA <https://doi.org/10.48670/moi-00168>`_", "No", "``degC``", ":doc:`Full details <recipe_examples/temperature_ostia>`"
    "Global", "Temperature", "``woa23``", "`World Ocean Atlas 2023 <https://www.ncei.noaa.gov/products/world-ocean-atlas>`_", "Yes", "``degC``", ":doc:`Full details <recipe_examples/temperature_woa23>`"
 
 
@@ -77,6 +78,7 @@ Global datasets
    recipe_examples/temperature_cobe2
    recipe_examples/temperature_oisst
    recipe_examples/temperature_coraltemp
+   recipe_examples/temperature_ostia
    recipe_examples/nitrate_woa23
    recipe_examples/phosphate_woa23
    recipe_examples/oxygen_woa23

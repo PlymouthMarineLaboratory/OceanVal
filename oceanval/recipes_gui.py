@@ -66,6 +66,7 @@ DATASET_LABELS = {
     "nsbs": "NSBS",
     "occci": "OC-CCI",
     "oisst": "OISST",
+    "ostia": "OSTIA",
     "socat": "SOCAT",
     "woa23": "WOA23",
 }

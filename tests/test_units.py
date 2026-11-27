@@ -102,6 +102,7 @@ class TestWebsiteDatasets:
         "cobe2": "COBE-SST 2",
         "oisst": "NOAA OISST v2.1",
         "coraltemp": "NOAA CoralTemp v3.1",
+        "ostia": "Met Office OSTIA",
         "mpisom": "MPI-SOM-FFN v2025",
         "socat": "SOCATv2026",
         "copepod": "NOAA COPEPOD",

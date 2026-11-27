@@ -769,6 +769,83 @@ class TestCoralTemp:
         assert "coastwatch.pfeg.noaa.gov" in data_store.BUILTIN_HOSTS
 
 
+OSTIA_URL = find_recipe({"temperature": "ostia"})["obs_path"]
+
+
+class FakeCopernicus(FakeErddap):
+    """cmems.fetch and cmems.years: an OSTIA-like file of monthly means of the
+    years and box asked for, to October 2002, and what was asked."""
+
+    def fetch(self, dataset, wanted, box):
+        ds = super().fetch(dataset, wanted, box)
+        ds.rename({"sea_surface_temperature": "analysed_sst"})
+        ds.run()
+        return ds
+
+
+class TestOstia:
+    """OSTIA is asked of Copernicus Marine for the model's box, a year at a
+    time (oceanval.cmems), and kept a year at a time like CoralTemp."""
+
+    @staticmethod
+    def comparison():
+        return {"builtin": "ostia", "obs_variable": "analysed_sst", "recipe": True}
+
+    @pytest.fixture
+    def copernicus(self, monkeypatch, tmp_path):
+        fake = FakeCopernicus(str(tmp_path))
+        monkeypatch.setattr(data_store.cmems, "fetch", fake.fetch)
+        monkeypatch.setattr(data_store.cmems, "years", fake.years)
+        # nothing of it is asked of ERDDAP, read over thredds or downloaded
+        monkeypatch.setattr(data_store.erddap, "fetch", boom)
+        monkeypatch.setattr(nc, "open_thredds", boom)
+        monkeypatch.setattr(nc, "open_url", boom)
+        return fake
+
+    def years(self, years):
+        return data_store.gridded(self.comparison(), OSTIA_URL, False, MODEL_BOX, "all", years=list(years))
+
+    def test_the_years_are_asked_for_in_the_box_and_kept(self, store, copernicus):
+        root = store()
+        got = values(self.years([2000, 2001, 2002]))
+        assert copernicus.asked == [("ostia", [2000, 2001, 2002], [3, 4, 54, 55])]
+        assert len(got.time) == 34
+        kept = entries(root)
+        # 2002 has only ten months, so it is not kept
+        assert sorted(x["year"] for x in kept) == [2000, 2001]
+        assert {x["url"] for x in kept} == {OSTIA_URL}
+        assert {x["dataset"] for x in kept} == {"ostia"}
+
+    def test_what_is_kept_is_found_without_the_server(self, store, copernicus):
+        store()
+        first = values(self.years([2000, 2001]))
+        copernicus.asked.clear()
+        copernicus.down = True
+        store()
+        again = values(self.years([2000, 2001]))
+        assert copernicus.asked == []
+        np.testing.assert_array_equal(again.analysed_sst.values, first.analysed_sst.values)
+
+    def test_only_the_years_missing_are_asked_for(self, store, copernicus):
+        store()
+        self.years([2000])
+        copernicus.asked.clear()
+        self.years([2000, 2001])
+        assert [x[1] for x in copernicus.asked] == [[2001]]
+
+    def test_a_server_that_is_down_and_nothing_kept_fails(self, store, copernicus):
+        store()
+        copernicus.down = True
+        with pytest.raises(ConnectionError):
+            self.years([2000])
+
+    def test_it_is_a_built_in_dataset_the_store_keeps(self):
+        assert data_store.keeps(self.comparison())
+        assert "ostia" in data_store.BY_YEAR and "ostia" in data_store.GRIDDED
+        assert "ostia" not in data_store.DOWNLOADS
+        assert "data.marine.copernicus.eu" in data_store.BUILTIN_HOSTS
+
+
 class TestServerLimits:
     @pytest.fixture
     def web(self):

@@ -19,7 +19,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   the chosen folder is never created. Replaced pieces are "retired" in the index and removed by
   `_tidy` a day later (another run may be reading them). `tests/test_data_store.py`'s
   `TestNothingOfYoursIsRemoved` records every remove/move to check this.
-- Pieces in `oceanval_data_store.json`: gridded = one server file (COBE2, OISST, CoralTemp: one year) × variable ×
+- Pieces in `oceanval_data_store.json`: gridded = one server file (COBE2, OISST, CoralTemp, OSTIA: one year) × variable ×
   box (model extent snapped out to whole degrees, whole globe at ≥90% area, union on widening) ×
   levels (`top` only for WOA23 surface); ICES = dataset code × year × box, raw export rows.
   Hooked in at `gridded.py` before `_open_obs` and in `ices.download_point_data`.
@@ -28,8 +28,9 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   writes, removes, makes or locks anything (a test fails if it does).
   COBE2's and OISST's THREDDS server (PSL) rate limits (HTTP 429): `data_store.download_instead` swaps in the
   plain file download (`DOWNLOADS`) when it turns requests away or fails, with or without a store.
-  CoralTemp (`BY_YEAR`) is not read over THREDDS: `_gridded_by_year` asks `erddap.years` for its years and
-  `erddap.fetch` for the box (cut on the server, a request a year); it has no `DOWNLOADS` fallback.
+  CoralTemp and OSTIA (`BY_YEAR`) are not read over THREDDS: `_gridded_by_year` asks the module
+  `server_cut(dataset)` gives (`erddap`, or `cmems` for OSTIA's monthly means) for its years and the box (cut on
+  the server, a request a year for CoralTemp, a month for OSTIA); neither has a `DOWNLOADS` fallback.
 - **ICES downloads** (`ices.py`): ICES takes about 5 s a year of ICE and 16 s a year of CTD to prepare an export, and works through
   exports asked for at once largely one after another (measured 2026-11-13: eight 1-year CTD exports at once 171 s, one 8-year
   export 72 s). So years are cut into chunks (`CHUNK_YEARS`: CTD 4, others 10) and asked for in waves of `PARALLEL_JOBS` (2) **for
