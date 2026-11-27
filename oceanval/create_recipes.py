@@ -457,6 +457,8 @@ RECIPE_CATALOGUE = (
         "variable": "temperature",
         "recipe": "ostia",
         "region": "Global",
+        # offered in the window only for a model identified as the northwest European shelf (see recipes_gui)
+        "only_domain": "nwes",
         "example_variable": "thetao",
         "notes": (
             "Temperature - Met Office OSTIA reprocessed, Copernicus Marine (https://doi.org/10.48670/moi-00168)",
@@ -611,7 +613,7 @@ _COVERAGE = {
         "temporal": "Monthly (means of daily fields)",
         "years": "1982 to the present",
         "range": (1982, None),
-        "note": "Monthly means of daily observations, not a climatology. It needs the copernicusmarine toolbox and a free Copernicus Marine login. Only the model's area is downloaded, at 0.05 degrees: for regional models.",
+        "note": "Monthly means of daily observations, not a climatology. You must be logged in to the Copernicus Marine store: run `copernicusmarine login` once (it needs the copernicusmarine toolbox and a free account). Only the model's area is downloaded, at 0.05 degrees: for regional models.",
         "url": "https://doi.org/10.48670/moi-00168",
     },
     "woa23": {

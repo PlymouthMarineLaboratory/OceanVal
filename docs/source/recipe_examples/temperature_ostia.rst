@@ -9,7 +9,9 @@ data without gaps, on a 0.05 degree (about 5 km) grid from 1982. It is daily: Co
 Marine cuts out the model's area a month at a time, and OceanVal averages each month's
 days into a monthly mean, in degC, before the daily fields are deleted. It comes at the
 full resolution, so it suits regional models: validate a global model against ``oisst``
-or ``cobe2`` instead.
+or ``cobe2`` instead. The app offers it only for a model it identified as the northwest
+European shelf (others see it under "Show hidden datasets"). You must be logged in to the
+Copernicus Marine store.
 
 It needs Copernicus Marine's toolbox, which OceanVal does not install, and a free
 `Copernicus Marine account <https://data.marine.copernicus.eu/register>`_:

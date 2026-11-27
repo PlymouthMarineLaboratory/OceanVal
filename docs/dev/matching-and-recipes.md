@@ -53,6 +53,7 @@ Moved out of `CLAUDE.md` to keep it short. The core rules stay there.
   `data_store.snap`) a year at a time as `.nc` (the current year ends at `(last)`, as a time past the axis is a 404; 503 is
   retried). Such a recipe is `thredds=False` and is known by its griddap address (`erddap.dataset_of(obs_path)`), with no
   flag of its own in the comparison. It is never thinned (the user's choice, 2026-11-12): global models use OISST/COBE2.
+  **`only_domain`** (the user's rule, 2026-11-27): a catalogue key naming the one domain a gridded dataset is offered for (OSTIA's is `"nwes"`); `recipe_rows` passes it on and the window's `outOfDomain` hides it for any other domain, like the shelf's datasets (revealed by "Show hidden datasets"). The info box's note says the Copernicus Marine login is required.
   Or **cut by Copernicus Marine** (`oceanval/cmems.py`, OSTIA, daily 0.05°, 2026-11-25): it has no OPeNDAP, so
   `cmems.fetch` asks the `copernicusmarine` toolbox's `subset` for the box a month at a time, as netCDF3 (CDO 2.6
   misreads netCDF4 string attributes: calendar "p", year 30), and makes each month a monthly mean in degC at once

@@ -2193,6 +2193,32 @@ class TestHiddenDatasetsAndShortSimulations:
             page.close()
             recipe_page.close()
 
+    def test_ostia_is_offered_only_for_a_model_on_the_shelf(self, browser):
+        OSTIA = '#rows-gridded input[aria-label^="OSTIA"]'
+        temperature = {"temperature": "thetao"}
+        for domain in ("global", "nwes"):
+            ostia = [d for row in recipe_rows(temperature, domain) for d in row["gridded"] if d["recipe"] == "ostia"]
+            assert [d["only_domain"] for d in ostia] == ["nwes"]
+            assert all(d["only_domain"] is None for row in recipe_rows(temperature, domain) for d in row["gridded"] if d["recipe"] != "ostia")
+        for context, shown in ((self.GLOBAL, False), (CONTEXT, True)):
+            errors = []
+            recipe_page = RecipePage(
+                recipe_rows(temperature, context["domain"]), {"thetao"},
+                dict(context, app={"action": "matchup", "own_vertical": False}), lambda *chosen: "/out/matchup.py",
+            )
+            page = browser.new_page()
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(recipe_page.start())
+            try:
+                assert errors == []
+                assert page.locator(OSTIA).is_visible() is shown
+                if not shown:
+                    page.check("#show-hidden-box-gridded")
+                    assert page.locator(OSTIA).is_visible()
+            finally:
+                page.close()
+                recipe_page.close()
+
     def test_nothing_is_hidden_for_a_model_on_the_shelf(self, browser):
         errors = []
         recipe_page, page = self._open(browser, CONTEXT, errors)

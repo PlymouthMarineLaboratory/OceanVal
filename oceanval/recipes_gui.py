@@ -693,6 +693,8 @@ def recipe_rows(mapping, domain, cwd=None, replaced=(), own_data=None):
             "label": entry.get("label") or DATASET_LABELS[entry["recipe"]],
             "region": REGION_TAGS[region],
             "region_name": region,
+            # the one domain the dataset is offered for (the others see it only under "Show hidden datasets")
+            "only_domain": entry.get("only_domain"),
             "user": bool(entry.get("user")),
             "path": entry.get("path"),
             "source": source,

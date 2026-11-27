@@ -1503,10 +1503,11 @@
 
   // the datasets of another region than the model's, which are hidden unless ticked or
   // "Show hidden datasets" is: a gridded dataset of the northwest European Shelf, for a
-  // model that is not on it
+  // model that is not on it, and one offered only for a domain (OSTIA's, "nwes") for a model of another
   const outOfDomain = (dataset) =>
-    dataset.kind === "gridded" && !dataset.user && !dataset.own && Boolean(context.domain) && context.domain !== "nwes" &&
-    dataset.region_name === "Northwest European Shelf";
+    dataset.kind === "gridded" && !dataset.user && !dataset.own && Boolean(context.domain) &&
+    ((context.domain !== "nwes" && dataset.region_name === "Northwest European Shelf") ||
+      (Boolean(dataset.only_domain) && context.domain !== dataset.only_domain));
   const hideable = [];
   function datasetsCell(label, chips, emptyTitle) {
     const none = el("span", { class: "none", title: emptyTitle, "aria-label": emptyTitle, text: "—" });
